@@ -46,7 +46,15 @@ export default function VoteScreen() {
   }
   if (round.my_vote != null)
     return <Waiting round={round} byId={byId} members={members} />;
-  return <Ballot round={round} members={members.filter((m) => m.id !== me?.id)} byId={byId} />;
+  return (
+    <Ballot
+      key={round.id}
+      round={round}
+      members={members.filter((m) => m.id !== me?.id)}
+      byId={byId}
+      onVoted={() => setWatching(round.id)}
+    />
+  );
 }
 
 function Question({ round, result }: { round: Round; result?: boolean }) {
@@ -58,12 +66,25 @@ function Question({ round, result }: { round: Round; result?: boolean }) {
   );
 }
 
-function Ballot({ round, members, byId }: { round: Round; members: Member[]; byId: Map<number, Member> }) {
+function Ballot({
+  round,
+  members,
+  byId,
+  onVoted,
+}: {
+  round: Round;
+  members: Member[];
+  byId: Map<number, Member>;
+  onVoted: () => void;
+}) {
   const t = useTheme();
   const qc = useQueryClient();
   const [pick, setPick] = useState<number | null>(null);
   const vote = useMutation({
     mutationFn: (target_id: number) => api('/round/current/vote', { method: 'POST', json: { target_id } }),
+    // Remember the round right away: when my vote is the last one, the next question
+    // replaces it before the refetch could show my vote, and the result must still show.
+    onSuccess: onVoted,
     onSettled: () => qc.invalidateQueries({ queryKey: keys.current }),
   });
   const picked = pick != null ? byId.get(pick) : undefined;

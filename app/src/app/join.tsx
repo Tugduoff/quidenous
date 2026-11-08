@@ -10,7 +10,6 @@ import { useTheme } from '@/lib/theme';
 
 const ERRORS: Record<string, string> = {
   bad_code: 'Code inconnu',
-  name_taken: 'Prénom déjà pris',
   bad_name: 'Prénom invalide',
 };
 
@@ -40,6 +39,7 @@ export default function Join() {
   const input = { fontFamily: t.font.semibold, fontSize: 16, color: t.txt, padding: 16 };
   return (
     <Screen
+      tabs={false}
       footer={
         <Button onPress={submit} loading={busy} disabled={!name.trim() || !code.trim()}>
           <Text style={{ fontFamily: t.font.bold, fontSize: 17, color: t.accTxt }}>Rejoindre</Text>

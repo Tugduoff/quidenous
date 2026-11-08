@@ -1,11 +1,17 @@
 import { Tabs } from 'expo-router';
 import { History, MessageCircleQuestion, Vote } from 'lucide-react-native';
 import type { ComponentType } from 'react';
-import { View } from 'react-native';
+import { Platform, View, type ViewStyle } from 'react-native';
 
 import { useTheme } from '@/lib/theme';
 
 type Icon = ComponentType<{ size?: number; color?: string }>;
+
+// Home screen web app on iPhone: the safe-area inset is only known to CSS, so pad with env().
+const WEB_TAB_BAR = {
+  height: 'auto',
+  paddingBottom: 'max(env(safe-area-inset-bottom), 8px)',
+} as unknown as ViewStyle;
 
 function TabIcon({ Icon, focused }: { Icon: Icon; focused: boolean }) {
   const t = useTheme();
@@ -29,7 +35,10 @@ export default function TabsLayout() {
       screenOptions={{
         headerShown: false,
         tabBarShowLabel: false,
-        tabBarStyle: { backgroundColor: t.bg, borderTopColor: t.line },
+        tabBarStyle: [
+          { backgroundColor: t.bg, borderTopColor: t.line },
+          Platform.OS === 'web' && WEB_TAB_BAR,
+        ],
         tabBarItemStyle: { paddingTop: 6 },
       }}>
       <Tabs.Screen name="index" options={tab(Vote, 'Vote')} />

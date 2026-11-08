@@ -6,12 +6,15 @@ export const DEFAULT_API_URL =
   (Platform.OS === 'web' && typeof location !== 'undefined' ? location.origin : '');
 export const SERVER_FIELD = Platform.OS !== 'web' && !process.env.EXPO_PUBLIC_API_URL;
 
+// Read at load time: the router rewrites the URL (and drops the query) once it mounts.
+const INVITE_CODE =
+  Platform.OS === 'web' && typeof location !== 'undefined'
+    ? new URLSearchParams(location.search).get('code')
+    : null;
+
 /** Group code baked into the build (CI secret) or carried by the invite link `/?code=…`. */
 export function presetJoinCode(): string | null {
-  if (process.env.EXPO_PUBLIC_JOIN_CODE) return process.env.EXPO_PUBLIC_JOIN_CODE;
-  if (Platform.OS === 'web' && typeof location !== 'undefined')
-    return new URLSearchParams(location.search).get('code');
-  return null;
+  return process.env.EXPO_PUBLIC_JOIN_CODE || INVITE_CODE;
 }
 
 export let API_URL = DEFAULT_API_URL;
