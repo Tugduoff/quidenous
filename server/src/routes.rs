@@ -66,14 +66,25 @@ async fn join(State(state): State<AppState>, Json(body): Json<JoinBody>) -> AppR
         .fetch_optional(&state.db)
         .await?
         .ok_or(AppError::BadRequest("bad_code"))?;
-    let taken: Option<i64> =
-        sqlx::query_scalar("SELECT id FROM members WHERE group_id = ? AND lower(name) = lower(?)")
-            .bind(group_id)
-            .bind(&name)
-            .fetch_optional(&state.db)
-            .await?;
-    if taken.is_some() {
-        return Err(AppError::Conflict("name_taken"));
+    let existing: Option<i64> = sqlx::query_scalar(
+        "SELECT id FROM members WHERE group_id = ? AND lower(name) = lower(?) ORDER BY id LIMIT 1",
+    )
+    .bind(group_id)
+    .bind(&name)
+    .fetch_optional(&state.db)
+    .await?;
+    if let Some(id) = existing {
+        let token = new_token();
+        let member = sqlx::query_as::<_, MemberRow>(
+            "UPDATE members SET token_hash = ? WHERE id = ? RETURNING *",
+        )
+        .bind(hash_token(&token))
+        .bind(id)
+        .fetch_one(&state.db)
+        .await?;
+        return Ok(Json(
+            json!({ "token": token, "member": Member::from(&member) }),
+        ));
     }
     let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM members WHERE group_id = ?")
         .bind(group_id)

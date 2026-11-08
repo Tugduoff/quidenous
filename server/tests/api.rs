@@ -73,7 +73,7 @@ async fn join(app: &Router, name: &str) -> (String, i64) {
 }
 
 #[tokio::test]
-async fn join_rejects_bad_code_and_duplicate_names() {
+async fn join_rejects_bad_code() {
     let app = test_app().await;
     let (status, _) = call(
         &app,
@@ -84,19 +84,25 @@ async fn join_rejects_bad_code_and_duplicate_names() {
     )
     .await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
-    join(&app, "Louis").await;
-    let (status, body) = call(
-        &app,
-        "POST",
-        "/join",
-        None,
-        Some(json!({ "code": "CODE-1", "name": "louis" })),
-    )
-    .await;
+}
+
+#[tokio::test]
+async fn join_with_a_taken_name_gives_back_that_member() {
+    let app = test_app().await;
+    let (old_token, id) = join(&app, "Louis").await;
+    let (new_token, again) = join(&app, " louis ").await;
+    assert_eq!(again, id);
+    assert_ne!(new_token, old_token);
+    let (status, body) = call(&app, "GET", "/me", Some(&new_token), None).await;
     assert_eq!(
-        (status, body["error"].as_str()),
-        (StatusCode::CONFLICT, Some("name_taken"))
+        (status, body["name"].as_str()),
+        (StatusCode::OK, Some("Louis"))
     );
+    let (status, _) = call(&app, "GET", "/me", Some(&old_token), None).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    let (status, body) = call(&app, "GET", "/group", Some(&new_token), None).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["members"].as_array().unwrap().len(), 1, "{body}");
 }
 
 #[tokio::test]

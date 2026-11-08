@@ -10,7 +10,6 @@ import { useTheme } from '@/lib/theme';
 
 const ERRORS: Record<string, string> = {
   bad_code: 'Code inconnu',
-  name_taken: 'Prénom déjà pris',
   bad_name: 'Prénom invalide',
 };
 
