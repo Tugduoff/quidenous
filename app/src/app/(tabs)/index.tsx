@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowRight, Bell, BellOff, BellRing, Check, Hourglass } from 'lucide-react-native';
+import { ArrowLeft, ArrowRight, Bell, BellOff, BellRing, Check, Hourglass } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { enablePush, pushState, refreshPush, type PushState } from '@/lib/push';
@@ -221,10 +221,37 @@ function Waiting({ round, byId, members }: { round: Round; byId: Map<number, Mem
   );
 }
 
-export function Result({ roundId, byId, onNext }: { roundId: number; byId: Map<number, Member>; onNext?: () => void }) {
+/** Back arrow that replaces the header when a result is opened from the history. */
+function BackHeader({ onBack }: { onBack: () => void }) {
+  const t = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Retour"
+      onPress={onBack}
+      hitSlop={8}
+      style={{ flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', height: 36 }}>
+      <ArrowLeft size={22} color={t.txt} />
+      <Text style={{ fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>Historique</Text>
+    </Pressable>
+  );
+}
+
+export function Result({
+  roundId,
+  byId,
+  onNext,
+  onBack,
+}: {
+  roundId: number;
+  byId: Map<number, Member>;
+  onNext?: () => void;
+  onBack?: () => void;
+}) {
   const t = useTheme();
   const { data: round } = useRound(roundId);
-  if (!round?.result) return <Screen><Header /></Screen>;
+  const header = onBack ? <BackHeader onBack={onBack} /> : <Header />;
+  if (!round?.result) return <Screen>{header}</Screen>;
   return (
     <Screen
       footer={
@@ -235,7 +262,7 @@ export function Result({ roundId, byId, onNext }: { roundId: number; byId: Map<n
           </Button>
         )
       }>
-      <Header />
+      {header}
       <Question round={round} result />
       <ResultBars result={round.result} byId={byId} />
     </Screen>

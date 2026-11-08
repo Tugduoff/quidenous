@@ -30,17 +30,56 @@ export function Avatar({ member, size = 40 }: { member?: Member; size?: number }
   );
 }
 
-export function AvatarStack({ members, size = 28 }: { members: (Member | undefined)[]; size?: number }) {
+const stackOverlap = (size: number) => Math.round(size * 0.3);
+
+/** Width of an AvatarStack of `count` members (each cell carries a 2 px ring). */
+export function avatarStackWidth(count: number, size: number, max?: number) {
+  const n = max ? Math.min(count, max) : count;
+  return n * (size + 4) - (n - 1) * stackOverlap(size);
+}
+
+/** Overlapping avatars. `ring` should match the surface behind it; past `max`, a "+N" bubble. */
+export function AvatarStack({
+  members,
+  size = 28,
+  ring,
+  max,
+}: {
+  members: (Member | undefined)[];
+  size?: number;
+  ring?: string;
+  max?: number;
+}) {
   const t = useTheme();
+  const shown = max && members.length > max ? members.slice(0, max - 1) : members;
+  const extra = members.length - shown.length;
+  const overlap = stackOverlap(size);
+  const cell = (key: string | number, i: number, child: ReactNode) => (
+    <View
+      key={key}
+      style={{ marginLeft: i ? -overlap : 0, borderRadius: size, borderWidth: 2, borderColor: ring ?? t.bg }}>
+      {child}
+    </View>
+  );
   return (
     <View style={{ flexDirection: 'row' }}>
-      {members.map((m, i) => (
-        <View
-          key={m?.id ?? i}
-          style={{ marginLeft: i ? -8 : 0, borderRadius: size, borderWidth: 2, borderColor: t.bg }}>
-          <Avatar member={m} size={size} />
-        </View>
-      ))}
+      {shown.map((m, i) => cell(m?.id ?? i, i, <Avatar member={m} size={size} />))}
+      {extra > 0 &&
+        cell(
+          'extra',
+          shown.length,
+          <View
+            style={{
+              width: size,
+              height: size,
+              borderRadius: size / 2,
+              backgroundColor: t.mut,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}>
+            <Text style={{ fontFamily: t.font.bold, fontSize: size * 0.36, color: t.card }}>+{extra}</Text>
+          </View>,
+        )}
     </View>
   );
 }
