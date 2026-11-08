@@ -11,9 +11,9 @@ function TabIcon({ Icon, focused }: { Icon: Icon; focused: boolean }) {
   const t = useTheme();
   const color = focused ? t.accInk : t.mut;
   return (
-    <View style={{ alignItems: 'center', gap: 5, paddingTop: 6 }}>
-      <Icon size={26} color={color} />
-      <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: focused ? color : 'transparent' }} />
+    <View style={{ alignItems: 'center', gap: 4 }}>
+      <Icon size={24} color={color} />
+      <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: focused ? color : 'transparent' }} />
     </View>
   );
 }
@@ -29,7 +29,8 @@ export default function TabsLayout() {
       screenOptions={{
         headerShown: false,
         tabBarShowLabel: false,
-        tabBarStyle: { backgroundColor: t.bg, borderTopColor: t.line, height: 84 },
+        tabBarStyle: { backgroundColor: t.bg, borderTopColor: t.line },
+        tabBarItemStyle: { paddingTop: 6 },
       }}>
       <Tabs.Screen name="index" options={tab(Vote, 'Vote')} />
       <Tabs.Screen name="history" options={tab(History, 'Historique')} />
