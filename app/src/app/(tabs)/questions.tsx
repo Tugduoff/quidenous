@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { MessageCircleQuestion, Plus } from 'lucide-react-native';
+import * as DocumentPicker from 'expo-document-picker';
+import { FileUp, MessageCircleQuestion, Plus } from 'lucide-react-native';
 import { useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 
@@ -26,6 +27,23 @@ export default function QuestionsScreen() {
     },
   });
   const ok = text.trim().length >= MIN && !add.isPending;
+  const [imported, setImported] = useState<string | null>(null);
+  const importFile = useMutation({
+    mutationFn: async () => {
+      const picked = await DocumentPicker.getDocumentAsync({ type: ['text/plain', 'text/*'], copyToCacheDirectory: true });
+      if (picked.canceled || !picked.assets[0]) return null;
+      const asset = picked.assets[0];
+      const content = asset.file ? await asset.file.text() : await (await fetch(asset.uri)).text();
+      return api<{ added: number; skipped: number }>('/questions/import', { method: 'POST', json: { text: content } });
+    },
+    onSuccess: (res) => {
+      if (!res) return;
+      setImported(`+${res.added}` + (res.skipped ? ` · ${res.skipped} déjà là` : ''));
+      qc.invalidateQueries({ queryKey: keys.queue });
+      qc.invalidateQueries({ queryKey: keys.current });
+    },
+    onError: () => setImported('Import raté'),
+  });
   return (
     <Screen>
       <Display size={30}>Questions</Display>
@@ -51,9 +69,20 @@ export default function QuestionsScreen() {
           <Plus size={26} color={ok ? t.accTxt : t.mut} />
         </Pressable>
       </View>
-      <Text style={{ fontFamily: t.font.regular, fontSize: 13, color: t.mut }}>
-        {(data?.custom.length ?? 0) + (data?.deck_left ?? 0)}
-      </Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+        <Text style={{ flex: 1, fontFamily: t.font.regular, fontSize: 13, color: t.mut }}>
+          {(data?.custom.length ?? 0) + (data?.deck_left ?? 0)}
+          {imported ? `  ·  ${imported}` : ''}
+        </Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Importer un fichier de questions"
+          disabled={importFile.isPending}
+          onPress={() => importFile.mutate()}
+          style={[{ width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card }, t.shadow]}>
+          <FileUp size={20} color={importFile.isPending ? t.mut : t.txt} />
+        </Pressable>
+      </View>
       {data?.custom.map((q) => (
         <Card key={q.id} style={{ flexDirection: 'row', gap: 12, alignItems: 'center', padding: 14 }}>
           {q.author_id != null ? (

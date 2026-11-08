@@ -28,13 +28,18 @@ const QUESTION_MIN: usize = 8;
 const QUESTION_MAX: usize = 200;
 const HISTORY_PAGE: i64 = 30;
 const PHOTO_SIZE: u32 = 256;
+const PHOTO_UPLOAD_MAX: usize = 12 * 1024 * 1024;
+const IMPORT_MAX: usize = 4 * 1024 * 1024;
 
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/health", get(|| async { "ok" }))
         .route("/join", post(join))
         .route("/me", get(me).put(update_me))
-        .route("/me/photo", put(upload_photo))
+        .route(
+            "/me/photo",
+            put(upload_photo).layer(axum::extract::DefaultBodyLimit::max(PHOTO_UPLOAD_MAX)),
+        )
         .route("/group", get(group))
         .route("/round/current", get(current_round))
         .route("/round/current/vote", post(vote))
@@ -45,6 +50,10 @@ pub fn router() -> Router<AppState> {
         .route("/history", get(history))
         .route("/questions", post(add_question))
         .route("/questions/queue", get(queue))
+        .route(
+            "/questions/import",
+            post(import_questions).layer(axum::extract::DefaultBodyLimit::max(IMPORT_MAX)),
+        )
         .route("/live", get(live))
         .route("/push/config", get(push_config))
         .route("/push/subscribe", post(push_subscribe))
@@ -577,4 +586,41 @@ async fn nudge(
         },
     );
     Ok(Json(json!({ "ok": true })))
+}
+
+#[derive(Deserialize)]
+struct ImportBody {
+    text: String,
+}
+
+/// Bulk import from a file we generate ourselves: one question per line, `#` comments.
+/// They join the shared pool (asked in random order, never twice); duplicates are skipped.
+async fn import_questions(
+    State(state): State<AppState>,
+    Me(me): Me,
+    Json(body): Json<ImportBody>,
+) -> AppResult<Json<Value>> {
+    let valid: Vec<&str> = body
+        .text
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty() && !l.starts_with('#'))
+        .filter(|l| (QUESTION_MIN..=QUESTION_MAX).contains(&l.chars().count()))
+        .collect();
+    let added = crate::deck::import(&state.db, &valid.join("\n")).await?;
+    let mut tx = state.db.begin().await?;
+    let opened = game::ensure_open_round(&mut tx, me.group_id).await?;
+    tx.commit().await?;
+    if let Some(round_id) = opened {
+        state
+            .live
+            .send(me.group_id, Event::RoundOpened { round_id });
+        notify_round(&state, me.group_id, Some(me.id), Some(round_id), false).await?;
+    }
+    state
+        .live
+        .send(me.group_id, Event::QuestionAdded { question_id: 0 });
+    Ok(Json(
+        json!({ "added": added, "skipped": valid.len() as u64 - added }),
+    ))
 }

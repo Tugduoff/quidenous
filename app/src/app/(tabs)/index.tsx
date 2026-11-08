@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowRight, Bell, BellOff, BellRing, Check, Hourglass } from 'lucide-react-native';
+import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { enablePush, pushState, refreshPush, type PushState } from '@/lib/push';
 import { Pressable, Text, View } from 'react-native';
@@ -40,7 +41,9 @@ function Header() {
       <Logo />
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
         <PushBell />
-        <Avatar member={me ?? undefined} size={36} />
+        <Pressable accessibilityRole="button" accessibilityLabel="Profil" onPress={() => router.push('/profile')}>
+          <Avatar member={me ?? undefined} size={36} />
+        </Pressable>
       </View>
     </View>
   );

@@ -6,12 +6,11 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
-import { useColorScheme } from 'react-native';
 
 import { useLive } from '@/lib/live';
 import { registerNativePush } from '@/lib/native-push';
 import { SessionProvider, useSession } from '@/lib/session';
-import { useTheme } from '@/lib/theme';
+import { useScheme, useTheme } from '@/lib/theme';
 
 SplashScreen.preventAutoHideAsync();
 const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: 10_000 } } });
@@ -19,7 +18,7 @@ const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: 10
 function Root() {
   const { ready, token } = useSession();
   const t = useTheme();
-  const scheme = useColorScheme();
+  const scheme = useScheme();
   const [fonts] = useFonts({ BricolageGrotesque_800ExtraBold, Inter_400Regular, Inter_600SemiBold, Inter_700Bold });
   useLive(token);
   useEffect(() => {
@@ -36,6 +35,7 @@ function Root() {
         <Stack.Protected guard={!!token}>
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="round/[id]" />
+          <Stack.Screen name="profile" />
         </Stack.Protected>
         <Stack.Protected guard={!token}>
           <Stack.Screen name="join" />

@@ -81,3 +81,15 @@ export async function api<T>(path: string, init: RequestInit & { json?: unknown 
 export const photoUrl = (m: Member) => (m.photo_url ? `${API_URL}${m.photo_url}` : null);
 
 export const liveUrl = (t: string) => `${API_URL.replace(/^http/, 'ws')}/api/live?token=${t}`;
+
+/** Multipart upload (photo). Content type is set by fetch with the boundary. */
+export async function apiUpload<T>(path: string, form: FormData, method = 'PUT'): Promise<T> {
+  const res = await fetch(`${API_URL}/api${path}`, {
+    method,
+    headers: token ? { authorization: `Bearer ${token}` } : undefined,
+    body: form,
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok) throw new ApiError(res.status, data?.error ?? 'unknown');
+  return data as T;
+}

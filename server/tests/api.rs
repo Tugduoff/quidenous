@@ -347,3 +347,27 @@ async fn nudges_and_unseen_results() {
     let (_, unseen) = call(&app, "GET", "/round/unseen", Some(&tug), None).await;
     assert!(unseen.is_null());
 }
+
+#[tokio::test]
+async fn questions_can_be_imported_in_bulk() {
+    let app = test_app().await;
+    let (tug, _) = join(&app, "Tugdual").await;
+    let (_, before) = call(&app, "GET", "/questions/queue", Some(&tug), None).await;
+    let text = "# batch\nQui volerait un vélo électrique ?\nQui volerait un vélo électrique ?\ntrop\nQui de nous dormirait dans un aéroport ?\n";
+    let (status, body) = call(
+        &app,
+        "POST",
+        "/questions/import",
+        Some(&tug),
+        Some(json!({ "text": text })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["added"], 2);
+    assert_eq!(body["skipped"], 1);
+    let (_, after) = call(&app, "GET", "/questions/queue", Some(&tug), None).await;
+    assert_eq!(
+        after["deck_left"].as_i64().unwrap(),
+        before["deck_left"].as_i64().unwrap() + 2
+    );
+}

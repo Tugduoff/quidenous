@@ -1,4 +1,7 @@
+import { useSyncExternalStore } from 'react';
 import { useColorScheme } from 'react-native';
+
+import { storage } from './storage';
 
 const shared = {
   acc: '#C8FF3D',
@@ -49,6 +52,38 @@ export const themes = {
 
 export type Theme = typeof themes.dark;
 
+export type ThemePref = 'system' | 'light' | 'dark';
+
+const PREF_KEY = 'qdn.theme';
+let pref: ThemePref = 'system';
+const listeners = new Set<() => void>();
+
+storage.get(PREF_KEY).then((saved) => {
+  if (saved === 'light' || saved === 'dark') setThemePref(saved);
+});
+
+export function setThemePref(next: ThemePref) {
+  pref = next;
+  storage.set(PREF_KEY, next).catch(() => {});
+  listeners.forEach((l) => l());
+}
+
+export function useThemePref(): ThemePref {
+  return useSyncExternalStore(
+    (l) => {
+      listeners.add(l);
+      return () => listeners.delete(l);
+    },
+    () => pref,
+  );
+}
+
+export function useScheme(): 'light' | 'dark' {
+  const system = useColorScheme();
+  const chosen = useThemePref();
+  return chosen === 'system' ? (system === 'light' ? 'light' : 'dark') : chosen;
+}
+
 export function useTheme(): Theme {
-  return themes[useColorScheme() === 'light' ? 'light' : 'dark'];
+  return themes[useScheme()];
 }
