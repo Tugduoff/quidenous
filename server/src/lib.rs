@@ -5,6 +5,7 @@ pub mod error;
 pub mod game;
 pub mod live;
 pub mod models;
+pub mod push;
 pub mod routes;
 
 use std::{str::FromStr, sync::Arc};
@@ -20,13 +21,14 @@ use tower_http::{
     trace::TraceLayer,
 };
 
-use crate::{config::Config, live::Live};
+use crate::{config::Config, live::Live, push::Push};
 
 #[derive(Clone)]
 pub struct AppState {
     pub db: SqlitePool,
     pub live: Live,
     pub config: Arc<Config>,
+    pub push: Push,
 }
 
 pub async fn connect(url: &str) -> anyhow_free::Result<SqlitePool> {
@@ -46,10 +48,24 @@ pub async fn state(config: Config) -> anyhow_free::Result<AppState> {
     let db = connect(&config.database_url).await?;
     deck::seed(&db).await?;
     deck::ensure_group(&db, &config.group_name, &config.join_code).await?;
+    let vapid = match &config.vapid_private_key {
+        Some(key) => Some(push::Vapid::new(key, config.vapid_subject.clone())?),
+        None => None,
+    };
+    let fcm = match &config.fcm_service_account {
+        Some(path) => Some(push::Fcm::from_json(&std::fs::read_to_string(path)?)?),
+        None => None,
+    };
+    tracing::info!(
+        web_push = vapid.is_some(),
+        fcm = fcm.is_some(),
+        "push notifications"
+    );
     Ok(AppState {
         db,
         live: Live::new(),
         config: Arc::new(config),
+        push: Push::new(vapid, fcm),
     })
 }
 

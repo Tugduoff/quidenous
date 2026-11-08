@@ -17,6 +17,9 @@ async fn test_app() -> Router {
         web_dir: None,
         group_name: "Test".into(),
         join_code: "CODE-1".into(),
+        vapid_private_key: None,
+        vapid_subject: "mailto:test@example.com".into(),
+        fcm_service_account: None,
     };
     std::fs::create_dir_all(&dir).unwrap();
     app(state(config).await.unwrap())
@@ -235,4 +238,37 @@ async fn endpoints_need_a_token() {
     let app = test_app().await;
     let (status, _) = call(&app, "GET", "/round/current", Some("nope"), None).await;
     assert_eq!(status, StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn devices_can_subscribe_to_push() {
+    let app = test_app().await;
+    let (tug, _) = join(&app, "Tugdual").await;
+    let web = json!({ "kind": "web", "endpoint": "https://push.example/abc", "p256dh": "x", "auth": "y" });
+    let (status, _) = call(
+        &app,
+        "POST",
+        "/push/subscribe",
+        Some(&tug),
+        Some(web.clone()),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    // Same endpoint again is an update, not a duplicate.
+    let (status, _) = call(&app, "POST", "/push/subscribe", Some(&tug), Some(web)).await;
+    assert_eq!(status, StatusCode::OK);
+    let (status, _) = call(
+        &app,
+        "POST",
+        "/push/subscribe",
+        Some(&tug),
+        Some(json!({ "kind": "fcm", "token": "device-1" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let bad = json!({ "kind": "web", "endpoint": "http://plain", "p256dh": "x", "auth": "y" });
+    let (status, _) = call(&app, "POST", "/push/subscribe", Some(&tug), Some(bad)).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    let (_, config) = call(&app, "GET", "/push/config", None, None).await;
+    assert!(config["vapid_public_key"].is_null());
 }

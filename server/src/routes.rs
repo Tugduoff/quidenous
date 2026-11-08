@@ -17,6 +17,7 @@ use crate::{
     game,
     live::Event,
     models::{HistoryItem, Member, MemberRow, QueuedQuestion, RoundView},
+    push::Notification,
 };
 
 const COLORS: [&str; 8] = [
@@ -43,6 +44,9 @@ pub fn router() -> Router<AppState> {
         .route("/questions", post(add_question))
         .route("/questions/queue", get(queue))
         .route("/live", get(live))
+        .route("/push/config", get(push_config))
+        .route("/push/subscribe", post(push_subscribe))
+        .route("/push/unsubscribe", post(push_unsubscribe))
 }
 
 fn clean_name(name: &str) -> AppResult<String> {
@@ -112,6 +116,7 @@ async fn join(State(state): State<AppState>, Json(body): Json<JoinBody>) -> AppR
     }
     if let Some(round_id) = opened {
         state.live.send(group_id, Event::RoundOpened { round_id });
+        notify_round(&state, group_id, Some(member.id), Some(round_id), false).await?;
     }
     Ok(Json(
         json!({ "token": token, "member": Member::from(&member) }),
@@ -225,8 +230,18 @@ async fn vote(
     Json(body): Json<VoteBody>,
 ) -> AppResult<Json<Value>> {
     let events = game::vote(&state.db, me.group_id, me.id, body.target_id).await?;
+    let closed = events
+        .iter()
+        .any(|e| matches!(e, Event::RoundClosed { .. }));
+    let opened = events.iter().find_map(|e| match e {
+        Event::RoundOpened { round_id } => Some(*round_id),
+        _ => None,
+    });
     for event in events {
         state.live.send(me.group_id, event);
+    }
+    if closed {
+        notify_round(&state, me.group_id, Some(me.id), opened, true).await?;
     }
     Ok(Json(json!({ "ok": true })))
 }
@@ -406,4 +421,111 @@ async fn relay(mut socket: WebSocket, state: AppState, group_id: i64) {
             },
         }
     }
+}
+
+/// "Result is in" and/or "new question", to every device except the person who triggered it.
+async fn notify_round(
+    state: &AppState,
+    group_id: i64,
+    skip: Option<i64>,
+    opened: Option<i64>,
+    closed: bool,
+) -> AppResult<()> {
+    let question: Option<String> = match opened {
+        Some(id) => Some(
+            sqlx::query_scalar(
+                "SELECT q.text FROM rounds r JOIN questions q ON q.id = r.question_id WHERE r.id = ?",
+            )
+            .bind(id)
+            .fetch_one(&state.db)
+            .await?,
+        ),
+        None => None,
+    };
+    let (title, body) = match (closed, question) {
+        (true, Some(q)) => ("Résultat dispo · nouvelle question".to_owned(), q),
+        (true, None) => (
+            "Résultat dispo".to_owned(),
+            "Tout le monde a voté.".to_owned(),
+        ),
+        (false, Some(q)) => ("Nouvelle question".to_owned(), q),
+        (false, None) => return Ok(()),
+    };
+    state.push.notify_group(
+        state.db.clone(),
+        group_id,
+        skip,
+        Notification {
+            title,
+            body,
+            tag: "round".into(),
+            url: "/".into(),
+        },
+    );
+    Ok(())
+}
+
+async fn push_config(State(state): State<AppState>) -> Json<Value> {
+    Json(json!({ "vapid_public_key": state.push.vapid_public_key() }))
+}
+
+#[derive(Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+enum SubscribeBody {
+    Web {
+        endpoint: String,
+        p256dh: String,
+        auth: String,
+    },
+    Fcm {
+        token: String,
+    },
+}
+
+async fn push_subscribe(
+    State(state): State<AppState>,
+    Me(me): Me,
+    Json(body): Json<SubscribeBody>,
+) -> AppResult<Json<Value>> {
+    let (kind, endpoint, p256dh, auth) = match body {
+        SubscribeBody::Web {
+            endpoint,
+            p256dh,
+            auth,
+        } => ("web", endpoint, Some(p256dh), Some(auth)),
+        SubscribeBody::Fcm { token } => ("fcm", token, None, None),
+    };
+    if !(kind == "fcm" || endpoint.starts_with("https://")) {
+        return Err(AppError::BadRequest("bad_endpoint"));
+    }
+    sqlx::query(
+        "INSERT INTO push_subscriptions (member_id, kind, endpoint, p256dh, auth) VALUES (?, ?, ?, ?, ?) \
+         ON CONFLICT (endpoint) DO UPDATE SET member_id = excluded.member_id, p256dh = excluded.p256dh, auth = excluded.auth",
+    )
+    .bind(me.id)
+    .bind(kind)
+    .bind(endpoint)
+    .bind(p256dh)
+    .bind(auth)
+    .execute(&state.db)
+    .await?;
+    Ok(Json(json!({ "ok": true })))
+}
+
+#[derive(Deserialize)]
+struct UnsubscribeBody {
+    endpoint: String,
+}
+
+async fn push_unsubscribe(
+    State(state): State<AppState>,
+    Me(me): Me,
+    Json(body): Json<UnsubscribeBody>,
+) -> AppResult<Json<Value>> {
+    sqlx::query("DELETE FROM push_subscriptions WHERE endpoint = ? AND member_id = ?")
+        .bind(body.endpoint)
+        .bind(me.id)
+        .execute(&state.db)
+        .await?;
+    Ok(Json(json!({ "ok": true })))
 }

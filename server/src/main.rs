@@ -21,6 +21,11 @@ fn health(port: u16) -> std::process::ExitCode {
 
 #[tokio::main]
 async fn main() -> quidenous_server::anyhow_free::Result<()> {
+    if std::env::args().any(|a| a == "--gen-vapid") {
+        let (private, public) = quidenous_server::push::generate_vapid();
+        println!("VAPID_PRIVATE_KEY={private}\n# public key: {public}");
+        return Ok(());
+    }
     if std::env::args().any(|a| a == "--health") {
         let port = std::env::var("PORT")
             .ok()

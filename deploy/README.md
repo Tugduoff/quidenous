@@ -57,7 +57,9 @@ Traefik: point a router at the service on port 8080; WebSockets work out of the 
 | `JOIN_CODE` | `BANDE-42` | Code to join the group. Change it. |
 | `GROUP_NAME` | `La bande` | |
 | `RUST_LOG` | `info` | `debug` to troubleshoot |
-| `VAPID_*` | — | Push notification keys, coming in the next version (instructions will be added here) |
+| `VAPID_PRIVATE_KEY` | — | Web Push key (iPhone/Android web app). Generate once: `docker compose run --rm quidenous server --gen-vapid` |
+| `VAPID_SUBJECT` | `mailto:admin@example.com` | Contact sent to push services, e.g. `mailto:you@domain` |
+| `FCM_SERVICE_ACCOUNT_FILE` | — | Android app notifications: path **inside the container** to the Firebase service account JSON, e.g. `/data/firebase.json` (put the file in `deploy/data/`) |
 
 ## Update
 
