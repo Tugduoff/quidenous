@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowRight, Check, Hourglass } from 'lucide-react-native';
+import { ArrowRight, Bell, BellOff, Check, Hourglass } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
+import { enablePush, pushState, refreshPush, type PushState } from '@/lib/push';
 import { Pressable, Text, View } from 'react-native';
 
 import { ResultBars } from '@/components/result-bars';
@@ -11,12 +12,36 @@ import { keys, useCurrentRound, useMembers, useRound } from '@/lib/queries';
 import { useSession } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
 
+function PushBell() {
+  const t = useTheme();
+  const [state, setState] = useState<PushState>(pushState);
+  useEffect(() => {
+    refreshPush().catch(() => {});
+  }, []);
+  // Only shown while notifications can still be turned on.
+  if (state === 'unsupported' || state === 'granted') return null;
+  const denied = state === 'denied';
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Activer les notifications"
+      disabled={denied}
+      onPress={() => enablePush().then(setState).catch(() => setState(pushState()))}
+      style={{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: denied ? t.card : t.acc }}>
+      {denied ? <BellOff size={18} color={t.mut} /> : <Bell size={18} color={t.accTxt} />}
+    </Pressable>
+  );
+}
+
 function Header() {
   const { me } = useSession();
   return (
     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
       <Logo />
-      <Avatar member={me ?? undefined} size={36} />
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+        <PushBell />
+        <Avatar member={me ?? undefined} size={36} />
+      </View>
     </View>
   );
 }
