@@ -4,7 +4,7 @@ import { Text, TextInput, View } from 'react-native';
 
 import { Screen } from '@/components/screen';
 import { Button, Card, Logo } from '@/components/ui';
-import { ApiError, SERVER_FIELD } from '@/lib/api';
+import { ApiError, presetJoinCode, SERVER_FIELD } from '@/lib/api';
 import { useSession } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
 
@@ -18,7 +18,8 @@ export default function Join() {
   const t = useTheme();
   const { join } = useSession();
   const [name, setName] = useState('');
-  const [code, setCode] = useState('');
+  const [preset] = useState(presetJoinCode);
+  const [code, setCode] = useState(preset ?? '');
   const [server, setServer] = useState('https://');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -30,6 +31,7 @@ export default function Join() {
       await join(code, name, SERVER_FIELD ? server : undefined);
     } catch (e) {
       setError(e instanceof ApiError ? (ERRORS[e.code] ?? 'Erreur') : 'Pas de connexion');
+      if (e instanceof ApiError && e.code === 'bad_code' && preset) setCode('');
     } finally {
       setBusy(false);
     }
@@ -61,6 +63,7 @@ export default function Join() {
           style={input}
         />
       </Card>
+      {(!preset || !code) && (
       <Card>
         <TextInput
           accessibilityLabel="Code du groupe"
@@ -73,6 +76,7 @@ export default function Join() {
           style={[input, { letterSpacing: 6 }]}
         />
       </Card>
+      )}
       {SERVER_FIELD && (
         <Card>
           <TextInput

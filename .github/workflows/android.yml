@@ -27,6 +27,9 @@ jobs:
         env:
           CI: 1
       - run: echo "EXPO_PUBLIC_API_URL=https://qdn.crabznetwork.com" >> "$GITHUB_ENV"
+      - run: echo "EXPO_PUBLIC_JOIN_CODE=$JOIN_CODE" >> "$GITHUB_ENV"
+        env:
+          JOIN_CODE: ${{ secrets.JOIN_CODE }}
       - run: ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a,armeabi-v7a --no-daemon
         working-directory: app/android
       - uses: actions/upload-artifact@v4
