@@ -9,6 +9,7 @@ import { useEffect } from 'react';
 import { useColorScheme } from 'react-native';
 
 import { useLive } from '@/lib/live';
+import { registerNativePush } from '@/lib/native-push';
 import { SessionProvider, useSession } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
 
@@ -21,6 +22,9 @@ function Root() {
   const scheme = useColorScheme();
   const [fonts] = useFonts({ BricolageGrotesque_800ExtraBold, Inter_400Regular, Inter_600SemiBold, Inter_700Bold });
   useLive(token);
+  useEffect(() => {
+    if (token) registerNativePush().catch(() => {});
+  }, [token]);
   useEffect(() => {
     if (ready && fonts) SplashScreen.hideAsync();
   }, [ready, fonts]);

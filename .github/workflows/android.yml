@@ -23,6 +23,9 @@ jobs:
           cache-dependency-path: app/package-lock.json
       - uses: gradle/actions/setup-gradle@v4
       - run: npm ci --no-audit --no-fund
+      - run: printf '%s' "$GOOGLE_SERVICES_JSON" > google-services.json
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
       - run: npx expo prebuild --platform android --no-install
         env:
           CI: 1
