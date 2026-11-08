@@ -1,0 +1,79 @@
+<!doctype html><html><head><meta charset="utf-8"><script>
+window.fontsReady=(async()=>{for(const [fam,file,w] of [['Inter','Inter_wght_400.ttf','400'],['Inter','Inter_wght_400.ttf','500'],['Inter','Inter_wght_600.ttf','600'],['Inter','Inter_wght_700.ttf','700'],['Bricolage Grotesque','Bricolage_Grotesque_wght_800.ttf','800']]){const buf=await (await fetch('fonts/'+file)).arrayBuffer();const f=new FontFace(fam,buf,{weight:w});await f.load();document.fonts.add(f);}})();
+</script><style>
+.phone{--bg:#0E0E12;--card:#1A1A21;--card2:#24242D;--line:#2E2E38;--txt:#F5F5F7;--mut:#8D8D99;--acc:#C8FF3D;--accInk:#C8FF3D;--accSoft:#1F2412;--accTxt:#0E0E12;--tag:#FF4FA3}
+.phone.light{--bg:#F5F5F0;--card:#FFFFFF;--card2:#ECECE5;--line:#E2E2DA;--txt:#121216;--mut:#6E6E78;--acc:#C8FF3D;--accInk:#4F7D00;--accSoft:#F1FFD0;--accTxt:#121216;--tag:#E8338A}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#777;font-family:Inter,sans-serif}
+.phone{width:390px;height:844px;background:var(--bg);color:var(--txt);position:relative;overflow:hidden;display:flex;flex-direction:column;margin-bottom:20px}
+.light .card,.light .m,.light .h,.light .bar,.light .input{box-shadow:0 1px 3px rgba(0,0,0,.05),0 2px 10px rgba(0,0,0,.05)}
+.sb{height:44px;display:flex;justify-content:space-between;align-items:center;padding:0 24px;font-size:14px;font-weight:600}
+.top{display:flex;justify-content:space-between;align-items:center;padding:8px 20px 0}
+.logo{font-family:'Bricolage Grotesque';font-weight:800;font-size:22px;letter-spacing:-.5px}.logo span{color:var(--accInk)}
+.i{display:inline-flex;width:20px;height:20px}
+.av{border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;color:#121216;flex-shrink:0}
+.q{font-family:'Bricolage Grotesque';font-weight:800;font-size:34px;line-height:1.08;letter-spacing:-1px;padding:20px 20px 8px}
+.tag{align-self:flex-start;background:var(--tag);color:#fff;font-weight:700;font-size:12px;border-radius:99px;padding:5px 10px;margin:20px 20px 0;letter-spacing:.3px;text-transform:uppercase}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:16px 20px}
+.m{background:var(--card);border-radius:20px;padding:14px;display:flex;align-items:center;gap:10px;font-weight:600;font-size:16px;border:2px solid transparent}
+.m.sel{border-color:var(--accInk);background:var(--accSoft)}
+.cta{margin:auto 20px 12px;background:var(--acc);color:var(--accTxt);border-radius:99px;height:58px;display:flex;align-items:center;justify-content:center;gap:8px;font-weight:700;font-size:17px}
+.cta.off{background:var(--card2);color:var(--mut)}
+.tabs{height:84px;border-top:1px solid var(--line);display:flex;justify-content:space-around;padding-top:12px;color:var(--mut);background:var(--bg)}
+.tabs div{display:flex;flex-direction:column;align-items:center;gap:6px}
+.tabs .on{color:var(--accInk)}.tabs .on .dot{background:var(--accInk)}
+.tabs .i{width:26px;height:26px}.dot{width:5px;height:5px;border-radius:50%;background:transparent}
+.small{font-size:13px;color:var(--mut)}
+.voters{display:flex;align-items:center;gap:8px;padding:0 20px}.stack{display:flex}.stack .av{border:2px solid var(--bg);margin-left:-8px}.stack .av:first-child{margin-left:0}
+.bar{margin:0 20px 12px;background:var(--card);border-radius:18px;overflow:hidden;position:relative;height:64px;display:flex;align-items:center}
+.fill{position:absolute;inset:0 auto 0 0;opacity:.28}
+.bar.win{box-shadow:inset 0 0 0 2px var(--wc)}.bar.win .fill{opacity:.55}
+.bar .in{position:relative;display:flex;align-items:center;gap:10px;padding:0 12px;width:100%}
+.bar .nm{font-weight:700;font-size:16px;flex:1;display:flex;align-items:center;gap:6px}
+.pc{font-family:'Bricolage Grotesque';font-weight:800;font-size:22px}
+.h{background:var(--card);border-radius:20px;padding:14px;margin:0 20px 10px;display:flex;gap:12px;align-items:center}
+.h .t{font-weight:600;font-size:15px;line-height:1.25}.h .s{font-size:12px;color:var(--mut);margin-top:4px;display:flex;align-items:center;gap:4px}
+.title{font-family:'Bricolage Grotesque';font-weight:800;font-size:30px;letter-spacing:-.8px;padding:16px 20px 12px}
+.input{margin:0 20px 12px;background:var(--card);border-radius:16px;padding:16px;color:var(--mut);font-size:16px}
+.seg{display:flex;gap:8px;padding:0 20px 14px}.seg div{padding:8px 14px;border-radius:99px;background:var(--card);font-size:13px;font-weight:600;color:var(--mut)}.seg .on{background:var(--txt);color:var(--bg)}
+.rate{display:flex;gap:10px;padding:4px 20px}.rate div{width:52px;height:44px;border-radius:99px;background:var(--card);display:flex;align-items:center;justify-content:center;color:var(--mut)}.rate .i{width:22px;height:22px}
+.fab{width:52px;height:52px;border-radius:50%;background:var(--acc);color:var(--accTxt);display:flex;align-items:center;justify-content:center}
+</style></head><body><script>
+const I={"plus": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"100%\" height=\"100%\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" > <path d=\"M5 12h14\" /> <path d=\"M12 5v14\" /> </svg>", "camera": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"100%\" height=\"100%\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" > <path d=\"M13.997 4a2 2 0 0 1 1.76 1.05l.486.9A2 2 0 0 0 18.003 7H20a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h1.997a2 2 0 0 0 1.759-1.048l.489-.904A2 2 0 0 1 10.004 4z\" /> <circle cx=\"12\" cy=\"13\" r=\"3\" /> </svg>", "check": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"100%\" height=\"100%\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" > <path d=\"M20 6 9 17l-5-5\" /> </svg>", "vote": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"100%\" height=\"100%\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" > <path d=\"m9 12 2 2 4-4\" /> <path d=\"M5 7c0-1.1.9-2 2-2h10a2 2 0 0 1 2 2v12H5V7Z\" /> <path d=\"M22 19H2\" /> </svg>", "arrow-right": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"100%\" height=\"100%\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" > <path d=\"M5 12h14\" /> <path d=\"m12 5 7 7-7 7\" /> </svg>", "history": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"100%\" height=\"100%\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" > <path d=\"M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8\" /> <path d=\"M3 3v5h5\" /> <path d=\"M12 7v5l4 2\" /> </svg>", "thumbs-down": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"100%\" height=\"100%\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" > <path d=\"M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22a3.13 3.13 0 0 1-3-3.88Z\" /> <path d=\"M17 14V2\" /> </svg>", "crown": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"100%\" height=\"100%\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" > <path d=\"M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.734H5.81a1 1 0 0 1-.957-.734L2.02 6.02a.5.5 0 0 1 .798-.519l4.276 3.664a1 1 0 0 0 1.516-.294z\" /> <path d=\"M5 21h14\" /> </svg>", "thumbs-up": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"100%\" height=\"100%\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" > <path d=\"M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z\" /> <path d=\"M7 10v12\" /> </svg>", "hourglass": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"100%\" height=\"100%\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" > <path d=\"M5 22h14\" /> <path d=\"M5 2h14\" /> <path d=\"M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22\" /> <path d=\"M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2\" /> </svg>", "message-circle-question": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"100%\" height=\"100%\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" > <path d=\"M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719\" /> <path d=\"M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3\" /> <path d=\"M12 17h.01\" /> </svg>"};
+const ic=(n,s)=>`<span class="i" ${s?`style="width:${s}px;height:${s}px"`:''}>${I[n]}</span>`;
+const P={Tugdual:'#FF7A45',Ravenne:'#FF4FA3',Louis:'#5BC8FF','Sébastien':'#FFB547'};
+const av=(n,s=40)=>`<div class="av" style="width:${s}px;height:${s}px;background:${P[n]};font-size:${s*.42}px">${n[0]}</div>`;
+const sb=`<div class="sb"><span>21:42</span><span>5G</span></div>`;
+const tabs=(on)=>`<div class="tabs">${[['vote','Vote'],['history','Historique'],['message-circle-question','Questions']].map(([i,t])=>`<div class="${t==on?'on':''}">${ic(i)}<span class="dot"></span></div>`).join('')}</div>`;
+const hdr=`<div class="top"><div class="logo">qui de nous<span>?</span></div>${av('Tugdual',36)}</div>`;
+const Q="Qui vendrait le groupe entier pour 10&nbsp;000&nbsp;€&nbsp;?";
+const screens={
+join:`${sb}<div style="padding:60px 24px 0"><div class="logo" style="font-size:44px;line-height:1">qui de<br>nous<span>?</span></div><p class="small" style="font-size:16px;margin-top:14px;line-height:1.4">Une question. Tout le monde vote.<br>Personne n'est à l'abri.</p></div>
+<div style="display:flex;justify-content:center;margin:44px 0 24px"><div class="av" style="width:112px;height:112px;background:var(--card);color:var(--mut);border:2px dashed var(--line)">${ic('camera',32)}</div></div>
+<div class="input" style="color:var(--txt)">Tugdual</div><div class="input" style="letter-spacing:6px;color:var(--txt);font-weight:700">BANDE-42</div>
+<div class="cta">Rejoindre ${ic('arrow-right')}</div><div style="height:20px"></div>`,
+vote:`${sb}${hdr}<div class="tag">Dilemme · #47</div><div class="q">${Q}</div>
+<div class="voters"><div class="stack">${av('Ravenne',28)}${av('Sébastien',28)}</div><span class="small">2/4</span></div>
+<div class="grid">${['Louis','Ravenne','Sébastien'].map(n=>`<div class="m ${n=='Louis'?'sel':''}">${av(n,40)}${n}</div>`).join('')}</div>
+<div class="cta">Voter pour Louis</div>${tabs('Vote')}`,
+wait:`${sb}${hdr}<div class="tag">Dilemme · #47</div><div class="q">${Q}</div>
+<div class="card" style="margin:18px 20px;background:var(--card);border-radius:24px;padding:20px;display:flex;align-items:center;gap:14px">${av('Louis',56)}<div style="flex:1;font-weight:700;font-size:18px">Louis</div><div style="width:36px;height:36px;border-radius:50%;background:var(--acc);color:var(--accTxt);display:flex;align-items:center;justify-content:center">${ic('check')}</div></div>
+<div style="padding:4px 20px">${['Louis'].map(n=>`<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">${av(n,32)}<span style="font-weight:600">${n}</span><span style="margin-left:auto;color:var(--mut)">${ic('hourglass',18)}</span></div>`).join('')}
+<div style="display:flex;align-items:center;gap:10px;margin-top:6px"><div class="stack">${['Tugdual','Ravenne','Sébastien'].map(n=>av(n,32)).join('')}</div><span style="color:var(--accInk)">${ic('check',18)}</span></div></div>
+<div class="cta off">3/4</div>${tabs('Vote')}`,
+result:`${sb}${hdr}<div class="tag" style="background:var(--acc);color:var(--accTxt)">Résultat · #47</div><div class="q" style="font-size:28px">${Q}</div>
+<div style="height:10px"></div>
+${[['Louis',50,['Tugdual','Sébastien']],['Ravenne',25,['Louis']],['Sébastien',25,['Ravenne']]].map(([n,p,v],i)=>`<div class="bar ${i==0?'win':''}" style="--wc:${P[n]}"><div class="fill" style="width:${p}%;background:${P[n]}"></div><div class="in">${av(n,40)}<span class="nm">${n}${i==0?`<span style="color:${P[n]}">${ic('crown',18)}</span>`:''}</span><div class="stack">${v.map(x=>av(x,24)).join('')}</div><span class="pc">${p}%</span></div></div>`).join('')}
+<div class="rate"><div>${ic('thumbs-up')}</div><div>${ic('thumbs-down')}</div></div>
+<div class="cta">Suivante ${ic('arrow-right')}</div>${tabs('Vote')}`,
+history:`${sb}<div class="title">Historique</div><div class="seg"><div class="on">Tout</div><div>Moi</div><div>Dilemmes</div></div>
+${[['Louis','Qui vendrait le groupe entier pour 10&nbsp;000&nbsp;€&nbsp;?','Hier','2/4'],['Ravenne','Qui survivrait le moins longtemps sur une île déserte ?','Jeu.','3/4'],['Tugdual','Qui finirait en prison en premier ?','Mer.','2/4'],['Sébastien','Qui oublierait ton anniversaire même avec un rappel ?','Mar.','4/4'],['Louis','Qui ghosterait le groupe sans prévenir ?','Lun.','2/4']].map(([n,q,d,s])=>`<div class="h">${av(n,44)}<div><div class="t">${q}</div><div class="s"><span style="color:${P[n]}">${ic('crown',14)}</span>${n} · ${s} · ${d}</div></div></div>`).join('')}
+<div style="flex:1"></div>${tabs('Historique')}`,
+questions:`${sb}<div class="title">Questions</div>
+<div style="display:flex;gap:10px;align-items:flex-end;padding:0 20px 18px"><div class="input" style="margin:0;flex:1;min-height:96px">Qui de nous…</div><div class="fab">${ic('plus',26)}</div></div>
+<div class="small" style="padding:0 20px 10px">142 à venir</div>
+${[['Ravenne','Qui serait le pire colocataire ?'],['Tugdual','Qui choisirait l’argent plutôt que l’amour ?'],[null,'Qui tiendrait le moins longtemps sans téléphone ?']].map(([n,q])=>`<div class="h">${n?av(n,32):`<div class="av" style="width:32px;height:32px;background:var(--card2);color:var(--mut)">${ic('message-circle-question',16)}</div>`}<div><div class="t">${q}</div></div></div>`).join('')}
+<div style="flex:1"></div>${tabs('Questions')}`
+};
+for(const theme of ['dark','light'])for(const [k,v] of Object.entries(screens)){const d=document.createElement('div');d.className='phone '+theme;d.id=k+'-'+theme;d.innerHTML=v;document.body.appendChild(d);}
+</script></body></html>
