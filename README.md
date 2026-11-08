@@ -39,7 +39,4 @@ Config (env): `PORT` (8080), `DATA_DIR` (`data`), `DATABASE_URL`, `GROUP_NAME`, 
 
 ## Deploy (homelab)
 
-```bash
-cd deploy && cp .env.example .env   # set JOIN_CODE
-docker compose up -d --build        # then reverse-proxy https → 127.0.0.1:8080
-```
+See [deploy/README.md](deploy/README.md): one Docker image (API + web app), HTTPS reverse proxy with WebSockets.
