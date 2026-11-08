@@ -204,6 +204,14 @@ pub struct Push {
     fcm: Option<Arc<Fcm>>,
 }
 
+enum Target {
+    Group {
+        group_id: i64,
+        skip_member: Option<i64>,
+    },
+    Member(i64),
+}
+
 /// What happened to one delivery: keep the subscription, or drop it because the device is gone.
 enum Delivery {
     Sent,
@@ -232,17 +240,38 @@ impl Push {
         skip_member: Option<i64>,
         n: Notification,
     ) {
+        self.notify(
+            db,
+            Target::Group {
+                group_id,
+                skip_member,
+            },
+            n,
+        );
+    }
+
+    /// Sends to every device of one member. Runs in the background.
+    pub fn notify_member(&self, db: SqlitePool, member_id: i64, n: Notification) {
+        self.notify(db, Target::Member(member_id), n);
+    }
+
+    fn notify(&self, db: SqlitePool, target: Target, n: Notification) {
         let push = self.clone();
         tokio::spawn(async move {
-            let subs: Vec<Subscription> = match sqlx::query_as(
-                "SELECT s.id, s.kind, s.endpoint, s.p256dh, s.auth FROM push_subscriptions s \
-                 JOIN members m ON m.id = s.member_id WHERE m.group_id = ? AND m.id IS NOT ?",
-            )
-            .bind(group_id)
-            .bind(skip_member)
-            .fetch_all(&db)
-            .await
-            {
+            let query = match target {
+                Target::Group { group_id, skip_member } => sqlx::query_as(
+                    "SELECT s.id, s.kind, s.endpoint, s.p256dh, s.auth FROM push_subscriptions s \
+                     JOIN members m ON m.id = s.member_id WHERE m.group_id = ? AND m.id IS NOT ?",
+                )
+                .bind(group_id)
+                .bind(skip_member),
+                Target::Member(member_id) => sqlx::query_as(
+                    "SELECT id, kind, endpoint, p256dh, auth FROM push_subscriptions WHERE member_id = ? AND ? IS NULL",
+                )
+                .bind(member_id)
+                .bind(None::<i64>),
+            };
+            let subs: Vec<Subscription> = match query.fetch_all(&db).await {
                 Ok(subs) => subs,
                 Err(e) => return tracing::error!(error = %e, "push: load subscriptions"),
             };

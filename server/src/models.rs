@@ -9,6 +9,7 @@ pub struct MemberRow {
     pub photo: Option<String>,
     pub token_hash: String,
     pub created_at: String,
+    pub seen_round: i64,
 }
 
 #[derive(Clone, Debug, Serialize)]

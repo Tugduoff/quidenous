@@ -269,3 +269,81 @@ async fn you_can_vote_for_yourself() {
     .await;
     assert_eq!(status, StatusCode::OK);
 }
+
+#[tokio::test]
+async fn nudges_and_unseen_results() {
+    let app = test_app().await;
+    let (tug, tug_id) = join(&app, "Tugdual").await;
+    let (louis, louis_id) = join(&app, "Louis").await;
+
+    // Nudge someone who has not voted: once per question, not yourself, not someone who voted.
+    let nudge = |id: i64| json!({ "member_id": id });
+    let (status, _) = call(
+        &app,
+        "POST",
+        "/round/current/nudge",
+        Some(&tug),
+        Some(nudge(louis_id)),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let (status, body) = call(
+        &app,
+        "POST",
+        "/round/current/nudge",
+        Some(&tug),
+        Some(nudge(louis_id)),
+    )
+    .await;
+    assert_eq!(
+        (status, body["error"].as_str()),
+        (StatusCode::CONFLICT, Some("already_nudged"))
+    );
+    let (status, _) = call(
+        &app,
+        "POST",
+        "/round/current/nudge",
+        Some(&tug),
+        Some(nudge(tug_id)),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+
+    // Tug votes, then Louis closes the round while Tug is away.
+    let (_, round) = call(&app, "GET", "/round/current", Some(&tug), None).await;
+    let first = round["id"].as_i64().unwrap();
+    call(
+        &app,
+        "POST",
+        "/round/current/vote",
+        Some(&tug),
+        Some(json!({ "target_id": louis_id })),
+    )
+    .await;
+    let (_, unseen) = call(&app, "GET", "/round/unseen", Some(&tug), None).await;
+    assert!(unseen.is_null(), "still open: nothing to recap");
+    call(
+        &app,
+        "POST",
+        "/round/current/vote",
+        Some(&louis),
+        Some(json!({ "target_id": tug_id })),
+    )
+    .await;
+
+    // Back in the app: Tug gets the recap of the finished question first.
+    let (_, unseen) = call(&app, "GET", "/round/unseen", Some(&tug), None).await;
+    assert_eq!(unseen["id"].as_i64(), Some(first));
+    assert!(unseen["result"].is_array());
+    let (status, _) = call(
+        &app,
+        "POST",
+        &format!("/rounds/{first}/seen"),
+        Some(&tug),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let (_, unseen) = call(&app, "GET", "/round/unseen", Some(&tug), None).await;
+    assert!(unseen.is_null());
+}

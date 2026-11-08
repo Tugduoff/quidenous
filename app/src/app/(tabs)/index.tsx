@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowRight, Bell, BellOff, Check, Hourglass } from 'lucide-react-native';
+import { ArrowRight, Bell, BellOff, BellRing, Check, Hourglass } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { enablePush, pushState, refreshPush, type PushState } from '@/lib/push';
 import { Pressable, Text, View } from 'react-native';
@@ -8,7 +8,7 @@ import { ResultBars } from '@/components/result-bars';
 import { Screen } from '@/components/screen';
 import { Avatar, AvatarStack, Button, Card, Display, Logo, Tag } from '@/components/ui';
 import { api, type Member, type Round } from '@/lib/api';
-import { keys, useCurrentRound, useMembers, useRound } from '@/lib/queries';
+import { keys, useCurrentRound, useMembers, useRound, useUnseenRound } from '@/lib/queries';
 import { useSession } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
 
@@ -51,16 +51,18 @@ export default function VoteScreen() {
   const { me } = useSession();
   const { byId, members } = useMembers();
   const current = useCurrentRound();
-  // The round I voted in: once it closes, show its result until "next".
-  const [watching, setWatching] = useState<number | null>(null);
+  const unseen = useUnseenRound();
+  const qc = useQueryClient();
   const round = current.data;
 
-  useEffect(() => {
-    if (round?.my_vote != null) setWatching(round.id);
-  }, [round?.id, round?.my_vote]);
-
-  const showResult = watching != null && round?.id !== watching;
-  if (showResult) return <Result roundId={watching} byId={byId} onNext={() => setWatching(null)} />;
+  // Recap first: a question I voted on finished while I was away (or with my vote).
+  if (unseen.data) {
+    const seen = () =>
+      api(`/rounds/${unseen.data!.id}/seen`, { method: 'POST' }).finally(() =>
+        qc.invalidateQueries({ queryKey: keys.unseen }),
+      );
+    return <Result key={unseen.data.id} roundId={unseen.data.id} byId={byId} onNext={seen} />;
+  }
   if (!round) {
     return (
       <Screen>
@@ -77,7 +79,7 @@ export default function VoteScreen() {
       round={round}
       members={members}
       byId={byId}
-      onVoted={() => setWatching(round.id)}
+      onVoted={() => qc.invalidateQueries({ queryKey: keys.unseen })}
     />
   );
 }
@@ -163,8 +165,30 @@ function Ballot({
   );
 }
 
+/** Sends a "hurry up" push to someone who has not voted yet. Once per question. */
+function NudgeButton({ member, roundId }: { member: Member; roundId: number }) {
+  const t = useTheme();
+  const [sent, setSent] = useState(false);
+  useEffect(() => setSent(false), [roundId]);
+  const nudge = useMutation({
+    mutationFn: () => api('/round/current/nudge', { method: 'POST', json: { member_id: member.id } }),
+    onSettled: () => setSent(true),
+  });
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`Relancer ${member.name}`}
+      disabled={sent || nudge.isPending}
+      onPress={() => nudge.mutate()}
+      style={{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: sent ? t.card : t.acc }}>
+      {sent ? <Check size={18} color={t.accInk} /> : <BellRing size={18} color={t.accTxt} />}
+    </Pressable>
+  );
+}
+
 function Waiting({ round, byId, members }: { round: Round; byId: Map<number, Member>; members: Member[] }) {
   const t = useTheme();
+  const { me } = useSession();
   const target = round.my_vote != null ? byId.get(round.my_vote) : undefined;
   const pending = members.filter((m) => !round.voter_ids.includes(m.id));
   return (
@@ -183,6 +207,7 @@ function Waiting({ round, byId, members }: { round: Round; byId: Map<number, Mem
           <Avatar member={m} size={32} />
           <Text style={{ flex: 1, fontFamily: t.font.semibold, color: t.txt }}>{m.name}</Text>
           <Hourglass size={18} color={t.mut} />
+          {m.id !== me?.id && <NudgeButton member={m} roundId={round.id} />}
         </View>
       ))}
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>

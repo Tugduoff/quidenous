@@ -38,7 +38,10 @@ pub fn router() -> Router<AppState> {
         .route("/group", get(group))
         .route("/round/current", get(current_round))
         .route("/round/current/vote", post(vote))
+        .route("/round/unseen", get(unseen_round))
+        .route("/round/current/nudge", post(nudge))
         .route("/rounds/{id}", get(round))
+        .route("/rounds/{id}/seen", post(mark_seen))
         .route("/history", get(history))
         .route("/questions", post(add_question))
         .route("/questions/queue", get(queue))
@@ -496,5 +499,82 @@ async fn push_unsubscribe(
         .bind(me.id)
         .execute(&state.db)
         .await?;
+    Ok(Json(json!({ "ok": true })))
+}
+
+async fn unseen_round(
+    State(state): State<AppState>,
+    Me(me): Me,
+) -> AppResult<Json<Option<RoundView>>> {
+    let Some(round) = game::unseen_round(&state.db, &me).await? else {
+        return Ok(Json(None));
+    };
+    Ok(Json(Some(game::view(&state.db, round, me.id).await?)))
+}
+
+async fn mark_seen(
+    State(state): State<AppState>,
+    Me(me): Me,
+    Path(id): Path<i64>,
+) -> AppResult<Json<Value>> {
+    let round = game::round(&state.db, me.group_id, id).await?;
+    sqlx::query("UPDATE members SET seen_round = MAX(seen_round, ?) WHERE id = ?")
+        .bind(round.number)
+        .bind(me.id)
+        .execute(&state.db)
+        .await?;
+    Ok(Json(json!({ "ok": true })))
+}
+
+#[derive(Deserialize)]
+struct NudgeBody {
+    member_id: i64,
+}
+
+/// "Hurry up": a push to one member who has not voted on the open question. Once per question.
+async fn nudge(
+    State(state): State<AppState>,
+    Me(me): Me,
+    Json(body): Json<NudgeBody>,
+) -> AppResult<Json<Value>> {
+    if body.member_id == me.id {
+        return Err(AppError::BadRequest("self_nudge"));
+    }
+    let round = game::open_round(&state.db, me.group_id)
+        .await?
+        .ok_or(AppError::Conflict("no_open_round"))?;
+    let target: Option<i64> = sqlx::query_scalar(
+        "SELECT id FROM members m WHERE m.id = ? AND m.group_id = ? \
+         AND NOT EXISTS (SELECT 1 FROM votes v WHERE v.round_id = ? AND v.voter_id = m.id)",
+    )
+    .bind(body.member_id)
+    .bind(me.group_id)
+    .bind(round.id)
+    .fetch_optional(&state.db)
+    .await?;
+    if target.is_none() {
+        return Err(AppError::Conflict("already_voted"));
+    }
+    let inserted = sqlx::query(
+        "INSERT INTO nudges (round_id, from_id, to_id) VALUES (?, ?, ?) ON CONFLICT DO NOTHING",
+    )
+    .bind(round.id)
+    .bind(me.id)
+    .bind(body.member_id)
+    .execute(&state.db)
+    .await?;
+    if inserted.rows_affected() == 0 {
+        return Err(AppError::Conflict("already_nudged"));
+    }
+    state.push.notify_member(
+        state.db.clone(),
+        body.member_id,
+        Notification {
+            title: format!("{} attend ton vote", me.name),
+            body: round.text,
+            tag: "round".into(),
+            url: "/".into(),
+        },
+    );
     Ok(Json(json!({ "ok": true })))
 }

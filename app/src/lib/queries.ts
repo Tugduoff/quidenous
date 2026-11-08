@@ -5,6 +5,7 @@ import { api, type HistoryItem, type Member, type Queue, type Round } from './ap
 export const keys = {
   group: ['group'] as const,
   current: ['round', 'current'] as const,
+  unseen: ['round', 'unseen'] as const,
   round: (id: number) => ['round', id] as const,
   history: ['history'] as const,
   queue: ['queue'] as const,
@@ -15,6 +16,10 @@ export const useGroup = () =>
 
 export const useCurrentRound = () =>
   useQuery({ queryKey: keys.current, queryFn: () => api<Round | null>('/round/current') });
+
+/** A finished question I voted on but have not seen the result of (I was away when it closed). */
+export const useUnseenRound = () =>
+  useQuery({ queryKey: keys.unseen, queryFn: () => api<Round | null>('/round/unseen') });
 
 export const useRound = (id: number | null) =>
   useQuery({ queryKey: keys.round(id ?? 0), queryFn: () => api<Round>(`/rounds/${id}`), enabled: id != null });

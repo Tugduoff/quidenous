@@ -34,6 +34,23 @@ pub async fn open_round(db: &SqlitePool, group_id: i64) -> AppResult<Option<Roun
     .await?)
 }
 
+/// Oldest finished question I voted on whose result I have not seen yet.
+pub async fn unseen_round(
+    db: &SqlitePool,
+    me: &crate::models::MemberRow,
+) -> AppResult<Option<RoundRow>> {
+    Ok(sqlx::query_as::<_, RoundRow>(round_select!(
+        "WHERE r.group_id = ? AND r.closed_at IS NOT NULL AND r.number > ? \
+         AND EXISTS (SELECT 1 FROM votes v WHERE v.round_id = r.id AND v.voter_id = ?) \
+         ORDER BY r.number LIMIT 1"
+    ))
+    .bind(me.group_id)
+    .bind(me.seen_round)
+    .bind(me.id)
+    .fetch_optional(db)
+    .await?)
+}
+
 pub async fn round(db: &SqlitePool, group_id: i64, round_id: i64) -> AppResult<RoundRow> {
     sqlx::query_as::<_, RoundRow>(round_select!("WHERE r.group_id = ? AND r.id = ?"))
         .bind(group_id)
