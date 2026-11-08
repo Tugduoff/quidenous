@@ -1,9 +1,15 @@
 import { Platform } from 'react-native';
 
-/** Same origin on web (served by the Rust server), configured URL on phones. */
-export const API_URL =
+/** Same origin on web (served by the Rust server); on phones, the build URL or the one typed at join. */
+export const DEFAULT_API_URL =
   process.env.EXPO_PUBLIC_API_URL ??
-  (Platform.OS === 'web' && typeof location !== 'undefined' ? location.origin : 'http://localhost:8080');
+  (Platform.OS === 'web' && typeof location !== 'undefined' ? location.origin : '');
+export const SERVER_FIELD = Platform.OS !== 'web' && !process.env.EXPO_PUBLIC_API_URL;
+
+export let API_URL = DEFAULT_API_URL;
+export const setApiUrl = (url: string) => {
+  API_URL = url.trim().replace(/\/+$/, '');
+};
 
 export type Member = { id: number; name: string; color: string; photo_url: string | null };
 export type Tally = { target_id: number; count: number; voter_ids: number[] };

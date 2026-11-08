@@ -4,7 +4,7 @@ import { Text, TextInput, View } from 'react-native';
 
 import { Screen } from '@/components/screen';
 import { Button, Card, Logo } from '@/components/ui';
-import { ApiError } from '@/lib/api';
+import { ApiError, SERVER_FIELD } from '@/lib/api';
 import { useSession } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
 
@@ -19,6 +19,7 @@ export default function Join() {
   const { join } = useSession();
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
+  const [server, setServer] = useState('https://');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -26,7 +27,7 @@ export default function Join() {
     setBusy(true);
     setError(null);
     try {
-      await join(code, name);
+      await join(code, name, SERVER_FIELD ? server : undefined);
     } catch (e) {
       setError(e instanceof ApiError ? (ERRORS[e.code] ?? 'Erreur') : 'Pas de connexion');
     } finally {
@@ -72,6 +73,21 @@ export default function Join() {
           style={[input, { letterSpacing: 6 }]}
         />
       </Card>
+      {SERVER_FIELD && (
+        <Card>
+          <TextInput
+            accessibilityLabel="Serveur"
+            placeholder="https://…"
+            placeholderTextColor={t.mut}
+            value={server}
+            onChangeText={setServer}
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="url"
+            style={input}
+          />
+        </Card>
+      )}
       {error && <Text style={{ fontFamily: t.font.semibold, color: t.tag }}>{error}</Text>}
     </Screen>
   );

@@ -1,15 +1,16 @@
 import { createContext, type PropsWithChildren, useContext, useEffect, useState } from 'react';
 
-import { api, ApiError, setApiToken, type Member } from './api';
+import { API_URL, api, ApiError, setApiToken, setApiUrl, type Member } from './api';
 import { storage } from './storage';
 
 const TOKEN_KEY = 'qdn.token';
+const SERVER_KEY = 'qdn.server';
 
 type Session = {
   ready: boolean;
   me: Member | null;
   token: string | null;
-  join: (code: string, name: string) => Promise<void>;
+  join: (code: string, name: string, server?: string) => Promise<void>;
   setMe: (m: Member) => void;
   leave: () => Promise<void>;
 };
@@ -23,6 +24,8 @@ export function SessionProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     (async () => {
+      const server = await storage.get(SERVER_KEY);
+      if (server) setApiUrl(server);
       const saved = await storage.get(TOKEN_KEY);
       if (saved) {
         setApiToken(saved);
@@ -38,9 +41,11 @@ export function SessionProvider({ children }: PropsWithChildren) {
     })();
   }, []);
 
-  const join = async (code: string, name: string) => {
+  const join = async (code: string, name: string, server?: string) => {
+    if (server) setApiUrl(server);
     const res = await api<{ token: string; member: Member }>('/join', { method: 'POST', json: { code, name } });
     await storage.set(TOKEN_KEY, res.token);
+    await storage.set(SERVER_KEY, API_URL);
     setApiToken(res.token);
     setToken(res.token);
     setMe(res.member);
