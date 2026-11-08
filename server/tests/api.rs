@@ -73,7 +73,7 @@ async fn join(app: &Router, name: &str) -> (String, i64) {
 }
 
 #[tokio::test]
-async fn join_rejects_bad_code_and_duplicate_names() {
+async fn join_rejects_bad_code_and_signs_back_in_with_the_same_name() {
     let app = test_app().await;
     let (status, _) = call(
         &app,
@@ -84,19 +84,17 @@ async fn join_rejects_bad_code_and_duplicate_names() {
     )
     .await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
-    join(&app, "Louis").await;
-    let (status, body) = call(
-        &app,
-        "POST",
-        "/join",
-        None,
-        Some(json!({ "code": "CODE-1", "name": "louis" })),
-    )
-    .await;
-    assert_eq!(
-        (status, body["error"].as_str()),
-        (StatusCode::CONFLICT, Some("name_taken"))
-    );
+    let (first, id) = join(&app, "Louis").await;
+    // New device: same member, new token, and the old device stays signed in.
+    let (second, same_id) = join(&app, "louis").await;
+    assert_eq!(id, same_id);
+    assert_ne!(first, second);
+    for token in [&first, &second] {
+        let (status, me) = call(&app, "GET", "/me", Some(token), None).await;
+        assert_eq!((status, me["id"].as_i64()), (StatusCode::OK, Some(id)));
+    }
+    let (_, group) = call(&app, "GET", "/group", Some(&first), None).await;
+    assert_eq!(group["members"].as_array().unwrap().len(), 1);
 }
 
 #[tokio::test]

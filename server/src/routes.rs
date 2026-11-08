@@ -66,38 +66,50 @@ async fn join(State(state): State<AppState>, Json(body): Json<JoinBody>) -> AppR
         .fetch_optional(&state.db)
         .await?
         .ok_or(AppError::BadRequest("bad_code"))?;
-    let taken: Option<i64> =
-        sqlx::query_scalar("SELECT id FROM members WHERE group_id = ? AND lower(name) = lower(?)")
-            .bind(group_id)
-            .bind(&name)
-            .fetch_optional(&state.db)
-            .await?;
-    if taken.is_some() {
-        return Err(AppError::Conflict("name_taken"));
-    }
-    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM members WHERE group_id = ?")
-        .bind(group_id)
-        .fetch_one(&state.db)
-        .await?;
     let token = new_token();
     let mut tx = state.db.begin().await?;
-    let member = sqlx::query_as::<_, MemberRow>(
-        "INSERT INTO members (group_id, name, color, token_hash) VALUES (?, ?, ?, ?) RETURNING *",
+    // Same first name in the group = the same person on a new device (reinstall, web + phone).
+    let existing = sqlx::query_as::<_, MemberRow>(
+        "SELECT * FROM members WHERE group_id = ? AND lower(name) = lower(?)",
     )
     .bind(group_id)
     .bind(&name)
-    .bind(COLORS[count as usize % COLORS.len()])
-    .bind(hash_token(&token))
-    .fetch_one(&mut *tx)
+    .fetch_optional(&mut *tx)
     .await?;
+    let joined = existing.is_none();
+    let member = match existing {
+        Some(member) => member,
+        None => {
+            let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM members WHERE group_id = ?")
+                .bind(group_id)
+                .fetch_one(&mut *tx)
+                .await?;
+            sqlx::query_as::<_, MemberRow>(
+                "INSERT INTO members (group_id, name, color, token_hash) VALUES (?, ?, ?, ?) RETURNING *",
+            )
+            .bind(group_id)
+            .bind(&name)
+            .bind(COLORS[count as usize % COLORS.len()])
+            .bind(hash_token(&token))
+            .fetch_one(&mut *tx)
+            .await?
+        }
+    };
+    sqlx::query("INSERT INTO member_tokens (token_hash, member_id) VALUES (?, ?)")
+        .bind(hash_token(&token))
+        .bind(member.id)
+        .execute(&mut *tx)
+        .await?;
     let opened = game::ensure_open_round(&mut tx, group_id).await?;
     tx.commit().await?;
-    state.live.send(
-        group_id,
-        Event::MemberJoined {
-            member_id: member.id,
-        },
-    );
+    if joined {
+        state.live.send(
+            group_id,
+            Event::MemberJoined {
+                member_id: member.id,
+            },
+        );
+    }
     if let Some(round_id) = opened {
         state.live.send(group_id, Event::RoundOpened { round_id });
     }
