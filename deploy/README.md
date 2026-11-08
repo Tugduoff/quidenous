@@ -61,6 +61,15 @@ Traefik: point a router at the service on port 8080; WebSockets work out of the 
 | `VAPID_SUBJECT` | `mailto:admin@example.com` | Contact sent to push services, e.g. `mailto:you@domain` |
 | `FCM_SERVICE_ACCOUNT_FILE` | — | Android app notifications: path **inside the container** to the Firebase service account JSON, e.g. `/data/firebase.json` (put the file in `deploy/data/`) |
 
+## Add questions
+
+Questions are never asked twice. To add a big batch (one question per line, `#` for comments, duplicates skipped):
+
+```bash
+cp my-questions.txt deploy/data/
+docker compose run --rm quidenous server --import /data/my-questions.txt
+```
+
 ## Update
 
 ```bash

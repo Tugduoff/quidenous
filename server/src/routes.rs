@@ -39,7 +39,6 @@ pub fn router() -> Router<AppState> {
         .route("/round/current", get(current_round))
         .route("/round/current/vote", post(vote))
         .route("/rounds/{id}", get(round))
-        .route("/rounds/{id}/rating", post(rate))
         .route("/history", get(history))
         .route("/questions", post(add_question))
         .route("/questions/queue", get(queue))
@@ -253,36 +252,6 @@ async fn round(
 ) -> AppResult<Json<RoundView>> {
     let round = game::round(&state.db, me.group_id, id).await?;
     Ok(Json(game::view(&state.db, round, me.id).await?))
-}
-
-#[derive(Deserialize)]
-struct RateBody {
-    value: i64,
-}
-
-async fn rate(
-    State(state): State<AppState>,
-    Me(me): Me,
-    Path(id): Path<i64>,
-    Json(body): Json<RateBody>,
-) -> AppResult<Json<Value>> {
-    if body.value != 1 && body.value != -1 {
-        return Err(AppError::BadRequest("bad_rating"));
-    }
-    let round = game::round(&state.db, me.group_id, id).await?;
-    if round.closed_at.is_none() {
-        return Err(AppError::Conflict("round_open"));
-    }
-    sqlx::query(
-        "INSERT INTO ratings (round_id, member_id, value) VALUES (?, ?, ?) \
-         ON CONFLICT (round_id, member_id) DO UPDATE SET value = excluded.value",
-    )
-    .bind(id)
-    .bind(me.id)
-    .bind(body.value)
-    .execute(&state.db)
-    .await?;
-    Ok(Json(json!({ "ok": true })))
 }
 
 #[derive(Deserialize)]

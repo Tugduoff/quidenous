@@ -35,7 +35,6 @@ export type Round = {
   voter_ids: number[];
   my_vote: number | null;
   result: Tally[] | null;
-  my_rating: number | null;
 };
 export type HistoryItem = {
   id: number;

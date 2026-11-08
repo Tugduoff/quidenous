@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowRight, Check, Hourglass, ThumbsDown, ThumbsUp } from 'lucide-react-native';
+import { ArrowRight, Check, Hourglass } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
@@ -50,7 +50,7 @@ export default function VoteScreen() {
     <Ballot
       key={round.id}
       round={round}
-      members={members.filter((m) => m.id !== me?.id)}
+      members={members}
       byId={byId}
       onVoted={() => setWatching(round.id)}
     />
@@ -170,26 +170,8 @@ function Waiting({ round, byId, members }: { round: Round; byId: Map<number, Mem
 
 export function Result({ roundId, byId, onNext }: { roundId: number; byId: Map<number, Member>; onNext?: () => void }) {
   const t = useTheme();
-  const qc = useQueryClient();
   const { data: round } = useRound(roundId);
-  const rate = useMutation({
-    mutationFn: (value: number) => api(`/rounds/${roundId}/rating`, { method: 'POST', json: { value } }),
-    onSettled: () => qc.invalidateQueries({ queryKey: keys.round(roundId) }),
-  });
   if (!round?.result) return <Screen><Header /></Screen>;
-  const rateButton = (value: number, Icon: typeof ThumbsUp) => {
-    const on = round.my_rating === value;
-    return (
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={value > 0 ? 'Bonne question' : 'Mauvaise question'}
-        accessibilityState={{ selected: on }}
-        onPress={() => rate.mutate(value)}
-        style={[{ width: 52, height: 44, borderRadius: 999, alignItems: 'center', justifyContent: 'center', backgroundColor: on ? t.acc : t.card }, t.shadow]}>
-        <Icon size={22} color={on ? t.accTxt : t.mut} />
-      </Pressable>
-    );
-  };
   return (
     <Screen
       footer={
@@ -203,10 +185,6 @@ export function Result({ roundId, byId, onNext }: { roundId: number; byId: Map<n
       <Header />
       <Question round={round} result />
       <ResultBars result={round.result} byId={byId} />
-      <View style={{ flexDirection: 'row', gap: 10 }}>
-        {rateButton(1, ThumbsUp)}
-        {rateButton(-1, ThumbsDown)}
-      </View>
     </Screen>
   );
 }

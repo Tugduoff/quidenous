@@ -101,9 +101,6 @@ pub async fn vote(
     voter_id: i64,
     target_id: i64,
 ) -> AppResult<Vec<Event>> {
-    if voter_id == target_id {
-        return Err(AppError::BadRequest("self_vote"));
-    }
     let mut tx = db.begin().await?;
     let round_id: i64 =
         sqlx::query_scalar("SELECT id FROM rounds WHERE group_id = ? AND closed_at IS NULL")
@@ -198,12 +195,6 @@ pub async fn view(db: &SqlitePool, round: RoundRow, me: i64) -> AppResult<RoundV
         .bind(round.group_id)
         .fetch_one(db)
         .await?;
-    let my_rating: Option<i64> =
-        sqlx::query_scalar("SELECT value FROM ratings WHERE round_id = ? AND member_id = ?")
-            .bind(round.id)
-            .bind(me)
-            .fetch_optional(db)
-            .await?;
     let result = match round.closed_at {
         Some(_) => Some(tallies(db, round.id).await?),
         None => None,
@@ -219,6 +210,5 @@ pub async fn view(db: &SqlitePool, round: RoundRow, me: i64) -> AppResult<RoundV
         voter_ids,
         my_vote,
         result,
-        my_rating,
     })
 }

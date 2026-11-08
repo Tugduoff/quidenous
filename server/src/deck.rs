@@ -2,16 +2,20 @@ use sqlx::SqlitePool;
 
 const DECK: &str = include_str!("../deck/fr.txt");
 
-pub fn questions() -> impl Iterator<Item = &'static str> {
-    DECK.lines()
-        .map(str::trim)
-        .filter(|l| !l.is_empty() && !l.starts_with('#'))
-}
-
 /// Inserts deck questions that are not in the database yet.
 pub async fn seed(db: &SqlitePool) -> sqlx::Result<u64> {
+    import(db, DECK).await
+}
+
+/// Adds questions from a text file (one per line, `#` comments), skipping ones already known.
+/// Asked questions never come back: a round is only opened on a question the group has not seen.
+pub async fn import(db: &SqlitePool, text: &str) -> sqlx::Result<u64> {
     let mut added = 0;
-    for text in questions() {
+    let lines = text
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty() && !l.starts_with('#'));
+    for text in lines {
         added += sqlx::query("INSERT INTO questions (text) VALUES (?) ON CONFLICT DO NOTHING")
             .bind(text)
             .execute(db)

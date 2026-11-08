@@ -112,16 +112,7 @@ async fn round_closes_when_everyone_voted_and_next_one_opens() {
     assert_eq!(round["member_count"], 3);
     assert!(round["result"].is_null());
 
-    // Can't vote for yourself, can't vote twice.
-    let (status, _) = call(
-        &app,
-        "POST",
-        "/round/current/vote",
-        Some(&tug),
-        Some(json!({ "target_id": tug_id })),
-    )
-    .await;
-    assert_eq!(status, StatusCode::BAD_REQUEST);
+    // Can't vote twice.
     call(
         &app,
         "POST",
@@ -181,16 +172,6 @@ async fn round_closes_when_everyone_voted_and_next_one_opens() {
     let (_, history) = call(&app, "GET", "/history", Some(&tug), None).await;
     assert_eq!(history[0]["winner_ids"], json!([louis_id]));
     assert_eq!(history[0]["vote_count"], 3);
-
-    let (status, _) = call(
-        &app,
-        "POST",
-        &format!("/rounds/{first_id}/rating"),
-        Some(&tug),
-        Some(json!({ "value": -1 })),
-    )
-    .await;
-    assert_eq!(status, StatusCode::OK);
 }
 
 #[tokio::test]
@@ -271,4 +252,20 @@ async fn devices_can_subscribe_to_push() {
     assert_eq!(status, StatusCode::BAD_REQUEST);
     let (_, config) = call(&app, "GET", "/push/config", None, None).await;
     assert!(config["vapid_public_key"].is_null());
+}
+
+#[tokio::test]
+async fn you_can_vote_for_yourself() {
+    let app = test_app().await;
+    let (tug, tug_id) = join(&app, "Tugdual").await;
+    join(&app, "Louis").await;
+    let (status, _) = call(
+        &app,
+        "POST",
+        "/round/current/vote",
+        Some(&tug),
+        Some(json!({ "target_id": tug_id })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
 }

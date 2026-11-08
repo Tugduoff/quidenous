@@ -62,7 +62,6 @@ pub struct RoundView {
     pub my_vote: Option<i64>,
     /// Only once the round is closed: votes are public but revealed together.
     pub result: Option<Vec<Tally>>,
-    pub my_rating: Option<i64>,
 }
 
 #[derive(Clone, Debug, Serialize)]

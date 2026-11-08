@@ -44,6 +44,16 @@ async fn main() -> quidenous_server::anyhow_free::Result<()> {
     tokio::fs::create_dir_all(&config.data_dir).await?;
     let port = config.port;
     let state = state(config).await?;
+    let args: Vec<String> = std::env::args().collect();
+    if let Some(i) = args.iter().position(|a| a == "--import") {
+        let path = args
+            .get(i + 1)
+            .ok_or("usage: server --import <questions.txt>")?;
+        let text = tokio::fs::read_to_string(path).await?;
+        let added = quidenous_server::deck::import(&state.db, &text).await?;
+        println!("{added} new questions imported");
+        return Ok(());
+    }
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", port)).await?;
     tracing::info!(port, "qui de nous ? server listening");
     axum::serve(listener, app(state)).await?;
