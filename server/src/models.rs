@@ -63,6 +63,8 @@ pub struct RoundView {
     pub my_vote: Option<i64>,
     /// Only once the round is closed: votes are public but revealed together.
     pub result: Option<Vec<Tally>>,
+    /// Pinned to the top of the history (for the whole group).
+    pub pinned: bool,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -74,6 +76,7 @@ pub struct HistoryItem {
     pub winner_ids: Vec<i64>,
     pub top_count: i64,
     pub vote_count: i64,
+    pub pinned: bool,
 }
 
 #[derive(Clone, Debug, Serialize, sqlx::FromRow)]

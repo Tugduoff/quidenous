@@ -11,6 +11,7 @@ pub enum Event {
     RoundClosed { round_id: i64 },
     RoundOpened { round_id: i64 },
     QuestionAdded { question_id: i64 },
+    RoundPinned { round_id: i64, pinned: bool },
 }
 
 #[derive(Clone, Debug)]

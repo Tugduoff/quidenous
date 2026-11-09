@@ -47,7 +47,10 @@ pub fn router() -> Router<AppState> {
         .route("/round/current/nudge", post(nudge))
         .route("/rounds/{id}", get(round))
         .route("/rounds/{id}/seen", post(mark_seen))
+        .route("/rounds/{id}/pin", put(pin).delete(unpin))
         .route("/history", get(history))
+        .route("/history/pinned", get(pinned_history))
+        .route("/stats", get(stats))
         .route("/questions", post(add_question))
         .route("/questions/queue", get(queue))
         .route(
@@ -271,23 +274,54 @@ struct HistoryQuery {
     before: Option<i64>,
 }
 
+macro_rules! history_select {
+    () => {
+        "SELECT r.id, r.number, q.text, r.closed_at, p.round_id IS NOT NULL FROM rounds r \
+         JOIN questions q ON q.id = r.question_id LEFT JOIN pins p ON p.round_id = r.id"
+    };
+}
+
 async fn history(
     State(state): State<AppState>,
     Me(me): Me,
     Query(q): Query<HistoryQuery>,
 ) -> AppResult<Json<Vec<HistoryItem>>> {
-    let rounds: Vec<(i64, i64, String, String)> = sqlx::query_as(
-        "SELECT r.id, r.number, q.text, r.closed_at FROM rounds r JOIN questions q ON q.id = r.question_id \
-         WHERE r.group_id = ? AND r.closed_at IS NOT NULL AND r.number < ? ORDER BY r.number DESC LIMIT ?",
-    )
+    let rounds: Vec<HistoryRow> = sqlx::query_as(concat!(
+        history_select!(),
+        " WHERE r.group_id = ? AND r.closed_at IS NOT NULL AND r.number < ? ORDER BY r.number DESC LIMIT ?"
+    ))
     .bind(me.group_id)
     .bind(q.before.unwrap_or(i64::MAX))
     .bind(HISTORY_PAGE)
     .fetch_all(&state.db)
     .await?;
+    Ok(Json(history_items(&state.db, rounds).await?))
+}
+
+/// Every pinned result, newest question first (not paged: pins are few).
+async fn pinned_history(
+    State(state): State<AppState>,
+    Me(me): Me,
+) -> AppResult<Json<Vec<HistoryItem>>> {
+    let rounds: Vec<HistoryRow> = sqlx::query_as(concat!(
+        history_select!(),
+        " WHERE r.group_id = ? AND p.round_id IS NOT NULL ORDER BY r.number DESC"
+    ))
+    .bind(me.group_id)
+    .fetch_all(&state.db)
+    .await?;
+    Ok(Json(history_items(&state.db, rounds).await?))
+}
+
+type HistoryRow = (i64, i64, String, String, bool);
+
+async fn history_items(
+    db: &sqlx::SqlitePool,
+    rounds: Vec<HistoryRow>,
+) -> AppResult<Vec<HistoryItem>> {
     let mut items = Vec::with_capacity(rounds.len());
-    for (id, number, question, closed_at) in rounds {
-        let tallies = game::tallies(&state.db, id).await?;
+    for (id, number, question, closed_at, pinned) in rounds {
+        let tallies = game::tallies(db, id).await?;
         let top_count = tallies.first().map_or(0, |t| t.count);
         items.push(HistoryItem {
             id,
@@ -301,9 +335,58 @@ async fn history(
                 .collect(),
             top_count,
             vote_count: tallies.iter().map(|t| t.count).sum(),
+            pinned,
         });
     }
-    Ok(Json(items))
+    Ok(items)
+}
+
+async fn pin(
+    State(state): State<AppState>,
+    Me(me): Me,
+    Path(id): Path<i64>,
+) -> AppResult<Json<Value>> {
+    let round = game::round(&state.db, me.group_id, id).await?;
+    if round.closed_at.is_none() {
+        return Err(AppError::BadRequest("round_open"));
+    }
+    sqlx::query("INSERT OR IGNORE INTO pins (round_id, member_id) VALUES (?, ?)")
+        .bind(id)
+        .bind(me.id)
+        .execute(&state.db)
+        .await?;
+    state.live.send(
+        me.group_id,
+        Event::RoundPinned {
+            round_id: id,
+            pinned: true,
+        },
+    );
+    Ok(Json(json!({ "ok": true })))
+}
+
+async fn unpin(
+    State(state): State<AppState>,
+    Me(me): Me,
+    Path(id): Path<i64>,
+) -> AppResult<Json<Value>> {
+    game::round(&state.db, me.group_id, id).await?;
+    sqlx::query("DELETE FROM pins WHERE round_id = ?")
+        .bind(id)
+        .execute(&state.db)
+        .await?;
+    state.live.send(
+        me.group_id,
+        Event::RoundPinned {
+            round_id: id,
+            pinned: false,
+        },
+    );
+    Ok(Json(json!({ "ok": true })))
+}
+
+async fn stats(State(state): State<AppState>, Me(me): Me) -> AppResult<Json<crate::stats::Stats>> {
+    Ok(Json(crate::stats::compute(&state.db, me.group_id).await?))
 }
 
 #[derive(Deserialize)]

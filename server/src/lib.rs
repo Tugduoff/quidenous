@@ -7,6 +7,7 @@ pub mod live;
 pub mod models;
 pub mod push;
 pub mod routes;
+pub mod stats;
 
 use std::{str::FromStr, sync::Arc};
 

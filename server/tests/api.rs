@@ -371,3 +371,131 @@ async fn questions_can_be_imported_in_bulk() {
         before["deck_left"].as_i64().unwrap() + 2
     );
 }
+
+async fn vote_as(app: &Router, token: &str, target: i64) {
+    let (status, body) = call(
+        app,
+        "POST",
+        "/round/current/vote",
+        Some(token),
+        Some(json!({ "target_id": target })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+}
+
+#[tokio::test]
+async fn results_can_be_pinned_for_the_group() {
+    let app = test_app().await;
+    let (tug, tug_id) = join(&app, "Tugdual").await;
+    let (louis, _) = join(&app, "Louis").await;
+
+    let (_, open) = call(&app, "GET", "/round/current", Some(&tug), None).await;
+    let first = open["id"].as_i64().unwrap();
+    // Not while the question is open.
+    let (status, _) = call(
+        &app,
+        "PUT",
+        &format!("/rounds/{first}/pin"),
+        Some(&tug),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+
+    vote_as(&app, &tug, tug_id).await;
+    vote_as(&app, &louis, tug_id).await;
+    let (status, _) = call(
+        &app,
+        "PUT",
+        &format!("/rounds/{first}/pin"),
+        Some(&tug),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    // Pinning twice is fine.
+    let (status, _) = call(
+        &app,
+        "PUT",
+        &format!("/rounds/{first}/pin"),
+        Some(&louis),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    // Everyone sees it pinned.
+    let (_, round) = call(&app, "GET", &format!("/rounds/{first}"), Some(&louis), None).await;
+    assert_eq!(round["pinned"], true);
+    let (_, history) = call(&app, "GET", "/history", Some(&louis), None).await;
+    assert_eq!(history[0]["pinned"], true);
+    let (_, pinned) = call(&app, "GET", "/history/pinned", Some(&louis), None).await;
+    assert_eq!(pinned.as_array().unwrap().len(), 1);
+    assert_eq!(pinned[0]["id"], first);
+
+    let (status, _) = call(
+        &app,
+        "DELETE",
+        &format!("/rounds/{first}/pin"),
+        Some(&louis),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let (_, pinned) = call(&app, "GET", "/history/pinned", Some(&tug), None).await;
+    assert_eq!(pinned, json!([]));
+    let (status, _) = call(&app, "PUT", "/rounds/9999/pin", Some(&tug), None).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn stats_count_votes_and_hand_out_awards() {
+    let app = test_app().await;
+    let (tug, tug_id) = join(&app, "Tugdual").await;
+    let (louis, louis_id) = join(&app, "Louis").await;
+    let (ravenne, ravenne_id) = join(&app, "Ravenne").await;
+
+    let (_, empty) = call(&app, "GET", "/stats", Some(&tug), None).await;
+    assert_eq!(empty["questions"], 0);
+    assert!(empty["most_chosen"].is_null());
+    assert_eq!(empty["never_chosen"], json!([]));
+
+    // 1: everyone picks Louis (unanimous). 2: Tug votes for himself, a tie. 3: Louis again.
+    for (t, target) in [(&tug, louis_id), (&louis, louis_id), (&ravenne, louis_id)] {
+        vote_as(&app, t, target).await;
+    }
+    for (t, target) in [(&tug, tug_id), (&louis, louis_id), (&ravenne, tug_id)] {
+        vote_as(&app, t, target).await;
+    }
+    for (t, target) in [(&tug, louis_id), (&ravenne, louis_id), (&louis, tug_id)] {
+        vote_as(&app, t, target).await;
+    }
+    // The open question 4 must not count.
+    vote_as(&app, &tug, ravenne_id).await;
+
+    let (status, s) = call(&app, "GET", "/stats", Some(&ravenne), None).await;
+    assert_eq!(status, StatusCode::OK, "{s}");
+    assert_eq!(s["questions"], 3);
+    assert_eq!(s["votes"], 9);
+    assert_eq!(s["unanimous"], 1);
+    assert_eq!(s["ties"], 0);
+    assert_eq!(
+        s["most_chosen"],
+        json!({ "member_id": louis_id, "value": 6 })
+    );
+    assert_eq!(
+        s["most_crowned"],
+        json!({ "member_id": louis_id, "value": 2 })
+    );
+    assert_eq!(s["narcissist"]["member_id"], louis_id);
+    assert_eq!(s["narcissist"]["value"], 2);
+    assert_eq!(s["never_chosen"], json!([ravenne_id]));
+    assert_eq!(s["seconds_voting"], 9 * 20);
+    assert!(s["last_voter"]["member_id"].is_i64());
+    // Tug and Ravenne both picked Louis twice: the lowest id wins the tie.
+    assert_eq!(
+        s["duo"],
+        json!({ "voter_id": tug_id, "target_id": louis_id, "value": 2 })
+    );
+}

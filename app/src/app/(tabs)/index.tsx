@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, ArrowRight, Bell, BellOff, BellRing, Check, Hourglass } from 'lucide-react-native';
+import { ArrowLeft, ArrowRight, Bell, BellOff, BellRing, Check, Hourglass, Pin } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { enablePush, pushState, refreshPush, type PushState } from '@/lib/push';
@@ -221,19 +221,53 @@ function Waiting({ round, byId, members }: { round: Round; byId: Map<number, Mem
   );
 }
 
-/** Back arrow that replaces the header when a result is opened from the history. */
-function BackHeader({ onBack }: { onBack: () => void }) {
+/** Back arrow (and pin) that replace the header when a result is opened from the history. */
+function BackHeader({ onBack, round }: { onBack: () => void; round?: Round }) {
   const t = useTheme();
+  const qc = useQueryClient();
+  const pin = useMutation({
+    mutationFn: (pinned: boolean) => api(`/rounds/${round!.id}/pin`, { method: pinned ? 'PUT' : 'DELETE' }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: keys.round(round!.id) });
+      qc.invalidateQueries({ queryKey: keys.history });
+    },
+  });
+  // Show the state being asked for right away; the server echo confirms it.
+  const pinned = pin.isPending ? pin.variables : round?.pinned;
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel="Retour"
-      onPress={onBack}
-      hitSlop={8}
-      style={{ flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', height: 36 }}>
-      <ArrowLeft size={22} color={t.txt} />
-      <Text style={{ fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>Historique</Text>
-    </Pressable>
+    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Retour"
+        onPress={onBack}
+        hitSlop={8}
+        style={{ flexDirection: 'row', alignItems: 'center', gap: 6, height: 36 }}>
+        <ArrowLeft size={22} color={t.txt} />
+        <Text style={{ fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>Historique</Text>
+      </Pressable>
+      {round && (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={pinned ? 'Désépingler' : 'Épingler'}
+          onPress={() => pin.mutate(!pinned)}
+          disabled={pin.isPending}
+          hitSlop={8}
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 6,
+            height: 36,
+            paddingHorizontal: 14,
+            borderRadius: t.radius.pill,
+            backgroundColor: pinned ? t.accSoft : t.card,
+          }}>
+          <Pin size={16} color={pinned ? t.accInk : t.txt} fill={pinned ? t.accInk : 'none'} />
+          <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: pinned ? t.accInk : t.txt }}>
+            {pinned ? 'Épinglé' : 'Épingler'}
+          </Text>
+        </Pressable>
+      )}
+    </View>
   );
 }
 
@@ -250,7 +284,7 @@ export function Result({
 }) {
   const t = useTheme();
   const { data: round } = useRound(roundId);
-  const header = onBack ? <BackHeader onBack={onBack} /> : <Header />;
+  const header = onBack ? <BackHeader onBack={onBack} round={round ?? undefined} /> : <Header />;
   if (!round?.result) return <Screen>{header}</Screen>;
   return (
     <Screen

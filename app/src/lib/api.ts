@@ -35,6 +35,7 @@ export type Round = {
   voter_ids: number[];
   my_vote: number | null;
   result: Tally[] | null;
+  pinned: boolean;
 };
 export type HistoryItem = {
   id: number;
@@ -44,6 +45,30 @@ export type HistoryItem = {
   winner_ids: number[];
   top_count: number;
   vote_count: number;
+  pinned: boolean;
+};
+export type Award = { member_id: number; value: number };
+export type Stats = {
+  questions: number;
+  votes: number;
+  unanimous: number;
+  ties: number;
+  nudges: number;
+  /** Estimate: 20 s per vote. */
+  seconds_voting: number;
+  seconds_waiting_last: number;
+  median_round_seconds: number | null;
+  most_chosen: Award | null;
+  most_crowned: Award | null;
+  narcissist: Award | null;
+  fastest: Award | null;
+  slowest: Award | null;
+  last_voter: Award | null;
+  nudger: Award | null;
+  most_nudged: Award | null;
+  author: Award | null;
+  duo: { voter_id: number; target_id: number; value: number } | null;
+  never_chosen: number[];
 };
 export type Queue = {
   custom: { id: number; text: string; author_id: number | null }[];

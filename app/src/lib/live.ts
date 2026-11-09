@@ -28,6 +28,11 @@ export function useLive(token: string | null) {
             qc.invalidateQueries({ queryKey: ['round'] });
             qc.invalidateQueries({ queryKey: keys.history });
             qc.invalidateQueries({ queryKey: keys.queue });
+            qc.invalidateQueries({ queryKey: keys.stats });
+            break;
+          case 'round_pinned':
+            qc.invalidateQueries({ queryKey: keys.history });
+            if (event.round_id) qc.invalidateQueries({ queryKey: keys.round(event.round_id) });
             break;
           case 'question_added':
             qc.invalidateQueries({ queryKey: keys.queue });

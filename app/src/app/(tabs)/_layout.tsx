@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { History, MessageCircleQuestion, Vote } from 'lucide-react-native';
+import { ChartNoAxesColumn, History, MessageCircleQuestion, Vote } from 'lucide-react-native';
 import type { ComponentType } from 'react';
 import { Platform, View, type ViewStyle } from 'react-native';
 
@@ -43,6 +43,7 @@ export default function TabsLayout() {
       }}>
       <Tabs.Screen name="index" options={tab(Vote, 'Vote')} />
       <Tabs.Screen name="history" options={tab(History, 'Historique')} />
+      <Tabs.Screen name="stats" options={tab(ChartNoAxesColumn, 'Stats')} />
       <Tabs.Screen name="questions" options={tab(MessageCircleQuestion, 'Questions')} />
     </Tabs>
   );

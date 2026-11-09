@@ -216,6 +216,7 @@ pub async fn view(db: &SqlitePool, round: RoundRow, me: i64) -> AppResult<RoundV
         Some(_) => Some(tallies(db, round.id).await?),
         None => None,
     };
+    let pinned = is_pinned(db, round.id).await?;
     Ok(RoundView {
         id: round.id,
         number: round.number,
@@ -227,5 +228,14 @@ pub async fn view(db: &SqlitePool, round: RoundRow, me: i64) -> AppResult<RoundV
         voter_ids,
         my_vote,
         result,
+        pinned,
     })
+}
+
+pub async fn is_pinned(db: &SqlitePool, round_id: i64) -> AppResult<bool> {
+    let pinned: Option<i64> = sqlx::query_scalar("SELECT 1 FROM pins WHERE round_id = ?")
+        .bind(round_id)
+        .fetch_optional(db)
+        .await?;
+    Ok(pinned.is_some())
 }
