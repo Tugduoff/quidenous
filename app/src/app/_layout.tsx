@@ -6,6 +6,7 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
+import { Platform } from 'react-native';
 
 import { useLive } from '@/lib/live';
 import { registerNativePush } from '@/lib/native-push';
@@ -27,6 +28,14 @@ function Root() {
   useEffect(() => {
     if (ready && fonts) SplashScreen.hideAsync();
   }, [ready, fonts]);
+  // On the web, iOS paints the area under the clock with the page background or the theme-color:
+  // both follow the theme chosen in the app, not only the one of the phone.
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    document.documentElement.style.backgroundColor = t.bg;
+    document.body.style.backgroundColor = t.bg;
+    for (const meta of document.querySelectorAll('meta[name="theme-color"]')) meta.setAttribute('content', t.bg);
+  }, [t.bg]);
   if (!ready || !fonts) return null;
   return (
     <>
