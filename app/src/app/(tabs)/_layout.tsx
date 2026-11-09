@@ -3,6 +3,8 @@ import { ChartNoAxesColumn, History, MessageCircleQuestion, Vote } from 'lucide-
 import type { ComponentType } from 'react';
 import { Platform, View, type ViewStyle } from 'react-native';
 
+import { Celebration } from '@/components/celebration';
+import { useMilestone } from '@/lib/milestones';
 import { useTheme } from '@/lib/theme';
 
 type Icon = ComponentType<{ size?: number; color?: string }>;
@@ -26,25 +28,26 @@ function TabIcon({ Icon, focused }: { Icon: Icon; focused: boolean }) {
 
 export default function TabsLayout() {
   const t = useTheme();
+  const { milestone, dismiss } = useMilestone();
   const tab = (Icon: Icon, label: string) => ({
     tabBarAccessibilityLabel: label,
     tabBarIcon: ({ focused }: { focused: boolean }) => <TabIcon Icon={Icon} focused={focused} />,
   });
   return (
-    <Tabs
-      screenOptions={{
-        headerShown: false,
-        tabBarShowLabel: false,
-        tabBarStyle: [
-          { backgroundColor: t.bg, borderTopColor: t.line },
-          Platform.OS === 'web' && WEB_TAB_BAR,
-        ],
-        tabBarItemStyle: { paddingTop: 6 },
-      }}>
-      <Tabs.Screen name="index" options={tab(Vote, 'Vote')} />
-      <Tabs.Screen name="history" options={tab(History, 'Historique')} />
-      <Tabs.Screen name="stats" options={tab(ChartNoAxesColumn, 'Stats')} />
-      <Tabs.Screen name="questions" options={tab(MessageCircleQuestion, 'Questions')} />
-    </Tabs>
+    <View style={{ flex: 1 }}>
+      <Tabs
+        screenOptions={{
+          headerShown: false,
+          tabBarShowLabel: false,
+          tabBarStyle: [{ backgroundColor: t.bg, borderTopColor: t.line }, Platform.OS === 'web' && WEB_TAB_BAR],
+          tabBarItemStyle: { paddingTop: 6 },
+        }}>
+        <Tabs.Screen name="index" options={tab(Vote, 'Vote')} />
+        <Tabs.Screen name="history" options={tab(History, 'Historique')} />
+        <Tabs.Screen name="stats" options={tab(ChartNoAxesColumn, 'Stats')} />
+        <Tabs.Screen name="questions" options={tab(MessageCircleQuestion, 'Questions')} />
+      </Tabs>
+      {milestone != null && <Celebration key={milestone} count={milestone} onDone={dismiss} />}
+    </View>
   );
 }
