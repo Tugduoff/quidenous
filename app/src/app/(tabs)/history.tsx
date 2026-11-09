@@ -1,10 +1,11 @@
 import { router } from 'expo-router';
-import { Crown, Pin } from 'lucide-react-native';
+import { Crown, PartyPopper, Pin } from 'lucide-react-native';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 
 import { Screen } from '@/components/screen';
 import { Avatar, AvatarStack, avatarStackWidth, Display } from '@/components/ui';
 import type { HistoryItem, Member } from '@/lib/api';
+import { isMilestone } from '@/lib/milestones';
 import { useHistory, useMembers, usePinned } from '@/lib/queries';
 import { useTheme } from '@/lib/theme';
 
@@ -64,7 +65,27 @@ function HistoryCard({ item, lead, byId }: { item: HistoryItem; lead: number; by
           </Text>
         </View>
       </View>
-      {item.pinned && <Pin size={16} color={t.accInk} style={{ alignSelf: 'flex-start', flexShrink: 0 }} />}
+      {(item.pinned || isMilestone(item.number)) && (
+        <View style={{ alignSelf: 'flex-start', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
+          {item.pinned && <Pin size={16} color={t.accInk} />}
+          {/* A milestone question: tap to replay its party. */}
+          {isMilestone(item.number) && (
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 4,
+                paddingHorizontal: 8,
+                height: 22,
+                borderRadius: t.radius.pill,
+                backgroundColor: t.accSoft,
+              }}>
+              <PartyPopper size={12} color={t.accInk} />
+              <Text style={{ fontFamily: t.font.bold, fontSize: 11, color: t.accInk }}>#{item.number}</Text>
+            </View>
+          )}
+        </View>
+      )}
     </Pressable>
   );
 }
