@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 
 import { api, type HistoryItem, type Member, type Queue, type Round } from './api';
 
@@ -24,7 +24,17 @@ export const useUnseenRound = () =>
 export const useRound = (id: number | null) =>
   useQuery({ queryKey: keys.round(id ?? 0), queryFn: () => api<Round>(`/rounds/${id}`), enabled: id != null });
 
-export const useHistory = () => useQuery({ queryKey: keys.history, queryFn: () => api<HistoryItem[]>('/history') });
+/** Same size as `HISTORY_PAGE` on the server: a shorter page is the last one. */
+const HISTORY_PAGE = 30;
+
+/** Finished questions, newest first, a page at a time: `before` is the number of the oldest one shown. */
+export const useHistory = () =>
+  useInfiniteQuery({
+    queryKey: keys.history,
+    queryFn: ({ pageParam }) => api<HistoryItem[]>(pageParam == null ? '/history' : `/history?before=${pageParam}`),
+    initialPageParam: null as number | null,
+    getNextPageParam: (last) => (last.length < HISTORY_PAGE ? undefined : last.at(-1)!.number),
+  });
 
 export const useQueue = () => useQuery({ queryKey: keys.queue, queryFn: () => api<Queue>('/questions/queue') });
 

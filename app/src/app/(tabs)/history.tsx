@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { Crown } from 'lucide-react-native';
-import { Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 
 import { Screen } from '@/components/screen';
 import { Avatar, AvatarStack, avatarStackWidth, Display } from '@/components/ui';
@@ -41,12 +41,16 @@ function byDay(items: HistoryItem[]) {
 
 export default function HistoryScreen() {
   const t = useTheme();
-  const { data } = useHistory();
+  const history = useHistory();
+  const data = history.data?.pages.flat();
   const { byId } = useMembers();
+  const more = () => {
+    if (history.hasNextPage && !history.isFetchingNextPage) history.fetchNextPage();
+  };
   // Same leading column on every row, as wide as the widest tie on screen.
   const lead = Math.max(SOLO, ...(data ?? []).map((i) => (i.winner_ids.length > 1 ? avatarStackWidth(i.winner_ids.length, TIED, MAX) : 0)));
   return (
-    <Screen>
+    <Screen onEndReached={more}>
       <Display size={30}>Historique</Display>
       {byDay(data ?? []).map((day) => (
         <View key={day.key} style={{ gap: 10 }}>
@@ -88,6 +92,7 @@ export default function HistoryScreen() {
           })}
         </View>
       ))}
+      {history.isFetchingNextPage && <ActivityIndicator color={t.mut} style={{ paddingVertical: 8 }} />}
     </Screen>
   );
 }
