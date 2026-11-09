@@ -19,6 +19,14 @@
       html,
       body {
         height: 100%;
+        background-color: #F5F5F0;
+      }
+      /* Until the app sets the colors of the theme chosen in it. */
+      @media (prefers-color-scheme: dark) {
+        html,
+        body {
+          background-color: #0E0E12;
+        }
       }
       /* These styles disable body scrolling if you are using <ScrollView> */
       body {
