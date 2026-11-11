@@ -1,13 +1,13 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { router } from 'expo-router';
-import { ChevronLeft, Crown, LogOut, RefreshCw, Share2, Trash2, UserX } from 'lucide-react-native';
+import { ChevronLeft, Crown, LogOut, RefreshCw, Share2, Trash2, UserPlus, UserX } from 'lucide-react-native';
 import { Alert, Platform, Pressable, Switch, Text, TextInput, View } from 'react-native';
 
 import { Screen } from '@/components/screen';
 import { Avatar, Card, Display } from '@/components/ui';
 import { api } from '@/lib/api';
-import { keys, useGroup } from '@/lib/queries';
+import { keys, useFriends, useGroup } from '@/lib/queries';
 import { inviteMessage, shareText } from '@/lib/share';
 import { useSession } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
@@ -194,6 +194,62 @@ function Invite() {
   );
 }
 
+/** Friends who aren't in this room yet, one tap to add them. */
+function AddFriends() {
+  const t = useTheme();
+  const qc = useQueryClient();
+  const { data: group } = useGroup();
+  const { data: friends } = useFriends();
+  const add = useMutation({
+    mutationFn: (userId: number) => api(`/rooms/${group!.id}/add`, { method: 'POST', json: { user_id: userId } }),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: keys.group });
+      qc.invalidateQueries({ queryKey: keys.friends });
+    },
+  });
+  if (!group || !friends) return null;
+  const inRoom = new Set(group.members.map((m) => m.user_id));
+  const outside = friends.friends.filter((f) => !inRoom.has(f.user_id));
+  return (
+    <View style={{ gap: 10 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginHorizontal: 4 }}>
+        <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut }}>Ajouter des amis</Text>
+        <Pressable accessibilityRole="button" onPress={() => router.push('/friends')} hitSlop={8}>
+          <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.accInk }}>Mes amis</Text>
+        </Pressable>
+      </View>
+      {outside.length === 0 && (
+        <Text style={{ fontFamily: t.font.regular, fontSize: 14, color: t.mut, marginHorizontal: 4 }}>
+          Tous tes amis sont déjà là. Ajoutes-en avec leur code ami.
+        </Text>
+      )}
+      {outside.map((f) => (
+        <Card key={f.user_id} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12 }}>
+          <Avatar member={{ id: f.user_id, name: f.name, color: f.color, photo_url: f.photo_url }} size={36} />
+          <Text style={{ flex: 1, fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>{f.name}</Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Ajouter ${f.name} au salon`}
+            disabled={add.isPending}
+            onPress={() => add.mutate(f.user_id)}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 6,
+              height: 34,
+              paddingHorizontal: 12,
+              borderRadius: t.radius.pill,
+              backgroundColor: t.acc,
+            }}>
+            <UserPlus size={15} color={t.accTxt} />
+            <Text style={{ fontFamily: t.font.bold, fontSize: 13, color: t.accTxt }}>Ajouter</Text>
+          </Pressable>
+        </Card>
+      ))}
+    </View>
+  );
+}
+
 /** Owner only: rename and the room's rules. */
 function Settings() {
   const t = useTheme();
@@ -354,6 +410,7 @@ export default function GroupScreen() {
       )}
       <Invite />
       <Members />
+      <AddFriends />
       <Settings />
       <Exit />
     </Screen>

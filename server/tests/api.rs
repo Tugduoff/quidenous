@@ -947,3 +947,121 @@ async fn owner_powers_and_settings() {
     let (s, _) = call(&app, "GET", "/group", Some(&ana), None).await;
     assert_eq!(s, StatusCode::UNAUTHORIZED);
 }
+
+#[tokio::test]
+async fn friends_by_code_and_into_a_room() {
+    let app = test_app().await;
+    let (ana, _) = join(&app, "Ana").await;
+    let (bob, _) = join(&app, "Bob").await;
+    // Room-mates are friends already.
+    let (_, f) = call(&app, "GET", "/friends", Some(&ana), None).await;
+    assert_eq!(f["friends"][0]["name"], "Bob");
+    assert_eq!(f["friends"][0]["rooms_in_common"], 1);
+    // Eve has her own room: add her by code.
+    let (_, room) = call(
+        &app,
+        "POST",
+        "/rooms",
+        Some(&bob),
+        Some(json!({ "name": "Ailleurs" })),
+    )
+    .await;
+    let (_, g) = call(&app, "GET", "/group", Some(&bob), None).await;
+    assert_eq!(g["id"], room["id"]);
+    let (s, eve) = call(
+        &app,
+        "POST",
+        "/join",
+        None,
+        Some(json!({ "code": g["code"], "name": "Eve" })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK);
+    let eve = eve["token"].as_str().unwrap().to_owned();
+    call(
+        &app,
+        "POST",
+        &format!("/rooms/{}/leave", room["id"]),
+        Some(&bob),
+        None,
+    )
+    .await;
+    // Ana and Eve share nothing: Ana can't add her to a room.
+    let (_, ana_rooms) = call(&app, "GET", "/rooms", Some(&ana), None).await;
+    let main = ana_rooms[0]["id"].as_i64().unwrap();
+    let (_, ef) = call(&app, "GET", "/friends", Some(&eve), None).await;
+    let eve_id = {
+        let (_, me) = call(&app, "GET", "/me", Some(&eve), None).await;
+        let _ = me;
+        // Eve's user id comes back when Ana adds her code.
+        let (s, added) = call(
+            &app,
+            "POST",
+            "/friends",
+            Some(&ana),
+            Some(json!({ "code": ef["code"] })),
+        )
+        .await;
+        assert_eq!(s, StatusCode::OK, "{added}");
+        added["user_id"].as_i64().unwrap()
+    };
+    let (_, af) = call(&app, "GET", "/friends", Some(&ana), None).await;
+    assert!(
+        af["friends"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|f| f["user_id"] == eve_id && f["added"] == true)
+    );
+    let (s, _) = call(
+        &app,
+        "POST",
+        "/friends",
+        Some(&ana),
+        Some(json!({ "code": af["code"] })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST, "can't befriend yourself");
+    // Now Ana puts Eve in the main room; Eve gets told.
+    let (s, _) = call(
+        &app,
+        "POST",
+        &format!("/rooms/{main}/add"),
+        Some(&ana),
+        Some(json!({ "user_id": eve_id })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK);
+    let (s, _) = call(
+        &app,
+        "POST",
+        &format!("/rooms/{main}/add"),
+        Some(&ana),
+        Some(json!({ "user_id": eve_id })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::CONFLICT);
+    let (_, rooms) = call(&app, "GET", "/rooms", Some(&eve), None).await;
+    assert!(rooms.as_array().unwrap().iter().any(|r| r["id"] == main));
+    let (_, inbox) = call_room(&app, "GET", "/inbox", &eve, main, None).await;
+    assert_eq!(inbox["items"][0]["kind"], "added");
+    // A stranger can't be added.
+    let (_, stranger) = call(
+        &app,
+        "POST",
+        "/join",
+        None,
+        Some(json!({ "code": "code-1", "name": "Zed" })),
+    )
+    .await;
+    let _ = stranger;
+    let (s, _) = call(
+        &app,
+        "POST",
+        &format!("/rooms/{main}/add"),
+        Some(&bob),
+        Some(json!({ "user_id": 9999 })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+}

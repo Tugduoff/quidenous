@@ -2,7 +2,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
-import { Camera, ChevronLeft, LogOut, Moon, Sun, SunMoon } from 'lucide-react-native';
+import { Camera, ChevronLeft, ChevronRight, LogOut, Moon, Sun, SunMoon, Users } from 'lucide-react-native';
 import { useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, Text, TextInput, View } from 'react-native';
 
@@ -151,6 +151,14 @@ export default function Profile() {
 
       {error && <Text style={{ fontFamily: t.font.semibold, color: t.tag }}>{error}</Text>}
 
+
+      <Pressable accessibilityRole="button" onPress={() => router.push('/friends')}>
+        <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16 }}>
+          <Users size={20} color={t.txt} />
+          <Text style={{ flex: 1, fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>Mes amis et mon code ami</Text>
+          <ChevronRight size={20} color={t.mut} />
+        </Card>
+      </Pressable>
 
       <View style={{ flex: 1 }} />
       <Pressable

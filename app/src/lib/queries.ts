@@ -1,6 +1,6 @@
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 
-import { api, type Group, type RoomSummary, type HistoryItem, type InboxItem, type Message, type Member, type Queue, type Round, type Stats } from './api';
+import { api, type Friend, type Group, type RoomSummary, type HistoryItem, type InboxItem, type Message, type Member, type Queue, type Round, type Stats } from './api';
 
 export const keys = {
   group: ['group'] as const,
@@ -13,6 +13,7 @@ export const keys = {
   messages: (id: number) => ['messages', id] as const,
   inbox: ['inbox'] as const,
   rooms: ['rooms'] as const,
+  friends: ['friends'] as const,
   queue: ['queue'] as const,
 };
 
@@ -50,6 +51,8 @@ export const useMessages = (roundId: number) =>
 export const useInbox = () => useQuery({ queryKey: keys.inbox, queryFn: () => api<{ items: InboxItem[]; unread: number }>('/inbox') });
 
 export const useRooms = () => useQuery({ queryKey: keys.rooms, queryFn: () => api<RoomSummary[]>('/rooms') });
+
+export const useFriends = () => useQuery({ queryKey: keys.friends, queryFn: () => api<{ code: string; friends: Friend[] }>('/friends') });
 
 export const useStats = () => useQuery({ queryKey: keys.stats, queryFn: () => api<Stats>('/stats') });
 

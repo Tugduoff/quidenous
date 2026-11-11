@@ -400,5 +400,6 @@ async fn delete_room(state: &AppState, room: i64) -> AppResult<()> {
 pub fn member_with_role(m: &MemberRow) -> Value {
     let mut v = serde_json::to_value(Member::from(m)).unwrap_or_default();
     v["role"] = json!(m.role);
+    v["user_id"] = json!(m.user_id);
     v
 }

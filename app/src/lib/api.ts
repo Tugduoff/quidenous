@@ -12,6 +12,12 @@ const INVITE_CODE =
     ? new URLSearchParams(location.search).get('code')
     : null;
 
+const FRIEND_CODE =
+  Platform.OS === 'web' && typeof location !== 'undefined' ? new URLSearchParams(location.search).get('friend') : null;
+
+/** Friend code carried by a friend link `/?friend=…` (QR code). */
+export const presetFriendCode = () => FRIEND_CODE;
+
 /** Group code baked into the build (CI secret) or carried by the invite link `/?code=…`. */
 export function presetJoinCode(): string | null {
   return process.env.EXPO_PUBLIC_JOIN_CODE || INVITE_CODE;
@@ -50,10 +56,11 @@ export type Group = {
   code: string;
   my_role: Role;
   settings: { skip_vote: boolean; kick_vote: boolean; questions_by: 'everyone' | 'owner' };
-  members: (Member & { role: Role })[];
+  members: (Member & { role: Role; user_id: number })[];
   kicks: VoteCount[];
   kick_needed: number;
 };
+export type Friend = { user_id: number; name: string; color: string; photo_url: string | null; rooms_in_common: number; added: boolean };
 export type RoomSummary = { id: number; name: string; role: Role; members: number; open_number: number | null; voted: boolean; unread: number };
 export type HistoryItem = {
   id: number;

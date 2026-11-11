@@ -65,6 +65,15 @@ pub fn router() -> Router<AppState> {
         )
         .route("/rooms", get(crate::rooms::list).post(crate::rooms::create))
         .route("/rooms/join", post(crate::rooms::join))
+        .route("/rooms/{id}/add", post(crate::friends::add_to_room))
+        .route(
+            "/friends",
+            get(crate::friends::list).post(crate::friends::add),
+        )
+        .route(
+            "/friends/{user_id}",
+            axum::routing::delete(crate::friends::remove),
+        )
         .route(
             "/rooms/{id}",
             axum::routing::patch(crate::rooms::update).delete(crate::rooms::delete),

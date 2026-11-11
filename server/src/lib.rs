@@ -2,6 +2,7 @@ pub mod auth;
 pub mod config;
 pub mod deck;
 pub mod error;
+pub mod friends;
 pub mod game;
 pub mod inbox;
 pub mod live;

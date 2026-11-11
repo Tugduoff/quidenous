@@ -5,6 +5,13 @@ import { API_URL, historyExportUrl, type Member, type Round } from './api';
 /** Where friends can open the app (web app served by the API server). */
 const appUrl = () => API_URL || (typeof location !== 'undefined' ? location.origin : '');
 
+/** My friend link (what the QR code holds). */
+export const friendLink = (code: string) => `${appUrl()}/?friend=${code}`;
+
+export function friendMessage(code: string) {
+  return `Ajoute-moi en ami sur qui de nous ? 👉 ${friendLink(code)}\n(code ami : ${code})`;
+}
+
 /** Invite to a room: the link carries the code, so it opens the join screen ready to go. */
 export function inviteMessage(roomName: string, code: string) {
   return `Rejoins « ${roomName} » sur qui de nous ? 👉 ${appUrl()}/?code=${code}\n(code : ${code})`;
