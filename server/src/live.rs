@@ -15,6 +15,8 @@ pub enum Event {
     SkipVoted { round_id: i64 },
     KickVoted { member_id: i64 },
     MemberRemoved { member_id: i64 },
+    MessagePosted { round_id: i64, message_id: i64 },
+    InboxChanged,
 }
 
 #[derive(Clone, Debug)]

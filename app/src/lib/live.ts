@@ -30,6 +30,12 @@ export function useLive(token: string | null) {
             qc.invalidateQueries({ queryKey: keys.queue });
             qc.invalidateQueries({ queryKey: keys.stats });
             break;
+          case 'message_posted':
+            if (event.round_id) qc.invalidateQueries({ queryKey: keys.messages(event.round_id) });
+            break;
+          case 'inbox_changed':
+            qc.invalidateQueries({ queryKey: keys.inbox });
+            break;
           case 'skip_voted':
             qc.invalidateQueries({ queryKey: keys.current });
             break;

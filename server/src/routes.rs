@@ -7,7 +7,7 @@ use axum::{
     response::Response,
     routing::{get, post, put},
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use crate::{
@@ -50,6 +50,9 @@ pub fn router() -> Router<AppState> {
         .route("/rounds/{id}", get(round))
         .route("/rounds/{id}/seen", post(mark_seen))
         .route("/rounds/{id}/pin", put(pin).delete(unpin))
+        .route("/rounds/{id}/messages", get(messages).post(post_message))
+        .route("/inbox", get(inbox))
+        .route("/inbox/read", post(read_inbox))
         .route("/history", get(history))
         .route("/history/pinned", get(pinned_history))
         .route("/history/export", get(export_history))
@@ -787,12 +790,143 @@ async fn notify_round(
         skip,
         Notification {
             title,
-            body,
+            body: body.clone(),
             tag: "round".into(),
             url: "/".into(),
         },
     );
+    if closed {
+        let (round_id, text): (i64, String) = sqlx::query_as(
+            "SELECT r.id, q.text FROM rounds r JOIN questions q ON q.id = r.question_id \
+             WHERE r.group_id = ? AND r.closed_at IS NOT NULL ORDER BY r.number DESC LIMIT 1",
+        )
+        .bind(group_id)
+        .fetch_one(&state.db)
+        .await?;
+        crate::inbox::to_group(
+            &state.db,
+            group_id,
+            skip,
+            "result",
+            Some(round_id),
+            None,
+            &text,
+        )
+        .await?;
+    } else if let Some(round_id) = opened {
+        crate::inbox::to_group(
+            &state.db,
+            group_id,
+            skip,
+            "question",
+            Some(round_id),
+            None,
+            &body,
+        )
+        .await?;
+    }
+    state.live.send(group_id, Event::InboxChanged);
     Ok(())
+}
+
+const MESSAGE_MAX: usize = 500;
+
+#[derive(Serialize, sqlx::FromRow)]
+struct MessageRow {
+    id: i64,
+    member_id: i64,
+    text: String,
+    created_at: String,
+}
+
+/// The chat under a finished question, oldest first.
+async fn messages(
+    State(state): State<AppState>,
+    Me(me): Me,
+    Path(id): Path<i64>,
+) -> AppResult<Json<Vec<MessageRow>>> {
+    game::round(&state.db, me.group_id, id).await?;
+    Ok(Json(
+        sqlx::query_as(
+            "SELECT id, member_id, text, created_at FROM messages WHERE round_id = ? ORDER BY id",
+        )
+        .bind(id)
+        .fetch_all(&state.db)
+        .await?,
+    ))
+}
+
+#[derive(Deserialize)]
+struct MessageBody {
+    text: String,
+}
+
+async fn post_message(
+    State(state): State<AppState>,
+    Me(me): Me,
+    Path(id): Path<i64>,
+    Json(body): Json<MessageBody>,
+) -> AppResult<Json<MessageRow>> {
+    let round = game::round(&state.db, me.group_id, id).await?;
+    // Votes stay secret until the result: no chat on an open question.
+    if round.closed_at.is_none() {
+        return Err(AppError::BadRequest("round_open"));
+    }
+    let text = body.text.trim();
+    if text.is_empty() || text.chars().count() > MESSAGE_MAX {
+        return Err(AppError::BadRequest("bad_message"));
+    }
+    let message: MessageRow = sqlx::query_as(
+        "INSERT INTO messages (round_id, member_id, text) VALUES (?, ?, ?) RETURNING id, member_id, text, created_at",
+    )
+    .bind(id)
+    .bind(me.id)
+    .bind(text)
+    .fetch_one(&state.db)
+    .await?;
+    crate::inbox::to_group(
+        &state.db,
+        me.group_id,
+        Some(me.id),
+        "message",
+        Some(id),
+        Some(me.id),
+        text,
+    )
+    .await?;
+    state.live.send(
+        me.group_id,
+        Event::MessagePosted {
+            round_id: id,
+            message_id: message.id,
+        },
+    );
+    state.live.send(me.group_id, Event::InboxChanged);
+    state.push.notify_group(
+        state.db.clone(),
+        me.group_id,
+        Some(me.id),
+        Notification {
+            title: format!("{} · « {} »", me.name, round.text),
+            body: text.to_owned(),
+            tag: format!("chat-{id}"),
+            url: format!("/round/{id}"),
+        },
+    );
+    Ok(Json(message))
+}
+
+async fn inbox(State(state): State<AppState>, Me(me): Me) -> AppResult<Json<Value>> {
+    let (items, unread) = crate::inbox::list(&state.db, me.id).await?;
+    Ok(Json(json!({ "items": items, "unread": unread })))
+}
+
+async fn read_inbox(State(state): State<AppState>, Me(me): Me) -> AppResult<Json<Value>> {
+    sqlx::query("UPDATE inbox SET read_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE member_id = ? AND read_at IS NULL")
+        .bind(me.id)
+        .execute(&state.db)
+        .await?;
+    Ok(Json(json!({ "ok": true })))
 }
 
 async fn push_config(State(state): State<AppState>) -> Json<Value> {
@@ -924,6 +1058,16 @@ async fn nudge(
     if inserted.rows_affected() == 0 {
         return Err(AppError::Conflict("already_nudged"));
     }
+    crate::inbox::to_member(
+        &state.db,
+        body.member_id,
+        "nudge",
+        Some(round.id),
+        Some(me.id),
+        &format!("{} attend ton vote", me.name),
+    )
+    .await?;
+    state.live.send(me.group_id, Event::InboxChanged);
     state.push.notify_member(
         state.db.clone(),
         body.member_id,

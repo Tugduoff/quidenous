@@ -1,6 +1,6 @@
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 
-import { api, type Group, type HistoryItem, type Member, type Queue, type Round, type Stats } from './api';
+import { api, type Group, type HistoryItem, type InboxItem, type Message, type Member, type Queue, type Round, type Stats } from './api';
 
 export const keys = {
   group: ['group'] as const,
@@ -10,6 +10,8 @@ export const keys = {
   history: ['history'] as const,
   pinned: ['history', 'pinned'] as const,
   stats: ['stats'] as const,
+  messages: (id: number) => ['messages', id] as const,
+  inbox: ['inbox'] as const,
   queue: ['queue'] as const,
 };
 
@@ -40,6 +42,11 @@ export const useHistory = () =>
 
 /** Results pinned for the whole group (all of them, not paged). */
 export const usePinned = () => useQuery({ queryKey: keys.pinned, queryFn: () => api<HistoryItem[]>('/history/pinned') });
+
+export const useMessages = (roundId: number) =>
+  useQuery({ queryKey: keys.messages(roundId), queryFn: () => api<Message[]>(`/rounds/${roundId}/messages`) });
+
+export const useInbox = () => useQuery({ queryKey: keys.inbox, queryFn: () => api<{ items: InboxItem[]; unread: number }>('/inbox') });
 
 export const useStats = () => useQuery({ queryKey: keys.stats, queryFn: () => api<Stats>('/stats') });
 

@@ -46,6 +46,7 @@ function Root() {
           <Stack.Screen name="round/[id]" />
           <Stack.Screen name="profile" />
           <Stack.Screen name="group" />
+          <Stack.Screen name="inbox" />
         </Stack.Protected>
         <Stack.Protected guard={!token}>
           <Stack.Screen name="join" />

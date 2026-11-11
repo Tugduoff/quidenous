@@ -1,15 +1,16 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, ArrowRight, Bell, BellOff, BellRing, Check, Eye, EyeOff, Pin, Share2, SkipForward, Users } from 'lucide-react-native';
+import { ArrowLeft, ArrowRight, Bell, BellOff, BellRing, Check, Eye, EyeOff, Inbox, Pin, Share2, SkipForward, Users } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { enablePush, pushState, refreshPush, type PushState } from '@/lib/push';
 import { Pressable, Text, View } from 'react-native';
 
+import { Chat } from '@/components/chat';
 import { ResultBars } from '@/components/result-bars';
 import { Screen } from '@/components/screen';
 import { Avatar, AvatarStack, Button, Card, Display, Logo, Tag } from '@/components/ui';
 import { api, type Member, type Round } from '@/lib/api';
-import { keys, useCurrentRound, useMembers, useRound, useUnseenRound } from '@/lib/queries';
+import { keys, useCurrentRound, useInbox, useMembers, useRound, useUnseenRound } from '@/lib/queries';
 import { useSession } from '@/lib/session';
 import { setHideVote, useHideVote } from '@/lib/prefs';
 import { questionMessage, resultMessage, shareText } from '@/lib/share';
@@ -36,6 +37,39 @@ function PushBell() {
   );
 }
 
+/** The in-app notifications, with a badge for what I have not seen. */
+function InboxButton() {
+  const t = useTheme();
+  const { data } = useInbox();
+  const unread = data?.unread ?? 0;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={unread ? `Notifications, ${unread} non lues` : 'Notifications'}
+      onPress={() => router.push('/inbox')}
+      style={[{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card }, t.shadow]}>
+      <Inbox size={18} color={t.txt} />
+      {unread > 0 && (
+        <View
+          style={{
+            position: 'absolute',
+            top: -3,
+            right: -3,
+            minWidth: 18,
+            height: 18,
+            paddingHorizontal: 4,
+            borderRadius: 9,
+            backgroundColor: t.tag,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}>
+          <Text style={{ fontFamily: t.font.bold, fontSize: 10, color: '#fff' }}>{unread > 9 ? '9+' : unread}</Text>
+        </View>
+      )}
+    </Pressable>
+  );
+}
+
 /** Opens the group page (members, and later invites and settings). */
 function GroupButton() {
   const t = useTheme();
@@ -57,6 +91,7 @@ function Header() {
       <Logo />
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
         <GroupButton />
+        <InboxButton />
         <PushBell />
         <Pressable accessibilityRole="button" accessibilityLabel="Profil" onPress={() => router.push('/profile')}>
           <Avatar member={me ?? undefined} size={36} />
@@ -390,6 +425,7 @@ export function Result({
       {header}
       <Question round={round} result />
       <ResultBars result={round.result} byId={byId} />
+      <Chat roundId={round.id} />
     </Screen>
   );
 }

@@ -642,3 +642,87 @@ async fn a_majority_can_remove_someone() {
     assert_eq!(next["number"], 2);
     assert_eq!(next["member_count"], 3);
 }
+
+#[tokio::test]
+async fn chat_under_results_and_inbox() {
+    let app = test_app().await;
+    let (a, a_id) = join(&app, "Ana").await;
+    let (b, b_id) = join(&app, "Bob").await;
+    let (_, open) = call(&app, "GET", "/round/current", Some(&a), None).await;
+    let first = open["id"].as_i64().unwrap();
+    // No chat while votes are secret.
+    let (s, _) = call(
+        &app,
+        "POST",
+        &format!("/rounds/{first}/messages"),
+        Some(&a),
+        Some(json!({ "text": "alors ?" })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    // Nudge lands in the inbox.
+    call(
+        &app,
+        "POST",
+        "/round/current/nudge",
+        Some(&a),
+        Some(json!({ "member_id": b_id })),
+    )
+    .await;
+    let (_, inbox) = call(&app, "GET", "/inbox", Some(&b), None).await;
+    assert_eq!(inbox["items"][0]["kind"], "nudge");
+    vote_as(&app, &a, b_id).await;
+    vote_as(&app, &b, b_id).await;
+    let (s, msg) = call(
+        &app,
+        "POST",
+        &format!("/rounds/{first}/messages"),
+        Some(&a),
+        Some(json!({ "text": "  évidemment Bob  " })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{msg}");
+    assert_eq!(msg["text"], "évidemment Bob");
+    let (s, _) = call(
+        &app,
+        "POST",
+        &format!("/rounds/{first}/messages"),
+        Some(&a),
+        Some(json!({ "text": "   " })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    let (_, list) = call(
+        &app,
+        "GET",
+        &format!("/rounds/{first}/messages"),
+        Some(&b),
+        None,
+    )
+    .await;
+    assert_eq!(list.as_array().unwrap().len(), 1);
+    assert_eq!(list[0]["member_id"], a_id);
+    // Bob's inbox: the result (Bob closed it, so not for him), the message, the nudge.
+    let (_, inbox) = call(&app, "GET", "/inbox", Some(&b), None).await;
+    let kinds: Vec<&str> = inbox["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|i| i["kind"].as_str().unwrap())
+        .collect();
+    assert_eq!(kinds, ["message", "nudge"]);
+    assert_eq!(inbox["unread"], 2);
+    // Ana gets the result notice, not her own message.
+    let (_, inbox_a) = call(&app, "GET", "/inbox", Some(&a), None).await;
+    let kinds: Vec<&str> = inbox_a["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|i| i["kind"].as_str().unwrap())
+        .collect();
+    assert_eq!(kinds, ["result"]);
+    call(&app, "POST", "/inbox/read", Some(&b), None).await;
+    let (_, inbox) = call(&app, "GET", "/inbox", Some(&b), None).await;
+    assert_eq!(inbox["unread"], 0);
+    assert_eq!(inbox["items"][0]["read"], true);
+}

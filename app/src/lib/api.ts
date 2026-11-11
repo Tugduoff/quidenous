@@ -54,6 +54,16 @@ export type HistoryItem = {
   vote_count: number;
   pinned: boolean;
 };
+export type Message = { id: number; member_id: number; text: string; created_at: string };
+export type InboxItem = {
+  id: number;
+  kind: 'message' | 'nudge' | 'result' | 'question';
+  round_id: number | null;
+  actor_id: number | null;
+  text: string;
+  created_at: string;
+  read: boolean;
+};
 export type Award = { member_id: number; value: number };
 export type Stats = {
   questions: number;

@@ -3,6 +3,7 @@ pub mod config;
 pub mod deck;
 pub mod error;
 pub mod game;
+pub mod inbox;
 pub mod live;
 pub mod models;
 pub mod push;
