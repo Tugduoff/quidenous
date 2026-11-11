@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { enablePush, pushState, refreshPush, type PushState } from '@/lib/push';
 import { Pressable, Text, View } from 'react-native';
 
-import { Chat } from '@/components/chat';
+import { ChatInput, ChatMessages } from '@/components/chat';
 import { ResultBars } from '@/components/result-bars';
 import { Screen } from '@/components/screen';
 import { Avatar, AvatarStack, Button, Card, Display, Logo, Tag } from '@/components/ui';
@@ -415,17 +415,20 @@ export function Result({
   return (
     <Screen
       footer={
-        onNext && (
-          <Button onPress={onNext}>
-            <Text style={{ fontFamily: t.font.bold, fontSize: 17, color: t.accTxt }}>Suivante</Text>
-            <ArrowRight size={20} color={t.accTxt} />
-          </Button>
-        )
+        <>
+          <ChatInput roundId={round.id} />
+          {onNext && (
+            <Button onPress={onNext}>
+              <Text style={{ fontFamily: t.font.bold, fontSize: 17, color: t.accTxt }}>Suivante</Text>
+              <ArrowRight size={20} color={t.accTxt} />
+            </Button>
+          )}
+        </>
       }>
       {header}
       <Question round={round} result />
       <ResultBars result={round.result} byId={byId} />
-      <Chat roundId={round.id} />
+      <ChatMessages roundId={round.id} />
     </Screen>
   );
 }
