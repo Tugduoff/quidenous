@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, ArrowRight, Bell, BellOff, BellRing, Check, Hourglass, Pin, Share2, SkipForward } from 'lucide-react-native';
+import { ArrowLeft, ArrowRight, Bell, BellOff, BellRing, Check, Eye, EyeOff, Pin, Share2, SkipForward, Users } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { enablePush, pushState, refreshPush, type PushState } from '@/lib/push';
@@ -11,6 +11,7 @@ import { Avatar, AvatarStack, Button, Card, Display, Logo, Tag } from '@/compone
 import { api, type Member, type Round } from '@/lib/api';
 import { keys, useCurrentRound, useMembers, useRound, useUnseenRound } from '@/lib/queries';
 import { useSession } from '@/lib/session';
+import { setHideVote, useHideVote } from '@/lib/prefs';
 import { questionMessage, resultMessage, shareText } from '@/lib/share';
 import { useTheme } from '@/lib/theme';
 
@@ -35,12 +36,27 @@ function PushBell() {
   );
 }
 
+/** Opens the group page (members, and later invites and settings). */
+function GroupButton() {
+  const t = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Groupe"
+      onPress={() => router.push('/group')}
+      style={[{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card }, t.shadow]}>
+      <Users size={18} color={t.txt} />
+    </Pressable>
+  );
+}
+
 function Header() {
   const { me } = useSession();
   return (
     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
       <Logo />
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+        <GroupButton />
         <PushBell />
         <Pressable accessibilityRole="button" accessibilityLabel="Profil" onPress={() => router.push('/profile')}>
           <Avatar member={me ?? undefined} size={36} />
@@ -249,14 +265,30 @@ function Waiting({ round, byId, members }: { round: Round; byId: Map<number, Mem
   const t = useTheme();
   const { me } = useSession();
   const target = round.my_vote != null ? byId.get(round.my_vote) : undefined;
+  const hidden = useHideVote();
   const pending = members.filter((m) => !round.voter_ids.includes(m.id));
   return (
     <Screen footer={<Button disabled>{`${round.voter_ids.length}/${round.member_count}`}</Button>}>
       <Header />
       <Question round={round} />
       <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 14, padding: 20 }}>
-        <Avatar member={target} size={56} />
-        <Text style={{ flex: 1, fontFamily: t.font.bold, fontSize: 18, color: t.txt }}>{target?.name}</Text>
+        {hidden ? (
+          <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: t.card2, alignItems: 'center', justifyContent: 'center' }}>
+            <EyeOff size={24} color={t.mut} />
+          </View>
+        ) : (
+          <Avatar member={target} size={56} />
+        )}
+        <Text style={{ flex: 1, fontFamily: t.font.bold, fontSize: 18, color: hidden ? t.mut : t.txt }}>{hidden ? 'Vote caché' : target?.name}</Text>
+        {/* Hide my pick when friends can see my screen; remembered on this phone. */}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={hidden ? 'Montrer mon vote' : 'Cacher mon vote'}
+          onPress={() => setHideVote(!hidden)}
+          hitSlop={8}
+          style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: t.card2, alignItems: 'center', justifyContent: 'center' }}>
+          {hidden ? <Eye size={18} color={t.txt} /> : <EyeOff size={18} color={t.txt} />}
+        </Pressable>
         <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: t.acc, alignItems: 'center', justifyContent: 'center' }}>
           <Check size={20} color={t.accTxt} />
         </View>
@@ -265,10 +297,8 @@ function Waiting({ round, byId, members }: { round: Round; byId: Map<number, Mem
         <View key={m.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
           <Avatar member={m} size={32} />
           <Text style={{ flex: 1, fontFamily: t.font.semibold, color: t.txt }}>{m.name}</Text>
-          {round.skipped_ids.includes(m.id) ? (
+          {round.skipped_ids.includes(m.id) && (
             <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut }}>passé</Text>
-          ) : (
-            <Hourglass size={18} color={t.mut} />
           )}
           {m.id !== me?.id && !round.skipped_ids.includes(m.id) && <SkipButton member={m} round={round} />}
           {m.id !== me?.id && <NudgeButton member={m} roundId={round.id} />}

@@ -45,6 +45,7 @@ function Root() {
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="round/[id]" />
           <Stack.Screen name="profile" />
+          <Stack.Screen name="group" />
         </Stack.Protected>
         <Stack.Protected guard={!token}>
           <Stack.Screen name="join" />
