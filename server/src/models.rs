@@ -10,6 +10,7 @@ pub struct MemberRow {
     pub token_hash: String,
     pub created_at: String,
     pub seen_round: i64,
+    pub removed_at: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -65,6 +66,19 @@ pub struct RoundView {
     pub result: Option<Vec<Tally>>,
     /// Pinned to the top of the history (for the whole group).
     pub pinned: bool,
+    /// Who agreed to skip whom on this question (open questions only).
+    pub skips: Vec<SkipState>,
+    /// Agreements needed to skip someone.
+    pub skip_needed: i64,
+    /// Members the group decided not to wait for on this question.
+    pub skipped_ids: Vec<i64>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct SkipState {
+    pub target_id: i64,
+    pub count: i64,
+    pub mine: bool,
 }
 
 #[derive(Clone, Debug, Serialize)]

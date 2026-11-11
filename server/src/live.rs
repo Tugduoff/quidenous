@@ -12,6 +12,9 @@ pub enum Event {
     RoundOpened { round_id: i64 },
     QuestionAdded { question_id: i64 },
     RoundPinned { round_id: i64, pinned: bool },
+    SkipVoted { round_id: i64 },
+    KickVoted { member_id: i64 },
+    MemberRemoved { member_id: i64 },
 }
 
 #[derive(Clone, Debug)]

@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, ArrowRight, Bell, BellOff, BellRing, Check, Hourglass, Pin } from 'lucide-react-native';
+import { ArrowLeft, ArrowRight, Bell, BellOff, BellRing, Check, Hourglass, Pin, Share2, SkipForward } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { enablePush, pushState, refreshPush, type PushState } from '@/lib/push';
@@ -11,6 +11,7 @@ import { Avatar, AvatarStack, Button, Card, Display, Logo, Tag } from '@/compone
 import { api, type Member, type Round } from '@/lib/api';
 import { keys, useCurrentRound, useMembers, useRound, useUnseenRound } from '@/lib/queries';
 import { useSession } from '@/lib/session';
+import { questionMessage, resultMessage, shareText } from '@/lib/share';
 import { useTheme } from '@/lib/theme';
 
 function PushBell() {
@@ -88,9 +89,30 @@ export default function VoteScreen() {
 }
 
 function Question({ round, result }: { round: Round; result?: boolean }) {
+  const t = useTheme();
+  const { byId } = useMembers();
+  const [copied, setCopied] = useState(false);
+  const share = async () => {
+    const outcome = await shareText(result ? resultMessage(round, byId) : questionMessage(round));
+    if (outcome === 'copied') {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    }
+  };
   return (
     <View style={{ gap: 14 }}>
-      <Tag label={`${result ? 'Résultat' : round.custom ? 'De nous' : 'Dilemme'} · #${round.number}`} tone={result ? 'acc' : 'tag'} />
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Tag label={`${result ? 'Résultat' : round.custom ? 'De nous' : 'Dilemme'} · #${round.number}`} tone={result ? 'acc' : 'tag'} />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={result ? 'Partager le résultat' : 'Partager la question'}
+          onPress={share}
+          hitSlop={8}
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 6, height: 32, paddingHorizontal: 12, borderRadius: t.radius.pill, backgroundColor: t.card }}>
+          {copied ? <Check size={15} color={t.accInk} /> : <Share2 size={15} color={t.txt} />}
+          <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: copied ? t.accInk : t.txt }}>{copied ? 'Copié' : 'Partager'}</Text>
+        </Pressable>
+      </View>
       <Display size={result ? 28 : 34}>{round.question}</Display>
     </View>
   );
@@ -189,6 +211,40 @@ function NudgeButton({ member, roundId }: { member: Member; roundId: number }) {
   );
 }
 
+/** "Let's not wait": agree to close the question without them. Shows how many already agree. */
+function SkipButton({ member, round }: { member: Member; round: Round }) {
+  const t = useTheme();
+  const qc = useQueryClient();
+  const state = round.skips.find((s) => s.target_id === member.id);
+  const mine = !!state?.mine;
+  const skip = useMutation({
+    mutationFn: () => api(`/round/current/skip/${member.id}`, { method: mine ? 'DELETE' : 'PUT' }),
+    onSettled: () => qc.invalidateQueries({ queryKey: keys.current }),
+  });
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={mine ? `Ne plus passer ${member.name}` : `Passer ${member.name}`}
+      disabled={skip.isPending}
+      onPress={() => skip.mutate()}
+      hitSlop={6}
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        height: 32,
+        paddingHorizontal: 10,
+        borderRadius: t.radius.pill,
+        backgroundColor: mine ? t.accSoft : t.card,
+      }}>
+      <SkipForward size={14} color={mine ? t.accInk : t.txt} />
+      <Text style={{ fontFamily: t.font.semibold, fontSize: 12, color: mine ? t.accInk : t.txt }}>
+        {state ? `${state.count}/${round.skip_needed}` : 'Passer'}
+      </Text>
+    </Pressable>
+  );
+}
+
 function Waiting({ round, byId, members }: { round: Round; byId: Map<number, Member>; members: Member[] }) {
   const t = useTheme();
   const { me } = useSession();
@@ -209,7 +265,12 @@ function Waiting({ round, byId, members }: { round: Round; byId: Map<number, Mem
         <View key={m.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
           <Avatar member={m} size={32} />
           <Text style={{ flex: 1, fontFamily: t.font.semibold, color: t.txt }}>{m.name}</Text>
-          <Hourglass size={18} color={t.mut} />
+          {round.skipped_ids.includes(m.id) ? (
+            <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut }}>passé</Text>
+          ) : (
+            <Hourglass size={18} color={t.mut} />
+          )}
+          {m.id !== me?.id && !round.skipped_ids.includes(m.id) && <SkipButton member={m} round={round} />}
           {m.id !== me?.id && <NudgeButton member={m} roundId={round.id} />}
         </View>
       ))}

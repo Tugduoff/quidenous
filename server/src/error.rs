@@ -15,6 +15,8 @@ pub enum AppError {
     BadRequest(&'static str),
     #[error("{0}")]
     Conflict(&'static str),
+    #[error("{0}")]
+    Forbidden(&'static str),
     #[error(transparent)]
     Db(#[from] sqlx::Error),
     #[error(transparent)]
@@ -30,6 +32,7 @@ impl IntoResponse for AppError {
             Self::NotFound => (StatusCode::NOT_FOUND, "not_found"),
             Self::BadRequest(code) => (StatusCode::BAD_REQUEST, *code),
             Self::Conflict(code) => (StatusCode::CONFLICT, *code),
+            Self::Forbidden(code) => (StatusCode::FORBIDDEN, *code),
             Self::Image(_) => (StatusCode::BAD_REQUEST, "bad_image"),
             Self::Db(_) | Self::Io(_) => {
                 tracing::error!(error = %self, "internal error");

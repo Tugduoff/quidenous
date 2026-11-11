@@ -1,6 +1,6 @@
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 
-import { api, type HistoryItem, type Member, type Queue, type Round, type Stats } from './api';
+import { api, type Group, type HistoryItem, type Member, type Queue, type Round, type Stats } from './api';
 
 export const keys = {
   group: ['group'] as const,
@@ -14,7 +14,7 @@ export const keys = {
 };
 
 export const useGroup = () =>
-  useQuery({ queryKey: keys.group, queryFn: () => api<{ name: string; members: Member[] }>('/group') });
+  useQuery({ queryKey: keys.group, queryFn: () => api<Group>('/group') });
 
 export const useCurrentRound = () =>
   useQuery({ queryKey: keys.current, queryFn: () => api<Round | null>('/round/current') });

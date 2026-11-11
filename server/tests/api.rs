@@ -499,3 +499,146 @@ async fn stats_count_votes_and_hand_out_awards() {
         json!({ "voter_id": tug_id, "target_id": louis_id, "value": 2 })
     );
 }
+
+#[tokio::test]
+async fn history_exports_as_csv() {
+    let app = test_app().await;
+    let (tug, tug_id) = join(&app, "Tugdual").await;
+    let (louis, _) = join(&app, "Louis").await;
+    vote_as(&app, &tug, tug_id).await;
+    vote_as(&app, &louis, tug_id).await;
+    let req = Request::builder()
+        .uri(format!("/api/history/export?token={tug}"))
+        .body(Body::empty())
+        .unwrap();
+    let res = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    assert!(
+        res.headers()["content-disposition"]
+            .to_str()
+            .unwrap()
+            .contains("attachment")
+    );
+    let body =
+        String::from_utf8(res.into_body().collect().await.unwrap().to_bytes().to_vec()).unwrap();
+    let lines: Vec<&str> = body.lines().collect();
+    assert_eq!(lines.len(), 2, "{body}");
+    assert!(lines[1].starts_with("1,"));
+    assert!(
+        lines[1].contains("\"Tugdual\",2,2,\"Tugdual (2) : Tugdual, Louis\""),
+        "{body}"
+    );
+    let req = Request::builder()
+        .uri("/api/history/export?token=nope")
+        .body(Body::empty())
+        .unwrap();
+    assert_eq!(
+        app.clone().oneshot(req).await.unwrap().status(),
+        StatusCode::UNAUTHORIZED
+    );
+}
+
+#[tokio::test]
+async fn the_group_can_skip_someone_who_does_not_vote() {
+    let app = test_app().await;
+    let (a, a_id) = join(&app, "Ana").await;
+    let (b, _) = join(&app, "Bob").await;
+    let (c, _) = join(&app, "Cyd").await;
+    let (_d, d_id) = join(&app, "Dan").await;
+    let (_, open) = call(&app, "GET", "/round/current", Some(&a), None).await;
+    let first = open["id"].as_i64().unwrap();
+    for t in [&a, &b, &c] {
+        vote_as(&app, t, a_id).await;
+    }
+    // Can't skip yourself, nor someone who already voted.
+    let (s, _) = call(
+        &app,
+        "PUT",
+        &format!("/round/current/skip/{a_id}"),
+        Some(&b),
+        None,
+    )
+    .await;
+    assert_eq!(s, StatusCode::CONFLICT);
+    // Majority of the 3 others = 2.
+    let (s, body) = call(
+        &app,
+        "PUT",
+        &format!("/round/current/skip/{d_id}"),
+        Some(&a),
+        None,
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(body["closed"], false);
+    let (_, view) = call(&app, "GET", "/round/current", Some(&b), None).await;
+    assert_eq!(view["skip_needed"], 2);
+    assert_eq!(view["skips"][0]["count"], 1);
+    assert_eq!(view["skips"][0]["mine"], false);
+    let (_, body) = call(
+        &app,
+        "PUT",
+        &format!("/round/current/skip/{d_id}"),
+        Some(&b),
+        None,
+    )
+    .await;
+    assert_eq!(body["closed"], true);
+    let (_, closed) = call(&app, "GET", &format!("/rounds/{first}"), Some(&a), None).await;
+    assert!(closed["closed_at"].is_string());
+    let (_, next) = call(&app, "GET", "/round/current", Some(&a), None).await;
+    assert_eq!(next["number"], 2);
+    assert_eq!(next["member_count"], 4, "skips only count for one question");
+}
+
+#[tokio::test]
+async fn a_majority_can_remove_someone() {
+    let app = test_app().await;
+    let (a, a_id) = join(&app, "Ana").await;
+    let (b, _) = join(&app, "Bob").await;
+    let (c, _) = join(&app, "Cyd").await;
+    let (d, d_id) = join(&app, "Dan").await;
+    for t in [&a, &b, &c] {
+        vote_as(&app, t, a_id).await;
+    }
+    let (s, body) = call(
+        &app,
+        "PUT",
+        &format!("/members/{d_id}/kick"),
+        Some(&a),
+        None,
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(body["removed"], false);
+    let (_, group) = call(&app, "GET", "/group", Some(&c), None).await;
+    assert_eq!(group["kick_needed"], 2);
+    assert_eq!(group["kicks"][0]["count"], 1);
+    let (_, body) = call(
+        &app,
+        "PUT",
+        &format!("/members/{d_id}/kick"),
+        Some(&b),
+        None,
+    )
+    .await;
+    assert_eq!(body["removed"], true);
+    // Out of the group, signed out, can't come back under the same name.
+    let (_, group) = call(&app, "GET", "/group", Some(&a), None).await;
+    assert_eq!(group["members"].as_array().unwrap().len(), 3);
+    let (s, _) = call(&app, "GET", "/round/current", Some(&d), None).await;
+    assert_eq!(s, StatusCode::UNAUTHORIZED);
+    let (s, _) = call(
+        &app,
+        "POST",
+        "/join",
+        None,
+        Some(json!({ "code": "code-1", "name": "dan" })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+    // The question was only waiting for them: it closed.
+    let (_, next) = call(&app, "GET", "/round/current", Some(&a), None).await;
+    assert_eq!(next["number"], 2);
+    assert_eq!(next["member_count"], 3);
+}

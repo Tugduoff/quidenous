@@ -82,11 +82,12 @@ fn median(values: &mut [f64]) -> Option<f64> {
 }
 
 pub async fn compute(db: &SqlitePool, group_id: i64) -> AppResult<Stats> {
-    let members: Vec<i64> =
-        sqlx::query_scalar("SELECT id FROM members WHERE group_id = ? ORDER BY id")
-            .bind(group_id)
-            .fetch_all(db)
-            .await?;
+    let members: Vec<i64> = sqlx::query_scalar(
+        "SELECT id FROM members WHERE group_id = ? AND removed_at IS NULL ORDER BY id",
+    )
+    .bind(group_id)
+    .fetch_all(db)
+    .await?;
     // Finished questions only: an open one would leak who voted for whom.
     let rounds: Vec<(i64, f64)> = sqlx::query_as(
         "SELECT id, (julianday(closed_at) - julianday(opened_at)) * 86400.0 FROM rounds \

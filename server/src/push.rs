@@ -275,8 +275,11 @@ impl Push {
                 Ok(subs) => subs,
                 Err(e) => return tracing::error!(error = %e, "push: load subscriptions"),
             };
-            for sub in subs {
-                match push.deliver(&sub, &n).await {
+            // Everyone at once: a slow push service must not delay the others.
+            let results =
+                futures::future::join_all(subs.iter().map(|sub| push.deliver(sub, &n))).await;
+            for (sub, result) in subs.iter().zip(results) {
+                match result {
                     Delivery::Sent => {}
                     Delivery::Gone => {
                         let _ = sqlx::query("DELETE FROM push_subscriptions WHERE id = ?")

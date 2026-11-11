@@ -1,11 +1,12 @@
 import { router } from 'expo-router';
-import { Crown, PartyPopper, Pin } from 'lucide-react-native';
+import { Crown, Download, PartyPopper, Pin } from 'lucide-react-native';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 
 import { Screen } from '@/components/screen';
 import { Avatar, AvatarStack, avatarStackWidth, Display } from '@/components/ui';
 import type { HistoryItem, Member } from '@/lib/api';
 import { isMilestone } from '@/lib/milestones';
+import { downloadHistory } from '@/lib/share';
 import { useHistory, useMembers, usePinned } from '@/lib/queries';
 import { useTheme } from '@/lib/theme';
 
@@ -111,7 +112,18 @@ export default function HistoryScreen() {
   );
   return (
     <Screen onEndReached={more}>
-      <Display size={30}>Historique</Display>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Display size={30}>Historique</Display>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Exporter l'historique"
+          onPress={downloadHistory}
+          hitSlop={8}
+          style={[{ flexDirection: 'row', alignItems: 'center', gap: 6, height: 36, paddingHorizontal: 14, borderRadius: t.radius.pill, backgroundColor: t.card }, t.shadow]}>
+          <Download size={16} color={t.txt} />
+          <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.txt }}>Exporter</Text>
+        </Pressable>
+      </View>
       {!!pinned?.length && (
         <View style={{ gap: 10 }}>
           <SectionLabel>Épinglés</SectionLabel>

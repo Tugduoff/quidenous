@@ -5,7 +5,7 @@ use sqlx::{Sqlite, SqlitePool, Transaction};
 use crate::{
     error::{AppError, AppResult},
     live::Event,
-    models::{RoundRow, RoundView, Tally},
+    models::{RoundRow, RoundView, SkipState, Tally},
 };
 
 macro_rules! round_select {
@@ -125,12 +125,13 @@ pub async fn vote(
             .fetch_optional(&mut *tx)
             .await?
             .ok_or(AppError::Conflict("no_open_round"))?;
-    let target_in_group: Option<i64> =
-        sqlx::query_scalar("SELECT id FROM members WHERE id = ? AND group_id = ?")
-            .bind(target_id)
-            .bind(group_id)
-            .fetch_optional(&mut *tx)
-            .await?;
+    let target_in_group: Option<i64> = sqlx::query_scalar(
+        "SELECT id FROM members WHERE id = ? AND group_id = ? AND removed_at IS NULL",
+    )
+    .bind(target_id)
+    .bind(group_id)
+    .fetch_optional(&mut *tx)
+    .await?;
     if target_in_group.is_none() {
         return Err(AppError::BadRequest("unknown_member"));
     }
@@ -147,27 +148,70 @@ pub async fn vote(
     }
 
     let mut events = vec![Event::VoteCast { round_id, voter_id }];
-    let (votes, members): (i64, i64) = sqlx::query_as(
-        "SELECT (SELECT COUNT(*) FROM votes WHERE round_id = ?), \
-                (SELECT COUNT(*) FROM members WHERE group_id = ?)",
+    events.extend(close_if_done(&mut tx, group_id, round_id).await?);
+    tx.commit().await?;
+    Ok(events)
+}
+
+/// Agreements needed to skip or remove someone: a majority of the other active members.
+pub fn majority(active: i64) -> i64 {
+    (active - 1) / 2 + 1
+}
+
+pub async fn active_count(tx: &mut Transaction<'_, Sqlite>, group_id: i64) -> AppResult<i64> {
+    Ok(
+        sqlx::query_scalar(
+            "SELECT COUNT(*) FROM members WHERE group_id = ? AND removed_at IS NULL",
+        )
+        .bind(group_id)
+        .fetch_one(&mut **tx)
+        .await?,
+    )
+}
+
+/// Members the group agreed not to wait for on this question (and who still have not voted).
+pub async fn skipped(
+    tx: &mut Transaction<'_, Sqlite>,
+    group_id: i64,
+    round_id: i64,
+) -> AppResult<Vec<i64>> {
+    let needed = majority(active_count(tx, group_id).await?);
+    Ok(sqlx::query_scalar(
+        "SELECT s.target_id FROM skips s JOIN members m ON m.id = s.target_id AND m.removed_at IS NULL \
+         WHERE s.round_id = ? AND NOT EXISTS (SELECT 1 FROM votes v WHERE v.round_id = s.round_id AND v.voter_id = s.target_id) \
+         GROUP BY s.target_id HAVING COUNT(*) >= ?",
     )
     .bind(round_id)
-    .bind(group_id)
-    .fetch_one(&mut *tx)
+    .bind(needed)
+    .fetch_all(&mut **tx)
+    .await?)
+}
+
+/// Closes the round (and opens the next) once every active member has voted or been skipped.
+pub async fn close_if_done(
+    tx: &mut Transaction<'_, Sqlite>,
+    group_id: i64,
+    round_id: i64,
+) -> AppResult<Vec<Event>> {
+    let votes: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM votes v JOIN members m ON m.id = v.voter_id AND m.removed_at IS NULL WHERE v.round_id = ?",
+    )
+    .bind(round_id)
+    .fetch_one(&mut **tx)
     .await?;
-    if votes >= members {
-        sqlx::query(
-            "UPDATE rounds SET closed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
-        )
-        .bind(round_id)
-        .execute(&mut *tx)
-        .await?;
+    let waiting_for =
+        active_count(tx, group_id).await? - skipped(tx, group_id, round_id).await?.len() as i64;
+    let mut events = Vec::new();
+    if votes > 0 && votes >= waiting_for {
+        sqlx::query("UPDATE rounds SET closed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ? AND closed_at IS NULL")
+            .bind(round_id)
+            .execute(&mut **tx)
+            .await?;
         events.push(Event::RoundClosed { round_id });
-        if let Some(next) = ensure_open_round(&mut tx, group_id).await? {
+        if let Some(next) = ensure_open_round(tx, group_id).await? {
             events.push(Event::RoundOpened { round_id: next });
         }
     }
-    tx.commit().await?;
     Ok(events)
 }
 
@@ -208,10 +252,31 @@ pub async fn view(db: &SqlitePool, round: RoundRow, me: i64) -> AppResult<RoundV
             .bind(me)
             .fetch_optional(db)
             .await?;
-    let member_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM members WHERE group_id = ?")
-        .bind(round.group_id)
-        .fetch_one(db)
+    let mut tx = db.begin().await?;
+    let active = active_count(&mut tx, round.group_id).await?;
+    let (skips, skipped_ids) = if round.closed_at.is_none() {
+        let rows: Vec<(i64, i64, bool)> = sqlx::query_as(
+            "SELECT target_id, COUNT(*), MAX(from_id = ?) FROM skips WHERE round_id = ? GROUP BY target_id",
+        )
+        .bind(me)
+        .bind(round.id)
+        .fetch_all(&mut *tx)
         .await?;
+        let skips = rows
+            .into_iter()
+            .map(|(target_id, count, mine)| SkipState {
+                target_id,
+                count,
+                mine,
+            })
+            .collect();
+        (skips, skipped(&mut tx, round.group_id, round.id).await?)
+    } else {
+        (Vec::new(), Vec::new())
+    };
+    tx.commit().await?;
+    // Votes needed to close: everyone still in the group, minus those the group decided not to wait for.
+    let member_count = active - skipped_ids.len() as i64;
     let result = match round.closed_at {
         Some(_) => Some(tallies(db, round.id).await?),
         None => None,
@@ -229,6 +294,9 @@ pub async fn view(db: &SqlitePool, round: RoundRow, me: i64) -> AppResult<RoundV
         my_vote,
         result,
         pinned,
+        skips,
+        skip_needed: majority(active),
+        skipped_ids,
     })
 }
 

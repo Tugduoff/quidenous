@@ -36,7 +36,14 @@ export type Round = {
   my_vote: number | null;
   result: Tally[] | null;
   pinned: boolean;
+  /** Open question only: who agreed not to wait for whom. */
+  skips: VoteCount[];
+  skip_needed: number;
+  skipped_ids: number[];
 };
+/** A count of agreements (skip someone, remove someone), and whether mine is one of them. */
+export type VoteCount = { target_id: number; count: number; mine: boolean };
+export type Group = { name: string; members: Member[]; kicks: VoteCount[]; kick_needed: number };
 export type HistoryItem = {
   id: number;
   number: number;
@@ -88,6 +95,9 @@ let token: string | null = null;
 export const setApiToken = (value: string | null) => {
   token = value;
 };
+
+/** Plain link to the CSV of the whole history (the token rides in the query so a browser can download it). */
+export const historyExportUrl = () => `${API_URL}/api/history/export?token=${token ?? ''}`;
 
 export async function api<T>(path: string, init: RequestInit & { json?: unknown } = {}): Promise<T> {
   const headers: Record<string, string> = { ...(init.headers as Record<string, string>) };

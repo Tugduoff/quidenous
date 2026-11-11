@@ -16,7 +16,7 @@ pub fn hash_token(token: &str) -> String {
 
 pub async fn member_for_token(state: &AppState, token: &str) -> Result<MemberRow, AppError> {
     sqlx::query_as::<_, MemberRow>(
-        "SELECT m.* FROM members m JOIN member_tokens t ON t.member_id = m.id WHERE t.token_hash = ?",
+        "SELECT m.* FROM members m JOIN member_tokens t ON t.member_id = m.id WHERE t.token_hash = ? AND m.removed_at IS NULL",
     )
         .bind(hash_token(token))
         .fetch_optional(&state.db)

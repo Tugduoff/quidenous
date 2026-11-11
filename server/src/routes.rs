@@ -45,11 +45,14 @@ pub fn router() -> Router<AppState> {
         .route("/round/current/vote", post(vote))
         .route("/round/unseen", get(unseen_round))
         .route("/round/current/nudge", post(nudge))
+        .route("/round/current/skip/{member_id}", put(skip).delete(unskip))
+        .route("/members/{member_id}/kick", put(kick).delete(unkick))
         .route("/rounds/{id}", get(round))
         .route("/rounds/{id}/seen", post(mark_seen))
         .route("/rounds/{id}/pin", put(pin).delete(unpin))
         .route("/history", get(history))
         .route("/history/pinned", get(pinned_history))
+        .route("/history/export", get(export_history))
         .route("/stats", get(stats))
         .route("/questions", post(add_question))
         .route("/questions/queue", get(queue))
@@ -94,6 +97,9 @@ async fn join(State(state): State<AppState>, Json(body): Json<JoinBody>) -> AppR
     .bind(&name)
     .fetch_optional(&mut *tx)
     .await?;
+    if existing.as_ref().is_some_and(|m| m.removed_at.is_some()) {
+        return Err(AppError::Forbidden("removed"));
+    }
     let joined = existing.is_none();
     let member = match existing {
         Some(member) => member,
@@ -214,13 +220,29 @@ async fn group(State(state): State<AppState>, Me(me): Me) -> AppResult<Json<Valu
         .bind(me.group_id)
         .fetch_one(&state.db)
         .await?;
-    let members: Vec<MemberRow> =
-        sqlx::query_as("SELECT * FROM members WHERE group_id = ? ORDER BY id")
-            .bind(me.group_id)
-            .fetch_all(&state.db)
-            .await?;
+    let members: Vec<MemberRow> = sqlx::query_as(
+        "SELECT * FROM members WHERE group_id = ? AND removed_at IS NULL ORDER BY id",
+    )
+    .bind(me.group_id)
+    .fetch_all(&state.db)
+    .await?;
+    let kicks: Vec<(i64, i64, bool)> = sqlx::query_as(
+        "SELECT k.target_id, COUNT(*), MAX(k.from_id = ?) FROM kicks k JOIN members m ON m.id = k.target_id \
+         WHERE m.group_id = ? AND m.removed_at IS NULL GROUP BY k.target_id",
+    )
+    .bind(me.id)
+    .bind(me.group_id)
+    .fetch_all(&state.db)
+    .await?;
+    let kicks: Vec<Value> = kicks
+        .into_iter()
+        .map(|(target_id, count, mine)| json!({ "target_id": target_id, "count": count, "mine": mine }))
+        .collect();
+    let kick_needed = game::majority(members.len() as i64);
     let members: Vec<Member> = members.iter().map(Member::from).collect();
-    Ok(Json(json!({ "name": name, "members": members })))
+    Ok(Json(
+        json!({ "name": name, "members": members, "kicks": kicks, "kick_needed": kick_needed }),
+    ))
 }
 
 async fn current_round(
@@ -339,6 +361,250 @@ async fn history_items(
         });
     }
     Ok(items)
+}
+
+#[derive(Deserialize)]
+struct ExportQuery {
+    token: String,
+}
+
+/// The whole history as a CSV file. The token comes in the query so a plain link (browser download) works.
+async fn export_history(
+    State(state): State<AppState>,
+    Query(q): Query<ExportQuery>,
+) -> AppResult<Response> {
+    let me = member_for_token(&state, &q.token).await?;
+    let names: std::collections::HashMap<i64, String> =
+        sqlx::query_as::<_, (i64, String)>("SELECT id, name FROM members WHERE group_id = ?")
+            .bind(me.group_id)
+            .fetch_all(&state.db)
+            .await?
+            .into_iter()
+            .collect();
+    let name = |id: i64| names.get(&id).cloned().unwrap_or_else(|| "?".into());
+    let rounds: Vec<(i64, i64, String, String)> = sqlx::query_as(
+        "SELECT r.id, r.number, q.text, r.closed_at FROM rounds r JOIN questions q ON q.id = r.question_id \
+         WHERE r.group_id = ? AND r.closed_at IS NOT NULL ORDER BY r.number",
+    )
+    .bind(me.group_id)
+    .fetch_all(&state.db)
+    .await?;
+    let cell = |v: &str| format!("\"{}\"", v.replace('"', "\"\""));
+    // BOM so Excel reads the accents right.
+    let mut csv =
+        String::from("\u{feff}numéro,date,question,gagnant(s),votes du gagnant,votes,détail\n");
+    for (id, number, question, closed_at) in rounds {
+        let tallies = game::tallies(&state.db, id).await?;
+        let top = tallies.first().map_or(0, |t| t.count);
+        let winners: Vec<String> = tallies
+            .iter()
+            .filter(|t| t.count == top)
+            .map(|t| name(t.target_id))
+            .collect();
+        let detail: Vec<String> = tallies
+            .iter()
+            .map(|t| {
+                let voters: Vec<String> = t.voter_ids.iter().map(|v| name(*v)).collect();
+                format!(
+                    "{} ({}) : {}",
+                    name(t.target_id),
+                    t.count,
+                    voters.join(", ")
+                )
+            })
+            .collect();
+        csv.push_str(&format!(
+            "{},{},{},{},{},{},{}\n",
+            number,
+            &closed_at[..10.min(closed_at.len())],
+            cell(&question),
+            cell(&winners.join(", ")),
+            top,
+            tallies.iter().map(|t| t.count).sum::<i64>(),
+            cell(&detail.join(" | ")),
+        ));
+    }
+    Ok(axum::response::IntoResponse::into_response((
+        [
+            (axum::http::header::CONTENT_TYPE, "text/csv; charset=utf-8"),
+            (
+                axum::http::header::CONTENT_DISPOSITION,
+                "attachment; filename=\"qui-de-nous-historique.csv\"",
+            ),
+        ],
+        csv,
+    )))
+}
+
+/// Agree not to wait for someone on the open question. With a majority, the question closes without them.
+async fn skip(
+    State(state): State<AppState>,
+    Me(me): Me,
+    Path(member_id): Path<i64>,
+) -> AppResult<Json<Value>> {
+    if member_id == me.id {
+        return Err(AppError::BadRequest("self_skip"));
+    }
+    let round = game::open_round(&state.db, me.group_id)
+        .await?
+        .ok_or(AppError::Conflict("no_open_round"))?;
+    let waiting: Option<i64> = sqlx::query_scalar(
+        "SELECT id FROM members m WHERE m.id = ? AND m.group_id = ? AND m.removed_at IS NULL \
+         AND NOT EXISTS (SELECT 1 FROM votes v WHERE v.round_id = ? AND v.voter_id = m.id)",
+    )
+    .bind(member_id)
+    .bind(me.group_id)
+    .bind(round.id)
+    .fetch_optional(&state.db)
+    .await?;
+    if waiting.is_none() {
+        return Err(AppError::Conflict("already_voted"));
+    }
+    let mut tx = state.db.begin().await?;
+    sqlx::query("INSERT OR IGNORE INTO skips (round_id, from_id, target_id) VALUES (?, ?, ?)")
+        .bind(round.id)
+        .bind(me.id)
+        .bind(member_id)
+        .execute(&mut *tx)
+        .await?;
+    let events = game::close_if_done(&mut tx, me.group_id, round.id).await?;
+    tx.commit().await?;
+    after_round_change(&state, me.group_id, me.id, round.id, events).await
+}
+
+async fn unskip(
+    State(state): State<AppState>,
+    Me(me): Me,
+    Path(member_id): Path<i64>,
+) -> AppResult<Json<Value>> {
+    let round = game::open_round(&state.db, me.group_id)
+        .await?
+        .ok_or(AppError::Conflict("no_open_round"))?;
+    sqlx::query("DELETE FROM skips WHERE round_id = ? AND from_id = ? AND target_id = ?")
+        .bind(round.id)
+        .bind(me.id)
+        .bind(member_id)
+        .execute(&state.db)
+        .await?;
+    state
+        .live
+        .send(me.group_id, Event::SkipVoted { round_id: round.id });
+    Ok(Json(json!({ "ok": true })))
+}
+
+/// Broadcast what a skip or a removal changed, and notify when it closed the question.
+async fn after_round_change(
+    state: &AppState,
+    group_id: i64,
+    actor: i64,
+    round_id: i64,
+    events: Vec<Event>,
+) -> AppResult<Json<Value>> {
+    let closed = events
+        .iter()
+        .any(|e| matches!(e, Event::RoundClosed { .. }));
+    let opened = events.iter().find_map(|e| match e {
+        Event::RoundOpened { round_id } => Some(*round_id),
+        _ => None,
+    });
+    state.live.send(group_id, Event::SkipVoted { round_id });
+    for event in events {
+        state.live.send(group_id, event);
+    }
+    if closed {
+        notify_round(state, group_id, Some(actor), opened, true).await?;
+    }
+    Ok(Json(json!({ "ok": true, "closed": closed })))
+}
+
+/// Vote to remove someone from the group. With a majority of the others, they are out:
+/// signed out everywhere, gone from the members, their past votes stay in the history.
+async fn kick(
+    State(state): State<AppState>,
+    Me(me): Me,
+    Path(member_id): Path<i64>,
+) -> AppResult<Json<Value>> {
+    if member_id == me.id {
+        return Err(AppError::BadRequest("self_kick"));
+    }
+    let target: Option<i64> = sqlx::query_scalar(
+        "SELECT id FROM members WHERE id = ? AND group_id = ? AND removed_at IS NULL",
+    )
+    .bind(member_id)
+    .bind(me.group_id)
+    .fetch_optional(&state.db)
+    .await?;
+    if target.is_none() {
+        return Err(AppError::NotFound);
+    }
+    let mut tx = state.db.begin().await?;
+    sqlx::query("INSERT OR IGNORE INTO kicks (target_id, from_id) VALUES (?, ?)")
+        .bind(member_id)
+        .bind(me.id)
+        .execute(&mut *tx)
+        .await?;
+    let votes: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM kicks k JOIN members m ON m.id = k.from_id AND m.removed_at IS NULL WHERE k.target_id = ?",
+    )
+    .bind(member_id)
+    .fetch_one(&mut *tx)
+    .await?;
+    let needed = game::majority(game::active_count(&mut tx, me.group_id).await?);
+    if votes < needed {
+        tx.commit().await?;
+        state.live.send(me.group_id, Event::KickVoted { member_id });
+        return Ok(Json(json!({ "ok": true, "removed": false })));
+    }
+    sqlx::query(
+        "UPDATE members SET removed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
+    )
+    .bind(member_id)
+    .execute(&mut *tx)
+    .await?;
+    for q in [
+        "DELETE FROM member_tokens WHERE member_id = ?",
+        "DELETE FROM push_subscriptions WHERE member_id = ?",
+        "DELETE FROM kicks WHERE target_id = ? OR from_id = ?1",
+    ] {
+        sqlx::query(q).bind(member_id).execute(&mut *tx).await?;
+    }
+    // The open question no longer waits for them; their vote on it goes too.
+    let open: Option<i64> =
+        sqlx::query_scalar("SELECT id FROM rounds WHERE group_id = ? AND closed_at IS NULL")
+            .bind(me.group_id)
+            .fetch_optional(&mut *tx)
+            .await?;
+    let mut events = Vec::new();
+    if let Some(round_id) = open {
+        sqlx::query("DELETE FROM votes WHERE round_id = ? AND voter_id = ?")
+            .bind(round_id)
+            .bind(member_id)
+            .execute(&mut *tx)
+            .await?;
+        events = game::close_if_done(&mut tx, me.group_id, round_id).await?;
+    }
+    tx.commit().await?;
+    state
+        .live
+        .send(me.group_id, Event::MemberRemoved { member_id });
+    if let Some(round_id) = open {
+        let _ = after_round_change(&state, me.group_id, me.id, round_id, events).await?;
+    }
+    Ok(Json(json!({ "ok": true, "removed": true })))
+}
+
+async fn unkick(
+    State(state): State<AppState>,
+    Me(me): Me,
+    Path(member_id): Path<i64>,
+) -> AppResult<Json<Value>> {
+    sqlx::query("DELETE FROM kicks WHERE target_id = ? AND from_id = ?")
+        .bind(member_id)
+        .bind(me.id)
+        .execute(&state.db)
+        .await?;
+    state.live.send(me.group_id, Event::KickVoted { member_id });
+    Ok(Json(json!({ "ok": true })))
 }
 
 async fn pin(
@@ -636,7 +902,7 @@ async fn nudge(
         .await?
         .ok_or(AppError::Conflict("no_open_round"))?;
     let target: Option<i64> = sqlx::query_scalar(
-        "SELECT id FROM members m WHERE m.id = ? AND m.group_id = ? \
+        "SELECT id FROM members m WHERE m.id = ? AND m.group_id = ? AND m.removed_at IS NULL \
          AND NOT EXISTS (SELECT 1 FROM votes v WHERE v.round_id = ? AND v.voter_id = m.id)",
     )
     .bind(body.member_id)
