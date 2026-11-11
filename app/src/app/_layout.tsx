@@ -17,11 +17,11 @@ SplashScreen.preventAutoHideAsync();
 const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: 10_000 } } });
 
 function Root() {
-  const { ready, token } = useSession();
+  const { ready, token, room } = useSession();
   const t = useTheme();
   const scheme = useScheme();
   const [fonts] = useFonts({ BricolageGrotesque_800ExtraBold, Inter_400Regular, Inter_600SemiBold, Inter_700Bold });
-  useLive(token);
+  useLive(token, room);
   useEffect(() => {
     if (token) registerNativePush().catch(() => {});
   }, [token]);
@@ -47,6 +47,7 @@ function Root() {
           <Stack.Screen name="profile" />
           <Stack.Screen name="group" />
           <Stack.Screen name="inbox" />
+          <Stack.Screen name="rooms" />
         </Stack.Protected>
         <Stack.Protected guard={!token}>
           <Stack.Screen name="join" />

@@ -726,3 +726,224 @@ async fn chat_under_results_and_inbox() {
     assert_eq!(inbox["unread"], 0);
     assert_eq!(inbox["items"][0]["read"], true);
 }
+
+async fn call_room(
+    app: &Router,
+    method: &str,
+    path: &str,
+    token: &str,
+    room: i64,
+    body: Option<Value>,
+) -> (StatusCode, Value) {
+    let req = Request::builder()
+        .method(method)
+        .uri(format!("/api{path}"))
+        .header("authorization", format!("Bearer {token}"))
+        .header("x-room", room.to_string());
+    let req = match body {
+        Some(b) => req
+            .header("content-type", "application/json")
+            .body(Body::from(b.to_string())),
+        None => req.body(Body::empty()),
+    }
+    .unwrap();
+    let res = app.clone().oneshot(req).await.unwrap();
+    let status = res.status();
+    let bytes = res.into_body().collect().await.unwrap().to_bytes();
+    (
+        status,
+        serde_json::from_slice(&bytes).unwrap_or(Value::Null),
+    )
+}
+
+#[tokio::test]
+async fn rooms_create_join_switch_and_leave() {
+    let app = test_app().await;
+    let (ana, _) = join(&app, "Ana").await;
+    let (bob, _) = join(&app, "Bob").await;
+    // The first member of the env group owns it.
+    let (_, g) = call(&app, "GET", "/group", Some(&ana), None).await;
+    assert_eq!(g["my_role"], "owner");
+    let main = g["id"].as_i64().unwrap();
+
+    let (s, room) = call(
+        &app,
+        "POST",
+        "/rooms",
+        Some(&bob),
+        Some(json!({ "name": "Les cousins" })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{room}");
+    let cousins = room["id"].as_i64().unwrap();
+    let (_, g) = call_room(&app, "GET", "/group", &bob, cousins, None).await;
+    assert_eq!(g["name"], "Les cousins");
+    assert_eq!(g["my_role"], "owner");
+    let code = g["code"].as_str().unwrap().to_owned();
+    assert_eq!(code.len(), 6);
+
+    // Ana isn't in it yet; then joins with the code, same account.
+    let (s, _) = call_room(&app, "GET", "/group", &ana, cousins, None).await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+    let (s, _) = call(
+        &app,
+        "POST",
+        "/rooms/join",
+        Some(&ana),
+        Some(json!({ "code": code.to_lowercase() })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK);
+    let (_, rooms) = call(&app, "GET", "/rooms", Some(&ana), None).await;
+    let names: Vec<&str> = rooms
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|r| r["name"].as_str().unwrap())
+        .collect();
+    assert_eq!(names, ["Les cousins", "Test"], "last joined first");
+    // Without X-Room, the last used room.
+    let (_, g) = call(&app, "GET", "/group", Some(&ana), None).await;
+    assert_eq!(g["id"], cousins);
+    let (_, g) = call_room(&app, "GET", "/group", &ana, main, None).await;
+    assert_eq!(g["id"], main);
+
+    // Ana leaves; the room keeps Bob.
+    let (s, _) = call(
+        &app,
+        "POST",
+        &format!("/rooms/{cousins}/leave"),
+        Some(&ana),
+        None,
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK);
+    let (_, rooms) = call(&app, "GET", "/rooms", Some(&ana), None).await;
+    assert_eq!(rooms.as_array().unwrap().len(), 1);
+    // Bob (owner, now alone) leaves: the room is gone.
+    let (_, body) = call(
+        &app,
+        "POST",
+        &format!("/rooms/{cousins}/leave"),
+        Some(&bob),
+        None,
+    )
+    .await;
+    assert_eq!(body["deleted"], true);
+    let (_, rooms) = call(&app, "GET", "/rooms", Some(&bob), None).await;
+    assert_eq!(rooms.as_array().unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn owner_powers_and_settings() {
+    let app = test_app().await;
+    let (ana, _) = join(&app, "Ana").await;
+    let (bob, bob_id) = join(&app, "Bob").await;
+    let (cyd, cyd_id) = join(&app, "Cyd").await;
+    let (_, g) = call(&app, "GET", "/group", Some(&ana), None).await;
+    let room = g["id"].as_i64().unwrap();
+    // Members can't do owner things.
+    let (s, _) = call(
+        &app,
+        "PATCH",
+        &format!("/rooms/{room}"),
+        Some(&bob),
+        Some(json!({ "name": "Hack" })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+    let (s, _) = call(
+        &app,
+        "DELETE",
+        &format!("/rooms/{room}/members/{cyd_id}"),
+        Some(&bob),
+        None,
+    )
+    .await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+    // Owner: rename, switch votes off, questions for the owner only.
+    let (s, _) = call(&app, "PATCH", &format!("/rooms/{room}"), Some(&ana),
+        Some(json!({ "name": "La bande", "skip_vote": false, "kick_vote": false, "questions_by": "owner" }))).await;
+    assert_eq!(s, StatusCode::OK);
+    let (_, g) = call(&app, "GET", "/group", Some(&bob), None).await;
+    assert_eq!(g["name"], "La bande");
+    assert_eq!(g["settings"]["kick_vote"], false);
+    let (s, _) = call(
+        &app,
+        "PUT",
+        &format!("/members/{cyd_id}/kick"),
+        Some(&bob),
+        None,
+    )
+    .await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+    let (s, _) = call(
+        &app,
+        "POST",
+        "/questions",
+        Some(&bob),
+        Some(json!({ "text": "Qui a volé le dernier yaourt ?" })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+    let (s, _) = call(
+        &app,
+        "POST",
+        "/questions",
+        Some(&ana),
+        Some(json!({ "text": "Qui a volé le dernier yaourt ?" })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK);
+    // New code: the old one stops working.
+    let old = g["code"].as_str().unwrap().to_owned();
+    let (_, fresh) = call(
+        &app,
+        "POST",
+        &format!("/rooms/{room}/code"),
+        Some(&ana),
+        None,
+    )
+    .await;
+    assert_ne!(fresh["code"].as_str().unwrap(), old);
+    let (s, _) = call(
+        &app,
+        "POST",
+        "/join",
+        None,
+        Some(json!({ "code": old, "name": "Eve" })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    // Force kick, no vote.
+    let (s, _) = call(
+        &app,
+        "DELETE",
+        &format!("/rooms/{room}/members/{cyd_id}"),
+        Some(&ana),
+        None,
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK);
+    let (s, _) = call(&app, "GET", "/group", Some(&cyd), None).await;
+    assert_eq!(s, StatusCode::UNAUTHORIZED);
+    // Hand over, then the old owner is a member.
+    let (s, _) = call(
+        &app,
+        "POST",
+        &format!("/rooms/{room}/owner"),
+        Some(&ana),
+        Some(json!({ "member_id": bob_id })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK);
+    let (_, g) = call(&app, "GET", "/group", Some(&ana), None).await;
+    assert_eq!(g["my_role"], "member");
+    // Delete: gone for everyone.
+    let (s, _) = call(&app, "DELETE", &format!("/rooms/{room}"), Some(&ana), None).await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+    let (s, _) = call(&app, "DELETE", &format!("/rooms/{room}"), Some(&bob), None).await;
+    assert_eq!(s, StatusCode::OK);
+    let (s, _) = call(&app, "GET", "/group", Some(&ana), None).await;
+    assert_eq!(s, StatusCode::UNAUTHORIZED);
+}

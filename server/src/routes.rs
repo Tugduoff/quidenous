@@ -12,7 +12,7 @@ use serde_json::{Value, json};
 
 use crate::{
     AppState,
-    auth::{Me, hash_token, member_for_token, new_token},
+    auth::{Me, hash_token, new_token},
     error::{AppError, AppResult},
     game,
     live::Event,
@@ -20,7 +20,7 @@ use crate::{
     push::Notification,
 };
 
-const COLORS: [&str; 8] = [
+pub(crate) const COLORS: [&str; 8] = [
     "#FF7A45", "#5BC8FF", "#FF4FA3", "#FFB547", "#B48CFF", "#5CF2B0", "#FF6B6B", "#7AA2FF",
 ];
 const NAME_MAX: usize = 24;
@@ -63,6 +63,19 @@ pub fn router() -> Router<AppState> {
             "/questions/import",
             post(import_questions).layer(axum::extract::DefaultBodyLimit::max(IMPORT_MAX)),
         )
+        .route("/rooms", get(crate::rooms::list).post(crate::rooms::create))
+        .route("/rooms/join", post(crate::rooms::join))
+        .route(
+            "/rooms/{id}",
+            axum::routing::patch(crate::rooms::update).delete(crate::rooms::delete),
+        )
+        .route("/rooms/{id}/code", post(crate::rooms::rotate_code))
+        .route("/rooms/{id}/owner", post(crate::rooms::transfer))
+        .route("/rooms/{id}/leave", post(crate::rooms::leave))
+        .route(
+            "/rooms/{id}/members/{member_id}",
+            axum::routing::delete(crate::rooms::force_remove),
+        )
         .route("/live", get(live))
         .route("/push/config", get(push_config))
         .route("/push/subscribe", post(push_subscribe))
@@ -83,23 +96,49 @@ struct JoinBody {
     name: String,
 }
 
-async fn join(State(state): State<AppState>, Json(body): Json<JoinBody>) -> AppResult<Json<Value>> {
+async fn join(
+    State(state): State<AppState>,
+    headers: axum::http::HeaderMap,
+    Json(body): Json<JoinBody>,
+) -> AppResult<Json<Value>> {
     let name = clean_name(&body.name)?;
     let group_id: i64 = sqlx::query_scalar("SELECT id FROM groups WHERE join_code = ?")
         .bind(body.code.trim().to_uppercase())
         .fetch_optional(&state.db)
         .await?
         .ok_or(AppError::BadRequest("bad_code"))?;
+    // Already signed in: the same account joins one more room.
+    let signed_in = match headers
+        .get(axum::http::header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
+    {
+        Some(t) => Some(crate::auth::user_for_token(&state, t).await?),
+        None => None,
+    };
     let token = new_token();
     let mut tx = state.db.begin().await?;
-    // Same first name in the group = the same person on a new device (reinstall, web + phone).
-    let existing = sqlx::query_as::<_, MemberRow>(
-        "SELECT * FROM members WHERE group_id = ? AND lower(name) = lower(?)",
-    )
-    .bind(group_id)
-    .bind(&name)
-    .fetch_optional(&mut *tx)
-    .await?;
+    let existing = match signed_in {
+        Some(user_id) => {
+            sqlx::query_as::<_, MemberRow>(
+                "SELECT * FROM members WHERE group_id = ? AND user_id = ?",
+            )
+            .bind(group_id)
+            .bind(user_id)
+            .fetch_optional(&mut *tx)
+            .await?
+        }
+        // Same first name in the room = the same person on a new device (reinstall, web + phone).
+        None => {
+            sqlx::query_as::<_, MemberRow>(
+                "SELECT * FROM members WHERE group_id = ? AND lower(name) = lower(?)",
+            )
+            .bind(group_id)
+            .bind(&name)
+            .fetch_optional(&mut *tx)
+            .await?
+        }
+    };
     if existing.as_ref().is_some_and(|m| m.removed_at.is_some()) {
         return Err(AppError::Forbidden("removed"));
     }
@@ -111,20 +150,55 @@ async fn join(State(state): State<AppState>, Json(body): Json<JoinBody>) -> AppR
                 .bind(group_id)
                 .fetch_one(&mut *tx)
                 .await?;
+            let color = COLORS[count as usize % COLORS.len()];
+            let user_id: i64 = match signed_in {
+                Some(id) => id,
+                None => {
+                    sqlx::query_scalar(
+                        "INSERT INTO users (name, color, friend_code) VALUES (?, ?, upper(hex(randomblob(4)))) RETURNING id",
+                    )
+                    .bind(&name)
+                    .bind(color)
+                    .fetch_one(&mut *tx)
+                    .await?
+                }
+            };
+            let (user_name, photo): (String, Option<String>) =
+                sqlx::query_as("SELECT name, photo FROM users WHERE id = ?")
+                    .bind(user_id)
+                    .fetch_one(&mut *tx)
+                    .await?;
             sqlx::query_as::<_, MemberRow>(
-                "INSERT INTO members (group_id, name, color, token_hash) VALUES (?, ?, ?, ?) RETURNING *",
+                "INSERT INTO members (group_id, name, color, photo, token_hash, user_id) VALUES (?, ?, ?, ?, ?, ?) RETURNING *",
             )
             .bind(group_id)
-            .bind(&name)
-            .bind(COLORS[count as usize % COLORS.len()])
-            .bind(hash_token(&token))
+            .bind(&user_name)
+            .bind(color)
+            .bind(photo)
+            .bind(hash_token(&new_token()))
+            .bind(user_id)
             .fetch_one(&mut *tx)
             .await?
         }
     };
-    sqlx::query("INSERT INTO member_tokens (token_hash, member_id) VALUES (?, ?)")
+    // A room nobody owns (fresh env group) gets its first member as owner.
+    sqlx::query(
+        "UPDATE members SET role = 'owner' WHERE id = ?1 AND NOT EXISTS \
+         (SELECT 1 FROM members WHERE group_id = ?2 AND role = 'owner' AND removed_at IS NULL)",
+    )
+    .bind(member.id)
+    .bind(group_id)
+    .execute(&mut *tx)
+    .await?;
+    let user_id = member.user_id.ok_or(AppError::Unauthorized)?;
+    sqlx::query("INSERT INTO user_tokens (token_hash, user_id) VALUES (?, ?)")
         .bind(hash_token(&token))
-        .bind(member.id)
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query("UPDATE users SET last_group_id = ? WHERE id = ?")
+        .bind(group_id)
+        .bind(user_id)
         .execute(&mut *tx)
         .await?;
     let opened = game::ensure_open_round(&mut tx, group_id).await?;
@@ -142,7 +216,7 @@ async fn join(State(state): State<AppState>, Json(body): Json<JoinBody>) -> AppR
         notify_round(&state, group_id, Some(member.id), Some(round_id), false).await?;
     }
     Ok(Json(
-        json!({ "token": token, "member": Member::from(&member) }),
+        json!({ "token": token, "member": Member::from(&member), "room_id": group_id }),
     ))
 }
 
@@ -161,12 +235,22 @@ async fn update_me(
     Json(body): Json<UpdateMe>,
 ) -> AppResult<Json<Member>> {
     let name = clean_name(&body.name)?;
-    let member =
-        sqlx::query_as::<_, MemberRow>("UPDATE members SET name = ? WHERE id = ? RETURNING *")
-            .bind(name)
-            .bind(me.id)
-            .fetch_one(&state.db)
-            .await?;
+    // One person, one name: the account and every room they are in.
+    sqlx::query("UPDATE users SET name = ? WHERE id = ?")
+        .bind(&name)
+        .bind(me.user_id)
+        .execute(&state.db)
+        .await?;
+    sqlx::query("UPDATE members SET name = ?1 WHERE user_id = ?2 OR id = ?3")
+        .bind(&name)
+        .bind(me.user_id)
+        .bind(me.id)
+        .execute(&state.db)
+        .await?;
+    let member = sqlx::query_as::<_, MemberRow>("SELECT * FROM members WHERE id = ?")
+        .bind(me.id)
+        .fetch_one(&state.db)
+        .await?;
     state
         .live
         .send(me.group_id, Event::MemberUpdated { member_id: me.id });
@@ -206,12 +290,21 @@ async fn upload_photo(
     if let Some(old) = &me.photo {
         let _ = tokio::fs::remove_file(dir.join(old)).await;
     }
-    let member =
-        sqlx::query_as::<_, MemberRow>("UPDATE members SET photo = ? WHERE id = ? RETURNING *")
-            .bind(&file)
-            .bind(me.id)
-            .fetch_one(&state.db)
-            .await?;
+    sqlx::query("UPDATE users SET photo = ? WHERE id = ?")
+        .bind(&file)
+        .bind(me.user_id)
+        .execute(&state.db)
+        .await?;
+    sqlx::query("UPDATE members SET photo = ?1 WHERE user_id = ?2 OR id = ?3")
+        .bind(&file)
+        .bind(me.user_id)
+        .bind(me.id)
+        .execute(&state.db)
+        .await?;
+    let member = sqlx::query_as::<_, MemberRow>("SELECT * FROM members WHERE id = ?")
+        .bind(me.id)
+        .fetch_one(&state.db)
+        .await?;
     state
         .live
         .send(me.group_id, Event::MemberUpdated { member_id: me.id });
@@ -219,7 +312,10 @@ async fn upload_photo(
 }
 
 async fn group(State(state): State<AppState>, Me(me): Me) -> AppResult<Json<Value>> {
-    let name: String = sqlx::query_scalar("SELECT name FROM groups WHERE id = ?")
+    let (name, code, skip_vote, kick_vote, questions_by): (String, String, bool, bool, String) =
+        sqlx::query_as(
+            "SELECT name, join_code, skip_vote, kick_vote, questions_by FROM groups WHERE id = ?",
+        )
         .bind(me.group_id)
         .fetch_one(&state.db)
         .await?;
@@ -242,10 +338,17 @@ async fn group(State(state): State<AppState>, Me(me): Me) -> AppResult<Json<Valu
         .map(|(target_id, count, mine)| json!({ "target_id": target_id, "count": count, "mine": mine }))
         .collect();
     let kick_needed = game::majority(members.len() as i64);
-    let members: Vec<Member> = members.iter().map(Member::from).collect();
-    Ok(Json(
-        json!({ "name": name, "members": members, "kicks": kicks, "kick_needed": kick_needed }),
-    ))
+    let members: Vec<Value> = members.iter().map(crate::rooms::member_with_role).collect();
+    Ok(Json(json!({
+        "id": me.group_id,
+        "name": name,
+        "code": code,
+        "my_role": me.role,
+        "settings": { "skip_vote": skip_vote, "kick_vote": kick_vote, "questions_by": questions_by },
+        "members": members,
+        "kicks": kicks,
+        "kick_needed": kick_needed,
+    })))
 }
 
 async fn current_round(
@@ -369,6 +472,7 @@ async fn history_items(
 #[derive(Deserialize)]
 struct ExportQuery {
     token: String,
+    room: Option<i64>,
 }
 
 /// The whole history as a CSV file. The token comes in the query so a plain link (browser download) works.
@@ -376,7 +480,7 @@ async fn export_history(
     State(state): State<AppState>,
     Query(q): Query<ExportQuery>,
 ) -> AppResult<Response> {
-    let me = member_for_token(&state, &q.token).await?;
+    let me = crate::auth::member_in_room(&state, &q.token, q.room).await?;
     let names: std::collections::HashMap<i64, String> =
         sqlx::query_as::<_, (i64, String)>("SELECT id, name FROM members WHERE group_id = ?")
             .bind(me.group_id)
@@ -439,6 +543,35 @@ async fn export_history(
     )))
 }
 
+/// A room setting the owner can switch off (`skip_vote`, `kick_vote`).
+async fn room_allows(state: &AppState, group_id: i64, setting: &str) -> AppResult<()> {
+    let sql = match setting {
+        "skip_vote" => "SELECT skip_vote FROM groups WHERE id = ?",
+        _ => "SELECT kick_vote FROM groups WHERE id = ?",
+    };
+    let on: bool = sqlx::query_scalar(sql)
+        .bind(group_id)
+        .fetch_one(&state.db)
+        .await?;
+    if on {
+        Ok(())
+    } else {
+        Err(AppError::Forbidden("disabled"))
+    }
+}
+
+/// The owner can keep adding and importing questions to themselves.
+async fn may_add_questions(state: &AppState, me: &MemberRow) -> AppResult<()> {
+    let by: String = sqlx::query_scalar("SELECT questions_by FROM groups WHERE id = ?")
+        .bind(me.group_id)
+        .fetch_one(&state.db)
+        .await?;
+    if by == "owner" && me.role != "owner" {
+        return Err(AppError::Forbidden("owner_only"));
+    }
+    Ok(())
+}
+
 /// Agree not to wait for someone on the open question. With a majority, the question closes without them.
 async fn skip(
     State(state): State<AppState>,
@@ -448,6 +581,7 @@ async fn skip(
     if member_id == me.id {
         return Err(AppError::BadRequest("self_skip"));
     }
+    room_allows(&state, me.group_id, "skip_vote").await?;
     let round = game::open_round(&state.db, me.group_id)
         .await?
         .ok_or(AppError::Conflict("no_open_round"))?;
@@ -530,6 +664,7 @@ async fn kick(
     if member_id == me.id {
         return Err(AppError::BadRequest("self_kick"));
     }
+    room_allows(&state, me.group_id, "kick_vote").await?;
     let target: Option<i64> = sqlx::query_scalar(
         "SELECT id FROM members WHERE id = ? AND group_id = ? AND removed_at IS NULL",
     )
@@ -558,23 +693,31 @@ async fn kick(
         state.live.send(me.group_id, Event::KickVoted { member_id });
         return Ok(Json(json!({ "ok": true, "removed": false })));
     }
-    sqlx::query(
-        "UPDATE members SET removed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
-    )
-    .bind(member_id)
-    .execute(&mut *tx)
-    .await?;
-    for q in [
-        "DELETE FROM member_tokens WHERE member_id = ?",
-        "DELETE FROM push_subscriptions WHERE member_id = ?",
-        "DELETE FROM kicks WHERE target_id = ? OR from_id = ?1",
-    ] {
-        sqlx::query(q).bind(member_id).execute(&mut *tx).await?;
-    }
-    // The open question no longer waits for them; their vote on it goes too.
+    tx.commit().await?;
+    remove_member(&state, me.group_id, member_id, me.id).await?;
+    Ok(Json(json!({ "ok": true, "removed": true })))
+}
+
+/// Takes someone's seat in a room away (vote, owner, or leaving). Their account, devices and other
+/// rooms are untouched; their past votes stay in the history; the open question stops waiting for them.
+pub(crate) async fn remove_member(
+    state: &AppState,
+    group_id: i64,
+    member_id: i64,
+    actor: i64,
+) -> AppResult<()> {
+    let mut tx = state.db.begin().await?;
+    sqlx::query("UPDATE members SET removed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), role = 'member' WHERE id = ?")
+        .bind(member_id)
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query("DELETE FROM kicks WHERE target_id = ?1 OR from_id = ?1")
+        .bind(member_id)
+        .execute(&mut *tx)
+        .await?;
     let open: Option<i64> =
         sqlx::query_scalar("SELECT id FROM rounds WHERE group_id = ? AND closed_at IS NULL")
-            .bind(me.group_id)
+            .bind(group_id)
             .fetch_optional(&mut *tx)
             .await?;
     let mut events = Vec::new();
@@ -584,16 +727,16 @@ async fn kick(
             .bind(member_id)
             .execute(&mut *tx)
             .await?;
-        events = game::close_if_done(&mut tx, me.group_id, round_id).await?;
+        events = game::close_if_done(&mut tx, group_id, round_id).await?;
     }
     tx.commit().await?;
     state
         .live
-        .send(me.group_id, Event::MemberRemoved { member_id });
+        .send(group_id, Event::MemberRemoved { member_id });
     if let Some(round_id) = open {
-        let _ = after_round_change(&state, me.group_id, me.id, round_id, events).await?;
+        let _ = after_round_change(state, group_id, actor, round_id, events).await?;
     }
-    Ok(Json(json!({ "ok": true, "removed": true })))
+    Ok(())
 }
 
 async fn unkick(
@@ -668,6 +811,7 @@ async fn add_question(
     Me(me): Me,
     Json(body): Json<QuestionBody>,
 ) -> AppResult<Json<QueuedQuestion>> {
+    may_add_questions(&state, &me).await?;
     let text = body.text.trim();
     let len = text.chars().count();
     if !(QUESTION_MIN..=QUESTION_MAX).contains(&len) {
@@ -720,6 +864,7 @@ async fn queue(State(state): State<AppState>, Me(me): Me) -> AppResult<Json<Valu
 #[derive(Deserialize)]
 struct LiveQuery {
     token: String,
+    room: Option<i64>,
 }
 
 /// WebSocket: `?token=` because browsers cannot set headers on a socket.
@@ -728,7 +873,7 @@ async fn live(
     Query(q): Query<LiveQuery>,
     ws: WebSocketUpgrade,
 ) -> AppResult<Response> {
-    let me = member_for_token(&state, &q.token).await?;
+    let me = crate::auth::member_in_room(&state, &q.token, q.room).await?;
     Ok(ws.on_upgrade(move |socket| relay(socket, state, me.group_id)))
 }
 
@@ -757,7 +902,7 @@ async fn relay(mut socket: WebSocket, state: AppState, group_id: i64) {
 }
 
 /// "Result is in" and/or "new question", to every device except the person who triggered it.
-async fn notify_round(
+pub(crate) async fn notify_round(
     state: &AppState,
     group_id: i64,
     skip: Option<i64>,
@@ -963,10 +1108,12 @@ async fn push_subscribe(
         return Err(AppError::BadRequest("bad_endpoint"));
     }
     sqlx::query(
-        "INSERT INTO push_subscriptions (member_id, kind, endpoint, p256dh, auth) VALUES (?, ?, ?, ?, ?) \
-         ON CONFLICT (endpoint) DO UPDATE SET member_id = excluded.member_id, p256dh = excluded.p256dh, auth = excluded.auth",
+        "INSERT INTO push_subscriptions (member_id, user_id, kind, endpoint, p256dh, auth) VALUES (?, ?, ?, ?, ?, ?) \
+         ON CONFLICT (endpoint) DO UPDATE SET member_id = excluded.member_id, user_id = excluded.user_id, \
+         p256dh = excluded.p256dh, auth = excluded.auth",
     )
     .bind(me.id)
+    .bind(me.user_id)
     .bind(kind)
     .bind(endpoint)
     .bind(p256dh)
@@ -1093,6 +1240,7 @@ async fn import_questions(
     Me(me): Me,
     Json(body): Json<ImportBody>,
 ) -> AppResult<Json<Value>> {
+    may_add_questions(&state, &me).await?;
     let valid: Vec<&str> = body
         .text
         .lines()

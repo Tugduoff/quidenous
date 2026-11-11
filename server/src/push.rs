@@ -259,14 +259,20 @@ impl Push {
         let push = self.clone();
         tokio::spawn(async move {
             let query = match target {
-                Target::Group { group_id, skip_member } => sqlx::query_as(
+                Target::Group {
+                    group_id,
+                    skip_member,
+                } => sqlx::query_as(
+                    // Every device of every active member's account (one account can sit in several rooms).
                     "SELECT s.id, s.kind, s.endpoint, s.p256dh, s.auth FROM push_subscriptions s \
-                     JOIN members m ON m.id = s.member_id WHERE m.group_id = ? AND m.id IS NOT ?",
+                     JOIN members m ON m.user_id = s.user_id \
+                     WHERE m.group_id = ? AND m.removed_at IS NULL AND m.id IS NOT ?",
                 )
                 .bind(group_id)
                 .bind(skip_member),
                 Target::Member(member_id) => sqlx::query_as(
-                    "SELECT id, kind, endpoint, p256dh, auth FROM push_subscriptions WHERE member_id = ? AND ? IS NULL",
+                    "SELECT s.id, s.kind, s.endpoint, s.p256dh, s.auth FROM push_subscriptions s \
+                     JOIN members m ON m.user_id = s.user_id WHERE m.id = ? AND ? IS NULL",
                 )
                 .bind(member_id)
                 .bind(None::<i64>),

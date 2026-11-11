@@ -7,6 +7,7 @@ pub mod inbox;
 pub mod live;
 pub mod models;
 pub mod push;
+pub mod rooms;
 pub mod routes;
 pub mod stats;
 

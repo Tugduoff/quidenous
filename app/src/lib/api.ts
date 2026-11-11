@@ -43,7 +43,18 @@ export type Round = {
 };
 /** A count of agreements (skip someone, remove someone), and whether mine is one of them. */
 export type VoteCount = { target_id: number; count: number; mine: boolean };
-export type Group = { name: string; members: Member[]; kicks: VoteCount[]; kick_needed: number };
+export type Role = 'owner' | 'member';
+export type Group = {
+  id: number;
+  name: string;
+  code: string;
+  my_role: Role;
+  settings: { skip_vote: boolean; kick_vote: boolean; questions_by: 'everyone' | 'owner' };
+  members: (Member & { role: Role })[];
+  kicks: VoteCount[];
+  kick_needed: number;
+};
+export type RoomSummary = { id: number; name: string; role: Role; members: number; open_number: number | null; voted: boolean; unread: number };
 export type HistoryItem = {
   id: number;
   number: number;
@@ -106,12 +117,21 @@ export const setApiToken = (value: string | null) => {
   token = value;
 };
 
+/** The room every request is about (`X-Room`); null = the one I used last. */
+let room: number | null = null;
+export const setApiRoom = (value: number | null) => {
+  room = value;
+};
+export const apiRoom = () => room;
+const roomQuery = () => (room != null ? `&room=${room}` : '');
+
 /** Plain link to the CSV of the whole history (the token rides in the query so a browser can download it). */
-export const historyExportUrl = () => `${API_URL}/api/history/export?token=${token ?? ''}`;
+export const historyExportUrl = () => `${API_URL}/api/history/export?token=${token ?? ''}${roomQuery()}`;
 
 export async function api<T>(path: string, init: RequestInit & { json?: unknown } = {}): Promise<T> {
   const headers: Record<string, string> = { ...(init.headers as Record<string, string>) };
   if (token) headers.authorization = `Bearer ${token}`;
+  if (room != null) headers['x-room'] = String(room);
   let body = init.body;
   if (init.json !== undefined) {
     headers['content-type'] = 'application/json';
@@ -125,13 +145,13 @@ export async function api<T>(path: string, init: RequestInit & { json?: unknown 
 
 export const photoUrl = (m: Member) => (m.photo_url ? `${API_URL}${m.photo_url}` : null);
 
-export const liveUrl = (t: string) => `${API_URL.replace(/^http/, 'ws')}/api/live?token=${t}`;
+export const liveUrl = (t: string) => `${API_URL.replace(/^http/, 'ws')}/api/live?token=${t}${roomQuery()}`;
 
 /** Multipart upload (photo). Content type is set by fetch with the boundary. */
 export async function apiUpload<T>(path: string, form: FormData, method = 'PUT'): Promise<T> {
   const res = await fetch(`${API_URL}/api${path}`, {
     method,
-    headers: token ? { authorization: `Bearer ${token}` } : undefined,
+    headers: token ? { authorization: `Bearer ${token}`, ...(room != null ? { 'x-room': String(room) } : {}) } : undefined,
     body: form,
   });
   const data = await res.json().catch(() => null);

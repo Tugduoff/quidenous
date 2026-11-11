@@ -11,6 +11,8 @@ pub struct MemberRow {
     pub created_at: String,
     pub seen_round: i64,
     pub removed_at: Option<String>,
+    pub user_id: Option<i64>,
+    pub role: String,
 }
 
 #[derive(Clone, Debug, Serialize)]

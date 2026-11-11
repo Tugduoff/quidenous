@@ -7,7 +7,7 @@ import { keys } from './queries';
 const RETRY_MS = 3000;
 
 /** Keeps every screen fresh: each server event invalidates the queries it touches. */
-export function useLive(token: string | null) {
+export function useLive(token: string | null, room: number | null) {
   const qc = useQueryClient();
   useEffect(() => {
     if (!token) return;
@@ -63,5 +63,5 @@ export function useLive(token: string | null) {
       clearTimeout(retry);
       ws?.close();
     };
-  }, [token, qc]);
+    }, [token, room, qc]);
 }

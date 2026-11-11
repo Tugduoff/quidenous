@@ -17,6 +17,8 @@ pub enum Event {
     MemberRemoved { member_id: i64 },
     MessagePosted { round_id: i64, message_id: i64 },
     InboxChanged,
+    RoomUpdated,
+    RoomDeleted,
 }
 
 #[derive(Clone, Debug)]

@@ -15,16 +15,55 @@ pub fn hash_token(token: &str) -> String {
 }
 
 pub async fn member_for_token(state: &AppState, token: &str) -> Result<MemberRow, AppError> {
-    sqlx::query_as::<_, MemberRow>(
-        "SELECT m.* FROM members m JOIN member_tokens t ON t.member_id = m.id WHERE t.token_hash = ? AND m.removed_at IS NULL",
+    member_in_room(state, token, None).await
+}
+
+/// The signed-in user's seat in a room: the one asked for, else the room they used last.
+/// A token belongs to a user (one person, any number of rooms).
+pub async fn member_in_room(
+    state: &AppState,
+    token: &str,
+    room: Option<i64>,
+) -> Result<MemberRow, AppError> {
+    let member = sqlx::query_as::<_, MemberRow>(
+        "SELECT m.* FROM user_tokens t JOIN users u ON u.id = t.user_id \
+         JOIN members m ON m.user_id = u.id AND m.removed_at IS NULL \
+         JOIN groups g ON g.id = m.group_id AND g.deleted_at IS NULL \
+         WHERE t.token_hash = ?1 AND (?2 IS NULL OR m.group_id = ?2) \
+         ORDER BY (m.group_id = u.last_group_id) DESC, m.id DESC LIMIT 1",
     )
+    .bind(hash_token(token))
+    .bind(room)
+    .fetch_optional(&state.db)
+    .await?;
+    match member {
+        Some(m) => Ok(m),
+        // A valid account asking for a room it is not in.
+        None if room.is_some() && user_for_token(state, token).await.is_ok() => {
+            Err(AppError::Forbidden("not_in_room"))
+        }
+        None => Err(AppError::Unauthorized),
+    }
+}
+
+/// The account behind a token, whatever room.
+pub async fn user_for_token(state: &AppState, token: &str) -> Result<i64, AppError> {
+    sqlx::query_scalar("SELECT user_id FROM user_tokens WHERE token_hash = ?")
         .bind(hash_token(token))
         .fetch_optional(&state.db)
         .await?
         .ok_or(AppError::Unauthorized)
 }
 
-/// The signed-in member, from `Authorization: Bearer <token>`.
+fn bearer(parts: &Parts) -> Option<&str> {
+    parts
+        .headers
+        .get(axum::http::header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
+}
+
+/// The signed-in member, from `Authorization: Bearer <token>` and the room in `X-Room` (optional).
 pub struct Me(pub MemberRow);
 
 impl FromRequestParts<AppState> for Me {
@@ -34,12 +73,27 @@ impl FromRequestParts<AppState> for Me {
         parts: &mut Parts,
         state: &AppState,
     ) -> Result<Self, Self::Rejection> {
-        let token = parts
+        let token = bearer(parts).ok_or(AppError::Unauthorized)?;
+        let room = parts
             .headers
-            .get(axum::http::header::AUTHORIZATION)
+            .get("x-room")
             .and_then(|v| v.to_str().ok())
-            .and_then(|v| v.strip_prefix("Bearer "))
-            .ok_or(AppError::Unauthorized)?;
-        Ok(Me(member_for_token(state, token).await?))
+            .and_then(|v| v.parse::<i64>().ok());
+        Ok(Me(member_in_room(state, token, room).await?))
+    }
+}
+
+/// The signed-in account, room or not (create a room, list my rooms, join one).
+pub struct UserId(pub i64);
+
+impl FromRequestParts<AppState> for UserId {
+    type Rejection = AppError;
+
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
+        let token = bearer(parts).ok_or(AppError::Unauthorized)?;
+        Ok(UserId(user_for_token(state, token).await?))
     }
 }

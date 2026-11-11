@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, ArrowRight, Bell, BellOff, BellRing, Check, Eye, EyeOff, Inbox, Pin, Share2, SkipForward, Users } from 'lucide-react-native';
+import { ArrowLeft, ArrowRight, Bell, BellOff, BellRing, Check, Eye, EyeOff, ChevronDown, Inbox, Pin, Share2, SkipForward, Users } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { enablePush, pushState, refreshPush, type PushState } from '@/lib/push';
@@ -10,7 +10,7 @@ import { ResultBars } from '@/components/result-bars';
 import { Screen } from '@/components/screen';
 import { Avatar, AvatarStack, Button, Card, Display, Logo, Tag } from '@/components/ui';
 import { api, type Member, type Round } from '@/lib/api';
-import { keys, useCurrentRound, useInbox, useMembers, useRound, useUnseenRound } from '@/lib/queries';
+import { keys, useCurrentRound, useGroup, useInbox, useMembers, useRound, useUnseenRound } from '@/lib/queries';
 import { useSession } from '@/lib/session';
 import { setHideVote, useHideVote } from '@/lib/prefs';
 import { questionMessage, resultMessage, shareText } from '@/lib/share';
@@ -33,6 +33,26 @@ function PushBell() {
       onPress={() => enablePush().then(setState).catch(() => setState(pushState()))}
       style={{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: denied ? t.card : t.acc }}>
       {denied ? <BellOff size={18} color={t.mut} /> : <Bell size={18} color={t.accTxt} />}
+    </Pressable>
+  );
+}
+
+/** Which room I'm in; tap to switch, create or join one. */
+function RoomPill() {
+  const t = useTheme();
+  const { data: group } = useGroup();
+  if (!group) return null;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`Salon ${group.name}, changer de salon`}
+      onPress={() => router.push('/rooms')}
+      hitSlop={6}
+      style={{ flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start' }}>
+      <Text numberOfLines={1} style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.mut, maxWidth: 160 }}>
+        {group.name}
+      </Text>
+      <ChevronDown size={14} color={t.mut} />
     </Pressable>
   );
 }
@@ -88,7 +108,10 @@ function Header() {
   const { me } = useSession();
   return (
     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-      <Logo />
+      <View style={{ gap: 4, flexShrink: 1 }}>
+        <Logo />
+        <RoomPill />
+      </View>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
         <GroupButton />
         <InboxButton />

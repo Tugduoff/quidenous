@@ -5,6 +5,11 @@ import { API_URL, historyExportUrl, type Member, type Round } from './api';
 /** Where friends can open the app (web app served by the API server). */
 const appUrl = () => API_URL || (typeof location !== 'undefined' ? location.origin : '');
 
+/** Invite to a room: the link carries the code, so it opens the join screen ready to go. */
+export function inviteMessage(roomName: string, code: string) {
+  return `Rejoins « ${roomName} » sur qui de nous ? 👉 ${appUrl()}/?code=${code}\n(code : ${code})`;
+}
+
 /** The open question, as a message inviting people to vote. */
 export function questionMessage(round: Round) {
   return `qui de nous ? · question #${round.number}\n« ${round.question} »\nViens voter 👉 ${appUrl()}`;
