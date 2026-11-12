@@ -59,7 +59,7 @@ export default function PacksScreen() {
     borderRadius: 14,
     backgroundColor: t.card2,
     fontFamily: t.font.regular,
-    fontSize: 15,
+    fontSize: 16,
     color: t.txt,
   };
 
@@ -81,7 +81,7 @@ export default function PacksScreen() {
           placeholderTextColor={t.mut}
           value={q}
           onChangeText={setQ}
-          style={{ flex: 1, height: 44, fontFamily: t.font.regular, fontSize: 15, color: t.txt }}
+          style={{ flex: 1, height: 44, fontFamily: t.font.regular, fontSize: 16, color: t.txt }}
         />
       </Card>
       {packs?.length === 0 && <Text style={{ fontFamily: t.font.regular, color: t.mut, marginLeft: 4 }}>Aucun pack pour l’instant.</Text>}

@@ -291,7 +291,7 @@ function Settings() {
               borderRadius: 14,
               backgroundColor: t.card2,
               fontFamily: t.font.semibold,
-              fontSize: 15,
+              fontSize: 16,
               color: t.txt,
             }}
           />
