@@ -70,7 +70,8 @@ export type Group = {
   name: string;
   code: string;
   my_role: Role;
-  settings: { skip_vote: boolean; kick_vote: boolean; questions_by: 'everyone' | 'owner' };
+  /** `vibe`: the built-in deck's tone (null = none; absent from an older server). */
+  settings: { skip_vote: boolean; kick_vote: boolean; questions_by: 'everyone' | 'owner'; vibe?: string | null };
   /** Current members only. */
   members: (Member & { role: Role; user_id: number })[];
   /** People who left or were removed (absent from an older server). */
@@ -78,6 +79,8 @@ export type Group = {
   kicks: VoteCount[];
   kick_needed: number;
 };
+/** A tone for a room's built-in questions; `icon` is a lucide name in kebab-case. */
+export type Vibe = { id: string; name: string; icon: string; description: string };
 export type Friend = { user_id: number; name: string; color: string; photo_url: string | null; rooms_in_common: number; added: boolean };
 export type PackSummary = { id: number; name: string; description: string; author: string; installs: number; count: number; mine: boolean; sample: string[] };
 export type Pack = Omit<PackSummary, 'count' | 'sample'> & { questions: { text: string; kind: 'pick' | 'rank' }[] };
@@ -98,7 +101,7 @@ export type Message = { id: number; member_id: number; user_id?: number | null; 
 export type InboxItem = {
   id: number;
   /** Unknown kinds (a newer server) are shown with a generic icon and title. */
-  kind: 'message' | 'nudge' | 'result' | 'question' | 'added' | (string & {});
+  kind: 'message' | 'nudge' | 'result' | 'question' | 'added' | 'ask' | (string & {});
   round_id: number | null;
   /** The room it happened in (absent from an older server). */
   room_id?: number;

@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
-import { Crown, Download, PartyPopper, Pin } from 'lucide-react-native';
+import { Crown, Download, Hourglass, PartyPopper, Pin } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 
 import { Screen } from '@/components/screen';
@@ -102,6 +102,22 @@ function SectionLabel({ children }: { children: string }) {
   return <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut, marginLeft: 4 }}>{children}</Text>;
 }
 
+/** No result yet: one line, and the way back to the vote. */
+function Empty() {
+  const t = useTheme();
+  return (
+    <Animated.View entering={motion.enter} style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, paddingBottom: 60 }}>
+      <View style={{ width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card }}>
+        <Hourglass size={24} color={t.mut} />
+      </View>
+      <Text style={{ fontFamily: t.font.semibold, fontSize: 15, color: t.mut, textAlign: 'center' }}>Les résultats arriveront ici.</Text>
+      <Pressable accessibilityRole="button" onPress={() => router.navigate('/')} hitSlop={8}>
+        <Text style={{ fontFamily: t.font.semibold, fontSize: 15, color: t.accInk }}>Aller voter</Text>
+      </Pressable>
+    </Animated.View>
+  );
+}
+
 export default function HistoryScreen() {
   const t = useTheme();
   const history = useHistory();
@@ -130,26 +146,29 @@ export default function HistoryScreen() {
     <Screen onEndReached={more}>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <Display size={30}>Historique</Display>
-        <PressableScale
-          accessibilityRole="button"
-          accessibilityLabel="Exporter l'historique"
-          onPress={downloadHistory}
-          hitSlop={8}
-          style={[
-            {
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: 6,
-              height: 36,
-              paddingHorizontal: 14,
-              borderRadius: t.radius.pill,
-              backgroundColor: t.card,
-            },
-            t.shadow,
-          ]}>
-          <Download size={16} color={t.txt} />
-          <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.txt }}>Exporter</Text>
-        </PressableScale>
+        {/* Nothing to export yet. */}
+        {!!(data?.length || pinned?.length) && (
+          <PressableScale
+            accessibilityRole="button"
+            accessibilityLabel="Exporter l'historique"
+            onPress={downloadHistory}
+            hitSlop={8}
+            style={[
+              {
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 6,
+                height: 36,
+                paddingHorizontal: 14,
+                borderRadius: t.radius.pill,
+                backgroundColor: t.card,
+              },
+              t.shadow,
+            ]}>
+            <Download size={16} color={t.txt} />
+            <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.txt }}>Exporter</Text>
+          </PressableScale>
+        )}
       </View>
       {!!pinned?.length && (
         <View style={{ gap: 10 }}>
@@ -167,6 +186,7 @@ export default function HistoryScreen() {
           ))}
         </View>
       ))}
+      {data && data.length === 0 && !pinned?.length && <Empty />}
       {history.isFetchingNextPage && <ActivityIndicator color={t.mut} style={{ paddingVertical: 8 }} />}
     </Screen>
   );

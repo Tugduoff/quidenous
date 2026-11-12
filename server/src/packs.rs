@@ -221,6 +221,8 @@ pub async fn install(
         state
             .live
             .send(me.group_id, Event::RoundOpened { round_id });
+        crate::routes::notify_round(&state, me.group_id, Some(me.id), Some(round_id), false)
+            .await?;
     }
     state
         .live

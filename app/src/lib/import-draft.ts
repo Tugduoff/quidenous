@@ -1,3 +1,5 @@
+import * as DocumentPicker from 'expo-document-picker';
+
 /** Same limits as the server (QUESTION_MIN / QUESTION_MAX). */
 const MIN = 8;
 const MAX = 200;
@@ -29,3 +31,27 @@ export function parseQuestions(content: string): DraftLine[] {
       return { line, text, rank, selected: !problem, problem };
     });
 }
+
+/** Pick a question file and read it: its lines, 'empty' when there's nothing in it, null when cancelled. */
+export async function pickQuestionFile(): Promise<DraftLine[] | 'empty' | null> {
+  const picked = await DocumentPicker.getDocumentAsync({ type: ['text/plain', 'text/*'], copyToCacheDirectory: true });
+  if (picked.canceled || !picked.assets[0]) return null;
+  const asset = picked.assets[0];
+  const content = asset.file ? await asset.file.text() : await (await fetch(asset.uri)).text();
+  const lines = parseQuestions(content);
+  return lines.length ? lines : 'empty';
+}
+
+/**
+ * A file picked elsewhere (the Vote tab, right in the tap, as browsers want), handed to the Questions tab to review.
+ * Taken once.
+ */
+let handed: DraftLine[] | null = null;
+export const handOffDraft = (lines: DraftLine[]) => {
+  handed = lines;
+};
+export const takeHandedDraft = () => {
+  const lines = handed;
+  handed = null;
+  return lines;
+};

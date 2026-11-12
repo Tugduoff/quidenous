@@ -60,8 +60,49 @@ pub async fn round(db: &SqlitePool, group_id: i64, round_id: i64) -> AppResult<R
         .ok_or(AppError::NotFound)
 }
 
-/// Group questions first (queue order: oldest first unless shuffled), then a random deck question the group has not seen.
+/// Built-in deck questions this room can still get, with their vibe tags.
+async fn deck_candidates<'e, E: sqlx::SqliteExecutor<'e>>(
+    db: E,
+    group_id: i64,
+) -> AppResult<Vec<(i64, Option<String>)>> {
+    Ok(sqlx::query_as(concat!(
+        "SELECT q.id, q.vibes FROM questions q WHERE q.group_id IS NULL AND ",
+        unused!()
+    ))
+    .bind(group_id)
+    .fetch_all(db)
+    .await?)
+}
+
+async fn room_vibe<'e, E: sqlx::SqliteExecutor<'e>>(
+    db: E,
+    group_id: i64,
+) -> AppResult<Option<String>> {
+    Ok(sqlx::query_scalar("SELECT vibe FROM groups WHERE id = ?")
+        .bind(group_id)
+        .fetch_optional(db)
+        .await?
+        .flatten())
+}
+
+/// Deck questions left for this room, given its vibe.
+pub async fn deck_left(db: &SqlitePool, group_id: i64) -> AppResult<i64> {
+    let draws = crate::vibes::draws(room_vibe(db, group_id).await?.as_deref());
+    Ok(deck_candidates(db, group_id)
+        .await?
+        .iter()
+        .filter(|(_, tags)| {
+            draws
+                .iter()
+                .any(|d| crate::vibes::has_tag(tags.as_deref(), d))
+        })
+        .count() as i64)
+}
+
+/// Group questions first (queue order: oldest first unless shuffled), then a random deck question
+/// the group has not seen, from the room's vibe (its favourite tag first).
 async fn next_question(tx: &mut Transaction<'_, Sqlite>, group_id: i64) -> AppResult<Option<i64>> {
+    use rand::seq::IndexedRandom;
     let custom: Option<i64> = sqlx::query_scalar(concat!(
         "SELECT q.id FROM questions q WHERE q.group_id = ?1 AND ",
         unused!(),
@@ -73,21 +114,30 @@ async fn next_question(tx: &mut Transaction<'_, Sqlite>, group_id: i64) -> AppRe
     if custom.is_some() {
         return Ok(custom);
     }
-    Ok(sqlx::query_scalar(concat!(
-        "SELECT q.id FROM questions q WHERE q.group_id IS NULL AND ",
-        unused!(),
-        " ORDER BY RANDOM() LIMIT 1"
-    ))
-    .bind(group_id)
-    .fetch_optional(&mut **tx)
-    .await?)
+    let draws = crate::vibes::draws(room_vibe(&mut **tx, group_id).await?.as_deref());
+    let candidates = deck_candidates(&mut **tx, group_id).await?;
+    for tag in &draws {
+        let pool: Vec<i64> = candidates
+            .iter()
+            .filter(|(_, tags)| crate::vibes::has_tag(tags.as_deref(), tag))
+            .map(|(id, _)| *id)
+            .collect();
+        if let Some(id) = pool.choose(&mut rand::rng()) {
+            return Ok(Some(*id));
+        }
+    }
+    Ok(None)
 }
 
-/// Opens the next round when none is open. Returns the new round id, if any.
+/// Opens the next round when none is open and at least two people are in the room (alone,
+/// there is nobody to vote for: the room waits for its second member). Returns the new round id, if any.
 pub async fn ensure_open_round(
     tx: &mut Transaction<'_, Sqlite>,
     group_id: i64,
 ) -> AppResult<Option<i64>> {
+    if active_count(tx, group_id).await? < 2 {
+        return Ok(None);
+    }
     let open: Option<i64> =
         sqlx::query_scalar("SELECT id FROM rounds WHERE group_id = ? AND closed_at IS NULL")
             .bind(group_id)
@@ -128,6 +178,10 @@ pub async fn vote(
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::Conflict("no_open_round"))?;
+    // A question left open in a room that has since dropped to one person waits for company.
+    if active_count(&mut tx, group_id).await? < 2 {
+        return Err(AppError::Conflict("alone"));
+    }
     // A ranking must place every active member exactly once; its #1 is also stored as the vote.
     let target_id = if kind == "rank" && ranking.is_none() && target_id.is_some() {
         // An app too old to know ranking questions sends a single pick: it counts as voted

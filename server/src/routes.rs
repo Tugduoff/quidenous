@@ -36,6 +36,7 @@ pub fn router() -> Router<AppState> {
         .route("/health", get(|| async { "ok" }))
         // What this server can do, so apps (and release scripts) can tell a deploy has landed.
         .route("/features", get(features))
+        .route("/vibes", get(crate::vibes::list))
         .nest("/auth", crate::accounts::router())
         .route("/join", post(join))
         .route("/me", get(me).put(update_me))
@@ -64,6 +65,7 @@ pub fn router() -> Router<AppState> {
         .route("/questions", post(add_question))
         .route("/questions/queue", get(queue))
         .route("/questions/shuffle", post(shuffle_questions))
+        .route("/questions/ask", post(ask_questions))
         .route("/questions/{id}", axum::routing::delete(delete_question))
         .route(
             "/questions/import",
@@ -130,6 +132,9 @@ async fn features(State(state): State<AppState>) -> Json<Value> {
         "reports",
         "blocks",
         "rejoin",
+        "vibes",
+        "ask_questions",
+        "solo_wait",
     ];
     f.extend(crate::accounts::features(&state));
     Json(json!(f))
@@ -404,13 +409,13 @@ async fn upload_photo(
 }
 
 async fn group(State(state): State<AppState>, Me(me): Me) -> AppResult<Json<Value>> {
-    let (name, code, skip_vote, kick_vote, questions_by): (String, String, bool, bool, String) =
-        sqlx::query_as(
-            "SELECT name, join_code, skip_vote, kick_vote, questions_by FROM groups WHERE id = ?",
-        )
-        .bind(me.group_id)
-        .fetch_one(&state.db)
-        .await?;
+    type Settings = (String, String, bool, bool, String, Option<String>);
+    let (name, code, skip_vote, kick_vote, questions_by, vibe): Settings = sqlx::query_as(
+        "SELECT name, join_code, skip_vote, kick_vote, questions_by, vibe FROM groups WHERE id = ?",
+    )
+    .bind(me.group_id)
+    .fetch_one(&state.db)
+    .await?;
     let (members, former): (Vec<MemberRow>, Vec<MemberRow>) =
         sqlx::query_as::<_, MemberRow>("SELECT * FROM members WHERE group_id = ? ORDER BY id")
             .bind(me.group_id)
@@ -447,7 +452,7 @@ async fn group(State(state): State<AppState>, Me(me): Me) -> AppResult<Json<Valu
         "name": name,
         "code": code,
         "my_role": me.role,
-        "settings": { "skip_vote": skip_vote, "kick_vote": kick_vote, "questions_by": questions_by },
+        "settings": { "skip_vote": skip_vote, "kick_vote": kick_vote, "questions_by": questions_by, "vibe": vibe },
         "members": members,
         "former": former,
         "kicks": kicks,
@@ -1016,10 +1021,12 @@ async fn add_question(
             question_id: question.id,
         },
     );
+    // A room that had run out of questions starts again: tell everyone.
     if let Some(round_id) = opened {
         state
             .live
             .send(me.group_id, Event::RoundOpened { round_id });
+        notify_round(&state, me.group_id, Some(me.id), Some(round_id), false).await?;
     }
     Ok(Json(question))
 }
@@ -1095,13 +1102,7 @@ async fn queue(State(state): State<AppState>, Me(me): Me) -> AppResult<Json<Valu
     .bind(me.group_id)
     .fetch_all(&state.db)
     .await?;
-    let deck_left: i64 = sqlx::query_scalar(concat!(
-        "SELECT COUNT(*) FROM questions q WHERE q.group_id IS NULL AND ",
-        game::unused!()
-    ))
-    .bind(me.group_id)
-    .fetch_one(&state.db)
-    .await?;
+    let deck_left = game::deck_left(&state.db, me.group_id).await?;
     Ok(Json(json!({ "custom": custom, "deck_left": deck_left })))
 }
 
@@ -1491,6 +1492,49 @@ async fn nudge(
             body: round.text,
             tag: format!("round-{}", me.group_id),
             url: "/".into(),
+            room: me.group_id,
+        },
+    );
+    Ok(Json(json!({ "ok": true })))
+}
+
+/// "No more questions" and only the owner may add some: ask them. An inbox entry and a push
+/// for the owner, at most once every 12 hours per person.
+async fn ask_questions(State(state): State<AppState>, Me(me): Me) -> AppResult<Json<Value>> {
+    if may_add_questions(&state, &me).await.is_ok() {
+        return Err(AppError::BadRequest("not_needed"));
+    }
+    let (owner, room): (i64, String) = sqlx::query_as(
+        "SELECT m.id, g.name FROM members m JOIN groups g ON g.id = m.group_id \
+         WHERE m.group_id = ? AND m.role = 'owner' AND m.removed_at IS NULL",
+    )
+    .bind(me.group_id)
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    let recent: Option<i64> = sqlx::query_scalar(
+        "SELECT 1 FROM inbox WHERE member_id = ? AND actor_id = ? AND kind = 'ask' \
+         AND created_at > strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-12 hours')",
+    )
+    .bind(owner)
+    .bind(me.id)
+    .fetch_optional(&state.db)
+    .await?;
+    if recent.is_some() {
+        return Err(AppError::Conflict("already_asked"));
+    }
+    let title = format!("{} demande des questions", me.name);
+    crate::inbox::to_member(&state.db, owner, "ask", None, Some(me.id), &title).await?;
+    state.live.send(me.group_id, Event::InboxChanged);
+    state.push.notify_member(
+        state.db.clone(),
+        owner,
+        me.user_id,
+        Notification {
+            title,
+            body: format!("Plus de questions dans « {room} »."),
+            tag: format!("ask-{}", me.group_id),
+            url: "/questions".into(),
             room: me.group_id,
         },
     );

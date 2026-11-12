@@ -79,6 +79,10 @@ export function useFeatures() {
     auth: on.has('auth'),
     email: on.has('email'),
     providers: PROVIDERS.filter((p) => on.has(`oauth_${p}`)),
+    /** Rooms can pick a tone for their built-in questions (`/vibes`). */
+    vibes: on.has('vibes'),
+    /** A member who can't add questions can ask the owner for some (`/questions/ask`). */
+    askQuestions: on.has('ask_questions'),
   };
 }
 

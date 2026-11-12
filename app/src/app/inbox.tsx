@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
-import { Bell, BellRing, ChevronLeft, Crown, type LucideIcon, MessageCircle, Sparkles, UserPlus } from 'lucide-react-native';
+import { Bell, BellRing, ChevronLeft, Crown, type LucideIcon, MessageCircle, MessageCircleQuestion, Sparkles, UserPlus } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
@@ -8,19 +8,27 @@ import { Screen } from '@/components/screen';
 import { Avatar, Card, Display } from '@/components/ui';
 import { api, type InboxItem } from '@/lib/api';
 import { keys, useGroup, useInbox, useMembers } from '@/lib/queries';
-import { useSwitchRoom } from '@/lib/rooms';
+import { useSwitchRoom, useSwitchRoomHere } from '@/lib/rooms';
 import { useSession } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
 import { ago } from '@/lib/time';
 
 // A kind this version doesn't know (newer server) falls back to a plain bell and title.
-const ICON: Record<string, LucideIcon> = { message: MessageCircle, nudge: BellRing, result: Crown, question: Sparkles, added: UserPlus };
+const ICON: Record<string, LucideIcon> = {
+  message: MessageCircle,
+  nudge: BellRing,
+  result: Crown,
+  question: Sparkles,
+  added: UserPlus,
+  ask: MessageCircleQuestion,
+};
 const TITLE: Record<string, string> = {
   message: 'Nouveau message',
   nudge: 'Relance',
   result: 'Résultat dispo',
   question: 'Nouvelle question',
   added: 'Ajouté à un groupe',
+  ask: 'Questions',
 };
 
 /** Everything that happened lately: results, new questions, nudges, messages. Opening it marks all as read. */
@@ -34,6 +42,7 @@ export default function InboxScreen() {
   const session = useSession();
   const room = group?.id ?? session.room;
   const switchRoom = useSwitchRoom();
+  const switchHere = useSwitchRoomHere();
   const unread = data?.unread ?? 0;
   // What was new when I opened the screen stays highlighted while I look, even once marked as read.
   const [fresh, setFresh] = useState<Set<number> | null>(null);
@@ -49,6 +58,15 @@ export default function InboxScreen() {
     if (item.kind === 'added') {
       if (item.room_id != null && item.room_id !== room) switchRoom(item.room_id);
       else router.replace('/');
+      return;
+    }
+    // Someone asks me (the owner) for questions: the Questions tab, in that room.
+    if (item.kind === 'ask') {
+      if (item.room_id != null && item.room_id !== room)
+        switchHere(item.room_id)
+          .catch(() => false)
+          .then((ok) => router.replace(ok ? '/questions' : '/'));
+      else router.replace('/questions');
       return;
     }
     if (item.kind === 'nudge' || item.kind === 'question' || item.round_id == null) router.replace('/');

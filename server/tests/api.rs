@@ -9,6 +9,11 @@ use serde_json::{Value, json};
 use tower::ServiceExt;
 
 async fn test_app() -> Router {
+    test_app_with_state().await.0
+}
+
+/// The app and its state, for tests that need to shape the data directly.
+async fn test_app_with_state() -> (Router, quidenous_server::AppState) {
     let dir = std::env::temp_dir().join(format!("qdn-test-{}", rand_suffix()));
     let config = Config {
         port: 0,
@@ -30,7 +35,7 @@ async fn test_app() -> Router {
         .execute(&state.db)
         .await
         .unwrap();
-    app(state)
+    (app(state.clone()), state)
 }
 
 fn rand_suffix() -> u128 {
@@ -746,7 +751,7 @@ async fn chat_under_results_and_inbox() {
         .collect();
     assert_eq!(kinds, ["message", "nudge"]);
     assert_eq!(inbox["unread"], 2);
-    // Ana gets the result notice, not her own message.
+    // Ana gets the result notice, not her own message (and the first question, opened when Bob joined).
     let (_, inbox_a) = call(&app, "GET", "/inbox", Some(&a), None).await;
     let kinds: Vec<&str> = inbox_a["items"]
         .as_array()
@@ -754,7 +759,7 @@ async fn chat_under_results_and_inbox() {
         .iter()
         .map(|i| i["kind"].as_str().unwrap())
         .collect();
-    assert_eq!(kinds, ["result"]);
+    assert_eq!(kinds, ["result", "question"]);
     call(&app, "POST", "/inbox/read", Some(&b), None).await;
     let (_, inbox) = call(&app, "GET", "/inbox", Some(&b), None).await;
     assert_eq!(inbox["unread"], 0);
@@ -1414,8 +1419,18 @@ async fn a_newcomer_starts_with_their_own_room() {
     let (_, g) = call(&app, "GET", "/group", Some(&token), None).await;
     assert_eq!(g["name"], "Les voisins");
     assert_eq!(g["my_role"], "owner");
+    // Alone in the room: no question until someone joins.
     let (_, current) = call(&app, "GET", "/round/current", Some(&token), None).await;
-    assert!(current["id"].is_i64(), "a question is waiting");
+    assert!(current.is_null(), "{current}");
+    let (s, _) = call(
+        &app,
+        "POST",
+        "/start",
+        None,
+        Some(json!({ "name": "Zoé", "room": "x", "vibe": "nope" })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
     let (s, _) = call(
         &app,
         "POST",
@@ -1583,7 +1598,8 @@ async fn blocking_hides_messages_and_friend_requests() {
     let (_, inbox) = call(&app, "GET", "/inbox", Some(&ana), None).await;
     assert_eq!(
         (&inbox["items"][0]["kind"], &inbox["unread"]),
-        (&json!("message"), &json!(2))
+        // The message, the result, and the first question (opened when Bob joined).
+        (&json!("message"), &json!(3))
     );
 
     // Not myself, not someone who doesn't exist.
@@ -1646,9 +1662,10 @@ async fn blocking_hides_messages_and_friend_requests() {
             .iter()
             .all(|i| i["kind"] != "message")
     );
-    assert_eq!(inbox["unread"], 1);
+    // Left: the result and the first question.
+    assert_eq!(inbox["unread"], 2);
     let (_, rooms) = call(&app, "GET", "/rooms", Some(&ana), None).await;
-    assert_eq!(rooms[0]["unread"], 1);
+    assert_eq!(rooms[0]["unread"], 2);
     // No friend requests either way (looks like a wrong code), and he's off her friends list.
     let (_, f) = call(&app, "GET", "/friends", Some(&ana), None).await;
     assert_eq!(f["friends"], json!([]));
@@ -1695,7 +1712,7 @@ async fn blocking_hides_messages_and_friend_requests() {
     let (_, list) = call(&app, "GET", &messages, Some(&ana), None).await;
     assert_eq!(list.as_array().unwrap().len(), 1);
     let (_, inbox) = call(&app, "GET", "/inbox", Some(&ana), None).await;
-    assert_eq!(inbox["unread"], 2);
+    assert_eq!(inbox["unread"], 3);
     let (s, _) = call(
         &app,
         "POST",
@@ -2117,4 +2134,321 @@ async fn csv_export_ranks_ranking_questions_on_points() {
         line.contains("\"Bob\",7,3,\"Bob (7 pts) | Cyd (6 pts) | Ana (5 pts)\""),
         "{body}"
     );
+}
+
+/// Deck questions tagged with `tag` (untagged lines are `potes`), ranking ones left out like the test deck.
+fn deck_with(tag: &str) -> Vec<String> {
+    include_str!("../deck/fr.txt")
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty() && !l.starts_with('#') && !l.starts_with("[classement]"))
+        .filter_map(|l| {
+            let mut rest = l;
+            let mut tags = Vec::new();
+            while let Some(after) = rest.strip_prefix('[') {
+                let end = after.find(']').unwrap();
+                tags.push(&after[..end]);
+                rest = after[end + 1..].trim_start();
+            }
+            let tagged = if tags.is_empty() {
+                tag == "potes"
+            } else {
+                tags.contains(&tag)
+            };
+            tagged.then(|| rest.to_owned())
+        })
+        .collect()
+}
+
+#[tokio::test]
+async fn a_room_waits_for_its_second_member() {
+    let app = test_app().await;
+    let (ana, _) = join(&app, "Ana").await;
+    // The env group with one person in it: nothing to vote on yet.
+    let (_, current) = call(&app, "GET", "/round/current", Some(&ana), None).await;
+    assert!(current.is_null(), "{current}");
+    let (_, room) = call(
+        &app,
+        "POST",
+        "/rooms",
+        Some(&ana),
+        Some(json!({ "name": "Duo" })),
+    )
+    .await;
+    let room = room["id"].as_i64().unwrap();
+    let (_, current) = call_room(&app, "GET", "/round/current", &ana, room, None).await;
+    assert!(current.is_null(), "{current}");
+    let (_, rooms) = call(&app, "GET", "/rooms", Some(&ana), None).await;
+    assert!(
+        rooms
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|r| r["open_number"].is_null())
+    );
+    // Bob joins: the first question opens, and Ana hears about it.
+    let (bob, _) = join(&app, "Bob").await;
+    let (_, g) = call_room(&app, "GET", "/group", &ana, room, None).await;
+    let code = g["code"].as_str().unwrap().to_owned();
+    let (s, _) = call(
+        &app,
+        "POST",
+        "/rooms/join",
+        Some(&bob),
+        Some(json!({ "code": code })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK);
+    let (_, current) = call_room(&app, "GET", "/round/current", &ana, room, None).await;
+    assert_eq!(current["number"], 1, "{current}");
+    assert_eq!(current["member_count"], 2);
+    let (_, inbox) = call_room(&app, "GET", "/inbox", &ana, room, None).await;
+    assert_eq!(inbox["items"][0]["kind"], "question", "{inbox}");
+    // Bob leaves with the question open: Ana alone can't settle it, it waits for company.
+    call(
+        &app,
+        "POST",
+        &format!("/rooms/{room}/leave"),
+        Some(&bob),
+        None,
+    )
+    .await;
+    let (_, me) = call_room(&app, "GET", "/me", &ana, room, None).await;
+    let (s, body) = call_room(
+        &app,
+        "POST",
+        "/round/current/vote",
+        &ana,
+        room,
+        Some(json!({ "target_id": me["id"] })),
+    )
+    .await;
+    assert_eq!(
+        (s, body["error"].as_str()),
+        (StatusCode::CONFLICT, Some("alone")),
+        "{body}"
+    );
+}
+
+#[tokio::test]
+async fn a_room_vibe_picks_its_deck_questions() {
+    let app = test_app().await;
+    let (ana, _) = join(&app, "Ana").await;
+    let (bob, _) = join(&app, "Bob").await;
+    let (s, vibes) = call(&app, "GET", "/vibes", None, None).await;
+    assert_eq!(s, StatusCode::OK);
+    let ids: Vec<&str> = vibes
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| v["id"].as_str().unwrap())
+        .collect();
+    assert_eq!(ids, ["potes", "pimente", "boulot", "famille"]);
+    assert!(vibes[0]["name"].is_string() && vibes[0]["icon"].is_string());
+    assert!(vibes[0].get("draws").is_none());
+    let (s, _) = call(
+        &app,
+        "POST",
+        "/rooms",
+        Some(&ana),
+        Some(json!({ "name": "X", "vibe": "nope" })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+
+    let famille = deck_with("famille");
+    let pimente = deck_with("pimente");
+    let potes = deck_with("potes");
+    assert!(famille.len() >= 20 && pimente.len() >= 20);
+    for (vibe, first, all) in [
+        ("famille", &famille, famille.len()),
+        (
+            "pimente",
+            &pimente,
+            potes
+                .iter()
+                .chain(&pimente)
+                .collect::<std::collections::HashSet<_>>()
+                .len(),
+        ),
+        ("", &potes, potes.len()),
+    ] {
+        let (s, room) = call(
+            &app,
+            "POST",
+            "/rooms",
+            Some(&ana),
+            Some(json!({ "name": "Salon", "vibe": vibe })),
+        )
+        .await;
+        assert_eq!(s, StatusCode::OK, "{room}");
+        let room = room["id"].as_i64().unwrap();
+        let (_, g) = call_room(&app, "GET", "/group", &ana, room, None).await;
+        assert_eq!(
+            g["settings"]["vibe"],
+            if vibe.is_empty() {
+                json!(null)
+            } else {
+                json!(vibe)
+            }
+        );
+        let code = g["code"].as_str().unwrap().to_owned();
+        call(
+            &app,
+            "POST",
+            "/rooms/join",
+            Some(&bob),
+            Some(json!({ "code": code })),
+        )
+        .await;
+        let (_, current) = call_room(&app, "GET", "/round/current", &ana, room, None).await;
+        let question = current["question"].as_str().unwrap().to_owned();
+        assert!(first.contains(&question), "{vibe}: {question}");
+        let (_, queue) = call_room(&app, "GET", "/questions/queue", &ana, room, None).await;
+        assert_eq!(queue["deck_left"], all as i64 - 1, "{vibe}");
+    }
+
+    // The owner changes it later; "" goes back to the classics; only known vibes.
+    let (_, room) = call(
+        &app,
+        "POST",
+        "/rooms",
+        Some(&ana),
+        Some(json!({ "name": "Boulot" })),
+    )
+    .await;
+    let room = room["id"].as_i64().unwrap();
+    let (s, _) = call(
+        &app,
+        "PATCH",
+        &format!("/rooms/{room}"),
+        Some(&ana),
+        Some(json!({ "vibe": "boulot" })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK);
+    let (_, queue) = call_room(&app, "GET", "/questions/queue", &ana, room, None).await;
+    assert_eq!(queue["deck_left"], deck_with("boulot").len() as i64);
+    let (s, _) = call(
+        &app,
+        "PATCH",
+        &format!("/rooms/{room}"),
+        Some(&ana),
+        Some(json!({ "vibe": "nope" })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    call(
+        &app,
+        "PATCH",
+        &format!("/rooms/{room}"),
+        Some(&ana),
+        Some(json!({ "vibe": "" })),
+    )
+    .await;
+    let (_, g) = call_room(&app, "GET", "/group", &ana, room, None).await;
+    assert!(g["settings"]["vibe"].is_null());
+}
+
+#[tokio::test]
+async fn a_member_can_ask_the_owner_for_questions() {
+    let app = test_app().await;
+    let (ana, _) = join(&app, "Ana").await;
+    let (bob, _) = join(&app, "Bob").await;
+    // Everyone may add questions: nothing to ask.
+    let (s, _) = call(&app, "POST", "/questions/ask", Some(&bob), None).await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    let (_, g) = call(&app, "GET", "/group", Some(&ana), None).await;
+    let main = g["id"].as_i64().unwrap();
+    call(
+        &app,
+        "PATCH",
+        &format!("/rooms/{main}"),
+        Some(&ana),
+        Some(json!({ "questions_by": "owner" })),
+    )
+    .await;
+    let (s, body) = call(&app, "POST", "/questions/ask", Some(&bob), None).await;
+    assert_eq!(s, StatusCode::OK, "{body}");
+    let (_, inbox) = call(&app, "GET", "/inbox", Some(&ana), None).await;
+    let ask = inbox["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|i| i["kind"] == "ask")
+        .cloned()
+        .unwrap();
+    assert_eq!(ask["text"], "Bob demande des questions");
+    // Once is enough for a while; the owner never asks.
+    let (s, body) = call(&app, "POST", "/questions/ask", Some(&bob), None).await;
+    assert_eq!(
+        (s, body["error"].as_str()),
+        (StatusCode::CONFLICT, Some("already_asked"))
+    );
+    let (s, _) = call(&app, "POST", "/questions/ask", Some(&ana), None).await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn a_stalled_room_hears_when_questions_arrive() {
+    let (app, state) = test_app_with_state().await;
+    sqlx::query("DELETE FROM questions WHERE group_id IS NULL")
+        .execute(&state.db)
+        .await
+        .unwrap();
+    let (ana, _) = join(&app, "Ana").await;
+    let (bob, _) = join(&app, "Bob").await;
+    let (_, current) = call(&app, "GET", "/round/current", Some(&ana), None).await;
+    assert!(current.is_null());
+    let question_items = |inbox: &Value| {
+        inbox["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|i| i["kind"] == "question")
+            .count()
+    };
+    // One question written: Bob is told, not Ana who wrote it.
+    let (s, _) = call(
+        &app,
+        "POST",
+        "/questions",
+        Some(&ana),
+        Some(json!({ "text": "Qui dort le plus ?" })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK);
+    let (_, inbox) = call(&app, "GET", "/inbox", Some(&bob), None).await;
+    assert_eq!(question_items(&inbox), 1, "{inbox}");
+    let (_, inbox) = call(&app, "GET", "/inbox", Some(&ana), None).await;
+    assert_eq!(question_items(&inbox), 0);
+    // Everyone votes: out of questions again. A pack brings the room back, Ana hears it.
+    let (_, me_a) = call(&app, "GET", "/me", Some(&ana), None).await;
+    vote_as(&app, &ana, me_a["id"].as_i64().unwrap()).await;
+    vote_as(&app, &bob, me_a["id"].as_i64().unwrap()).await;
+    let (_, current) = call(&app, "GET", "/round/current", Some(&ana), None).await;
+    assert!(current.is_null());
+    let file = "Qui a le plus de plantes ?\nQui ferait le pire astronaute ?\nQui pleure devant les pubs ?\nQui perd toujours ses clés ?\nQui chante faux ?\n";
+    let (_, pack) = call(
+        &app,
+        "POST",
+        "/packs",
+        Some(&ana),
+        Some(json!({ "name": "Doux", "text": file })),
+    )
+    .await;
+    let id = pack["id"].as_i64().unwrap();
+    let (s, _) = call(
+        &app,
+        "POST",
+        &format!("/packs/{id}/install"),
+        Some(&bob),
+        None,
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK);
+    let (_, inbox) = call(&app, "GET", "/inbox", Some(&ana), None).await;
+    assert_eq!(question_items(&inbox), 1, "{inbox}");
+    let (_, current) = call(&app, "GET", "/round/current", Some(&ana), None).await;
+    assert_eq!(current["number"], 2);
 }

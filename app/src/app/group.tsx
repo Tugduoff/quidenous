@@ -1,16 +1,17 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { router } from 'expo-router';
-import { ChevronLeft, Crown, Ellipsis, LogOut, RefreshCw, Share2, Trash2, UserPlus, UserX } from 'lucide-react-native';
+import { Check, ChevronLeft, ChevronRight, Crown, Ellipsis, LogOut, Trash2, UserX } from 'lucide-react-native';
 import { Pressable, Switch, Text, TextInput, View } from 'react-native';
-import QRCode from 'react-native-qrcode-svg';
 
+import { AddFriends, InviteCard } from '@/components/invite';
 import { ModerationDialog, type ModTarget } from '@/components/moderation';
 import { Screen } from '@/components/screen';
-import { askConfirm, Avatar, Card, Display } from '@/components/ui';
+import { askConfirm, Avatar, Card, Dialog, DialogTitle, Display, PressableScale } from '@/components/ui';
+import { VibeCards, vibeIcon } from '@/components/vibes';
 import { api } from '@/lib/api';
-import { keys, useFriends, useGroup } from '@/lib/queries';
-import { inviteLink, inviteMessage, shareText } from '@/lib/share';
+import { useFeatures } from '@/lib/auth';
+import { keys, useGroup, useVibes } from '@/lib/queries';
 import { useSession } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
 
@@ -143,122 +144,6 @@ function Members() {
   );
 }
 
-/** The invite code, a share button, and (owner) a new code. */
-function Invite() {
-  const t = useTheme();
-  const qc = useQueryClient();
-  const { data: group } = useGroup();
-  const [copied, setCopied] = useState(false);
-  const rotate = useMutation({
-    mutationFn: () => api(`/rooms/${group!.id}/code`, { method: 'POST' }),
-    onSettled: () => qc.invalidateQueries({ queryKey: keys.group }),
-  });
-  if (!group) return null;
-  const share = async () => {
-    if ((await shareText(inviteMessage(group.name, group.code))) === 'copied') {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1800);
-    }
-  };
-  return (
-    <Card style={{ padding: 16, gap: 12 }}>
-      <View style={{ alignSelf: 'center', padding: 12, borderRadius: 16, backgroundColor: '#fff' }}>
-        <QRCode value={inviteLink(group.code)} size={168} color="#121216" backgroundColor="#fff" />
-      </View>
-      <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut }}>Code d'invitation</Text>
-      <Text selectable style={{ fontFamily: t.font.display, fontSize: 34, letterSpacing: 4, color: t.txt }}>
-        {group.code}
-      </Text>
-      <View style={{ flexDirection: 'row', gap: 10 }}>
-        <Pressable
-          accessibilityRole="button"
-          onPress={share}
-          style={{
-            flex: 1,
-            height: 44,
-            borderRadius: t.radius.pill,
-            flexDirection: 'row',
-            gap: 8,
-            alignItems: 'center',
-            justifyContent: 'center',
-            backgroundColor: t.acc,
-          }}>
-          <Share2 size={18} color={t.accTxt} />
-          <Text style={{ fontFamily: t.font.bold, fontSize: 15, color: t.accTxt }}>{copied ? 'Lien copié' : "Partager l'invitation"}</Text>
-        </Pressable>
-        {group.my_role === 'owner' && (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Nouveau code"
-            onPress={async () => {
-              if (await confirm("L'ancien code et les liens déjà envoyés ne marcheront plus.", 'Nouveau code ?', 'Changer'))
-                rotate.mutate();
-            }}
-            style={{ width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card2 }}>
-            <RefreshCw size={18} color={t.txt} />
-          </Pressable>
-        )}
-      </View>
-    </Card>
-  );
-}
-
-/** Friends who aren't in this room yet, one tap to add them. */
-function AddFriends() {
-  const t = useTheme();
-  const qc = useQueryClient();
-  const { data: group } = useGroup();
-  const { data: friends } = useFriends();
-  const add = useMutation({
-    mutationFn: (userId: number) => api(`/rooms/${group!.id}/add`, { method: 'POST', json: { user_id: userId } }),
-    onSettled: () => {
-      qc.invalidateQueries({ queryKey: keys.group });
-      qc.invalidateQueries({ queryKey: keys.friends });
-    },
-  });
-  if (!group || !friends) return null;
-  const inRoom = new Set(group.members.map((m) => m.user_id));
-  const outside = friends.friends.filter((f) => !inRoom.has(f.user_id));
-  return (
-    <View style={{ gap: 10 }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginHorizontal: 4 }}>
-        <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut }}>Ajouter des amis</Text>
-        <Pressable accessibilityRole="button" onPress={() => router.push('/friends')} hitSlop={8}>
-          <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.accInk }}>Mes amis</Text>
-        </Pressable>
-      </View>
-      {outside.length === 0 && (
-        <Text style={{ fontFamily: t.font.regular, fontSize: 14, color: t.mut, marginHorizontal: 4 }}>
-          Tous tes amis sont déjà là. Ajoutes-en avec leur code ami.
-        </Text>
-      )}
-      {outside.map((f) => (
-        <Card key={f.user_id} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12 }}>
-          <Avatar member={{ id: f.user_id, name: f.name, color: f.color, photo_url: f.photo_url }} size={36} />
-          <Text style={{ flex: 1, fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>{f.name}</Text>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`Ajouter ${f.name} au salon`}
-            disabled={add.isPending}
-            onPress={() => add.mutate(f.user_id)}
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: 6,
-              height: 34,
-              paddingHorizontal: 12,
-              borderRadius: t.radius.pill,
-              backgroundColor: t.acc,
-            }}>
-            <UserPlus size={15} color={t.accTxt} />
-            <Text style={{ fontFamily: t.font.bold, fontSize: 13, color: t.accTxt }}>Ajouter</Text>
-          </Pressable>
-        </Card>
-      ))}
-    </View>
-  );
-}
-
 /** Owner only: rename and the room's rules. */
 function Settings() {
   const t = useTheme();
@@ -323,6 +208,7 @@ function Settings() {
             </Text>
           </Pressable>
         </View>
+        <VibeRow value={group.settings.vibe ?? null} onChange={(v) => save.mutate({ vibe: v ?? '' })} />
         {row('Passer quelqu’un à la majorité', 'Ne plus attendre celui qui ne vote pas', group.settings.skip_vote, (v) =>
           save.mutate({ skip_vote: v }),
         )}
@@ -334,6 +220,51 @@ function Settings() {
         )}
       </Card>
     </View>
+  );
+}
+
+/** Owner: the tone of the room's built-in questions, picked in a dialog (a server that has vibes). */
+function VibeRow({ value, onChange }: { value: string | null; onChange: (vibe: string | null) => void }) {
+  const t = useTheme();
+  const features = useFeatures();
+  const { data: vibes } = useVibes(features.vibes);
+  const [open, setOpen] = useState(false);
+  if (!features.vibes || !vibes?.length) return null;
+  const current = vibes.find((v) => v.id === value);
+  const Icon = vibeIcon(current?.icon);
+  const pick = (v: string | null) => {
+    setOpen(false);
+    if (v !== value) onChange(v);
+  };
+  return (
+    <>
+      <PressableScale
+        scale={0.98}
+        accessibilityRole="button"
+        accessibilityLabel={`Ambiance : ${current?.name ?? 'aucune'}. Changer`}
+        onPress={() => setOpen(true)}
+        style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+        <View style={{ flex: 1, gap: 2 }}>
+          <Text style={{ fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>Ambiance</Text>
+          <Text style={{ fontFamily: t.font.regular, fontSize: 12, color: t.mut }}>Le ton des questions de base</Text>
+        </View>
+        {current && <Icon size={16} color={t.accInk} />}
+        <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: current ? t.txt : t.mut }}>{current?.name ?? 'Aucune'}</Text>
+        <ChevronRight size={18} color={t.mut} />
+      </PressableScale>
+      <Dialog visible={open} onClose={() => setOpen(false)}>
+        <DialogTitle title="Ambiance" />
+        <VibeCards vibes={vibes} value={value} onChange={pick} />
+        <Pressable
+          accessibilityRole="radio"
+          accessibilityState={{ selected: !current }}
+          onPress={() => pick(null)}
+          style={{ height: 44, flexDirection: 'row', gap: 6, alignItems: 'center', justifyContent: 'center' }}>
+          {!current && <Check size={16} color={t.accInk} />}
+          <Text style={{ fontFamily: t.font.semibold, fontSize: 15, color: current ? t.mut : t.accInk }}>Aucune</Text>
+        </Pressable>
+      </Dialog>
+    </>
   );
 }
 
@@ -423,7 +354,7 @@ export default function GroupScreen() {
           <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut }}>toi</Text>
         </Card>
       )}
-      <Invite />
+      <InviteCard />
       <Members />
       <AddFriends />
       <Settings />

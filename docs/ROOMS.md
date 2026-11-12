@@ -40,6 +40,12 @@ A majority is more than half of the other members (the target doesn't count), an
 
 Settings per room: majority skip on/off, majority removal on/off, who can add or import questions (everyone / owner).
 
+## Starting a room
+
+- A room with one active member opens no question: alone, there is nobody to vote for. The app shows an invite screen instead; the first question opens when the second person joins (code, link or "add a friend"), and the others get "Nouvelle question". A question left open when a room drops to one person stays open but can't be voted on (`409 alone`).
+- **Vibe**: picked after naming the room (skippable), changeable by the owner. The vibes live in `server/deck/vibes.json` (`GET /vibes`); each one draws built-in deck questions by tag, favourite tag first (`[famille] Qui…` in `server/deck/fr.txt`, untagged = `potes`). No vibe = `potes`, which is what every room had before.
+- **Out of questions**: the Vote tab offers to write one, install a pack or import a file. When only the owner may add questions, a member can ask them (`POST /questions/ask`: inbox `ask` + push, once per 12 h). Adding one question, installing a pack or importing a file that reopens a stalled room tells the room.
+
 ## Phases
 
 1. Server: users, memberships, `X-Room`, migration, push and live per user. No visible change.

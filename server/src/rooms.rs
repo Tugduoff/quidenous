@@ -95,6 +95,19 @@ pub async fn list(State(state): State<AppState>, UserId(user): UserId) -> AppRes
 #[derive(Deserialize)]
 pub struct CreateBody {
     name: String,
+    /// A vibe id from `/vibes`; none = the classics.
+    #[serde(default)]
+    vibe: Option<String>,
+}
+
+/// A known vibe id, or none for an empty one.
+fn clean_vibe(vibe: Option<&str>) -> AppResult<Option<&'static str>> {
+    match vibe.map(str::trim) {
+        None | Some("") => Ok(None),
+        Some(id) => crate::vibes::find(id)
+            .map(|v| Some(v.id.as_str()))
+            .ok_or(AppError::BadRequest("bad_vibe")),
+    }
 }
 
 /// A new room, me as its owner.
@@ -104,15 +117,17 @@ pub async fn create(
     Json(body): Json<CreateBody>,
 ) -> AppResult<Json<Value>> {
     let name = clean_room_name(&body.name)?;
+    let vibe = clean_vibe(body.vibe.as_deref())?;
     let mut tx = state.db.begin().await?;
     let mut room_id = None;
     // Codes are unique: retry on the (rare) clash.
     for _ in 0..5 {
         let inserted: Option<i64> = sqlx::query_scalar(
-            "INSERT INTO groups (name, join_code) VALUES (?, ?) ON CONFLICT DO NOTHING RETURNING id",
+            "INSERT INTO groups (name, join_code, vibe) VALUES (?, ?, ?) ON CONFLICT DO NOTHING RETURNING id",
         )
         .bind(&name)
         .bind(new_code())
+        .bind(vibe)
         .fetch_optional(&mut *tx)
         .await?;
         if inserted.is_some() {
@@ -142,9 +157,9 @@ pub async fn create(
         .bind(user)
         .execute(&mut *tx)
         .await?;
-    game::ensure_open_round(&mut tx, room_id).await?;
+    // Alone in it: no question yet, the first one opens when someone joins.
     tx.commit().await?;
-    Ok(Json(json!({ "id": room_id, "name": name })))
+    Ok(Json(json!({ "id": room_id, "name": name, "vibe": vibe })))
 }
 
 #[derive(Deserialize)]
@@ -229,6 +244,8 @@ pub struct SettingsBody {
     skip_vote: Option<bool>,
     kick_vote: Option<bool>,
     questions_by: Option<String>,
+    /// A vibe id, or "" for none.
+    vibe: Option<String>,
 }
 
 /// Owner only: rename, turn majority skip/removal on or off, who can add questions.
@@ -267,6 +284,13 @@ pub async fn update(
         }
         sqlx::query("UPDATE groups SET questions_by = ? WHERE id = ?")
             .bind(v)
+            .bind(room)
+            .execute(&state.db)
+            .await?;
+    }
+    if let Some(v) = &body.vibe {
+        sqlx::query("UPDATE groups SET vibe = ? WHERE id = ?")
+            .bind(clean_vibe(Some(v))?)
             .bind(room)
             .execute(&state.db)
             .await?;
@@ -418,6 +442,8 @@ pub fn member_with_role(m: &MemberRow) -> Value {
 pub struct StartBody {
     name: String,
     room: String,
+    #[serde(default)]
+    vibe: Option<String>,
 }
 
 /// No code, no account yet: create both, with a fresh room I own (the way in for newcomers).
@@ -433,6 +459,7 @@ pub async fn start(
         return Err(AppError::BadRequest("bad_name"));
     }
     let room = clean_room_name(&body.room)?;
+    clean_vibe(body.vibe.as_deref())?;
     let token = crate::auth::new_token();
     let mut tx = state.db.begin().await?;
     let user: i64 = sqlx::query_scalar(
@@ -455,7 +482,10 @@ pub async fn start(
     let created = create(
         State(state.clone()),
         UserId(user),
-        Json(CreateBody { name: room }),
+        Json(CreateBody {
+            name: room,
+            vibe: body.vibe,
+        }),
     )
     .await?;
     let room_id = created.0["id"].as_i64().unwrap_or_default();

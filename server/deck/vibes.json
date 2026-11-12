@@ -1,0 +1,30 @@
+[
+  {
+    "id": "potes",
+    "name": "Entre potes",
+    "icon": "beer",
+    "description": "Les classiques, pour rire entre amis.",
+    "draws": ["potes"]
+  },
+  {
+    "id": "pimente",
+    "name": "Pimenté 16+",
+    "icon": "flame",
+    "description": "Plus osé, pour les soirées.",
+    "draws": ["pimente", "potes"]
+  },
+  {
+    "id": "boulot",
+    "name": "Boulot",
+    "icon": "briefcase",
+    "description": "Entre collègues, sans déraper.",
+    "draws": ["boulot"]
+  },
+  {
+    "id": "famille",
+    "name": "Famille",
+    "icon": "house",
+    "description": "Pour tous les âges.",
+    "draws": ["famille"]
+  }
+]

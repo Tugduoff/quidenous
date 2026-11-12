@@ -1,4 +1,5 @@
 import { LogOut } from 'lucide-react-native';
+import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
 import { RoomForms } from '@/components/room-forms';
@@ -13,13 +14,14 @@ export default function Setup() {
   const t = useTheme();
   const { enterRoom, signOut } = useSession();
   const code = pendingJoinCode() ?? '';
+  const [creating, setCreating] = useState(false);
   return (
     <Screen tabs={false}>
       <View style={{ marginTop: 32, gap: 10, marginBottom: 8 }}>
         <Logo />
-        <Display size={32}>Ton salon</Display>
+        {!creating && <Display size={32}>Ton salon</Display>}
       </View>
-      <RoomForms joinFirst={!!code} initialCode={code} onEntered={enterRoom} />
+      <RoomForms joinFirst={!!code} initialCode={code} onEntered={enterRoom} onVibeStep={setCreating} />
       <View style={{ flex: 1 }} />
       <Pressable
         accessibilityRole="button"
