@@ -7,7 +7,7 @@ import { Pressable, Text, TextInput, View } from 'react-native';
 import { Screen } from '@/components/screen';
 import { Avatar, Card, Display } from '@/components/ui';
 import { api } from '@/lib/api';
-import { parseQuestions, type DraftLine } from '@/lib/import-draft';
+import { parseQuestions, splitTag, type DraftLine } from '@/lib/import-draft';
 import { keys, useGroup, useMembers, useQueue } from '@/lib/queries';
 import { useTheme } from '@/lib/theme';
 
@@ -21,10 +21,13 @@ export default function QuestionsScreen() {
   const { byId } = useMembers();
   const [text, setText] = useState('');
   const [rank, setRank] = useState(false);
+  // Typing `[classement] …` by hand works too.
+  const typed = splitTag(text.trim());
   const add = useMutation({
-    mutationFn: () => api('/questions', { method: 'POST', json: { text, kind: rank ? 'rank' : 'pick' } }),
+    mutationFn: () => api('/questions', { method: 'POST', json: { text: typed.text, kind: rank || typed.rank ? 'rank' : 'pick' } }),
     onSuccess: () => {
       setText('');
+      setRank(false);
       qc.invalidateQueries({ queryKey: keys.queue });
       qc.invalidateQueries({ queryKey: keys.current });
     },
@@ -74,6 +77,22 @@ export default function QuestionsScreen() {
         <>
           <View style={{ flexDirection: 'row', gap: 10, alignItems: 'flex-end' }}>
             <Card style={{ flex: 1 }}>
+              {rank && (
+                <View style={{ flexDirection: 'row', paddingHorizontal: 12, paddingTop: 12 }}>
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 4,
+                      paddingHorizontal: 10,
+                      height: 24,
+                      borderRadius: t.radius.pill,
+                      backgroundColor: t.accSoft,
+                    }}>
+                    <Text style={{ fontFamily: t.font.bold, fontSize: 11, letterSpacing: 0.3, color: t.accInk }}>🏆 CLASSEMENT</Text>
+                  </View>
+                </View>
+              )}
               <TextInput
                 accessibilityLabel="Nouvelle question"
                 placeholder={rank ? 'Classe-nous du plus… au moins…' : 'Qui de nous…'}
@@ -101,36 +120,31 @@ export default function QuestionsScreen() {
               <Plus size={26} color={ok ? t.accTxt : t.mut} />
             </Pressable>
           </View>
-          <View style={{ flexDirection: 'row', gap: 8 }}>
-            {(['pick', 'rank'] as const).map((k) => {
-              const on = (k === 'rank') === rank;
-              return (
-                <Pressable
-                  key={k}
-                  accessibilityRole="radio"
-                  accessibilityState={{ selected: on }}
-                  onPress={() => setRank(k === 'rank')}
-                  style={{
-                    paddingHorizontal: 14,
-                    height: 34,
-                    borderRadius: t.radius.pill,
-                    justifyContent: 'center',
-                    backgroundColor: on ? t.accSoft : t.card,
-                    borderWidth: 2,
-                    borderColor: on ? t.accInk : 'transparent',
-                  }}>
-                  <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: on ? t.accInk : t.txt }}>
-                    {k === 'rank' ? '🏆 Classement' : '👉 Qui de nous'}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
             <Text style={{ flex: 1, fontFamily: t.font.regular, fontSize: 13, color: t.mut }}>
               {(data?.custom.length ?? 0) + (data?.deck_left ?? 0)}
               {imported ? `  ·  ${imported}` : ''}
             </Text>
+            {/* Small switch: the next question is a ranking (everyone, first to last). */}
+            <Pressable
+              accessibilityRole="switch"
+              accessibilityLabel="Classement"
+              accessibilityState={{ checked: rank }}
+              onPress={() => setRank((r) => !r)}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 6,
+                height: 32,
+                paddingHorizontal: 10,
+                borderRadius: t.radius.pill,
+                backgroundColor: rank ? t.accSoft : t.card,
+                borderWidth: 1.5,
+                borderColor: rank ? t.accInk : t.line,
+              }}>
+              <Text style={{ fontSize: 13 }}>🏆</Text>
+              <Text style={{ fontFamily: t.font.semibold, fontSize: 12, color: rank ? t.accInk : t.mut }}>Classement</Text>
+            </Pressable>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Importer un fichier de questions"

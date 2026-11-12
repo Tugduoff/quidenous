@@ -8,7 +8,7 @@ export type DraftLine = { line: string; text: string; rank: boolean; selected: b
 const TAGS = ['[classement]', '[rank]'];
 
 /** Same rule as the server: a `[classement]` line is a ranking question, the tag isn't part of it. */
-function split(line: string) {
+export function splitTag(line: string) {
   const tag = TAGS.find((t) => line.toLowerCase().startsWith(t));
   return tag ? { text: line.slice(tag.length).trim(), rank: true } : { text: line, rank: false };
 }
@@ -21,7 +21,7 @@ export function parseQuestions(content: string): DraftLine[] {
     .map((l) => l.trim())
     .filter((l) => l && !l.startsWith('#'))
     .map((line) => {
-      const { text, rank } = split(line);
+      const { text, rank } = splitTag(line);
       const len = [...text].length;
       const key = text.toLowerCase();
       const problem = len < MIN ? 'trop courte' : len > MAX ? 'trop longue' : seen.has(key) ? 'en double' : null;
