@@ -16,7 +16,7 @@ import {
   Users,
 } from 'lucide-react-native';
 import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 import { enablePush, pushState, refreshPush, type PushState } from '@/lib/push';
 import { Pressable, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
@@ -26,7 +26,7 @@ import { RankResult, ResultBars } from '@/components/result-bars';
 import { Screen } from '@/components/screen';
 import { Avatar, AvatarStack, Button, Card, ConfirmModal, Display, Logo, PressableScale, Tag } from '@/components/ui';
 import { api, type Member, type Round } from '@/lib/api';
-import { EASE, motion } from '@/lib/motion';
+import { EASE, motion, usePop } from '@/lib/motion';
 import { keys, useCurrentRound, useGroup, useInbox, useMembers, useRound, useUnseenRound } from '@/lib/queries';
 import { useSession } from '@/lib/session';
 import { setHideVote, useHideVote } from '@/lib/prefs';
@@ -171,8 +171,15 @@ export default function VoteScreen() {
   return <Ballot key={round.id} round={round} members={members} byId={byId} onVoted={() => qc.invalidateQueries({ queryKey: keys.unseen })} />;
 }
 
+// The last question shown to vote on, so it slides in only when a new one opens (not when Ballot turns into Waiting).
+let lastQuestion: number | null = null;
+
 function Question({ round, result }: { round: Round; result?: boolean }) {
   const t = useTheme();
+  const [fresh] = useState(() => !result && round.id !== lastQuestion);
+  useEffect(() => {
+    if (!result) lastQuestion = round.id;
+  }, [result, round.id]);
   const { byId } = useMembers();
   const [copied, setCopied] = useState(false);
   const share = async () => {
@@ -186,7 +193,7 @@ function Question({ round, result }: { round: Round; result?: boolean }) {
     }
   };
   return (
-    <View style={{ gap: 14 }}>
+    <Animated.View entering={fresh ? motion.question : undefined} style={{ gap: 14 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <Tag
           label={`${result ? 'Résultat' : round.kind === 'rank' ? 'Classement' : round.custom ? 'De nous' : 'Dilemme'} · #${round.number}`}
@@ -211,8 +218,18 @@ function Question({ round, result }: { round: Round; result?: boolean }) {
         </PressableScale>
       </View>
       <Display size={result ? 28 : 34}>{round.question}</Display>
-    </View>
+    </Animated.View>
   );
+}
+
+/** The vote button bumps when it becomes usable (and each time the pick changes), so the next step is obvious. */
+function Springy({ trigger, when, children }: { trigger: unknown; when: boolean; children: ReactNode }) {
+  return <Animated.View style={usePop(trigger, 1.04, when)}>{children}</Animated.View>;
+}
+
+/** Bumps its child when `on` turns true: the face just picked, the place number just given. */
+function Pop({ on, to = 1.15, children }: { on: boolean; to?: number; children: ReactNode }) {
+  return <Animated.View style={usePop(on, to, on)}>{children}</Animated.View>;
 }
 
 /** Ranking question: tap everyone in order, first to last. Tap a ranked person again to take them out. */
@@ -231,9 +248,11 @@ function RankBallot({ round, members, byId, onVoted }: { round: Round; members: 
   return (
     <Screen
       footer={
-        <Button disabled={!done} loading={vote.isPending} onPress={() => done && vote.mutate(order)}>
-          {done ? 'Valider mon classement' : `Qui est ${next === 1 ? '1er' : `${next}e`} ?`}
-        </Button>
+        <Springy trigger={done} when={done}>
+          <Button disabled={!done} loading={vote.isPending} onPress={() => done && vote.mutate(order)}>
+            {done ? 'Valider mon classement' : `Qui est ${next === 1 ? '1er' : `${next}e`} ?`}
+          </Button>
+        </Springy>
       }>
       <Header />
       <Question round={round} />
@@ -273,17 +292,19 @@ function RankBallot({ round, members, byId, onVoted }: { round: Round; members: 
                   },
                   t.shadow,
                 ]}>
-                <View
-                  style={{
-                    width: 32,
-                    height: 32,
-                    borderRadius: 16,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    backgroundColor: place ? t.acc : t.card2,
-                  }}>
-                  <Text style={{ fontFamily: t.font.display, fontSize: 16, color: place ? t.accTxt : t.mut }}>{place || '·'}</Text>
-                </View>
+                <Pop on={place > 0} to={1.2}>
+                  <View
+                    style={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: 16,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor: place ? t.acc : t.card2,
+                    }}>
+                    <Text style={{ fontFamily: t.font.display, fontSize: 16, color: place ? t.accTxt : t.mut }}>{place || '·'}</Text>
+                  </View>
+                </Pop>
                 <Avatar member={m} size={36} />
                 <Text style={{ flex: 1, fontFamily: t.font.semibold, fontSize: 16, color: t.txt }} numberOfLines={1}>
                   {m.name}
@@ -318,9 +339,11 @@ function PickBallot({ round, members, byId, onVoted }: { round: Round; members: 
   return (
     <Screen
       footer={
-        <Button disabled={!picked} loading={vote.isPending} onPress={() => pick != null && vote.mutate(pick)}>
-          {picked ? `Voter pour ${picked.name}` : `${round.voter_ids.length}/${round.member_count}`}
-        </Button>
+        <Springy trigger={pick} when={pick != null}>
+          <Button disabled={!picked} loading={vote.isPending} onPress={() => pick != null && vote.mutate(pick)}>
+            {picked ? `Voter pour ${picked.name}` : `${round.voter_ids.length}/${round.member_count}`}
+          </Button>
+        </Springy>
       }>
       <Header />
       <Question round={round} />
@@ -354,7 +377,9 @@ function PickBallot({ round, members, byId, onVoted }: { round: Round; members: 
                 },
                 t.shadow,
               ]}>
-              <Avatar member={m} />
+              <Pop on={on}>
+                <Avatar member={m} />
+              </Pop>
               <Text style={{ fontFamily: t.font.semibold, fontSize: 16, color: t.txt, flex: 1 }} numberOfLines={1}>
                 {m.name}
               </Text>
