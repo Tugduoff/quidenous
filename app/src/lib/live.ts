@@ -1,10 +1,13 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
+import { AppState } from 'react-native';
 
 import { liveUrl } from './api';
 import { keys } from './queries';
 
 const RETRY_MS = 3000;
+/** While on the screen, the app tells the server every so often, so it sends no push for this room. */
+const HERE_MS = 20_000;
 
 /** Keeps every screen fresh: each server event invalidates the queries it touches. */
 export function useLive(token: string | null, room: number | null) {
@@ -14,9 +17,17 @@ export function useLive(token: string | null, room: number | null) {
     let ws: WebSocket | null = null;
     let stopped = false;
     let retry: ReturnType<typeof setTimeout>;
+    const presence = () => {
+      if (ws?.readyState === WebSocket.OPEN) ws.send(AppState.currentState === 'active' ? 'here' : 'away');
+    };
+    const heartbeat = setInterval(presence, HERE_MS);
+    const appState = AppState.addEventListener('change', presence);
     const connect = () => {
       ws = new WebSocket(liveUrl(token));
-      ws.onopen = () => qc.invalidateQueries();
+      ws.onopen = () => {
+        presence();
+        qc.invalidateQueries();
+      };
       ws.onmessage = (msg) => {
         const event = JSON.parse(String(msg.data)) as { type: string; round_id?: number };
         switch (event.type) {
@@ -61,6 +72,8 @@ export function useLive(token: string | null, room: number | null) {
     return () => {
       stopped = true;
       clearTimeout(retry);
+      clearInterval(heartbeat);
+      appState.remove();
       ws?.close();
     };
     }, [token, room, qc]);

@@ -1,7 +1,14 @@
 //! Push notifications: Web Push (RFC 8030 + 8291 aes128gcm + 8292 VAPID) for the web app,
 //! FCM HTTP v1 for the Android build. Pure Rust, no OpenSSL.
 
-use std::sync::Arc;
+use std::{
+    collections::HashMap,
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
+    time::{Duration, Instant},
+};
 
 use aes_gcm::{Aes128Gcm, KeyInit, Nonce, aead::Aead};
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD as B64};
@@ -36,6 +43,54 @@ struct Subscription {
     endpoint: String,
     p256dh: Option<String>,
     auth: Option<String>,
+    user_id: Option<i64>,
+    group_id: i64,
+}
+
+/// An app that has said nothing for this long is gone (iOS can freeze it without closing the socket).
+const PRESENCE_TTL: Duration = Duration::from_secs(45);
+
+static NEXT_CONNECTION: AtomicU64 = AtomicU64::new(1);
+
+/// Who has the app open on the screen, per account and room: their devices get no push for that room.
+#[derive(Clone, Default)]
+pub struct Presence(Arc<std::sync::Mutex<HashMap<Seat, Connections>>>);
+
+/// (account, room)
+type Seat = (i64, i64);
+/// Each live connection and when it last said it was on the screen.
+type Connections = HashMap<u64, Instant>;
+
+impl Presence {
+    /// A new id for one live connection.
+    pub fn connection() -> u64 {
+        NEXT_CONNECTION.fetch_add(1, Ordering::Relaxed)
+    }
+
+    /// The app is in front on this room (sent again every few seconds while it stays there).
+    pub fn here(&self, user_id: i64, group_id: i64, connection: u64) {
+        let mut map = self.0.lock().unwrap_or_else(|e| e.into_inner());
+        map.entry((user_id, group_id))
+            .or_default()
+            .insert(connection, Instant::now());
+    }
+
+    /// The app went to the background, or the connection closed.
+    pub fn away(&self, user_id: i64, group_id: i64, connection: u64) {
+        let mut map = self.0.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(connections) = map.get_mut(&(user_id, group_id)) {
+            connections.remove(&connection);
+            if connections.is_empty() {
+                map.remove(&(user_id, group_id));
+            }
+        }
+    }
+
+    pub fn is_here(&self, user_id: i64, group_id: i64) -> bool {
+        let map = self.0.lock().unwrap_or_else(|e| e.into_inner());
+        map.get(&(user_id, group_id))
+            .is_some_and(|c| c.values().any(|seen| seen.elapsed() < PRESENCE_TTL))
+    }
 }
 
 pub struct Vapid {
@@ -202,6 +257,7 @@ pub struct Push {
     http: reqwest::Client,
     vapid: Option<Arc<Vapid>>,
     fcm: Option<Arc<Fcm>>,
+    presence: Presence,
 }
 
 enum Target {
@@ -225,7 +281,12 @@ impl Push {
             http: reqwest::Client::new(),
             vapid: vapid.map(Arc::new),
             fcm: fcm.map(Arc::new),
+            presence: Presence::default(),
         }
+    }
+
+    pub fn presence(&self) -> &Presence {
+        &self.presence
     }
 
     pub fn vapid_public_key(&self) -> Option<&str> {
@@ -264,15 +325,16 @@ impl Push {
                     skip_member,
                 } => sqlx::query_as(
                     // Every device of every active member's account (one account can sit in several rooms).
-                    "SELECT s.id, s.kind, s.endpoint, s.p256dh, s.auth FROM push_subscriptions s \
-                     JOIN members m ON m.user_id = s.user_id \
+                    "SELECT s.id, s.kind, s.endpoint, s.p256dh, s.auth, s.user_id, m.group_id \
+                     FROM push_subscriptions s JOIN members m ON m.user_id = s.user_id \
                      WHERE m.group_id = ? AND m.removed_at IS NULL AND m.id IS NOT ?",
                 )
                 .bind(group_id)
                 .bind(skip_member),
                 Target::Member(member_id) => sqlx::query_as(
-                    "SELECT s.id, s.kind, s.endpoint, s.p256dh, s.auth FROM push_subscriptions s \
-                     JOIN members m ON m.user_id = s.user_id WHERE m.id = ? AND ? IS NULL",
+                    "SELECT s.id, s.kind, s.endpoint, s.p256dh, s.auth, s.user_id, m.group_id \
+                     FROM push_subscriptions s JOIN members m ON m.user_id = s.user_id \
+                     WHERE m.id = ? AND ? IS NULL",
                 )
                 .bind(member_id)
                 .bind(None::<i64>),
@@ -281,6 +343,14 @@ impl Push {
                 Ok(subs) => subs,
                 Err(e) => return tracing::error!(error = %e, "push: load subscriptions"),
             };
+            // The app is open on this room: the screen already shows it, no notification.
+            let subs: Vec<Subscription> = subs
+                .into_iter()
+                .filter(|s| {
+                    !s.user_id
+                        .is_some_and(|u| push.presence.is_here(u, s.group_id))
+                })
+                .collect();
             // Everyone at once: a slow push service must not delay the others.
             let results =
                 futures::future::join_all(subs.iter().map(|sub| push.deliver(sub, &n))).await;
@@ -463,5 +533,26 @@ mod tests {
             serde_json::from_slice(&B64.decode(jwt.split('.').nth(1).unwrap()).unwrap()).unwrap();
         assert_eq!(claims["aud"], "https://fcm.googleapis.com");
         assert!(header.ends_with(&format!("k={public}")));
+    }
+}
+
+#[cfg(test)]
+mod presence_tests {
+    use super::Presence;
+
+    #[test]
+    fn presence_per_room_and_connection() {
+        let presence = Presence::default();
+        let (phone, laptop) = (Presence::connection(), Presence::connection());
+        assert!(!presence.is_here(1, 10));
+        presence.here(1, 10, phone);
+        presence.here(1, 10, laptop);
+        assert!(presence.is_here(1, 10));
+        assert!(!presence.is_here(1, 11), "another room of the same account");
+        assert!(!presence.is_here(2, 10), "another account in the same room");
+        presence.away(1, 10, phone);
+        assert!(presence.is_here(1, 10), "still open on the other device");
+        presence.away(1, 10, laptop);
+        assert!(!presence.is_here(1, 10));
     }
 }

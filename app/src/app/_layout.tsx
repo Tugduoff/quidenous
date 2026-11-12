@@ -5,9 +5,10 @@ import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Platform } from 'react-native';
 
+import { InstallScreen, mustInstall } from '@/components/install';
 import { useLive } from '@/lib/live';
 import { registerNativePush } from '@/lib/native-push';
 import { SessionProvider, useSession } from '@/lib/session';
@@ -21,7 +22,9 @@ function Root() {
   const t = useTheme();
   const scheme = useScheme();
   const [fonts] = useFonts({ BricolageGrotesque_800ExtraBold, Inter_400Regular, Inter_600SemiBold, Inter_700Bold });
-  useLive(token, room);
+  // In a browser tab the web app only shows how to install it (and stays offline, so pushes still reach the installed one).
+  const [install] = useState(mustInstall);
+  useLive(install ? null : token, room);
   useEffect(() => {
     if (token) registerNativePush().catch(() => {});
   }, [token]);
@@ -37,6 +40,7 @@ function Root() {
     for (const meta of document.querySelectorAll('meta[name="theme-color"]')) meta.setAttribute('content', t.bg);
   }, [t.bg]);
   if (!ready || !fonts) return null;
+  if (install) return <InstallScreen />;
   return (
     <>
       <StatusBar style={scheme === 'light' ? 'dark' : 'light'} />
