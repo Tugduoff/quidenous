@@ -47,7 +47,8 @@ pub fn router() -> Router<AppState> {
                     "packs",
                     "start",
                     "delete_question",
-                    "shuffle"
+                    "shuffle",
+                    "presence"
                 ]))
             }),
         )

@@ -46,6 +46,19 @@
         flex: 1;
       }
     </style>
+    <script>
+      // The theme chosen in the app (if any) colours the page before the app loads: no light flash on a dark choice.
+      try {
+        var pref = localStorage.getItem('qdn.theme');
+        if (pref === 'dark' || pref === 'light') {
+          var bg = pref === 'dark' ? '#0E0E12' : '#F5F5F0';
+          var style = document.createElement('style');
+          style.textContent = 'html, body { background-color: ' + bg + '; }';
+          document.head.appendChild(style);
+          document.querySelectorAll('meta[name="theme-color"]').forEach(function (m) { m.setAttribute('content', bg); });
+        }
+      } catch (e) {}
+    </script>
   </head>
 
   <body>

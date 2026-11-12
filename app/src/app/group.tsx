@@ -2,27 +2,19 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { router } from 'expo-router';
 import { ChevronLeft, Crown, LogOut, RefreshCw, Share2, Trash2, UserPlus, UserX } from 'lucide-react-native';
-import { Alert, Platform, Pressable, Switch, Text, TextInput, View } from 'react-native';
+import { Pressable, Switch, Text, TextInput, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 
 import { Screen } from '@/components/screen';
-import { Avatar, Card, Display } from '@/components/ui';
+import { askConfirm, Avatar, Card, Display } from '@/components/ui';
 import { api } from '@/lib/api';
 import { keys, useFriends, useGroup } from '@/lib/queries';
 import { inviteLink, inviteMessage, shareText } from '@/lib/share';
 import { useSession } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
 
-/** Ask before voting someone out (a vote can be taken back). */
-function confirm(message: string, title = 'Exclure du groupe ?', action = 'Voter'): Promise<boolean> {
-  if (Platform.OS === 'web') return Promise.resolve(typeof window === 'undefined' || window.confirm(`${title}\n${message}`));
-  return new Promise((resolve) =>
-    Alert.alert(title, message, [
-      { text: 'Annuler', style: 'cancel', onPress: () => resolve(false) },
-      { text: action, style: 'destructive', onPress: () => resolve(true) },
-    ]),
-  );
-}
+/** Ask before anything that can't be undone with one tap, in the app's own dialog. */
+const confirm = (message: string, title = 'Exclure du groupe ?', action = 'Voter') => askConfirm(title, message, action);
 
 /** The other members, each with a vote to remove them. A majority of the others removes someone. */
 function Members() {

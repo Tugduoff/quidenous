@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { type ReactNode, useSyncExternalStore } from 'react';
 import { Trophy, type LucideIcon } from 'lucide-react-native';
 import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View, type TextStyle, type ViewStyle } from 'react-native';
 import { Image } from 'expo-image';
@@ -274,5 +274,43 @@ export function ConfirmModal({
         </Pressable>
       </Pressable>
     </Modal>
+  );
+}
+
+/** Asked from anywhere (no state to wire up): the one ConfirmHost in the root layout shows it. */
+type Ask = { title: string; message?: string; action: string; resolve: (ok: boolean) => void };
+let asking: Ask | null = null;
+const askListeners = new Set<() => void>();
+const setAsking = (next: Ask | null) => {
+  asking = next;
+  askListeners.forEach((l) => l());
+};
+
+export function askConfirm(title: string, message: string | undefined, action: string): Promise<boolean> {
+  asking?.resolve(false);
+  return new Promise((resolve) => setAsking({ title, message, action, resolve }));
+}
+
+export function ConfirmHost() {
+  const ask = useSyncExternalStore(
+    (l) => {
+      askListeners.add(l);
+      return () => askListeners.delete(l);
+    },
+    () => asking,
+  );
+  const answer = (ok: boolean) => {
+    ask?.resolve(ok);
+    setAsking(null);
+  };
+  return (
+    <ConfirmModal
+      visible={!!ask}
+      title={ask?.title ?? ''}
+      message={ask?.message}
+      confirmLabel={ask?.action ?? ''}
+      onConfirm={() => answer(true)}
+      onCancel={() => answer(false)}
+    />
   );
 }

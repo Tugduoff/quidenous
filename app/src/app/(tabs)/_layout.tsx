@@ -38,6 +38,7 @@ export default function TabsLayout() {
       <Tabs
         screenOptions={{
           headerShown: false,
+          sceneStyle: { backgroundColor: t.bg },
           tabBarShowLabel: false,
           tabBarStyle: [{ backgroundColor: t.bg, borderTopColor: t.line }, Platform.OS === 'web' && WEB_TAB_BAR],
           tabBarItemStyle: { paddingTop: 6 },

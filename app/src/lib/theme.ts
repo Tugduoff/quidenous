@@ -58,9 +58,29 @@ const PREF_KEY = 'qdn.theme';
 let pref: ThemePref = 'system';
 const listeners = new Set<() => void>();
 
-storage.get(PREF_KEY).then((saved) => {
-  if (saved === 'light' || saved === 'dark') setThemePref(saved);
-});
+// The saved choice loads asynchronously on the phone: the app waits for it (under the splash screen)
+// so a dark choice on a light phone doesn't flash light first.
+let prefLoaded = false;
+storage
+  .get(PREF_KEY)
+  .then((saved) => {
+    if (saved === 'light' || saved === 'dark') pref = saved;
+  })
+  .catch(() => {})
+  .finally(() => {
+    prefLoaded = true;
+    listeners.forEach((l) => l());
+  });
+
+export function useThemeLoaded(): boolean {
+  return useSyncExternalStore(
+    (l) => {
+      listeners.add(l);
+      return () => listeners.delete(l);
+    },
+    () => prefLoaded,
+  );
+}
 
 export function setThemePref(next: ThemePref) {
   pref = next;
