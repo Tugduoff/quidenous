@@ -35,6 +35,8 @@ export type Round = {
   number: number;
   question: string;
   custom: boolean;
+  /** 'pick' one person, or 'rank' everyone from first to last. */
+  kind: 'pick' | 'rank';
   opened_at: string;
   closed_at: string | null;
   member_count: number;
@@ -46,7 +48,10 @@ export type Round = {
   skips: VoteCount[];
   skip_needed: number;
   skipped_ids: number[];
+  ranking: RankEntry[] | null;
+  my_ranking: number[] | null;
 };
+export type RankEntry = { member_id: number; points: number; average: number; firsts: number };
 /** A count of agreements (skip someone, remove someone), and whether mine is one of them. */
 export type VoteCount = { target_id: number; count: number; mine: boolean };
 export type Role = 'owner' | 'member';

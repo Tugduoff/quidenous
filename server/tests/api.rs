@@ -1065,3 +1065,82 @@ async fn friends_by_code_and_into_a_room() {
     .await;
     assert_eq!(s, StatusCode::FORBIDDEN);
 }
+
+#[tokio::test]
+async fn ranking_questions_use_points() {
+    let app = test_app().await;
+    let (a, a_id) = join(&app, "Ana").await;
+    let (b, b_id) = join(&app, "Bob").await;
+    let (c, c_id) = join(&app, "Cyd").await;
+    let (s, q) = call(
+        &app,
+        "POST",
+        "/questions",
+        Some(&a),
+        Some(json!({ "text": "Classe-nous du plus fêtard au plus casanier", "kind": "rank" })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{q}");
+    assert_eq!(q["kind"], "rank");
+    for t in [&a, &b, &c] {
+        vote_as(&app, t, a_id).await;
+    }
+    let (_, open) = call(&app, "GET", "/round/current", Some(&a), None).await;
+    assert_eq!(open["kind"], "rank");
+    let round = open["id"].as_i64().unwrap();
+    // A pick vote or an incomplete ranking is refused.
+    let (s, _) = call(
+        &app,
+        "POST",
+        "/round/current/vote",
+        Some(&a),
+        Some(json!({ "target_id": b_id })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    let (s, _) = call(
+        &app,
+        "POST",
+        "/round/current/vote",
+        Some(&a),
+        Some(json!({ "ranking": [b_id, a_id] })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    let (s, _) = call(
+        &app,
+        "POST",
+        "/round/current/vote",
+        Some(&a),
+        Some(json!({ "ranking": [b_id, a_id, a_id] })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    // Bob 1st twice, 2nd once: 3+3+2 = 8. Cyd: 2+1+3 = 6. Ana: 1+2+1 = 4.
+    for (t, order) in [
+        (&a, [b_id, c_id, a_id]),
+        (&b, [b_id, a_id, c_id]),
+        (&c, [c_id, b_id, a_id]),
+    ] {
+        let (s, body) = call(
+            &app,
+            "POST",
+            "/round/current/vote",
+            Some(t),
+            Some(json!({ "ranking": order })),
+        )
+        .await;
+        assert_eq!(s, StatusCode::OK, "{body}");
+    }
+    let (_, done) = call(&app, "GET", &format!("/rounds/{round}"), Some(&a), None).await;
+    assert!(done["closed_at"].is_string());
+    let r = &done["ranking"];
+    assert_eq!(r[0]["member_id"], b_id);
+    assert_eq!(r[0]["points"], 8);
+    assert_eq!(r[0]["firsts"], 2);
+    assert_eq!(r[1]["member_id"], c_id);
+    assert_eq!(r[2]["member_id"], a_id);
+    assert_eq!(done["my_ranking"], json!([b_id, c_id, a_id]));
+    let (_, history) = call(&app, "GET", "/history", Some(&a), None).await;
+    assert_eq!(history[0]["winner_ids"], json!([b_id]));
+}

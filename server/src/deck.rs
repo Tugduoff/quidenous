@@ -15,14 +15,28 @@ pub async fn import(db: &SqlitePool, text: &str) -> sqlx::Result<u64> {
         .lines()
         .map(str::trim)
         .filter(|l| !l.is_empty() && !l.starts_with('#'));
-    for text in lines {
-        added += sqlx::query("INSERT INTO questions (text) VALUES (?) ON CONFLICT DO NOTHING")
-            .bind(text)
-            .execute(db)
-            .await?
-            .rows_affected();
+    for line in lines {
+        let (text, kind) = parse_line(line);
+        added +=
+            sqlx::query("INSERT INTO questions (text, kind) VALUES (?, ?) ON CONFLICT DO NOTHING")
+                .bind(text)
+                .bind(kind)
+                .execute(db)
+                .await?
+                .rows_affected();
     }
     Ok(added)
+}
+
+/// `[classement] Classe-nous…` is a ranking question; anything else picks one person.
+pub fn parse_line(line: &str) -> (&str, &'static str) {
+    let lower = line.to_lowercase();
+    for tag in ["[classement]", "[rank]"] {
+        if lower.starts_with(tag) {
+            return (line[tag.len()..].trim(), "rank");
+        }
+    }
+    (line, "pick")
 }
 
 /// Creates the configured group on first start; keeps its code in sync afterwards.

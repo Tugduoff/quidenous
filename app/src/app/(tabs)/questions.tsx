@@ -20,8 +20,9 @@ export default function QuestionsScreen() {
   const { data: group } = useGroup();
   const { byId } = useMembers();
   const [text, setText] = useState('');
+  const [rank, setRank] = useState(false);
   const add = useMutation({
-    mutationFn: () => api('/questions', { method: 'POST', json: { text } }),
+    mutationFn: () => api('/questions', { method: 'POST', json: { text, kind: rank ? 'rank' : 'pick' } }),
     onSuccess: () => {
       setText('');
       qc.invalidateQueries({ queryKey: keys.queue });
@@ -75,7 +76,7 @@ export default function QuestionsScreen() {
             <Card style={{ flex: 1 }}>
               <TextInput
                 accessibilityLabel="Nouvelle question"
-                placeholder="Qui de nous…"
+                placeholder={rank ? 'Classe-nous du plus… au moins…' : 'Qui de nous…'}
                 placeholderTextColor={t.mut}
                 value={text}
                 onChangeText={setText}
@@ -99,6 +100,31 @@ export default function QuestionsScreen() {
               }}>
               <Plus size={26} color={ok ? t.accTxt : t.mut} />
             </Pressable>
+          </View>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            {(['pick', 'rank'] as const).map((k) => {
+              const on = (k === 'rank') === rank;
+              return (
+                <Pressable
+                  key={k}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: on }}
+                  onPress={() => setRank(k === 'rank')}
+                  style={{
+                    paddingHorizontal: 14,
+                    height: 34,
+                    borderRadius: t.radius.pill,
+                    justifyContent: 'center',
+                    backgroundColor: on ? t.accSoft : t.card,
+                    borderWidth: 2,
+                    borderColor: on ? t.accInk : 'transparent',
+                  }}>
+                  <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: on ? t.accInk : t.txt }}>
+                    {k === 'rank' ? '🏆 Classement' : '👉 Qui de nous'}
+                  </Text>
+                </Pressable>
+              );
+            })}
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
             <Text style={{ flex: 1, fontFamily: t.font.regular, fontSize: 13, color: t.mut }}>

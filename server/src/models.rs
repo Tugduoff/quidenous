@@ -44,6 +44,7 @@ pub struct RoundRow {
     pub closed_at: Option<String>,
     pub text: String,
     pub custom: bool,
+    pub kind: String,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -59,6 +60,8 @@ pub struct RoundView {
     pub number: i64,
     pub question: String,
     pub custom: bool,
+    /// 'pick' (one person) or 'rank' (everyone, first to last).
+    pub kind: String,
     pub opened_at: String,
     pub closed_at: Option<String>,
     pub member_count: i64,
@@ -74,6 +77,19 @@ pub struct RoundView {
     pub skip_needed: i64,
     /// Members the group decided not to wait for on this question.
     pub skipped_ids: Vec<i64>,
+    /// Ranking questions, once closed: everyone ordered by points.
+    pub ranking: Option<Vec<RankEntry>>,
+    /// Ranking questions: my order, first to last.
+    pub my_ranking: Option<Vec<i64>>,
+}
+
+/// Borda count: last place 1 point, first place N points; ties broken by number of firsts.
+#[derive(Clone, Debug, Serialize)]
+pub struct RankEntry {
+    pub member_id: i64,
+    pub points: i64,
+    pub average: f64,
+    pub firsts: i64,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -100,4 +116,5 @@ pub struct QueuedQuestion {
     pub id: i64,
     pub text: String,
     pub author_id: Option<i64>,
+    pub kind: String,
 }

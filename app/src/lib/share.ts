@@ -24,6 +24,11 @@ export function questionMessage(round: Round) {
 
 /** A finished question with its podium. */
 export function resultMessage(round: Round, byId: Map<number, Member>) {
+  if (round.ranking) {
+    const medals = ['🥇', '🥈', '🥉'];
+    const lines = round.ranking.slice(0, 3).map((r, i) => `${medals[i]} ${byId.get(r.member_id)?.name ?? '?'} · ${r.points} pts`);
+    return `qui de nous ? · classement #${round.number}\n« ${round.question} »\n${lines.join('\n')}\n${appUrl()}`;
+  }
   const tallies = round.result ?? [];
   const total = tallies.reduce((n, t) => n + t.count, 0);
   const medals = ['👑', '🥈', '🥉'];

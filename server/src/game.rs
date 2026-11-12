@@ -5,14 +5,14 @@ use sqlx::{Sqlite, SqlitePool, Transaction};
 use crate::{
     error::{AppError, AppResult},
     live::Event,
-    models::{RoundRow, RoundView, SkipState, Tally},
+    models::{RankEntry, RoundRow, RoundView, SkipState, Tally},
 };
 
 macro_rules! round_select {
     ($where:literal) => {
         concat!(
             "SELECT r.id, r.group_id, r.question_id, r.number, r.opened_at, r.closed_at, q.text, ",
-            "(q.group_id IS NOT NULL) AS custom FROM rounds r JOIN questions q ON q.id = r.question_id ",
+            "(q.group_id IS NOT NULL) AS custom, q.kind FROM rounds r JOIN questions q ON q.id = r.question_id ",
             $where
         )
     };
@@ -116,15 +116,48 @@ pub async fn vote(
     db: &SqlitePool,
     group_id: i64,
     voter_id: i64,
-    target_id: i64,
+    target_id: Option<i64>,
+    ranking: Option<Vec<i64>>,
 ) -> AppResult<Vec<Event>> {
     let mut tx = db.begin().await?;
-    let round_id: i64 =
-        sqlx::query_scalar("SELECT id FROM rounds WHERE group_id = ? AND closed_at IS NULL")
-            .bind(group_id)
-            .fetch_optional(&mut *tx)
-            .await?
-            .ok_or(AppError::Conflict("no_open_round"))?;
+    let (round_id, kind): (i64, String) = sqlx::query_as(
+        "SELECT r.id, q.kind FROM rounds r JOIN questions q ON q.id = r.question_id \
+         WHERE r.group_id = ? AND r.closed_at IS NULL",
+    )
+    .bind(group_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::Conflict("no_open_round"))?;
+    // A ranking must place every active member exactly once; its #1 is also stored as the vote.
+    let target_id = if kind == "rank" {
+        let ranking = ranking.ok_or(AppError::BadRequest("ranking_needed"))?;
+        let mut active: Vec<i64> = sqlx::query_scalar(
+            "SELECT id FROM members WHERE group_id = ? AND removed_at IS NULL ORDER BY id",
+        )
+        .bind(group_id)
+        .fetch_all(&mut *tx)
+        .await?;
+        let mut given = ranking.clone();
+        given.sort_unstable();
+        active.sort_unstable();
+        if given != active {
+            return Err(AppError::BadRequest("bad_ranking"));
+        }
+        for (i, member_id) in ranking.iter().enumerate() {
+            sqlx::query(
+                "INSERT OR IGNORE INTO rankings (round_id, voter_id, member_id, position) VALUES (?, ?, ?, ?)",
+            )
+            .bind(round_id)
+            .bind(voter_id)
+            .bind(member_id)
+            .bind(i as i64 + 1)
+            .execute(&mut *tx)
+            .await?;
+        }
+        ranking[0]
+    } else {
+        target_id.ok_or(AppError::BadRequest("target_needed"))?
+    };
     let target_in_group: Option<i64> = sqlx::query_scalar(
         "SELECT id FROM members WHERE id = ? AND group_id = ? AND removed_at IS NULL",
     )
@@ -282,11 +315,28 @@ pub async fn view(db: &SqlitePool, round: RoundRow, me: i64) -> AppResult<RoundV
         None => None,
     };
     let pinned = is_pinned(db, round.id).await?;
+    let (ranking, my_ranking) = if round.kind == "rank" {
+        let mine: Vec<i64> = sqlx::query_scalar(
+            "SELECT member_id FROM rankings WHERE round_id = ? AND voter_id = ? ORDER BY position",
+        )
+        .bind(round.id)
+        .bind(me)
+        .fetch_all(db)
+        .await?;
+        let ranking = match round.closed_at {
+            Some(_) => Some(borda(db, round.id).await?),
+            None => None,
+        };
+        (ranking, if mine.is_empty() { None } else { Some(mine) })
+    } else {
+        (None, None)
+    };
     Ok(RoundView {
         id: round.id,
         number: round.number,
         question: round.text,
         custom: round.custom,
+        kind: round.kind,
         opened_at: round.opened_at,
         closed_at: round.closed_at,
         member_count,
@@ -297,7 +347,34 @@ pub async fn view(db: &SqlitePool, round: RoundRow, me: i64) -> AppResult<RoundV
         skips,
         skip_needed: majority(active),
         skipped_ids,
+        ranking,
+        my_ranking,
     })
+}
+
+/// Points per member for a ranking question: with N members ranked, 1st gets N points, last gets 1.
+pub async fn borda(db: &SqlitePool, round_id: i64) -> AppResult<Vec<RankEntry>> {
+    let rows: Vec<(i64, i64, f64, i64)> = sqlx::query_as(
+        "SELECT r.member_id, \
+                SUM(n.size - r.position + 1), AVG(CAST(r.position AS REAL)), SUM(r.position = 1) \
+         FROM rankings r \
+         JOIN (SELECT voter_id, COUNT(*) AS size FROM rankings WHERE round_id = ?1 GROUP BY voter_id) n \
+           ON n.voter_id = r.voter_id \
+         WHERE r.round_id = ?1 GROUP BY r.member_id \
+         ORDER BY 2 DESC, 4 DESC, 3 ASC, r.member_id",
+    )
+    .bind(round_id)
+    .fetch_all(db)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|(member_id, points, average, firsts)| RankEntry {
+            member_id,
+            points,
+            average,
+            firsts,
+        })
+        .collect())
 }
 
 pub async fn is_pinned(db: &SqlitePool, round_id: i64) -> AppResult<bool> {

@@ -136,3 +136,19 @@ Qui triche au Monopoly ?
 Qui se vexe pour un jeu de société ?
 Qui a le plus de secrets dans ce groupe ?
 Qui en sait trop sur tout le monde ici ?
+# Classements : tout le monde est classé, du premier au dernier.
+[classement] Classe-nous du plus fêtard au plus casanier.
+[classement] Classe-nous du plus en retard au plus ponctuel.
+[classement] Classe-nous du plus drôle au moins drôle.
+[classement] Classe-nous de celui qui survivrait le plus longtemps à une apocalypse zombie au premier mangé.
+[classement] Classe-nous du plus radin au plus généreux.
+[classement] Classe-nous du plus dragueur au plus timide.
+[classement] Classe-nous du plus susceptible au plus cool.
+[classement] Classe-nous du plus bavard au plus discret.
+[classement] Classe-nous du meilleur cuisinier au pire.
+[classement] Classe-nous du plus probable de devenir riche au moins probable.
+[classement] Classe-nous du plus accro à son téléphone au plus détaché.
+[classement] Classe-nous du plus mauvais perdant au plus beau joueur.
+[classement] Classe-nous du plus dramatique au plus calme.
+[classement] Classe-nous du meilleur danseur au pire.
+[classement] Classe-nous de celui qui garde le mieux un secret au pire.

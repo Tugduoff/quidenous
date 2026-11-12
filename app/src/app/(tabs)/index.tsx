@@ -6,7 +6,7 @@ import { enablePush, pushState, refreshPush, type PushState } from '@/lib/push';
 import { Pressable, Text, View } from 'react-native';
 
 import { ChatInput, ChatMessages } from '@/components/chat';
-import { ResultBars } from '@/components/result-bars';
+import { RankResult, ResultBars } from '@/components/result-bars';
 import { Screen } from '@/components/screen';
 import { Avatar, AvatarStack, Button, Card, Display, Logo, Tag } from '@/components/ui';
 import { api, type Member, type Round } from '@/lib/api';
@@ -176,7 +176,10 @@ function Question({ round, result }: { round: Round; result?: boolean }) {
   return (
     <View style={{ gap: 14 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Tag label={`${result ? 'Résultat' : round.custom ? 'De nous' : 'Dilemme'} · #${round.number}`} tone={result ? 'acc' : 'tag'} />
+        <Tag
+          label={`${result ? 'Résultat' : round.kind === 'rank' ? 'Classement' : round.custom ? 'De nous' : 'Dilemme'} · #${round.number}`}
+          tone={result ? 'acc' : 'tag'}
+        />
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={result ? 'Partager le résultat' : 'Partager la question'}
@@ -192,6 +195,87 @@ function Question({ round, result }: { round: Round; result?: boolean }) {
   );
 }
 
+/** Ranking question: tap everyone in order, first to last. Tap a ranked person again to take them out. */
+function RankBallot({ round, members, byId, onVoted }: { round: Round; members: Member[]; byId: Map<number, Member>; onVoted: () => void }) {
+  const t = useTheme();
+  const qc = useQueryClient();
+  const [order, setOrder] = useState<number[]>([]);
+  const vote = useMutation({
+    mutationFn: (ranking: number[]) => api('/round/current/vote', { method: 'POST', json: { ranking } }),
+    onSuccess: onVoted,
+    onSettled: () => qc.invalidateQueries({ queryKey: keys.current }),
+  });
+  const toggle = (id: number) => setOrder((o) => (o.includes(id) ? o.filter((x) => x !== id) : [...o, id]));
+  const done = order.length === members.length;
+  const next = order.length + 1;
+  return (
+    <Screen
+      footer={
+        <Button disabled={!done} loading={vote.isPending} onPress={() => done && vote.mutate(order)}>
+          {done ? 'Valider mon classement' : `Qui est ${next === 1 ? '1er' : `${next}e`} ?`}
+        </Button>
+      }>
+      <Header />
+      <Question round={round} />
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <AvatarStack members={round.voter_ids.map((id) => byId.get(id))} />
+        <Text style={{ flex: 1, fontFamily: t.font.regular, color: t.mut }}>
+          {round.voter_ids.length}/{round.member_count}
+        </Text>
+        {order.length > 0 && (
+          <Pressable accessibilityRole="button" onPress={() => setOrder([])} hitSlop={8}>
+            <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.accInk }}>Recommencer</Text>
+          </Pressable>
+        )}
+      </View>
+      <Text style={{ fontFamily: t.font.regular, fontSize: 14, color: t.mut }}>Touche chacun dans l'ordre, du premier au dernier.</Text>
+      <View style={{ gap: 10 }}>
+        {[...order.map((id) => members.find((m) => m.id === id)!), ...members.filter((m) => !order.includes(m.id))]
+          .filter(Boolean)
+          .map((m) => {
+            const place = order.indexOf(m.id) + 1;
+            return (
+              <Pressable
+                key={m.id}
+                accessibilityRole="button"
+                accessibilityLabel={place ? `${m.name}, ${place}e. Retirer` : `Classer ${m.name}`}
+                onPress={() => toggle(m.id)}
+                style={[
+                  {
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 12,
+                    padding: 12,
+                    borderRadius: 18,
+                    borderWidth: 2,
+                    borderColor: place ? t.accInk : 'transparent',
+                    backgroundColor: place ? t.accSoft : t.card,
+                  },
+                  t.shadow,
+                ]}>
+                <View
+                  style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: 16,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: place ? t.acc : t.card2,
+                  }}>
+                  <Text style={{ fontFamily: t.font.display, fontSize: 16, color: place ? t.accTxt : t.mut }}>{place || '·'}</Text>
+                </View>
+                <Avatar member={m} size={36} />
+                <Text style={{ flex: 1, fontFamily: t.font.semibold, fontSize: 16, color: t.txt }} numberOfLines={1}>
+                  {m.name}
+                </Text>
+              </Pressable>
+            );
+          })}
+      </View>
+    </Screen>
+  );
+}
+
 function Ballot({
   round,
   members,
@@ -203,6 +287,12 @@ function Ballot({
   byId: Map<number, Member>;
   onVoted: () => void;
 }) {
+  // Same component instance per round (keyed by id), so the kind never changes under it.
+  if (round.kind === 'rank') return <RankBallot round={round} members={members} byId={byId} onVoted={onVoted} />;
+  return <PickBallot round={round} members={members} byId={byId} onVoted={onVoted} />;
+}
+
+function PickBallot({ round, members, byId, onVoted }: { round: Round; members: Member[]; byId: Map<number, Member>; onVoted: () => void }) {
   const t = useTheme();
   const qc = useQueryClient();
   const [pick, setPick] = useState<number | null>(null);
@@ -337,7 +427,7 @@ function Waiting({ round, byId, members }: { round: Round; byId: Map<number, Mem
         ) : (
           <Avatar member={target} size={56} />
         )}
-        <Text style={{ flex: 1, fontFamily: t.font.bold, fontSize: 18, color: hidden ? t.mut : t.txt }}>{hidden ? 'Vote caché' : target?.name}</Text>
+        <Text style={{ flex: 1, fontFamily: t.font.bold, fontSize: 18, color: hidden ? t.mut : t.txt }}>{hidden ? 'Vote caché' : round.kind === 'rank' ? `1er : ${target?.name ?? '?'}` : target?.name}</Text>
         {/* Hide my pick when friends can see my screen; remembered on this phone. */}
         <Pressable
           accessibilityRole="button"
@@ -450,7 +540,11 @@ export function Result({
       }>
       {header}
       <Question round={round} result />
-      <ResultBars result={round.result} byId={byId} />
+      {round.ranking ? (
+        <RankResult ranking={round.ranking} byId={byId} mine={round.my_ranking} />
+      ) : (
+        <ResultBars result={round.result} byId={byId} />
+      )}
       <ChatMessages roundId={round.id} />
     </Screen>
   );

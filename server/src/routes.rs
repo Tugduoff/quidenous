@@ -34,6 +34,11 @@ const IMPORT_MAX: usize = 4 * 1024 * 1024;
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/health", get(|| async { "ok" }))
+        // What this server can do, so apps (and release scripts) can tell a deploy has landed.
+        .route(
+            "/features",
+            get(|| async { Json(json!(["rooms", "friends", "ranking"])) }),
+        )
         .route("/join", post(join))
         .route("/me", get(me).put(update_me))
         .route(
@@ -372,7 +377,9 @@ async fn current_round(
 
 #[derive(Deserialize)]
 struct VoteBody {
-    target_id: i64,
+    target_id: Option<i64>,
+    /// Ranking questions: every member, first to last.
+    ranking: Option<Vec<i64>>,
 }
 
 async fn vote(
@@ -380,7 +387,7 @@ async fn vote(
     Me(me): Me,
     Json(body): Json<VoteBody>,
 ) -> AppResult<Json<Value>> {
-    let events = game::vote(&state.db, me.group_id, me.id, body.target_id).await?;
+    let events = game::vote(&state.db, me.group_id, me.id, body.target_id, body.ranking).await?;
     let closed = events
         .iter()
         .any(|e| matches!(e, Event::RoundClosed { .. }));
@@ -413,7 +420,7 @@ struct HistoryQuery {
 
 macro_rules! history_select {
     () => {
-        "SELECT r.id, r.number, q.text, r.closed_at, p.round_id IS NOT NULL FROM rounds r \
+        "SELECT r.id, r.number, q.text, r.closed_at, p.round_id IS NOT NULL, q.kind FROM rounds r \
          JOIN questions q ON q.id = r.question_id LEFT JOIN pins p ON p.round_id = r.id"
     };
 }
@@ -450,16 +457,36 @@ async fn pinned_history(
     Ok(Json(history_items(&state.db, rounds).await?))
 }
 
-type HistoryRow = (i64, i64, String, String, bool);
+type HistoryRow = (i64, i64, String, String, bool, String);
 
 async fn history_items(
     db: &sqlx::SqlitePool,
     rounds: Vec<HistoryRow>,
 ) -> AppResult<Vec<HistoryItem>> {
     let mut items = Vec::with_capacity(rounds.len());
-    for (id, number, question, closed_at, pinned) in rounds {
+    for (id, number, question, closed_at, pinned, kind) in rounds {
         let tallies = game::tallies(db, id).await?;
         let top_count = tallies.first().map_or(0, |t| t.count);
+        // Ranking questions: the winner is the top of the points table.
+        if kind == "rank" {
+            let ranking = game::borda(db, id).await?;
+            let best = ranking.first().map_or(0, |r| r.points);
+            items.push(HistoryItem {
+                id,
+                number,
+                question,
+                closed_at,
+                winner_ids: ranking
+                    .iter()
+                    .filter(|r| r.points == best)
+                    .map(|r| r.member_id)
+                    .collect(),
+                top_count: best,
+                vote_count: tallies.iter().map(|t| t.count).sum(),
+                pinned,
+            });
+            continue;
+        }
         items.push(HistoryItem {
             id,
             number,
@@ -813,6 +840,8 @@ async fn stats(State(state): State<AppState>, Me(me): Me) -> AppResult<Json<crat
 #[derive(Deserialize)]
 struct QuestionBody {
     text: String,
+    /// 'pick' (default) or 'rank'.
+    kind: Option<String>,
 }
 
 async fn add_question(
@@ -828,11 +857,12 @@ async fn add_question(
     }
     let mut tx = state.db.begin().await?;
     let question = sqlx::query_as::<_, QueuedQuestion>(
-        "INSERT INTO questions (group_id, text, author_id) VALUES (?, ?, ?) RETURNING id, text, author_id",
+        "INSERT INTO questions (group_id, text, author_id, kind) VALUES (?, ?, ?, ?) RETURNING id, text, author_id, kind",
     )
     .bind(me.group_id)
     .bind(text)
     .bind(me.id)
+    .bind(if body.kind.as_deref() == Some("rank") { "rank" } else { "pick" })
     .fetch_one(&mut *tx)
     .await?;
     let opened = game::ensure_open_round(&mut tx, me.group_id).await?;
@@ -853,7 +883,7 @@ async fn add_question(
 
 async fn queue(State(state): State<AppState>, Me(me): Me) -> AppResult<Json<Value>> {
     let custom: Vec<QueuedQuestion> = sqlx::query_as(concat!(
-        "SELECT q.id, q.text, q.author_id FROM questions q WHERE q.group_id = ?1 AND ",
+        "SELECT q.id, q.text, q.author_id, q.kind FROM questions q WHERE q.group_id = ?1 AND ",
         game::unused!(),
         " ORDER BY q.id"
     ))
