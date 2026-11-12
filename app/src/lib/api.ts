@@ -111,7 +111,7 @@ export type Stats = {
   never_chosen: number[];
 };
 export type Queue = {
-  custom: { id: number; text: string; author_id: number | null }[];
+  custom: { id: number; text: string; author_id: number | null; kind: 'pick' | 'rank' }[];
   deck_left: number;
 };
 

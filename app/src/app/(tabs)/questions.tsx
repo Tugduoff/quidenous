@@ -53,7 +53,7 @@ export default function QuestionsScreen() {
     },
     onError: () => setImported('Import raté'),
   });
-  const chosen = draft?.filter((l) => l.selected).map((l) => l.text) ?? [];
+  const chosen = draft?.filter((l) => l.selected).map((l) => l.line) ?? [];
   const toggle = (i: number) => setDraft((d) => d && d.map((l, j) => (j === i && !l.problem ? { ...l, selected: !l.selected } : l)));
   const allOn = !!draft && draft.every((l) => l.selected || l.problem);
   const toggleAll = () => setDraft((d) => d && d.map((l) => (l.problem ? l : { ...l, selected: !allOn })));
@@ -177,6 +177,7 @@ export default function QuestionsScreen() {
                 {l.selected && <Check size={14} color={t.accTxt} strokeWidth={3} />}
               </View>
               <Text style={{ flex: 1, fontFamily: t.font.regular, fontSize: 14, lineHeight: 20, color: t.txt }}>
+                {l.rank && <Text>🏆 </Text>}
                 {l.text}
                 {l.problem && <Text style={{ color: t.tag }}>{`  · ${l.problem}`}</Text>}
               </Text>
@@ -221,7 +222,10 @@ export default function QuestionsScreen() {
       {data?.custom.map((q) => (
         <Card key={q.id} style={{ flexDirection: 'row', gap: 12, alignItems: 'center', padding: 14 }}>
           {q.author_id != null ? <Avatar member={byId.get(q.author_id)} size={32} /> : <MessageCircleQuestion size={20} color={t.mut} />}
-          <Text style={{ flex: 1, fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>{q.text}</Text>
+          <Text style={{ flex: 1, fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>
+            {q.kind === 'rank' ? '🏆 ' : ''}
+            {q.text}
+          </Text>
         </Card>
       ))}
     </Screen>

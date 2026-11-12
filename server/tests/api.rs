@@ -360,7 +360,7 @@ async fn questions_can_be_imported_in_bulk() {
     let app = test_app().await;
     let (tug, _) = join(&app, "Tugdual").await;
     let (_, before) = call(&app, "GET", "/questions/queue", Some(&tug), None).await;
-    let text = "# batch\nQui volerait un vélo électrique ?\nQui volerait un vélo électrique ?\ntrop\nQui de nous dormirait dans un aéroport ?\n";
+    let text = "# batch\nQui volerait un vélo électrique ?\nQui volerait un vélo électrique ?\ntrop\n[classement] Classe-nous du plus fêtard au plus casanier\n";
     let (status, body) = call(
         &app,
         "POST",
@@ -372,11 +372,37 @@ async fn questions_can_be_imported_in_bulk() {
     assert_eq!(status, StatusCode::OK, "{body}");
     assert_eq!(body["added"], 2);
     assert_eq!(body["skipped"], 1);
+    // In this room's own queue, in file order, the tag gone; the shared deck is untouched.
     let (_, after) = call(&app, "GET", "/questions/queue", Some(&tug), None).await;
+    assert_eq!(after["deck_left"], before["deck_left"]);
+    let custom = after["custom"].as_array().unwrap();
+    assert_eq!(custom.len(), 2);
+    assert_eq!(custom[0]["text"], "Qui volerait un vélo électrique ?");
+    assert_eq!(custom[0]["kind"], "pick");
     assert_eq!(
-        after["deck_left"].as_i64().unwrap(),
-        before["deck_left"].as_i64().unwrap() + 2
+        custom[1]["text"],
+        "Classe-nous du plus fêtard au plus casanier"
     );
+    assert_eq!(custom[1]["kind"], "rank");
+    // Another room doesn't get them.
+    let (_, room) = call(
+        &app,
+        "POST",
+        "/rooms",
+        Some(&tug),
+        Some(json!({ "name": "Ailleurs" })),
+    )
+    .await;
+    let (_, other) = call_room(
+        &app,
+        "GET",
+        "/questions/queue",
+        &tug,
+        room["id"].as_i64().unwrap(),
+        None,
+    )
+    .await;
+    assert_eq!(other["custom"], json!([]));
 }
 
 async fn vote_as(app: &Router, token: &str, target: i64) {

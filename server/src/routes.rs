@@ -37,7 +37,7 @@ pub fn router() -> Router<AppState> {
         // What this server can do, so apps (and release scripts) can tell a deploy has landed.
         .route(
             "/features",
-            get(|| async { Json(json!(["rooms", "friends", "ranking"])) }),
+            get(|| async { Json(json!(["rooms", "friends", "ranking", "room_imports"])) }),
         )
         .route("/join", post(join))
         .route("/me", get(me).put(update_me))
@@ -1280,14 +1280,44 @@ async fn import_questions(
     Json(body): Json<ImportBody>,
 ) -> AppResult<Json<Value>> {
     may_add_questions(&state, &me).await?;
-    let valid: Vec<&str> = body
+    // `[classement]` lines become ranking questions; the length rule applies to the question itself.
+    let valid: Vec<(&str, &str)> = body
         .text
         .lines()
         .map(str::trim)
         .filter(|l| !l.is_empty() && !l.starts_with('#'))
-        .filter(|l| (QUESTION_MIN..=QUESTION_MAX).contains(&l.chars().count()))
+        .map(crate::deck::parse_line)
+        .filter(|(text, _)| (QUESTION_MIN..=QUESTION_MAX).contains(&text.chars().count()))
         .collect();
-    let added = crate::deck::import(&state.db, &valid.join("\n")).await?;
+    // Imports belong to this room only (asked before the shared deck, in file order),
+    // never to the deck every room draws from.
+    let mut added: u64 = 0;
+    {
+        let mut tx = state.db.begin().await?;
+        for (text, kind) in &valid {
+            let known: Option<i64> = sqlx::query_scalar(
+                "SELECT id FROM questions WHERE group_id = ? AND lower(text) = lower(?)",
+            )
+            .bind(me.group_id)
+            .bind(text)
+            .fetch_optional(&mut *tx)
+            .await?;
+            if known.is_some() {
+                continue;
+            }
+            sqlx::query(
+                "INSERT INTO questions (group_id, text, author_id, kind) VALUES (?, ?, ?, ?)",
+            )
+            .bind(me.group_id)
+            .bind(text)
+            .bind(me.id)
+            .bind(kind)
+            .execute(&mut *tx)
+            .await?;
+            added += 1;
+        }
+        tx.commit().await?;
+    }
     let mut tx = state.db.begin().await?;
     let opened = game::ensure_open_round(&mut tx, me.group_id).await?;
     tx.commit().await?;

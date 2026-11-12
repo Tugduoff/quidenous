@@ -51,7 +51,11 @@ pub async fn connect(url: &str) -> anyhow_free::Result<SqlitePool> {
 pub async fn state(config: Config) -> anyhow_free::Result<AppState> {
     let db = connect(&config.database_url).await?;
     deck::seed(&db).await?;
-    deck::ensure_group(&db, &config.group_name, &config.join_code).await?;
+    let first_group = deck::ensure_group(&db, &config.group_name, &config.join_code).await?;
+    let moved = deck::adopt_imports(&db, first_group).await?;
+    if moved > 0 {
+        tracing::info!(moved, "imported questions moved from the shared deck to the first room");
+    }
     let vapid = match &config.vapid_private_key {
         Some(key) => Some(push::Vapid::new(key, config.vapid_subject.clone())?),
         None => None,
