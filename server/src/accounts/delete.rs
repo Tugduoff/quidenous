@@ -29,6 +29,11 @@ fn given(v: &Option<String>) -> Option<&str> {
     v.as_deref().map(str::trim).filter(|v| !v.is_empty())
 }
 
+/// Passwords are checked exactly as typed (spaces included), like sign-in.
+fn given_password(v: &Option<String>) -> Option<&str> {
+    v.as_deref().filter(|v| !v.is_empty())
+}
+
 /// From the app. With a password: that password, or a 2FA code if 2FA is on. 2FA without a
 /// password: a code. Nothing else (legacy or provider-only): nothing more to prove.
 pub async fn delete_account(
@@ -40,7 +45,7 @@ pub async fn delete_account(
     let acct = account(&state, session.user_id).await?;
     not_claimed(&state, acct.id, &session.token_hash).await?;
     let limits = &state.auth.limits;
-    let password = given(&body.password);
+    let password = given_password(&body.password);
     let code = given(&body.code);
     if acct.password_hash.is_some() && password.is_some() {
         // Same failure budget as signing in.
@@ -146,15 +151,26 @@ pub async fn confirm(
 /// anonymised, sessions, codes, providers, push, friends and blocks go, and the users row is
 /// scrubbed (kept: votes, packs and reports point at it). Photos are removed last.
 pub(crate) async fn erase(state: &AppState, user_id: i64) -> AppResult<()> {
-    let seats: Vec<MemberRow> = sqlx::query_as(
-        "SELECT m.* FROM members m JOIN groups g ON g.id = m.group_id AND g.deleted_at IS NULL \
-         WHERE m.user_id = ? AND m.removed_at IS NULL ORDER BY m.id",
-    )
-    .bind(user_id)
-    .fetch_all(&state.db)
-    .await?;
-    for seat in &seats {
-        crate::rooms::leave_seat(state, seat).await?;
+    // Signed out everywhere first: nothing the account does can race the rest.
+    sqlx::query("DELETE FROM user_tokens WHERE user_id = ?")
+        .bind(user_id)
+        .execute(&state.db)
+        .await?;
+    // Again if someone handed a room over to this account while it was leaving the others.
+    for _ in 0..3 {
+        let seats: Vec<MemberRow> = sqlx::query_as(
+            "SELECT m.* FROM members m JOIN groups g ON g.id = m.group_id AND g.deleted_at IS NULL \
+             WHERE m.user_id = ? AND m.removed_at IS NULL ORDER BY m.id",
+        )
+        .bind(user_id)
+        .fetch_all(&state.db)
+        .await?;
+        if seats.is_empty() {
+            break;
+        }
+        for seat in &seats {
+            crate::rooms::leave_seat(state, seat).await?;
+        }
     }
     let photos: Vec<String> = sqlx::query_scalar(
         "SELECT photo FROM users WHERE id = ?1 AND photo IS NOT NULL \

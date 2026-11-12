@@ -163,7 +163,7 @@ Migration `0016_play.sql` (store readiness): `users.deleted_at`, `auth_codes.kin
 2. One transaction: their chat messages and the inbox entries they received or caused are deleted; every seat they ever had is anonymised (`Compte supprimé`, no photo, `user_id` NULL, `removed_at` set); sessions, recovery codes, providers, auth codes, push subscriptions, friends and blocks (both ways) are deleted; the `users` row stays (votes, packs and reports point at it) but is scrubbed: `Compte supprimé`, no email / password / 2FA / photo, an untypeable friend code, `deleted_at` set.
 3. Photo files are removed from `DATA_DIR/photos`.
 
-Votes, rankings, rounds, questions they added and packs they published stay, so the others' history and stats still add up (the seat shows as `Compte supprimé`). Reports they filed are kept. The email is free again afterwards.
+Votes, rankings, rounds, questions they added and packs they published stay, so the others' history and stats still add up (the seat is renamed `Compte supprimé`; the app shows removed members without a name, like anyone who left). Reports they filed are kept. The email is free again afterwards.
 
 **Reports** (store policy on user content) — a message, a member or a question, from inside the room it belongs to. Stored once per (reporter, kind, target) with a snapshot of the content, and emailed (text + HTML) to `REPORT_EMAIL` (default `contact@coflop.fr`).
 

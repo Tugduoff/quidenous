@@ -9,7 +9,7 @@
 <li>Tes places dans les salons : tu les quittes tous. Si tu étais seul·e dans un salon, il est supprimé ; sinon la personne arrivée le plus tôt en devient propriétaire.</li>
 </ul>
 <h2>Ce qui reste, anonymisé</h2>
-<p>Pour que l'historique des autres reste juste, tes votes, classements et questions ajoutées restent dans les salons, sous le nom « Compte supprimé », sans lien avec toi. Les packs de questions que tu as publiés restent aussi, sans ton nom.</p>
+<p>Pour que l'historique des autres reste juste, tes votes, classements et questions ajoutées restent dans les salons, anonymisés, sans lien avec toi. Les packs de questions que tu as publiés restent aussi, sans ton nom.</p>
 <h2>Comment faire</h2>
 <p><strong>Dans l'app</strong> : Profil &gt; Sécurité &gt; Supprimer mon compte.</p>
 <p><strong>Ici</strong>, si ton compte a une adresse e-mail : on t'envoie un code, tu le saisis, et le compte est supprimé.</p>
@@ -38,7 +38,7 @@
   };
   var $ = function (id) { return document.getElementById(id); };
   var msg = $('msg');
-  function show(text, ok) { msg.textContent = text; msg.className = 'msg ' + (ok ? 'ok' : 'err'); }
+  function show(text, ok) { msg.textContent = text; msg.className = 'msg ' + (ok ? 'ok' : 'err'); if (msg.scrollIntoView) msg.scrollIntoView({ block: 'nearest' }); }
   function post(path, body) {
     return fetch('/api/auth/delete/' + path, {
       method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body)

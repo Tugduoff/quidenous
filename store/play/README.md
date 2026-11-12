@@ -119,7 +119,7 @@ Answer "Not collected" for everything not listed (location, financial, health, c
 
 Security sessions (login tokens, stored hashed), passwords (hashed), 2FA secrets (encrypted) are account data covered by the rows above. Short-lived server logs and in-memory rate limiting by IP are not a declared data type.
 
-What deletion does (to describe if asked): profile, e-mail, password, 2FA, sessions, linked providers, push tokens, friends, blocks and chat messages are deleted; the user's name becomes "Compte supprimé" in rooms; votes, questions and packs they created stay, anonymised, so other members' history still adds up. Privacy policy states this ("l'historique des salons peut garder des votes anonymisés").
+What deletion does (to describe if asked): profile, e-mail, password, 2FA, sessions, linked providers, push tokens, friends, blocks and chat messages are deleted; the user's seat is anonymised in rooms; votes, questions and packs they created stay, anonymised, so other members' history still adds up. Privacy policy states this ("l'historique des salons garde tes votes, anonymisés").
 
 ## App access (for reviewers)
 

@@ -47,6 +47,7 @@ export function useBlockActions() {
     qc.invalidateQueries({ queryKey: ['messages'] });
     qc.invalidateQueries({ queryKey: keys.inbox });
     qc.invalidateQueries({ queryKey: keys.friends });
+    qc.invalidateQueries({ queryKey: keys.rooms });
   };
   return {
     block: async (who: Blocked) => {

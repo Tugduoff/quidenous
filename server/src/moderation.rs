@@ -193,12 +193,19 @@ pub async fn block(
     if other == me {
         return Err(AppError::BadRequest("bad_target"));
     }
-    let exists: Option<i64> =
-        sqlx::query_scalar("SELECT id FROM users WHERE id = ? AND deleted_at IS NULL")
-            .bind(other)
-            .fetch_optional(&state.db)
-            .await?;
-    exists.ok_or(AppError::NotFound)?;
+    // Only people I know (a room shared now or before, or a friend): the blocked list shows names
+    // and photos, so it must not become a way to look up any account by id.
+    let known: Option<i64> = sqlx::query_scalar(
+        "SELECT u.id FROM users u WHERE u.id = ?2 AND u.deleted_at IS NULL AND ( \
+         EXISTS (SELECT 1 FROM members a JOIN members b ON a.group_id = b.group_id \
+                 WHERE a.user_id = ?1 AND b.user_id = ?2) \
+         OR EXISTS (SELECT 1 FROM friends WHERE user_id = ?1 AND friend_id = ?2))",
+    )
+    .bind(me)
+    .bind(other)
+    .fetch_optional(&state.db)
+    .await?;
+    known.ok_or(AppError::NotFound)?;
     let mut tx = state.db.begin().await?;
     sqlx::query("INSERT OR IGNORE INTO blocks (user_id, blocked_id) VALUES (?, ?)")
         .bind(me)
