@@ -1,6 +1,6 @@
-import { Download, Share, SquarePlus, Smartphone } from 'lucide-react-native';
+import { ChevronRight, Download, Share, SquarePlus, Smartphone, X } from 'lucide-react-native';
 import { type ComponentType, useEffect, useState } from 'react';
-import { Platform, Text, View } from 'react-native';
+import { Platform, Pressable, Text, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 
 import { Screen } from '@/components/screen';
@@ -24,16 +24,43 @@ if (web) {
 }
 
 /**
- * The web build only runs as the home screen app (push, full screen, its own session):
- * in a browser tab it shows how to install it. Not in development, to keep `expo start --web`.
+ * The web build is meant for the home screen app (push, full screen, its own session).
+ * In a phone browser it works, with a banner to install it; on a computer it only shows how to open it on a phone.
+ * Not in development, to keep `expo start --web`.
  */
-export function mustInstall() {
-  if (!web || __DEV__) return false;
+export function installMode(): 'none' | 'banner' | 'block' {
+  if (!web || __DEV__) return 'none';
   const standalone =
     window.matchMedia('(display-mode: standalone)').matches ||
     window.matchMedia('(display-mode: fullscreen)').matches ||
     (navigator as Navigator & { standalone?: boolean }).standalone === true;
-  return !standalone;
+  if (standalone) return 'none';
+  return device() === 'desktop' ? 'block' : 'banner';
+}
+
+/** Top of the app in a phone browser: opens the install steps. */
+export function InstallBanner({ onOpen, onClose }: { onOpen: () => void; onClose: () => void }) {
+  const t = useTheme();
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingLeft: 16, paddingRight: 6, backgroundColor: t.acc }}>
+      <Pressable
+        accessibilityRole="button"
+        onPress={onOpen}
+        style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10 }}>
+        <Smartphone size={18} color={t.accTxt} />
+        <Text style={{ flex: 1, fontFamily: t.font.semibold, fontSize: 14, color: t.accTxt }}>Meilleure expérience avec l'app installée</Text>
+        <ChevronRight size={18} color={t.accTxt} />
+      </Pressable>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Masquer"
+        onPress={onClose}
+        hitSlop={8}
+        style={{ width: 36, height: 36, alignItems: 'center', justifyContent: 'center' }}>
+        <X size={18} color={t.accTxt} />
+      </Pressable>
+    </View>
+  );
 }
 
 function device(): 'ios' | 'android' | 'desktop' {
@@ -44,7 +71,7 @@ function device(): 'ios' | 'android' | 'desktop' {
   return 'desktop';
 }
 
-export function InstallScreen() {
+export function InstallScreen({ onClose }: { onClose?: () => void }) {
   const t = useTheme();
   const [kind] = useState(device);
   const [prompt, setPrompt] = useState(deferred);
@@ -74,7 +101,16 @@ export function InstallScreen() {
   const text = { fontFamily: t.font.regular, fontSize: 16, lineHeight: 22, color: t.mut };
   return (
     <Screen tabs={false}>
-      <View style={{ marginTop: 32, gap: 14 }}>
+      {onClose && (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Fermer"
+          onPress={onClose}
+          style={{ alignSelf: 'flex-end', width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card }}>
+          <X size={20} color={t.txt} />
+        </Pressable>
+      )}
+      <View style={{ marginTop: onClose ? 0 : 32, gap: 14 }}>
         <Logo size={40} />
         <Display size={30}>{kind === 'desktop' ? 'Ça se joue sur téléphone' : "Installe l'app"}</Display>
         <Text style={text}>

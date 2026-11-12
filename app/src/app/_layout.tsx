@@ -6,9 +6,9 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
-import { Platform } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 
-import { InstallScreen, mustInstall } from '@/components/install';
+import { InstallBanner, InstallScreen, installMode } from '@/components/install';
 import { useLive } from '@/lib/live';
 import { registerNativePush } from '@/lib/native-push';
 import { SessionProvider, useSession } from '@/lib/session';
@@ -22,9 +22,11 @@ function Root() {
   const t = useTheme();
   const scheme = useScheme();
   const [fonts] = useFonts({ BricolageGrotesque_800ExtraBold, Inter_400Regular, Inter_600SemiBold, Inter_700Bold });
-  // In a browser tab the web app only shows how to install it (and stays offline, so pushes still reach the installed one).
-  const [install] = useState(mustInstall);
-  useLive(install ? null : token, room);
+  // On a computer the web app only shows how to open it on a phone; in a phone browser, a banner to install it.
+  const [install] = useState(installMode);
+  const [banner, setBanner] = useState(install === 'banner');
+  const [steps, setSteps] = useState(false);
+  useLive(install === 'block' ? null : token, room);
   useEffect(() => {
     if (token) registerNativePush().catch(() => {});
   }, [token]);
@@ -40,10 +42,11 @@ function Root() {
     for (const meta of document.querySelectorAll('meta[name="theme-color"]')) meta.setAttribute('content', t.bg);
   }, [t.bg]);
   if (!ready || !fonts) return null;
-  if (install) return <InstallScreen />;
+  if (install === 'block') return <InstallScreen />;
   return (
     <>
       <StatusBar style={scheme === 'light' ? 'dark' : 'light'} />
+      {banner && <InstallBanner onOpen={() => setSteps(true)} onClose={() => setBanner(false)} />}
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: t.bg } }}>
         <Stack.Protected guard={!!token}>
           <Stack.Screen name="(tabs)" />
@@ -60,6 +63,11 @@ function Root() {
           <Stack.Screen name="join" />
         </Stack.Protected>
       </Stack>
+      {steps && (
+        <View style={StyleSheet.absoluteFill}>
+          <InstallScreen onClose={() => setSteps(false)} />
+        </View>
+      )}
     </>
   );
 }
