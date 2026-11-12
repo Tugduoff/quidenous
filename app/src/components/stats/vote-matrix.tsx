@@ -7,14 +7,13 @@ import type { Member, Stats } from '@/lib/api';
 import { useTheme } from '@/lib/theme';
 
 const GAP = 2;
-const HEAD = 28;
-const MIN = 16;
+const MIN = 12;
 const MAX = 40;
 
 /**
  * Who votes for whom: a row per voter, a column per person voted for, each cell in the target's colour,
  * stronger the more votes. The diagonal (votes for oneself) is drawn as circles. Shrinks to fit the width,
- * and scrolls sideways past a cell of 16 px (around 20 people on a small phone).
+ * and scrolls sideways past a cell of 12 px (around 22 people on a small phone). Under 16 px the column heads are plain dots.
  */
 export function VoteMatrix({
   ids,
@@ -32,6 +31,7 @@ export function VoteMatrix({
   const count = new Map(edges.map((e) => [`${e.voter_id}:${e.target_id}`, e.value]));
   const max = Math.max(1, ...edges.filter((e) => ids.includes(e.voter_id) && ids.includes(e.target_id)).map((e) => e.value));
   const n = ids.length;
+  const HEAD = n > 12 ? 22 : 28;
   const cell = width ? Math.max(MIN, Math.min(MAX, Math.floor((width - HEAD - GAP) / n) - GAP)) : 0;
   const face = Math.min(cell, 28);
   const showCounts = cell >= 24;
@@ -46,7 +46,11 @@ export function VoteMatrix({
             accessibilityLabel={byId.get(id)?.name}
             onPress={() => onOpen(id)}
             style={{ width: cell, alignItems: 'center' }}>
-            <Avatar member={byId.get(id)} size={face} />
+            {cell >= 16 ? (
+              <Avatar member={byId.get(id)} size={face} />
+            ) : (
+              <View style={{ width: cell - 2, height: cell - 2, borderRadius: cell, backgroundColor: byId.get(id)?.color ?? t.mut }} />
+            )}
           </Pressable>
         ))}
       </View>

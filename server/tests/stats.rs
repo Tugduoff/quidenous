@@ -189,7 +189,12 @@ async fn age(db: &SqlitePool, round: i64, days: i64) {
         "UPDATE votes SET created_at = strftime('%Y-%m-%dT%H:%M:%fZ', created_at, ?1) WHERE round_id = ?2",
         "UPDATE messages SET created_at = strftime('%Y-%m-%dT%H:%M:%fZ', created_at, ?1) WHERE round_id = ?2",
     ] {
-        sqlx::query(sql).bind(&m).bind(round).execute(db).await.unwrap();
+        sqlx::query(sql)
+            .bind(&m)
+            .bind(round)
+            .execute(db)
+            .await
+            .unwrap();
     }
 }
 
@@ -200,11 +205,17 @@ fn now_unix() -> i64 {
         .as_secs() as i64
 }
 
-const ISO: &str = "strftime('%Y-%m-%dT%H:%M:%fZ', ?1, 'unixepoch')";
+macro_rules! iso {
+    () => {
+        "strftime('%Y-%m-%dT%H:%M:%fZ', ?1, 'unixepoch')"
+    };
+}
 
 async fn set_round_times(db: &SqlitePool, round: i64, opened: i64, closed: i64) {
-    sqlx::query(&format!(
-        "UPDATE rounds SET opened_at = {ISO}, closed_at = strftime('%Y-%m-%dT%H:%M:%fZ', ?2, 'unixepoch') WHERE id = ?3"
+    sqlx::query(concat!(
+        "UPDATE rounds SET opened_at = ",
+        iso!(),
+        ", closed_at = strftime('%Y-%m-%dT%H:%M:%fZ', ?2, 'unixepoch') WHERE id = ?3"
     ))
     .bind(opened)
     .bind(closed)
@@ -215,8 +226,10 @@ async fn set_round_times(db: &SqlitePool, round: i64, opened: i64, closed: i64) 
 }
 
 async fn set_vote_time(db: &SqlitePool, round: i64, voter: i64, at: i64) {
-    sqlx::query(&format!(
-        "UPDATE votes SET created_at = {ISO} WHERE round_id = ?2 AND voter_id = ?3"
+    sqlx::query(concat!(
+        "UPDATE votes SET created_at = ",
+        iso!(),
+        " WHERE round_id = ?2 AND voter_id = ?3"
     ))
     .bind(at)
     .bind(round)
@@ -227,7 +240,11 @@ async fn set_vote_time(db: &SqlitePool, round: i64, voter: i64, at: i64) {
 }
 
 fn sum(v: &Value) -> i64 {
-    v.as_array().unwrap().iter().map(|x| x.as_i64().unwrap()).sum()
+    v.as_array()
+        .unwrap()
+        .iter()
+        .map(|x| x.as_i64().unwrap())
+        .sum()
 }
 
 /// The invariants every story list keeps.
@@ -239,7 +256,10 @@ fn check_stories(s: &Value) {
     for st in stories {
         let key = st["key"].as_str().unwrap();
         assert!(keys.insert(key.to_owned()), "duplicate {key}");
-        assert!(!s[key].is_null() || key == "never_chosen", "{key} story without award");
+        assert!(
+            !s[key].is_null() || key == "never_chosen",
+            "{key} story without award"
+        );
         let line = st["line"].as_str().unwrap();
         assert!(
             !line.is_empty() && line.chars().count() <= 90,
@@ -275,8 +295,14 @@ async fn stats_filter_by_period_and_reject_unknown_ones() {
     assert_eq!(all["messages"], 1);
     assert_eq!(all["members"], 3);
     let month = stats(&app, &a.0, "?period=30d").await;
-    assert_eq!((month["questions"].as_i64(), month["votes"].as_i64()), (Some(2), Some(6)));
-    assert_eq!(month["messages"], 0, "the message counts through its old question");
+    assert_eq!(
+        (month["questions"].as_i64(), month["votes"].as_i64()),
+        (Some(2), Some(6))
+    );
+    assert_eq!(
+        month["messages"], 0,
+        "the message counts through its old question"
+    );
     let week = stats(&app, &a.0, "?period=7d&tz=120").await;
     assert_eq!(week["questions"], 1);
     assert_eq!(week["most_chosen"]["member_id"], a.1);
@@ -308,7 +334,10 @@ async fn stats_filter_by_period_and_reject_unknown_ones() {
     assert_eq!(ids, vec![a.1, b.1, c.1]);
 
     let (s, body) = call(&app, "GET", "/stats?period=1y", Some(&a.0), None).await;
-    assert_eq!((s, body["error"].as_str()), (StatusCode::BAD_REQUEST, Some("bad_period")));
+    assert_eq!(
+        (s, body["error"].as_str()),
+        (StatusCode::BAD_REQUEST, Some("bad_period"))
+    );
     // A silly time zone is clamped, not an error.
     stats(&app, &a.0, "?tz=99999").await;
     stats(&app, &a.0, "?tz=abc").await;
@@ -322,14 +351,26 @@ async fn voting_blocs(app: &Router) -> Vec<(String, i64)> {
     for _ in 0..4 {
         play(
             app,
-            &[(&a.0, c.1), (&b.0, c.1), (&c.0, c.1), (&d.0, b.1), (&e.0, c.1)],
+            &[
+                (&a.0, c.1),
+                (&b.0, c.1),
+                (&c.0, c.1),
+                (&d.0, b.1),
+                (&e.0, c.1),
+            ],
         )
         .await;
     }
     for _ in 0..2 {
         play(
             app,
-            &[(&a.0, b.1), (&b.0, b.1), (&c.0, d.1), (&d.0, e.1), (&e.0, a.1)],
+            &[
+                (&a.0, b.1),
+                (&b.0, b.1),
+                (&c.0, d.1),
+                (&d.0, e.1),
+                (&e.0, a.1),
+            ],
         )
         .await;
     }
@@ -342,22 +383,40 @@ async fn contrarian_sheep_loyal_twins_and_kingmaker() {
     let m = voting_blocs(&app).await;
     let (a, b, c, d) = (m[0].1, m[1].1, m[2].1, m[3].1);
     let s = stats(&app, &m[0].0, "").await;
-    assert_eq!(s["contrarian"], json!({ "member_id": d, "value": 6, "total": 6 }));
-    assert_eq!(s["sheep"], json!({ "member_id": a, "value": 6, "total": 6 }));
+    assert_eq!(
+        s["contrarian"],
+        json!({ "member_id": d, "value": 6, "total": 6 })
+    );
+    assert_eq!(
+        s["sheep"],
+        json!({ "member_id": a, "value": 6, "total": 6 })
+    );
     assert_eq!(
         s["loyal"],
         json!({ "voter_id": b, "target_id": c, "value": 4, "total": 4 })
     );
-    assert_eq!(s["twins"], json!({ "a_id": a, "b_id": b, "value": 6, "total": 6 }));
+    assert_eq!(
+        s["twins"],
+        json!({ "a_id": a, "b_id": b, "value": 6, "total": 6 })
+    );
     assert_eq!(s["kingmaker"], json!({ "member_id": a, "value": 2 }));
-    assert_eq!(s["duo"], json!({ "voter_id": a, "target_id": c, "value": 4 }));
+    assert_eq!(
+        s["duo"],
+        json!({ "voter_id": a, "target_id": c, "value": 4 })
+    );
     assert_eq!(s["narcissist"], json!({ "member_id": c, "value": 4 }));
     assert_eq!(s["most_unanimous"], Value::Null, "Dan never agrees");
     // Edges: who votes for whom, self included.
     let edges = s["edges"].as_array().unwrap();
     assert!(edges.contains(&json!({ "voter_id": c, "target_id": c, "value": 4 })));
     assert!(edges.contains(&json!({ "voter_id": d, "target_id": b, "value": 4 })));
-    assert_eq!(edges.iter().map(|e| e["value"].as_i64().unwrap()).sum::<i64>(), 30);
+    assert_eq!(
+        edges
+            .iter()
+            .map(|e| e["value"].as_i64().unwrap())
+            .sum::<i64>(),
+        30
+    );
     // Profiles.
     let p = &s["profiles"][2];
     assert_eq!(p["member_id"], c);
@@ -373,8 +432,18 @@ async fn contrarian_sheep_loyal_twins_and_kingmaker() {
     assert_eq!(p["best"]["value"], 4);
     assert_eq!(p["best"]["total"], 5);
     assert_eq!(p["best"]["kind"], "pick");
-    assert!(p["titles"].as_array().unwrap().contains(&json!("narcissist")));
-    assert!(s["profiles"][3]["titles"].as_array().unwrap().contains(&json!("contrarian")));
+    assert!(
+        p["titles"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("narcissist"))
+    );
+    assert!(
+        s["profiles"][3]["titles"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("contrarian"))
+    );
     check_stories(&s);
     let keys: Vec<&str> = s["stories"]
         .as_array()
@@ -398,7 +467,8 @@ async fn contrarian_sheep_loyal_twins_and_kingmaker() {
 async fn streaks_records_and_comebacks() {
     let (app, _) = test_app_with_state().await;
     let m = members(&app, &["Ana", "Bob", "Cyd"]).await;
-    let all = |target: i64| -> Vec<(&str, i64)> { m.iter().map(|x| (x.0.as_str(), target)).collect() };
+    let all =
+        |target: i64| -> Vec<(&str, i64)> { m.iter().map(|x| (x.0.as_str(), target)).collect() };
     let (a, b, c) = (m[0].1, m[1].1, m[2].1);
     // Winners: Cyd, Ana ×3, Bob ×5, then Cyd ×2.
     let mut order = vec![c, a, a, a];
@@ -470,7 +540,13 @@ async fn chatterbox_silent_hottest_and_split() {
     let first = play(&app, &everyone(ids[1])).await;
     let split = play(
         &app,
-        &[(&m[0].0, ids[0]), (&m[1].0, ids[1]), (&m[2].0, ids[2]), (&m[3].0, ids[0]), (&m[4].0, ids[3])],
+        &[
+            (&m[0].0, ids[0]),
+            (&m[1].0, ids[1]),
+            (&m[2].0, ids[2]),
+            (&m[3].0, ids[0]),
+            (&m[4].0, ids[3]),
+        ],
     )
     .await;
     for i in 0..8 {
@@ -484,9 +560,21 @@ async fn chatterbox_silent_hottest_and_split() {
     assert_eq!(s["chatterbox"], json!({ "member_id": ids[0], "value": 8 }));
     assert_eq!(s["silent"], json!({ "member_id": ids[2], "value": 0 }));
     assert_eq!(s["hottest"]["round_id"], split);
-    assert_eq!((s["hottest"]["value"].as_i64(), s["hottest"]["total"].as_i64()), (Some(8), Some(1)));
+    assert_eq!(
+        (
+            s["hottest"]["value"].as_i64(),
+            s["hottest"]["total"].as_i64()
+        ),
+        (Some(8), Some(1))
+    );
     assert_eq!(s["most_split"]["round_id"], split);
-    assert_eq!((s["most_split"]["value"].as_i64(), s["most_split"]["total"].as_i64()), (Some(4), Some(5)));
+    assert_eq!(
+        (
+            s["most_split"]["value"].as_i64(),
+            s["most_split"]["total"].as_i64()
+        ),
+        (Some(4), Some(5))
+    );
     assert_eq!(s["most_split"]["kind"], "pick");
     assert!(s["most_split"]["question"].is_string());
     assert_eq!(s["most_unanimous"]["round_id"], first);
@@ -507,14 +595,23 @@ async fn ranking_positions_make_podium_and_red_lantern() {
     let r1 = play_rank(&app, &tokens, &[a, b, c]).await;
     play_rank(&app, &tokens, &[a, c, b]).await;
     let s = stats(&app, &m[0].0, "").await;
-    assert_eq!(s["best_rank"], json!({ "member_id": a, "avg": 1.0, "count": 2 }));
-    assert_eq!(s["worst_rank"], json!({ "member_id": b, "avg": 2.5, "count": 2 }));
+    assert_eq!(
+        s["best_rank"],
+        json!({ "member_id": a, "avg": 1.0, "count": 2 })
+    );
+    assert_eq!(
+        s["worst_rank"],
+        json!({ "member_id": b, "avg": 2.5, "count": 2 })
+    );
     assert_eq!(s["profiles"][0]["avg_rank"], 1.0);
     assert_eq!(s["profiles"][2]["avg_rank"], 2.5);
     // Bob's worst ranking: 3rd of 3, on the second one.
     let worst = &s["profiles"][1]["worst"];
     assert_eq!(worst["kind"], "rank");
-    assert_eq!((worst["value"].as_i64(), worst["total"].as_i64()), (Some(3), Some(3)));
+    assert_eq!(
+        (worst["value"].as_i64(), worst["total"].as_i64()),
+        (Some(3), Some(3))
+    );
     assert!(worst["round_id"].as_i64().unwrap() > r1);
     assert_eq!(s["profiles"][0]["worst"]["value"], 1);
     // Ranking questions are won on points: Ana took both, plus the pick round before.
@@ -593,7 +690,14 @@ async fn stat_stories_can_be_shared_publicly() {
     )
     .await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
-    let (status, _) = call(&app, "POST", "/stats/share", None, Some(json!({ "key": key }))).await;
+    let (status, _) = call(
+        &app,
+        "POST",
+        "/stats/share",
+        None,
+        Some(json!({ "key": key })),
+    )
+    .await;
     assert_eq!(status, StatusCode::UNAUTHORIZED);
 }
 
@@ -621,7 +725,9 @@ async fn bench_stats_on_a_big_room() {
     let start = now_unix() - 200 * 86_400;
     let mut seed: u64 = 42;
     let mut rnd = |n: usize| {
-        seed = seed.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
+        seed = seed
+            .wrapping_mul(6_364_136_223_846_793_005)
+            .wrapping_add(1_442_695_040_888_963_407);
         ((seed >> 33) as usize) % n
     };
     for i in 0..400i64 {
@@ -637,9 +743,11 @@ async fn bench_stats_on_a_big_room() {
         .await
         .unwrap();
         let opened = start + i * 43_200;
-        let round: i64 = sqlx::query_scalar(&format!(
+        let round: i64 = sqlx::query_scalar(concat!(
             "INSERT INTO rounds (group_id, question_id, number, opened_at, closed_at) \
-             VALUES (?3, ?4, ?5 + 1000, {ISO}, strftime('%Y-%m-%dT%H:%M:%fZ', ?2, 'unixepoch')) RETURNING id"
+             VALUES (?3, ?4, ?5 + 1000, ",
+            iso!(),
+            ", strftime('%Y-%m-%dT%H:%M:%fZ', ?2, 'unixepoch')) RETURNING id"
         ))
         .bind(opened)
         .bind(opened + 20_000)
@@ -654,10 +762,13 @@ async fn bench_stats_on_a_big_room() {
             for k in (1..order.len()).rev() {
                 order.swap(k, rnd(k + 1));
             }
-            let target = if rank { order[0] } else { ids[(rnd(7) + v) % 20] };
-            sqlx::query(&format!(
-                "INSERT INTO votes (round_id, voter_id, target_id, created_at) VALUES (?2, ?3, ?4, {ISO})"
-            ))
+            let target = if rank {
+                order[0]
+            } else {
+                ids[(rnd(7) + v) % 20]
+            };
+            sqlx::query(concat!(
+                "INSERT INTO votes (round_id, voter_id, target_id, created_at) VALUES (?2, ?3, ?4, ", iso!(), ")"))
             .bind(opened + 60 * v as i64 + rnd(9000) as i64)
             .bind(round)
             .bind(voter)
@@ -709,5 +820,8 @@ async fn bench_stats_on_a_big_room() {
     }
     let t = std::time::Instant::now();
     stats(&app, &token, "?period=all&tz=60").await;
-    println!("GET /api/stats: {:.1} ms", t.elapsed().as_secs_f64() * 1000.0);
+    println!(
+        "GET /api/stats: {:.1} ms",
+        t.elapsed().as_secs_f64() * 1000.0
+    );
 }

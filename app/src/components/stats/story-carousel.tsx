@@ -5,7 +5,7 @@ import Animated from 'react-native-reanimated';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
 import { Avatar, PressableScale } from '@/components/ui';
-import type { Member, StatsPeriod, Story } from '@/lib/api';
+import { type Member, photoUrl, type StatsPeriod, type Story } from '@/lib/api';
 import { motion } from '@/lib/motion';
 import { shareStory } from '@/lib/share';
 import { useTheme } from '@/lib/theme';
@@ -86,7 +86,14 @@ function StoryCard({
         <View style={{ flexDirection: 'row', marginBottom: 6 }}>
           {people.slice(0, 2).map((m, i) => (
             <View key={m.id} style={{ marginLeft: i ? -14 : 0, borderRadius: 40, borderWidth: 3, borderColor: i ? b : a }}>
-              <Avatar member={m} size={56} />
+              {/* On their own colour a plain avatar would vanish: initials go ink-on-colour reversed. */}
+              {photoUrl(m) ? (
+                <Avatar member={m} size={56} />
+              ) : (
+                <View style={{ width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center', backgroundColor: INK }}>
+                  <Text style={{ fontFamily: t.font.bold, fontSize: 24, color: m.color }}>{m.name[0]?.toUpperCase()}</Text>
+                </View>
+              )}
             </View>
           ))}
         </View>

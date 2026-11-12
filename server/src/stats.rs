@@ -310,13 +310,11 @@ fn ratio_cmp(a: (i64, i64), b: (i64, i64)) -> std::cmp::Ordering {
 
 /// Biggest share `value / total`, then higher value, then lower id.
 fn top_ratio<K: Ord + Copy>(items: impl Iterator<Item = (K, i64, i64)>) -> Option<(K, i64, i64)> {
-    items
-        .filter(|(_, v, t)| *v > 0 && *t > 0)
-        .max_by(|a, b| {
-            ratio_cmp((a.1, a.2), (b.1, b.2))
-                .then(a.1.cmp(&b.1))
-                .then(b.0.cmp(&a.0))
-        })
+    items.filter(|(_, v, t)| *v > 0 && *t > 0).max_by(|a, b| {
+        ratio_cmp((a.1, a.2), (b.1, b.2))
+            .then(a.1.cmp(&b.1))
+            .then(b.0.cmp(&a.0))
+    })
 }
 
 fn pct(value: i64, total: i64) -> i64 {
@@ -567,7 +565,8 @@ impl Calc {
                 chatters: HashSet::new(),
             })
             .collect();
-        let index: HashMap<i64, usize> = rounds.iter().enumerate().map(|(i, r)| (r.id, i)).collect();
+        let index: HashMap<i64, usize> =
+            rounds.iter().enumerate().map(|(i, r)| (r.id, i)).collect();
         for (round_id, voter, target, at) in vote_rows {
             if let Some(&i) = index.get(&round_id) {
                 rounds[i].votes.push((voter, target, at));
@@ -980,7 +979,9 @@ impl Calc {
             .collect();
         edges.sort_by_key(|e| (e.voter_id, e.target_id));
         s.activity = self.activity();
-        s.profiles = self.profiles(&s, &pairs, &received, &cast, &wins, &selfish, &medians, &avg_rank);
+        s.profiles = self.profiles(
+            &s, &pairs, &received, &cast, &wins, &selfish, &medians, &avg_rank,
+        );
         s.stories = self.stories(&s, spicy);
         s.edges = edges;
         s
@@ -1135,8 +1136,7 @@ impl Calc {
                 break;
             }
             if keys.contains(d.key)
-                || d
-                    .members
+                || d.members
                     .iter()
                     .any(|m| used.get(m).copied().unwrap_or(0) >= STORIES_PER_MEMBER)
             {
@@ -1272,8 +1272,15 @@ struct Draft {
     round_id: Option<i64>,
 }
 
-fn draft(key: &'static str, members: Vec<i64>, big: String, lines: Vec<String>, seed: i64) -> Draft {
-    let seed = (seed.unsigned_abs() as usize).wrapping_add(members.iter().map(|m| m.unsigned_abs() as usize).sum());
+fn draft(
+    key: &'static str,
+    members: Vec<i64>,
+    big: String,
+    lines: Vec<String>,
+    seed: i64,
+) -> Draft {
+    let seed = (seed.unsigned_abs() as usize)
+        .wrapping_add(members.iter().map(|m| m.unsigned_abs() as usize).sum());
     Draft {
         key,
         members,
@@ -1312,9 +1319,18 @@ fn pick_line(lines: &[String], seed: usize) -> String {
 }
 
 /// Every possible story, funniest first. Spicy rooms (16+) get their own lines where written.
-fn drafts(s: &Stats, name: &dyn Fn(i64) -> String, rounds: &[RoundCalc], spicy: bool) -> Vec<Draft> {
+fn drafts(
+    s: &Stats,
+    name: &dyn Fn(i64) -> String,
+    rounds: &[RoundCalc],
+    spicy: bool,
+) -> Vec<Draft> {
     let pick = |normal: Vec<String>, hot: Vec<String>| {
-        if spicy && !hot.is_empty() { hot } else { normal }
+        if spicy && !hot.is_empty() {
+            hot
+        } else {
+            normal
+        }
     };
     let mut d: Vec<Draft> = Vec::new();
     let streak = |a: &Award, d: &mut Vec<Draft>| {
@@ -1322,13 +1338,19 @@ fn drafts(s: &Stats, name: &dyn Fn(i64) -> String, rounds: &[RoundCalc], spicy: 
         let lines = if n >= 3 {
             pick(
                 vec![
-                    format!("{who} gagne depuis {n} questions d'affilée. Quelqu'un peut l'arrêter ?"),
+                    format!(
+                        "{who} gagne depuis {n} questions d'affilée. Quelqu'un peut l'arrêter ?"
+                    ),
                     format!("{n} victoires de suite pour {who}. Les autres font de la figuration."),
                     format!("{who} enchaîne {n} victoires. Ça devient une habitude."),
                 ],
                 vec![
-                    format!("{n} victoires d'affilée pour {who}. Le groupe a clairement un faible."),
-                    format!("{who} gagne encore. {n} fois de suite, ce n'est plus du charme, c'est de l'hypnose."),
+                    format!(
+                        "{n} victoires d'affilée pour {who}. Le groupe a clairement un faible."
+                    ),
+                    format!(
+                        "{who} gagne encore. {n} fois de suite, ce n'est plus du charme, c'est de l'hypnose."
+                    ),
                 ],
             )
         } else {
@@ -1337,7 +1359,13 @@ fn drafts(s: &Stats, name: &dyn Fn(i64) -> String, rounds: &[RoundCalc], spicy: 
                 format!("Deux victoires de suite pour {who}. Jamais deux sans trois ?"),
             ]
         };
-        d.push(draft("streak", vec![a.member_id], format!("{n} d'affilée"), lines, n));
+        d.push(draft(
+            "streak",
+            vec![a.member_id],
+            format!("{n} d'affilée"),
+            lines,
+            n,
+        ));
     };
     if let Some(a) = s.streak.as_ref().filter(|a| a.value >= 3) {
         streak(a, &mut d);
@@ -1392,11 +1420,17 @@ fn drafts(s: &Stats, name: &dyn Fn(i64) -> String, rounds: &[RoundCalc], spicy: 
                 vec![
                     format!("{a} a voté {n} fois pour {b}. On dit ça, on dit rien."),
                     format!("{n} votes de {a} pour {b}. Ce n'est plus un hasard, c'est un signal."),
-                    format!("{a} trouve toujours une raison de choisir {b}. {n} fois, pour être précis."),
+                    format!(
+                        "{a} trouve toujours une raison de choisir {b}. {n} fois, pour être précis."
+                    ),
                 ],
                 vec![
-                    format!("{a} a choisi {b} {n} fois. À ce stade, il faut un deuxième rendez-vous."),
-                    format!("{n} votes de {a} pour {b}. Quelqu'un leur réserve une table pour deux ?"),
+                    format!(
+                        "{a} a choisi {b} {n} fois. À ce stade, il faut un deuxième rendez-vous."
+                    ),
+                    format!(
+                        "{n} votes de {a} pour {b}. Quelqu'un leur réserve une table pour deux ?"
+                    ),
                     format!("{a} et ses {n} votes pour {b}. Le groupe a vu, le groupe sait."),
                 ],
             ),
@@ -1418,7 +1452,9 @@ fn drafts(s: &Stats, name: &dyn Fn(i64) -> String, rounds: &[RoundCalc], spicy: 
                 ],
                 vec![
                     format!("{a} et {b} : {pc} % de votes identiques. Ça se fiance quand ?"),
-                    format!("{a} et {b} en phase {n} fois sur {t}. Il se passe quoi en coulisses ?"),
+                    format!(
+                        "{a} et {b} en phase {n} fois sur {t}. Il se passe quoi en coulisses ?"
+                    ),
                 ],
             ),
             n,
@@ -1447,13 +1483,19 @@ fn drafts(s: &Stats, name: &dyn Fn(i64) -> String, rounds: &[RoundCalc], spicy: 
             n.to_string(),
             pick(
                 vec![
-                    format!("{n} victoires à une voix près, et {who} était dedans. Craignez son vote."),
+                    format!(
+                        "{n} victoires à une voix près, et {who} était dedans. Craignez son vote."
+                    ),
                     format!("{who} a fait basculer {n} votes serrés. Le vrai pouvoir est là."),
                     format!("Gagné à une voix près, {n} fois : c'était celle de {who}."),
                 ],
                 vec![
-                    format!("{n} victoires serrées décidées par {who}. On fait la cour à qui, déjà ?"),
-                    format!("{who} a fait basculer {n} votes serrés. Tout le monde veut ses faveurs."),
+                    format!(
+                        "{n} victoires serrées décidées par {who}. On fait la cour à qui, déjà ?"
+                    ),
+                    format!(
+                        "{who} a fait basculer {n} votes serrés. Tout le monde veut ses faveurs."
+                    ),
                 ],
             ),
             n,
@@ -1499,11 +1541,12 @@ fn drafts(s: &Stats, name: &dyn Fn(i64) -> String, rounds: &[RoundCalc], spicy: 
             a.value / 60,
         ));
     }
-    let round_draft = |q: &QuestionRef, key: &'static str, members: Vec<i64>, big: String, lines: Vec<String>| {
-        let mut d = draft(key, members, big, lines, q.value + q.number);
-        d.round_id = Some(q.round_id);
-        d
-    };
+    let round_draft =
+        |q: &QuestionRef, key: &'static str, members: Vec<i64>, big: String, lines: Vec<String>| {
+            let mut d = draft(key, members, big, lines, q.value + q.number);
+            d.round_id = Some(q.round_id);
+            d
+        };
     if let Some(q) = &s.hottest {
         let (n, num) = (q.value, q.number);
         d.push(round_draft(
@@ -1513,7 +1556,9 @@ fn drafts(s: &Stats, name: &dyn Fn(i64) -> String, rounds: &[RoundCalc], spicy: 
             n.to_string(),
             pick(
                 vec![
-                    format!("{n} messages sous la question #{num}. Le groupe avait des choses à dire."),
+                    format!(
+                        "{n} messages sous la question #{num}. Le groupe avait des choses à dire."
+                    ),
                     format!("Question #{num}, {n} messages. Ça a débattu sec."),
                     format!("{n} messages pour un seul résultat. Quelqu'un l'a mal pris."),
                 ],
@@ -1532,7 +1577,9 @@ fn drafts(s: &Stats, name: &dyn Fn(i64) -> String, rounds: &[RoundCalc], spicy: 
             vec![],
             n.to_string(),
             vec![
-                format!("Question #{num} : {n} noms différents pour {t} votes. Personne n'est d'accord."),
+                format!(
+                    "Question #{num} : {n} noms différents pour {t} votes. Personne n'est d'accord."
+                ),
                 format!("{t} votes, {n} réponses différentes. Le consensus a pris des vacances."),
                 format!("La question #{num} a éparpillé le groupe : {n} noms pour {t} votes."),
             ],
@@ -1545,7 +1592,12 @@ fn drafts(s: &Stats, name: &dyn Fn(i64) -> String, rounds: &[RoundCalc], spicy: 
             .as_ref()
             .is_some_and(|c| (c.voter_id, c.target_id) == (p.voter_id, p.target_id));
         if !same_as_duo {
-            let (a, b, n, t) = (name(p.voter_id), name(p.target_id), p.value, p.total.unwrap_or(0));
+            let (a, b, n, t) = (
+                name(p.voter_id),
+                name(p.target_id),
+                p.value,
+                p.total.unwrap_or(0),
+            );
             let pc = pct(n, t);
             d.push(draft(
                 "loyal",
@@ -1642,8 +1694,12 @@ fn drafts(s: &Stats, name: &dyn Fn(i64) -> String, rounds: &[RoundCalc], spicy: 
                     format!("{who} a écrit {n} messages. Les autres votent, {who} commente."),
                 ],
                 vec![
-                    format!("{n} messages de {who}. Toujours le dernier mot, et souvent le plus osé."),
-                    format!("{who} a écrit {n} messages. Ça parle beaucoup, et pas toujours sagement."),
+                    format!(
+                        "{n} messages de {who}. Toujours le dernier mot, et souvent le plus osé."
+                    ),
+                    format!(
+                        "{who} a écrit {n} messages. Ça parle beaucoup, et pas toujours sagement."
+                    ),
                 ],
             ),
             n,
@@ -1681,7 +1737,9 @@ fn drafts(s: &Stats, name: &dyn Fn(i64) -> String, rounds: &[RoundCalc], spicy: 
                     format!("{n} votes avant 9 h. {who} vote avant même le café."),
                     format!("{who} vote au réveil, {n} fois avant 9 h. Respect."),
                 ],
-                vec![format!("{n} votes avant 9 h. {who} vote encore au lit, visiblement.")],
+                vec![format!(
+                    "{n} votes avant 9 h. {who} vote encore au lit, visiblement."
+                )],
             ),
             n,
         ));
@@ -1708,9 +1766,13 @@ fn drafts(s: &Stats, name: &dyn Fn(i64) -> String, rounds: &[RoundCalc], spicy: 
             pick(
                 vec![
                     format!("{n} fois, tout le monde attendait {who}. Mais ça valait le coup."),
-                    format!("Dernier vote du groupe : {who}, {n} fois. L'art de se faire attendre."),
+                    format!(
+                        "Dernier vote du groupe : {who}, {n} fois. L'art de se faire attendre."
+                    ),
                 ],
-                vec![format!("{who} vote en dernier, {n} fois. Toujours aimé se faire désirer.")],
+                vec![format!(
+                    "{who} vote en dernier, {n} fois. Toujours aimé se faire désirer."
+                )],
             ),
             n,
         ));
@@ -1727,14 +1789,30 @@ fn drafts(s: &Stats, name: &dyn Fn(i64) -> String, rounds: &[RoundCalc], spicy: 
                 (
                     vec![w],
                     vec![
-                        format!("{n} votes sur {n} pour {who}. Pour une fois, tout le monde est d'accord."),
-                        format!("Question #{} : {who}, à l'unanimité. Aucun débat.", q.number),
+                        format!(
+                            "{n} votes sur {n} pour {who}. Pour une fois, tout le monde est d'accord."
+                        ),
+                        format!(
+                            "Question #{} : {who}, à l'unanimité. Aucun débat.",
+                            q.number
+                        ),
                     ],
                 )
             }
-            None => (vec![], vec![format!("{n} votes, un seul nom. Pour une fois, tout le monde est d'accord.")]),
+            None => (
+                vec![],
+                vec![format!(
+                    "{n} votes, un seul nom. Pour une fois, tout le monde est d'accord."
+                )],
+            ),
         };
-        d.push(round_draft(q, "most_unanimous", members, format!("{n} sur {n}"), lines));
+        d.push(round_draft(
+            q,
+            "most_unanimous",
+            members,
+            format!("{n} sur {n}"),
+            lines,
+        ));
     }
     if let Some(r) = &s.best_rank {
         let (who, avg, c) = (name(r.member_id), decimal(r.avg), r.count);
@@ -1743,8 +1821,12 @@ fn drafts(s: &Stats, name: &dyn Fn(i64) -> String, rounds: &[RoundCalc], spicy: 
             vec![r.member_id],
             avg.clone(),
             vec![
-                format!("Place moyenne de {who} dans les classements : {avg}. Abonnement au podium."),
-                format!("Sur {c} classements, {who} est en moyenne à la place {avg}. Indéboulonnable."),
+                format!(
+                    "Place moyenne de {who} dans les classements : {avg}. Abonnement au podium."
+                ),
+                format!(
+                    "Sur {c} classements, {who} est en moyenne à la place {avg}. Indéboulonnable."
+                ),
             ],
             c,
         ));
@@ -1795,7 +1877,9 @@ fn drafts(s: &Stats, name: &dyn Fn(i64) -> String, rounds: &[RoundCalc], spicy: 
             vec![r.member_id],
             avg.clone(),
             vec![
-                format!("Place moyenne de {who} : {avg}. Il faut bien quelqu'un pour fermer la marche."),
+                format!(
+                    "Place moyenne de {who} : {avg}. Il faut bien quelqu'un pour fermer la marche."
+                ),
                 format!("{who} ferme la marche des classements, {avg} de moyenne. Avec panache."),
             ],
             r.count,
