@@ -165,3 +165,33 @@ const styles = StyleSheet.create({
   button: { height: 58, borderRadius: 999, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 },
   tag: { alignSelf: 'flex-start', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
 });
+
+/** A small on/off switch with its label, drawn to match the app (lime when on). */
+export function Toggle({ label, value, onChange }: { label: string; value: boolean; onChange: (v: boolean) => void }) {
+  const t = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="switch"
+      accessibilityLabel={label}
+      accessibilityState={{ checked: value }}
+      onPress={() => onChange(!value)}
+      hitSlop={8}
+      style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+      <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: value ? t.accInk : t.mut }}>{label}</Text>
+      <View
+        style={{
+          width: 40,
+          height: 24,
+          borderRadius: 12,
+          padding: 3,
+          backgroundColor: value ? t.acc : t.card2,
+          borderWidth: 1,
+          borderColor: value ? t.acc : t.line,
+          alignItems: value ? 'flex-end' : 'flex-start',
+          justifyContent: 'center',
+        }}>
+        <View style={{ width: 16, height: 16, borderRadius: 8, backgroundColor: value ? t.accTxt : t.mut }} />
+      </View>
+    </Pressable>
+  );
+}

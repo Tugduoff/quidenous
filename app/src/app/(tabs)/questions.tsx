@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 
 import { Screen } from '@/components/screen';
-import { Avatar, Card, Display } from '@/components/ui';
+import { Avatar, Card, Display, Toggle } from '@/components/ui';
 import { api } from '@/lib/api';
 import { parseQuestions, splitTag, type DraftLine } from '@/lib/import-draft';
 import { keys, useGroup, useMembers, useQueue } from '@/lib/queries';
@@ -125,26 +125,8 @@ export default function QuestionsScreen() {
               {`${(data?.custom.length ?? 0) + (data?.deck_left ?? 0)} à venir`}
               {imported ? `  ·  ${imported}` : ''}
             </Text>
-            {/* Small switch: the next question is a ranking (everyone, first to last). */}
-            <Pressable
-              accessibilityRole="switch"
-              accessibilityLabel="Classement"
-              accessibilityState={{ checked: rank }}
-              onPress={() => setRank((r) => !r)}
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 6,
-                height: 32,
-                paddingHorizontal: 10,
-                borderRadius: t.radius.pill,
-                backgroundColor: rank ? t.accSoft : t.card,
-                borderWidth: 1.5,
-                borderColor: rank ? t.accInk : t.line,
-              }}>
-              <Text style={{ fontSize: 13 }}>🏆</Text>
-              <Text style={{ fontFamily: t.font.semibold, fontSize: 12, color: rank ? t.accInk : t.mut }}>Classement</Text>
-            </Pressable>
+            {/* The next question is a ranking (everyone, first to last). */}
+            <Toggle label="🏆 Classement" value={rank} onChange={setRank} />
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Importer un fichier de questions"
