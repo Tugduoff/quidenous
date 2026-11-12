@@ -60,6 +60,18 @@ Traefik: point a router at the service on port 8080; WebSockets work out of the 
 | `VAPID_PRIVATE_KEY` | — | Web Push key (iPhone/Android web app). Generate once: `docker compose run --rm quidenous server --gen-vapid` |
 | `VAPID_SUBJECT` | `mailto:admin@example.com` | Contact sent to push services, e.g. `mailto:you@domain` |
 | `FCM_SERVICE_ACCOUNT_FILE` | — | Android app notifications: path **inside the container** to the Firebase service account JSON, e.g. `/data/firebase.json` (put the file in `deploy/data/`) |
+| `AUTH_SECRET` | generated into `data/auth.key` | 32+ random bytes (`openssl rand -hex 32`): encrypts 2FA secrets, keys code hashes. Set it, keep it out of backups, never change it (2FA secrets and recovery codes depend on it) |
+| `PUBLIC_URL` | — | `https://your.domain` (no trailing slash). Needed for Google / Discord sign-in |
+| `TRUST_PROXY` | off | `1` behind the reverse proxy: client IP from `X-Forwarded-For` (rate limits). Without it every client shares the proxy's IP |
+| `MAILGUN_API_KEY`, `MAILGUN_DOMAIN` | — | Email (verification and reset codes) through Mailgun. Without them codes are only logged and "forgot password" is off |
+| `MAILGUN_FROM` | `Qui de nous ? <no-reply@MAILGUN_DOMAIN>` | |
+| `MAILGUN_REGION` | `us` | `eu` for an EU Mailgun account |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | — | Google sign-in (redirect URI `PUBLIC_URL/api/auth/oauth/google/callback`) |
+| `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET` | — | Discord sign-in (redirect `PUBLIC_URL/api/auth/oauth/discord/callback`) |
+| `OAUTH_REDIRECTS` | — | Extra allowed app redirect prefixes, comma-separated (e.g. `exp://` for Expo Go) |
+| `AUTH_REQUIRED` | off | `1` = no more anonymous join by first name (`/api/join`, `/api/start` answer 410). Only once every phone runs an app with sign-in |
+
+Accounts, 2FA and sign-in details: [docs/AUTH.md](../docs/AUTH.md).
 
 ## Add questions
 

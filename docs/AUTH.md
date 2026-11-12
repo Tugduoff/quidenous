@@ -49,44 +49,49 @@ Account kinds: **secured** = has an email + password, or at least one linked pro
 | `auth/login` | 10 / 10 min | 5 failures / 15 min (then `429`, refills one every 3 min) |
 | `auth/login/2fa`, 2FA disable | 10 / 10 min | 5 failures / 15 min, plus 5 per challenge |
 | `auth/forgot` | 5 / hour | 3 / hour |
-| `auth/reset`, `auth/verify` | 10 / 10 min | 5 per code |
+| `auth/reset`, `auth/verify`, `oauth/redeem` | 10 / 10 min | 5 per code |
+| `auth/verify/send` | | 5 / hour |
 | `oauth/*/start` | 20 / 10 min | |
-| legacy `/join`, `/start` | 10 / hour | |
+| legacy `/join` (without a token), `/start` | 10 / hour | |
+
+Per-account keys: the lowercased email for login / forgot (so unknown emails are limited the same way), the user id for 2FA. Per-IP limits only apply when the IP is known (always in production; in-process tests have no socket). With `TRUST_PROXY` unset behind a proxy every client shares the proxy's IP: set it.
 
 ## Endpoints
 
-Everything under `/api/auth`. Bodies are JSON. Errors: `{"error": code}`. Session responses: `{"token", "user_id", "new": bool}`; 2FA needed instead: `{"mfa": "totp", "challenge"}`. Clients send `X-Device: <label>` (e.g. `iPhone · iOS 18`, `Web · Safari`) when they get a session.
+Everything under `/api/auth`. Bodies are JSON. Errors: `{"error": code}`, status `400` unless noted (`409` for `email_taken`, `already_secured`, `already_verified`, `totp_enabled`, `identity_taken`, `already_linked`, `last_method`, `account_protected`; `404` for `unknown_provider` / `not_found`; `403 no_room`; `410 sign_in_required`; `429 rate_limited` with a `Retry-After` header too; `503 email_not_configured`). **`401 {"error":"unauthorized"}` only ever means a missing, invalid or revoked token** (and `link: true` without one): `bad_credentials`, `bad_code` etc. are `400`, so the app can sign out on 401 safely. Session responses: `{"token", "user_id", "new": bool}`; 2FA needed instead: `{"mfa": "totp", "challenge"}`. Clients send `X-Device: <label>` (e.g. `iPhone · iOS 18`, `Web · Safari`) when they get a session, **percent-encoded** (`iPhone%20%C2%B7%20iOS%2018`: `·` is not a valid header byte on Android); the server decodes it, drops control characters and keeps 80 characters. Dates (`created_at`, `last_used_at`) are RFC 3339 UTC, `2026-11-12T10:04:05.123Z`.
 
 | Method + path | Auth | Body | Returns / errors |
 | --- | --- | --- | --- |
 | `POST /auth/email` | | `email` | `{account: bool}` · `bad_email` |
 | `POST /auth/signup` | | `email, password, name` | session + `email_sent` · `bad_email`, `bad_name`, `weak_password`, `common_password`, `email_taken` |
-| `POST /auth/login` | | `email, password` | session or challenge · `bad_credentials` |
+| `POST /auth/login` | | `email, password` | session or challenge · `bad_credentials` (also for a malformed email) |
 | `POST /auth/login/2fa` | | `challenge, code` (TOTP or recovery code) | session · `bad_code`, `expired` |
 | `POST /auth/forgot` | | `email` | `{sent: true}` always · `503 email_not_configured` |
 | `POST /auth/reset` | | `email, code, password` | session or challenge (2FA still applies); all sessions revoked · `bad_code`, `expired`, password errors |
 | `GET /auth/account` | yes | | `{user_id, name, email, email_verified, has_password, totp, recovery_codes_left, providers: [..], secured}` |
-| `POST /auth/credentials` | yes | `email, password` | legacy account adds email + password · `already_secured`, `email_taken`, password errors |
+| `POST /auth/credentials` | yes | `email, password` | `{ok, email_sent}`: legacy account adds email + password, a verification code is emailed · `already_secured` (has an email already), `bad_email`, `email_taken`, password errors |
 | `POST /auth/verify/send` | yes | | `{email_sent}` · `no_email`, `already_verified` |
 | `POST /auth/verify` | yes | `code` | `{email_verified: true}` · `bad_code`, `expired` |
 | `POST /auth/password` | yes | `current` (if one exists), `password`, `revoke_others` | `{ok, revoked}` · `bad_credentials`, password errors, `no_email` |
-| `POST /auth/2fa/setup` | yes | | `{secret, otpauth_url}` (base32) |
-| `POST /auth/2fa/enable` | yes | `code`, `revoke_others` | `{recovery_codes: [10]}` · `bad_code`, `no_setup` |
-| `POST /auth/2fa/disable` | yes | `code` (TOTP or recovery) | `{ok}` |
-| `POST /auth/2fa/recovery` | yes | `code` (TOTP) | `{recovery_codes: [10]}` (old ones dropped) |
+| `POST /auth/2fa/setup` | yes | | `{secret, otpauth_url}` (base32; label = email, issuer `Qui de nous ?`) · `totp_enabled`, `not_secured` (2FA needs an email + password or a provider first) |
+| `POST /auth/2fa/enable` | yes | `code`, `revoke_others` | `{recovery_codes: [10], revoked}` · `bad_code`, `no_setup`, `totp_enabled` |
+| `POST /auth/2fa/disable` | yes | `code` (TOTP or recovery, same field) | `{ok}` · `bad_code`, `totp_off` |
+| `POST /auth/2fa/recovery` | yes | `code` (TOTP) | `{recovery_codes: [10]}` (old ones dropped) · `bad_code`, `totp_off` |
 | `GET /auth/sessions` | yes | | `[{id, device, created_at, last_used_at, current}]` |
-| `DELETE /auth/sessions/{id}` | yes | | `{ok}` |
+| `DELETE /auth/sessions/{id}` | yes | | `{ok}` · `404 not_found` |
 | `POST /auth/sessions/revoke-others` | yes | | `{revoked}` |
 | `POST /auth/logout` | yes | | `{ok}` (deletes this token) |
 | `GET /auth/providers` | | | `["google", "discord"]` (the configured ones) |
 | `POST /auth/oauth/{provider}/start` | optional (`link: true` needs it) | `app_redirect, link?` | `{url, key}`: open `url` in the browser, keep `key` for `redeem` · `unknown_provider`, `bad_redirect` |
-| `GET /auth/oauth/{provider}/callback` | | provider redirect | 302 to `app_redirect?code=…` or `?error=…` |
-| `POST /auth/oauth/redeem` | optional | `code, key` | session or challenge, or `{linked: provider}` · `bad_code`, `identity_taken` |
-| `DELETE /auth/oauth/{provider}` | yes | | unlink · `last_method` (would leave no way to sign in) |
+| `GET /auth/oauth/{provider}/callback` | | provider redirect | 302 to `app_redirect?code=…` or `?error=…` (see below); an unknown or already used `state` gets a plain-text `400` page (no redirect target is known) |
+| `POST /auth/oauth/redeem` | | `code, key` | session or challenge, or `{linked: provider}` · `bad_code` (wrong / used / expired code or wrong key), `409`: `identity_taken`, `already_linked`, `email_taken` |
+| `DELETE /auth/oauth/{provider}` | yes | | `{ok}` · `last_method` (would leave no way to sign in), `404 not_found` (not linked) |
 
 `/api/features` gains `auth`, `email` (Mailgun configured), `oauth_google`, `oauth_discord` (each only when configured).
 
-`GET /api/me` (and every room endpoint) for a signed-in account with no room yet answers `403 no_room` instead of `401`, so the app sends that account to "join or create a room" instead of signing it out.
+`GET /api/me` (and every room endpoint) for a signed-in account with no room yet answers `403 no_room` instead of `401`, so the app sends that account to "join or create a room" instead of signing it out. `POST /api/rooms` and `/api/rooms/join` work without a room (`{id, …}`). This applies to **secured** accounts only: a legacy (token-only) account left with no room still gets `401` as before, since old app builds sign out on it after a removal and that account has no other way back in.
+
+**OAuth redirect errors** (`app_redirect?error=…`): `cancelled` (the user said no at the provider: show nothing), `provider_error` (provider error, failed code exchange, bad ID token or profile), `expired` (more than 10 min between start and callback), `server_error`. Account-level refusals (`identity_taken`, `already_linked`, `email_taken`) come back from `redeem` instead, so the app shows them where it shows other errors. A Discord account without a verified email can still sign in (new account without email) but never links by email.
 
 ## Flows
 
