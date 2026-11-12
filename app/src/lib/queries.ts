@@ -1,6 +1,6 @@
-import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query';
 
-import { api, type Friend, type Pack, type PackSummary, type Group, type RoomSummary, type HistoryItem, type InboxItem, type Message, type Member, type Queue, type Round, type Stats, type Vibe } from './api';
+import { api, type Friend, type Pack, type PackSummary, type Group, type RoomSummary, type HistoryItem, type InboxItem, type Message, type Member, type Queue, type Round, normalizeStats, type Stats, type StatsPeriod, type Vibe } from './api';
 
 export const keys = {
   group: ['group'] as const,
@@ -9,7 +9,9 @@ export const keys = {
   round: (id: number) => ['round', id] as const,
   history: ['history'] as const,
   pinned: ['history', 'pinned'] as const,
+  /** Every period's stats (what a live event invalidates). */
   stats: ['stats'] as const,
+  statsFor: (period: StatsPeriod) => ['stats', period] as const,
   messages: (id: number) => ['messages', id] as const,
   inbox: ['inbox'] as const,
   rooms: ['rooms'] as const,
@@ -67,7 +69,13 @@ export const usePack = (id: number) => useQuery({ queryKey: keys.pack(id), query
 export const useVibes = (enabled: boolean) =>
   useQuery({ queryKey: keys.vibes, queryFn: () => api<Vibe[]>('/vibes'), staleTime: Infinity, enabled });
 
-export const useStats = () => useQuery({ queryKey: keys.stats, queryFn: () => api<Stats>('/stats') });
+/** Stats of a period, in the phone's time zone. Switching period keeps the previous numbers on screen until the new ones land. */
+export const useStats = (period: StatsPeriod) =>
+  useQuery({
+    queryKey: keys.statsFor(period),
+    queryFn: async () => normalizeStats(await api<Partial<Stats> | null>(`/stats?period=${period}&tz=${-new Date().getTimezoneOffset()}`), period),
+    placeholderData: keepPreviousData,
+  });
 
 export const useQueue = () => useQuery({ queryKey: keys.queue, queryFn: () => api<Queue>('/questions/queue') });
 
