@@ -1003,11 +1003,13 @@ async fn live(
     ws: WebSocketUpgrade,
 ) -> AppResult<Response> {
     let me = crate::auth::member_in_room(&state, &q.token, q.room).await?;
-    Ok(ws.on_upgrade(move |socket| relay(socket, state, me.group_id)))
+    Ok(ws.on_upgrade(move |socket| relay(socket, state, me.group_id, me.user_id)))
 }
 
-async fn relay(mut socket: WebSocket, state: AppState, group_id: i64) {
+async fn relay(mut socket: WebSocket, state: AppState, group_id: i64, user_id: Option<i64>) {
     let mut rx = state.live.subscribe();
+    let presence = state.push.presence().clone();
+    let connection = crate::push::Presence::connection();
     loop {
         tokio::select! {
             event = rx.recv() => match event {
@@ -1024,9 +1026,18 @@ async fn relay(mut socket: WebSocket, state: AppState, group_id: i64) {
             },
             incoming = socket.recv() => match incoming {
                 Some(Ok(Message::Close(_))) | None | Some(Err(_)) => break,
+                // The app says whether it is on the screen ("here", repeated) or in the background ("away").
+                Some(Ok(Message::Text(text))) => match (text.as_str(), user_id) {
+                    ("here", Some(user)) => presence.here(user, group_id, connection),
+                    ("away", Some(user)) => presence.away(user, group_id, connection),
+                    _ => {}
+                },
                 _ => {}
             },
         }
+    }
+    if let Some(user) = user_id {
+        presence.away(user, group_id, connection);
     }
 }
 
