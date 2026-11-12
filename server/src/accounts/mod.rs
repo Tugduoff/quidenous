@@ -43,6 +43,8 @@ pub struct Auth {
     pub oauth: oauth::OAuth,
     /// When each token's `last_used_at` was last written (spares the SD card).
     touched: Mutex<HashMap<String, Instant>>,
+    /// Tokens whose device label was already checked (sessions from before 0015 have none).
+    labelled: Mutex<std::collections::HashSet<String>>,
 }
 
 impl Auth {
@@ -54,6 +56,7 @@ impl Auth {
             mailer,
             oauth: oauth::OAuth::new(config),
             touched: Mutex::new(HashMap::new()),
+            labelled: Mutex::new(std::collections::HashSet::new()),
         })
     }
 
@@ -221,6 +224,7 @@ impl FromRequestParts<AppState> for Session {
     ) -> Result<Self, Self::Rejection> {
         let token = bearer(&parts.headers).ok_or(AppError::Unauthorized)?;
         let user_id = crate::auth::user_for_token(state, token).await?;
+        label(state, token, &parts.headers).await;
         Ok(Session {
             user_id,
             token_hash: hash_token(token),
@@ -274,6 +278,37 @@ pub async fn touch(state: &AppState, token_hash: &str) {
     .await
     {
         tracing::debug!(error = %e, "last_used_at not recorded");
+    }
+}
+
+/// Gives a session with no device label (created before 0015) one from this request,
+/// checked once per token and process.
+pub async fn label(state: &AppState, token: &str, headers: &HeaderMap) {
+    let Some(device) = device_label(headers) else {
+        return;
+    };
+    let hash = hash_token(token);
+    {
+        let mut seen = state
+            .auth
+            .labelled
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        if seen.len() > 10_000 {
+            seen.clear();
+        }
+        if !seen.insert(hash.clone()) {
+            return;
+        }
+    }
+    if let Err(e) =
+        sqlx::query("UPDATE user_tokens SET device = ? WHERE token_hash = ? AND device IS NULL")
+            .bind(device)
+            .bind(hash)
+            .execute(&state.db)
+            .await
+    {
+        tracing::debug!(error = %e, "device label not recorded");
     }
 }
 

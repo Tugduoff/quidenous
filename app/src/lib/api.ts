@@ -1,5 +1,7 @@
 import { Platform } from 'react-native';
 
+import { deviceHeader } from './device';
+
 /** Same origin on web (served by the Rust server); on phones, the build URL or the one typed at join. */
 export const DEFAULT_API_URL =
   process.env.EXPO_PUBLIC_API_URL ??
@@ -161,7 +163,7 @@ const roomQuery = () => (room != null ? `&room=${room}` : '');
 export const historyExportUrl = () => `${API_URL}/api/history/export?token=${token ?? ''}${roomQuery()}`;
 
 export async function api<T>(path: string, init: RequestInit & { json?: unknown } = {}): Promise<T> {
-  const headers: Record<string, string> = { ...(init.headers as Record<string, string>) };
+  const headers: Record<string, string> = { ...deviceHeader(), ...(init.headers as Record<string, string>) };
   if (token) headers.authorization = `Bearer ${token}`;
   if (room != null) headers['x-room'] = String(room);
   let body = init.body;

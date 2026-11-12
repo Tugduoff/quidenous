@@ -872,6 +872,22 @@ async fn legacy_accounts_keep_working_and_can_be_secured() {
     assert_eq!(s, StatusCode::OK);
     assert_ne!(b["token"].as_str().unwrap(), marc);
 
+    // A session from before accounts (no device label) gets one from its next request.
+    let (_, list) = call(&t.app, "GET", "/auth/sessions", Some(&louis), None).await;
+    assert_eq!(list[0]["device"], Value::Null);
+    let r = send(
+        &t.app,
+        "GET",
+        "/me",
+        Some(&louis),
+        None,
+        &[("x-device", "iPhone%20%C2%B7%20iOS%2018")],
+    )
+    .await;
+    assert_eq!(r.status, StatusCode::OK);
+    let (_, list) = call(&t.app, "GET", "/auth/sessions", Some(&louis), None).await;
+    assert_eq!(list[0]["device"], "iPhone · iOS 18");
+
     let (_, acct) = call(&t.app, "GET", "/auth/account", Some(&louis), None).await;
     assert_eq!(acct["secured"], false);
     assert_eq!(acct["email"], Value::Null);

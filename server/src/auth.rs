@@ -90,7 +90,9 @@ impl FromRequestParts<AppState> for Me {
             .get("x-room")
             .and_then(|v| v.to_str().ok())
             .and_then(|v| v.parse::<i64>().ok());
-        Ok(Me(member_in_room(state, token, room).await?))
+        let me = member_in_room(state, token, room).await?;
+        crate::accounts::label(state, token, &parts.headers).await;
+        Ok(Me(me))
     }
 }
 
@@ -105,6 +107,8 @@ impl FromRequestParts<AppState> for UserId {
         state: &AppState,
     ) -> Result<Self, Self::Rejection> {
         let token = bearer(parts).ok_or(AppError::Unauthorized)?;
-        Ok(UserId(user_for_token(state, token).await?))
+        let user = user_for_token(state, token).await?;
+        crate::accounts::label(state, token, &parts.headers).await;
+        Ok(UserId(user))
     }
 }
