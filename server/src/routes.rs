@@ -43,7 +43,8 @@ pub fn router() -> Router<AppState> {
                     "friends",
                     "ranking",
                     "room_imports",
-                    "share_cards"
+                    "share_cards",
+                    "packs"
                 ]))
             }),
         )
@@ -79,6 +80,16 @@ pub fn router() -> Router<AppState> {
         )
         .route("/rooms", get(crate::rooms::list).post(crate::rooms::create))
         .route("/rooms/join", post(crate::rooms::join))
+        .route(
+            "/packs",
+            get(crate::packs::list).post(crate::packs::publish),
+        )
+        .route(
+            "/packs/{id}",
+            get(crate::packs::get).delete(crate::packs::delete),
+        )
+        .route("/packs/{id}/install", post(crate::packs::install))
+        .route("/packs/{id}/report", post(crate::packs::report))
         .route("/rooms/{id}/add", post(crate::friends::add_to_room))
         .route(
             "/friends",

@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import * as DocumentPicker from 'expo-document-picker';
+import { router } from 'expo-router';
 import { Check, FileUp, Lock, MessageCircleQuestion, Plus, X } from 'lucide-react-native';
 import { useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
@@ -101,7 +102,15 @@ export default function QuestionsScreen() {
                 onChangeText={setText}
                 multiline
                 maxLength={200}
-                style={{ minHeight: rank ? 60 : 96, padding: 16, paddingTop: rank ? 8 : 16, fontFamily: t.font.regular, fontSize: 16, color: t.txt, textAlignVertical: 'top' }}
+                style={{
+                  minHeight: rank ? 60 : 96,
+                  padding: 16,
+                  paddingTop: rank ? 8 : 16,
+                  fontFamily: t.font.regular,
+                  fontSize: 16,
+                  color: t.txt,
+                  textAlignVertical: 'top',
+                }}
               />
             </Card>
             <Pressable
@@ -120,13 +129,25 @@ export default function QuestionsScreen() {
               <Plus size={26} color={ok ? t.accTxt : t.mut} />
             </Pressable>
           </View>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-            <Text style={{ flex: 1, fontFamily: t.font.regular, fontSize: 13, color: t.mut }}>
-              {`${(data?.custom.length ?? 0) + (data?.deck_left ?? 0)} à venir`}
-              {imported ? `  ·  ${imported}` : ''}
-            </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             {/* The next question is a ranking (everyone, first to last). */}
             <Toggle label="🏆 Classement" value={rank} onChange={setRank} />
+            <View style={{ flex: 1 }} />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Packs de questions"
+              onPress={() => router.push('/packs')}
+              style={{
+                height: 32,
+                paddingHorizontal: 10,
+                borderRadius: t.radius.pill,
+                justifyContent: 'center',
+                backgroundColor: t.card,
+                borderWidth: 1.5,
+                borderColor: t.line,
+              }}>
+              <Text style={{ fontFamily: t.font.semibold, fontSize: 12, color: t.txt }}>📦 Packs</Text>
+            </Pressable>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Importer un fichier de questions"
@@ -147,6 +168,10 @@ export default function QuestionsScreen() {
               <Text style={{ fontFamily: t.font.semibold, fontSize: 12, color: importFile.isPending ? t.mut : t.txt }}>Importer</Text>
             </Pressable>
           </View>
+          <Text style={{ fontFamily: t.font.regular, fontSize: 13, color: t.mut, marginLeft: 4 }}>
+            {`${(data?.custom.length ?? 0) + (data?.deck_left ?? 0)} questions à venir`}
+            {imported ? `  ·  ${imported}` : ''}
+          </Text>
         </>
       )}
       {draft && (

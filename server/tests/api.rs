@@ -1315,3 +1315,83 @@ async fn public_share_links_show_only_the_card() {
     .await;
     assert_eq!(s, StatusCode::NOT_FOUND);
 }
+
+#[tokio::test]
+async fn community_packs_publish_install_report() {
+    let app = test_app().await;
+    let (a, _) = join(&app, "Ana").await;
+    let (b, _) = join(&app, "Bob").await;
+    let file = "Qui a le plus de chaussettes dépareillées ?\nQui ferait le pire astronaute ?\nQui pleure devant les pubs ?\n[classement] Classe-nous du plus frileux au plus résistant\nQui perd toujours ses clés ?\nnon\n";
+    let (s, pack) = call(
+        &app,
+        "POST",
+        "/packs",
+        Some(&a),
+        Some(json!({ "name": "Soirée chill", "description": "Doux", "text": file })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{pack}");
+    assert_eq!(pack["count"], 5);
+    let id = pack["id"].as_i64().unwrap();
+    let (s, _) = call(
+        &app,
+        "POST",
+        "/packs",
+        Some(&a),
+        Some(json!({ "name": "Trop court", "text": "Qui de nous dort le plus ?" })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    let (_, list) = call(&app, "GET", "/packs?q=chill", Some(&b), None).await;
+    assert_eq!(list[0]["name"], "Soirée chill");
+    assert_eq!(list[0]["sample"].as_array().unwrap().len(), 3);
+    // Bob installs it in a room of his own: in the queue, kinds kept, no duplicates on reinstall.
+    let (_, room) = call(
+        &app,
+        "POST",
+        "/rooms",
+        Some(&b),
+        Some(json!({ "name": "Chez Bob" })),
+    )
+    .await;
+    let room = room["id"].as_i64().unwrap();
+    let (s, body) = call_room(
+        &app,
+        "POST",
+        &format!("/packs/{id}/install"),
+        &b,
+        room,
+        None,
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{body}");
+    assert_eq!(body["added"], 5);
+    let (_, again) = call_room(
+        &app,
+        "POST",
+        &format!("/packs/{id}/install"),
+        &b,
+        room,
+        None,
+    )
+    .await;
+    assert_eq!(again["added"], 0);
+    let (_, queue) = call_room(&app, "GET", "/questions/queue", &b, room, None).await;
+    assert!(
+        queue["custom"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|q| q["kind"] == "rank")
+    );
+    // Three reports hide it.
+    for name in ["Cyd", "Dan", "Eve"] {
+        let (t, _) = join(&app, name).await;
+        call(&app, "POST", &format!("/packs/{id}/report"), Some(&t), None).await;
+    }
+    let (_, list) = call(&app, "GET", "/packs", Some(&b), None).await;
+    assert_eq!(list, json!([]));
+    // Only the author deletes.
+    let (s, _) = call(&app, "DELETE", &format!("/packs/{id}"), Some(&b), None).await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+}

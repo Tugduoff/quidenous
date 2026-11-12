@@ -49,6 +49,8 @@ function Root() {
           <Stack.Screen name="inbox" />
           <Stack.Screen name="rooms" />
           <Stack.Screen name="friends" />
+          <Stack.Screen name="packs" />
+          <Stack.Screen name="pack/[id]" />
         </Stack.Protected>
         <Stack.Protected guard={!token}>
           <Stack.Screen name="join" />

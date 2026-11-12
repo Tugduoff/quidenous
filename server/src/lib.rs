@@ -7,6 +7,7 @@ pub mod game;
 pub mod inbox;
 pub mod live;
 pub mod models;
+pub mod packs;
 pub mod push;
 pub mod rooms;
 pub mod routes;
