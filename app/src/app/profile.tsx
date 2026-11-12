@@ -1,4 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
+import { File as FsFile } from 'expo-file-system';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
@@ -8,7 +9,7 @@ import { ActivityIndicator, Platform, Pressable, Text, TextInput, View } from 'r
 
 import { Screen } from '@/components/screen';
 import { Avatar, Button, Card, Display } from '@/components/ui';
-import { api, apiUpload, type Member } from '@/lib/api';
+import { api, ApiError, apiUpload, type Member } from '@/lib/api';
 import { keys } from '@/lib/queries';
 import { useSession } from '@/lib/session';
 import { ACCENTS, setAccent, setThemePref, useAccent, useTheme, useThemePref, type Accent, type ThemePref } from '@/lib/theme';
@@ -29,7 +30,8 @@ async function photoForm(uri: string) {
   if (Platform.OS === 'web') {
     form.append('photo', await (await fetch(small.uri)).blob(), 'photo.jpg');
   } else {
-    form.append('photo', { uri: small.uri, name: 'photo.jpg', type: 'image/jpeg' } as unknown as Blob);
+    // expo/fetch (the global fetch since SDK 58) can't send React Native's { uri } parts; a file-system File it can.
+    form.append('photo', new FsFile(small.uri), 'photo.jpg');
   }
   return form;
 }
@@ -50,19 +52,20 @@ export default function Profile() {
   };
 
   const pickPhoto = async () => {
-    const picked = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 1,
-    });
-    if (picked.canceled || !picked.assets[0]) return;
-    setBusy('photo');
     setError(null);
     try {
+      const picked = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 1,
+      });
+      if (picked.canceled || !picked.assets[0]) return;
+      setBusy('photo');
       updated(await apiUpload<Member>('/me/photo', await photoForm(picked.assets[0].uri)));
-    } catch {
-      setError('Photo non envoyée');
+    } catch (e) {
+      // Say why, so a failure on someone's phone can be told apart (server refusal vs. on the phone).
+      setError(`Photo non envoyée (${e instanceof ApiError ? e.status : e instanceof Error ? e.message.slice(0, 60) : 'erreur'})`);
     } finally {
       setBusy(null);
     }
