@@ -10,6 +10,7 @@ pub mod models;
 pub mod push;
 pub mod rooms;
 pub mod routes;
+pub mod share;
 pub mod stats;
 
 use std::{str::FromStr, sync::Arc};
@@ -54,7 +55,10 @@ pub async fn state(config: Config) -> anyhow_free::Result<AppState> {
     let first_group = deck::ensure_group(&db, &config.group_name, &config.join_code).await?;
     let moved = deck::adopt_imports(&db, first_group).await?;
     if moved > 0 {
-        tracing::info!(moved, "imported questions moved from the shared deck to the first room");
+        tracing::info!(
+            moved,
+            "imported questions moved from the shared deck to the first room"
+        );
     }
     let vapid = match &config.vapid_private_key {
         Some(key) => Some(push::Vapid::new(key, config.vapid_subject.clone())?),
@@ -81,6 +85,8 @@ pub fn app(state: AppState) -> Router {
     let photos = ServeDir::new(state.config.data_dir.join("photos"));
     let mut app = Router::new()
         .nest("/api", routes::router())
+        .route("/s/{token}", axum::routing::get(share::page))
+        .route("/s/{token}/card.png", axum::routing::get(share::card_png))
         .nest_service("/photos", photos);
     if let Some(web) = &state.config.web_dir {
         app = app

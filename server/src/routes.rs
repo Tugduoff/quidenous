@@ -37,7 +37,15 @@ pub fn router() -> Router<AppState> {
         // What this server can do, so apps (and release scripts) can tell a deploy has landed.
         .route(
             "/features",
-            get(|| async { Json(json!(["rooms", "friends", "ranking", "room_imports"])) }),
+            get(|| async {
+                Json(json!([
+                    "rooms",
+                    "friends",
+                    "ranking",
+                    "room_imports",
+                    "share_cards"
+                ]))
+            }),
         )
         .route("/join", post(join))
         .route("/me", get(me).put(update_me))
@@ -55,6 +63,7 @@ pub fn router() -> Router<AppState> {
         .route("/rounds/{id}", get(round))
         .route("/rounds/{id}/seen", post(mark_seen))
         .route("/rounds/{id}/pin", put(pin).delete(unpin))
+        .route("/rounds/{id}/share", post(crate::share::create))
         .route("/rounds/{id}/messages", get(messages).post(post_message))
         .route("/inbox", get(inbox))
         .route("/inbox/read", post(read_inbox))

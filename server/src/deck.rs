@@ -49,9 +49,10 @@ pub async fn adopt_imports(db: &SqlitePool, first_group: i64) -> sqlx::Result<u6
         .filter(|l| !l.is_empty() && !l.starts_with('#'))
         .map(|l| parse_line(l).0)
         .collect();
-    let shared: Vec<(i64, String)> = sqlx::query_as("SELECT id, text FROM questions WHERE group_id IS NULL")
-        .fetch_all(db)
-        .await?;
+    let shared: Vec<(i64, String)> =
+        sqlx::query_as("SELECT id, text FROM questions WHERE group_id IS NULL")
+            .fetch_all(db)
+            .await?;
     let mut moved = 0;
     for (id, text) in shared {
         if !builtin.contains(text.as_str()) {

@@ -1,6 +1,6 @@
 import { Linking, Platform, Share } from 'react-native';
 
-import { API_URL, historyExportUrl, type Member, type Round } from './api';
+import { api, API_URL, historyExportUrl, type Member, type Round } from './api';
 
 /** Where friends can open the app (web app served by the API server). */
 const appUrl = () => API_URL || (typeof location !== 'undefined' ? location.origin : '');
@@ -15,6 +15,16 @@ export function friendMessage(code: string) {
 /** Invite to a room: the link carries the code, so it opens the join screen ready to go. */
 export function inviteMessage(roomName: string, code: string) {
   return `Rejoins « ${roomName} » sur qui de nous ? 👉 ${appUrl()}/?code=${code}\n(code : ${code})`;
+}
+
+/** Public link to a card of this question (with its podium when `result`), previewed as an image in chats. */
+export async function publicLink(roundId: number, result: boolean): Promise<string | null> {
+  try {
+    const r = await api<{ path: string }>(`/rounds/${roundId}/share`, { method: 'POST', json: { result } });
+    return `${appUrl()}${r.path}`;
+  } catch {
+    return null;
+  }
 }
 
 /** The open question, as a message inviting people to vote. */

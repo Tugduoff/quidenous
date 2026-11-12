@@ -13,7 +13,7 @@ import { api, type Member, type Round } from '@/lib/api';
 import { keys, useCurrentRound, useGroup, useInbox, useMembers, useRound, useUnseenRound } from '@/lib/queries';
 import { useSession } from '@/lib/session';
 import { setHideVote, useHideVote } from '@/lib/prefs';
-import { questionMessage, resultMessage, shareText } from '@/lib/share';
+import { publicLink, questionMessage, resultMessage, shareText } from '@/lib/share';
 import { useTheme } from '@/lib/theme';
 
 function PushBell() {
@@ -167,7 +167,10 @@ function Question({ round, result }: { round: Round; result?: boolean }) {
   const { byId } = useMembers();
   const [copied, setCopied] = useState(false);
   const share = async () => {
-    const outcome = await shareText(result ? resultMessage(round, byId) : questionMessage(round));
+    // The link opens a page whose preview is a picture of the card (the result's podium too, once out).
+    const link = await publicLink(round.id, !!result);
+    const text = result ? resultMessage(round, byId) : questionMessage(round);
+    const outcome = await shareText(link ? `${text.split('\n').slice(0, -1).join('\n')}\n${link}` : text);
     if (outcome === 'copied') {
       setCopied(true);
       setTimeout(() => setCopied(false), 1800);

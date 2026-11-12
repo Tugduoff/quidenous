@@ -1214,3 +1214,104 @@ async fn an_old_app_can_still_vote_on_a_ranking_question() {
     assert_eq!(done["ranking"][0]["member_id"], b_id);
     assert_eq!(done["ranking"][0]["points"], 2);
 }
+
+#[tokio::test]
+async fn public_share_links_show_only_the_card() {
+    let app = test_app().await;
+    let (a, a_id) = join(&app, "Ana").await;
+    let (b, _) = join(&app, "Bob").await;
+    let (_, open) = call(&app, "GET", "/round/current", Some(&a), None).await;
+    let round = open["id"].as_i64().unwrap();
+    // While open, asking for the result still gives a question-only link.
+    let (s, early) = call(
+        &app,
+        "POST",
+        &format!("/rounds/{round}/share"),
+        Some(&a),
+        Some(json!({ "result": true })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{early}");
+    vote_as(&app, &a, a_id).await;
+    vote_as(&app, &b, a_id).await;
+    let (_, share) = call(
+        &app,
+        "POST",
+        &format!("/rounds/{round}/share"),
+        Some(&a),
+        Some(json!({ "result": true })),
+    )
+    .await;
+    let token = share["token"].as_str().unwrap().to_owned();
+    assert_ne!(token, early["token"].as_str().unwrap());
+    // Same request again: same link.
+    let (_, again) = call(
+        &app,
+        "POST",
+        &format!("/rounds/{round}/share"),
+        Some(&a),
+        Some(json!({ "result": true })),
+    )
+    .await;
+    assert_eq!(again["token"], share["token"]);
+    // The page needs no token and carries preview tags; the card is a PNG.
+    let res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri(format!("/s/{token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let html =
+        String::from_utf8(res.into_body().collect().await.unwrap().to_bytes().to_vec()).unwrap();
+    assert!(html.contains("og:image") && html.contains(&format!("/s/{token}/card.png")));
+    assert!(html.contains("Résultat : Ana"), "{html}");
+    let res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri(format!("/s/{token}/card.png"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    assert_eq!(res.headers()["content-type"], "image/png");
+    let png = res.into_body().collect().await.unwrap().to_bytes();
+    assert_eq!(&png[1..4], b"PNG");
+    // Unknown link, and someone outside the room can't make one.
+    let res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/s/nope")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::NOT_FOUND);
+    let (_, room) = call(
+        &app,
+        "POST",
+        "/rooms",
+        Some(&b),
+        Some(json!({ "name": "Ailleurs" })),
+    )
+    .await;
+    let (s, _) = call_room(
+        &app,
+        "POST",
+        &format!("/rounds/{round}/share"),
+        &b,
+        room["id"].as_i64().unwrap(),
+        Some(json!({})),
+    )
+    .await;
+    assert_eq!(s, StatusCode::NOT_FOUND);
+}
