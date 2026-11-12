@@ -1,189 +1,114 @@
-import {
-  AlarmClock,
-  BellRing,
-  Crown,
-  Feather,
-  Flower2,
-  Ghost,
-  Heart,
-  Hourglass,
-  Snail,
-  Star,
-  Zap,
-} from 'lucide-react-native';
-import type { ComponentType } from 'react';
+import { router } from 'expo-router';
+import { useState } from 'react';
 import { ActivityIndicator, Text, View } from 'react-native';
 
 import { Screen } from '@/components/screen';
-import { Avatar, AvatarStack, Card, Display } from '@/components/ui';
-import type { Award, Member, Stats } from '@/lib/api';
+import { Awards } from '@/components/stats/awards';
+import { Section } from '@/components/stats/common';
+import { Heatmap } from '@/components/stats/heatmap';
+import { KeyNumbers } from '@/components/stats/key-numbers';
+import { PeriodSwitch } from '@/components/stats/period-switch';
+import { Podium, podiumOf } from '@/components/stats/podium';
+import { ProfileSheet } from '@/components/stats/profile-sheet';
+import { Sparkline } from '@/components/stats/sparkline';
+import { StoryCarousel } from '@/components/stats/story-carousel';
+import { VoteMatrix } from '@/components/stats/vote-matrix';
+import { Display } from '@/components/ui';
+import type { StatsPeriod, Story } from '@/lib/api';
 import { useMembers, useStats } from '@/lib/queries';
 import { useTheme } from '@/lib/theme';
 
-type Icon = ComponentType<{ size?: number; color?: string }>;
-
-/** "45 s", "12 min", "3 h 20", "2 j 4 h". */
-function duration(seconds: number) {
-  const s = Math.max(0, Math.round(seconds));
-  if (s < 60) return `${s} s`;
-  const min = Math.round(s / 60);
-  if (min < 60) return `${min} min`;
-  const h = Math.floor(s / 3600);
-  if (h < 24) {
-    const m = Math.round((s % 3600) / 60);
-    return m ? `${h} h ${String(m).padStart(2, '0')}` : `${h} h`;
-  }
-  const d = Math.floor(h / 24);
-  return h % 24 ? `${d} j ${h % 24} h` : `${d} j`;
-}
-
-const plural = (n: number, one: string, many: string) => `${n} ${n > 1 ? many : one}`;
-
-function Tile({ value, label }: { value: string; label: string }) {
-  const t = useTheme();
-  return (
-    <Card style={{ flex: 1, padding: 12, gap: 2 }}>
-      {/* Three tiles share 320 px at 360 px wide: a long duration ("2 j 4 h") gets a smaller size instead of an ellipsis. */}
-      <Text style={{ fontFamily: t.font.display, fontSize: value.length > 5 ? 19 : 24, letterSpacing: -0.5, color: t.txt }} numberOfLines={1}>
-        {value}
-      </Text>
-      <Text numberOfLines={1} style={{ fontFamily: t.font.regular, fontSize: 12, lineHeight: 16, color: t.mut }}>
-        {label}
-      </Text>
-    </Card>
-  );
-}
-
-function AwardCard({
-  Icon,
-  title,
-  members,
-  caption,
-}: {
-  Icon: Icon;
-  title: string;
-  members: (Member | undefined)[];
-  caption: string;
-}) {
-  const t = useTheme();
-  const tint = members.length === 1 ? (members[0]?.color ?? t.accInk) : t.accInk;
-  return (
-    <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 }}>
-      {members.length === 1 ? (
-        <Avatar member={members[0]} size={44} />
-      ) : (
-        <AvatarStack members={members} size={36} ring={t.card} max={3} />
-      )}
-      <View style={{ flex: 1, gap: 2 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <Icon size={14} color={tint} />
-          <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: t.font.bold, fontSize: 12, letterSpacing: 0.3, color: t.mut, textTransform: 'uppercase' }}>
-            {title}
-          </Text>
-        </View>
-        <Text style={{ fontFamily: t.font.semibold, fontSize: 15, lineHeight: 20, color: t.txt }}>{caption}</Text>
-      </View>
-    </Card>
-  );
-}
-
-function Fact({ children }: { children: string }) {
-  const t = useTheme();
-  return (
-    <Text style={{ fontFamily: t.font.regular, fontSize: 14, lineHeight: 20, color: t.txt }}>
-      <Text style={{ color: t.accInk }}>●  </Text>
-      {children}
-    </Text>
-  );
-}
-
-/** Each award: the stat it reads, how to say it. Hidden when nobody qualifies yet. */
-const AWARDS: { key: keyof Stats; Icon: Icon; title: string; caption: (name: string, v: number) => string }[] = [
-  { key: 'most_chosen', Icon: Star, title: 'La star', caption: (n, v) => `${n}, ${plural(v, 'vote reçu', 'votes reçus')}` },
-  { key: 'most_crowned', Icon: Crown, title: 'Collection de couronnes', caption: (n, v) => `${n}, ${plural(v, 'question gagnée', 'questions gagnées')}` },
-  { key: 'narcissist', Icon: Flower2, title: 'Narcisse', caption: (n, v) => `${n} a voté ${plural(v, 'fois', 'fois')} pour soi` },
-  { key: 'fastest', Icon: Zap, title: 'Gâchette facile', caption: (n, v) => `${n} vote en ${duration(v)} en général` },
-  { key: 'slowest', Icon: Snail, title: 'Prend son temps', caption: (n, v) => `${n} met ${duration(v)} à voter en général` },
-  { key: 'last_voter', Icon: Hourglass, title: 'Tout le monde attend', caption: (n, v) => `${n}, ${plural(v, 'fois', 'fois')} le dernier vote` },
-  { key: 'nudger', Icon: BellRing, title: 'Relou officiel', caption: (n, v) => `${n}, ${plural(v, 'relance envoyée', 'relances envoyées')}` },
-  { key: 'most_nudged', Icon: AlarmClock, title: 'Toujours relancé', caption: (n, v) => `${n}, ${plural(v, 'relance reçue', 'relances reçues')}` },
-  { key: 'author', Icon: Feather, title: 'La plume', caption: (n, v) => `${n}, ${plural(v, 'question proposée', 'questions proposées')}` },
-];
+const EMPTY: Record<StatsPeriod, string> = {
+  '7d': 'Rien cette semaine. Le calme avant la tempête.',
+  '30d': 'Rien ce mois-ci. Le calme avant la tempête.',
+  all: "Rien à compter pour l'instant. Le calme avant la tempête.",
+};
 
 export default function StatsScreen() {
   const t = useTheme();
-  const { data: s, isLoading } = useStats();
+  const [period, setPeriod] = useState<StatsPeriod>('30d');
+  const { data: s, isLoading, isPlaceholderData } = useStats(period);
   const { byId } = useMembers();
-  const name = (id: number) => byId.get(id)?.name ?? '?';
+  const [profileId, setProfileId] = useState<number | null>(null);
 
-  if (isLoading || !s) {
+  const header = (
+    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+      <Display size={30}>Stats</Display>
+      <PeriodSwitch value={period} onChange={setPeriod} />
+    </View>
+  );
+
+  if (!s) {
     return (
       <Screen>
-        <Display size={30}>Stats</Display>
-        {isLoading && <ActivityIndicator color={t.mut} />}
+        {header}
+        {isLoading && <ActivityIndicator color={t.mut} style={{ marginTop: 40 }} />}
       </Screen>
     );
   }
   if (s.questions === 0) {
     return (
       <Screen>
-        <Display size={30}>Stats</Display>
-        <Text style={{ fontFamily: t.font.regular, fontSize: 15, color: t.mut }}>
-          Rien à compter pour l'instant.
+        {header}
+        <Text style={{ marginTop: 40, textAlign: 'center', fontFamily: t.font.semibold, fontSize: 16, lineHeight: 22, color: t.mut }}>
+          {EMPTY[period]}
         </Text>
       </Screen>
     );
   }
 
-  const facts = [
-    s.seconds_waiting_last > 0 && `${duration(s.seconds_waiting_last)} passées à attendre le dernier vote`,
-    s.median_round_seconds != null && `Une question dure ${duration(s.median_round_seconds)} en général`,
-    s.unanimous > 0 && `${plural(s.unanimous, 'question', 'questions')} à l'unanimité`,
-    s.ties > 0 && `${plural(s.ties, 'égalité', 'égalités')}`,
-    s.nudges > 0 && `${plural(s.nudges, 'relance', 'relances')} au total`,
-  ].filter((f): f is string => !!f);
+  const name = (id: number) => byId.get(id)?.name ?? '?';
+  const profiles = new Map(s.profiles.map((p) => [p.member_id, p]));
+  // Only people with a profile open one (an older server has none).
+  const open = (id: number) => profiles.has(id) && setProfileId(id);
+  const openStory = (story: Story) => {
+    if (story.round_id != null) router.push(`/round/${story.round_id}`);
+    else if (story.member_ids[0] != null) open(story.member_ids[0]);
+  };
+
+  const podium = podiumOf(s.profiles);
+  // The matrix lists current members (profiles), or whoever shows up in the votes on a server without profiles.
+  const ids = s.profiles.length
+    ? s.profiles.map((p) => p.member_id)
+    : [...new Set(s.edges.flatMap((e) => [e.voter_id, e.target_id]))].filter((id) => byId.has(id) && !byId.get(id)?.left).sort((a, b) => a - b);
+  const edges = s.edges.filter((e) => ids.includes(e.voter_id) && ids.includes(e.target_id));
+  const heat = s.heatmap.some((row) => row.some((v) => v > 0));
+  const activity = s.activity && s.activity.questions.length > 1 && s.activity.questions.some((v) => v > 0) ? s.activity : null;
 
   return (
     <Screen>
-      <Display size={30}>Stats</Display>
-      <View style={{ flexDirection: 'row', gap: 10 }}>
-        <Tile value={String(s.questions)} label={s.questions > 1 ? 'questions' : 'question'} />
-        <Tile value={String(s.votes)} label={s.votes > 1 ? 'votes' : 'vote'} />
-        <Tile value={duration(s.seconds_voting)} label="à voter" />
-      </View>
-
-      <View style={{ gap: 10 }}>
-        {AWARDS.map(({ key, Icon, title, caption }) => {
-          const a = s[key] as Award | null;
-          return a ? (
-            <AwardCard key={key} Icon={Icon} title={title} members={[byId.get(a.member_id)]} caption={caption(name(a.member_id), a.value)} />
-          ) : null;
-        })}
-        {s.duo && (
-          <AwardCard
-            Icon={Heart}
-            title="Le crush"
-            members={[byId.get(s.duo.voter_id), byId.get(s.duo.target_id)]}
-            caption={`${name(s.duo.voter_id)} a voté ${s.duo.value} fois pour ${name(s.duo.target_id)}`}
-          />
+      {header}
+      <View style={{ gap: 36, paddingBottom: 24, opacity: isPlaceholderData ? 0.5 : 1 }}>
+        {s.stories.length > 0 && <StoryCarousel key={period} stories={s.stories} period={period} byId={byId} onOpen={openStory} />}
+        <KeyNumbers s={s} />
+        {podium.length > 0 && (
+          <Section title="Le podium">
+            <Podium top={podium} byId={byId} onOpen={open} />
+          </Section>
         )}
-        {s.never_chosen.length > 0 && (
-          <AwardCard
-            Icon={Ghost}
-            title="Les invisibles"
-            members={s.never_chosen.map((id) => byId.get(id))}
-            caption={`${s.never_chosen.map(name).join(', ')} : zéro vote reçu`}
-          />
+        <Awards s={s} byId={byId} name={name} onOpen={open} />
+        {ids.length >= 2 && edges.length > 0 && (
+          <Section title="Qui vote pour qui">
+            <VoteMatrix ids={ids} edges={edges} byId={byId} onOpen={open} />
+          </Section>
+        )}
+        {heat && (
+          <Section title="Quand on vote">
+            <Heatmap data={s.heatmap} />
+          </Section>
+        )}
+        {activity && (
+          <Section title="Le rythme">
+            <Sparkline activity={activity} />
+          </Section>
         )}
       </View>
-
-      {facts.length > 0 && (
-        <Card style={{ padding: 16, gap: 8 }}>
-          {facts.map((f) => (
-            <Fact key={f}>{f}</Fact>
-          ))}
-        </Card>
-      )}
+      <ProfileSheet
+        profile={profileId != null ? (profiles.get(profileId) ?? null) : null}
+        byId={byId}
+        onOpen={open}
+        onClose={() => setProfileId(null)}
+      />
     </Screen>
   );
 }

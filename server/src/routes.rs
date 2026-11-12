@@ -62,6 +62,7 @@ pub fn router() -> Router<AppState> {
         .route("/history/pinned", get(pinned_history))
         .route("/history/export", get(export_history))
         .route("/stats", get(stats))
+        .route("/stats/share", post(crate::share::create_stat))
         .route("/questions", post(add_question))
         .route("/questions/queue", get(queue))
         .route("/questions/shuffle", post(shuffle_questions))
@@ -144,6 +145,7 @@ async fn features(State(state): State<AppState>) -> Json<Value> {
         "ask_questions",
         "solo_wait",
         "notification_settings",
+        "stats_v2",
     ];
     f.extend(crate::accounts::features(&state));
     Json(json!(f))
@@ -990,8 +992,23 @@ async fn unpin(
     Ok(Json(json!({ "ok": true })))
 }
 
-async fn stats(State(state): State<AppState>, Me(me): Me) -> AppResult<Json<crate::stats::Stats>> {
-    Ok(Json(crate::stats::compute(&state.db, me.group_id).await?))
+#[derive(Deserialize)]
+struct StatsQuery {
+    period: Option<String>,
+    /// Minutes east of UTC.
+    tz: Option<String>,
+}
+
+async fn stats(
+    State(state): State<AppState>,
+    Me(me): Me,
+    Query(q): Query<StatsQuery>,
+) -> AppResult<Json<crate::stats::Stats>> {
+    let period = crate::stats::Period::parse(q.period.as_deref())?;
+    let tz = crate::stats::parse_tz(q.tz.as_deref());
+    Ok(Json(
+        crate::stats::for_group(&state.db, me.group_id, period, tz).await?,
+    ))
 }
 
 #[derive(Deserialize)]

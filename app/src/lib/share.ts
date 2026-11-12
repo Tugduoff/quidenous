@@ -1,6 +1,6 @@
 import { Linking, Platform, Share } from 'react-native';
 
-import { api, API_URL, historyExportUrl, type Member, type Round } from './api';
+import { api, API_URL, historyExportUrl, type Member, type Round, type StatsPeriod, type Story } from './api';
 
 /** Where friends can open the app (web app served by the API server). */
 const appUrl = () => API_URL || (typeof location !== 'undefined' ? location.origin : '');
@@ -64,6 +64,36 @@ export async function shareText(message: string): Promise<'shared' | 'copied' | 
   } catch {
     return 'failed';
   }
+}
+
+/**
+ * Share one stats story: the server keeps a snapshot and gives a public link whose preview is the card.
+ * On the web, when the browser can share files, the card itself goes out as a picture (with the link in the text).
+ */
+export async function shareStory(period: StatsPeriod, story: Story): Promise<'shared' | 'copied' | 'failed'> {
+  let link: string | null = null;
+  try {
+    const r = await api<{ token: string; path: string }>('/stats/share', {
+      method: 'POST',
+      json: { period, key: story.key, tz: -new Date().getTimezoneOffset() },
+    });
+    link = `${appUrl()}${r.path}`;
+  } catch {}
+  const text = `qui de nous ? · ${story.title}\n${story.line}`;
+  if (link && Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.canShare && typeof File !== 'undefined') {
+    try {
+      const blob = await (await fetch(`${link}/card.png`)).blob();
+      const file = new File([blob], 'qui-de-nous.png', { type: 'image/png' });
+      if (navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], text: `${text}\n${link}` });
+        return 'shared';
+      }
+    } catch (e) {
+      // Closing the share sheet is an answer, not a failure; anything else falls back to the text.
+      if (e instanceof Error && e.name === 'AbortError') return 'shared';
+    }
+  }
+  return shareText(link ? `${text}\n${link}` : `${text}\n${appUrl()}`);
 }
 
 /** Download the history CSV: a link click on the web, the browser elsewhere. */
