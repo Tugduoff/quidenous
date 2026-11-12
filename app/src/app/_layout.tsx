@@ -11,6 +11,7 @@ import { Platform, StyleSheet, View } from 'react-native';
 import { useReducedMotion } from 'react-native-reanimated';
 
 import { AppLock } from '@/components/app-lock';
+import { CelebrationPreview } from '@/components/celebration';
 import { InstallBanner, InstallScreen, installMode } from '@/components/install';
 import { ConfirmHost } from '@/components/ui';
 import { useLive } from '@/lib/live';
@@ -111,6 +112,7 @@ function Root() {
           <InstallScreen onClose={() => setSteps(false)} />
         </View>
       )}
+      <CelebrationPreview />
       <AppLock active={!!token} />
       <ConfirmHost />
     </ThemeProvider>
