@@ -17,7 +17,7 @@ Migration `0015_auth.sql`:
 | `users.totp_pending` | encrypted secret between "set up" and "enable" |
 | `users.totp_last_step` | last accepted 30 s step: a code can't be replayed |
 | `recovery_codes` | `user_id, code_hash, used_at`: 10 one-time codes, keyed hash (HMAC-SHA256 with a key from `AUTH_SECRET`) |
-| `oauth_identities` | `user_id, provider ('google'/'discord'/'apple'), subject, email`, unique `(provider, subject)` |
+| `oauth_identities` | `user_id, provider ('google'/'discord'), subject, email`, unique `(provider, subject)`; `provider` is free text so another one (Apple) can be added later |
 | `auth_codes` | short-lived secrets, hashed: `kind` = `verify_email` / `reset_password` / `mfa` / `oauth_state` / `oauth_result`, `user_id`, `email`, `data` (JSON), `expires_at`, `used_at`, `attempts` |
 | `user_tokens.last_used_at`, `.device` | session metadata (device label from `X-Device`, else the User-Agent, 80 chars) |
 
@@ -33,10 +33,11 @@ Account kinds: **secured** = has an email + password, or at least one linked pro
 - **Rate limits** (in memory, token buckets, per IP and per account): see below. `429 {"error":"rate_limited","retry_after":s}`.
 - **Client IP**: the socket address; `X-Forwarded-For` (first hop) only when `TRUST_PROXY=1` (set it behind the homelab reverse proxy, never when the port is exposed directly).
 - **Sessions**: a reset password signs out every device. Changing the password and enabling 2FA offer to sign out the others (on by default in the app). Sign-out deletes the token server-side.
-- **OAuth**: authorization code + PKCE with the provider (done by the server, which holds the client secrets), `state` and `nonce` checked, Google/Apple ID tokens verified against their JWKS (signature, `iss`, `aud`, `exp`, `nonce`). The app gets the result through its own PKCE pair: the redirect back to the app only carries a 60 s one-time code that is useless without the app's `code_verifier`.
+- **OAuth**: authorization code + PKCE with the provider (done by the server, which holds the client secrets), `state` and `nonce` checked, Google ID tokens verified against Google's JWKS (signature, `iss`, `aud`, `exp`, `nonce`), Discord through `/users/@me` (verified email only). The app gets the result in two halves: `start` hands the app a random `key` (kept in memory / sessionStorage), the redirect back to the app only carries a 60 s one-time `code`, and `redeem` needs both. A hijacked redirect alone gets nothing.
 - **Account linking**: a provider identity attaches to an existing account only (a) from Profile > Sécurité while signed in, or (b) automatically when both the provider *and* the account have a verified email. Never on an unverified email.
 - **Legacy name grab**: `POST /api/join` without a token used to hand over any member who had the same first name. It now refuses (`409 account_protected`) when that account is secured: you must sign in.
 - **Email enumeration**: the email step says whether an account exists (needed for a one-field "continue with email" screen). It is rate-limited (20 / 10 min per IP). "Forgot password" never says whether the email exists.
+- **Email**: a small `Mailer` trait: Mailgun's HTTP API in production (reqwest, form post, 10 s timeout), a log-only mailer when Mailgun is not configured (body at INFO, API reports `email_sent: false`), a recording fake in tests. Every email has a text and an HTML part, French copy, the code in big type and nothing else.
 - **TOTP secret at rest**: encrypted with a key derived (HKDF-SHA256) from `AUTH_SECRET`. Without `AUTH_SECRET`, the server generates one into `DATA_DIR/auth.key` (0600) on first boot and logs a warning; the database alone is then still not enough, but setting `AUTH_SECRET` explicitly and keeping it out of the data backups is better. Losing it disables everyone's 2FA secrets and recovery codes (they would have to be reset in SQL).
 
 ### Rate limits
@@ -77,13 +78,13 @@ Everything under `/api/auth`. Bodies are JSON. Errors: `{"error": code}`. Sessio
 | `DELETE /auth/sessions/{id}` | yes | | `{ok}` |
 | `POST /auth/sessions/revoke-others` | yes | | `{revoked}` |
 | `POST /auth/logout` | yes | | `{ok}` (deletes this token) |
-| `GET /auth/providers` | | | `["google", "discord", "apple"]` (the configured ones) |
-| `POST /auth/oauth/{provider}/start` | optional (`link: true` needs it) | `app_redirect, code_challenge, link?` | `{url}` to open in the browser |
-| `GET\|POST /auth/oauth/{provider}/callback` | | provider redirect | 302 to `app_redirect?code=…` or `?error=…` |
-| `POST /auth/oauth/redeem` | optional | `code, code_verifier` | session or challenge, or `{linked: provider}` · `bad_code`, `identity_taken` |
+| `GET /auth/providers` | | | `["google", "discord"]` (the configured ones) |
+| `POST /auth/oauth/{provider}/start` | optional (`link: true` needs it) | `app_redirect, link?` | `{url, key}`: open `url` in the browser, keep `key` for `redeem` · `unknown_provider`, `bad_redirect` |
+| `GET /auth/oauth/{provider}/callback` | | provider redirect | 302 to `app_redirect?code=…` or `?error=…` |
+| `POST /auth/oauth/redeem` | optional | `code, key` | session or challenge, or `{linked: provider}` · `bad_code`, `identity_taken` |
 | `DELETE /auth/oauth/{provider}` | yes | | unlink · `last_method` (would leave no way to sign in) |
 
-`/api/features` gains `auth`, `email` (SMTP configured), `oauth_google`, `oauth_discord`, `oauth_apple` (each only when configured).
+`/api/features` gains `auth`, `email` (Mailgun configured), `oauth_google`, `oauth_discord` (each only when configured).
 
 `GET /api/me` (and every room endpoint) for a signed-in account with no room yet answers `403 no_room` instead of `401`, so the app sends that account to "join or create a room" instead of signing it out.
 
@@ -95,15 +96,14 @@ Everything under `/api/auth`. Bodies are JSON. Errors: `{"error": code}`. Sessio
 
 **Forgot password** — Password screen → "Mot de passe oublié ?" → `/auth/forgot` → code + new password → `/auth/reset` → signed in (or 2FA step). All other devices are signed out.
 
-**OAuth** (Google, Discord, Apple, same for web and phone, no new native module):
+**OAuth** (Google and Discord, same for web and phone, no new native module; the provider code is a small generic table so Apple can be added later):
 
-1. App makes a PKCE pair, calls `POST /auth/oauth/{p}/start {app_redirect, code_challenge}`. `app_redirect` is `quidenous://oauth` on the phone, `<origin>/oauth` on the web; anything else must start with `PUBLIC_URL` or be in `OAUTH_REDIRECTS`.
+1. App calls `POST /auth/oauth/{p}/start {app_redirect}` and keeps the returned `key`. `app_redirect` is `quidenous://oauth` on the phone, `<origin>/oauth` on the web; anything else must start with `PUBLIC_URL` or be in `OAUTH_REDIRECTS`.
 2. App opens `url` with `expo-web-browser` `openAuthSessionAsync` (web: same tab).
-3. Provider → `PUBLIC_URL/api/auth/oauth/{p}/callback` (one https redirect URI to register per provider). The server checks `state`, exchanges the code with its own PKCE verifier + client secret, verifies the ID token (Google, Apple) or reads `/users/@me` (Discord, verified email only).
+3. Provider → `PUBLIC_URL/api/auth/oauth/{p}/callback` (one https redirect URI to register per provider). The server checks `state`, exchanges the code with its own PKCE verifier + client secret, verifies the ID token (Google) or reads `/users/@me` (Discord, verified email only).
 4. Server finds the account (identity → link-mode user → verified email) or creates one (name and verified email from the provider), stores a 60 s one-time result and redirects to `app_redirect?code=…`.
-5. App `POST /auth/oauth/redeem {code, code_verifier}` → session (or 2FA challenge, or `linked`).
+5. App `POST /auth/oauth/redeem {code, key}` → session (or 2FA challenge, or `linked`).
 
-Apple posts the callback (`response_mode=form_post`, needed for name + email); its client secret is an ES256 JWT the server signs with the `.p8` key on each exchange.
 
 **Security screen** (Profile > Sécurité): email (+ verify), password (set/change, sign out others), 2FA (QR + secret, code, then 10 recovery codes to save), linked accounts (link/unlink), sessions (list, revoke, revoke all others), app lock (phone only).
 
@@ -112,7 +112,7 @@ Apple posts the callback (`response_mode=form_post`, needed for name + email); i
 ## Migration of existing users
 
 - Nothing changes for current tokens: every legacy token keeps working, no sign-out. Old app versions (0.14 and earlier) keep using `/api/join` and `/api/start`.
-- New app: a legacy account (no email, no provider) gets a dismissible "Sécurise ton compte" card on the home screen and an entry in the profile, leading to email + password or "link Google / Discord / Apple".
+- New app: a legacy account (no email, no provider) gets a dismissible "Sécurise ton compte" card on the home screen and an entry in the profile, leading to email + password or "link Google / Discord".
 - `/api/join` by first name can no longer take over a secured account. Legacy accounts stay claimable by name until they secure themselves (that's the old behaviour; the card nudges them).
 - `AUTH_REQUIRED=1` (later, once every phone runs the new build) turns off the anonymous `/api/join` and `/api/start` (`410 sign_in_required`).
 - New users only see the new screens: sign in or sign up first, then join with a code or create a room (`/api/rooms/join`, `/api/rooms`).
@@ -122,12 +122,11 @@ Apple posts the callback (`response_mode=form_post`, needed for name + email); i
 | Variable | |
 | --- | --- |
 | `AUTH_SECRET` | 32+ random bytes (e.g. `openssl rand -hex 32`). Encrypts TOTP secrets, keys code hashes. Generated into `DATA_DIR/auth.key` if absent. |
-| `PUBLIC_URL` | `https://quidenous.example.com`, needed for OAuth (callback URL) and links in emails |
+| `PUBLIC_URL` | `https://qdn.crabznetwork.com` (no trailing slash), needed for OAuth (callback URL) and links in emails. New: the server had no such setting (share links use the `Host` header) |
 | `TRUST_PROXY` | `1` behind the reverse proxy (client IP from `X-Forwarded-For`) |
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | email; port 465 = implicit TLS, else STARTTLS (587 default). Without `SMTP_HOST`, emails are logged at INFO and the API says `email_sent: false` / `email_not_configured` |
+| `MAILGUN_API_KEY`, `MAILGUN_DOMAIN`, `MAILGUN_FROM`, `MAILGUN_REGION` | email through Mailgun's HTTP API (`POST https://api.mailgun.net/v3/<domain>/messages`, basic auth `api:<key>`; `MAILGUN_REGION=eu` uses `api.eu.mailgun.net`, default `us`). `MAILGUN_FROM` like `Qui de nous ? <no-reply@mg.example.com>` (defaults to `Qui de nous ? <no-reply@<domain>>`). Without key + domain, emails are logged at INFO and the API says `email_sent: false` / `503 email_not_configured`: nothing pretends to have sent |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Google "Web application" OAuth client, redirect URI `PUBLIC_URL/api/auth/oauth/google/callback` |
 | `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET` | Discord application > OAuth2, redirect `PUBLIC_URL/api/auth/oauth/discord/callback` |
-| `APPLE_CLIENT_ID`, `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY` (PEM, or `APPLE_PRIVATE_KEY_FILE`) | Sign in with Apple: Services ID, team, key id, `.p8` key. Return URL `PUBLIC_URL/api/auth/oauth/apple/callback` |
 | `OAUTH_REDIRECTS` | extra allowed app redirects, comma-separated prefixes (e.g. `exp://` for Expo Go in dev) |
 | `AUTH_REQUIRED` | `1` = no more anonymous join/start |
 
@@ -136,13 +135,12 @@ A provider is on only when all its variables (and `PUBLIC_URL`) are set.
 ## What Tugdual has to do
 
 1. `AUTH_SECRET`, `PUBLIC_URL`, `TRUST_PROXY=1` in `deploy/.env` (Ravenne's homelab).
-2. An SMTP account (any provider: Brevo, Resend SMTP, Mailjet, Gmail app password…) → `SMTP_*`, with SPF/DKIM on the sending domain so codes don't land in spam.
+2. Mailgun → `MAILGUN_API_KEY` (Sending API key), `MAILGUN_DOMAIN`, `MAILGUN_FROM`, `MAILGUN_REGION` (`eu` if the account was created in the EU region). **Free plan caveat**: on the sandbox domain (`sandboxXXXX.mailgun.org`) Mailgun only delivers to *authorized recipients* (up to 5, each must accept an invite), so real users get nothing until a custom domain (e.g. `mg.crabznetwork.com`) is added and verified (SPF + DKIM TXT records, MX optional). Do that before opening to the public.
 3. Google: Cloud console > APIs & Services > Credentials > OAuth client "Web application", redirect URI above; OAuth consent screen (app name, support email; publish it, scopes `openid email profile` need no review).
 4. Discord: developer portal > New application > OAuth2: copy client id/secret, add the redirect.
-5. Apple (paid Apple Developer account): an App ID with "Sign in with Apple", a Services ID (= `APPLE_CLIENT_ID`) with the domain and return URL, a key with "Sign in with Apple" (`.p8`, key id).
-6. A new native build (EAS) for the app lock (`expo-local-authentication`); everything else ships with the web app and an OTA-compatible JS update.
-7. Later: `AUTH_REQUIRED=1` once the old builds are gone.
+5. A new native build (EAS) for the app lock (`expo-local-authentication`); everything else ships with the web app and an OTA-compatible JS update.
+6. Later: `AUTH_REQUIRED=1` once the old builds are gone.
 
 ## Not in this round
 
-Changing the email of an account, deleting an account, passkeys (WebAuthn), native Sign in with Apple sheet on iOS (`expo-apple-authentication`; the web flow works everywhere meanwhile), email links (codes only).
+Changing the email of an account, deleting an account, passkeys (WebAuthn), Sign in with Apple (left out for now; adding it = one more provider entry + an ES256 client-secret JWT, plus `expo-apple-authentication` for the native sheet), email links (codes only).
