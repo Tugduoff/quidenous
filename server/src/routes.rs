@@ -17,7 +17,7 @@ use crate::{
     game,
     live::Event,
     models::{HistoryItem, Member, MemberRow, QueuedQuestion, RoundView},
-    push::Notification,
+    push::{Kind, Notification},
 };
 
 pub(crate) const COLORS: [&str; 8] = [
@@ -111,6 +111,14 @@ pub fn router() -> Router<AppState> {
             put(crate::moderation::block).delete(crate::moderation::unblock),
         )
         .route("/live", get(live))
+        .route(
+            "/notifications",
+            get(crate::notifications::get).put(crate::notifications::put),
+        )
+        .route(
+            "/rooms/{id}/mute",
+            put(crate::notifications::mute).delete(crate::notifications::unmute),
+        )
         .route("/push/config", get(push_config))
         .route("/push/subscribe", post(push_subscribe))
         .route("/push/unsubscribe", post(push_unsubscribe))
@@ -135,6 +143,7 @@ async fn features(State(state): State<AppState>) -> Json<Value> {
         "vibes",
         "ask_questions",
         "solo_wait",
+        "notification_settings",
     ];
     f.extend(crate::accounts::features(&state));
     Json(json!(f))
@@ -1176,13 +1185,18 @@ pub(crate) async fn notify_round(
         ),
         None => None,
     };
-    let (title, body) = match (closed, question) {
-        (true, Some(q)) => ("Résultat dispo · nouvelle question".to_owned(), q),
+    let (title, body, kinds) = match (closed, question) {
+        (true, Some(q)) => (
+            "Résultat dispo · nouvelle question".to_owned(),
+            q,
+            vec![Kind::Result, Kind::Question],
+        ),
         (true, None) => (
             "Résultat dispo".to_owned(),
             "Tout le monde a voté.".to_owned(),
+            vec![Kind::Result],
         ),
-        (false, Some(q)) => ("Nouvelle question".to_owned(), q),
+        (false, Some(q)) => ("Nouvelle question".to_owned(), q, vec![Kind::Question]),
         (false, None) => return Ok(()),
     };
     state.push.notify_group(
@@ -1190,6 +1204,7 @@ pub(crate) async fn notify_round(
         group_id,
         skip,
         Notification {
+            kinds,
             title,
             body: body.clone(),
             tag: format!("round-{group_id}"),
@@ -1319,6 +1334,7 @@ async fn post_message(
         me.group_id,
         &me,
         Notification {
+            kinds: vec![Kind::Chat],
             title: format!("{} · « {} »", me.name, round.text),
             body: text.to_owned(),
             tag: format!("chat-{id}"),
@@ -1488,6 +1504,7 @@ async fn nudge(
         body.member_id,
         me.user_id,
         Notification {
+            kinds: vec![Kind::Nudge],
             title: format!("{} attend ton vote", me.name),
             body: round.text,
             tag: format!("round-{}", me.group_id),
@@ -1531,6 +1548,7 @@ async fn ask_questions(State(state): State<AppState>, Me(me): Me) -> AppResult<J
         owner,
         me.user_id,
         Notification {
+            kinds: vec![Kind::Ask],
             title,
             body: format!("Plus de questions dans « {room} »."),
             tag: format!("ask-{}", me.group_id),

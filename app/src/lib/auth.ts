@@ -83,6 +83,8 @@ export function useFeatures() {
     vibes: on.has('vibes'),
     /** A member who can't add questions can ask the owner for some (`/questions/ask`). */
     askQuestions: on.has('ask_questions'),
+    /** Per-account push settings (`/notifications`) and muting a room (`/rooms/{id}/mute`). */
+    notificationSettings: on.has('notification_settings'),
   };
 }
 

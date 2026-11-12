@@ -14,7 +14,7 @@ use crate::{
     error::{AppError, AppResult},
     game, inbox,
     live::Event,
-    push::Notification,
+    push::{Kind, Notification},
     rooms::seat,
     routes::COLORS,
 };
@@ -193,6 +193,7 @@ pub async fn add_to_room(
         member_id,
         Some(me),
         Notification {
+            kinds: vec![Kind::Added],
             title: "Nouveau salon".into(),
             body: text,
             tag: format!("room-{room}"),

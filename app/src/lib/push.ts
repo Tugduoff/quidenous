@@ -55,6 +55,13 @@ async function sendSubscription(subscription: PushSubscription) {
   });
 }
 
+/** This browser has a live push subscription (permission alone isn't enough: a subscription can be dropped). */
+export async function webSubscribed() {
+  if (pushState() !== 'granted') return false;
+  const registration = await navigator.serviceWorker.getRegistration();
+  return !!(await registration?.pushManager.getSubscription());
+}
+
 /** On start: re-send an existing subscription (new login on this device, rotated endpoint). */
 export async function refreshPush() {
   if (pushState() !== 'granted') return;

@@ -62,7 +62,7 @@ async fn owner_seat(state: &AppState, user_id: i64, room: i64) -> AppResult<Memb
 }
 
 /// My rooms, most recently used first, with what's waiting for me in each.
-type RoomRow = (i64, String, String, i64, Option<i64>, bool, i64);
+type RoomRow = (i64, String, String, i64, Option<i64>, bool, i64, bool);
 
 pub async fn list(State(state): State<AppState>, UserId(user): UserId) -> AppResult<Json<Value>> {
     let rows: Vec<RoomRow> = sqlx::query_as(
@@ -73,7 +73,8 @@ pub async fn list(State(state): State<AppState>, UserId(user): UserId) -> AppRes
                         WHERE r.group_id = g.id AND r.closed_at IS NULL AND v.voter_id = m.id), \
                 (SELECT COUNT(*) FROM inbox WHERE inbox.member_id = m.id AND inbox.read_at IS NULL AND \
                  NOT EXISTS (SELECT 1 FROM members a JOIN blocks b ON b.blocked_id = a.user_id \
-                             WHERE a.id = inbox.actor_id AND b.user_id = ?1)) \
+                             WHERE a.id = inbox.actor_id AND b.user_id = ?1)), \
+                m.muted \
          FROM members m JOIN groups g ON g.id = m.group_id AND g.deleted_at IS NULL \
          JOIN users u ON u.id = m.user_id \
          WHERE m.user_id = ?1 AND m.removed_at IS NULL \
@@ -84,9 +85,9 @@ pub async fn list(State(state): State<AppState>, UserId(user): UserId) -> AppRes
     .await?;
     let rooms: Vec<Value> = rows
         .into_iter()
-        .map(|(id, name, role, members, open, voted, unread)| {
+        .map(|(id, name, role, members, open, voted, unread, muted)| {
             json!({ "id": id, "name": name, "role": role, "members": members,
-                    "open_number": open, "voted": voted, "unread": unread })
+                    "open_number": open, "voted": voted, "unread": unread, "muted": muted })
         })
         .collect();
     Ok(Json(json!(rooms)))

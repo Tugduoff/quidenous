@@ -84,7 +84,8 @@ export type Vibe = { id: string; name: string; icon: string; description: string
 export type Friend = { user_id: number; name: string; color: string; photo_url: string | null; rooms_in_common: number; added: boolean };
 export type PackSummary = { id: number; name: string; description: string; author: string; installs: number; count: number; mine: boolean; sample: string[] };
 export type Pack = Omit<PackSummary, 'count' | 'sample'> & { questions: { text: string; kind: 'pick' | 'rank' }[] };
-export type RoomSummary = { id: number; name: string; role: Role; members: number; open_number: number | null; voted: boolean; unread: number };
+/** `muted`: no pushes from this room for me (absent from an older server). */
+export type RoomSummary = { id: number; name: string; role: Role; members: number; open_number: number | null; voted: boolean; unread: number; muted?: boolean };
 export type HistoryItem = {
   id: number;
   number: number;

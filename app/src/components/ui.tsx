@@ -203,8 +203,20 @@ const styles = StyleSheet.create({
   tag: { alignSelf: 'flex-start', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
 });
 
-/** A small on/off switch with its label, drawn to match the app (lime when on). */
-export function Toggle({ label, value, onChange, icon: Icon }: { label: string; value: boolean; onChange: (v: boolean) => void; icon?: LucideIcon }) {
+/** A small on/off switch with its label, drawn to match the app (lime when on). An empty label shows the switch alone (`a11y` names it). */
+export function Toggle({
+  label,
+  value,
+  onChange,
+  icon: Icon,
+  a11y,
+}: {
+  label: string;
+  value: boolean;
+  onChange: (v: boolean) => void;
+  icon?: LucideIcon;
+  a11y?: string;
+}) {
   const t = useTheme();
   const on = useSharedValue(value ? 1 : 0);
   useEffect(() => {
@@ -224,13 +236,13 @@ export function Toggle({ label, value, onChange, icon: Icon }: { label: string; 
   return (
     <Pressable
       accessibilityRole="switch"
-      accessibilityLabel={label}
+      accessibilityLabel={a11y ?? label}
       accessibilityState={{ checked: value }}
       onPress={() => onChange(!value)}
       hitSlop={8}
       style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
       {Icon && <Icon size={14} color={value ? t.accInk : t.mut} style={{ marginRight: -3 }} />}
-      <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: value ? t.accInk : t.mut }}>{label}</Text>
+      {!!label && <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: value ? t.accInk : t.mut }}>{label}</Text>}
       <Animated.View style={[{ width: 40, height: 24, borderRadius: 12, padding: 3, borderWidth: 1, justifyContent: 'center' }, track]}>
         <Animated.View style={[{ width: 16, height: 16, borderRadius: 8 }, thumb]} />
       </Animated.View>

@@ -1,17 +1,19 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { router } from 'expo-router';
-import { Check, ChevronLeft, ChevronRight, Crown, Ellipsis, LogOut, Trash2, UserX } from 'lucide-react-native';
+import { Bell, BellOff, Check, ChevronLeft, ChevronRight, Crown, Ellipsis, LogOut, Trash2, UserX } from 'lucide-react-native';
 import { Pressable, Switch, Text, TextInput, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 
 import { AddFriends, InviteCard } from '@/components/invite';
 import { ModerationDialog, type ModTarget } from '@/components/moderation';
 import { Screen } from '@/components/screen';
 import { askConfirm, Avatar, Card, Dialog, DialogTitle, Display, PressableScale } from '@/components/ui';
 import { VibeCards, vibeIcon } from '@/components/vibes';
-import { api } from '@/lib/api';
+import { api, type RoomSummary } from '@/lib/api';
 import { useFeatures } from '@/lib/auth';
-import { keys, useGroup, useVibes } from '@/lib/queries';
+import { usePop } from '@/lib/motion';
+import { keys, useGroup, useRooms, useVibes } from '@/lib/queries';
 import { useSession } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
 
@@ -327,24 +329,70 @@ function Exit() {
   );
 }
 
+/** Whether this room's pushes are silenced for me (undefined: an older server, or not loaded yet). */
+function useMuted(id: number | undefined) {
+  const features = useFeatures();
+  const { data: rooms } = useRooms();
+  if (!features.notificationSettings || id == null) return undefined;
+  return rooms?.find((r) => r.id === id)?.muted;
+}
+
+/** Bell in the header: mute this room's pushes for me (the inbox still gets everything). */
+function MuteButton({ id, muted }: { id: number; muted: boolean }) {
+  const t = useTheme();
+  const qc = useQueryClient();
+  const pop = usePop(muted);
+  const toggle = useMutation({
+    mutationFn: (mute: boolean) => api<{ ok: boolean; muted: boolean }>(`/rooms/${id}/mute`, { method: mute ? 'PUT' : 'DELETE' }),
+    onMutate: async (mute) => {
+      await qc.cancelQueries({ queryKey: keys.rooms });
+      const before = qc.getQueryData<RoomSummary[]>(keys.rooms);
+      qc.setQueryData<RoomSummary[]>(keys.rooms, (rooms) => rooms?.map((r) => (r.id === id ? { ...r, muted: mute } : r)));
+      return { before };
+    },
+    onError: (_e, _mute, ctx) => {
+      if (ctx?.before) qc.setQueryData(keys.rooms, ctx.before);
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: keys.rooms }),
+  });
+  const Icon = muted ? BellOff : Bell;
+  return (
+    <PressableScale
+      accessibilityRole="switch"
+      accessibilityLabel="Notifications du salon"
+      accessibilityState={{ checked: !muted }}
+      onPress={() => toggle.mutate(!muted)}
+      hitSlop={6}
+      style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: muted ? t.card2 : t.card }}>
+      <Animated.View style={pop}>
+        <Icon size={20} color={muted ? t.mut : t.txt} />
+      </Animated.View>
+    </PressableScale>
+  );
+}
+
 /** The group's own page: its name and its members (my profile stays about me). */
 export default function GroupScreen() {
   const t = useTheme();
   const { me } = useSession();
   const { data: group } = useGroup();
+  const muted = useMuted(group?.id);
   return (
     <Screen tabs={false}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Retour"
-        onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
-        style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card }}>
-        <ChevronLeft size={22} color={t.txt} />
-      </Pressable>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Retour"
+          onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
+          style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card }}>
+          <ChevronLeft size={22} color={t.txt} />
+        </Pressable>
+        {group && muted !== undefined && <MuteButton id={group.id} muted={muted} />}
+      </View>
       <View style={{ gap: 4 }}>
         <Display size={30}>{group?.name ?? 'Groupe'}</Display>
         <Text style={{ fontFamily: t.font.regular, fontSize: 14, color: t.mut }}>
-          {group ? `${group.members.length} membre${group.members.length > 1 ? 's' : ''}` : ''}
+          {group ? `${group.members.length} membre${group.members.length > 1 ? 's' : ''}${muted ? ' · en sourdine' : ''}` : ''}
         </Text>
       </View>
       {me && (
