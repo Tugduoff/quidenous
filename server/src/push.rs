@@ -27,8 +27,49 @@ const RECORD_SIZE: u32 = 4096;
 const TTL_SECONDS: &str = "86400";
 const JWT_LIFETIME_SECONDS: u64 = 12 * 3600;
 
+/// What a push is about: each kind can be turned off in the notification settings.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Kind {
+    Question,
+    Result,
+    Chat,
+    Nudge,
+    Added,
+    Ask,
+}
+
+impl Kind {
+    pub const ALL: [Kind; 6] = [
+        Kind::Question,
+        Kind::Result,
+        Kind::Chat,
+        Kind::Nudge,
+        Kind::Added,
+        Kind::Ask,
+    ];
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Kind::Question => "question",
+            Kind::Result => "result",
+            Kind::Chat => "chat",
+            Kind::Nudge => "nudge",
+            Kind::Added => "added",
+            Kind::Ask => "ask",
+        }
+    }
+
+    pub fn parse(s: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|k| k.as_str() == s)
+    }
+}
+
 #[derive(Clone, Debug, Serialize)]
 pub struct Notification {
+    /// Sent if the person wants any of these (a result with the next question is both).
+    #[serde(skip)]
+    pub kinds: Vec<Kind>,
     pub title: String,
     pub body: String,
     /// Groups notifications on the phone: a newer one replaces the older one.
@@ -47,15 +88,52 @@ impl Notification {
     }
 }
 
+/// One device, the room it would hear about, and what its owner wants pushed.
 #[derive(sqlx::FromRow)]
-struct Subscription {
+pub struct Recipient {
     id: i64,
     kind: String,
     endpoint: String,
     p256dh: Option<String>,
     auth: Option<String>,
-    user_id: Option<i64>,
-    group_id: i64,
+    pub user_id: Option<i64>,
+    pub group_id: i64,
+    muted: bool,
+    enabled: Option<bool>,
+    off: Option<String>,
+    quiet_start: Option<i64>,
+    quiet_end: Option<i64>,
+    tz_offset: Option<i64>,
+}
+
+impl Recipient {
+    /// Their settings let this through: room not muted, master switch on, one of the kinds on,
+    /// and not their quiet hours (dropped then: the inbox has it).
+    fn wants(&self, kinds: &[Kind], now: u64) -> bool {
+        let off = self.off.as_deref().unwrap_or("");
+        let wanted = kinds
+            .iter()
+            .any(|k| !off.split(',').any(|o| o == k.as_str()));
+        let quiet = match (self.quiet_start, self.quiet_end) {
+            (Some(start), Some(end)) => {
+                in_quiet_hours(start, end, self.tz_offset.unwrap_or(0), now)
+            }
+            _ => false,
+        };
+        !self.muted && self.enabled.unwrap_or(true) && wanted && !quiet
+    }
+}
+
+/// `now` (unix seconds) falls in [start, end) local time; minutes after midnight, may wrap.
+pub fn in_quiet_hours(start: i64, end: i64, tz_offset: i64, now: u64) -> bool {
+    let local = (now as i64 / 60 + tz_offset).rem_euclid(24 * 60);
+    if start == end {
+        false
+    } else if start < end {
+        (start..end).contains(&local)
+    } else {
+        local >= start || local < end
+    }
 }
 
 /// An app that has said nothing for this long is gone (iOS can freeze it without closing the socket).
@@ -271,7 +349,7 @@ pub struct Push {
     presence: Presence,
 }
 
-enum Target {
+pub enum Target {
     Group {
         group_id: i64,
         skip_member: Option<i64>,
@@ -369,46 +447,10 @@ impl Push {
         let push = self.clone();
         let n = n.with_room_link();
         tokio::spawn(async move {
-            let query = match target {
-                Target::Group {
-                    group_id,
-                    skip_member,
-                    from_user,
-                } => sqlx::query_as(
-                    // Every device of every active member's account (one account can sit in several rooms).
-                    "SELECT s.id, s.kind, s.endpoint, s.p256dh, s.auth, s.user_id, m.group_id \
-                     FROM push_subscriptions s JOIN members m ON m.user_id = s.user_id \
-                     WHERE m.group_id = ? AND m.removed_at IS NULL AND m.id IS NOT ? \
-                     AND NOT EXISTS (SELECT 1 FROM blocks b WHERE b.user_id = s.user_id AND b.blocked_id = ?)",
-                )
-                .bind(group_id)
-                .bind(skip_member)
-                .bind(from_user),
-                Target::Member {
-                    member_id,
-                    from_user,
-                } => sqlx::query_as(
-                    "SELECT s.id, s.kind, s.endpoint, s.p256dh, s.auth, s.user_id, m.group_id \
-                     FROM push_subscriptions s JOIN members m ON m.user_id = s.user_id \
-                     WHERE m.id = ? AND ? IS NULL \
-                     AND NOT EXISTS (SELECT 1 FROM blocks b WHERE b.user_id = s.user_id AND b.blocked_id = ?)",
-                )
-                .bind(member_id)
-                .bind(None::<i64>)
-                .bind(from_user),
-            };
-            let subs: Vec<Subscription> = match query.fetch_all(&db).await {
+            let subs = match push.recipients(&db, &target, &n.kinds, now_secs()).await {
                 Ok(subs) => subs,
                 Err(e) => return tracing::error!(error = %e, "push: load subscriptions"),
             };
-            // The app is open on this room: the screen already shows it, no notification.
-            let subs: Vec<Subscription> = subs
-                .into_iter()
-                .filter(|s| {
-                    !s.user_id
-                        .is_some_and(|u| push.presence.is_here(u, s.group_id))
-                })
-                .collect();
             // Everyone at once: a slow push service must not delay the others.
             let results =
                 futures::future::join_all(subs.iter().map(|sub| push.deliver(sub, &n))).await;
@@ -429,7 +471,67 @@ impl Push {
         });
     }
 
-    async fn deliver(&self, sub: &Subscription, n: &Notification) -> Delivery {
+    /// The devices a push for `target` goes to at `now` (unix seconds), after blocks, the app
+    /// being open on the room, room mutes and notification settings.
+    pub async fn recipients(
+        &self,
+        db: &SqlitePool,
+        target: &Target,
+        kinds: &[Kind],
+        now: u64,
+    ) -> sqlx::Result<Vec<Recipient>> {
+        // Same columns for both, written out: sqlx wants static SQL.
+        macro_rules! select {
+            ($where:literal) => {
+                concat!(
+                    "SELECT s.id, s.kind, s.endpoint, s.p256dh, s.auth, s.user_id, m.group_id, \
+                     m.muted, p.enabled, p.off, p.quiet_start, p.quiet_end, p.tz_offset \
+                     FROM push_subscriptions s JOIN members m ON m.user_id = s.user_id \
+                     LEFT JOIN notification_prefs p ON p.user_id = s.user_id WHERE ",
+                    $where,
+                    " AND NOT EXISTS (SELECT 1 FROM blocks b WHERE b.user_id = s.user_id AND b.blocked_id = ?)"
+                )
+            };
+        }
+        let subs: Vec<Recipient> = match *target {
+            // Every device of every active member's account (one account can sit in several rooms).
+            Target::Group {
+                group_id,
+                skip_member,
+                from_user,
+            } => {
+                sqlx::query_as(select!(
+                    "m.group_id = ? AND m.removed_at IS NULL AND m.id IS NOT ?"
+                ))
+                .bind(group_id)
+                .bind(skip_member)
+                .bind(from_user)
+                .fetch_all(db)
+                .await?
+            }
+            Target::Member {
+                member_id,
+                from_user,
+            } => {
+                sqlx::query_as(select!("m.id = ?"))
+                    .bind(member_id)
+                    .bind(from_user)
+                    .fetch_all(db)
+                    .await?
+            }
+        };
+        Ok(subs
+            .into_iter()
+            // The app is open on this room: the screen already shows it, no notification.
+            .filter(|s| {
+                !s.user_id
+                    .is_some_and(|u| self.presence.is_here(u, s.group_id))
+            })
+            .filter(|s| s.wants(kinds, now))
+            .collect())
+    }
+
+    async fn deliver(&self, sub: &Recipient, n: &Notification) -> Delivery {
         match sub.kind.as_str() {
             "web" => self.deliver_web(sub, n).await,
             "fcm" => self.deliver_fcm(sub, n).await,
@@ -437,7 +539,7 @@ impl Push {
         }
     }
 
-    async fn deliver_web(&self, sub: &Subscription, n: &Notification) -> Delivery {
+    async fn deliver_web(&self, sub: &Recipient, n: &Notification) -> Delivery {
         let Some(vapid) = &self.vapid else {
             return Delivery::Failed("VAPID not configured".into());
         };
@@ -475,7 +577,7 @@ impl Push {
         }
     }
 
-    async fn deliver_fcm(&self, sub: &Subscription, n: &Notification) -> Delivery {
+    async fn deliver_fcm(&self, sub: &Recipient, n: &Notification) -> Delivery {
         let Some(fcm) = &self.fcm else {
             return Delivery::Failed("FCM not configured".into());
         };
@@ -591,6 +693,28 @@ mod tests {
             serde_json::from_slice(&B64.decode(jwt.split('.').nth(1).unwrap()).unwrap()).unwrap();
         assert_eq!(claims["aud"], "https://fcm.googleapis.com");
         assert!(header.ends_with(&format!("k={public}")));
+    }
+}
+
+#[cfg(test)]
+mod quiet_hours_tests {
+    use super::in_quiet_hours;
+
+    #[test]
+    fn quiet_hours_wrap_past_midnight_and_follow_the_offset() {
+        let at = |h: u64, m: u64| h * 3600 + m * 60;
+        // 22:00 → 08:00 local.
+        assert!(in_quiet_hours(1320, 480, 0, at(23, 0)));
+        assert!(in_quiet_hours(1320, 480, 0, at(0, 0)));
+        assert!(!in_quiet_hours(1320, 480, 0, at(8, 0)));
+        assert!(!in_quiet_hours(1320, 480, 0, at(21, 59)));
+        // UTC-5: 02:00 UTC is 21:00 local, 04:00 UTC is 23:00.
+        assert!(!in_quiet_hours(1320, 480, -300, at(2, 0)));
+        assert!(in_quiet_hours(1320, 480, -300, at(4, 0)));
+        // 13:00 → 14:00, and an empty window.
+        assert!(in_quiet_hours(780, 840, 0, at(13, 30)));
+        assert!(!in_quiet_hours(780, 840, 0, at(14, 0)));
+        assert!(!in_quiet_hours(600, 600, 0, at(10, 0)));
     }
 }
 

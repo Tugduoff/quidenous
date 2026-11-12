@@ -4,8 +4,16 @@ import { useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
 
 import { api } from './api';
+import type { PushState } from './push';
 import { useSwitchRoomHere } from './rooms';
 import { useSession } from './session';
+
+/** Android: 'denied' once the system won't ask again (only the phone's settings can turn them back on). */
+export async function nativePushState(): Promise<PushState> {
+  if (Platform.OS !== 'android') return 'unsupported';
+  const p = await Notifications.getPermissionsAsync();
+  return p.granted ? 'granted' : p.canAskAgain ? 'default' : 'denied';
+}
 
 /** Android build: FCM token → server. The server sends through Firebase (see server/src/push.rs). */
 export async function registerNativePush() {

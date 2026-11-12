@@ -3,7 +3,7 @@ import { File as FsFile } from 'expo-file-system';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
-import { Camera, ChevronLeft, ChevronRight, LogOut, Moon, ShieldCheck, Sun, SunMoon, Users } from 'lucide-react-native';
+import { Bell, Camera, ChevronLeft, ChevronRight, LogOut, Moon, ShieldCheck, Sun, SunMoon, Users } from 'lucide-react-native';
 import { useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, Text, TextInput, View } from 'react-native';
 
@@ -195,6 +195,16 @@ export default function Profile() {
           <ChevronRight size={20} color={t.mut} />
         </Card>
       </Pressable>
+
+      {features.notificationSettings && (
+        <Pressable accessibilityRole="button" onPress={() => router.push('/notifications')}>
+          <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16 }}>
+            <Bell size={20} color={t.txt} />
+            <Text style={{ flex: 1, fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>Notifications</Text>
+            <ChevronRight size={20} color={t.mut} />
+          </Card>
+        </Pressable>
+      )}
 
       {features.auth && (
         <Pressable accessibilityRole="button" onPress={() => router.push('/security')}>

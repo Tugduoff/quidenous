@@ -179,7 +179,7 @@ export function LockSection() {
         icon={<Icon size={20} color={enabled ? t.accInk : t.mut} />}
         title={label}
         sub="Demandé en rouvrant l'app"
-        right={<Toggle label="" value={enabled} onChange={toggle} />}
+        right={<Toggle label="" a11y={label} value={enabled} onChange={toggle} />}
       />
       <ErrorText>{error}</ErrorText>
     </Section>

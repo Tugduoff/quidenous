@@ -16,6 +16,7 @@ import { ConfirmHost } from '@/components/ui';
 import { useLive } from '@/lib/live';
 import { useLock } from '@/lib/lock';
 import { registerNativePush, useNotificationTaps } from '@/lib/native-push';
+import { useNotifTzSync } from '@/lib/notifications';
 import { useRoomParam } from '@/lib/rooms';
 import { SessionProvider, useSession } from '@/lib/session';
 import { useScheme, useTheme, useThemeLoaded } from '@/lib/theme';
@@ -47,6 +48,7 @@ function Root() {
   useEffect(() => {
     if (stage === 'in') registerNativePush().catch(() => {});
   }, [stage]);
+  useNotifTzSync(stage === 'in');
   useEffect(() => {
     if (ready && fonts && themeLoaded && lock.loaded) SplashScreen.hideAsync();
   }, [ready, fonts, themeLoaded, lock.loaded]);
@@ -85,6 +87,7 @@ function Root() {
           <Stack.Screen name="packs" />
           <Stack.Screen name="pack/[id]" />
           <Stack.Screen name="security" />
+          <Stack.Screen name="notifications" />
         </Stack.Protected>
         <Stack.Protected guard={stage === 'room'}>
           <Stack.Screen name="setup" />
