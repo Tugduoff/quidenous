@@ -1,4 +1,4 @@
-import { type ReactNode, useSyncExternalStore } from 'react';
+import { type ReactNode, useEffect, useSyncExternalStore } from 'react';
 import { Trophy, type LucideIcon } from 'lucide-react-native';
 import {
   ActivityIndicator,
@@ -6,16 +6,57 @@ import {
   Modal,
   Platform,
   Pressable,
+  type PressableProps,
+  type StyleProp,
   StyleSheet,
   Text,
   View,
   type TextStyle,
   type ViewStyle,
 } from 'react-native';
+import Animated, {
+  interpolateColor,
+  LayoutAnimationConfig,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
 import { Image } from 'expo-image';
 
 import { photoUrl, type Member } from '@/lib/api';
+import { EASE, motion, SPRING } from '@/lib/motion';
 import { useTheme } from '@/lib/theme';
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
+/** A Pressable that dips a little while held: the app's press feedback (none under reduced motion). */
+export function PressableScale({
+  scale = 0.96,
+  style,
+  onPressIn,
+  onPressOut,
+  ...props
+}: Omit<PressableProps, 'style'> & { style?: StyleProp<ViewStyle>; scale?: number }) {
+  const reduced = useReducedMotion();
+  const s = useSharedValue(1);
+  const pressed = useAnimatedStyle(() => ({ transform: [{ scale: s.value }] }));
+  return (
+    <AnimatedPressable
+      {...props}
+      onPressIn={(e) => {
+        if (!reduced) s.value = withTiming(scale, { duration: 90 });
+        onPressIn?.(e);
+      }}
+      onPressOut={(e) => {
+        s.value = withSpring(1, SPRING);
+        onPressOut?.(e);
+      }}
+      style={[style, pressed]}
+    />
+  );
+}
 
 export function Avatar({ member, size = 40 }: { member?: Member; size?: number }) {
   const t = useTheme();
@@ -55,30 +96,36 @@ export function AvatarStack({ members, size = 28, ring, max }: { members: (Membe
   const extra = members.length - shown.length;
   const overlap = stackOverlap(size);
   const cell = (key: string | number, i: number, child: ReactNode) => (
-    <View key={key} style={{ marginLeft: i ? -overlap : 0, borderRadius: size, borderWidth: 2, borderColor: ring ?? t.bg }}>
+    <Animated.View
+      key={key}
+      entering={motion.pop}
+      style={{ marginLeft: i ? -overlap : 0, borderRadius: size, borderWidth: 2, borderColor: ring ?? t.bg }}>
       {child}
-    </View>
+    </Animated.View>
   );
+  // Faces there from the start just show; one joining later (a new vote) pops in.
   return (
-    <View style={{ flexDirection: 'row' }}>
-      {shown.map((m, i) => cell(m?.id ?? i, i, <Avatar member={m} size={size} />))}
-      {extra > 0 &&
-        cell(
-          'extra',
-          shown.length,
-          <View
-            style={{
-              width: size,
-              height: size,
-              borderRadius: size / 2,
-              backgroundColor: t.mut,
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}>
-            <Text style={{ fontFamily: t.font.bold, fontSize: size * 0.36, color: t.card }}>+{extra}</Text>
-          </View>,
-        )}
-    </View>
+    <LayoutAnimationConfig skipEntering>
+      <View style={{ flexDirection: 'row' }}>
+        {shown.map((m, i) => cell(m?.id ?? i, i, <Avatar member={m} size={size} />))}
+        {extra > 0 &&
+          cell(
+            'extra',
+            shown.length,
+            <View
+              style={{
+                width: size,
+                height: size,
+                borderRadius: size / 2,
+                backgroundColor: t.mut,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}>
+              <Text style={{ fontFamily: t.font.bold, fontSize: size * 0.36, color: t.card }}>+{extra}</Text>
+            </View>,
+          )}
+      </View>
+    </LayoutAnimationConfig>
   );
 }
 
@@ -98,11 +145,11 @@ export function Button({
   const t = useTheme();
   const off = disabled || loading;
   return (
-    <Pressable
+    <PressableScale
       accessibilityRole="button"
       disabled={off}
       onPress={onPress}
-      style={({ pressed }) => [styles.button, { backgroundColor: off ? t.card2 : t.acc, opacity: pressed ? 0.85 : 1 }, style]}>
+      style={[styles.button, { backgroundColor: off ? t.card2 : t.acc }, style]}>
       {loading ? (
         <ActivityIndicator color={t.mut} />
       ) : typeof children === 'string' ? (
@@ -110,7 +157,7 @@ export function Button({
       ) : (
         children
       )}
-    </Pressable>
+    </PressableScale>
   );
 }
 
@@ -159,6 +206,21 @@ const styles = StyleSheet.create({
 /** A small on/off switch with its label, drawn to match the app (lime when on). */
 export function Toggle({ label, value, onChange, icon: Icon }: { label: string; value: boolean; onChange: (v: boolean) => void; icon?: LucideIcon }) {
   const t = useTheme();
+  const on = useSharedValue(value ? 1 : 0);
+  useEffect(() => {
+    on.value = withSpring(value ? 1 : 0, SPRING);
+  }, [value, on]);
+  // Plain strings: the worklets below copy what they use, and the theme object carries more than colours.
+  const { card2, acc, line, mut, accTxt } = t;
+  const track = useAnimatedStyle(() => ({
+    backgroundColor: interpolateColor(on.value, [0, 1], [card2, acc]),
+    borderColor: interpolateColor(on.value, [0, 1], [line, acc]),
+  }));
+  // 40 wide, minus the 1 px border and 3 px padding on each side, minus the 16 px thumb.
+  const thumb = useAnimatedStyle(() => ({
+    transform: [{ translateX: on.value * 16 }],
+    backgroundColor: interpolateColor(on.value, [0, 1], [mut, accTxt]),
+  }));
   return (
     <Pressable
       accessibilityRole="switch"
@@ -169,20 +231,9 @@ export function Toggle({ label, value, onChange, icon: Icon }: { label: string; 
       style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
       {Icon && <Icon size={14} color={value ? t.accInk : t.mut} style={{ marginRight: -3 }} />}
       <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: value ? t.accInk : t.mut }}>{label}</Text>
-      <View
-        style={{
-          width: 40,
-          height: 24,
-          borderRadius: 12,
-          padding: 3,
-          backgroundColor: value ? t.acc : t.card2,
-          borderWidth: 1,
-          borderColor: value ? t.acc : t.line,
-          alignItems: value ? 'flex-end' : 'flex-start',
-          justifyContent: 'center',
-        }}>
-        <View style={{ width: 16, height: 16, borderRadius: 8, backgroundColor: value ? t.accTxt : t.mut }} />
-      </View>
+      <Animated.View style={[{ width: 40, height: 24, borderRadius: 12, padding: 3, borderWidth: 1, justifyContent: 'center' }, track]}>
+        <Animated.View style={[{ width: 16, height: 16, borderRadius: 8 }, thumb]} />
+      </Animated.View>
     </Pressable>
   );
 }
@@ -220,8 +271,7 @@ export function Dialog({ visible, onClose, children }: { visible: boolean; onClo
           onPress={onClose}
           style={{ flex: 1, backgroundColor: '#0008', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
           {/* Taps inside the card don't close it. */}
-          <Pressable
-            onPress={() => {}}
+          <ModalCard
             style={{
               width: '100%',
               maxWidth: 380,
@@ -233,7 +283,7 @@ export function Dialog({ visible, onClose, children }: { visible: boolean; onClo
               borderColor: t.line,
             }}>
             {children}
-          </Pressable>
+          </ModalCard>
         </Pressable>
       </KeyboardAvoidingView>
     </Modal>
@@ -269,7 +319,7 @@ export function DialogActions({
   const off = busy || disabled;
   return (
     <View style={{ flexDirection: 'row', gap: 10, marginTop: 6 }}>
-      <Pressable
+      <PressableScale
         accessibilityRole="button"
         onPress={onCancel}
         style={{
@@ -281,8 +331,8 @@ export function DialogActions({
           backgroundColor: t.card2,
         }}>
         <Text style={{ fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>Annuler</Text>
-      </Pressable>
-      <Pressable
+      </PressableScale>
+      <PressableScale
         accessibilityRole="button"
         accessibilityState={{ disabled: !!off }}
         disabled={off}
@@ -297,7 +347,7 @@ export function DialogActions({
           opacity: disabled ? 0.45 : 1,
         }}>
         {busy ? <ActivityIndicator color="#fff" /> : <Text style={{ fontFamily: t.font.bold, fontSize: 15, color: '#fff' }}>{confirmLabel}</Text>}
-      </Pressable>
+      </PressableScale>
     </View>
   );
 }
@@ -368,5 +418,20 @@ export function ConfirmHost() {
       onConfirm={() => answer(true)}
       onCancel={() => answer(false)}
     />
+  );
+}
+
+/** The dialog's card: grows in from slightly smaller while the backdrop fades (the Modal remounts it on every open). */
+function ModalCard({ children, style }: { children: ReactNode; style: ViewStyle }) {
+  const reduced = useReducedMotion();
+  const p = useSharedValue(reduced ? 1 : 0);
+  useEffect(() => {
+    p.value = withTiming(1, { duration: 200, easing: EASE });
+  }, [p]);
+  const shown = useAnimatedStyle(() => ({ opacity: p.value, transform: [{ scale: 0.94 + 0.06 * p.value }] }));
+  return (
+    <AnimatedPressable onPress={() => {}} style={[style, shown]}>
+      {children}
+    </AnimatedPressable>
   );
 }

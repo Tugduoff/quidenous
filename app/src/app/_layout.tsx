@@ -8,6 +8,7 @@ import { StatusBar } from 'expo-status-bar';
 import * as SystemUI from 'expo-system-ui';
 import { useEffect, useState } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
+import { useReducedMotion } from 'react-native-reanimated';
 
 import { AppLock } from '@/components/app-lock';
 import { InstallBanner, InstallScreen, installMode } from '@/components/install';
@@ -29,6 +30,7 @@ function Root() {
   const t = useTheme();
   const scheme = useScheme();
   const themeLoaded = useThemeLoaded();
+  const reduced = useReducedMotion();
   const [fonts] = useFonts({ BricolageGrotesque_800ExtraBold, Inter_400Regular, Inter_600SemiBold, Inter_700Bold });
   // On a computer the web app only shows how to open it on a phone; in a phone browser, a banner to install it.
   const [install] = useState(installMode);
@@ -62,13 +64,15 @@ function Root() {
     <ThemeProvider value={navTheme}>
       <StatusBar style={scheme === 'light' ? 'dark' : 'light'} />
       {banner && <InstallBanner onOpen={() => setSteps(true)} onClose={() => setBanner(false)} />}
-      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: t.bg } }}>
+      {/* Pages push in from the right (the iOS slide, on Android too); the inbox rises like a sheet.
+          Signing in or out cross-fades. Under reduced motion screens just swap. */}
+      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: t.bg }, animation: reduced ? 'none' : 'ios_from_right' }}>
         <Stack.Protected guard={stage === 'in'}>
-          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="(tabs)" options={{ animation: reduced ? 'none' : 'fade' }} />
           <Stack.Screen name="round/[id]" />
           <Stack.Screen name="profile" />
           <Stack.Screen name="group" />
-          <Stack.Screen name="inbox" />
+          <Stack.Screen name="inbox" options={{ animation: reduced ? 'none' : 'fade_from_bottom' }} />
           <Stack.Screen name="rooms" />
           <Stack.Screen name="friends" />
           <Stack.Screen name="packs" />
@@ -82,7 +86,7 @@ function Root() {
           <Stack.Screen name="auth/verify" />
         </Stack.Protected>
         <Stack.Protected guard={stage === 'out'}>
-          <Stack.Screen name="join" />
+          <Stack.Screen name="join" options={{ animation: reduced ? 'none' : 'fade' }} />
           <Stack.Screen name="auth/email" />
           <Stack.Screen name="auth/password" />
           <Stack.Screen name="auth/two-factor" />
