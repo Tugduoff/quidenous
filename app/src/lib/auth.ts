@@ -55,6 +55,7 @@ export const auth = {
   revoke: (id: string) => api<{ ok: boolean }>(`/auth/sessions/${id}`, { method: 'DELETE' }),
   revokeOthers: () => post<{ revoked: number }>('/sessions/revoke-others'),
   logout: () => post<{ ok: boolean }>('/logout'),
+  deleteAccount: (body: { password?: string; code?: string }) => api<{ ok: boolean }>('/auth/account', { method: 'DELETE', json: body }),
   oauthStart: (provider: Provider, app_redirect: string, link: boolean) =>
     post<{ url: string; key: string }>(`/oauth/${provider}/start`, link ? { app_redirect, link } : { app_redirect }),
   redeem: (code: string, key: string) => post<RedeemResult>('/oauth/redeem', { code, key }, true),
@@ -124,6 +125,9 @@ const MESSAGES: Record<string, string> = {
   account_protected: 'Ce prénom a un compte : connecte-toi',
   claimed_session: 'Fais-le depuis ton premier appareil.',
   sign_in_required: 'Connecte-toi pour continuer',
+  reauth_required: "Confirme que c'est bien toi",
+  bad_target: 'Impossible sur toi-même',
+  not_found: 'Introuvable',
 };
 
 const wait = (s?: number) => (!s ? 'plus tard' : s < 60 ? `dans ${s} s` : `dans ${Math.ceil(s / 60)} min`);

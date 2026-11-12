@@ -1,10 +1,11 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { router } from 'expo-router';
-import { ChevronLeft, Crown, LogOut, RefreshCw, Share2, Trash2, UserPlus, UserX } from 'lucide-react-native';
+import { ChevronLeft, Crown, Ellipsis, LogOut, RefreshCw, Share2, Trash2, UserPlus, UserX } from 'lucide-react-native';
 import { Pressable, Switch, Text, TextInput, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 
+import { ModerationDialog, type ModTarget } from '@/components/moderation';
 import { Screen } from '@/components/screen';
 import { askConfirm, Avatar, Card, Display } from '@/components/ui';
 import { api } from '@/lib/api';
@@ -22,6 +23,8 @@ function Members() {
   const qc = useQueryClient();
   const { me } = useSession();
   const { data: group } = useGroup();
+  // "…" on a member: report, block / unblock.
+  const [target, setTarget] = useState<ModTarget | null>(null);
   const qc2 = qc;
   const owner = group?.my_role === 'owner';
   const forceRemove = useMutation({
@@ -123,9 +126,18 @@ function Members() {
                 </Text>
               </Pressable>
             ) : null}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Plus d'actions pour ${m.name}`}
+              onPress={() => setTarget({ kind: 'member', id: m.id, person: { user_id: m.user_id, name: m.name, color: m.color, photo: m.photo_url } })}
+              hitSlop={6}
+              style={{ width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card2 }}>
+              <Ellipsis size={16} color={t.mut} />
+            </Pressable>
           </Card>
         );
       })}
+      <ModerationDialog target={target} onClose={() => setTarget(null)} />
     </View>
   );
 }

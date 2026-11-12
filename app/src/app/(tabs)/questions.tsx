@@ -5,6 +5,7 @@ import { Check, FileUp, Lock, MessageCircleQuestion, Package, Plus, Shuffle, Tra
 import { useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 
+import { ModerationDialog, type ModTarget } from '@/components/moderation';
 import { Screen } from '@/components/screen';
 import { Avatar, Card, ConfirmModal, Display, QuestionText, Toggle } from '@/components/ui';
 import { api } from '@/lib/api';
@@ -26,6 +27,8 @@ export default function QuestionsScreen() {
   const [rank, setRank] = useState(false);
   const { me } = useSession();
   const [toDelete, setToDelete] = useState<{ id: number; text: string } | null>(null);
+  // Long-press on someone else's question: report it.
+  const [toReport, setToReport] = useState<ModTarget | null>(null);
   const remove = useMutation({
     mutationFn: (id: number) => api(`/questions/${id}`, { method: 'DELETE' }),
     onSettled: () => {
@@ -324,41 +327,46 @@ export default function QuestionsScreen() {
         )}
       </View>
       {data?.custom.map((q) => (
-        <Card
+        <Pressable
           key={q.id}
-          style={{
-            flexDirection: 'row',
-            gap: 12,
-            alignItems: 'center',
-            padding: 14,
-          }}>
-          {q.author_id != null ? <Avatar member={byId.get(q.author_id)} size={32} /> : <MessageCircleQuestion size={20} color={t.mut} />}
-          <QuestionText
-            text={q.text}
-            rank={q.kind === 'rank'}
-            containerStyle={{ flex: 1 }}
-            style={{ fontFamily: t.font.semibold, fontSize: 15, lineHeight: 20, color: t.txt }}
-          />
-          {/* Its author or the room owner can take it out before it's asked. */}
-          {(q.author_id === me?.id || group?.my_role === 'owner') && (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Supprimer la question"
-              onPress={() => setToDelete(q)}
-              hitSlop={8}
-              style={{
-                width: 34,
-                height: 34,
-                borderRadius: 17,
-                alignItems: 'center',
-                justifyContent: 'center',
-                backgroundColor: t.card2,
-              }}>
-              <Trash2 size={16} color={t.mut} />
-            </Pressable>
-          )}
-        </Card>
+          delayLongPress={400}
+          onLongPress={q.author_id != null && q.author_id !== me?.id ? () => setToReport({ kind: 'question', id: q.id }) : undefined}>
+          <Card
+            style={{
+              flexDirection: 'row',
+              gap: 12,
+              alignItems: 'center',
+              padding: 14,
+            }}>
+            {q.author_id != null ? <Avatar member={byId.get(q.author_id)} size={32} /> : <MessageCircleQuestion size={20} color={t.mut} />}
+            <QuestionText
+              text={q.text}
+              rank={q.kind === 'rank'}
+              containerStyle={{ flex: 1 }}
+              style={{ fontFamily: t.font.semibold, fontSize: 15, lineHeight: 20, color: t.txt }}
+            />
+            {/* Its author or the room owner can take it out before it's asked. */}
+            {(q.author_id === me?.id || group?.my_role === 'owner') && (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Supprimer la question"
+                onPress={() => setToDelete(q)}
+                hitSlop={8}
+                style={{
+                  width: 34,
+                  height: 34,
+                  borderRadius: 17,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: t.card2,
+                }}>
+                <Trash2 size={16} color={t.mut} />
+              </Pressable>
+            )}
+          </Card>
+        </Pressable>
       ))}
+      <ModerationDialog target={toReport} onClose={() => setToReport(null)} />
       <ConfirmModal
         visible={!!toDelete}
         title="Supprimer cette question ?"

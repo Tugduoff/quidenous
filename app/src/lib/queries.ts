@@ -17,6 +17,7 @@ export const keys = {
   packs: (q: string) => ['packs', q] as const,
   pack: (id: number) => ['pack', id] as const,
   queue: ['queue'] as const,
+  blocks: ['blocks'] as const,
 };
 
 export const useGroup = () =>
