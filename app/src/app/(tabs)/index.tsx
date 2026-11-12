@@ -22,6 +22,7 @@ import { enablePush, pushState, refreshPush, type PushState } from '@/lib/push';
 import { Pressable, type ScrollView, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
+import { useSecretPicker } from '@/components/celebration';
 import { ChatInput, ChatMessages } from '@/components/chat';
 import { BIG_GROUP, gridColumns, MemberGrid, MemberTile } from '@/components/member-grid';
 import { RankResult, ResultBars, ResultSummary } from '@/components/result-bars';
@@ -67,19 +68,24 @@ function PushBell() {
 function RoomPill() {
   const t = useTheme();
   const { data: group } = useGroup();
+  const secret = useSecretPicker();
   if (!group) return null;
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`Salon ${group.name}, changer de salon`}
-      onPress={() => router.push('/rooms')}
-      hitSlop={6}
-      style={{ flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', maxWidth: '100%' }}>
-      <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: t.font.semibold, fontSize: 14, color: t.mut, maxWidth: 160 }}>
-        {group.name}
-      </Text>
-      <ChevronDown size={14} color={t.mut} />
-    </Pressable>
+    <>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Salon ${group.name}, changer de salon`}
+        onPress={() => router.push('/rooms')}
+        onLongPress={secret.onLongPress}
+        hitSlop={6}
+        style={{ flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', maxWidth: '100%' }}>
+        <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: t.font.semibold, fontSize: 14, color: t.mut, maxWidth: 160 }}>
+          {group.name}
+        </Text>
+        <ChevronDown size={14} color={t.mut} />
+      </Pressable>
+      {secret.picker}
+    </>
   );
 }
 
