@@ -60,12 +60,12 @@ pub async fn round(db: &SqlitePool, group_id: i64, round_id: i64) -> AppResult<R
         .ok_or(AppError::NotFound)
 }
 
-/// Group questions first (oldest first), then a random deck question the group has not seen.
+/// Group questions first (queue order: oldest first unless shuffled), then a random deck question the group has not seen.
 async fn next_question(tx: &mut Transaction<'_, Sqlite>, group_id: i64) -> AppResult<Option<i64>> {
     let custom: Option<i64> = sqlx::query_scalar(concat!(
         "SELECT q.id FROM questions q WHERE q.group_id = ?1 AND ",
         unused!(),
-        " ORDER BY q.id LIMIT 1"
+        " ORDER BY COALESCE(q.sort_key, q.id), q.id LIMIT 1"
     ))
     .bind(group_id)
     .fetch_optional(&mut **tx)

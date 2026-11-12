@@ -1480,3 +1480,67 @@ async fn upcoming_questions_can_be_deleted_by_author_or_owner() {
     let (s, _) = call(&app, "DELETE", "/questions/9999", Some(&ana), None).await;
     assert_eq!(s, StatusCode::NOT_FOUND);
 }
+
+#[tokio::test]
+async fn upcoming_questions_can_be_shuffled() {
+    let app = test_app().await;
+    let (ana, _) = join(&app, "Ana").await; // owner
+    let (bob, _) = join(&app, "Bob").await;
+    // A deck question is already open, so all eight wait in the queue.
+    let text = (1..=8)
+        .map(|i| format!("Qui gagnerait le concours numéro {i} ?"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let (s, _) = call(
+        &app,
+        "POST",
+        "/questions/import",
+        Some(&bob),
+        Some(json!({ "text": text })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK);
+    let ids = |q: &Value| -> Vec<i64> {
+        q["custom"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|x| x["id"].as_i64().unwrap())
+            .collect()
+    };
+    let (_, before) = call(&app, "GET", "/questions/queue", Some(&ana), None).await;
+    let before = ids(&before);
+    assert_eq!(before.len(), 8);
+    let (s, res) = call(&app, "POST", "/questions/shuffle", Some(&bob), None).await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(res["shuffled"], 8);
+    let (_, after) = call(&app, "GET", "/questions/queue", Some(&ana), None).await;
+    let after = ids(&after);
+    let mut sorted = after.clone();
+    sorted.sort();
+    assert_eq!(sorted, before, "same questions, new order");
+    // A question added after the shuffle goes to the end.
+    let (_, q) = call(
+        &app,
+        "POST",
+        "/questions",
+        Some(&ana),
+        Some(json!({ "text": "Qui arrive toujours en dernier ?" })),
+    )
+    .await;
+    let (_, queue) = call(&app, "GET", "/questions/queue", Some(&ana), None).await;
+    assert_eq!(*ids(&queue).last().unwrap(), q["id"].as_i64().unwrap());
+    assert_eq!(ids(&queue)[..8], after[..]);
+    // Owner-only questions: members can't shuffle either.
+    let (_, g) = call(&app, "GET", "/group", Some(&ana), None).await;
+    call(
+        &app,
+        "PATCH",
+        &format!("/rooms/{}", g["id"]),
+        Some(&ana),
+        Some(json!({ "questions_by": "owner" })),
+    )
+    .await;
+    let (s, _) = call(&app, "POST", "/questions/shuffle", Some(&bob), None).await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+}

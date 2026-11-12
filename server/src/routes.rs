@@ -46,7 +46,8 @@ pub fn router() -> Router<AppState> {
                     "share_cards",
                     "packs",
                     "start",
-                    "delete_question"
+                    "delete_question",
+                    "shuffle"
                 ]))
             }),
         )
@@ -76,6 +77,7 @@ pub fn router() -> Router<AppState> {
         .route("/stats", get(stats))
         .route("/questions", post(add_question))
         .route("/questions/queue", get(queue))
+        .route("/questions/shuffle", post(shuffle_questions))
         .route("/questions/{id}", axum::routing::delete(delete_question))
         .route(
             "/questions/import",
@@ -907,6 +909,36 @@ async fn add_question(
     Ok(Json(question))
 }
 
+/// Shuffle the room's upcoming questions: their order keys are dealt out again at random,
+/// so questions added later still go to the end. Same permission as adding questions.
+async fn shuffle_questions(State(state): State<AppState>, Me(me): Me) -> AppResult<Json<Value>> {
+    use rand::seq::SliceRandom;
+    may_add_questions(&state, &me).await?;
+    let mut tx = state.db.begin().await?;
+    let rows: Vec<(i64, i64)> = sqlx::query_as(concat!(
+        "SELECT q.id, COALESCE(q.sort_key, q.id) FROM questions q WHERE q.group_id = ?1 AND ",
+        game::unused!(),
+        " ORDER BY 2, 1"
+    ))
+    .bind(me.group_id)
+    .fetch_all(&mut *tx)
+    .await?;
+    let mut keys: Vec<i64> = rows.iter().map(|r| r.1).collect();
+    keys.shuffle(&mut rand::rng());
+    for ((id, _), key) in rows.iter().zip(&keys) {
+        sqlx::query("UPDATE questions SET sort_key = ? WHERE id = ?")
+            .bind(key)
+            .bind(id)
+            .execute(&mut *tx)
+            .await?;
+    }
+    tx.commit().await?;
+    state
+        .live
+        .send(me.group_id, Event::QuestionAdded { question_id: 0 });
+    Ok(Json(json!({ "shuffled": rows.len() })))
+}
+
 /// Remove a question that hasn't been asked yet: its author or the room owner.
 async fn delete_question(
     State(state): State<AppState>,
@@ -943,7 +975,7 @@ async fn queue(State(state): State<AppState>, Me(me): Me) -> AppResult<Json<Valu
     let custom: Vec<QueuedQuestion> = sqlx::query_as(concat!(
         "SELECT q.id, q.text, q.author_id, q.kind FROM questions q WHERE q.group_id = ?1 AND ",
         game::unused!(),
-        " ORDER BY q.id"
+        " ORDER BY COALESCE(q.sort_key, q.id), q.id"
     ))
     .bind(me.group_id)
     .fetch_all(&state.db)
