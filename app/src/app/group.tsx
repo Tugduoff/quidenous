@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { type ReactNode, useState } from 'react';
 import { router } from 'expo-router';
-import { Bell, BellOff, Check, ChevronLeft, ChevronRight, Crown, Ellipsis, LogOut, Trash2, UserX } from 'lucide-react-native';
+import { ArrowLeftRight, Bell, BellOff, Check, ChevronLeft, ChevronRight, Crown, Ellipsis, LogOut, Trash2, UserX } from 'lucide-react-native';
 import { Pressable, Switch, Text, TextInput, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 
@@ -138,7 +138,7 @@ function Members() {
                     if (await confirm(`${m.name} devient propriétaire du salon, et toi simple membre.`, 'Passer la main ?', 'Confirmer'))
                       transfer.mutate(m.id);
                   }}>
-                  <Crown size={16} color={t.mut} />
+                  <ArrowLeftRight size={16} color={t.mut} />
                 </RowButton>
                 <RowButton
                   label={`Retirer ${m.name} du salon`}
