@@ -10,6 +10,7 @@ import { ActivityIndicator, Platform, Pressable, Text, TextInput, View } from 'r
 import { Screen } from '@/components/screen';
 import { useSignOut } from '@/components/security/devices';
 import { Avatar, Button, Card, Display } from '@/components/ui';
+import { VersionLine } from '@/components/update';
 import { api, ApiError, apiUpload, type Member } from '@/lib/api';
 import { useAccount, useFeatures } from '@/lib/auth';
 import { keys } from '@/lib/queries';
@@ -187,7 +188,6 @@ export default function Profile() {
 
       {error && <Text style={{ fontFamily: t.font.semibold, color: t.tag }}>{error}</Text>}
 
-
       <Pressable accessibilityRole="button" onPress={() => router.push('/friends')}>
         <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16 }}>
           <Users size={20} color={t.txt} />
@@ -225,6 +225,7 @@ export default function Profile() {
         style={{ alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12 }}>
         <LogOut size={18} color={t.mut} />
       </Pressable>
+      <VersionLine />
     </Screen>
   );
 }
