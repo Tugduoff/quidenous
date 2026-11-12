@@ -15,7 +15,8 @@ import { InstallBanner, InstallScreen, installMode } from '@/components/install'
 import { ConfirmHost } from '@/components/ui';
 import { useLive } from '@/lib/live';
 import { useLock } from '@/lib/lock';
-import { registerNativePush } from '@/lib/native-push';
+import { registerNativePush, useNotificationTaps } from '@/lib/native-push';
+import { useRoomParam } from '@/lib/rooms';
 import { SessionProvider, useSession } from '@/lib/session';
 import { useScheme, useTheme, useThemeLoaded } from '@/lib/theme';
 
@@ -37,6 +38,11 @@ function Root() {
   const [banner, setBanner] = useState(install === 'banner');
   const [steps, setSteps] = useState(false);
   useLive(install === 'block' || stage !== 'in' ? null : token, room);
+  // A tapped notification opens its screen in its own room (`?room=` on the web, the tap itself on Android).
+  // Only once the screens below are mounted: navigating before that fails.
+  const inApp = ready && !!fonts && themeLoaded && lock.loaded && install !== 'block' && stage === 'in';
+  useRoomParam(inApp);
+  useNotificationTaps(inApp);
   useEffect(() => {
     if (stage === 'in') registerNativePush().catch(() => {});
   }, [stage]);

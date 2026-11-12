@@ -17,6 +17,12 @@ const INVITE_CODE =
 const FRIEND_CODE =
   Platform.OS === 'web' && typeof location !== 'undefined' ? new URLSearchParams(location.search).get('friend') : null;
 
+const ROOM_PARAM =
+  Platform.OS === 'web' && typeof location !== 'undefined' ? Number(new URLSearchParams(location.search).get('room')) || null : null;
+
+/** Room carried by a tapped notification (`/round/12?room=3`): the app opens in it. */
+export const presetRoom = () => ROOM_PARAM;
+
 /** Friend code carried by a friend link `/?friend=…` (QR code). */
 export const presetFriendCode = () => FRIEND_CODE;
 
@@ -31,7 +37,8 @@ export const setApiUrl = (url: string) => {
   API_URL = url.trim().replace(/\/+$/, '');
 };
 
-export type Member = { id: number; name: string; color: string; photo_url: string | null };
+/** `left`: someone who left or was removed (kept for names and photos in the history). */
+export type Member = { id: number; name: string; color: string; photo_url: string | null; left?: boolean };
 export type Tally = { target_id: number; count: number; voter_ids: number[] };
 export type Round = {
   id: number;
@@ -64,7 +71,10 @@ export type Group = {
   code: string;
   my_role: Role;
   settings: { skip_vote: boolean; kick_vote: boolean; questions_by: 'everyone' | 'owner' };
+  /** Current members only. */
   members: (Member & { role: Role; user_id: number })[];
+  /** People who left or were removed (absent from an older server). */
+  former?: (Member & { user_id?: number | null })[];
   kicks: VoteCount[];
   kick_needed: number;
 };
@@ -87,8 +97,11 @@ export type HistoryItem = {
 export type Message = { id: number; member_id: number; user_id?: number | null; text: string; created_at: string };
 export type InboxItem = {
   id: number;
-  kind: 'message' | 'nudge' | 'result' | 'question';
+  /** Unknown kinds (a newer server) are shown with a generic icon and title. */
+  kind: 'message' | 'nudge' | 'result' | 'question' | 'added' | (string & {});
   round_id: number | null;
+  /** The room it happened in (absent from an older server). */
+  room_id?: number;
   actor_id: number | null;
   text: string;
   created_at: string;

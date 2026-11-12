@@ -135,28 +135,27 @@ pub async fn add_to_room(
     if !are_friends(&state, me, body.user_id).await? {
         return Err(AppError::Forbidden("not_friends"));
     }
-    let existing: Option<(i64, Option<String>)> =
-        sqlx::query_as("SELECT id, removed_at FROM members WHERE group_id = ? AND user_id = ?")
-            .bind(room)
-            .bind(body.user_id)
-            .fetch_optional(&state.db)
-            .await?;
+    let existing: Option<(i64, Option<String>, bool)> = sqlx::query_as(
+        "SELECT id, removed_at, left_by_self FROM members WHERE group_id = ? AND user_id = ?",
+    )
+    .bind(room)
+    .bind(body.user_id)
+    .fetch_optional(&state.db)
+    .await?;
     let room_name: String = sqlx::query_scalar("SELECT name FROM groups WHERE id = ?")
         .bind(room)
         .fetch_one(&state.db)
         .await?;
     let mut tx = state.db.begin().await?;
     let member_id = match existing {
-        Some((_, None)) => return Err(AppError::Conflict("already_in_room")),
+        Some((_, None, _)) => return Err(AppError::Conflict("already_in_room")),
         // Removed before: the owner (or a vote) took them out; adding them back is the owner's call.
-        Some((id, Some(_))) => {
-            if my_seat.role != "owner" {
+        // Someone who left could come back with the code anyway: anyone can add them.
+        Some((id, Some(_), left)) => {
+            if !left && my_seat.role != "owner" {
                 return Err(AppError::Forbidden("owner_only"));
             }
-            sqlx::query("UPDATE members SET removed_at = NULL, role = 'member' WHERE id = ?")
-                .bind(id)
-                .execute(&mut *tx)
-                .await?;
+            crate::routes::rejoin_seat(&mut tx, id).await?;
             id
         }
         None => {
@@ -196,7 +195,8 @@ pub async fn add_to_room(
             title: "Nouveau salon".into(),
             body: text,
             tag: format!("room-{room}"),
-            url: "/rooms".into(),
+            url: "/".into(),
+            room,
         },
     );
     Ok(Json(json!({ "member_id": member_id })))

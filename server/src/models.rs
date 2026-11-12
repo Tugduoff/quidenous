@@ -13,6 +13,9 @@ pub struct MemberRow {
     pub removed_at: Option<String>,
     pub user_id: Option<i64>,
     pub role: String,
+    /// The seat ended because they left (not removed): the invite code brings them back.
+    #[sqlx(default)]
+    pub left_by_self: bool,
 }
 
 #[derive(Clone, Debug, Serialize)]

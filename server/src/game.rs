@@ -190,9 +190,41 @@ pub async fn vote(
     Ok(events)
 }
 
-/// Agreements needed to skip or remove someone: a majority of the other active members.
+/// Agreements needed to skip or remove someone: a majority of the other active members
+/// (the target doesn't count), and never one person alone.
 pub fn majority(active: i64) -> i64 {
-    (active - 1) / 2 + 1
+    ((active - 1) / 2 + 1).max(2)
+}
+
+/// Majority skips and removals need at least three people: with two, one would decide alone.
+pub fn votes_possible(active: i64) -> bool {
+    active >= 3
+}
+
+/// A room with active members always has an owner: when none is left, the longest-standing
+/// active member takes over. `true` when someone was promoted.
+pub async fn ensure_owner(tx: &mut Transaction<'_, Sqlite>, group_id: i64) -> AppResult<bool> {
+    let promoted = sqlx::query(
+        "UPDATE members SET role = 'owner' WHERE id = \
+         (SELECT id FROM members WHERE group_id = ?1 AND removed_at IS NULL ORDER BY id LIMIT 1) \
+         AND NOT EXISTS (SELECT 1 FROM members WHERE group_id = ?1 AND removed_at IS NULL AND role = 'owner')",
+    )
+    .bind(group_id)
+    .execute(&mut **tx)
+    .await?;
+    Ok(promoted.rows_affected() > 0)
+}
+
+/// Startup repair: every live room with members but no active owner gets one. Idempotent.
+pub async fn repair_owners(db: &SqlitePool) -> AppResult<u64> {
+    let done = sqlx::query(
+        "UPDATE members SET role = 'owner' WHERE id IN \
+         (SELECT MIN(m.id) FROM members m JOIN groups g ON g.id = m.group_id AND g.deleted_at IS NULL \
+          WHERE m.removed_at IS NULL GROUP BY m.group_id HAVING SUM(m.role = 'owner') = 0)",
+    )
+    .execute(db)
+    .await?;
+    Ok(done.rows_affected())
 }
 
 pub async fn active_count(tx: &mut Transaction<'_, Sqlite>, group_id: i64) -> AppResult<i64> {

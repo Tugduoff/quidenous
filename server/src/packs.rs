@@ -200,7 +200,7 @@ pub async fn install(
     let mut added = 0;
     for (text, kind) in &questions {
         let inserted = sqlx::query(
-            "INSERT INTO questions (group_id, text, author_id, kind) SELECT ?1, ?2, ?3, ?4 \
+            "INSERT INTO questions (group_id, text, author_id, kind, origin) SELECT ?1, ?2, ?3, ?4, 'pack' \
              WHERE NOT EXISTS (SELECT 1 FROM questions WHERE group_id = ?1 AND lower(text) = lower(?2))",
         )
         .bind(me.group_id)

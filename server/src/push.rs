@@ -33,7 +33,18 @@ pub struct Notification {
     pub body: String,
     /// Groups notifications on the phone: a newer one replaces the older one.
     pub tag: String,
+    /// Path in the app; the room is added as `?room=` on the way out, so a tap opens the right room.
     pub url: String,
+    pub room: i64,
+}
+
+impl Notification {
+    /// `url` with the room in it (`/round/3?room=7`).
+    fn with_room_link(mut self) -> Self {
+        let sep = if self.url.contains('?') { '&' } else { '?' };
+        self.url = format!("{}{sep}room={}", self.url, self.room);
+        self
+    }
 }
 
 #[derive(sqlx::FromRow)]
@@ -356,6 +367,7 @@ impl Push {
 
     fn notify(&self, db: SqlitePool, target: Target, n: Notification) {
         let push = self.clone();
+        let n = n.with_room_link();
         tokio::spawn(async move {
             let query = match target {
                 Target::Group {
@@ -475,7 +487,7 @@ impl Push {
             "message": {
                 "token": sub.endpoint,
                 "notification": { "title": n.title, "body": n.body },
-                "data": { "url": n.url },
+                "data": { "url": n.url, "room": n.room.to_string() },
                 "android": {
                     "priority": "high",
                     "notification": { "tag": n.tag, "channel_id": "default" }

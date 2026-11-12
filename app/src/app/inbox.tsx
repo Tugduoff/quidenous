@@ -1,18 +1,27 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
-import { BellRing, ChevronLeft, Crown, MessageCircle, Sparkles } from 'lucide-react-native';
+import { Bell, BellRing, ChevronLeft, Crown, type LucideIcon, MessageCircle, Sparkles, UserPlus } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
 import { Screen } from '@/components/screen';
 import { Avatar, Card, Display } from '@/components/ui';
 import { api, type InboxItem } from '@/lib/api';
-import { keys, useInbox, useMembers } from '@/lib/queries';
+import { keys, useGroup, useInbox, useMembers } from '@/lib/queries';
+import { useSwitchRoom } from '@/lib/rooms';
+import { useSession } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
 import { ago } from '@/lib/time';
 
-const ICON = { message: MessageCircle, nudge: BellRing, result: Crown, question: Sparkles } as const;
-const TITLE = { message: 'Nouveau message', nudge: 'Relance', result: 'Résultat dispo', question: 'Nouvelle question' } as const;
+// A kind this version doesn't know (newer server) falls back to a plain bell and title.
+const ICON: Record<string, LucideIcon> = { message: MessageCircle, nudge: BellRing, result: Crown, question: Sparkles, added: UserPlus };
+const TITLE: Record<string, string> = {
+  message: 'Nouveau message',
+  nudge: 'Relance',
+  result: 'Résultat dispo',
+  question: 'Nouvelle question',
+  added: 'Ajouté à un groupe',
+};
 
 /** Everything that happened lately: results, new questions, nudges, messages. Opening it marks all as read. */
 export default function InboxScreen() {
@@ -20,6 +29,11 @@ export default function InboxScreen() {
   const qc = useQueryClient();
   const { data } = useInbox();
   const { byId } = useMembers();
+  // The room on screen: the session's, or the one the server picked (session still null).
+  const { data: group } = useGroup();
+  const session = useSession();
+  const room = group?.id ?? session.room;
+  const switchRoom = useSwitchRoom();
   const unread = data?.unread ?? 0;
   // What was new when I opened the screen stays highlighted while I look, even once marked as read.
   const [fresh, setFresh] = useState<Set<number> | null>(null);
@@ -31,6 +45,12 @@ export default function InboxScreen() {
   }, [unread, qc]);
 
   const open = (item: InboxItem) => {
+    // Added to a room: go to it (switching rooms lands on its home screen).
+    if (item.kind === 'added') {
+      if (item.room_id != null && item.room_id !== room) switchRoom(item.room_id);
+      else router.replace('/');
+      return;
+    }
     if (item.kind === 'nudge' || item.kind === 'question' || item.round_id == null) router.replace('/');
     else router.push(`/round/${item.round_id}`);
   };
@@ -49,9 +69,11 @@ export default function InboxScreen() {
         <Text style={{ fontFamily: t.font.regular, fontSize: 15, color: t.mut }}>Rien de neuf pour l'instant.</Text>
       )}
       {data?.items.map((item) => {
-        const Icon = ICON[item.kind];
+        const Icon = ICON[item.kind] ?? Bell;
         const isNew = !item.read || !!fresh?.has(item.id);
-        const actor = item.actor_id != null ? byId.get(item.actor_id) : undefined;
+        // Member ids belong to one room: only look the actor up among the people of the room on screen.
+        const here = item.room_id == null || item.room_id === room;
+        const actor = item.actor_id != null && here ? byId.get(item.actor_id) : undefined;
         return (
           <Pressable key={item.id} accessibilityRole="button" onPress={() => open(item)}>
             <Card style={{ flexDirection: 'row', gap: 12, alignItems: 'center', padding: 14 }}>
@@ -64,7 +86,7 @@ export default function InboxScreen() {
               )}
               <View style={{ flex: 1, gap: 2 }}>
                 <Text style={{ fontFamily: t.font.bold, fontSize: 13, color: t.mut }}>
-                  {item.kind === 'message' && actor ? actor.name : TITLE[item.kind]} · {ago(item.created_at)}
+                  {item.kind === 'message' && actor ? actor.name : (TITLE[item.kind] ?? 'Notification')} · {ago(item.created_at)}
                 </Text>
                 <Text numberOfLines={2} style={{ fontFamily: isNew ? t.font.semibold : t.font.regular, fontSize: 15, lineHeight: 20, color: t.txt }}>
                   {item.text}

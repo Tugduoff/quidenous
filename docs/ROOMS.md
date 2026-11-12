@@ -30,10 +30,13 @@ Status: design, 2026-11-11. Built in phases so the live group never breaks and o
 | Invite (link, code, QR), add a friend | any member (owner can restrict) |
 | Rotate the invite code | owner |
 | Rename, settings | owner |
-| Vote to skip / remove | members, if the owner leaves it on |
+| Vote to skip / remove | members, if the owner leaves it on, with 3 members or more; the owner can't be voted out |
 | Remove someone directly, no vote (force kick) | owner |
 | Hand over ownership, delete the room | owner |
 | Leave | anyone; an owner leaving hands over to the oldest member, or deletes the room if alone |
+| Come back | someone who left: with the invite code, same seat and history. Someone removed: only if the owner adds them back |
+
+A majority is more than half of the other members (the target doesn't count), and never one person alone. Whenever an owner seat ends (leaving, removal, account deletion) the oldest remaining member becomes owner; rooms left without one are repaired at startup. People who left stay in `/group` as `former` (flagged `left`) so the history, awards and chat keep their name and photo.
 
 Settings per room: majority skip on/off, majority removal on/off, who can add or import questions (everyone / owner).
 

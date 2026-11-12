@@ -172,7 +172,15 @@ pub async fn join(
             .await?;
     let mut tx = state.db.begin().await?;
     let joined = match existing {
-        Some(m) if m.removed_at.is_some() => return Err(AppError::Forbidden("removed")),
+        // Removed by the owner or a vote: only the owner can add them back.
+        Some(m) if m.removed_at.is_some() && !m.left_by_self => {
+            return Err(AppError::Forbidden("removed"));
+        }
+        // Left on their own: their old seat comes back, history included.
+        Some(m) if m.removed_at.is_some() => {
+            crate::routes::rejoin_seat(&mut tx, m.id).await?;
+            Some(m.id)
+        }
         Some(_) => None,
         None => {
             let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM members WHERE group_id = ?")
@@ -307,7 +315,7 @@ pub async fn force_remove(
     .fetch_optional(&state.db)
     .await?;
     target.ok_or(AppError::NotFound)?;
-    remove_member(&state, room, member_id, me.id).await?;
+    remove_member(&state, room, member_id, me.id, false).await?;
     Ok(Json(json!({ "ok": true })))
 }
 
@@ -355,31 +363,23 @@ pub async fn leave(
 }
 
 /// Gives up a seat (leaving, or deleting the account): an owner hands over to the
-/// longest-standing active member; alone, the room is deleted. `true` = room deleted.
+/// longest-standing active member (see `remove_member`); alone, the room is deleted. `true` = room deleted.
 pub(crate) async fn leave_seat(state: &AppState, me: &MemberRow) -> AppResult<bool> {
     let room = me.group_id;
     if me.role == "owner" {
-        let heir: Option<i64> = sqlx::query_scalar(
-            "SELECT id FROM members WHERE group_id = ? AND removed_at IS NULL AND id != ? ORDER BY id LIMIT 1",
+        let others: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM members WHERE group_id = ? AND removed_at IS NULL AND id != ?",
         )
         .bind(room)
         .bind(me.id)
-        .fetch_optional(&state.db)
+        .fetch_one(&state.db)
         .await?;
-        match heir {
-            Some(heir) => {
-                sqlx::query("UPDATE members SET role = 'owner' WHERE id = ?")
-                    .bind(heir)
-                    .execute(&state.db)
-                    .await?;
-            }
-            None => {
-                delete_room(state, room).await?;
-                return Ok(true);
-            }
+        if others == 0 {
+            delete_room(state, room).await?;
+            return Ok(true);
         }
     }
-    remove_member(state, room, me.id, me.id).await?;
+    remove_member(state, room, me.id, me.id, true).await?;
     state.live.send(room, Event::RoomUpdated);
     Ok(false)
 }
