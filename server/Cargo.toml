@@ -6,11 +6,14 @@ publish = false
 
 [dependencies]
 aes-gcm = "0.11.1"
+argon2 = "0.6"
 axum = { version = "0.8.9", features = ["ws", "multipart", "macros"] }
 base64 = "0.23.1"
+data-encoding = "2"
 futures = "0.3.34"
 hex = "0.4.3"
 hkdf = "0.13.0"
+hmac = "0.13"
 image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "webp"] }
 jsonwebtoken = { version = "11.1.0", features = ["rust_crypto"] }
 p256 = { version = "0.14.0", features = ["ecdh", "ecdsa"] }
@@ -19,6 +22,7 @@ reqwest = { version = "0.13.5", default-features = false, features = ["json", "f
 resvg = "0.50.0"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
+sha1 = "0.11"
 sha2 = "0.11.1"
 sqlx = { version = "0.9.0", default-features = false, features = ["runtime-tokio", "sqlite", "migrate", "macros"] }
 thiserror = "2.0.21"
@@ -30,3 +34,10 @@ tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 [dev-dependencies]
 http-body-util = "0.1.5"
 tower = "0.5.3"
+
+# Password hashing is far too slow unoptimized (tests sign up and in a lot).
+[profile.dev.package.argon2]
+opt-level = 3
+
+[profile.dev.package.blake2]
+opt-level = 3

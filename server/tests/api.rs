@@ -20,6 +20,7 @@ async fn test_app() -> Router {
         vapid_private_key: None,
         vapid_subject: "mailto:test@example.com".into(),
         fcm_service_account: None,
+        ..Config::default()
     };
     std::fs::create_dir_all(&dir).unwrap();
     let state = state(config).await.unwrap();
