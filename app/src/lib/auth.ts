@@ -128,6 +128,7 @@ const MESSAGES: Record<string, string> = {
   reauth_required: "Confirme que c'est bien toi",
   bad_target: 'Impossible sur toi-même',
   not_found: 'Introuvable',
+  bad_report: 'Signalement invalide',
 };
 
 const wait = (s?: number) => (!s ? 'plus tard' : s < 60 ? `dans ${s} s` : `dans ${Math.ceil(s / 60)} min`);

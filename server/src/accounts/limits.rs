@@ -40,6 +40,12 @@ pub const RESET_ACCOUNT: Rule = rule("reset_account", 10, 60);
 pub const VERIFY_SEND_ACCOUNT: Rule = rule("verify_send_account", 5, 60);
 pub const OAUTH_IP: Rule = rule("oauth_ip", 20, 10);
 pub const LEGACY_IP: Rule = rule("legacy_ip", 10, 60);
+pub const DELETE_SEND_IP: Rule = rule("delete_send_ip", 5, 60);
+pub const DELETE_SEND_ACCOUNT: Rule = rule("delete_send_account", 3, 60);
+pub const DELETE_CONFIRM_ACCOUNT: Rule = rule("delete_confirm_account", 10, 60);
+pub const REPORT_USER: Rule = rule("report_user", 20, 60);
+/// Server-wide (one key): beyond this, reports are stored but not emailed.
+pub const REPORT_MAIL: Rule = rule("report_mail", 30, 60);
 
 struct Bucket {
     tokens: f64,
@@ -155,6 +161,11 @@ fn rule_by_name(name: &str) -> Option<Rule> {
         VERIFY_SEND_ACCOUNT,
         OAUTH_IP,
         LEGACY_IP,
+        DELETE_SEND_IP,
+        DELETE_SEND_ACCOUNT,
+        DELETE_CONFIRM_ACCOUNT,
+        REPORT_USER,
+        REPORT_MAIL,
     ]
     .into_iter()
     .find(|r| r.name == name)

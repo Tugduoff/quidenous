@@ -3,7 +3,7 @@
 use serde::Serialize;
 use sqlx::SqlitePool;
 
-use crate::error::AppResult;
+use crate::{error::AppResult, models::MemberRow};
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct InboxItem {
@@ -62,19 +62,33 @@ pub async fn to_member(
     Ok(())
 }
 
-/// Latest 50 entries, newest first, and how many are unread.
-pub async fn list(db: &SqlitePool, member_id: i64) -> AppResult<(Vec<InboxItem>, i64)> {
-    let items = sqlx::query_as::<_, InboxItem>(
+/// Hides entries caused by someone the reader blocked (`?1` = reader's account).
+macro_rules! not_blocked {
+    () => {
+        "NOT EXISTS (SELECT 1 FROM members a JOIN blocks b ON b.blocked_id = a.user_id \
+         WHERE a.id = inbox.actor_id AND b.user_id = ?1)"
+    };
+}
+
+/// Latest 50 entries, newest first, and how many are unread; nothing from people I blocked.
+pub async fn list(db: &SqlitePool, me: &MemberRow) -> AppResult<(Vec<InboxItem>, i64)> {
+    let items = sqlx::query_as::<_, InboxItem>(concat!(
         "SELECT id, kind, round_id, actor_id, text, created_at, read_at IS NOT NULL AS read \
-         FROM inbox WHERE member_id = ? ORDER BY id DESC LIMIT 50",
-    )
-    .bind(member_id)
+         FROM inbox WHERE member_id = ?2 AND ",
+        not_blocked!(),
+        " ORDER BY id DESC LIMIT 50"
+    ))
+    .bind(me.user_id)
+    .bind(me.id)
     .fetch_all(db)
     .await?;
-    let unread: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM inbox WHERE member_id = ? AND read_at IS NULL")
-            .bind(member_id)
-            .fetch_one(db)
-            .await?;
+    let unread: i64 = sqlx::query_scalar(concat!(
+        "SELECT COUNT(*) FROM inbox WHERE member_id = ?2 AND read_at IS NULL AND ",
+        not_blocked!()
+    ))
+    .bind(me.user_id)
+    .bind(me.id)
+    .fetch_one(db)
+    .await?;
     Ok((items, unread))
 }

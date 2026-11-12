@@ -2,6 +2,7 @@
 //! A session is still a bearer token in `user_tokens`; legacy token-only accounts keep working.
 
 pub mod crypto;
+mod delete;
 pub mod limits;
 pub mod mail;
 mod mfa;
@@ -77,7 +78,10 @@ pub fn router() -> Router<AppState> {
         .route("/login/2fa", post(mfa::login_2fa))
         .route("/forgot", post(password::forgot))
         .route("/reset", post(password::reset))
-        .route("/account", get(password::account))
+        .route(
+            "/account",
+            get(password::account).delete(delete::delete_account),
+        )
         .route("/credentials", post(password::credentials))
         .route("/verify/send", post(password::verify_send))
         .route("/verify", post(password::verify))
@@ -90,6 +94,8 @@ pub fn router() -> Router<AppState> {
         .route("/sessions/revoke-others", post(sessions::revoke_others))
         .route("/sessions/{id}", delete(sessions::revoke))
         .route("/logout", post(sessions::logout))
+        .route("/delete/send", post(delete::send))
+        .route("/delete/confirm", post(delete::confirm))
         .route("/providers", get(oauth::providers))
         .route("/oauth/redeem", post(oauth::redeem))
         .route("/oauth/{provider}/start", post(oauth::start))
@@ -546,6 +552,7 @@ pub(crate) mod codes {
 
     pub const VERIFY_TTL: u64 = 15 * 60;
     pub const RESET_TTL: u64 = 30 * 60;
+    pub const DELETE_TTL: u64 = 30 * 60;
     pub const MFA_TTL: u64 = 5 * 60;
     pub const OAUTH_STATE_TTL: u64 = 10 * 60;
     pub const OAUTH_RESULT_TTL: u64 = 60;
@@ -558,6 +565,7 @@ pub(crate) mod codes {
         Mfa,
         OAuthState,
         OAuthResult,
+        DeleteAccount,
     }
 
     impl Kind {
@@ -568,12 +576,16 @@ pub(crate) mod codes {
                 Kind::Mfa => "mfa",
                 Kind::OAuthState => "oauth_state",
                 Kind::OAuthResult => "oauth_result",
+                Kind::DeleteAccount => "delete_account",
             }
         }
 
         /// Six-digit codes are looked up by email and hashed with it; random tokens are looked up by hash.
         fn short(self) -> bool {
-            matches!(self, Kind::VerifyEmail | Kind::ResetPassword)
+            matches!(
+                self,
+                Kind::VerifyEmail | Kind::ResetPassword | Kind::DeleteAccount
+            )
         }
     }
 

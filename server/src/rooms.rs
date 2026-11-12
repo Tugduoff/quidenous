@@ -71,10 +71,12 @@ pub async fn list(State(state): State<AppState>, UserId(user): UserId) -> AppRes
                 (SELECT r.number FROM rounds r WHERE r.group_id = g.id AND r.closed_at IS NULL), \
                 EXISTS (SELECT 1 FROM rounds r JOIN votes v ON v.round_id = r.id \
                         WHERE r.group_id = g.id AND r.closed_at IS NULL AND v.voter_id = m.id), \
-                (SELECT COUNT(*) FROM inbox i WHERE i.member_id = m.id AND i.read_at IS NULL) \
+                (SELECT COUNT(*) FROM inbox WHERE inbox.member_id = m.id AND inbox.read_at IS NULL AND \
+                 NOT EXISTS (SELECT 1 FROM members a JOIN blocks b ON b.blocked_id = a.user_id \
+                             WHERE a.id = inbox.actor_id AND b.user_id = ?1)) \
          FROM members m JOIN groups g ON g.id = m.group_id AND g.deleted_at IS NULL \
          JOIN users u ON u.id = m.user_id \
-         WHERE m.user_id = ? AND m.removed_at IS NULL \
+         WHERE m.user_id = ?1 AND m.removed_at IS NULL \
          ORDER BY (g.id = u.last_group_id) DESC, g.id DESC",
     )
     .bind(user)
@@ -348,6 +350,14 @@ pub async fn leave(
     Path(room): Path<i64>,
 ) -> AppResult<Json<Value>> {
     let me = seat(&state, user, room).await?;
+    let deleted = leave_seat(&state, &me).await?;
+    Ok(Json(json!({ "ok": true, "deleted": deleted })))
+}
+
+/// Gives up a seat (leaving, or deleting the account): an owner hands over to the
+/// longest-standing active member; alone, the room is deleted. `true` = room deleted.
+pub(crate) async fn leave_seat(state: &AppState, me: &MemberRow) -> AppResult<bool> {
+    let room = me.group_id;
     if me.role == "owner" {
         let heir: Option<i64> = sqlx::query_scalar(
             "SELECT id FROM members WHERE group_id = ? AND removed_at IS NULL AND id != ? ORDER BY id LIMIT 1",
@@ -364,14 +374,14 @@ pub async fn leave(
                     .await?;
             }
             None => {
-                delete_room(&state, room).await?;
-                return Ok(Json(json!({ "ok": true, "deleted": true })));
+                delete_room(state, room).await?;
+                return Ok(true);
             }
         }
     }
-    remove_member(&state, room, me.id, me.id).await?;
+    remove_member(state, room, me.id, me.id).await?;
     state.live.send(room, Event::RoomUpdated);
-    Ok(Json(json!({ "ok": true, "deleted": false })))
+    Ok(false)
 }
 
 /// Owner only: the room disappears for everyone.

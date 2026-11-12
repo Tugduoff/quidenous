@@ -18,7 +18,7 @@ Migration `0015_auth.sql`:
 | `users.totp_last_step` | last accepted 30 s step: a code can't be replayed |
 | `recovery_codes` | `user_id, code_hash, used_at`: 10 one-time codes, keyed hash (HMAC-SHA256 with a key from `AUTH_SECRET`) |
 | `oauth_identities` | `user_id, provider ('google'/'discord'), subject, email`, unique `(provider, subject)`; `provider` is free text so another one (Apple) can be added later |
-| `auth_codes` | short-lived secrets, hashed: `kind` = `verify_email` / `reset_password` / `mfa` / `oauth_state` / `oauth_result`, `user_id`, `email`, `data` (JSON), `expires_at`, `used_at`, `attempts` |
+| `auth_codes` | short-lived secrets, hashed: `kind` = `verify_email` / `reset_password` / `mfa` / `oauth_state` / `oauth_result` / `delete_account` (0016), `user_id`, `email`, `data` (JSON), `expires_at`, `used_at`, `attempts` |
 | `user_tokens.last_used_at`, `.device` | session metadata (device label from `X-Device`, else the User-Agent, 80 chars) |
 | `user_tokens.claimed` | `1` = handed over by `/api/join` by first name (see *Legacy name grab*) |
 
@@ -53,6 +53,10 @@ Account kinds: **secured** = has an email + password, or at least one linked pro
 | `auth/reset` | 10 / 10 min | 10 / hour per email, 5 per code |
 | `auth/verify`, `oauth/redeem` | 10 / 10 min | 5 per code |
 | `auth/verify/send` | | 5 / hour |
+| `auth/delete/send` | 5 / hour | 3 / hour per email |
+| `auth/delete/confirm` | 10 / 10 min | 10 / hour per email, 5 per code |
+| `DELETE auth/account` | | password: the sign-in failure budget; 2FA code: the 2FA one |
+| `reports` | | 20 / hour per account (and 30 report emails / hour server-wide) |
 | `oauth/*/start` | 20 / 10 min | |
 | legacy `/join` (without a token), `/start` | 10 / hour | |
 
@@ -136,6 +140,7 @@ Everything under `/api/auth`. Bodies are JSON. Errors: `{"error": code}`, status
 | `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET` | Discord application > OAuth2, redirect `PUBLIC_URL/api/auth/oauth/discord/callback` |
 | `OAUTH_REDIRECTS` | extra allowed app redirects, comma-separated prefixes (e.g. `exp://` for Expo Go in dev) |
 | `AUTH_REQUIRED` | `1` = no more anonymous join/start |
+| `REPORT_EMAIL` | where reports are emailed (default `contact@coflop.fr`) |
 
 A provider is on only when all its variables (and `PUBLIC_URL`) are set.
 
@@ -148,6 +153,34 @@ A provider is on only when all its variables (and `PUBLIC_URL`) are set.
 5. A new native build (EAS) for the app lock (`expo-local-authentication`); everything else ships with the web app and an OTA-compatible JS update.
 6. Later: `AUTH_REQUIRED=1` once the old builds are gone.
 
+## Deleting an account, reports, blocks
+
+Migration `0016_play.sql` (store readiness): `users.deleted_at`, `auth_codes.kind` accepts `delete_account` (table rebuilt, same indexes), new tables `reports` and `blocks`.
+
+**Deleting an account** — from the app (Profile > Sécurité > Supprimer mon compte) or from the public page `/delete-account` (server-rendered, French, inline form: email → 6-digit code → confirm; accounts without an email are told to use the app or write to contact@coflop.fr). What happens:
+
+1. Every active seat is given up like `/rooms/{id}/leave` (`rooms::leave_seat`): an owner hands over to the oldest other active member, alone = the room is deleted.
+2. One transaction: their chat messages and the inbox entries they received or caused are deleted; every seat they ever had is anonymised (`Compte supprimé`, no photo, `user_id` NULL, `removed_at` set); sessions, recovery codes, providers, auth codes, push subscriptions, friends and blocks (both ways) are deleted; the `users` row stays (votes, packs and reports point at it) but is scrubbed: `Compte supprimé`, no email / password / 2FA / photo, an untypeable friend code, `deleted_at` set.
+3. Photo files are removed from `DATA_DIR/photos`.
+
+Votes, rankings, rounds, questions they added and packs they published stay, so the others' history and stats still add up (the seat shows as `Compte supprimé`). Reports they filed are kept. The email is free again afterwards.
+
+**Reports** (store policy on user content) — a message, a member or a question, from inside the room it belongs to. Stored once per (reporter, kind, target) with a snapshot of the content, and emailed (text + HTML) to `REPORT_EMAIL` (default `contact@coflop.fr`).
+
+**Blocks** — I stop seeing someone: their chat messages (`GET /rounds/{id}/messages`), inbox entries they caused (and the unread counts), pushes for their messages and nudges, and friend requests both ways (an unknown code, same answer as a wrong one; adding to a room says `not_friends`). Blocking removes a friendship by code; they leave my friends list. Shared rooms, votes and results don't change. Messages (REST and the `message_posted` live event) carry the author's `user_id` (null once deleted) so the app can filter what arrives live.
+
+| Method + path | Auth | Body | Returns / errors |
+| --- | --- | --- | --- |
+| `DELETE /auth/account` | yes | `password?`, `code?` (TOTP or recovery) | `{ok}`, every session gone (next call `401`). With a password: that password, or a 2FA code if 2FA is on; 2FA without a password: a code; legacy / provider-only: nothing · `reauth_required`, `bad_credentials`, `bad_code`, `429`, `403 claimed_session` |
+| `POST /auth/delete/send` | | `email` | `{sent: true}` always (nothing sent for an unknown email) · `bad_email`, `503 email_not_configured` |
+| `POST /auth/delete/confirm` | | `email, code` | `{deleted: true}` · `bad_code`, `expired` (30 min, 5 tries, single use) |
+| `POST /reports` | yes | `kind` (`message`/`member`/`question`), `id`, `reason` (`offensive`/`harassment`/`sexual`/`spam`/`other`), `details?` (≤ 500) | `{ok}` (also for a repeat) · `bad_report` (unknown kind / reason, details too long), `bad_target` (myself), `404 not_found` (unknown, or not in a room of mine), `429` |
+| `GET /blocks` | yes | | `[{user_id, name, color, photo, photo_url}]` (`photo` = `photo_url` = `/photos/…` or null) |
+| `PUT /blocks/{user_id}` | yes | | `{ok}` (idempotent) · `bad_target` (myself), `404 not_found` (unknown or deleted) |
+| `DELETE /blocks/{user_id}` | yes | | `{ok}` |
+
+`/api/features` gains `delete_account`, `reports`, `blocks`.
+
 ## Not in this round
 
-Changing the email of an account, deleting an account, passkeys (WebAuthn), Sign in with Apple (left out for now; adding it = one more provider entry + an ES256 client-secret JWT, plus `expo-apple-authentication` for the native sheet), email links (codes only).
+Changing the email of an account, passkeys (WebAuthn), Sign in with Apple (left out for now; adding it = one more provider entry + an ES256 client-secret JWT, plus `expo-apple-authentication` for the native sheet), email links (codes only).

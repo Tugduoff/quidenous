@@ -1545,3 +1545,163 @@ async fn upcoming_questions_can_be_shuffled() {
     let (s, _) = call(&app, "POST", "/questions/shuffle", Some(&bob), None).await;
     assert_eq!(s, StatusCode::FORBIDDEN);
 }
+
+#[tokio::test]
+async fn blocking_hides_messages_and_friend_requests() {
+    let app = test_app().await;
+    let (ana, ana_id) = join(&app, "Ana").await;
+    let (bob, bob_id) = join(&app, "Bob").await;
+    let (_, g) = call(&app, "GET", "/group", Some(&ana), None).await;
+    let user_of = |member: i64| {
+        g["members"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|m| m["id"] == member)
+            .unwrap()["user_id"]
+            .as_i64()
+            .unwrap()
+    };
+    let (ana_user, bob_user) = (user_of(ana_id), user_of(bob_id));
+    let (_, open) = call(&app, "GET", "/round/current", Some(&ana), None).await;
+    let round = open["id"].as_i64().unwrap();
+    vote_as(&app, &ana, bob_id).await;
+    vote_as(&app, &bob, bob_id).await;
+    let (s, msg) = call(
+        &app,
+        "POST",
+        &format!("/rounds/{round}/messages"),
+        Some(&bob),
+        Some(json!({ "text": "c'est moi ?" })),
+    )
+    .await;
+    assert_eq!((s, &msg["user_id"]), (StatusCode::OK, &json!(bob_user)));
+    let messages = format!("/rounds/{round}/messages");
+    let (_, list) = call(&app, "GET", &messages, Some(&ana), None).await;
+    assert_eq!(list[0]["user_id"], bob_user);
+    let (_, inbox) = call(&app, "GET", "/inbox", Some(&ana), None).await;
+    assert_eq!(
+        (&inbox["items"][0]["kind"], &inbox["unread"]),
+        (&json!("message"), &json!(2))
+    );
+
+    // Not myself, not someone who doesn't exist.
+    let (s, b) = call(
+        &app,
+        "PUT",
+        &format!("/blocks/{ana_user}"),
+        Some(&ana),
+        None,
+    )
+    .await;
+    assert_eq!(
+        (s, b["error"].as_str()),
+        (StatusCode::BAD_REQUEST, Some("bad_target"))
+    );
+    let (s, _) = call(&app, "PUT", "/blocks/999999", Some(&ana), None).await;
+    assert_eq!(s, StatusCode::NOT_FOUND);
+    // Friends by code first, then the block undoes it.
+    let (_, bob_friends) = call(&app, "GET", "/friends", Some(&bob), None).await;
+    let bob_code = bob_friends["code"].as_str().unwrap().to_owned();
+    let (_, ana_friends) = call(&app, "GET", "/friends", Some(&ana), None).await;
+    let ana_code = ana_friends["code"].as_str().unwrap().to_owned();
+    let (s, _) = call(
+        &app,
+        "POST",
+        "/friends",
+        Some(&ana),
+        Some(json!({ "code": bob_code })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK);
+    for _ in 0..2 {
+        let (s, b) = call(
+            &app,
+            "PUT",
+            &format!("/blocks/{bob_user}"),
+            Some(&ana),
+            None,
+        )
+        .await;
+        assert_eq!((s, &b), (StatusCode::OK, &json!({ "ok": true })));
+    }
+    let (_, blocks) = call(&app, "GET", "/blocks", Some(&ana), None).await;
+    assert_eq!(blocks.as_array().unwrap().len(), 1);
+    assert_eq!(
+        (&blocks[0]["user_id"], &blocks[0]["name"]),
+        (&json!(bob_user), &json!("Bob"))
+    );
+
+    // Ana no longer sees Bob's messages nor the inbox entries he caused; Bob still sees his own.
+    let (_, list) = call(&app, "GET", &messages, Some(&ana), None).await;
+    assert_eq!(list, json!([]));
+    let (_, list) = call(&app, "GET", &messages, Some(&bob), None).await;
+    assert_eq!(list.as_array().unwrap().len(), 1);
+    let (_, inbox) = call(&app, "GET", "/inbox", Some(&ana), None).await;
+    assert!(
+        inbox["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|i| i["kind"] != "message")
+    );
+    assert_eq!(inbox["unread"], 1);
+    let (_, rooms) = call(&app, "GET", "/rooms", Some(&ana), None).await;
+    assert_eq!(rooms[0]["unread"], 1);
+    // No friend requests either way (looks like a wrong code), and he's off her friends list.
+    let (_, f) = call(&app, "GET", "/friends", Some(&ana), None).await;
+    assert_eq!(f["friends"], json!([]));
+    let (s, b) = call(
+        &app,
+        "POST",
+        "/friends",
+        Some(&ana),
+        Some(json!({ "code": bob_code })),
+    )
+    .await;
+    assert_eq!(
+        (s, b["error"].as_str()),
+        (StatusCode::BAD_REQUEST, Some("bad_code"))
+    );
+    let (s, b) = call(
+        &app,
+        "POST",
+        "/friends",
+        Some(&bob),
+        Some(json!({ "code": ana_code })),
+    )
+    .await;
+    assert_eq!(
+        (s, b["error"].as_str()),
+        (StatusCode::BAD_REQUEST, Some("bad_code"))
+    );
+    // The game itself is shared: Bob is still in the room.
+    let (_, g) = call(&app, "GET", "/group", Some(&ana), None).await;
+    assert_eq!(g["members"].as_array().unwrap().len(), 2);
+
+    // Unblocking brings everything back.
+    let (s, _) = call(
+        &app,
+        "DELETE",
+        &format!("/blocks/{bob_user}"),
+        Some(&ana),
+        None,
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK);
+    let (_, blocks) = call(&app, "GET", "/blocks", Some(&ana), None).await;
+    assert_eq!(blocks, json!([]));
+    let (_, list) = call(&app, "GET", &messages, Some(&ana), None).await;
+    assert_eq!(list.as_array().unwrap().len(), 1);
+    let (_, inbox) = call(&app, "GET", "/inbox", Some(&ana), None).await;
+    assert_eq!(inbox["unread"], 2);
+    let (s, _) = call(
+        &app,
+        "POST",
+        "/friends",
+        Some(&ana),
+        Some(json!({ "code": bob_code })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK);
+}

@@ -8,6 +8,7 @@ pub mod game;
 pub mod inbox;
 pub mod live;
 pub mod models;
+pub mod moderation;
 pub mod packs;
 pub mod push;
 pub mod rooms;
@@ -113,6 +114,13 @@ pub fn app(state: AppState) -> Router {
             "/privacy",
             axum::routing::get(|| async {
                 axum::response::Html(include_str!("../assets/legal/privacy.html"))
+            }),
+        )
+        // How to delete an account, with a small form (e-mail, code, confirm).
+        .route(
+            "/delete-account",
+            axum::routing::get(|| async {
+                axum::response::Html(include_str!("../assets/legal/delete-account.html"))
             }),
         )
         .route(

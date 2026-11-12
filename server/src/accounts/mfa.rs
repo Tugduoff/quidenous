@@ -35,7 +35,7 @@ fn recovery_hash(state: &AppState, user_id: i64, code: &str) -> String {
 }
 
 /// A TOTP code (not replayable) or, when allowed, an unused recovery code (then used up).
-async fn second_factor(
+pub(super) async fn second_factor(
     state: &AppState,
     acct: &Account,
     code: &str,

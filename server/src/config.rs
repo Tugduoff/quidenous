@@ -28,6 +28,17 @@ pub struct Config {
     pub discord: Option<OAuthClient>,
     /// `OAUTH_REDIRECTS`: extra allowed app redirect prefixes, comma-separated (e.g. `exp://`).
     pub oauth_redirects: Vec<String>,
+    /// `REPORT_EMAIL`: where content reports go (`contact@coflop.fr` when unset).
+    pub report_email: Option<String>,
+}
+
+pub const DEFAULT_REPORT_EMAIL: &str = "contact@coflop.fr";
+
+impl Config {
+    /// Where content reports are emailed.
+    pub fn report_email(&self) -> &str {
+        self.report_email.as_deref().unwrap_or(DEFAULT_REPORT_EMAIL)
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -125,6 +136,7 @@ impl Config {
                         .collect()
                 })
                 .unwrap_or_default(),
+            report_email: var("REPORT_EMAIL"),
         }
     }
 }

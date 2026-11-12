@@ -73,6 +73,7 @@ Traefik: point a router at the service on port 8080; WebSockets work out of the 
 | `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET` | — | Discord sign-in (redirect `PUBLIC_URL/api/auth/oauth/discord/callback`) |
 | `OAUTH_REDIRECTS` | — | Extra allowed app redirect prefixes, comma-separated (e.g. `exp://` for Expo Go) |
 | `AUTH_REQUIRED` | off | `1` = no more anonymous join by first name (`/api/join`, `/api/start` answer 410). Only once every phone runs an app with sign-in |
+| `REPORT_EMAIL` | `contact@coflop.fr` | Where in-app reports (message, member, question) are emailed, through Mailgun. At most 30 emails an hour; every report is also stored in the `reports` table |
 
 Accounts, 2FA and sign-in details: [docs/AUTH.md](../docs/AUTH.md).
 
