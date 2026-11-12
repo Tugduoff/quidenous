@@ -13,6 +13,7 @@ COPY server/Cargo.toml server/Cargo.lock ./
 COPY server/src src
 COPY server/migrations migrations
 COPY server/deck deck
+COPY server/assets assets
 RUN cargo build --release --locked
 
 FROM debian:trixie-slim
