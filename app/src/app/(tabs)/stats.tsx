@@ -146,7 +146,7 @@ export default function StatsScreen() {
       <View style={{ flexDirection: 'row', gap: 10 }}>
         <Tile value={String(s.questions)} label={s.questions > 1 ? 'questions' : 'question'} />
         <Tile value={String(s.votes)} label={s.votes > 1 ? 'votes' : 'vote'} />
-        <Tile value={duration(s.seconds_voting)} label="perdues à voter (à la louche)" />
+        <Tile value={duration(s.seconds_voting)} label="à voter (environ)" />
       </View>
 
       <View style={{ gap: 10 }}>

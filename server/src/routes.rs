@@ -44,7 +44,8 @@ pub fn router() -> Router<AppState> {
                     "ranking",
                     "room_imports",
                     "share_cards",
-                    "packs"
+                    "packs",
+                    "start"
                 ]))
             }),
         )
@@ -80,6 +81,7 @@ pub fn router() -> Router<AppState> {
         )
         .route("/rooms", get(crate::rooms::list).post(crate::rooms::create))
         .route("/rooms/join", post(crate::rooms::join))
+        .route("/start", post(crate::rooms::start))
         .route(
             "/packs",
             get(crate::packs::list).post(crate::packs::publish),
@@ -504,6 +506,7 @@ async fn history_items(
                 top_count: best,
                 vote_count: tallies.iter().map(|t| t.count).sum(),
                 pinned,
+                kind,
             });
             continue;
         }
@@ -520,6 +523,7 @@ async fn history_items(
             top_count,
             vote_count: tallies.iter().map(|t| t.count).sum(),
             pinned,
+            kind,
         });
     }
     Ok(items)

@@ -403,3 +403,52 @@ pub fn member_with_role(m: &MemberRow) -> Value {
     v["user_id"] = json!(m.user_id);
     v
 }
+
+#[derive(Deserialize)]
+pub struct StartBody {
+    name: String,
+    room: String,
+}
+
+/// No code, no account yet: create both, with a fresh room I own (the way in for newcomers).
+pub async fn start(
+    State(state): State<AppState>,
+    Json(body): Json<StartBody>,
+) -> AppResult<Json<Value>> {
+    let name = body.name.trim();
+    if name.is_empty() || name.chars().count() > 24 {
+        return Err(AppError::BadRequest("bad_name"));
+    }
+    let room = clean_room_name(&body.room)?;
+    let token = crate::auth::new_token();
+    let mut tx = state.db.begin().await?;
+    let user: i64 = sqlx::query_scalar(
+        "INSERT INTO users (name, color, friend_code) VALUES (?, ?, upper(hex(randomblob(4)))) RETURNING id",
+    )
+    .bind(name)
+    .bind(COLORS[0])
+    .fetch_one(&mut *tx)
+    .await?;
+    sqlx::query("INSERT INTO user_tokens (token_hash, user_id) VALUES (?, ?)")
+        .bind(crate::auth::hash_token(&token))
+        .bind(user)
+        .execute(&mut *tx)
+        .await?;
+    tx.commit().await?;
+    let created = create(
+        State(state.clone()),
+        UserId(user),
+        Json(CreateBody { name: room }),
+    )
+    .await?;
+    let room_id = created.0["id"].as_i64().unwrap_or_default();
+    let member =
+        sqlx::query_as::<_, MemberRow>("SELECT * FROM members WHERE group_id = ? AND user_id = ?")
+            .bind(room_id)
+            .bind(user)
+            .fetch_one(&state.db)
+            .await?;
+    Ok(Json(
+        json!({ "token": token, "member": Member::from(&member), "room_id": room_id }),
+    ))
+}

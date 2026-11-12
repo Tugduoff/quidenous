@@ -109,6 +109,7 @@ pub struct HistoryItem {
     pub top_count: i64,
     pub vote_count: i64,
     pub pinned: bool,
+    pub kind: String,
 }
 
 #[derive(Clone, Debug, Serialize, sqlx::FromRow)]

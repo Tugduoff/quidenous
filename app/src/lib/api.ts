@@ -20,7 +20,8 @@ export const presetFriendCode = () => FRIEND_CODE;
 
 /** Group code baked into the build (CI secret) or carried by the invite link `/?code=…`. */
 export function presetJoinCode(): string | null {
-  return process.env.EXPO_PUBLIC_JOIN_CODE || INVITE_CODE;
+  // Rooms are open to anyone now: only an invite link fills the code in (no group baked into the build).
+  return INVITE_CODE;
 }
 
 export let API_URL = DEFAULT_API_URL;
@@ -78,6 +79,7 @@ export type HistoryItem = {
   top_count: number;
   vote_count: number;
   pinned: boolean;
+  kind: 'pick' | 'rank';
 };
 export type Message = { id: number; member_id: number; text: string; created_at: string };
 export type InboxItem = {

@@ -1395,3 +1395,32 @@ async fn community_packs_publish_install_report() {
     let (s, _) = call(&app, "DELETE", &format!("/packs/{id}"), Some(&b), None).await;
     assert_eq!(s, StatusCode::FORBIDDEN);
 }
+
+#[tokio::test]
+async fn a_newcomer_starts_with_their_own_room() {
+    let app = test_app().await;
+    let (s, body) = call(
+        &app,
+        "POST",
+        "/start",
+        None,
+        Some(json!({ "name": "Zoé", "room": "Les voisins" })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{body}");
+    let token = body["token"].as_str().unwrap().to_owned();
+    let (_, g) = call(&app, "GET", "/group", Some(&token), None).await;
+    assert_eq!(g["name"], "Les voisins");
+    assert_eq!(g["my_role"], "owner");
+    let (_, current) = call(&app, "GET", "/round/current", Some(&token), None).await;
+    assert!(current["id"].is_i64(), "a question is waiting");
+    let (s, _) = call(
+        &app,
+        "POST",
+        "/start",
+        None,
+        Some(json!({ "name": "", "room": "x" })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+}

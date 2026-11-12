@@ -1,6 +1,6 @@
 import { ArrowRight } from 'lucide-react-native';
 import { useState } from 'react';
-import { Text, TextInput, View } from 'react-native';
+import { Pressable, Text, TextInput, View } from 'react-native';
 
 import { Screen } from '@/components/screen';
 import { Button, Card, Logo } from '@/components/ui';
@@ -11,14 +11,19 @@ import { useTheme } from '@/lib/theme';
 const ERRORS: Record<string, string> = {
   bad_code: 'Code inconnu',
   bad_name: 'Prénom invalide',
+  bad_room_name: 'Donne un nom à ton salon',
+  removed: 'Tu as été retiré de ce salon',
 };
 
 export default function Join() {
   const t = useTheme();
-  const { join } = useSession();
+  const { join, start } = useSession();
   const [name, setName] = useState('');
   const [preset] = useState(presetJoinCode);
   const [code, setCode] = useState(preset ?? '');
+  // Without an invite: join with a code, or start a room of my own.
+  const [creating, setCreating] = useState(false);
+  const [room, setRoom] = useState('');
   const [server, setServer] = useState('https://');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -27,7 +32,8 @@ export default function Join() {
     setBusy(true);
     setError(null);
     try {
-      await join(code, name, SERVER_FIELD ? server : undefined);
+      if (creating) await start(name, room, SERVER_FIELD ? server : undefined);
+      else await join(code, name, SERVER_FIELD ? server : undefined);
     } catch (e) {
       setError(e instanceof ApiError ? (ERRORS[e.code] ?? 'Erreur') : 'Pas de connexion');
       if (e instanceof ApiError && e.code === 'bad_code' && preset) setCode('');
@@ -41,8 +47,8 @@ export default function Join() {
     <Screen
       tabs={false}
       footer={
-        <Button onPress={submit} loading={busy} disabled={!name.trim() || !code.trim()}>
-          <Text style={{ fontFamily: t.font.bold, fontSize: 17, color: t.accTxt }}>Rejoindre</Text>
+        <Button onPress={submit} loading={busy} disabled={!name.trim() || !(creating ? room.trim() : code.trim())}>
+          <Text style={{ fontFamily: t.font.bold, fontSize: 17, color: t.accTxt }}>{creating ? 'Créer mon salon' : 'Rejoindre'}</Text>
           <ArrowRight size={20} color={t.accTxt} />
         </Button>
       }>
@@ -63,19 +69,44 @@ export default function Join() {
           style={input}
         />
       </Card>
-      {(!preset || !code) && (
-      <Card>
-        <TextInput
-          accessibilityLabel="Code du groupe"
-          placeholder="CODE"
-          placeholderTextColor={t.mut}
-          value={code}
-          onChangeText={(v) => setCode(v.toUpperCase())}
-          autoCapitalize="characters"
-          autoCorrect={false}
-          style={[input, { letterSpacing: 6 }]}
-        />
-      </Card>
+      {creating ? (
+        <Card>
+          <TextInput
+            accessibilityLabel="Nom du salon"
+            placeholder="Nom du salon (Les cousins, Le boulot…)"
+            placeholderTextColor={t.mut}
+            value={room}
+            onChangeText={setRoom}
+            maxLength={40}
+            style={input}
+          />
+        </Card>
+      ) : (
+        (!preset || !code) && (
+          <Card>
+            <TextInput
+              accessibilityLabel="Code du groupe"
+              placeholder="CODE"
+              placeholderTextColor={t.mut}
+              value={code}
+              onChangeText={(v) => setCode(v.toUpperCase())}
+              autoCapitalize="characters"
+              autoCorrect={false}
+              style={[input, { letterSpacing: 6 }]}
+            />
+          </Card>
+        )
+      )}
+      {!preset && (
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => setCreating((c) => !c)}
+          hitSlop={8}
+          style={{ alignSelf: 'center', padding: 8 }}>
+          <Text style={{ fontFamily: t.font.semibold, fontSize: 15, color: t.accInk }}>
+            {creating ? "J'ai un code d'invitation" : 'Pas de code ? Crée ton salon'}
+          </Text>
+        </Pressable>
       )}
       {SERVER_FIELD && (
         <Card>

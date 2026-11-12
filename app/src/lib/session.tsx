@@ -15,6 +15,8 @@ type Session = {
   room: number | null;
   setRoom: (id: number | null) => Promise<void>;
   join: (code: string, name: string, server?: string) => Promise<void>;
+  /** No code: a new account with a new room I own. */
+  start: (name: string, room: string, server?: string) => Promise<void>;
   setMe: (m: Member) => void;
   leave: () => Promise<void>;
 };
@@ -69,9 +71,12 @@ export function SessionProvider({ children }: PropsWithChildren) {
     })();
   }, []);
 
-  const join = async (code: string, name: string, server?: string) => {
+  const join = (code: string, name: string, server?: string) => enter('/join', { code, name }, server);
+  const start = (name: string, room: string, server?: string) => enter('/start', { name, room }, server);
+
+  const enter = async (path: string, json: Record<string, string>, server?: string) => {
     if (server) setApiUrl(server);
-    const res = await api<{ token: string; member: Member; room_id: number }>('/join', { method: 'POST', json: { code, name } });
+    const res = await api<{ token: string; member: Member; room_id: number }>(path, { method: 'POST', json });
     setApiRoom(res.room_id);
     setRoomState(res.room_id);
     await storage.set(ROOM_KEY, String(res.room_id));
@@ -93,7 +98,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
   };
 
   return (
-    <SessionContext.Provider value={{ ready, me, token, room, setRoom, join, setMe, leave }}>{children}</SessionContext.Provider>
+    <SessionContext.Provider value={{ ready, me, token, room, setRoom, join, start, setMe, leave }}>{children}</SessionContext.Provider>
   );
 }
 

@@ -58,7 +58,10 @@ function HistoryCard({ item, lead, byId }: { item: HistoryItem; lead: number; by
         )}
       </View>
       <View style={{ flex: 1, gap: 4 }}>
-        <Text style={{ fontFamily: t.font.semibold, fontSize: 15, lineHeight: 19, color: t.txt }}>{item.question}</Text>
+        <Text style={{ fontFamily: t.font.semibold, fontSize: 15, lineHeight: 19, color: t.txt }}>
+          {item.kind === 'rank' ? '🏆 ' : ''}
+          {item.question}
+        </Text>
         <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 4 }}>
           <Crown size={14} color={winners.length === 1 ? (winner?.color ?? t.mut) : t.mut} style={{ flexShrink: 0, marginTop: 1 }} />
           <Text style={{ flex: 1, fontFamily: t.font.regular, fontSize: 12, lineHeight: 16, color: t.mut }}>
@@ -119,7 +122,18 @@ export default function HistoryScreen() {
           accessibilityLabel="Exporter l'historique"
           onPress={downloadHistory}
           hitSlop={8}
-          style={[{ flexDirection: 'row', alignItems: 'center', gap: 6, height: 36, paddingHorizontal: 14, borderRadius: t.radius.pill, backgroundColor: t.card }, t.shadow]}>
+          style={[
+            {
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 6,
+              height: 36,
+              paddingHorizontal: 14,
+              borderRadius: t.radius.pill,
+              backgroundColor: t.card,
+            },
+            t.shadow,
+          ]}>
           <Download size={16} color={t.txt} />
           <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.txt }}>Exporter</Text>
         </Pressable>
