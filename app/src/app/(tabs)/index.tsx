@@ -8,7 +8,7 @@ import { Pressable, Text, View } from 'react-native';
 import { ChatInput, ChatMessages } from '@/components/chat';
 import { RankResult, ResultBars } from '@/components/result-bars';
 import { Screen } from '@/components/screen';
-import { Avatar, AvatarStack, Button, Card, Display, Logo, Tag } from '@/components/ui';
+import { Avatar, AvatarStack, Button, Card, ConfirmModal, Display, Logo, Tag } from '@/components/ui';
 import { api, type Member, type Round } from '@/lib/api';
 import { keys, useCurrentRound, useGroup, useInbox, useMembers, useRound, useUnseenRound } from '@/lib/queries';
 import { useSession } from '@/lib/session';
@@ -384,31 +384,46 @@ function SkipButton({ member, round }: { member: Member; round: Round }) {
   const qc = useQueryClient();
   const state = round.skips.find((s) => s.target_id === member.id);
   const mine = !!state?.mine;
+  // Asking to skip someone takes a confirmation (it sits right next to the bell); taking it back doesn't.
+  const [asking, setAsking] = useState(false);
   const skip = useMutation({
     mutationFn: () => api(`/round/current/skip/${member.id}`, { method: mine ? 'DELETE' : 'PUT' }),
-    onSettled: () => qc.invalidateQueries({ queryKey: keys.current }),
+    onSettled: () => {
+      setAsking(false);
+      qc.invalidateQueries({ queryKey: keys.current });
+    },
   });
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={mine ? `Ne plus passer ${member.name}` : `Passer ${member.name}`}
-      disabled={skip.isPending}
-      onPress={() => skip.mutate()}
-      hitSlop={6}
-      style={{
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-        height: 32,
-        paddingHorizontal: 10,
-        borderRadius: t.radius.pill,
-        backgroundColor: mine ? t.accSoft : t.card2,
-      }}>
-      <SkipForward size={14} color={mine ? t.accInk : t.mut} />
-      <Text style={{ fontFamily: t.font.semibold, fontSize: 12, color: mine ? t.accInk : t.mut }}>
-        {state ? `${state.count}/${round.skip_needed}` : 'Passer'}
-      </Text>
-    </Pressable>
+    <>
+      <ConfirmModal
+        visible={asking}
+        title={`Passer ${member.name} ?`}
+        message="Si la majorité est d'accord, on n'attend plus son vote."
+        confirmLabel="Passer"
+        busy={skip.isPending}
+        onConfirm={() => skip.mutate()}
+        onCancel={() => setAsking(false)}
+      />
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={mine ? `Ne plus passer ${member.name}` : `Passer ${member.name}`}
+        disabled={skip.isPending}
+        onPress={() => (mine ? skip.mutate() : setAsking(true))}
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 4,
+          height: 32,
+          paddingHorizontal: 10,
+          borderRadius: t.radius.pill,
+          backgroundColor: mine ? t.accSoft : t.card2,
+        }}>
+        <SkipForward size={14} color={mine ? t.accInk : t.mut} />
+        <Text style={{ fontFamily: t.font.semibold, fontSize: 12, color: mine ? t.accInk : t.mut }}>
+          {state ? `${state.count}/${round.skip_needed}` : 'Passer'}
+        </Text>
+      </Pressable>
+    </>
   );
 }
 
@@ -461,7 +476,7 @@ function Waiting({ round, byId, members }: { round: Round; byId: Map<number, Mem
         </View>
         {pending.length > 0 && <Text style={label}>EN ATTENTE</Text>}
         {pending.map((m) => (
-          <View key={m.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <View key={m.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
             <Avatar member={m} size={32} />
             <Text numberOfLines={1} style={{ flex: 1, fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>
               {m.name}
