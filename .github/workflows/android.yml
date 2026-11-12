@@ -100,7 +100,6 @@ jobs:
       # same native runtime (fingerprint read from the build itself). Dated like the build's embedded bundle, so a phone
       # that installs this very APK doesn't download it again. A changed fingerprint just starts a new runtime.
       - name: OTA runtimes
-        if: github.ref == 'refs/heads/main'
         run: |
           apk=app/build/outputs/apk/release/app-release.apk
           aab=app/build/outputs/bundle/release/app-release.aab
@@ -113,6 +112,7 @@ jobs:
             # The two builds differ natively (install permission): the same runtime would send the APK's JS to Play.
             [ "$(unzip -p $apk assets/fingerprint)" != "$(unzip -p $aab base/assets/fingerprint)" ] || { echo "::error::APK and AAB share a runtime"; exit 1; }
           fi
+          cat "$GITHUB_ENV" | grep OTA_
         working-directory: app/android
       - name: OTA update (APK)
         if: github.ref == 'refs/heads/main' && env.UPDATES_PUBLISH_TOKEN != '' && env.OTA_APK_RUNTIME != ''
