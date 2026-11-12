@@ -4,11 +4,13 @@ import { router } from 'expo-router';
 import { Check, FileUp, Lock, MessageCircleQuestion, Package, Plus, Shuffle, Trash2, Trophy, X } from 'lucide-react-native';
 import { useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 
 import { Screen } from '@/components/screen';
-import { Avatar, Card, ConfirmModal, Display, QuestionText, Toggle } from '@/components/ui';
+import { Avatar, Card, ConfirmModal, Display, PressableScale, QuestionText, Toggle } from '@/components/ui';
 import { api } from '@/lib/api';
 import { parseQuestions, splitTag, type DraftLine } from '@/lib/import-draft';
+import { motion, useArrivals } from '@/lib/motion';
 import { keys, useGroup, useMembers, useQueue } from '@/lib/queries';
 import { useSession } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
@@ -20,6 +22,8 @@ export default function QuestionsScreen() {
   const t = useTheme();
   const qc = useQueryClient();
   const { data } = useQueue();
+  // The queue as it first loads just shows; questions added afterwards fade in.
+  const isNew = useArrivals(data?.custom.map((q) => q.id));
   const { data: group } = useGroup();
   const { byId } = useMembers();
   const [text, setText] = useState('');
@@ -147,7 +151,7 @@ export default function QuestionsScreen() {
               {/* The next question is a ranking (everyone, first to last). */}
               <Toggle icon={Trophy} label="Classement" value={rank} onChange={setRank} />
               <View style={{ flex: 1 }} />
-              <Pressable
+              <PressableScale
                 accessibilityRole="button"
                 accessibilityLabel="Ajouter"
                 disabled={!ok}
@@ -161,7 +165,7 @@ export default function QuestionsScreen() {
                   justifyContent: 'center',
                 }}>
                 <Plus size={24} color={ok ? t.accTxt : t.mut} />
-              </Pressable>
+              </PressableScale>
             </View>
           </Card>
           {/* Or many at once. */}
@@ -302,7 +306,7 @@ export default function QuestionsScreen() {
           {imported ?? ''}
         </Text>
         {!locked && (data?.custom.length ?? 0) > 1 && (
-          <Pressable
+          <PressableScale
             accessibilityRole="button"
             accessibilityLabel="Mélanger les questions à venir"
             disabled={shuffle.isPending}
@@ -320,44 +324,46 @@ export default function QuestionsScreen() {
             }}>
             <Shuffle size={14} color={t.accInk} />
             <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.accInk }}>Mélanger</Text>
-          </Pressable>
+          </PressableScale>
         )}
       </View>
+      {/* Deleting one closes the gap and shuffling slides every card to its new place. */}
       {data?.custom.map((q) => (
-        <Card
-          key={q.id}
-          style={{
-            flexDirection: 'row',
-            gap: 12,
-            alignItems: 'center',
-            padding: 14,
-          }}>
-          {q.author_id != null ? <Avatar member={byId.get(q.author_id)} size={32} /> : <MessageCircleQuestion size={20} color={t.mut} />}
-          <QuestionText
-            text={q.text}
-            rank={q.kind === 'rank'}
-            containerStyle={{ flex: 1 }}
-            style={{ fontFamily: t.font.semibold, fontSize: 15, lineHeight: 20, color: t.txt }}
-          />
-          {/* Its author or the room owner can take it out before it's asked. */}
-          {(q.author_id === me?.id || group?.my_role === 'owner') && (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Supprimer la question"
-              onPress={() => setToDelete(q)}
-              hitSlop={8}
-              style={{
-                width: 34,
-                height: 34,
-                borderRadius: 17,
-                alignItems: 'center',
-                justifyContent: 'center',
-                backgroundColor: t.card2,
-              }}>
-              <Trash2 size={16} color={t.mut} />
-            </Pressable>
-          )}
-        </Card>
+        <Animated.View key={q.id} entering={isNew(q.id) ? motion.enter : undefined} exiting={motion.exit} layout={motion.layout}>
+          <Card
+            style={{
+              flexDirection: 'row',
+              gap: 12,
+              alignItems: 'center',
+              padding: 14,
+            }}>
+            {q.author_id != null ? <Avatar member={byId.get(q.author_id)} size={32} /> : <MessageCircleQuestion size={20} color={t.mut} />}
+            <QuestionText
+              text={q.text}
+              rank={q.kind === 'rank'}
+              containerStyle={{ flex: 1 }}
+              style={{ fontFamily: t.font.semibold, fontSize: 15, lineHeight: 20, color: t.txt }}
+            />
+            {/* Its author or the room owner can take it out before it's asked. */}
+            {(q.author_id === me?.id || group?.my_role === 'owner') && (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Supprimer la question"
+                onPress={() => setToDelete(q)}
+                hitSlop={8}
+                style={{
+                  width: 34,
+                  height: 34,
+                  borderRadius: 17,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: t.card2,
+                }}>
+                <Trash2 size={16} color={t.mut} />
+              </Pressable>
+            )}
+          </Card>
+        </Animated.View>
       ))}
       <ConfirmModal
         visible={!!toDelete}
@@ -398,12 +404,12 @@ function BulkButton({
 }) {
   const t = useTheme();
   return (
-    <Pressable
+    <PressableScale
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? label}
       disabled={disabled}
       onPress={onPress}
-      style={({ pressed }) => ({
+      style={{
         flex: 1,
         height: 44,
         flexDirection: 'row',
@@ -414,10 +420,10 @@ function BulkButton({
         backgroundColor: t.card,
         borderWidth: 1.5,
         borderColor: t.line,
-        opacity: disabled ? 0.5 : pressed ? 0.7 : 1,
-      })}>
+        opacity: disabled ? 0.5 : 1,
+      }}>
       {icon}
       <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.txt }}>{label}</Text>
-    </Pressable>
+    </PressableScale>
   );
 }

@@ -1,15 +1,32 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, ArrowRight, Bell, BellOff, BellRing, Check, Eye, EyeOff, ChevronDown, Inbox, Pin, Share2, SkipForward, Users } from 'lucide-react-native';
+import {
+  ArrowLeft,
+  ArrowRight,
+  Bell,
+  BellOff,
+  BellRing,
+  Check,
+  Eye,
+  EyeOff,
+  ChevronDown,
+  Inbox,
+  Pin,
+  Share2,
+  SkipForward,
+  Users,
+} from 'lucide-react-native';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { enablePush, pushState, refreshPush, type PushState } from '@/lib/push';
 import { Pressable, Text, View } from 'react-native';
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import { ChatInput, ChatMessages } from '@/components/chat';
 import { RankResult, ResultBars } from '@/components/result-bars';
 import { Screen } from '@/components/screen';
-import { Avatar, AvatarStack, Button, Card, ConfirmModal, Display, Logo, Tag } from '@/components/ui';
+import { Avatar, AvatarStack, Button, Card, ConfirmModal, Display, Logo, PressableScale, Tag } from '@/components/ui';
 import { api, type Member, type Round } from '@/lib/api';
+import { EASE, motion } from '@/lib/motion';
 import { keys, useCurrentRound, useGroup, useInbox, useMembers, useRound, useUnseenRound } from '@/lib/queries';
 import { useSession } from '@/lib/session';
 import { setHideVote, useHideVote } from '@/lib/prefs';
@@ -30,7 +47,11 @@ function PushBell() {
       accessibilityRole="button"
       accessibilityLabel="Activer les notifications"
       disabled={denied}
-      onPress={() => enablePush().then(setState).catch(() => setState(pushState()))}
+      onPress={() =>
+        enablePush()
+          .then(setState)
+          .catch(() => setState(pushState()))
+      }
       style={{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: denied ? t.card : t.acc }}>
       {denied ? <BellOff size={18} color={t.mut} /> : <Bell size={18} color={t.accTxt} />}
     </Pressable>
@@ -63,7 +84,7 @@ function InboxButton() {
   const { data } = useInbox();
   const unread = data?.unread ?? 0;
   return (
-    <Pressable
+    <PressableScale
       accessibilityRole="button"
       accessibilityLabel={unread ? `Notifications, ${unread} non lues` : 'Notifications'}
       onPress={() => router.push('/inbox')}
@@ -86,7 +107,7 @@ function InboxButton() {
           <Text style={{ fontFamily: t.font.bold, fontSize: 10, color: '#fff' }}>{unread > 9 ? '9+' : unread}</Text>
         </View>
       )}
-    </Pressable>
+    </PressableScale>
   );
 }
 
@@ -94,13 +115,13 @@ function InboxButton() {
 function GroupButton() {
   const t = useTheme();
   return (
-    <Pressable
+    <PressableScale
       accessibilityRole="button"
       accessibilityLabel="Groupe"
       onPress={() => router.push('/group')}
       style={[{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card }, t.shadow]}>
       <Users size={18} color={t.txt} />
-    </Pressable>
+    </PressableScale>
   );
 }
 
@@ -135,10 +156,7 @@ export default function VoteScreen() {
 
   // Recap first: a question I voted on finished while I was away (or with my vote).
   if (unseen.data) {
-    const seen = () =>
-      api(`/rounds/${unseen.data!.id}/seen`, { method: 'POST' }).finally(() =>
-        qc.invalidateQueries({ queryKey: keys.unseen }),
-      );
+    const seen = () => api(`/rounds/${unseen.data!.id}/seen`, { method: 'POST' }).finally(() => qc.invalidateQueries({ queryKey: keys.unseen }));
     return <Result key={unseen.data.id} roundId={unseen.data.id} byId={byId} onNext={seen} />;
   }
   if (!round) {
@@ -149,17 +167,8 @@ export default function VoteScreen() {
       </Screen>
     );
   }
-  if (round.my_vote != null)
-    return <Waiting round={round} byId={byId} members={members} />;
-  return (
-    <Ballot
-      key={round.id}
-      round={round}
-      members={members}
-      byId={byId}
-      onVoted={() => qc.invalidateQueries({ queryKey: keys.unseen })}
-    />
-  );
+  if (round.my_vote != null) return <Waiting round={round} byId={byId} members={members} />;
+  return <Ballot key={round.id} round={round} members={members} byId={byId} onVoted={() => qc.invalidateQueries({ queryKey: keys.unseen })} />;
 }
 
 function Question({ round, result }: { round: Round; result?: boolean }) {
@@ -183,15 +192,23 @@ function Question({ round, result }: { round: Round; result?: boolean }) {
           label={`${result ? 'Résultat' : round.kind === 'rank' ? 'Classement' : round.custom ? 'De nous' : 'Dilemme'} · #${round.number}`}
           tone={result ? 'acc' : 'tag'}
         />
-        <Pressable
+        <PressableScale
           accessibilityRole="button"
           accessibilityLabel={result ? 'Partager le résultat' : 'Partager la question'}
           onPress={share}
           hitSlop={8}
-          style={{ flexDirection: 'row', alignItems: 'center', gap: 6, height: 32, paddingHorizontal: 12, borderRadius: t.radius.pill, backgroundColor: t.card }}>
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 6,
+            height: 32,
+            paddingHorizontal: 12,
+            borderRadius: t.radius.pill,
+            backgroundColor: t.card,
+          }}>
           {copied ? <Check size={15} color={t.accInk} /> : <Share2 size={15} color={t.txt} />}
           <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: copied ? t.accInk : t.txt }}>{copied ? 'Copié' : 'Partager'}</Text>
-        </Pressable>
+        </PressableScale>
       </View>
       <Display size={result ? 28 : 34}>{round.question}</Display>
     </View>
@@ -232,14 +249,14 @@ function RankBallot({ round, members, byId, onVoted }: { round: Round; members: 
         )}
       </View>
       <Text style={{ fontFamily: t.font.regular, fontSize: 14, color: t.mut }}>Touche chacun dans l'ordre, du premier au dernier.</Text>
+      {/* Ranked people move up to their place, the rest slide down. */}
       <View style={{ gap: 10 }}>
-        {[...order.map((id) => members.find((m) => m.id === id)!), ...members.filter((m) => !order.includes(m.id))]
-          .filter(Boolean)
-          .map((m) => {
-            const place = order.indexOf(m.id) + 1;
-            return (
-              <Pressable
-                key={m.id}
+        {[...order.map((id) => members.find((m) => m.id === id)!), ...members.filter((m) => !order.includes(m.id))].filter(Boolean).map((m) => {
+          const place = order.indexOf(m.id) + 1;
+          return (
+            <Animated.View key={m.id} layout={motion.layout}>
+              <PressableScale
+                scale={0.98}
                 accessibilityRole="button"
                 accessibilityLabel={place ? `${m.name}, ${place}e. Retirer` : `Classer ${m.name}`}
                 onPress={() => toggle(m.id)}
@@ -271,25 +288,16 @@ function RankBallot({ round, members, byId, onVoted }: { round: Round; members: 
                 <Text style={{ flex: 1, fontFamily: t.font.semibold, fontSize: 16, color: t.txt }} numberOfLines={1}>
                   {m.name}
                 </Text>
-              </Pressable>
-            );
-          })}
+              </PressableScale>
+            </Animated.View>
+          );
+        })}
       </View>
     </Screen>
   );
 }
 
-function Ballot({
-  round,
-  members,
-  byId,
-  onVoted,
-}: {
-  round: Round;
-  members: Member[];
-  byId: Map<number, Member>;
-  onVoted: () => void;
-}) {
+function Ballot({ round, members, byId, onVoted }: { round: Round; members: Member[]; byId: Map<number, Member>; onVoted: () => void }) {
   // Same component instance per round (keyed by id), so the kind never changes under it.
   if (round.kind === 'rank') return <RankBallot round={round} members={members} byId={byId} onVoted={onVoted} />;
   return <PickBallot round={round} members={members} byId={byId} onVoted={onVoted} />;
@@ -326,8 +334,9 @@ function PickBallot({ round, members, byId, onVoted }: { round: Round; members: 
         {members.map((m) => {
           const on = m.id === pick;
           return (
-            <Pressable
+            <PressableScale
               key={m.id}
+              scale={0.97}
               accessibilityRole="radio"
               accessibilityState={{ selected: on }}
               onPress={() => setPick(m.id)}
@@ -349,7 +358,7 @@ function PickBallot({ round, members, byId, onVoted }: { round: Round; members: 
               <Text style={{ fontFamily: t.font.semibold, fontSize: 16, color: t.txt, flex: 1 }} numberOfLines={1}>
                 {m.name}
               </Text>
-            </Pressable>
+            </PressableScale>
           );
         })}
       </View>
@@ -367,14 +376,21 @@ function NudgeButton({ member, roundId }: { member: Member; roundId: number }) {
     onSettled: () => setSent(true),
   });
   return (
-    <Pressable
+    <PressableScale
       accessibilityRole="button"
       accessibilityLabel={`Relancer ${member.name}`}
       disabled={sent || nudge.isPending}
       onPress={() => nudge.mutate()}
-      style={{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: sent ? t.card2 : t.accSoft }}>
+      style={{
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: sent ? t.card2 : t.accSoft,
+      }}>
       {sent ? <Check size={18} color={t.mut} /> : <BellRing size={18} color={t.accInk} />}
-    </Pressable>
+    </PressableScale>
   );
 }
 
@@ -404,11 +420,12 @@ function SkipButton({ member, round }: { member: Member; round: Round }) {
         onConfirm={() => skip.mutate()}
         onCancel={() => setAsking(false)}
       />
-      <Pressable
+      <PressableScale
         accessibilityRole="button"
         accessibilityLabel={mine ? `Ne plus passer ${member.name}` : `Passer ${member.name}`}
         disabled={skip.isPending}
         onPress={() => (mine ? skip.mutate() : setAsking(true))}
+        hitSlop={6}
         style={{
           flexDirection: 'row',
           alignItems: 'center',
@@ -422,7 +439,7 @@ function SkipButton({ member, round }: { member: Member; round: Round }) {
         <Text style={{ fontFamily: t.font.semibold, fontSize: 12, color: mine ? t.accInk : t.mut }}>
           {state ? `${state.count}/${round.skip_needed}` : 'Passer'}
         </Text>
-      </Pressable>
+      </PressableScale>
     </>
   );
 }
@@ -454,29 +471,28 @@ function Waiting({ round, byId, members }: { round: Round; byId: Map<number, Mem
             {hidden ? 'Caché' : (target?.name ?? '?')}
           </Text>
         </View>
-        <Pressable
+        <PressableScale
           accessibilityRole="button"
           accessibilityLabel={hidden ? 'Montrer mon vote' : 'Cacher mon vote'}
           onPress={() => setHideVote(!hidden)}
           hitSlop={8}
           style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: t.card2, alignItems: 'center', justifyContent: 'center' }}>
           {hidden ? <Eye size={18} color={t.txt} /> : <EyeOff size={18} color={t.txt} />}
-        </Pressable>
+        </PressableScale>
       </Card>
-      {/* Who's in, who we're waiting for. */}
-      <Card style={{ padding: 16, gap: 14 }}>
+      {/* Who's in, who we're waiting for. A card (not Card) that animates its height as people leave the list. */}
+      <Animated.View layout={motion.layout} style={[{ backgroundColor: t.card, borderRadius: t.radius.card, padding: 16, gap: 14 }, t.shadow]}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
           <Text style={{ flex: 1, fontFamily: t.font.bold, fontSize: 15, color: t.txt }}>
             {done} sur {round.member_count} ont voté
           </Text>
           <AvatarStack members={round.voter_ids.map((id) => byId.get(id))} size={26} ring={t.card} />
         </View>
-        <View style={{ height: 6, borderRadius: 3, backgroundColor: t.card2, overflow: 'hidden' }}>
-          <View style={{ width: `${Math.round((done / Math.max(round.member_count, 1)) * 100)}%`, height: 6, borderRadius: 3, backgroundColor: t.acc }} />
-        </View>
+        <Progress value={done / Math.max(round.member_count, 1)} />
         {pending.length > 0 && <Text style={label}>EN ATTENTE</Text>}
+        {/* Someone who votes fades out of the list and the others close up. */}
         {pending.map((m) => (
-          <View key={m.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+          <Animated.View key={m.id} exiting={motion.exit} layout={motion.layout} style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
             <Avatar member={m} size={32} />
             <Text numberOfLines={1} style={{ flex: 1, fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>
               {m.name}
@@ -484,10 +500,25 @@ function Waiting({ round, byId, members }: { round: Round; byId: Map<number, Mem
             {round.skipped_ids.includes(m.id) && <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut }}>passé</Text>}
             {m.id !== me?.id && !round.skipped_ids.includes(m.id) && <SkipButton member={m} round={round} />}
             {m.id !== me?.id && <NudgeButton member={m} roundId={round.id} />}
-          </View>
+          </Animated.View>
         ))}
-      </Card>
+      </Animated.View>
     </Screen>
+  );
+}
+
+/** Share of the group that has voted (0 to 1): fills up from empty, then grows with each new vote. */
+function Progress({ value }: { value: number }) {
+  const t = useTheme();
+  const fill = useSharedValue(0);
+  useEffect(() => {
+    fill.value = withTiming(value, { duration: 450, easing: EASE });
+  }, [value, fill]);
+  const width = useAnimatedStyle(() => ({ width: `${fill.value * 100}%` }));
+  return (
+    <View style={{ height: 6, borderRadius: 3, backgroundColor: t.card2, overflow: 'hidden' }}>
+      <Animated.View style={[{ height: 6, borderRadius: 3, backgroundColor: t.acc }, width]} />
+    </View>
   );
 }
 
@@ -516,7 +547,7 @@ function BackHeader({ onBack, round }: { onBack: () => void; round?: Round }) {
         <Text style={{ fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>Historique</Text>
       </Pressable>
       {round && (
-        <Pressable
+        <PressableScale
           accessibilityRole="button"
           accessibilityLabel={pinned ? 'Désépingler' : 'Épingler'}
           onPress={() => pin.mutate(!pinned)}
@@ -532,26 +563,14 @@ function BackHeader({ onBack, round }: { onBack: () => void; round?: Round }) {
             backgroundColor: pinned ? t.accSoft : t.card,
           }}>
           <Pin size={16} color={pinned ? t.accInk : t.txt} fill={pinned ? t.accInk : 'none'} />
-          <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: pinned ? t.accInk : t.txt }}>
-            {pinned ? 'Épinglé' : 'Épingler'}
-          </Text>
-        </Pressable>
+          <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: pinned ? t.accInk : t.txt }}>{pinned ? 'Épinglé' : 'Épingler'}</Text>
+        </PressableScale>
       )}
     </View>
   );
 }
 
-export function Result({
-  roundId,
-  byId,
-  onNext,
-  onBack,
-}: {
-  roundId: number;
-  byId: Map<number, Member>;
-  onNext?: () => void;
-  onBack?: () => void;
-}) {
+export function Result({ roundId, byId, onNext, onBack }: { roundId: number; byId: Map<number, Member>; onNext?: () => void; onBack?: () => void }) {
   const t = useTheme();
   const { data: round } = useRound(roundId);
   const header = onBack ? <BackHeader onBack={onBack} round={round ?? undefined} /> : <Header />;
@@ -573,11 +592,7 @@ export function Result({
       }>
       {header}
       <Question round={round} result />
-      {round.ranking ? (
-        <RankResult ranking={round.ranking} byId={byId} mine={round.my_ranking} />
-      ) : (
-        <ResultBars result={round.result} byId={byId} />
-      )}
+      {round.ranking ? <RankResult ranking={round.ranking} byId={byId} mine={round.my_ranking} /> : <ResultBars result={round.result} byId={byId} />}
       <ChatMessages roundId={round.id} />
     </Screen>
   );

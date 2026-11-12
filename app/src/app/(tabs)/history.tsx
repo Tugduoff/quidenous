@@ -1,11 +1,14 @@
 import { router } from 'expo-router';
 import { Crown, Download, PartyPopper, Pin } from 'lucide-react-native';
-import { ActivityIndicator, Pressable, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Text, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 
 import { Screen } from '@/components/screen';
-import { Avatar, AvatarStack, avatarStackWidth, Display, QuestionText } from '@/components/ui';
+import { Avatar, AvatarStack, avatarStackWidth, Display, PressableScale, QuestionText } from '@/components/ui';
 import type { HistoryItem, Member } from '@/lib/api';
 import { isMilestone } from '@/lib/milestones';
+import { motion } from '@/lib/motion';
 import { downloadHistory } from '@/lib/share';
 import { useHistory, useMembers, usePinned } from '@/lib/queries';
 import { useTheme } from '@/lib/theme';
@@ -41,53 +44,56 @@ function byDay(items: HistoryItem[]) {
   return days;
 }
 
-function HistoryCard({ item, lead, byId }: { item: HistoryItem; lead: number; byId: Map<number, Member> }) {
+function HistoryCard({ item, lead, byId, order }: { item: HistoryItem; lead: number; byId: Map<number, Member>; order?: number }) {
   const t = useTheme();
   const winners = item.winner_ids.map((id) => byId.get(id));
   const winner = winners[0];
   return (
-    <Pressable
-      accessibilityRole="button"
-      onPress={() => router.push(`/round/${item.id}`)}
-      style={[{ flexDirection: 'row', gap: 12, alignItems: 'center', padding: 14, borderRadius: 20, backgroundColor: t.card }, t.shadow]}>
-      <View style={{ width: lead, alignItems: 'center' }}>
-        {winners.length > 1 ? <AvatarStack members={winners} size={TIED} ring={t.card} max={MAX} /> : <Avatar member={winner} size={SOLO} />}
-      </View>
-      <View style={{ flex: 1, gap: 4 }}>
-        <QuestionText
-          text={item.question}
-          rank={item.kind === 'rank'}
-          style={{ fontFamily: t.font.semibold, fontSize: 15, lineHeight: 19, color: t.txt }}
-        />
-        <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 4 }}>
-          <Crown size={14} color={winners.length === 1 ? (winner?.color ?? t.mut) : t.mut} style={{ flexShrink: 0, marginTop: 1 }} />
-          <Text style={{ flex: 1, fontFamily: t.font.regular, fontSize: 12, lineHeight: 16, color: t.mut }}>
-            {winners.map((m) => m?.name).join(', ')}
-          </Text>
+    <Animated.View entering={order != null ? motion.stagger(order) : undefined}>
+      <PressableScale
+        scale={0.98}
+        accessibilityRole="button"
+        onPress={() => router.push(`/round/${item.id}`)}
+        style={[{ flexDirection: 'row', gap: 12, alignItems: 'center', padding: 14, borderRadius: 20, backgroundColor: t.card }, t.shadow]}>
+        <View style={{ width: lead, alignItems: 'center' }}>
+          {winners.length > 1 ? <AvatarStack members={winners} size={TIED} ring={t.card} max={MAX} /> : <Avatar member={winner} size={SOLO} />}
         </View>
-      </View>
-      {(item.pinned || isMilestone(item.number)) && (
-        <View style={{ alignSelf: 'flex-start', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
-          {item.pinned && <Pin size={16} color={t.accInk} />}
-          {/* A milestone question: tap to replay its party. */}
-          {isMilestone(item.number) && (
-            <View
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 4,
-                paddingHorizontal: 8,
-                height: 22,
-                borderRadius: t.radius.pill,
-                backgroundColor: t.accSoft,
-              }}>
-              <PartyPopper size={12} color={t.accInk} />
-              <Text style={{ fontFamily: t.font.bold, fontSize: 11, color: t.accInk }}>#{item.number}</Text>
-            </View>
-          )}
+        <View style={{ flex: 1, gap: 4 }}>
+          <QuestionText
+            text={item.question}
+            rank={item.kind === 'rank'}
+            style={{ fontFamily: t.font.semibold, fontSize: 15, lineHeight: 19, color: t.txt }}
+          />
+          <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 4 }}>
+            <Crown size={14} color={winners.length === 1 ? (winner?.color ?? t.mut) : t.mut} style={{ flexShrink: 0, marginTop: 1 }} />
+            <Text style={{ flex: 1, fontFamily: t.font.regular, fontSize: 12, lineHeight: 16, color: t.mut }}>
+              {winners.map((m) => m?.name).join(', ')}
+            </Text>
+          </View>
         </View>
-      )}
-    </Pressable>
+        {(item.pinned || isMilestone(item.number)) && (
+          <View style={{ alignSelf: 'flex-start', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
+            {item.pinned && <Pin size={16} color={t.accInk} />}
+            {/* A milestone question: tap to replay its party. */}
+            {isMilestone(item.number) && (
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 4,
+                  paddingHorizontal: 8,
+                  height: 22,
+                  borderRadius: t.radius.pill,
+                  backgroundColor: t.accSoft,
+                }}>
+                <PartyPopper size={12} color={t.accInk} />
+                <Text style={{ fontFamily: t.font.bold, fontSize: 11, color: t.accInk }}>#{item.number}</Text>
+              </View>
+            )}
+          </View>
+        )}
+      </PressableScale>
+    </Animated.View>
   );
 }
 
@@ -102,6 +108,16 @@ export default function HistoryScreen() {
   const { data: pinned } = usePinned();
   const data = history.data?.pages.flat();
   const { byId } = useMembers();
+  // The first screenful cascades in once; refetches and later pages just appear.
+  const [intro, setIntro] = useState(true);
+  const loaded = !!data;
+  useEffect(() => {
+    if (!loaded) return;
+    const done = setTimeout(() => setIntro(false), 900);
+    return () => clearTimeout(done);
+  }, [loaded]);
+  let row = 0;
+  const order = () => (intro ? row++ : undefined);
   const more = () => {
     if (history.hasNextPage && !history.isFetchingNextPage) history.fetchNextPage();
   };
@@ -114,7 +130,7 @@ export default function HistoryScreen() {
     <Screen onEndReached={more}>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <Display size={30}>Historique</Display>
-        <Pressable
+        <PressableScale
           accessibilityRole="button"
           accessibilityLabel="Exporter l'historique"
           onPress={downloadHistory}
@@ -133,13 +149,13 @@ export default function HistoryScreen() {
           ]}>
           <Download size={16} color={t.txt} />
           <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.txt }}>Exporter</Text>
-        </Pressable>
+        </PressableScale>
       </View>
       {!!pinned?.length && (
         <View style={{ gap: 10 }}>
           <SectionLabel>Épinglés</SectionLabel>
           {pinned.map((item) => (
-            <HistoryCard key={item.id} item={item} lead={lead} byId={byId} />
+            <HistoryCard key={item.id} item={item} lead={lead} byId={byId} order={order()} />
           ))}
         </View>
       )}
@@ -147,7 +163,7 @@ export default function HistoryScreen() {
         <View key={day.key} style={{ gap: 10 }}>
           <SectionLabel>{day.label}</SectionLabel>
           {day.items.map((item) => (
-            <HistoryCard key={item.id} item={item} lead={lead} byId={byId} />
+            <HistoryCard key={item.id} item={item} lead={lead} byId={byId} order={order()} />
           ))}
         </View>
       ))}

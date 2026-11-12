@@ -2,9 +2,11 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Send } from 'lucide-react-native';
 import { type ComponentRef, useRef, useState } from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 
-import { Avatar, Card } from '@/components/ui';
+import { Avatar, Card, PressableScale } from '@/components/ui';
 import { api, type Message } from '@/lib/api';
+import { motion, useArrivals } from '@/lib/motion';
 import { keys, useMembers, useMessages } from '@/lib/queries';
 import { sendOnEnter } from '@/lib/submit';
 import { useSession } from '@/lib/session';
@@ -20,6 +22,8 @@ export function ChatMessages({ roundId }: { roundId: number }) {
   const { byId } = useMembers();
   const { data: messages } = useMessages(roundId);
   const box = useRef<ComponentRef<typeof ScrollView>>(null);
+  // Messages already there when the result opens just show; new ones rise in.
+  const isNew = useArrivals(messages?.map((m) => m.id));
   // No messages yet: nothing to show, the box below already invites one.
   if (!messages?.length) return null;
   return (
@@ -37,7 +41,10 @@ export function ChatMessages({ roundId }: { roundId: number }) {
           const author = byId.get(m.member_id);
           const mine = m.member_id === me?.id;
           return (
-            <View key={m.id} style={{ flexDirection: mine ? 'row-reverse' : 'row', gap: 8, alignItems: 'flex-end' }}>
+            <Animated.View
+              key={m.id}
+              entering={isNew(m.id) ? motion.rise : undefined}
+              style={{ flexDirection: mine ? 'row-reverse' : 'row', gap: 8, alignItems: 'flex-end' }}>
               {!mine && <Avatar member={author} size={28} />}
               <View
                 style={{
@@ -57,7 +64,7 @@ export function ChatMessages({ roundId }: { roundId: number }) {
                   {TIME.format(new Date(m.created_at))}
                 </Text>
               </View>
-            </View>
+            </Animated.View>
           );
         })}
       </ScrollView>
@@ -93,14 +100,14 @@ export function ChatInput({ roundId }: { roundId: number }) {
         // Under 16px, Safari on iPhone zooms the page in when the field gets the focus.
         style={{ flex: 1, minHeight: 40, maxHeight: 100, paddingVertical: 10, fontFamily: t.font.regular, fontSize: 16, color: t.txt }}
       />
-      <Pressable
+      <PressableScale
         accessibilityRole="button"
         accessibilityLabel="Envoyer"
         disabled={!ok}
         onPress={submit}
         style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: ok ? t.acc : t.card2 }}>
         <Send size={18} color={ok ? t.accTxt : t.mut} />
-      </Pressable>
+      </PressableScale>
     </Card>
   );
 }

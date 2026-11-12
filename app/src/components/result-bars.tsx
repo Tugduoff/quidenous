@@ -1,7 +1,10 @@
 import { Crown } from 'lucide-react-native';
+import { useEffect } from 'react';
 import { Text, View } from 'react-native';
+import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withTiming } from 'react-native-reanimated';
 
 import type { Member, RankEntry, Tally } from '@/lib/api';
+import { EASE } from '@/lib/motion';
 import { useTheme } from '@/lib/theme';
 
 import { Avatar, AvatarStack } from './ui';
@@ -12,7 +15,7 @@ export function ResultBars({ result, byId }: { result: Tally[]; byId: Map<number
   const top = result[0]?.count ?? 0;
   return (
     <View style={{ gap: 12 }}>
-      {result.map((r) => {
+      {result.map((r, i) => {
         const m = byId.get(r.target_id);
         const color = m?.color ?? t.mut;
         const win = r.count === top;
@@ -25,17 +28,7 @@ export function ResultBars({ result, byId }: { result: Tally[]; byId: Map<number
               t.shadow,
               win && { borderWidth: 2, borderColor: color },
             ]}>
-            <View
-              style={{
-                position: 'absolute',
-                left: 0,
-                top: 0,
-                bottom: 0,
-                width: `${pct}%`,
-                backgroundColor: color,
-                opacity: win ? 0.55 : 0.28,
-              }}
-            />
+            <Fill index={i} width={pct} color={color} opacity={win ? 0.55 : 0.28} />
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12 }}>
               <Avatar member={m} />
               <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -74,17 +67,7 @@ export function RankResult({ ranking, byId, mine }: { ranking: RankEntry[]; byId
               t.shadow,
               i === 0 && { borderWidth: 2, borderColor: color },
             ]}>
-            <View
-              style={{
-                position: 'absolute',
-                left: 0,
-                top: 0,
-                bottom: 0,
-                width: `${Math.round((r.points / best) * 100)}%`,
-                backgroundColor: color,
-                opacity: i === 0 ? 0.5 : 0.25,
-              }}
-            />
+            <Fill index={i} width={Math.round((r.points / best) * 100)} color={color} opacity={i === 0 ? 0.5 : 0.25} />
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12 }}>
               <View
                 style={{
@@ -103,7 +86,9 @@ export function RankResult({ ranking, byId, mine }: { ranking: RankEntry[]; byId
                   {m?.name}
                 </Text>
                 {/* Only where my ranking differs from the group's. */}
-                {myPlace > 0 && myPlace !== i + 1 && <Text style={{ fontFamily: t.font.regular, fontSize: 12, color: t.mut }}>{`toi : ${myPlace}e`}</Text>}
+                {myPlace > 0 && myPlace !== i + 1 && (
+                  <Text style={{ fontFamily: t.font.regular, fontSize: 12, color: t.mut }}>{`toi : ${myPlace}e`}</Text>
+                )}
               </View>
               <Text style={{ fontFamily: t.font.display, fontSize: 20, color: t.txt }}>
                 {r.points}
@@ -114,5 +99,24 @@ export function RankResult({ ranking, byId, mine }: { ranking: RankEntry[]; byId
         );
       })}
     </View>
+  );
+}
+
+/** A row's coloured fill: grows from the left when the result shows, one row after the other. */
+function Fill({ index, width, color, opacity }: { index: number; width: number; color: string; opacity: number }) {
+  const reduced = useReducedMotion();
+  const grow = useSharedValue(reduced ? 1 : 0);
+  useEffect(() => {
+    grow.value = withDelay(120 + Math.min(index, 6) * 70, withTiming(1, { duration: 450, easing: EASE }));
+  }, [grow, index]);
+  // A transform rather than the width: no layout pass per frame.
+  const style = useAnimatedStyle(() => ({ transform: [{ scaleX: grow.value }] }));
+  return (
+    <Animated.View
+      style={[
+        { position: 'absolute', left: 0, top: 0, bottom: 0, width: `${width}%`, backgroundColor: color, opacity, transformOrigin: 'left' },
+        style,
+      ]}
+    />
   );
 }
