@@ -69,10 +69,11 @@ export const usePack = (id: number) => useQuery({ queryKey: keys.pack(id), query
 export const useVibes = (enabled: boolean) =>
   useQuery({ queryKey: keys.vibes, queryFn: () => api<Vibe[]>('/vibes'), staleTime: Infinity, enabled });
 
-/** Stats of a period, in the phone's time zone. Switching period keeps the previous numbers on screen until the new ones land. */
-export const useStats = (period: StatsPeriod) =>
+/** Stats of a period, in the phone's time zone (`enabled`: only once needed). Switching period keeps the previous numbers on screen until the new ones land. */
+export const useStats = (period: StatsPeriod, enabled = true) =>
   useQuery({
     queryKey: keys.statsFor(period),
+    enabled,
     queryFn: async () => normalizeStats(await api<Partial<Stats> | null>(`/stats?period=${period}&tz=${-new Date().getTimezoneOffset()}`), period),
     placeholderData: keepPreviousData,
   });

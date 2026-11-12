@@ -44,6 +44,32 @@ pub async fn to_group(
     Ok(())
 }
 
+/// One entry for each of these members (ids of one room's seats; removed seats are skipped).
+pub async fn to_members(
+    db: &SqlitePool,
+    member_ids: &[i64],
+    kind: &str,
+    round_id: Option<i64>,
+    actor_id: Option<i64>,
+    text: &str,
+) -> AppResult<()> {
+    if member_ids.is_empty() {
+        return Ok(());
+    }
+    sqlx::query(
+        "INSERT INTO inbox (member_id, kind, round_id, actor_id, text) \
+         SELECT id, ?, ?, ?, ? FROM members WHERE id IN (SELECT value FROM json_each(?)) AND removed_at IS NULL",
+    )
+    .bind(kind)
+    .bind(round_id)
+    .bind(actor_id)
+    .bind(text)
+    .bind(serde_json::to_string(member_ids).unwrap_or_else(|_| "[]".into()))
+    .execute(db)
+    .await?;
+    Ok(())
+}
+
 pub async fn to_member(
     db: &SqlitePool,
     member_id: i64,

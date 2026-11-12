@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
-import { Bell, BellRing, ChevronLeft, Crown, type LucideIcon, MessageCircle, MessageCircleQuestion, Sparkles, UserPlus } from 'lucide-react-native';
+import { AtSign, Bell, BellRing, ChevronLeft, Crown, type LucideIcon, MessageCircle, MessageCircleQuestion, Sparkles, UserPlus } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
@@ -16,6 +16,7 @@ import { ago } from '@/lib/time';
 // A kind this version doesn't know (newer server) falls back to a plain bell and title.
 const ICON: Record<string, LucideIcon> = {
   message: MessageCircle,
+  mention: AtSign,
   nudge: BellRing,
   result: Crown,
   question: Sparkles,
@@ -24,6 +25,7 @@ const ICON: Record<string, LucideIcon> = {
 };
 const TITLE: Record<string, string> = {
   message: 'Nouveau message',
+  mention: 'Mention',
   nudge: 'Relance',
   result: 'Résultat dispo',
   question: 'Nouvelle question',
@@ -69,6 +71,14 @@ export default function InboxScreen() {
       else router.replace('/questions');
       return;
     }
+    // A message or mention under a result of another room: open it in that room (one I left: home instead).
+    if ((item.kind === 'mention' || item.kind === 'message') && item.round_id != null && item.room_id != null && item.room_id !== room) {
+      const id = item.round_id;
+      switchHere(item.room_id)
+        .catch(() => false)
+        .then((ok) => (ok ? router.push(`/round/${id}`) : router.replace('/')));
+      return;
+    }
     if (item.kind === 'nudge' || item.kind === 'question' || item.round_id == null) router.replace('/');
     else router.push(`/round/${item.round_id}`);
   };
@@ -92,6 +102,12 @@ export default function InboxScreen() {
         // Member ids belong to one room: only look the actor up among the people of the room on screen.
         const here = item.room_id == null || item.room_id === room;
         const actor = item.actor_id != null && here ? byId.get(item.actor_id) : undefined;
+        const head =
+          item.kind === 'message' && actor
+            ? actor.name
+            : item.kind === 'mention' && actor
+              ? `${actor.name} t'a mentionné`
+              : (TITLE[item.kind] ?? 'Notification');
         return (
           <Pressable key={item.id} accessibilityRole="button" onPress={() => open(item)}>
             <Card style={{ flexDirection: 'row', gap: 12, alignItems: 'center', padding: 14 }}>
@@ -104,7 +120,7 @@ export default function InboxScreen() {
               )}
               <View style={{ flex: 1, gap: 2 }}>
                 <Text numberOfLines={1} style={{ fontFamily: t.font.bold, fontSize: 13, color: t.mut }}>
-                  {item.kind === 'message' && actor ? actor.name : (TITLE[item.kind] ?? 'Notification')} · {ago(item.created_at)}
+                  {head} · {ago(item.created_at)}
                 </Text>
                 <Text numberOfLines={2} style={{ fontFamily: isNew ? t.font.semibold : t.font.regular, fontSize: 15, lineHeight: 20, color: t.txt }}>
                   {item.text}
