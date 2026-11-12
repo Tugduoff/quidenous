@@ -66,13 +66,18 @@ impl Mailer for MailgunMailer {
                 .http
                 .post(url)
                 .basic_auth("api", Some(&self.config.api_key))
-                .form(&[
-                    ("from", self.config.from.as_str()),
-                    ("to", email.to.as_str()),
-                    ("subject", email.subject.as_str()),
-                    ("text", email.text.as_str()),
-                    ("html", email.html.as_str()),
-                ])
+                .form(
+                    &[
+                        ("from", self.config.from.as_str()),
+                        ("to", email.to.as_str()),
+                        ("subject", email.subject.as_str()),
+                        ("text", email.text.as_str()),
+                        ("html", email.html.as_str()),
+                    ]
+                    .into_iter()
+                    .chain(self.config.reply_to.as_deref().map(|r| ("h:Reply-To", r)))
+                    .collect::<Vec<_>>(),
+                )
                 .send()
                 .await
                 .map_err(|e| e.to_string())?;

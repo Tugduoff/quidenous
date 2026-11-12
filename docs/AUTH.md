@@ -129,9 +129,10 @@ Everything under `/api/auth`. Bodies are JSON. Errors: `{"error": code}`, status
 | Variable | |
 | --- | --- |
 | `AUTH_SECRET` | 32+ random bytes (e.g. `openssl rand -hex 32`). Encrypts TOTP secrets, keys code hashes. Generated into `DATA_DIR/auth.key` if absent. |
-| `PUBLIC_URL` | `https://qdn.crabznetwork.com` (no trailing slash), needed for OAuth (callback URL) and links in emails. New: the server had no such setting (share links use the `Host` header) |
+| `PUBLIC_URL` | `https://qdn.coflop.fr` (no trailing slash), needed for OAuth (callback URL) and links in emails. New: the server had no such setting (share links use the `Host` header) |
 | `TRUST_PROXY` | `1` behind the reverse proxy (client IP from `X-Forwarded-For`) |
 | `MAILGUN_API_KEY`, `MAILGUN_DOMAIN`, `MAILGUN_FROM`, `MAILGUN_REGION` | email through Mailgun's HTTP API (`POST https://api.mailgun.net/v3/<domain>/messages`, basic auth `api:<key>`; `MAILGUN_REGION=eu` uses `api.eu.mailgun.net`, default `us`). `MAILGUN_FROM` like `Qui de nous ? <no-reply@mg.example.com>` (defaults to `Qui de nous ? <no-reply@<domain>>`). Without key + domain, emails are logged at INFO and the API says `email_sent: false` / `503 email_not_configured`: nothing pretends to have sent |
+| `MAILGUN_REPLY_TO` | optional, e.g. `contact@coflop.fr`: replies to the automatic e-mails go there instead of the no-reply sender |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Google "Web application" OAuth client, redirect URI `PUBLIC_URL/api/auth/oauth/google/callback` |
 | `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET` | Discord application > OAuth2, redirect `PUBLIC_URL/api/auth/oauth/discord/callback` |
 | `OAUTH_REDIRECTS` | extra allowed app redirects, comma-separated prefixes (e.g. `exp://` for Expo Go in dev) |

@@ -36,6 +36,8 @@ pub struct Mailgun {
     pub domain: String,
     /// `Qui de nous ? <no-reply@domain>` unless `MAILGUN_FROM` is set.
     pub from: String,
+    /// `MAILGUN_REPLY_TO`: where replies to the automatic e-mails go (the sender is a no-reply address).
+    pub reply_to: Option<String>,
     /// `https://api.mailgun.net` (us, default) or `https://api.eu.mailgun.net` (`MAILGUN_REGION=eu`).
     pub base_url: String,
 }
@@ -84,6 +86,7 @@ impl Config {
             (Some(api_key), Some(domain)) => Some(Mailgun {
                 from: var("MAILGUN_FROM")
                     .unwrap_or_else(|| format!("Qui de nous ? <no-reply@{domain}>")),
+                reply_to: var("MAILGUN_REPLY_TO"),
                 base_url: if var("MAILGUN_REGION").is_some_and(|r| r.eq_ignore_ascii_case("eu")) {
                     "https://api.eu.mailgun.net".into()
                 } else {
