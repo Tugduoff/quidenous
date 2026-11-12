@@ -1,6 +1,6 @@
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 
-import { api, type Friend, type Pack, type PackSummary, type Group, type RoomSummary, type HistoryItem, type InboxItem, type Message, type Member, type Queue, type Round, type Stats } from './api';
+import { api, type Friend, type Pack, type PackSummary, type Group, type RoomSummary, type HistoryItem, type InboxItem, type Message, type Member, type Queue, type Round, type Stats, type Vibe } from './api';
 
 export const keys = {
   group: ['group'] as const,
@@ -18,6 +18,7 @@ export const keys = {
   pack: (id: number) => ['pack', id] as const,
   queue: ['queue'] as const,
   blocks: ['blocks'] as const,
+  vibes: ['vibes'] as const,
 };
 
 export const useGroup = () =>
@@ -61,6 +62,10 @@ export const usePacks = (q: string) =>
   useQuery({ queryKey: keys.packs(q), queryFn: () => api<PackSummary[]>(`/packs?q=${encodeURIComponent(q)}`) });
 
 export const usePack = (id: number) => useQuery({ queryKey: keys.pack(id), queryFn: () => api<Pack>(`/packs/${id}`) });
+
+/** The tones a room can pick (same for every room, so kept for the session). Only asked of a server that has them. */
+export const useVibes = (enabled: boolean) =>
+  useQuery({ queryKey: keys.vibes, queryFn: () => api<Vibe[]>('/vibes'), staleTime: Infinity, enabled });
 
 export const useStats = () => useQuery({ queryKey: keys.stats, queryFn: () => api<Stats>('/stats') });
 

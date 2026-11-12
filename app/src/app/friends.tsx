@@ -52,7 +52,13 @@ export default function FriendsScreen() {
         style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card }}>
         <ChevronLeft size={22} color={t.txt} />
       </Pressable>
-      <Display size={30}>Amis</Display>
+      <View style={{ gap: 6 }}>
+        <Display size={30}>Amis</Display>
+        {/* No friends yet: the code below is the way to get some. */}
+        {data && data.friends.length === 0 && (
+          <Text style={{ fontFamily: t.font.regular, fontSize: 15, lineHeight: 21, color: t.mut }}>Pas encore d'amis. Fais scanner ton code ou partage-le.</Text>
+        )}
+      </View>
 
       {data && (
         <Card style={{ padding: 20, gap: 14, alignItems: 'center' }}>
@@ -121,9 +127,11 @@ export default function FriendsScreen() {
       </Card>
       {note && <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.accInk, marginLeft: 4 }}>{note}</Text>}
 
-      <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut, marginLeft: 4 }}>
-        {data ? `${data.friends.length} ami${data.friends.length > 1 ? 's' : ''}` : ''}
-      </Text>
+      {!!data?.friends.length && (
+        <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut, marginLeft: 4 }}>
+          {`${data.friends.length} ami${data.friends.length > 1 ? 's' : ''}`}
+        </Text>
+      )}
       {data?.friends.map((f) => (
         <Card key={f.user_id} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12 }}>
           <Avatar member={{ id: f.user_id, name: f.name, color: f.color, photo_url: f.photo_url } as Member} size={40} />

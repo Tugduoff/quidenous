@@ -181,7 +181,8 @@ pub async fn add_to_room(
             .await?
         }
     };
-    game::ensure_open_round(&mut tx, room).await?;
+    // The second person in: the room's first question opens.
+    let opened = game::ensure_open_round(&mut tx, room).await?;
     tx.commit().await?;
     let text = format!("{} t'a ajouté à « {} »", my_seat.name, room_name);
     inbox::to_member(&state.db, member_id, "added", None, Some(my_seat.id), &text).await?;
@@ -199,5 +200,10 @@ pub async fn add_to_room(
             room,
         },
     );
+    // They already get "Nouveau salon"; the others hear about the new question.
+    if let Some(round_id) = opened {
+        state.live.send(room, Event::RoundOpened { round_id });
+        crate::routes::notify_round(&state, room, Some(member_id), Some(round_id), false).await?;
+    }
     Ok(Json(json!({ "member_id": member_id })))
 }

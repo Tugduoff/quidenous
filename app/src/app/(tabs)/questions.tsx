@@ -1,16 +1,16 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import * as DocumentPicker from 'expo-document-picker';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { Check, FileUp, Lock, MessageCircleQuestion, Package, Plus, Shuffle, Trash2, Trophy, X } from 'lucide-react-native';
-import { useState } from 'react';
+import { type ComponentRef, useEffect, useRef, useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 
 import { ModerationDialog, type ModTarget } from '@/components/moderation';
 import { Screen } from '@/components/screen';
+import { Tip } from '@/components/tip';
 import { Avatar, Card, ConfirmModal, Display, PressableScale, QuestionText, Toggle } from '@/components/ui';
 import { api } from '@/lib/api';
-import { parseQuestions, splitTag, type DraftLine } from '@/lib/import-draft';
+import { pickQuestionFile, splitTag, takeHandedDraft, type DraftLine } from '@/lib/import-draft';
 import { motion, useArrivals } from '@/lib/motion';
 import { keys, useGroup, useMembers, useQueue } from '@/lib/queries';
 import { useSession } from '@/lib/session';
@@ -60,20 +60,31 @@ export default function QuestionsScreen() {
   // Pick a file, show what's in it, send only what's ticked.
   const [draft, setDraft] = useState<DraftLine[] | null>(null);
   const [mix, setMix] = useState(false);
-  const pick = async () => {
-    const picked = await DocumentPicker.getDocumentAsync({
-      type: ['text/plain', 'text/*'],
-      copyToCacheDirectory: true,
-    });
-    if (picked.canceled || !picked.assets[0]) return;
-    const asset = picked.assets[0];
-    const content = asset.file ? await asset.file.text() : await (await fetch(asset.uri)).text();
-    const lines = parseQuestions(content);
-    if (lines.length) {
-      setMix(false);
-      setDraft(lines);
-    } else setImported('Fichier vide');
+  const review = (lines: DraftLine[]) => {
+    setMix(false);
+    setDraft(lines);
   };
+  const pick = async () => {
+    const lines = await pickQuestionFile();
+    if (lines === 'empty') setImported('Fichier vide');
+    else if (lines) review(lines);
+  };
+  // Sent here from the Vote tab's "no more questions": `compose` opens the keyboard, `import` brings the file picked there.
+  const params = useLocalSearchParams<{ compose?: string; import?: string }>();
+  const composer = useRef<ComponentRef<typeof TextInput>>(null);
+  useEffect(() => {
+    if (!params.compose && !params.import) return;
+    const handed = params.import ? takeHandedDraft() : null;
+    if (handed) {
+      setMix(false);
+      setDraft(handed);
+    }
+    router.setParams({ compose: undefined, import: undefined });
+    if (!params.compose) return;
+    // Once the tab has slid in.
+    const focus = setTimeout(() => composer.current?.focus(), 350);
+    return () => clearTimeout(focus);
+  }, [params.compose, params.import]);
   const importFile = useMutation({
     mutationFn: (lines: string[]) =>
       api<{ added: number; skipped: number }>('/questions/import', {
@@ -129,9 +140,11 @@ export default function QuestionsScreen() {
         </Card>
       ) : (
         <>
+          <Tip id="questions" text="Écris une question, importe un fichier ou installe un pack." />
           {/* Write one: the ranking switch and the add button sit under the text, in the same card. */}
           <Card style={{ paddingBottom: 10 }}>
             <TextInput
+              ref={composer}
               accessibilityLabel="Nouvelle question"
               placeholder={rank ? 'Classe-nous du plus… au moins…' : 'Qui de nous…'}
               placeholderTextColor={t.mut}

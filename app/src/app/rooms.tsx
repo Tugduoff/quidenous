@@ -1,5 +1,6 @@
 import { router } from 'expo-router';
 import { Check, ChevronLeft, ChevronRight, Crown } from 'lucide-react-native';
+import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
 import { RoomForms } from '@/components/room-forms';
@@ -18,6 +19,8 @@ export default function RoomsScreen() {
   const { data: rooms } = useRooms();
   const switchRoom = useSwitchRoom();
   const current = room ?? rooms?.[0]?.id;
+  // Picking a new room's vibe: only that on screen.
+  const [creating, setCreating] = useState(false);
 
   return (
     <Screen tabs={false}>
@@ -28,9 +31,9 @@ export default function RoomsScreen() {
         style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card }}>
         <ChevronLeft size={22} color={t.txt} />
       </Pressable>
-      <Display size={30}>Mes salons</Display>
+      {!creating && <Display size={30}>Mes salons</Display>}
 
-      {rooms?.map((r) => {
+      {!creating && rooms?.map((r) => {
         const on = r.id === current;
         const waiting = r.open_number != null && !r.voted;
         return (
@@ -74,7 +77,7 @@ export default function RoomsScreen() {
         );
       })}
 
-      <RoomForms initialCode={presetJoinCode() ?? ''} onEntered={switchRoom} />
+      <RoomForms initialCode={presetJoinCode() ?? ''} onEntered={switchRoom} onVibeStep={setCreating} />
     </Screen>
   );
 }

@@ -25,6 +25,8 @@ import { ChatInput, ChatMessages } from '@/components/chat';
 import { RankResult, ResultBars } from '@/components/result-bars';
 import { Screen } from '@/components/screen';
 import { SecureCard } from '@/components/secure-card';
+import { Tip } from '@/components/tip';
+import { NoQuestions, SoloInvite } from '@/components/vote-empty';
 import { Avatar, AvatarStack, Button, Card, ConfirmModal, Display, Logo, PressableScale, Tag } from '@/components/ui';
 import { api, type Member, type Round } from '@/lib/api';
 import { EASE, motion, usePop } from '@/lib/motion';
@@ -162,6 +164,7 @@ export default function VoteScreen() {
   const current = useCurrentRound();
   const unseen = useUnseenRound();
   const qc = useQueryClient();
+  const group = useGroup();
   const round = current.data;
 
   // Recap first: a question I voted on finished while I was away (or with my vote).
@@ -169,11 +172,21 @@ export default function VoteScreen() {
     const seen = () => api(`/rounds/${unseen.data!.id}/seen`, { method: 'POST' }).finally(() => qc.invalidateQueries({ queryKey: keys.unseen }));
     return <Result key={unseen.data.id} roundId={unseen.data.id} byId={byId} onNext={seen} />;
   }
+  // Alone in the room: invite first (an older room may still have a question open, nobody else would vote on it).
+  // Someone joining refreshes the room (live event), and this turns into the question by itself.
+  if (group.data && group.data.members.length < 2) {
+    return (
+      <Screen>
+        <Header />
+        <SoloInvite />
+      </Screen>
+    );
+  }
   if (!round) {
     return (
       <Screen>
         <Header />
-        <Display>{current.isLoading ? '' : 'Plus de questions. Ajoutez-en !'}</Display>
+        {!current.isLoading && !group.isLoading && <NoQuestions />}
       </Screen>
     );
   }
@@ -232,6 +245,9 @@ function Question({ round, result }: { round: Round; result?: boolean }) {
   );
 }
 
+/** First-run hint on the ballot: how a question ends. */
+const VoteTip = () => <Tip id="vote" text="Tout le monde vote, le résultat tombe quand le dernier a voté." />;
+
 /** The vote button bumps when it becomes usable (and each time the pick changes), so the next step is obvious. */
 function Springy({ trigger, when, children }: { trigger: unknown; when: boolean; children: ReactNode }) {
   return <Animated.View style={usePop(trigger, 1.04, when)}>{children}</Animated.View>;
@@ -278,6 +294,7 @@ function RankBallot({ round, members, byId, onVoted }: { round: Round; members: 
         )}
       </View>
       <Text style={{ fontFamily: t.font.regular, fontSize: 14, color: t.mut }}>Touche chacun dans l'ordre, du premier au dernier.</Text>
+      <VoteTip />
       {/* Ranked people move up to their place, the rest slide down. */}
       <View style={{ gap: 10 }}>
         {[...order.map((id) => members.find((m) => m.id === id)!), ...members.filter((m) => !order.includes(m.id))].filter(Boolean).map((m) => {
@@ -363,6 +380,7 @@ function PickBallot({ round, members, byId, onVoted }: { round: Round; members: 
           {round.voter_ids.length}/{round.member_count}
         </Text>
       </View>
+      <VoteTip />
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
         {members.map((m) => {
           const on = m.id === pick;

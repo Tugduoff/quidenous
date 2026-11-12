@@ -1,19 +1,20 @@
 # Une question par ligne. Les lignes vides et celles qui commencent par # sont ignorées.
+# Ambiances (deck/vibes.json) : [pimente], [boulot], [famille]… en tête de ligne ; sans étiquette, une question est [potes].
 Qui vendrait le groupe entier pour 10 000 € ?
 Qui finirait en prison en premier ?
-Qui survivrait le moins longtemps sur une île déserte ?
+[potes] [famille] Qui survivrait le moins longtemps sur une île déserte ?
 Qui ghosterait le groupe sans prévenir ?
-Qui oublierait ton anniversaire même avec un rappel ?
+[potes] [famille] Qui oublierait ton anniversaire même avec un rappel ?
 Qui serait le pire colocataire ?
 Qui choisirait l'argent plutôt que l'amour ?
-Qui tiendrait le moins longtemps sans téléphone ?
+[potes] [famille] [boulot] Qui tiendrait le moins longtemps sans téléphone ?
 Qui trahirait un secret du groupe en premier ?
 Qui mourrait en premier dans un film d'horreur ?
 Qui deviendrait chef de secte si on le laissait faire ?
-Qui pleurerait devant un dessin animé ?
-Qui a le plus de chances de devenir millionnaire ?
+[potes] [famille] Qui pleurerait devant un dessin animé ?
+[potes] [famille] [boulot] Qui a le plus de chances de devenir millionnaire ?
 Qui a le plus de chances de tout perdre au casino ?
-Qui mentirait à un entretien d'embauche sans cligner des yeux ?
+[potes] [boulot] Qui mentirait à un entretien d'embauche sans cligner des yeux ?
 Qui se marierait à Las Vegas sur un coup de tête ?
 Qui supprimerait ses messages compromettants avant de mourir ?
 Qui a l'historique de recherche le plus inavouable ?
@@ -28,7 +29,7 @@ Qui se ferait arnaquer par un faux prince nigérian ?
 Qui a le plus de chances de se faire virer pour une connerie ?
 Qui dénoncerait le groupe à la police pour sauver sa peau ?
 Qui accepterait de ne plus jamais voir le groupe pour 1 million ?
-Qui serait le premier zombie de l'apocalypse ?
+[potes] [famille] [boulot] Qui serait le premier zombie de l'apocalypse ?
 Qui survivrait le plus longtemps à une apocalypse zombie ?
 Qui a déjà menti à quelqu'un du groupe cette semaine ?
 Qui est le plus radin du groupe ?
@@ -36,31 +37,31 @@ Qui dépense tout son salaire le jour de la paie ?
 Qui ferait un pacte avec le diable pour être célèbre ?
 Qui changerait de personnalité s'il gagnait au loto ?
 Qui garderait le secret si on gagnait au loto ensemble ?
-Qui est le plus mauvais perdant ?
-Qui raconte les pires blagues ?
+[potes] [famille] [boulot] Qui est le plus mauvais perdant ?
+[potes] [famille] [boulot] Qui raconte les pires blagues ?
 Qui est le plus susceptible de se battre en boîte ?
-Qui finirait par épouser son ex ?
-Qui stalke encore son ex sur Instagram ?
+[potes] [pimente] Qui finirait par épouser son ex ?
+[potes] [pimente] Qui stalke encore son ex sur Instagram ?
 Qui est le roi ou la reine du message vu sans réponse ?
-Qui arrive toujours en retard même à son propre anniversaire ?
-Qui se perdrait avec un GPS ?
+[potes] [famille] Qui arrive toujours en retard même à son propre anniversaire ?
+[potes] [famille] [boulot] Qui se perdrait avec un GPS ?
 Qui mangerait un insecte vivant pour 50 € ?
 Qui se raserait la tête pour 500 € ?
 Qui sauterait en parachute sans hésiter ?
 Qui hurlerait le plus fort dans des montagnes russes ?
 Qui deviendrait influenceur s'il le pouvait ?
 Qui a le plus de chances de finir en garde à vue ce week-end ?
-Qui ferait le meilleur espion ?
+[potes] [famille] [boulot] Qui ferait le meilleur espion ?
 Qui serait le pire espion ?
 Qui tomberait amoureux d'une IA ?
-Qui serait remplacé par une IA en premier au travail ?
+[potes] [boulot] Qui serait remplacé par une IA en premier au travail ?
 Qui irait sur Mars sans billet de retour ?
 Qui se ferait expulser d'un avion ?
 Qui a le plus de chances de se faire tatouer le nom de quelqu'un ?
 Qui regrette le plus un tatouage ou en regretterait un ?
 Qui pourrait vivre dans une grotte sans internet pendant un an ?
-Qui abandonnerait le groupe pour un crush ?
-Qui choisirait sa carrière plutôt que ses amis ?
+[potes] [pimente] Qui abandonnerait le groupe pour un crush ?
+[potes] [boulot] Qui choisirait sa carrière plutôt que ses amis ?
 Qui ment le plus sur son âge ?
 Qui a le plus gros ego du groupe ?
 Qui se croit drôle mais ne l'est pas ?
@@ -72,7 +73,7 @@ Qui t'enterrerait un corps sans poser de questions ?
 Qui appellerait la police si tu lui demandais d'enterrer un corps ?
 Qui serait le premier à quitter une soirée ?
 Qui serait le dernier debout à une soirée ?
-Qui envoie des messages qu'il regrette à 3 h du matin ?
+[potes] [pimente] Qui envoie des messages qu'il regrette à 3 h du matin ?
 Qui a le plus de chances d'avoir un enfant caché ?
 Qui finira avec le plus d'enfants ?
 Qui finira seul avec douze chats ?
@@ -100,12 +101,12 @@ Qui garderait le portefeuille sans remords ?
 Qui pourrait devenir un génie du crime ?
 Qui se ferait attraper au premier vol ?
 Qui ferait le pire prof ?
-Qui ferait le meilleur prof ?
+[potes] [famille] Qui ferait le meilleur prof ?
 Qui supporterait le moins bien une semaine de silence total ?
 Qui serait insupportable s'il devenait célèbre ?
 Qui oublierait le groupe s'il devenait célèbre ?
 Qui a le pire goût en musique ?
-Qui chante le plus faux sous la douche ?
+[potes] [famille] Qui chante le plus faux sous la douche ?
 Qui ferait la pire impression à tes parents ?
 Qui ferait la meilleure impression à tes parents ?
 Qui a le plus de chances de finir dans un fait divers ?
@@ -130,25 +131,120 @@ Qui serait le pire dans une colocation de survie ?
 Qui choisirait de connaître la date de sa mort ?
 Qui effacerait un souvenir avec un ex s'il le pouvait ?
 Qui revivrait la même journée en boucle sans s'en plaindre ?
-Qui serait le premier à dire oui à une proposition indécente ?
+[potes] [pimente] Qui serait le premier à dire oui à une proposition indécente ?
 Qui ferait tout pour gagner un jeu de société, même tricher ?
-Qui triche au Monopoly ?
-Qui se vexe pour un jeu de société ?
+[potes] [famille] Qui triche au Monopoly ?
+[potes] [famille] Qui se vexe pour un jeu de société ?
 Qui a le plus de secrets dans ce groupe ?
 Qui en sait trop sur tout le monde ici ?
 # Classements : tout le monde est classé, du premier au dernier.
 [classement] Classe-nous du plus fêtard au plus casanier.
-[classement] Classe-nous du plus en retard au plus ponctuel.
-[classement] Classe-nous du plus drôle au moins drôle.
+[classement] [potes] [famille] [boulot] Classe-nous du plus en retard au plus ponctuel.
+[classement] [potes] [famille] [boulot] Classe-nous du plus drôle au moins drôle.
 [classement] Classe-nous de celui qui survivrait le plus longtemps à une apocalypse zombie au premier mangé.
 [classement] Classe-nous du plus radin au plus généreux.
-[classement] Classe-nous du plus dragueur au plus timide.
+[classement] [potes] [pimente] Classe-nous du plus dragueur au plus timide.
 [classement] Classe-nous du plus susceptible au plus cool.
-[classement] Classe-nous du plus bavard au plus discret.
-[classement] Classe-nous du meilleur cuisinier au pire.
+[classement] [potes] [famille] [boulot] Classe-nous du plus bavard au plus discret.
+[classement] [potes] [famille] Classe-nous du meilleur cuisinier au pire.
 [classement] Classe-nous du plus probable de devenir riche au moins probable.
-[classement] Classe-nous du plus accro à son téléphone au plus détaché.
+[classement] [potes] [famille] [boulot] Classe-nous du plus accro à son téléphone au plus détaché.
 [classement] Classe-nous du plus mauvais perdant au plus beau joueur.
 [classement] Classe-nous du plus dramatique au plus calme.
 [classement] Classe-nous du meilleur danseur au pire.
 [classement] Classe-nous de celui qui garde le mieux un secret au pire.
+
+# Famille : pour tous les âges.
+[famille] Qui appellerait sa mère pour savoir comment cuire des pâtes ?
+[famille] Qui s'endort toujours devant le film du dimanche soir ?
+[famille] Qui mange le dernier yaourt sans prévenir personne ?
+[famille] Qui serait le pire pour garder la surprise d'un cadeau ?
+[famille] Qui ouvrirait ses cadeaux avant le jour J ?
+[famille] Qui passe le plus de temps dans la salle de bain ?
+[famille] Qui a le plus de boîtes en plastique jamais rendues ?
+[famille] Qui gagnerait un concours de grimaces ?
+[famille] Qui raconte toujours la même histoire au repas de famille ?
+[famille] Qui se perdrait dans un magasin de meubles ?
+[famille] Qui irait se coucher en premier le soir du réveillon ?
+[famille] Qui adopterait tous les chats du quartier ?
+[famille] Qui ferait le meilleur chef cuisinier ?
+[famille] Qui ferait brûler les pâtes ?
+[famille] Qui resterait en pyjama tout le dimanche ?
+[famille] Qui oublierait où la voiture est garée ?
+[famille] Qui organiserait le mieux les vacances ?
+[famille] Qui ferait le meilleur détective ?
+[famille] Qui se ferait gronder en premier par mamie ?
+[famille] Qui prendrait le plus de photos en vacances ?
+[famille] Qui mangerait un gâteau entier tout seul ?
+[famille] Qui serait le pire pour monter un meuble en kit ?
+[famille] Qui pourrait parler des heures au téléphone ?
+[famille] Qui demanderait « on arrive quand ? » toutes les cinq minutes ?
+[famille] Qui ferait le meilleur super-héros ?
+[famille] Qui a le pire sens de l'orientation ?
+[famille] Qui ne rend jamais les livres qu'on lui prête ?
+[famille] Qui se lèverait en pleine nuit pour finir les restes ?
+[classement] [famille] Classe-nous du plus gourmand au plus raisonnable.
+[classement] [famille] Classe-nous du plus lève-tôt au plus marmotte.
+
+# Boulot : entre collègues, sans déraper.
+[boulot] Qui arrive en réunion sans savoir de quoi on parle ?
+[boulot] Qui répond aux mails à 23 h ?
+[boulot] Qui finira à la tête de la boîte ?
+[boulot] Qui a le plus d'onglets ouverts en ce moment ?
+[boulot] Qui mange à son bureau tous les midis ?
+[boulot] Qui oublie toujours de couper son micro ?
+[boulot] Qui ferait semblant de perdre la connexion pour éviter une question ?
+[boulot] Qui animerait le mieux un pot de départ ?
+[boulot] Qui boit le plus de cafés par jour ?
+[boulot] Qui a le bureau le plus en bazar ?
+[boulot] Qui dit « on en reparle » sans jamais en reparler ?
+[boulot] Qui serait le plus à l'aise pour présenter devant toute la boîte ?
+[boulot] Qui enverrait un mail à toute l'entreprise par erreur ?
+[boulot] Qui connaît tous les potins de la machine à café ?
+[boulot] Qui négocierait le mieux une augmentation ?
+[boulot] Qui lance le plus de projets sans les finir ?
+[boulot] Qui transformerait un mail de deux lignes en réunion d'une heure ?
+[boulot] Qui a le fond d'écran le plus étrange ?
+[boulot] Qui tiendrait le moins longtemps sans Wi-Fi au bureau ?
+[boulot] Qui organiserait le meilleur séminaire ?
+[boulot] Qui créera sa propre boîte ?
+[boulot] Qui est le roi ou la reine des tableurs ?
+[boulot] Qui oublie toujours son badge ?
+[boulot] Qui a le plus de plantes sur son bureau ?
+[boulot] Qui a les meilleures excuses pour arriver en retard ?
+[boulot] Qui travaillerait depuis une plage si on le laissait faire ?
+[boulot] Qui calmerait le mieux un client énervé ?
+[boulot] Qui a toujours un en-cas dans son tiroir ?
+[boulot] Qui serait le premier à proposer un afterwork ?
+[boulot] Qui met des émojis dans tous ses mails ?
+[classement] [boulot] Classe-nous du plus organisé au plus bordélique.
+[classement] [boulot] Classe-nous du plus matinal au plus tardif au bureau.
+
+# Pimenté 16+ : plus osé, jamais explicite.
+[pimente] Qui a le plus de matchs sur les applis de rencontre ?
+[pimente] Qui a déjà embrassé quelqu'un sans connaître son prénom ?
+[pimente] Qui enverrait un message à son ex ce soir ?
+[pimente] Qui a déjà menti sur son nombre d'ex ?
+[pimente] Qui flirte sans même s'en rendre compte ?
+[pimente] Qui finirait la soirée en after chez des inconnus ?
+[pimente] Qui a des conversations qu'il ne montrerait à personne ?
+[pimente] Qui a déjà ghosté quelqu'un après un premier rendez-vous ?
+[pimente] Qui tomberait amoureux en une seule soirée ?
+[pimente] Qui a déjà eu un crush sur quelqu'un du groupe ?
+[pimente] Qui oserait déclarer sa flamme devant tout le monde ?
+[pimente] Qui a le pire palmarès de rendez-vous ratés ?
+[pimente] Qui proposerait un strip-poker en premier ?
+[pimente] Qui rentrerait accompagné d'un mariage ?
+[pimente] Qui a le plus de photos compromettantes dans son téléphone ?
+[pimente] Qui a le plus de chances de se remettre avec un ex ?
+[pimente] Qui a déjà fait un bisou pour gagner un pari ?
+[pimente] Qui serait le plus jaloux en couple ?
+[pimente] Qui craquerait le premier pour un collègue ?
+[pimente] Qui a déjà inventé une excuse pour fuir un rendez-vous ?
+[pimente] Qui serait le plus à l'aise dans une émission de rencontres ?
+[pimente] Qui a déjà envoyé un message coquin à la mauvaise personne ?
+[pimente] Qui a le plus de chances d'avoir un coup d'un soir ce week-end ?
+[pimente] Qui garde un dossier secret de captures d'écran ?
+[pimente] Qui a déjà dragué en utilisant une réplique de film ?
+[classement] [pimente] Classe-nous du plus séducteur au moins séducteur.
+[classement] [pimente] Classe-nous du plus fidèle au plus volage.

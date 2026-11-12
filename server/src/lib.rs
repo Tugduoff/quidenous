@@ -15,6 +15,7 @@ pub mod rooms;
 pub mod routes;
 pub mod share;
 pub mod stats;
+pub mod vibes;
 
 use std::{str::FromStr, sync::Arc};
 

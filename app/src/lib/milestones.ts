@@ -128,7 +128,8 @@ export function useMilestone() {
 
   const [preview, setPreview] = useState(PREVIEW);
   const due = finished != null && seen != null && seen >= 0 ? lastMilestone(finished) : 0;
-  const reached = due > (seen ?? 0) ? due : null;
+  // Not read yet (or never set, as in a room with no question open): nothing to celebrate.
+  const reached = seen != null && seen >= 0 && due > seen ? due : null;
   const dismiss = () => {
     if (preview != null) return setPreview(null);
     if (reached == null || room == null) return;
