@@ -1,15 +1,16 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import * as DocumentPicker from 'expo-document-picker';
 import { router } from 'expo-router';
-import { Check, FileUp, Lock, MessageCircleQuestion, Plus, X } from 'lucide-react-native';
+import { Check, FileUp, Lock, MessageCircleQuestion, Plus, Trash2, X } from 'lucide-react-native';
 import { useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 
 import { Screen } from '@/components/screen';
-import { Avatar, Card, Display, Toggle } from '@/components/ui';
+import { Avatar, Card, ConfirmModal, Display, Toggle } from '@/components/ui';
 import { api } from '@/lib/api';
 import { parseQuestions, splitTag, type DraftLine } from '@/lib/import-draft';
 import { keys, useGroup, useMembers, useQueue } from '@/lib/queries';
+import { useSession } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
 
 const MIN = 8;
@@ -22,6 +23,15 @@ export default function QuestionsScreen() {
   const { byId } = useMembers();
   const [text, setText] = useState('');
   const [rank, setRank] = useState(false);
+  const { me } = useSession();
+  const [toDelete, setToDelete] = useState<{ id: number; text: string } | null>(null);
+  const remove = useMutation({
+    mutationFn: (id: number) => api(`/questions/${id}`, { method: 'DELETE' }),
+    onSettled: () => {
+      setToDelete(null);
+      qc.invalidateQueries({ queryKey: keys.queue });
+    },
+  });
   // Typing `[classement] …` by hand works too.
   const typed = splitTag(text.trim());
   const add = useMutation({
@@ -255,8 +265,28 @@ export default function QuestionsScreen() {
             {q.kind === 'rank' ? '🏆 ' : ''}
             {q.text}
           </Text>
+          {/* Its author or the room owner can take it out before it's asked. */}
+          {(q.author_id === me?.id || group?.my_role === 'owner') && (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Supprimer la question"
+              onPress={() => setToDelete(q)}
+              hitSlop={8}
+              style={{ width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card2 }}>
+              <Trash2 size={16} color={t.mut} />
+            </Pressable>
+          )}
         </Card>
       ))}
+      <ConfirmModal
+        visible={!!toDelete}
+        title="Supprimer cette question ?"
+        message={toDelete ? `« ${toDelete.text.replace(/ ([?!:;»])/g, '\u00A0$1')} »\nElle ne sera jamais posée.` : undefined}
+        confirmLabel="Supprimer"
+        busy={remove.isPending}
+        onCancel={() => setToDelete(null)}
+        onConfirm={() => toDelete && remove.mutate(toDelete.id)}
+      />
     </Screen>
   );
 }

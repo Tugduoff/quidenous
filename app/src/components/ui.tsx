@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
+import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import { Image } from 'expo-image';
 
 import { photoUrl, type Member } from '@/lib/api';
@@ -22,9 +22,7 @@ export function Avatar({ member, size = 40 }: { member?: Member; size?: number }
       {uri ? (
         <Image source={{ uri }} style={{ width: size, height: size }} />
       ) : (
-        <Text style={{ fontFamily: t.font.bold, fontSize: size * 0.42, color: '#121216' }}>
-          {member?.name[0]?.toUpperCase() ?? '?'}
-        </Text>
+        <Text style={{ fontFamily: t.font.bold, fontSize: size * 0.42, color: '#121216' }}>{member?.name[0]?.toUpperCase() ?? '?'}</Text>
       )}
     </View>
   );
@@ -55,9 +53,7 @@ export function AvatarStack({
   const extra = members.length - shown.length;
   const overlap = stackOverlap(size);
   const cell = (key: string | number, i: number, child: ReactNode) => (
-    <View
-      key={key}
-      style={{ marginLeft: i ? -overlap : 0, borderRadius: size, borderWidth: 2, borderColor: ring ?? t.bg }}>
+    <View key={key} style={{ marginLeft: i ? -overlap : 0, borderRadius: size, borderWidth: 2, borderColor: ring ?? t.bg }}>
       {child}
     </View>
   );
@@ -104,11 +100,7 @@ export function Button({
       accessibilityRole="button"
       disabled={off}
       onPress={onPress}
-      style={({ pressed }) => [
-        styles.button,
-        { backgroundColor: off ? t.card2 : t.acc, opacity: pressed ? 0.85 : 1 },
-        style,
-      ]}>
+      style={({ pressed }) => [styles.button, { backgroundColor: off ? t.card2 : t.acc, opacity: pressed ? 0.85 : 1 }, style]}>
       {loading ? (
         <ActivityIndicator color={t.mut} />
       ) : typeof children === 'string' ? (
@@ -146,9 +138,7 @@ export function Card({ children, style }: { children: ReactNode; style?: ViewSty
 export function Display({ children, size = 34 }: { children: ReactNode; size?: number }) {
   const t = useTheme();
   return (
-    <Text style={{ fontFamily: t.font.display, fontSize: size, lineHeight: size * 1.08, letterSpacing: -1, color: t.txt }}>
-      {children}
-    </Text>
+    <Text style={{ fontFamily: t.font.display, fontSize: size, lineHeight: size * 1.08, letterSpacing: -1, color: t.txt }}>{children}</Text>
   );
 }
 
@@ -193,5 +183,75 @@ export function Toggle({ label, value, onChange }: { label: string; value: boole
         <View style={{ width: 16, height: 16, borderRadius: 8, backgroundColor: value ? t.accTxt : t.mut }} />
       </View>
     </Pressable>
+  );
+}
+
+/** In-app confirmation dialog (same look on every platform): a title, a message, Cancel and a red action. */
+export function ConfirmModal({
+  visible,
+  title,
+  message,
+  confirmLabel,
+  onConfirm,
+  onCancel,
+  busy,
+}: {
+  visible: boolean;
+  title: string;
+  message?: string;
+  confirmLabel: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+  busy?: boolean;
+}) {
+  const t = useTheme();
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
+      <Pressable
+        accessibilityLabel="Fermer"
+        onPress={onCancel}
+        style={{ flex: 1, backgroundColor: '#0008', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+        {/* Taps inside the card don't close it. */}
+        <Pressable
+          onPress={() => {}}
+          style={{ width: '100%', maxWidth: 380, borderRadius: 24, padding: 22, gap: 12, backgroundColor: t.card, borderWidth: 1, borderColor: t.line }}>
+          <Text style={{ fontFamily: t.font.bold, fontSize: 18, color: t.txt }}>{title}</Text>
+          {!!message && <Text style={{ fontFamily: t.font.regular, fontSize: 15, lineHeight: 21, color: t.mut }}>{message}</Text>}
+          <View style={{ flexDirection: 'row', gap: 10, marginTop: 6 }}>
+            <Pressable
+              accessibilityRole="button"
+              onPress={onCancel}
+              style={{
+                flex: 1,
+                height: 46,
+                borderRadius: t.radius.pill,
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: t.card2,
+              }}>
+              <Text style={{ fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>Annuler</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              disabled={busy}
+              onPress={onConfirm}
+              style={{
+                flex: 1,
+                height: 46,
+                borderRadius: t.radius.pill,
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: '#FF3B5C',
+              }}>
+              {busy ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={{ fontFamily: t.font.bold, fontSize: 15, color: '#fff' }}>{confirmLabel}</Text>
+              )}
+            </Pressable>
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
   );
 }

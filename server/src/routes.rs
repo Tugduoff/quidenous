@@ -45,7 +45,8 @@ pub fn router() -> Router<AppState> {
                     "room_imports",
                     "share_cards",
                     "packs",
-                    "start"
+                    "start",
+                    "delete_question"
                 ]))
             }),
         )
@@ -75,6 +76,7 @@ pub fn router() -> Router<AppState> {
         .route("/stats", get(stats))
         .route("/questions", post(add_question))
         .route("/questions/queue", get(queue))
+        .route("/questions/{id}", axum::routing::delete(delete_question))
         .route(
             "/questions/import",
             post(import_questions).layer(axum::extract::DefaultBodyLimit::max(IMPORT_MAX)),
@@ -903,6 +905,38 @@ async fn add_question(
             .send(me.group_id, Event::RoundOpened { round_id });
     }
     Ok(Json(question))
+}
+
+/// Remove a question that hasn't been asked yet: its author or the room owner.
+async fn delete_question(
+    State(state): State<AppState>,
+    Me(me): Me,
+    Path(id): Path<i64>,
+) -> AppResult<Json<Value>> {
+    let row: Option<(Option<i64>, bool)> = sqlx::query_as(concat!(
+        "SELECT q.author_id, ",
+        game::unused!(),
+        " FROM questions q WHERE q.id = ?2 AND q.group_id = ?1"
+    ))
+    .bind(me.group_id)
+    .bind(id)
+    .fetch_optional(&state.db)
+    .await?;
+    let (author, unused) = row.ok_or(AppError::NotFound)?;
+    if !unused {
+        return Err(AppError::Conflict("already_asked"));
+    }
+    if author != Some(me.id) && me.role != "owner" {
+        return Err(AppError::Forbidden("not_author"));
+    }
+    sqlx::query("DELETE FROM questions WHERE id = ?")
+        .bind(id)
+        .execute(&state.db)
+        .await?;
+    state
+        .live
+        .send(me.group_id, Event::QuestionAdded { question_id: id });
+    Ok(Json(json!({ "ok": true })))
 }
 
 async fn queue(State(state): State<AppState>, Me(me): Me) -> AppResult<Json<Value>> {

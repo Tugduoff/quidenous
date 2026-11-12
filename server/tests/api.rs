@@ -1424,3 +1424,59 @@ async fn a_newcomer_starts_with_their_own_room() {
     .await;
     assert_eq!(s, StatusCode::BAD_REQUEST);
 }
+
+#[tokio::test]
+async fn upcoming_questions_can_be_deleted_by_author_or_owner() {
+    let app = test_app().await;
+    let (ana, _) = join(&app, "Ana").await; // owner
+    let (bob, _) = join(&app, "Bob").await;
+    let (cyd, _) = join(&app, "Cyd").await;
+    let add = |t: String, text: &'static str| {
+        let app = app.clone();
+        async move {
+            let (_, q) = call(
+                &app,
+                "POST",
+                "/questions",
+                Some(&t),
+                Some(json!({ "text": text })),
+            )
+            .await;
+            q["id"].as_i64().unwrap()
+        }
+    };
+    let q1 = add(bob.clone(), "Qui mange le plus de pizza ?").await;
+    let q2 = add(bob.clone(), "Qui chante le plus faux ?").await;
+    // Someone else can't; the author can; the owner can.
+    let (s, _) = call(
+        &app,
+        "DELETE",
+        &format!("/questions/{q1}"),
+        Some(&cyd),
+        None,
+    )
+    .await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+    let (s, _) = call(
+        &app,
+        "DELETE",
+        &format!("/questions/{q1}"),
+        Some(&bob),
+        None,
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK);
+    let (s, _) = call(
+        &app,
+        "DELETE",
+        &format!("/questions/{q2}"),
+        Some(&ana),
+        None,
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK);
+    let (_, queue) = call(&app, "GET", "/questions/queue", Some(&ana), None).await;
+    assert_eq!(queue["custom"], json!([]));
+    let (s, _) = call(&app, "DELETE", "/questions/9999", Some(&ana), None).await;
+    assert_eq!(s, StatusCode::NOT_FOUND);
+}
