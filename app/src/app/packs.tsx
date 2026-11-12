@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import * as DocumentPicker from 'expo-document-picker';
 import { router } from 'expo-router';
 import { ChevronLeft, Download, Search } from 'lucide-react-native';
-import { useState } from 'react';
+import { type ComponentRef, useRef, useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 
 import { Screen } from '@/components/screen';
@@ -25,6 +25,7 @@ export default function PacksScreen() {
   const { data: packs } = usePacks(q.trim());
   const [name, setName] = useState('');
   const [desc, setDesc] = useState('');
+  const descField = useRef<ComponentRef<typeof TextInput>>(null);
   const [fromFile, setFromFile] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const publish = useMutation({
@@ -81,6 +82,7 @@ export default function PacksScreen() {
           placeholderTextColor={t.mut}
           value={q}
           onChangeText={setQ}
+          returnKeyType="search"
           style={{ flex: 1, height: 44, fontFamily: t.font.regular, fontSize: 16, color: t.txt }}
         />
       </Card>
@@ -114,6 +116,9 @@ export default function PacksScreen() {
           value={name}
           onChangeText={setName}
           maxLength={40}
+          returnKeyType="next"
+          submitBehavior="submit"
+          onSubmitEditing={() => descField.current?.focus()}
           style={input}
         />
         <TextInput
@@ -121,8 +126,11 @@ export default function PacksScreen() {
           placeholder="Description (optionnel)"
           placeholderTextColor={t.mut}
           value={desc}
+          ref={descField}
           onChangeText={setDesc}
           maxLength={140}
+          returnKeyType="send"
+          onSubmitEditing={() => name.trim() && !publish.isPending && publish.mutate()}
           style={input}
         />
         <Toggle label="Depuis un fichier" value={fromFile} onChange={setFromFile} />

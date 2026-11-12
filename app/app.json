@@ -49,6 +49,14 @@
         {
           "photosPermission": "Pour ta photo de profil."
         }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Pour scanner le QR code d’un salon ou d’un ami.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
       ]
     ],
     "experiments": {

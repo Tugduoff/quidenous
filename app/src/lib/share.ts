@@ -13,8 +13,10 @@ export function friendMessage(code: string) {
 }
 
 /** Invite to a room: the link carries the code, so it opens the join screen ready to go. */
+export const inviteLink = (code: string) => `${appUrl()}/?code=${code}`;
+
 export function inviteMessage(roomName: string, code: string) {
-  return `Rejoins « ${roomName} » sur qui de nous ? 👉 ${appUrl()}/?code=${code}\n(code : ${code})`;
+  return `Rejoins « ${roomName} » sur qui de nous ? 👉 ${inviteLink(code)}\n(code : ${code})`;
 }
 
 /** Public link to a card of this question (with its podium when `result`), previewed as an image in chats. */

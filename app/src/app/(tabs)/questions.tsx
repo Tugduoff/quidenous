@@ -12,6 +12,7 @@ import { parseQuestions, splitTag, type DraftLine } from '@/lib/import-draft';
 import { keys, useGroup, useMembers, useQueue } from '@/lib/queries';
 import { useSession } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
+import { sendOnEnter } from '@/lib/submit';
 
 const MIN = 8;
 
@@ -131,6 +132,7 @@ export default function QuestionsScreen() {
               onChangeText={setText}
               multiline
               maxLength={200}
+              {...sendOnEnter(() => ok && add.mutate())}
               style={{
                 minHeight: 76,
                 padding: 16,

@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 
+import { ScanButton } from '@/components/qr-scanner';
 import { Screen } from '@/components/screen';
 import { Avatar, Card, Display } from '@/components/ui';
 import { api, ApiError, presetFriendCode, type Member } from '@/lib/api';
@@ -23,7 +24,7 @@ export default function FriendsScreen() {
   const [note, setNote] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const add = useMutation({
-    mutationFn: () => api<{ name: string }>('/friends', { method: 'POST', json: { code: code.trim() } }),
+    mutationFn: (value: string) => api<{ name: string }>('/friends', { method: 'POST', json: { code: value.trim() } }),
     onSuccess: (r) => {
       setCode('');
       setNote(`${r.name} est ton ami`);
@@ -91,13 +92,22 @@ export default function FriendsScreen() {
           onChangeText={(v) => setCode(v.toUpperCase())}
           autoCapitalize="characters"
           maxLength={16}
-          style={{ flex: 1, height: 44, fontFamily: t.font.bold, fontSize: 16, letterSpacing: 2, color: t.txt }}
+          returnKeyType="go"
+          onSubmitEditing={() => code.trim() && !add.isPending && add.mutate(code)}
+          style={{ flex: 1, minWidth: 0, height: 44, fontFamily: t.font.bold, fontSize: 16, letterSpacing: 2, color: t.txt }}
+        />
+        <ScanButton
+          onScan={(s) => {
+            if (!s.friend) return setNote("Ce QR code n'est pas un code ami");
+            setCode(s.friend);
+            add.mutate(s.friend);
+          }}
         />
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Ajouter en ami"
           disabled={!code.trim() || add.isPending}
-          onPress={() => add.mutate()}
+          onPress={() => add.mutate(code)}
           style={{
             width: 44,
             height: 44,

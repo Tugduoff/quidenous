@@ -3,12 +3,13 @@ import { useState } from 'react';
 import { router } from 'expo-router';
 import { ChevronLeft, Crown, LogOut, RefreshCw, Share2, Trash2, UserPlus, UserX } from 'lucide-react-native';
 import { Alert, Platform, Pressable, Switch, Text, TextInput, View } from 'react-native';
+import QRCode from 'react-native-qrcode-svg';
 
 import { Screen } from '@/components/screen';
 import { Avatar, Card, Display } from '@/components/ui';
 import { api } from '@/lib/api';
 import { keys, useFriends, useGroup } from '@/lib/queries';
-import { inviteMessage, shareText } from '@/lib/share';
+import { inviteLink, inviteMessage, shareText } from '@/lib/share';
 import { useSession } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
 
@@ -156,6 +157,9 @@ function Invite() {
   };
   return (
     <Card style={{ padding: 16, gap: 12 }}>
+      <View style={{ alignSelf: 'center', padding: 12, borderRadius: 16, backgroundColor: '#fff' }}>
+        <QRCode value={inviteLink(group.code)} size={168} color="#121216" backgroundColor="#fff" />
+      </View>
       <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut }}>Code d'invitation</Text>
       <Text selectable style={{ fontFamily: t.font.display, fontSize: 34, letterSpacing: 4, color: t.txt }}>
         {group.code}
@@ -284,6 +288,8 @@ function Settings() {
             value={draft}
             onChangeText={setName}
             maxLength={40}
+            returnKeyType="done"
+            onSubmitEditing={() => draft.trim() && draft !== group.name && save.mutate({ name: draft.trim() }, { onSuccess: () => setName(null) })}
             style={{
               flex: 1,
               height: 44,

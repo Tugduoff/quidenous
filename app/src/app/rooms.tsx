@@ -4,6 +4,7 @@ import { Check, ChevronLeft, ChevronRight, Crown, LogIn, Plus } from 'lucide-rea
 import { useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 
+import { ScanButton } from '@/components/qr-scanner';
 import { Screen } from '@/components/screen';
 import { Card, Display } from '@/components/ui';
 import { api, ApiError, presetJoinCode } from '@/lib/api';
@@ -35,7 +36,7 @@ export default function RoomsScreen() {
     onError: fail,
   });
   const join = useMutation({
-    mutationFn: () => api<{ id: number }>('/rooms/join', { method: 'POST', json: { code: code.trim() } }),
+    mutationFn: (value: string) => api<{ id: number }>('/rooms/join', { method: 'POST', json: { code: value.trim() } }),
     onSuccess: (r) => switchRoom(r.id),
     onError: fail,
   });
@@ -105,6 +106,8 @@ export default function RoomsScreen() {
           value={name}
           onChangeText={setName}
           maxLength={40}
+          returnKeyType="go"
+          onSubmitEditing={() => name.trim() && !create.isPending && create.mutate()}
           style={{ flex: 1, height: 44, fontFamily: t.font.regular, fontSize: 16, color: t.txt }}
         />
         <Pressable
@@ -134,13 +137,22 @@ export default function RoomsScreen() {
           onChangeText={(v) => setCode(v.toUpperCase())}
           autoCapitalize="characters"
           maxLength={20}
-          style={{ flex: 1, height: 44, fontFamily: t.font.bold, fontSize: 16, letterSpacing: 2, color: t.txt }}
+          returnKeyType="go"
+          onSubmitEditing={() => code.trim() && !join.isPending && join.mutate(code)}
+          style={{ flex: 1, minWidth: 0, height: 44, fontFamily: t.font.bold, fontSize: 16, letterSpacing: 2, color: t.txt }}
+        />
+        <ScanButton
+          onScan={(s) => {
+            if (!s.code) return setError("Ce QR code n'est pas celui d'un salon");
+            setCode(s.code);
+            join.mutate(s.code);
+          }}
         />
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Rejoindre"
           disabled={!code.trim() || join.isPending}
-          onPress={() => join.mutate()}
+          onPress={() => join.mutate(code)}
           style={{
             width: 44,
             height: 44,

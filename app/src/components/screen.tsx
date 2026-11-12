@@ -1,8 +1,11 @@
 import type { ReactNode } from 'react';
-import { KeyboardAvoidingView, type NativeScrollEvent, ScrollView, View } from 'react-native';
+import { KeyboardAvoidingView, type NativeScrollEvent, Platform, ScrollView, View, type ViewStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useTheme } from '@/lib/theme';
+
+// Home screen web app on iPhone: the safe-area inset is only known to CSS (same as the tab bar).
+const WEB_BOTTOM = { paddingBottom: 'env(safe-area-inset-bottom)' } as unknown as ViewStyle;
 
 export function Screen({
   children,
@@ -19,7 +22,9 @@ export function Screen({
 }) {
   const t = useTheme();
   return (
-    <SafeAreaView edges={tabs ? ['top'] : ['top', 'bottom']} style={{ flex: 1, backgroundColor: t.bg }}>
+    <SafeAreaView
+      edges={tabs || Platform.OS === 'web' ? ['top'] : ['top', 'bottom']}
+      style={[{ flex: 1, backgroundColor: t.bg }, !tabs && Platform.OS === 'web' && WEB_BOTTOM]}>
       {/* Lift the footer (message box, buttons) above the keyboard. Android too: the app is edge-to-edge,
           so the system no longer shrinks the window when the keyboard opens. */}
       <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
