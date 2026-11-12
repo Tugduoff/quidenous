@@ -1,11 +1,12 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Send } from 'lucide-react-native';
 import { type ComponentRef, useRef, useState } from 'react';
-import { Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 
 import { Avatar, Card } from '@/components/ui';
 import { api, type Message } from '@/lib/api';
 import { keys, useMembers, useMessages } from '@/lib/queries';
+import { sendOnEnter } from '@/lib/submit';
 import { useSession } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
 
@@ -88,16 +89,7 @@ export function ChatInput({ roundId }: { roundId: number }) {
         onChangeText={setText}
         multiline
         maxLength={MAX}
-        returnKeyType="send"
-        submitBehavior="submit"
-        onSubmitEditing={submit}
-        onKeyPress={(e) => {
-          // The web ignores submitBehavior: Enter sends, Shift+Enter goes to a new line.
-          const key = e.nativeEvent as typeof e.nativeEvent & { shiftKey?: boolean; isComposing?: boolean };
-          if (Platform.OS !== 'web' || key.key !== 'Enter' || key.shiftKey || key.isComposing) return;
-          e.preventDefault();
-          submit();
-        }}
+        {...sendOnEnter(submit)}
         // Under 16px, Safari on iPhone zooms the page in when the field gets the focus.
         style={{ flex: 1, minHeight: 40, maxHeight: 100, paddingVertical: 10, fontFamily: t.font.regular, fontSize: 16, color: t.txt }}
       />

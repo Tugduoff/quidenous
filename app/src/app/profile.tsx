@@ -121,6 +121,8 @@ export default function Profile() {
           value={name}
           onChangeText={setName}
           maxLength={24}
+          returnKeyType="done"
+          onSubmitEditing={() => name.trim() && name.trim() !== me?.name && saveName()}
           style={{ flex: 1, padding: 16, fontFamily: t.font.semibold, fontSize: 16, color: t.txt }}
         />
         <Button

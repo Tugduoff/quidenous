@@ -1,7 +1,8 @@
 import { ArrowRight } from 'lucide-react-native';
-import { useState } from 'react';
+import { type ComponentRef, useRef, useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 
+import { ScanButton } from '@/components/qr-scanner';
 import { Screen } from '@/components/screen';
 import { Button, Card, Logo } from '@/components/ui';
 import { ApiError, presetJoinCode, SERVER_FIELD } from '@/lib/api';
@@ -26,6 +27,7 @@ export default function Join() {
   const [room, setRoom] = useState('');
   const [server, setServer] = useState('https://');
   const [busy, setBusy] = useState(false);
+  const next = useRef<ComponentRef<typeof TextInput>>(null);
   const [error, setError] = useState<string | null>(null);
 
   const submit = async () => {
@@ -42,6 +44,8 @@ export default function Join() {
     }
   };
 
+  const ready = !!name.trim() && !!(creating ? room.trim() : code.trim()) && !busy;
+  const go = () => ready && submit();
   const input = { fontFamily: t.font.semibold, fontSize: 16, color: t.txt, padding: 16 };
   return (
     <Screen
@@ -66,6 +70,9 @@ export default function Join() {
           value={name}
           onChangeText={setName}
           autoComplete="given-name"
+          returnKeyType="next"
+          submitBehavior="submit"
+          onSubmitEditing={() => (preset && code ? go() : next.current?.focus())}
           style={input}
         />
       </Card>
@@ -76,15 +83,19 @@ export default function Join() {
             placeholder="Nom du salon (Les cousins, Le boulot…)"
             placeholderTextColor={t.mut}
             value={room}
+            ref={next}
             onChangeText={setRoom}
             maxLength={40}
+            returnKeyType="go"
+            onSubmitEditing={go}
             style={input}
           />
         </Card>
       ) : (
         (!preset || !code) && (
-          <Card>
+          <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingRight: 6 }}>
             <TextInput
+              ref={next}
               accessibilityLabel="Code du groupe"
               placeholder="CODE"
               placeholderTextColor={t.mut}
@@ -92,8 +103,11 @@ export default function Join() {
               onChangeText={(v) => setCode(v.toUpperCase())}
               autoCapitalize="characters"
               autoCorrect={false}
-              style={[input, { letterSpacing: 6 }]}
+              returnKeyType="go"
+              onSubmitEditing={go}
+              style={[input, { flex: 1, minWidth: 0, letterSpacing: 6 }]}
             />
+            <ScanButton onScan={(s) => s.code && setCode(s.code)} />
           </Card>
         )
       )}
@@ -119,6 +133,8 @@ export default function Join() {
             autoCapitalize="none"
             autoCorrect={false}
             keyboardType="url"
+            returnKeyType="go"
+            onSubmitEditing={go}
             style={input}
           />
         </Card>
