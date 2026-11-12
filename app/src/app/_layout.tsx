@@ -13,6 +13,7 @@ import { useReducedMotion } from 'react-native-reanimated';
 import { AppLock } from '@/components/app-lock';
 import { InstallBanner, InstallScreen, installMode } from '@/components/install';
 import { ConfirmHost } from '@/components/ui';
+import { UpdateDialog } from '@/components/update';
 import { useLive } from '@/lib/live';
 import { useLock } from '@/lib/lock';
 import { registerNativePush, useNotificationTaps } from '@/lib/native-push';
@@ -20,6 +21,7 @@ import { useNotifTzSync } from '@/lib/notifications';
 import { useRoomParam } from '@/lib/rooms';
 import { SessionProvider, useSession } from '@/lib/session';
 import { useScheme, useTheme, useThemeLoaded } from '@/lib/theme';
+import { useUpdateCheck } from '@/lib/update';
 
 SplashScreen.preventAutoHideAsync();
 const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: 10_000 } } });
@@ -49,6 +51,8 @@ function Root() {
     if (stage === 'in') registerNativePush().catch(() => {});
   }, [stage]);
   useNotifTzSync(stage === 'in');
+  // The APK installed by hand looks for a newer release (never in the Play build).
+  useUpdateCheck(ready && install !== 'block');
   useEffect(() => {
     if (ready && fonts && themeLoaded && lock.loaded) SplashScreen.hideAsync();
   }, [ready, fonts, themeLoaded, lock.loaded]);
@@ -113,6 +117,7 @@ function Root() {
       )}
       <AppLock active={!!token} />
       <ConfirmHost />
+      <UpdateDialog />
     </ThemeProvider>
   );
 }

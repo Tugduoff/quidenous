@@ -26,14 +26,22 @@ jobs:
       - run: printf '%s' "$GOOGLE_SERVICES_JSON" > google-services.json
         env:
           GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+      # The APK (installed by hand) updates itself from GitHub Releases: EXPO_PUBLIC_DISTRIBUTION=sideload turns that on
+      # and app.config.ts adds REQUEST_INSTALL_PACKAGES. The Play bundle below is built without either (Play policy).
       - run: npx expo prebuild --platform android --no-install
         env:
           CI: 1
+          EXPO_PUBLIC_DISTRIBUTION: sideload
       - run: echo "EXPO_PUBLIC_API_URL=https://qdn.coflop.fr" >> "$GITHUB_ENV"
       - run: echo "EXPO_PUBLIC_JOIN_CODE=$JOIN_CODE" >> "$GITHUB_ENV"
         env:
           JOIN_CODE: ${{ secrets.JOIN_CODE }}
       - run: ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a,armeabi-v7a --no-daemon
+        working-directory: app/android
+        env:
+          EXPO_PUBLIC_DISTRIBUTION: sideload
+      - name: APK can update itself
+        run: unzip -p app/build/outputs/apk/release/app-release.apk AndroidManifest.xml | tr -d '\0' | grep -c REQUEST_INSTALL_PACKAGES >/dev/null
         working-directory: app/android
       - uses: actions/upload-artifact@v4
         with:
@@ -73,7 +81,14 @@ jobs:
           UPLOAD_STORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_PASSWORD }}
         run: |
           [ -f "$UPLOAD_STORE_FILE" ] || { echo "no upload key, skipping"; exit 0; }
-          ./gradlew bundleRelease -PplayUpload -PreactNativeArchitectures=arm64-v8a,armeabi-v7a,x86_64 --no-daemon
+          # No self-update on Google Play: drop the install permission and rebuild the JS without the sideload flag
+          # (fresh Metro cache, JS bundle task forced to run again).
+          sed -i '/android.permission.REQUEST_INSTALL_PACKAGES/d' app/src/main/AndroidManifest.xml
+          rm -rf "${TMPDIR:-/tmp}"/metro-* "${TMPDIR:-/tmp}"/haste-map-*
+          ./gradlew createBundleReleaseJsAndAssets --rerun bundleRelease -PplayUpload -PreactNativeArchitectures=arm64-v8a,armeabi-v7a,x86_64 --no-daemon
+          if unzip -p app/build/outputs/bundle/release/app-release.aab base/manifest/AndroidManifest.xml | tr -d '\0' | grep -c REQUEST_INSTALL_PACKAGES >/dev/null; then
+            echo "::error::REQUEST_INSTALL_PACKAGES must not be in the Play bundle"; exit 1
+          fi
         working-directory: app/android
       - uses: actions/upload-artifact@v4
         if: hashFiles('app/android/app/build/outputs/bundle/release/*.aab') != ''
