@@ -88,6 +88,19 @@ pub fn app(state: AppState) -> Router {
         .nest("/api", routes::router())
         .route("/s/{token}", axum::routing::get(share::page))
         .route("/s/{token}/card.png", axum::routing::get(share::card_png))
+        // Public legal pages (linked from the Google sign-in consent screen and the app).
+        .route(
+            "/privacy",
+            axum::routing::get(|| async {
+                axum::response::Html(include_str!("../assets/legal/privacy.html"))
+            }),
+        )
+        .route(
+            "/terms",
+            axum::routing::get(|| async {
+                axum::response::Html(include_str!("../assets/legal/terms.html"))
+            }),
+        )
         .nest_service("/photos", photos);
     if let Some(web) = &state.config.web_dir {
         app = app
