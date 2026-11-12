@@ -1,6 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import {
   ArrowRight,
+  AtSign,
   Bell,
   BellOff,
   BellRing,
@@ -28,6 +29,7 @@ const KINDS: { kind: NotifKind; label: string; Icon: LucideIcon }[] = [
   { kind: 'question', label: 'Nouvelle question', Icon: Sparkles },
   { kind: 'result', label: 'Résultat', Icon: Crown },
   { kind: 'chat', label: 'Messages', Icon: MessageCircle },
+  { kind: 'mention', label: 'Mentions', Icon: AtSign },
   { kind: 'nudge', label: 'Relances', Icon: BellRing },
   { kind: 'added', label: 'Ajout à un salon', Icon: UserPlus },
   { kind: 'ask', label: 'Demandes de questions', Icon: MessageCircleQuestion },

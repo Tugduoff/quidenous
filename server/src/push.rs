@@ -37,16 +37,19 @@ pub enum Kind {
     Nudge,
     Added,
     Ask,
+    /// Someone wrote my name (or @tous) in a chat: on even when chat pushes are off.
+    Mention,
 }
 
 impl Kind {
-    pub const ALL: [Kind; 6] = [
+    pub const ALL: [Kind; 7] = [
         Kind::Question,
         Kind::Result,
         Kind::Chat,
         Kind::Nudge,
         Kind::Added,
         Kind::Ask,
+        Kind::Mention,
     ];
 
     pub fn as_str(self) -> &'static str {
@@ -57,6 +60,7 @@ impl Kind {
             Kind::Nudge => "nudge",
             Kind::Added => "added",
             Kind::Ask => "ask",
+            Kind::Mention => "mention",
         }
     }
 
@@ -360,6 +364,11 @@ pub enum Target {
         member_id: i64,
         from_user: Option<i64>,
     },
+    /// Some active members of one room (the people a message mentions, or everyone else).
+    Members {
+        member_ids: Vec<i64>,
+        from_user: Option<i64>,
+    },
 }
 
 /// What happened to one delivery: keep the subscription, or drop it because the device is gone.
@@ -443,6 +452,28 @@ impl Push {
         );
     }
 
+    /// Sends to every device of these members of one room, except people who blocked `from`.
+    /// Runs in the background.
+    pub fn notify_members(
+        &self,
+        db: SqlitePool,
+        member_ids: Vec<i64>,
+        from: &crate::models::MemberRow,
+        n: Notification,
+    ) {
+        if member_ids.is_empty() {
+            return;
+        }
+        self.notify(
+            db,
+            Target::Members {
+                member_ids,
+                from_user: from.user_id,
+            },
+            n,
+        );
+    }
+
     fn notify(&self, db: SqlitePool, target: Target, n: Notification) {
         let push = self.clone();
         let n = n.with_room_link();
@@ -493,7 +524,7 @@ impl Push {
                 )
             };
         }
-        let subs: Vec<Recipient> = match *target {
+        let subs: Vec<Recipient> = match target {
             // Every device of every active member's account (one account can sit in several rooms).
             Target::Group {
                 group_id,
@@ -518,6 +549,22 @@ impl Push {
                     .bind(from_user)
                     .fetch_all(db)
                     .await?
+            }
+            Target::Members {
+                member_ids,
+                from_user,
+            } => {
+                if member_ids.is_empty() {
+                    return Ok(Vec::new());
+                }
+                let ids = serde_json::to_string(member_ids).unwrap_or_else(|_| "[]".into());
+                sqlx::query_as(select!(
+                    "m.id IN (SELECT value FROM json_each(?)) AND m.removed_at IS NULL"
+                ))
+                .bind(ids)
+                .bind(from_user)
+                .fetch_all(db)
+                .await?
             }
         };
         Ok(subs

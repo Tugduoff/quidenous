@@ -97,12 +97,15 @@ export type HistoryItem = {
   pinned: boolean;
   kind: 'pick' | 'rank';
 };
-/** `user_id`: the author's account (null once deleted; absent from an older server). */
-export type Message = { id: number; member_id: number; user_id?: number | null; text: string; created_at: string };
+/**
+ * `user_id`: the author's account (null once deleted; absent from an older server).
+ * `mentions`: member ids pinged with `@Name`; `everyone`: the text pings the whole room with `@tous` (both absent from an older server).
+ */
+export type Message = { id: number; member_id: number; user_id?: number | null; text: string; created_at: string; mentions?: number[]; everyone?: boolean };
 export type InboxItem = {
   id: number;
   /** Unknown kinds (a newer server) are shown with a generic icon and title. */
-  kind: 'message' | 'nudge' | 'result' | 'question' | 'added' | 'ask' | (string & {});
+  kind: 'message' | 'mention' | 'nudge' | 'result' | 'question' | 'added' | 'ask' | (string & {});
   round_id: number | null;
   /** The room it happened in (absent from an older server). */
   room_id?: number;

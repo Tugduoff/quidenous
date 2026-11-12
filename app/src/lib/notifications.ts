@@ -8,7 +8,7 @@ import { nativePushState, registerNativePush } from './native-push';
 import { enablePush, pushState, webSubscribed } from './push';
 
 /** What a push can be about (the inbox keeps everything; these only silence pushes). */
-export type NotifKind = 'question' | 'result' | 'chat' | 'nudge' | 'added' | 'ask';
+export type NotifKind = 'question' | 'result' | 'chat' | 'mention' | 'nudge' | 'added' | 'ask';
 
 /** Quiet hours in minutes after local midnight (both null = none; may wrap past midnight). `enabled`: every device of the account. */
 export type NotifPrefs = { enabled: boolean; off: NotifKind[]; quiet_start: number | null; quiet_end: number | null; tz_offset: number };

@@ -2705,3 +2705,240 @@ async fn notification_settings_filter_pushes() {
     let (status, _) = call(&app, "PUT", "/notifications", Some(&tug), Some(unknown)).await;
     assert!(status.is_client_error());
 }
+
+#[tokio::test]
+async fn chat_mentions_are_validated_and_ping_through_the_chat_switch() {
+    use quidenous_server::push::{Kind, Target};
+    // 2026-11-12 12:00 UTC.
+    const NOON: u64 = 1_794_441_600 + 12 * 3600;
+    let (app, state) = test_app_with_state().await;
+    let mut people = Vec::new();
+    for (i, name) in ["Ana", "Bob", "Cyd", "Dan"].into_iter().enumerate() {
+        let (token, member) = join(&app, name).await;
+        let device = json!({ "kind": "web", "endpoint": format!("https://push.example/m{i}"), "p256dh": "x", "auth": "y" });
+        call(&app, "POST", "/push/subscribe", Some(&token), Some(device)).await;
+        let user: i64 = sqlx::query_scalar("SELECT user_id FROM members WHERE id = ?")
+            .bind(member)
+            .fetch_one(&state.db)
+            .await
+            .unwrap();
+        people.push((token, member, user));
+    }
+    let [
+        (ana, ana_id, ana_user),
+        (bob, bob_id, bob_user),
+        (cyd, cyd_id, _),
+        (dan, dan_id, _),
+    ] = people.try_into().unwrap();
+    let (_, open) = call(&app, "GET", "/round/current", Some(&ana), None).await;
+    let round = open["id"].as_i64().unwrap();
+    for token in [&ana, &bob, &cyd, &dan] {
+        vote_as(&app, token, bob_id).await;
+    }
+    // Dan leaves the room: no longer someone you can mention.
+    sqlx::query("UPDATE members SET removed_at = 'x' WHERE id = ?")
+        .bind(dan_id)
+        .execute(&state.db)
+        .await
+        .unwrap();
+    let path = format!("/rounds/{round}/messages");
+    let latest = |inbox: &Value| {
+        (
+            inbox["items"][0]["kind"].clone(),
+            inbox["items"][0]["actor_id"].clone(),
+        )
+    };
+
+    // Only current members other than me are kept, once each.
+    let (s, msg) = call(
+        &app,
+        "POST",
+        &path,
+        Some(&ana),
+        Some(json!({ "text": "@Bob @Dan regarde", "mentions": [bob_id, dan_id, ana_id, 999_999, bob_id] })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{msg}");
+    assert_eq!(
+        (&msg["mentions"], &msg["everyone"]),
+        (&json!([bob_id]), &json!(false))
+    );
+    let (_, list) = call(&app, "GET", &path, Some(&cyd), None).await;
+    assert_eq!(list[0]["mentions"], json!([bob_id]));
+    // Bob gets a mention, Cyd the plain message.
+    let (_, inbox) = call(&app, "GET", "/inbox", Some(&bob), None).await;
+    assert_eq!(latest(&inbox), (json!("mention"), json!(ana_id)), "{inbox}");
+    assert_eq!(inbox["items"][0]["round_id"], round);
+    let (_, inbox) = call(&app, "GET", "/inbox", Some(&cyd), None).await;
+    assert_eq!(latest(&inbox), (json!("message"), json!(ana_id)));
+    // An older app sends no mentions: a plain message.
+    let (_, msg) = call(
+        &app,
+        "POST",
+        &path,
+        Some(&cyd),
+        Some(json!({ "text": "ok" })),
+    )
+    .await;
+    assert_eq!(
+        (&msg["mentions"], &msg["everyone"]),
+        (&json!([]), &json!(false))
+    );
+
+    // The push to Bob comes through with chat pushes off, not with mentions off too.
+    let to_bob = || Target::Members {
+        member_ids: vec![bob_id],
+        from_user: Some(ana_user),
+    };
+    let mention = [Kind::Mention, Kind::Chat];
+    assert_eq!(
+        audience(&state, to_bob(), &mention, NOON).await,
+        vec![bob_user]
+    );
+    let prefs = |off: Value| json!({ "enabled": true, "off": off, "quiet_start": null, "quiet_end": null, "tz_offset": 0 });
+    call(
+        &app,
+        "PUT",
+        "/notifications",
+        Some(&bob),
+        Some(prefs(json!(["chat"]))),
+    )
+    .await;
+    assert_eq!(
+        audience(&state, to_bob(), &[Kind::Chat], NOON).await,
+        Vec::<i64>::new()
+    );
+    assert_eq!(
+        audience(&state, to_bob(), &mention, NOON).await,
+        vec![bob_user]
+    );
+    call(
+        &app,
+        "PUT",
+        "/notifications",
+        Some(&bob),
+        Some(prefs(json!(["chat", "mention"]))),
+    )
+    .await;
+    assert_eq!(
+        audience(&state, to_bob(), &mention, NOON).await,
+        Vec::<i64>::new()
+    );
+    call(
+        &app,
+        "PUT",
+        "/notifications",
+        Some(&bob),
+        Some(prefs(json!(["chat"]))),
+    )
+    .await;
+    // A muted room still mutes mentions.
+    let (_, rooms) = call(&app, "GET", "/rooms", Some(&bob), None).await;
+    let room = rooms[0]["id"].as_i64().unwrap();
+    call(
+        &app,
+        "PUT",
+        &format!("/rooms/{room}/mute"),
+        Some(&bob),
+        None,
+    )
+    .await;
+    assert_eq!(
+        audience(&state, to_bob(), &mention, NOON).await,
+        Vec::<i64>::new()
+    );
+    call(
+        &app,
+        "DELETE",
+        &format!("/rooms/{room}/mute"),
+        Some(&bob),
+        None,
+    )
+    .await;
+    assert_eq!(
+        audience(&state, to_bob(), &mention, NOON).await,
+        vec![bob_user]
+    );
+    // Removed seats get nothing.
+    let to_dan = Target::Members {
+        member_ids: vec![dan_id],
+        from_user: Some(ana_user),
+    };
+    assert_eq!(
+        audience(&state, to_dan, &mention, NOON).await,
+        Vec::<i64>::new()
+    );
+
+    // Bob blocks Ana: her mentions neither push nor show in his inbox.
+    let (s, _) = call(
+        &app,
+        "PUT",
+        &format!("/blocks/{ana_user}"),
+        Some(&bob),
+        None,
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(
+        audience(&state, to_bob(), &mention, NOON).await,
+        Vec::<i64>::new()
+    );
+    call(
+        &app,
+        "POST",
+        &path,
+        Some(&ana),
+        Some(json!({ "text": "@Bob ?", "mentions": [bob_id] })),
+    )
+    .await;
+    let (_, inbox) = call(&app, "GET", "/inbox", Some(&bob), None).await;
+    assert!(
+        inbox["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|i| i["actor_id"] != ana_id),
+        "{inbox}"
+    );
+
+    // @tous: everyone still here gets a mention; again within minutes, a plain message.
+    let (_, msg) = call(
+        &app,
+        "POST",
+        &path,
+        Some(&cyd),
+        Some(json!({ "text": "@tous on refait ?", "everyone": true })),
+    )
+    .await;
+    assert_eq!(msg["everyone"], true);
+    for token in [&ana, &bob] {
+        let (_, inbox) = call(&app, "GET", "/inbox", Some(token), None).await;
+        assert_eq!(latest(&inbox), (json!("mention"), json!(cyd_id)), "{inbox}");
+    }
+    let (_, msg) = call(
+        &app,
+        "POST",
+        &path,
+        Some(&cyd),
+        Some(json!({ "text": "@tous allô", "everyone": true })),
+    )
+    .await;
+    assert_eq!(msg["everyone"], true);
+    let (_, inbox) = call(&app, "GET", "/inbox", Some(&ana), None).await;
+    assert_eq!(latest(&inbox), (json!("message"), json!(cyd_id)));
+    // ...though a name mentioned alongside still pings.
+    call(
+        &app,
+        "POST",
+        &path,
+        Some(&cyd),
+        Some(json!({ "text": "@tous @Ana", "everyone": true, "mentions": [ana_id] })),
+    )
+    .await;
+    let (_, inbox) = call(&app, "GET", "/inbox", Some(&ana), None).await;
+    assert_eq!(latest(&inbox), (json!("mention"), json!(cyd_id)));
+    let (_, inbox) = call(&app, "GET", "/inbox", Some(&bob), None).await;
+    assert_eq!(latest(&inbox), (json!("message"), json!(cyd_id)));
+    let (_, features) = call(&app, "GET", "/features", None, None).await;
+    assert!(features.as_array().unwrap().contains(&json!("mentions")));
+}

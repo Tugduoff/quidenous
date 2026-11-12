@@ -148,6 +148,7 @@ async fn features(State(state): State<AppState>) -> Json<Value> {
         "notification_settings",
         "stats_v2",
         "ota",
+        "mentions",
     ];
     f.extend(crate::accounts::features(&state));
     Json(json!(f))
@@ -1266,8 +1267,21 @@ pub(crate) async fn notify_round(
 }
 
 const MESSAGE_MAX: usize = 500;
+/// `@tous` pings the whole room at most this often per person (the message still goes out).
+const EVERYONE_COOLDOWN: &str = "-10 minutes";
 
-#[derive(Serialize, sqlx::FromRow)]
+#[derive(sqlx::FromRow)]
+struct MessageDb {
+    id: i64,
+    member_id: i64,
+    user_id: Option<i64>,
+    text: String,
+    created_at: String,
+    mentions: String,
+    everyone: bool,
+}
+
+#[derive(Serialize)]
 struct MessageRow {
     id: i64,
     member_id: i64,
@@ -1275,6 +1289,24 @@ struct MessageRow {
     user_id: Option<i64>,
     text: String,
     created_at: String,
+    /// Members of the room this message mentions (`@Name` in the text).
+    mentions: Vec<i64>,
+    /// `@tous`: the whole room.
+    everyone: bool,
+}
+
+impl From<MessageDb> for MessageRow {
+    fn from(m: MessageDb) -> Self {
+        Self {
+            id: m.id,
+            member_id: m.member_id,
+            user_id: m.user_id,
+            text: m.text,
+            created_at: m.created_at,
+            mentions: serde_json::from_str(&m.mentions).unwrap_or_default(),
+            everyone: m.everyone,
+        }
+    }
 }
 
 /// The chat under a finished question, oldest first, without people I blocked.
@@ -1284,23 +1316,27 @@ async fn messages(
     Path(id): Path<i64>,
 ) -> AppResult<Json<Vec<MessageRow>>> {
     game::round(&state.db, me.group_id, id).await?;
-    Ok(Json(
-        sqlx::query_as(
-            "SELECT x.id, x.member_id, m.user_id, x.text, x.created_at FROM messages x \
-             JOIN members m ON m.id = x.member_id WHERE x.round_id = ? \
-             AND NOT EXISTS (SELECT 1 FROM blocks b WHERE b.user_id = ? AND b.blocked_id = m.user_id) \
-             ORDER BY x.id",
-        )
-        .bind(id)
-        .bind(me.user_id)
-        .fetch_all(&state.db)
-        .await?,
-    ))
+    let rows: Vec<MessageDb> = sqlx::query_as(
+        "SELECT x.id, x.member_id, m.user_id, x.text, x.created_at, x.mentions, x.everyone FROM messages x \
+         JOIN members m ON m.id = x.member_id WHERE x.round_id = ? \
+         AND NOT EXISTS (SELECT 1 FROM blocks b WHERE b.user_id = ? AND b.blocked_id = m.user_id) \
+         ORDER BY x.id",
+    )
+    .bind(id)
+    .bind(me.user_id)
+    .fetch_all(&state.db)
+    .await?;
+    Ok(Json(rows.into_iter().map(MessageRow::from).collect()))
 }
 
 #[derive(Deserialize)]
 struct MessageBody {
     text: String,
+    /// Member ids the text mentions; only current members of the room other than me are kept.
+    #[serde(default)]
+    mentions: Vec<i64>,
+    #[serde(default)]
+    everyone: bool,
 }
 
 async fn post_message(
@@ -1318,26 +1354,53 @@ async fn post_message(
     if text.is_empty() || text.chars().count() > MESSAGE_MAX {
         return Err(AppError::BadRequest("bad_message"));
     }
-    let message: MessageRow = sqlx::query_as(
-        "INSERT INTO messages (round_id, member_id, text) VALUES (?, ?, ?) \
-         RETURNING id, member_id, ? AS user_id, text, created_at",
+    // Everyone else still in the room: who hears about it, and who can be mentioned.
+    let others: Vec<i64> = sqlx::query_scalar(
+        "SELECT id FROM members WHERE group_id = ? AND removed_at IS NULL AND id != ? ORDER BY id",
+    )
+    .bind(me.group_id)
+    .bind(me.id)
+    .fetch_all(&state.db)
+    .await?;
+    let mut mentions: Vec<i64> = body
+        .mentions
+        .into_iter()
+        .filter(|m| others.contains(m))
+        .collect();
+    mentions.sort_unstable();
+    mentions.dedup();
+    // @tous rings the whole room once in a while; more often, it's a plain message.
+    let ring_everyone = body.everyone
+        && !sqlx::query_scalar::<_, bool>(
+            "SELECT EXISTS (SELECT 1 FROM messages WHERE member_id = ? AND everyone = 1 \
+             AND created_at > strftime('%Y-%m-%dT%H:%M:%fZ', 'now', ?))",
+        )
+        .bind(me.id)
+        .bind(EVERYONE_COOLDOWN)
+        .fetch_one(&state.db)
+        .await?;
+    let message: MessageRow = sqlx::query_as::<_, MessageDb>(
+        "INSERT INTO messages (round_id, member_id, text, mentions, everyone) VALUES (?, ?, ?, ?, ?) \
+         RETURNING id, member_id, ? AS user_id, text, created_at, mentions, everyone",
     )
     .bind(id)
     .bind(me.id)
     .bind(text)
+    .bind(serde_json::to_string(&mentions).unwrap_or_else(|_| "[]".into()))
+    .bind(body.everyone)
     .bind(me.user_id)
     .fetch_one(&state.db)
-    .await?;
-    crate::inbox::to_group(
-        &state.db,
-        me.group_id,
-        Some(me.id),
-        "message",
-        Some(id),
-        Some(me.id),
-        text,
-    )
-    .await?;
+    .await?
+    .into();
+    // Mentioned people get a mention (inbox and push) instead of the plain message.
+    let pinged: Vec<i64> = if ring_everyone {
+        others.clone()
+    } else {
+        mentions
+    };
+    let rest: Vec<i64> = others.into_iter().filter(|m| !pinged.contains(m)).collect();
+    crate::inbox::to_members(&state.db, &rest, "message", Some(id), Some(me.id), text).await?;
+    crate::inbox::to_members(&state.db, &pinged, "mention", Some(id), Some(me.id), text).await?;
     state.live.send(
         me.group_id,
         Event::MessagePosted {
@@ -1348,15 +1411,30 @@ async fn post_message(
         },
     );
     state.live.send(me.group_id, Event::InboxChanged);
-    state.push.notify_group_from(
+    state.push.notify_members(
         state.db.clone(),
-        me.group_id,
+        rest,
         &me,
         Notification {
             kinds: vec![Kind::Chat],
             title: format!("{} · « {} »", me.name, round.text),
             body: text.to_owned(),
             tag: format!("chat-{id}"),
+            url: format!("/round/{id}"),
+            room: me.group_id,
+        },
+    );
+    // Through even with chat pushes off (or with mentions off but chat on); room mute,
+    // the master switch, quiet hours and blocks still apply.
+    state.push.notify_members(
+        state.db.clone(),
+        pinged,
+        &me,
+        Notification {
+            kinds: vec![Kind::Mention, Kind::Chat],
+            title: format!("{} t'a mentionné · « {} »", me.name, round.text),
+            body: text.to_owned(),
+            tag: format!("mention-{id}"),
             url: format!("/round/{id}"),
             room: me.group_id,
         },
