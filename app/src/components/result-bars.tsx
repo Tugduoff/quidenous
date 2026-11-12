@@ -102,19 +102,17 @@ export function RankResult({ ranking, byId, mine }: { ranking: RankEntry[]; byId
                 <Text style={{ fontFamily: t.font.bold, fontSize: 16, color: t.txt }} numberOfLines={1}>
                   {m?.name}
                 </Text>
-                <Text style={{ fontFamily: t.font.regular, fontSize: 11, color: t.mut }}>
-                  {r.firsts ? `1er pour ${r.firsts} · ` : ''}moyenne {r.average.toFixed(1).replace('.', ',')}
-                  {myPlace ? ` · toi : ${myPlace}e` : ''}
-                </Text>
+                {/* Only where my ranking differs from the group's. */}
+                {myPlace > 0 && myPlace !== i + 1 && <Text style={{ fontFamily: t.font.regular, fontSize: 12, color: t.mut }}>{`toi : ${myPlace}e`}</Text>}
               </View>
-              <Text style={{ fontFamily: t.font.display, fontSize: 20, color: t.txt }}>{r.points}</Text>
+              <Text style={{ fontFamily: t.font.display, fontSize: 20, color: t.txt }}>
+                {r.points}
+                <Text style={{ fontFamily: t.font.semibold, fontSize: 12, color: t.mut }}> pts</Text>
+              </Text>
             </View>
           </View>
         );
       })}
-      <Text style={{ fontFamily: t.font.regular, fontSize: 11, color: t.mut, marginLeft: 4 }}>
-        Points : chaque classement donne {ranking.length} points au 1er, 1 au dernier.
-      </Text>
     </View>
   );
 }

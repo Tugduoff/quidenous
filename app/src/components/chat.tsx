@@ -19,13 +19,8 @@ export function ChatMessages({ roundId }: { roundId: number }) {
   const { byId } = useMembers();
   const { data: messages } = useMessages(roundId);
   const box = useRef<ComponentRef<typeof ScrollView>>(null);
-  if (!messages?.length) {
-    return (
-      <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut, marginLeft: 4 }}>
-        Pas encore de messages. Lance le débat.
-      </Text>
-    );
-  }
+  // No messages yet: nothing to show, the box below already invites one.
+  if (!messages?.length) return null;
   return (
     <View style={{ gap: 10 }}>
       <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut, marginLeft: 4 }}>
