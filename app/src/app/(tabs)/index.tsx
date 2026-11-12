@@ -8,6 +8,7 @@ import { Pressable, Text, View } from 'react-native';
 import { ChatInput, ChatMessages } from '@/components/chat';
 import { RankResult, ResultBars } from '@/components/result-bars';
 import { Screen } from '@/components/screen';
+import { SecureCard } from '@/components/secure-card';
 import { Avatar, AvatarStack, Button, Card, ConfirmModal, Display, Logo, Tag } from '@/components/ui';
 import { api, type Member, type Round } from '@/lib/api';
 import { keys, useCurrentRound, useGroup, useInbox, useMembers, useRound, useUnseenRound } from '@/lib/queries';
@@ -105,6 +106,15 @@ function GroupButton() {
 }
 
 function Header() {
+  return (
+    <>
+      <HeaderBar />
+      <SecureCard />
+    </>
+  );
+}
+
+function HeaderBar() {
   const { me } = useSession();
   return (
     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
