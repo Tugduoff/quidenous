@@ -35,23 +35,8 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/health", get(|| async { "ok" }))
         // What this server can do, so apps (and release scripts) can tell a deploy has landed.
-        .route(
-            "/features",
-            get(|| async {
-                Json(json!([
-                    "rooms",
-                    "friends",
-                    "ranking",
-                    "room_imports",
-                    "share_cards",
-                    "packs",
-                    "start",
-                    "delete_question",
-                    "shuffle",
-                    "presence"
-                ]))
-            }),
-        )
+        .route("/features", get(features))
+        .nest("/auth", crate::accounts::router())
         .route("/join", post(join))
         .route("/me", get(me).put(update_me))
         .route(
@@ -123,7 +108,35 @@ pub fn router() -> Router<AppState> {
         .route("/push/unsubscribe", post(push_unsubscribe))
 }
 
-fn clean_name(name: &str) -> AppResult<String> {
+async fn features(State(state): State<AppState>) -> Json<Value> {
+    let mut f = vec![
+        "rooms",
+        "friends",
+        "ranking",
+        "room_imports",
+        "share_cards",
+        "packs",
+        "start",
+        "delete_question",
+        "shuffle",
+        "presence",
+    ];
+    f.extend(crate::accounts::features(&state));
+    Json(json!(f))
+}
+
+/// Gate for the anonymous ways in (`/join` without a token, `/start`).
+pub(crate) fn legacy_gate(state: &AppState, ip: Option<std::net::IpAddr>) -> AppResult<()> {
+    if state.config.auth_required {
+        return Err(AppError::Gone("sign_in_required"));
+    }
+    state
+        .auth
+        .limits
+        .hit_ip(&crate::accounts::limits::LEGACY_IP, ip)
+}
+
+pub(crate) fn clean_name(name: &str) -> AppResult<String> {
     let name = name.trim();
     if name.is_empty() || name.chars().count() > NAME_MAX {
         return Err(AppError::BadRequest("bad_name"));
@@ -139,9 +152,13 @@ struct JoinBody {
 
 async fn join(
     State(state): State<AppState>,
+    crate::accounts::ClientIp(ip): crate::accounts::ClientIp,
     headers: axum::http::HeaderMap,
     Json(body): Json<JoinBody>,
 ) -> AppResult<Json<Value>> {
+    if crate::accounts::bearer(&headers).is_none() {
+        legacy_gate(&state, ip)?;
+    }
     let name = clean_name(&body.name)?;
     let group_id: i64 = sqlx::query_scalar("SELECT id FROM groups WHERE join_code = ?")
         .bind(body.code.trim().to_uppercase())
@@ -182,6 +199,13 @@ async fn join(
     };
     if existing.as_ref().is_some_and(|m| m.removed_at.is_some()) {
         return Err(AppError::Forbidden("removed"));
+    }
+    // A first name no longer hands over an account that can sign in: sign in instead.
+    if signed_in.is_none()
+        && let Some(user) = existing.as_ref().and_then(|m| m.user_id)
+        && crate::accounts::is_secured(&mut *tx, user).await?
+    {
+        return Err(AppError::Conflict("account_protected"));
     }
     let joined = existing.is_none();
     let member = match existing {
@@ -232,11 +256,15 @@ async fn join(
     .execute(&mut *tx)
     .await?;
     let user_id = member.user_id.ok_or(AppError::Unauthorized)?;
-    sqlx::query("INSERT INTO user_tokens (token_hash, user_id) VALUES (?, ?)")
-        .bind(hash_token(&token))
-        .bind(user_id)
-        .execute(&mut *tx)
-        .await?;
+    sqlx::query(
+        "INSERT INTO user_tokens (token_hash, user_id, device, last_used_at) \
+         VALUES (?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))",
+    )
+    .bind(hash_token(&token))
+    .bind(user_id)
+    .bind(crate::accounts::device_label(&headers))
+    .execute(&mut *tx)
+    .await?;
     sqlx::query("UPDATE users SET last_group_id = ? WHERE id = ?")
         .bind(group_id)
         .bind(user_id)

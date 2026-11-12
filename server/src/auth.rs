@@ -37,22 +37,33 @@ pub async fn member_in_room(
     .fetch_optional(&state.db)
     .await?;
     match member {
-        Some(m) => Ok(m),
-        // A valid account asking for a room it is not in.
-        None if room.is_some() && user_for_token(state, token).await.is_ok() => {
-            Err(AppError::Forbidden("not_in_room"))
+        Some(m) => {
+            crate::accounts::touch(state, &hash_token(token)).await;
+            Ok(m)
         }
-        None => Err(AppError::Unauthorized),
+        None => match user_for_token(state, token).await {
+            // A valid account asking for a room it is not in.
+            Ok(_) if room.is_some() => Err(AppError::Forbidden("not_in_room")),
+            // A signed-in account with no room yet: "join or create one", not "signed out".
+            // Legacy accounts keep the old 401 (old apps sign out on it after a removal).
+            Ok(user) if crate::accounts::is_secured(&state.db, user).await? => {
+                Err(AppError::Forbidden("no_room"))
+            }
+            _ => Err(AppError::Unauthorized),
+        },
     }
 }
 
 /// The account behind a token, whatever room.
 pub async fn user_for_token(state: &AppState, token: &str) -> Result<i64, AppError> {
-    sqlx::query_scalar("SELECT user_id FROM user_tokens WHERE token_hash = ?")
-        .bind(hash_token(token))
+    let hash = hash_token(token);
+    let user = sqlx::query_scalar("SELECT user_id FROM user_tokens WHERE token_hash = ?")
+        .bind(&hash)
         .fetch_optional(&state.db)
         .await?
-        .ok_or(AppError::Unauthorized)
+        .ok_or(AppError::Unauthorized)?;
+    crate::accounts::touch(state, &hash).await;
+    Ok(user)
 }
 
 fn bearer(parts: &Parts) -> Option<&str> {
