@@ -19,13 +19,16 @@ use crate::{
     routes::COLORS,
 };
 
-/// Is `other` a friend of `me` (added, or sharing an active room)?
+/// Is `other` a friend of `me` (added, or sharing an active room), with no block either way?
 async fn are_friends(state: &AppState, me: i64, other: i64) -> AppResult<bool> {
     let found: Option<i64> = sqlx::query_scalar(
-        "SELECT 1 FROM friends WHERE user_id = ?1 AND friend_id = ?2 \
-         UNION SELECT 1 FROM members a JOIN members b ON a.group_id = b.group_id \
-         JOIN groups g ON g.id = a.group_id AND g.deleted_at IS NULL \
-         WHERE a.user_id = ?1 AND b.user_id = ?2 AND a.removed_at IS NULL AND b.removed_at IS NULL",
+        "SELECT 1 FROM ( \
+             SELECT 1 FROM friends WHERE user_id = ?1 AND friend_id = ?2 \
+             UNION SELECT 1 FROM members a JOIN members b ON a.group_id = b.group_id \
+             JOIN groups g ON g.id = a.group_id AND g.deleted_at IS NULL \
+             WHERE a.user_id = ?1 AND b.user_id = ?2 AND a.removed_at IS NULL AND b.removed_at IS NULL) \
+         WHERE NOT EXISTS (SELECT 1 FROM blocks WHERE (user_id = ?1 AND blocked_id = ?2) \
+                           OR (user_id = ?2 AND blocked_id = ?1))",
     )
     .bind(me)
     .bind(other)
@@ -50,6 +53,7 @@ pub async fn list(State(state): State<AppState>, UserId(me): UserId) -> AppResul
          SELECT u.id, u.name, u.color, u.photo, COALESCE(s.rooms, 0), u.id IN (SELECT uid FROM added) \
          FROM users u LEFT JOIN shared s ON s.uid = u.id \
          WHERE u.id IN (SELECT uid FROM shared UNION SELECT uid FROM added) \
+         AND NOT EXISTS (SELECT 1 FROM blocks b WHERE b.user_id = ?1 AND b.blocked_id = u.id) \
          ORDER BY COALESCE(s.rooms, 0) DESC, lower(u.name)",
     )
     .bind(me)
@@ -77,12 +81,17 @@ pub async fn add(
     Json(body): Json<AddBody>,
 ) -> AppResult<Json<Value>> {
     let code = body.code.trim().to_uppercase();
-    let (other, name): (i64, String) =
-        sqlx::query_as("SELECT id, name FROM users WHERE friend_code = ?")
-            .bind(&code)
-            .fetch_optional(&state.db)
-            .await?
-            .ok_or(AppError::BadRequest("bad_code"))?;
+    // A block, either way, looks like an unknown code.
+    let (other, name): (i64, String) = sqlx::query_as(
+        "SELECT id, name FROM users WHERE friend_code = ?1 AND deleted_at IS NULL \
+         AND NOT EXISTS (SELECT 1 FROM blocks b WHERE (b.user_id = users.id AND b.blocked_id = ?2) \
+                         OR (b.user_id = ?2 AND b.blocked_id = users.id))",
+    )
+    .bind(&code)
+    .bind(me)
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or(AppError::BadRequest("bad_code"))?;
     if other == me {
         return Err(AppError::BadRequest("self_friend"));
     }
@@ -182,6 +191,7 @@ pub async fn add_to_room(
     state.push.notify_member(
         state.db.clone(),
         member_id,
+        Some(me),
         Notification {
             title: "Nouveau salon".into(),
             body: text,

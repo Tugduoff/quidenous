@@ -2,6 +2,7 @@ import { ActivityIndicator } from 'react-native';
 
 import { BackButton, ErrorText } from '@/components/auth-ui';
 import { Screen } from '@/components/screen';
+import { BlockedSection, DeleteAccount } from '@/components/security/account';
 import { LockSection, ProvidersSection, SessionsSection, SignOutButton } from '@/components/security/devices';
 import { SignInSection } from '@/components/security/sign-in';
 import { TwoFactorSection } from '@/components/security/two-factor';
@@ -9,7 +10,7 @@ import { Display } from '@/components/ui';
 import { authError, useAccount } from '@/lib/auth';
 import { useTheme } from '@/lib/theme';
 
-/** Profile > Sécurité: email, password, 2FA, linked accounts, devices, app lock, sign out. */
+/** Profile > Sécurité: email, password, 2FA, linked accounts, devices, blocked people, app lock, sign out, delete the account. */
 export default function Security() {
   const t = useTheme();
   const { data: account, error } = useAccount();
@@ -29,8 +30,10 @@ export default function Security() {
           <ProvidersSection account={account} />
           {account.secured && <TwoFactorSection account={account} />}
           <SessionsSection />
+          <BlockedSection />
           <LockSection />
           <SignOutButton />
+          <DeleteAccount account={account} />
         </>
       )}
     </Screen>

@@ -3,8 +3,10 @@ import { Send } from 'lucide-react-native';
 import { type ComponentRef, useRef, useState } from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 
+import { ModerationDialog, type ModTarget } from '@/components/moderation';
 import { Avatar, Card } from '@/components/ui';
 import { api, type Message } from '@/lib/api';
+import { useBlocks } from '@/lib/moderation';
 import { keys, useMembers, useMessages } from '@/lib/queries';
 import { sendOnEnter } from '@/lib/submit';
 import { useSession } from '@/lib/session';
@@ -18,8 +20,14 @@ export function ChatMessages({ roundId }: { roundId: number }) {
   const t = useTheme();
   const { me } = useSession();
   const { byId } = useMembers();
-  const { data: messages } = useMessages(roundId);
+  const { data } = useMessages(roundId);
+  const { ids: blocked } = useBlocks();
   const box = useRef<ComponentRef<typeof ScrollView>>(null);
+  // Long-press on someone else's message: report it, block its author.
+  const [target, setTarget] = useState<ModTarget | null>(null);
+  const authorId = (m: Message) => m.user_id ?? byId.get(m.member_id)?.user_id;
+  // People I blocked: gone at once, live messages included (the server leaves them out after a reload).
+  const messages = data?.filter((m) => !blocked.has(authorId(m) ?? -1));
   // No messages yet: nothing to show, the box below already invites one.
   if (!messages?.length) return null;
   return (
@@ -36,10 +44,22 @@ export function ChatMessages({ roundId }: { roundId: number }) {
         {messages.map((m) => {
           const author = byId.get(m.member_id);
           const mine = m.member_id === me?.id;
+          const userId = authorId(m);
+          const onLongPress = mine
+            ? undefined
+            : () =>
+                setTarget({
+                  kind: 'message',
+                  id: m.id,
+                  person: author && userId != null ? { user_id: userId, name: author.name, color: author.color, photo: author.photo_url } : undefined,
+                });
           return (
             <View key={m.id} style={{ flexDirection: mine ? 'row-reverse' : 'row', gap: 8, alignItems: 'flex-end' }}>
               {!mine && <Avatar member={author} size={28} />}
-              <View
+              <Pressable
+                onLongPress={onLongPress}
+                delayLongPress={400}
+                accessibilityHint={mine ? undefined : 'Appui long : signaler ou bloquer'}
                 style={{
                   maxWidth: '78%',
                   paddingHorizontal: 14,
@@ -56,11 +76,12 @@ export function ChatMessages({ roundId }: { roundId: number }) {
                 <Text style={{ fontFamily: t.font.regular, fontSize: 10, color: mine ? '#121216' : t.mut, opacity: 0.7, alignSelf: 'flex-end' }}>
                   {TIME.format(new Date(m.created_at))}
                 </Text>
-              </View>
+              </Pressable>
             </View>
           );
         })}
       </ScrollView>
+      <ModerationDialog target={target} onClose={() => setTarget(null)} />
     </View>
   );
 }

@@ -1,6 +1,17 @@
 import { type ReactNode, useSyncExternalStore } from 'react';
 import { Trophy, type LucideIcon } from 'lucide-react-native';
-import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View, type TextStyle, type ViewStyle } from 'react-native';
+import {
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  type TextStyle,
+  type ViewStyle,
+} from 'react-native';
 import { Image } from 'expo-image';
 
 import { photoUrl, type Member } from '@/lib/api';
@@ -198,7 +209,100 @@ export function QuestionText({
   );
 }
 
-/** In-app confirmation dialog (same look on every platform): a title, a message, Cancel and a red action. */
+/** The app's dialog: a card centred on a dark backdrop (tapping the backdrop closes it). Rises with the keyboard. */
+export function Dialog({ visible, onClose, children }: { visible: boolean; onClose: () => void; children: ReactNode }) {
+  const t = useTheme();
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+        <Pressable
+          accessibilityLabel="Fermer"
+          onPress={onClose}
+          style={{ flex: 1, backgroundColor: '#0008', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          {/* Taps inside the card don't close it. */}
+          <Pressable
+            onPress={() => {}}
+            style={{
+              width: '100%',
+              maxWidth: 380,
+              borderRadius: 24,
+              padding: 22,
+              gap: 12,
+              backgroundColor: t.card,
+              borderWidth: 1,
+              borderColor: t.line,
+            }}>
+            {children}
+          </Pressable>
+        </Pressable>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
+/** Title and grey message of a Dialog. */
+export function DialogTitle({ title, message }: { title: string; message?: string }) {
+  const t = useTheme();
+  return (
+    <>
+      <Text style={{ fontFamily: t.font.bold, fontSize: 18, color: t.txt }}>{title}</Text>
+      {!!message && <Text style={{ fontFamily: t.font.regular, fontSize: 15, lineHeight: 21, color: t.mut }}>{message}</Text>}
+    </>
+  );
+}
+
+/** Cancel and a red action, side by side, at the bottom of a Dialog. */
+export function DialogActions({
+  confirmLabel,
+  onConfirm,
+  onCancel,
+  busy,
+  disabled,
+}: {
+  confirmLabel: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+  busy?: boolean;
+  disabled?: boolean;
+}) {
+  const t = useTheme();
+  const off = busy || disabled;
+  return (
+    <View style={{ flexDirection: 'row', gap: 10, marginTop: 6 }}>
+      <Pressable
+        accessibilityRole="button"
+        onPress={onCancel}
+        style={{
+          flex: 1,
+          height: 46,
+          borderRadius: t.radius.pill,
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: t.card2,
+        }}>
+        <Text style={{ fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>Annuler</Text>
+      </Pressable>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ disabled: !!off }}
+        disabled={off}
+        onPress={onConfirm}
+        style={{
+          flex: 1,
+          height: 46,
+          borderRadius: t.radius.pill,
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: '#FF3B5C',
+          opacity: disabled ? 0.45 : 1,
+        }}>
+        {busy ? <ActivityIndicator color="#fff" /> : <Text style={{ fontFamily: t.font.bold, fontSize: 15, color: '#fff' }}>{confirmLabel}</Text>}
+      </Pressable>
+    </View>
+  );
+}
+
+/** In-app confirmation dialog (same look on every platform): a title, a message, optional fields, Cancel and a red action. */
 export function ConfirmModal({
   visible,
   title,
@@ -207,6 +311,8 @@ export function ConfirmModal({
   onConfirm,
   onCancel,
   busy,
+  confirmDisabled,
+  children,
 }: {
   visible: boolean;
   title: string;
@@ -215,65 +321,15 @@ export function ConfirmModal({
   onConfirm: () => void;
   onCancel: () => void;
   busy?: boolean;
+  confirmDisabled?: boolean;
+  children?: ReactNode;
 }) {
-  const t = useTheme();
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
-      <Pressable
-        accessibilityLabel="Fermer"
-        onPress={onCancel}
-        style={{ flex: 1, backgroundColor: '#0008', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-        {/* Taps inside the card don't close it. */}
-        <Pressable
-          onPress={() => {}}
-          style={{
-            width: '100%',
-            maxWidth: 380,
-            borderRadius: 24,
-            padding: 22,
-            gap: 12,
-            backgroundColor: t.card,
-            borderWidth: 1,
-            borderColor: t.line,
-          }}>
-          <Text style={{ fontFamily: t.font.bold, fontSize: 18, color: t.txt }}>{title}</Text>
-          {!!message && <Text style={{ fontFamily: t.font.regular, fontSize: 15, lineHeight: 21, color: t.mut }}>{message}</Text>}
-          <View style={{ flexDirection: 'row', gap: 10, marginTop: 6 }}>
-            <Pressable
-              accessibilityRole="button"
-              onPress={onCancel}
-              style={{
-                flex: 1,
-                height: 46,
-                borderRadius: t.radius.pill,
-                alignItems: 'center',
-                justifyContent: 'center',
-                backgroundColor: t.card2,
-              }}>
-              <Text style={{ fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>Annuler</Text>
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              disabled={busy}
-              onPress={onConfirm}
-              style={{
-                flex: 1,
-                height: 46,
-                borderRadius: t.radius.pill,
-                alignItems: 'center',
-                justifyContent: 'center',
-                backgroundColor: '#FF3B5C',
-              }}>
-              {busy ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={{ fontFamily: t.font.bold, fontSize: 15, color: '#fff' }}>{confirmLabel}</Text>
-              )}
-            </Pressable>
-          </View>
-        </Pressable>
-      </Pressable>
-    </Modal>
+    <Dialog visible={visible} onClose={onCancel}>
+      <DialogTitle title={title} message={message} />
+      {children}
+      <DialogActions confirmLabel={confirmLabel} onConfirm={onConfirm} onCancel={onCancel} busy={busy} disabled={confirmDisabled} />
+    </Dialog>
   );
 }
 

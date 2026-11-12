@@ -1,0 +1,71 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><style>body{font-family:Inter,system-ui,sans-serif;max-width:680px;margin:0 auto;padding:32px 20px 64px;line-height:1.6;color:#121216;background:#F5F5F0}h1{font-size:30px;line-height:1.2}h2{font-size:19px;margin-top:28px}a{color:#4F7D00}form{margin:12px 0}label{display:block;font-weight:600;margin:12px 0 4px}input{font:inherit;font-size:16px;width:100%;box-sizing:border-box;padding:12px 14px;border-radius:12px;border:1px solid #C9C9C2;background:#fff;color:inherit}input#code{letter-spacing:6px;font-size:22px;max-width:220px}button{font:inherit;font-size:16px;font-weight:600;margin-top:14px;padding:12px 20px;border:0;border-radius:12px;background:#121216;color:#F5F5F0;cursor:pointer}button.danger{background:#C62828;color:#fff}button:disabled{opacity:.5;cursor:default}.msg{margin-top:12px;font-weight:600}.err{color:#C62828}.ok{color:#4F7D00}.hidden{display:none}@media(prefers-color-scheme:dark){body{background:#0E0E12;color:#EDEDF0}a{color:#C8FF3D}input{background:#1A1A20;border-color:#3A3A44}button{background:#EDEDF0;color:#0E0E12}button.danger{background:#FF5A5A;color:#0E0E12}.err{color:#FF7A7A}.ok{color:#C8FF3D}}</style><title>Supprimer mon compte · qui de nous ?</title></head><body>
+<h1>Supprimer mon compte</h1>
+<p>Tu peux supprimer ton compte <strong>qui de nous ?</strong> à tout moment. C'est immédiat et définitif.</p>
+<h2>Ce qui est supprimé</h2>
+<ul>
+<li>Ton profil : prénom, photo, adresse e-mail, mot de passe, double authentification, code ami.</li>
+<li>Tes connexions : sessions sur tous tes appareils, comptes Google ou Discord liés, notifications push.</li>
+<li>Tes messages dans les salons, tes amis et les personnes que tu as bloquées.</li>
+<li>Tes places dans les salons : tu les quittes tous. Si tu étais seul·e dans un salon, il est supprimé ; sinon la personne arrivée le plus tôt en devient propriétaire.</li>
+</ul>
+<h2>Ce qui reste, anonymisé</h2>
+<p>Pour que l'historique des autres reste juste, tes votes, classements et questions ajoutées restent dans les salons, anonymisés, sans lien avec toi. Les packs de questions que tu as publiés restent aussi, sans ton nom.</p>
+<h2>Comment faire</h2>
+<p><strong>Dans l'app</strong> : Profil &gt; Sécurité &gt; Supprimer mon compte.</p>
+<p><strong>Ici</strong>, si ton compte a une adresse e-mail : on t'envoie un code, tu le saisis, et le compte est supprimé.</p>
+<form id="step1" autocomplete="on">
+<label for="email">Ton adresse e-mail</label>
+<input id="email" name="email" type="email" inputmode="email" autocomplete="email" required>
+<button id="send" type="submit">Recevoir un code</button>
+</form>
+<form id="step2" class="hidden" autocomplete="off">
+<p>Si un compte utilise cette adresse, un code à 6 chiffres vient d'y être envoyé (il expire dans 30 minutes).</p>
+<label for="code">Code reçu par e-mail</label>
+<input id="code" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" required>
+<button id="confirm" class="danger" type="submit">Supprimer définitivement mon compte</button>
+</form>
+<p id="msg" class="msg" role="status" aria-live="polite"></p>
+<p><strong>Compte sans adresse e-mail</strong> (créé avec un simple prénom) : supprime-le depuis l'app, ou écris-nous à <a href="mailto:contact@coflop.fr">contact@coflop.fr</a> en indiquant ton prénom et le nom de ton salon.</p>
+<p><a href="/privacy">Confidentialité</a> · <a href="/terms">Conditions d'utilisation</a> · <a href="/">Ouvrir l'app</a></p>
+<script>
+(function () {
+  var errors = {
+    bad_email: "Cette adresse e-mail n'est pas valide.",
+    bad_code: "Code incorrect.",
+    expired: "Ce code a expiré ou a été trop essayé : demandes-en un nouveau.",
+    rate_limited: "Trop d'essais. Réessaie un peu plus tard.",
+    email_not_configured: "L'envoi d'e-mails n'est pas disponible pour le moment. Supprime ton compte depuis l'app ou écris-nous."
+  };
+  var $ = function (id) { return document.getElementById(id); };
+  var msg = $('msg');
+  function show(text, ok) { msg.textContent = text; msg.className = 'msg ' + (ok ? 'ok' : 'err'); if (msg.scrollIntoView) msg.scrollIntoView({ block: 'nearest' }); }
+  function post(path, body) {
+    return fetch('/api/auth/delete/' + path, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body)
+    }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (b) {
+        if (!r.ok) throw new Error(errors[b.error] || "Une erreur est survenue. Réessaie.");
+        return b;
+      });
+    }, function () { throw new Error("Pas de connexion. Réessaie."); });
+  }
+  $('step1').addEventListener('submit', function (e) {
+    e.preventDefault();
+    $('send').disabled = true; show('', true);
+    post('send', { email: $('email').value }).then(function () {
+      $('step2').classList.remove('hidden'); $('code').focus();
+      $('send').textContent = 'Renvoyer un code';
+    }, function (err) { show(err.message, false); }).then(function () { $('send').disabled = false; });
+  });
+  $('step2').addEventListener('submit', function (e) {
+    e.preventDefault();
+    if (!window.confirm('Supprimer ton compte ? Cette action est définitive.')) return;
+    $('confirm').disabled = true; show('', true);
+    post('confirm', { email: $('email').value, code: $('code').value.trim() }).then(function () {
+      $('step1').classList.add('hidden'); $('step2').classList.add('hidden');
+      show('Ton compte a été supprimé. Tu as été déconnecté·e de tous tes appareils.', true);
+    }, function (err) { show(err.message, false); $('confirm').disabled = false; });
+  });
+})();
+</script>
+</body></html>

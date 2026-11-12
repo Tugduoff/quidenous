@@ -264,8 +264,13 @@ enum Target {
     Group {
         group_id: i64,
         skip_member: Option<i64>,
+        /// Whoever caused it (an account): people who blocked them get nothing.
+        from_user: Option<i64>,
     },
-    Member(i64),
+    Member {
+        member_id: i64,
+        from_user: Option<i64>,
+    },
 }
 
 /// What happened to one delivery: keep the subscription, or drop it because the device is gone.
@@ -306,14 +311,47 @@ impl Push {
             Target::Group {
                 group_id,
                 skip_member,
+                from_user: None,
             },
             n,
         );
     }
 
-    /// Sends to every device of one member. Runs in the background.
-    pub fn notify_member(&self, db: SqlitePool, member_id: i64, n: Notification) {
-        self.notify(db, Target::Member(member_id), n);
+    /// Same, for something a person did (a message): skips them and whoever blocked them.
+    pub fn notify_group_from(
+        &self,
+        db: SqlitePool,
+        group_id: i64,
+        from: &crate::models::MemberRow,
+        n: Notification,
+    ) {
+        self.notify(
+            db,
+            Target::Group {
+                group_id,
+                skip_member: Some(from.id),
+                from_user: from.user_id,
+            },
+            n,
+        );
+    }
+
+    /// Sends to every device of one member, unless they blocked `from_user`. Runs in the background.
+    pub fn notify_member(
+        &self,
+        db: SqlitePool,
+        member_id: i64,
+        from_user: Option<i64>,
+        n: Notification,
+    ) {
+        self.notify(
+            db,
+            Target::Member {
+                member_id,
+                from_user,
+            },
+            n,
+        );
     }
 
     fn notify(&self, db: SqlitePool, target: Target, n: Notification) {
@@ -323,21 +361,29 @@ impl Push {
                 Target::Group {
                     group_id,
                     skip_member,
+                    from_user,
                 } => sqlx::query_as(
                     // Every device of every active member's account (one account can sit in several rooms).
                     "SELECT s.id, s.kind, s.endpoint, s.p256dh, s.auth, s.user_id, m.group_id \
                      FROM push_subscriptions s JOIN members m ON m.user_id = s.user_id \
-                     WHERE m.group_id = ? AND m.removed_at IS NULL AND m.id IS NOT ?",
+                     WHERE m.group_id = ? AND m.removed_at IS NULL AND m.id IS NOT ? \
+                     AND NOT EXISTS (SELECT 1 FROM blocks b WHERE b.user_id = s.user_id AND b.blocked_id = ?)",
                 )
                 .bind(group_id)
-                .bind(skip_member),
-                Target::Member(member_id) => sqlx::query_as(
+                .bind(skip_member)
+                .bind(from_user),
+                Target::Member {
+                    member_id,
+                    from_user,
+                } => sqlx::query_as(
                     "SELECT s.id, s.kind, s.endpoint, s.p256dh, s.auth, s.user_id, m.group_id \
                      FROM push_subscriptions s JOIN members m ON m.user_id = s.user_id \
-                     WHERE m.id = ? AND ? IS NULL",
+                     WHERE m.id = ? AND ? IS NULL \
+                     AND NOT EXISTS (SELECT 1 FROM blocks b WHERE b.user_id = s.user_id AND b.blocked_id = ?)",
                 )
                 .bind(member_id)
-                .bind(None::<i64>),
+                .bind(None::<i64>)
+                .bind(from_user),
             };
             let subs: Vec<Subscription> = match query.fetch_all(&db).await {
                 Ok(subs) => subs,

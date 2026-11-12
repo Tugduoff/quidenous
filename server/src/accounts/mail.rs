@@ -166,3 +166,52 @@ pub fn reset_password(to: &str, code: &str) -> Email {
         html: layout("Mot de passe oublié", intro, code, outro),
     }
 }
+
+pub fn delete_account(to: &str, code: &str) -> Email {
+    let intro = "Voici ton code pour supprimer ton compte Qui de nous ?";
+    let outro = "Il expire dans 30 minutes. La suppression est définitive. Si tu n'as rien demandé, ignore cet e-mail : ton compte reste tel quel.";
+    Email {
+        to: to.to_owned(),
+        subject: format!("{code} · supprimer ton compte Qui de nous ?"),
+        text: format!("{intro}\n\n{code}\n\n{outro}\n"),
+        html: layout("Supprimer ton compte", intro, code, outro),
+    }
+}
+
+/// Escapes text for the HTML part of an email.
+pub fn escape(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+}
+
+/// A content report, for whoever moderates (`REPORT_EMAIL`). `lines` are (label, value).
+pub fn report(to: &str, subject: &str, lines: &[(&str, String)]) -> Email {
+    let text: String = lines.iter().map(|(k, v)| format!("{k} : {v}\n")).collect();
+    let rows: String = lines
+        .iter()
+        .map(|(k, v)| {
+            format!(
+                "<tr><td style=\"padding:4px 12px 4px 0;color:#6b645b;vertical-align:top;white-space:nowrap\">{}</td>\
+<td style=\"padding:4px 0;white-space:pre-wrap\">{}</td></tr>",
+                escape(k),
+                escape(v)
+            )
+        })
+        .collect();
+    let html = format!(
+        "<!doctype html><html lang=\"fr\"><body style=\"margin:0;padding:24px;background:#f4f1ec;font-family:-apple-system,Segoe UI,Roboto,sans-serif;color:#1d1a16\">\
+<div style=\"max-width:560px;margin:0 auto;background:#fff;border-radius:16px;padding:28px\">\
+<h1 style=\"font-size:20px;margin:0 0 12px\">{}</h1>\
+<table style=\"font-size:14px;line-height:1.5;border-collapse:collapse\">{rows}</table>\
+</div></body></html>",
+        escape(subject)
+    );
+    Email {
+        to: to.to_owned(),
+        subject: subject.to_owned(),
+        text,
+        html,
+    }
+}

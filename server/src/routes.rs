@@ -102,6 +102,12 @@ pub fn router() -> Router<AppState> {
             "/rooms/{id}/members/{member_id}",
             axum::routing::delete(crate::rooms::force_remove),
         )
+        .route("/reports", post(crate::moderation::report))
+        .route("/blocks", get(crate::moderation::list_blocks))
+        .route(
+            "/blocks/{user_id}",
+            put(crate::moderation::block).delete(crate::moderation::unblock),
+        )
         .route("/live", get(live))
         .route("/push/config", get(push_config))
         .route("/push/subscribe", post(push_subscribe))
@@ -120,6 +126,9 @@ async fn features(State(state): State<AppState>) -> Json<Value> {
         "delete_question",
         "shuffle",
         "presence",
+        "delete_account",
+        "reports",
+        "blocks",
     ];
     f.extend(crate::accounts::features(&state));
     Json(json!(f))
@@ -1152,11 +1161,13 @@ const MESSAGE_MAX: usize = 500;
 struct MessageRow {
     id: i64,
     member_id: i64,
+    /// The author's account (null once deleted): the app hides people it blocked.
+    user_id: Option<i64>,
     text: String,
     created_at: String,
 }
 
-/// The chat under a finished question, oldest first.
+/// The chat under a finished question, oldest first, without people I blocked.
 async fn messages(
     State(state): State<AppState>,
     Me(me): Me,
@@ -1165,9 +1176,13 @@ async fn messages(
     game::round(&state.db, me.group_id, id).await?;
     Ok(Json(
         sqlx::query_as(
-            "SELECT id, member_id, text, created_at FROM messages WHERE round_id = ? ORDER BY id",
+            "SELECT x.id, x.member_id, m.user_id, x.text, x.created_at FROM messages x \
+             JOIN members m ON m.id = x.member_id WHERE x.round_id = ? \
+             AND NOT EXISTS (SELECT 1 FROM blocks b WHERE b.user_id = ? AND b.blocked_id = m.user_id) \
+             ORDER BY x.id",
         )
         .bind(id)
+        .bind(me.user_id)
         .fetch_all(&state.db)
         .await?,
     ))
@@ -1194,11 +1209,13 @@ async fn post_message(
         return Err(AppError::BadRequest("bad_message"));
     }
     let message: MessageRow = sqlx::query_as(
-        "INSERT INTO messages (round_id, member_id, text) VALUES (?, ?, ?) RETURNING id, member_id, text, created_at",
+        "INSERT INTO messages (round_id, member_id, text) VALUES (?, ?, ?) \
+         RETURNING id, member_id, ? AS user_id, text, created_at",
     )
     .bind(id)
     .bind(me.id)
     .bind(text)
+    .bind(me.user_id)
     .fetch_one(&state.db)
     .await?;
     crate::inbox::to_group(
@@ -1216,13 +1233,15 @@ async fn post_message(
         Event::MessagePosted {
             round_id: id,
             message_id: message.id,
+            member_id: me.id,
+            user_id: me.user_id,
         },
     );
     state.live.send(me.group_id, Event::InboxChanged);
-    state.push.notify_group(
+    state.push.notify_group_from(
         state.db.clone(),
         me.group_id,
-        Some(me.id),
+        &me,
         Notification {
             title: format!("{} · « {} »", me.name, round.text),
             body: text.to_owned(),
@@ -1234,7 +1253,7 @@ async fn post_message(
 }
 
 async fn inbox(State(state): State<AppState>, Me(me): Me) -> AppResult<Json<Value>> {
-    let (items, unread) = crate::inbox::list(&state.db, me.id).await?;
+    let (items, unread) = crate::inbox::list(&state.db, &me).await?;
     Ok(Json(json!({ "items": items, "unread": unread })))
 }
 
@@ -1390,6 +1409,7 @@ async fn nudge(
     state.push.notify_member(
         state.db.clone(),
         body.member_id,
+        me.user_id,
         Notification {
             title: format!("{} attend ton vote", me.name),
             body: round.text,

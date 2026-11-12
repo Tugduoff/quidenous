@@ -83,7 +83,8 @@ export type HistoryItem = {
   pinned: boolean;
   kind: 'pick' | 'rank';
 };
-export type Message = { id: number; member_id: number; text: string; created_at: string };
+/** `user_id`: the author's account (null once deleted; absent from an older server). */
+export type Message = { id: number; member_id: number; user_id?: number | null; text: string; created_at: string };
 export type InboxItem = {
   id: number;
   kind: 'message' | 'nudge' | 'result' | 'question';
