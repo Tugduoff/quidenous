@@ -372,8 +372,8 @@ function NudgeButton({ member, roundId }: { member: Member; roundId: number }) {
       accessibilityLabel={`Relancer ${member.name}`}
       disabled={sent || nudge.isPending}
       onPress={() => nudge.mutate()}
-      style={{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: sent ? t.card : t.acc }}>
-      {sent ? <Check size={18} color={t.accInk} /> : <BellRing size={18} color={t.accTxt} />}
+      style={{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: sent ? t.card2 : t.accSoft }}>
+      {sent ? <Check size={18} color={t.mut} /> : <BellRing size={18} color={t.accInk} />}
     </Pressable>
   );
 }
@@ -402,10 +402,10 @@ function SkipButton({ member, round }: { member: Member; round: Round }) {
         height: 32,
         paddingHorizontal: 10,
         borderRadius: t.radius.pill,
-        backgroundColor: mine ? t.accSoft : t.card,
+        backgroundColor: mine ? t.accSoft : t.card2,
       }}>
-      <SkipForward size={14} color={mine ? t.accInk : t.txt} />
-      <Text style={{ fontFamily: t.font.semibold, fontSize: 12, color: mine ? t.accInk : t.txt }}>
+      <SkipForward size={14} color={mine ? t.accInk : t.mut} />
+      <Text style={{ fontFamily: t.font.semibold, fontSize: 12, color: mine ? t.accInk : t.mut }}>
         {state ? `${state.count}/${round.skip_needed}` : 'Passer'}
       </Text>
     </Pressable>
@@ -418,20 +418,27 @@ function Waiting({ round, byId, members }: { round: Round; byId: Map<number, Mem
   const target = round.my_vote != null ? byId.get(round.my_vote) : undefined;
   const hidden = useHideVote();
   const pending = members.filter((m) => !round.voter_ids.includes(m.id));
+  const done = round.voter_ids.length;
+  const label = { fontFamily: t.font.bold, fontSize: 11, letterSpacing: 0.6, color: t.mut } as const;
   return (
-    <Screen footer={<Button disabled>{`${round.voter_ids.length}/${round.member_count}`}</Button>}>
+    <Screen>
       <Header />
       <Question round={round} />
-      <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 14, padding: 20 }}>
+      {/* My vote: who I picked (or hidden), one switch to hide it when friends can see my screen. */}
+      <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 }}>
         {hidden ? (
-          <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: t.card2, alignItems: 'center', justifyContent: 'center' }}>
-            <EyeOff size={24} color={t.mut} />
+          <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: t.card2, alignItems: 'center', justifyContent: 'center' }}>
+            <EyeOff size={20} color={t.mut} />
           </View>
         ) : (
-          <Avatar member={target} size={56} />
+          <Avatar member={target} size={44} />
         )}
-        <Text style={{ flex: 1, fontFamily: t.font.bold, fontSize: 18, color: hidden ? t.mut : t.txt }}>{hidden ? 'Vote caché' : round.kind === 'rank' ? `1er : ${target?.name ?? '?'}` : target?.name}</Text>
-        {/* Hide my pick when friends can see my screen; remembered on this phone. */}
+        <View style={{ flex: 1, gap: 2 }}>
+          <Text style={label}>{round.kind === 'rank' ? 'TON 1ER' : 'TON VOTE'}</Text>
+          <Text numberOfLines={1} style={{ fontFamily: t.font.bold, fontSize: 17, color: hidden ? t.mut : t.txt }}>
+            {hidden ? 'Caché' : (target?.name ?? '?')}
+          </Text>
+        </View>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={hidden ? 'Montrer mon vote' : 'Cacher mon vote'}
@@ -440,25 +447,31 @@ function Waiting({ round, byId, members }: { round: Round; byId: Map<number, Mem
           style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: t.card2, alignItems: 'center', justifyContent: 'center' }}>
           {hidden ? <Eye size={18} color={t.txt} /> : <EyeOff size={18} color={t.txt} />}
         </Pressable>
-        <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: t.acc, alignItems: 'center', justifyContent: 'center' }}>
-          <Check size={20} color={t.accTxt} />
-        </View>
       </Card>
-      {pending.map((m) => (
-        <View key={m.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-          <Avatar member={m} size={32} />
-          <Text style={{ flex: 1, fontFamily: t.font.semibold, color: t.txt }}>{m.name}</Text>
-          {round.skipped_ids.includes(m.id) && (
-            <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut }}>passé</Text>
-          )}
-          {m.id !== me?.id && !round.skipped_ids.includes(m.id) && <SkipButton member={m} round={round} />}
-          {m.id !== me?.id && <NudgeButton member={m} roundId={round.id} />}
+      {/* Who's in, who we're waiting for. */}
+      <Card style={{ padding: 16, gap: 14 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <Text style={{ flex: 1, fontFamily: t.font.bold, fontSize: 15, color: t.txt }}>
+            {done} sur {round.member_count} ont voté
+          </Text>
+          <AvatarStack members={round.voter_ids.map((id) => byId.get(id))} size={26} ring={t.card} />
         </View>
-      ))}
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-        <AvatarStack members={round.voter_ids.map((id) => byId.get(id))} size={32} />
-        <Check size={18} color={t.accInk} />
-      </View>
+        <View style={{ height: 6, borderRadius: 3, backgroundColor: t.card2, overflow: 'hidden' }}>
+          <View style={{ width: `${Math.round((done / Math.max(round.member_count, 1)) * 100)}%`, height: 6, borderRadius: 3, backgroundColor: t.acc }} />
+        </View>
+        {pending.length > 0 && <Text style={label}>EN ATTENTE</Text>}
+        {pending.map((m) => (
+          <View key={m.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <Avatar member={m} size={32} />
+            <Text numberOfLines={1} style={{ flex: 1, fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>
+              {m.name}
+            </Text>
+            {round.skipped_ids.includes(m.id) && <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut }}>passé</Text>}
+            {m.id !== me?.id && !round.skipped_ids.includes(m.id) && <SkipButton member={m} round={round} />}
+            {m.id !== me?.id && <NudgeButton member={m} roundId={round.id} />}
+          </View>
+        ))}
+      </Card>
     </Screen>
   );
 }
