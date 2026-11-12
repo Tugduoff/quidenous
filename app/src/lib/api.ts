@@ -123,9 +123,25 @@ export class ApiError extends Error {
   constructor(
     public status: number,
     public code: string,
+    /** Seconds to wait, on `429 rate_limited`. */
+    public retryAfter?: number,
   ) {
     super(code);
   }
+}
+
+/** Called when the server no longer knows my token (signed out from another device): back to the welcome screen. */
+let onSignedOut: (() => void) | null = null;
+export const setOnSignedOut = (f: (() => void) | null) => {
+  onSignedOut = f;
+};
+
+async function fail(res: Response, sentToken: boolean): Promise<never> {
+  const data = await res.json().catch(() => null);
+  const code = data?.error ?? 'unknown';
+  if (res.status === 401 && code === 'unauthorized' && sentToken) onSignedOut?.();
+  const retry = Number(data?.retry_after ?? res.headers.get('retry-after')) || undefined;
+  throw new ApiError(res.status, code, retry);
 }
 
 let token: string | null = null;
@@ -154,9 +170,8 @@ export async function api<T>(path: string, init: RequestInit & { json?: unknown 
     body = JSON.stringify(init.json);
   }
   const res = await fetch(`${API_URL}/api${path}`, { ...init, headers, body });
-  const data = await res.json().catch(() => null);
-  if (!res.ok) throw new ApiError(res.status, data?.error ?? 'unknown');
-  return data as T;
+  if (!res.ok) return fail(res, !!token);
+  return (await res.json().catch(() => null)) as T;
 }
 
 export const photoUrl = (m: Member) => (m.photo_url ? `${API_URL}${m.photo_url}` : null);
@@ -170,7 +185,6 @@ export async function apiUpload<T>(path: string, form: FormData, method = 'PUT')
     headers: token ? { authorization: `Bearer ${token}`, ...(room != null ? { 'x-room': String(room) } : {}) } : undefined,
     body: form,
   });
-  const data = await res.json().catch(() => null);
-  if (!res.ok) throw new ApiError(res.status, data?.error ?? 'unknown');
-  return data as T;
+  if (!res.ok) return fail(res, !!token);
+  return (await res.json().catch(() => null)) as T;
 }
