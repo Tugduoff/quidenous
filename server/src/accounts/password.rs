@@ -7,7 +7,7 @@ use serde_json::{Value, json};
 
 use super::{
     ClientIp, Device, Session, account_by_email, check_password, clean_email, codes,
-    crypto::six_digits, limits, mail, revoke_sessions, sign_in,
+    crypto::six_digits, limits, mail, not_claimed, revoke_sessions, sign_in,
 };
 use crate::{
     AppState,
@@ -121,17 +121,18 @@ pub async fn login(
         return Err(AppError::BadRequest("bad_credentials"));
     };
     let limits = &state.auth.limits;
-    limits.check(&limits::LOGIN_ACCOUNT, &email)?;
+    // Taken before the hash (parallel guesses each pay), given back on success.
+    limits.hit(&limits::LOGIN_ACCOUNT, &email)?;
     let acct = account_by_email(&state, &email).await?;
     let hash = acct.as_ref().and_then(|a| a.password_hash.as_deref());
     // Unknown email or no password: same answer, same cost.
     let ok = state.auth.hasher.verify(&body.password, hash).await?;
     match acct {
-        Some(a) if ok => Ok(Json(sign_in(&state, a.id, false, device.as_deref()).await?)),
-        _ => {
-            limits.fail(&limits::LOGIN_ACCOUNT, &email);
-            Err(AppError::BadRequest("bad_credentials"))
+        Some(a) if ok => {
+            limits.refund(&limits::LOGIN_ACCOUNT, &email);
+            Ok(Json(sign_in(&state, a.id, false, device.as_deref()).await?))
         }
+        _ => Err(AppError::BadRequest("bad_credentials")),
     }
 }
 
@@ -187,12 +188,14 @@ pub async fn reset(
         return Err(AppError::BadRequest("bad_code"));
     };
     check_password(&body.password, Some(&email))?;
+    state.auth.limits.hit(&limits::RESET_ACCOUNT, &email)?;
     let row = codes::redeem_short(&state, codes::Kind::ResetPassword, &email, &body.code).await?;
     let acct = account_by_email(&state, &email)
         .await?
         .filter(|a| Some(a.id) == row.user_id)
         .ok_or(AppError::BadRequest("bad_code"))?;
     let hash = state.auth.hasher.hash(&body.password).await?;
+    let mut tx = state.db.begin().await?;
     sqlx::query(
         "UPDATE users SET password_hash = ?, \
          email_verified_at = COALESCE(email_verified_at, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) \
@@ -200,10 +203,34 @@ pub async fn reset(
     )
     .bind(&hash)
     .bind(acct.id)
-    .execute(&state.db)
+    .execute(&mut *tx)
     .await?;
+    if acct.email_verified_at.is_none() {
+        // Until now nobody had proven this address: whoever typed it may have linked their own
+        // provider or turned 2FA on. The reset proves the real owner, so those go (and 2FA set up
+        // by someone else must not stand in the way of this sign-in).
+        sqlx::query("DELETE FROM oauth_identities WHERE user_id = ?")
+            .bind(acct.id)
+            .execute(&mut *tx)
+            .await?;
+        sqlx::query(
+            "UPDATE users SET totp_secret = NULL, totp_pending = NULL, totp_last_step = NULL \
+             WHERE id = ?",
+        )
+        .bind(acct.id)
+        .execute(&mut *tx)
+        .await?;
+        sqlx::query("DELETE FROM recovery_codes WHERE user_id = ?")
+            .bind(acct.id)
+            .execute(&mut *tx)
+            .await?;
+    }
     // Whoever had the old password is out, on every device.
-    revoke_sessions(&state, acct.id, None).await?;
+    sqlx::query("DELETE FROM user_tokens WHERE user_id = ?")
+        .bind(acct.id)
+        .execute(&mut *tx)
+        .await?;
+    tx.commit().await?;
     Ok(Json(
         sign_in(&state, acct.id, false, device.as_deref()).await?,
     ))
@@ -257,6 +284,7 @@ pub async fn credentials(
     if acct.email.is_some() {
         return Err(AppError::Conflict("already_secured"));
     }
+    not_claimed(&state, acct.id, &session.token_hash).await?;
     let email = clean_email(&body.email)?;
     check_password(&body.password, Some(&email))?;
     if account_by_email(&state, &email).await?.is_some() {
@@ -346,11 +374,12 @@ pub async fn change_password(
     Json(body): Json<PasswordBody>,
 ) -> AppResult<Json<Value>> {
     let acct = super::account(&state, session.user_id).await?;
+    not_claimed(&state, acct.id, &session.token_hash).await?;
     let email = acct.email.clone().ok_or(AppError::BadRequest("no_email"))?;
     check_password(&body.password, Some(&email))?;
     if acct.password_hash.is_some() {
         let limits = &state.auth.limits;
-        limits.check(&limits::LOGIN_ACCOUNT, &email)?;
+        limits.hit(&limits::LOGIN_ACCOUNT, &email)?;
         let current = body.current.as_deref().unwrap_or("");
         if !state
             .auth
@@ -358,9 +387,9 @@ pub async fn change_password(
             .verify(current, acct.password_hash.as_deref())
             .await?
         {
-            limits.fail(&limits::LOGIN_ACCOUNT, &email);
             return Err(AppError::BadRequest("bad_credentials"));
         }
+        limits.refund(&limits::LOGIN_ACCOUNT, &email);
     }
     let hash = state.auth.hasher.hash(&body.password).await?;
     sqlx::query("UPDATE users SET password_hash = ? WHERE id = ?")

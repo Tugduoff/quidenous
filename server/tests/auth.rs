@@ -376,15 +376,17 @@ async fn failed_sign_ins_lock_the_account_and_ips_are_limited() {
     assert!((1..=180).contains(&wait), "{wait}");
     assert!(r.headers.get("retry-after").is_some());
 
-    // Per IP: 10 sign-in attempts per 10 minutes, whatever the email.
+    // Per IP: 10 sign-in attempts per 10 minutes, whatever the email. The IP is the last
+    // X-Forwarded-For entry (the proxy's): changing the ones before it changes nothing.
     for i in 0..10 {
+        let forwarded = format!("198.18.0.{i}, 203.0.113.7");
         let r = send(
             &t.app,
             "POST",
             "/auth/login",
             None,
             Some(json!({ "email": format!("x{i}@example.com"), "password": "whatever-123" })),
-            &[("x-forwarded-for", "203.0.113.7, 10.0.0.1")],
+            &[("x-forwarded-for", &forwarded)],
         )
         .await;
         assert_eq!(r.status, StatusCode::BAD_REQUEST);
@@ -1496,4 +1498,406 @@ async fn oauth_google_id_token_is_verified() {
     )
     .await;
     assert_eq!(s, StatusCode::OK, "{b}");
+}
+
+async fn session_id(t: &T, token: &str) -> String {
+    let (_, list) = call(&t.app, "GET", "/auth/sessions", Some(token), None).await;
+    list.as_array()
+        .unwrap()
+        .iter()
+        .find(|s| s["current"] == true)
+        .unwrap()["id"]
+        .as_str()
+        .unwrap()
+        .to_owned()
+}
+
+async fn count(t: &T, sql: &'static str) -> i64 {
+    sqlx::query_scalar(sql)
+        .fetch_one(&t.state.db)
+        .await
+        .unwrap()
+}
+
+#[tokio::test]
+async fn parallel_guesses_share_the_same_budgets() {
+    let t = setup().await;
+    let (token, _) = signup(&t, "gus@example.com", "Gus").await;
+    let code = t.mail.last_code("gus@example.com").unwrap();
+    let wrong = if code == "000000" { "111111" } else { "000000" };
+    // 12 guesses at once: a code still only gets 5.
+    let guesses = (0..12).map(|_| {
+        call(
+            &t.app,
+            "POST",
+            "/auth/verify",
+            Some(&token),
+            Some(json!({ "code": wrong })),
+        )
+    });
+    let results = futures::future::join_all(guesses).await;
+    let errors = |code: &str| results.iter().filter(|(_, b)| b["error"] == code).count();
+    assert_eq!((errors("bad_code"), errors("expired")), (5, 7));
+    let (s, b) = call(
+        &t.app,
+        "POST",
+        "/auth/verify",
+        Some(&token),
+        Some(json!({ "code": code })),
+    )
+    .await;
+    assert_eq!(
+        (s, b["error"].as_str()),
+        (StatusCode::BAD_REQUEST, Some("expired"))
+    );
+
+    // Sign-in: successes give their token back, parallel failures each take one.
+    for _ in 0..6 {
+        assert_eq!(
+            login(&t, "gus@example.com", PASSWORD).await.0,
+            StatusCode::OK
+        );
+    }
+    let tries = (0..8).map(|_| login(&t, "gus@example.com", "not-the-password"));
+    let results = futures::future::join_all(tries).await;
+    let status = |s: StatusCode| results.iter().filter(|(r, _)| *r == s).count();
+    assert_eq!(
+        (
+            status(StatusCode::BAD_REQUEST),
+            status(StatusCode::TOO_MANY_REQUESTS)
+        ),
+        (5, 3)
+    );
+    assert_eq!(
+        login(&t, "gus@example.com", PASSWORD).await.0,
+        StatusCode::TOO_MANY_REQUESTS
+    );
+
+    // Reset: 10 tries per hour per email, whatever the IP.
+    for i in 0..10 {
+        let ip = format!("192.0.2.{i}");
+        let r = send(
+            &t.app,
+            "POST",
+            "/auth/reset",
+            None,
+            Some(json!({ "email": "gus@example.com", "code": "123456", "password": "un-nouveau-mot-de-passe" })),
+            &[("x-forwarded-for", &ip)],
+        )
+        .await;
+        assert_eq!(r.status, StatusCode::BAD_REQUEST);
+    }
+    let r = send(
+        &t.app,
+        "POST",
+        "/auth/reset",
+        None,
+        Some(json!({ "email": "gus@example.com", "code": "123456", "password": "un-nouveau-mot-de-passe" })),
+        &[("x-forwarded-for", "192.0.2.99")],
+    )
+    .await;
+    assert_eq!(r.status, StatusCode::TOO_MANY_REQUESTS);
+}
+
+#[tokio::test]
+async fn a_name_grab_cannot_lock_the_first_device_out() {
+    let t = setup().await;
+    let (_, b) = legacy_join(&t.app, "Rita").await;
+    let rita = b["token"].as_str().unwrap().to_owned();
+    let (s, b) = legacy_join(&t.app, "rita").await;
+    assert_eq!(s, StatusCode::OK);
+    let grab = b["token"].as_str().unwrap().to_owned();
+    let rita_session = session_id(&t, &rita).await;
+    for (method, path, body) in [
+        (
+            "POST",
+            "/auth/credentials".to_owned(),
+            Some(json!({ "email": "grab@example.com", "password": PASSWORD })),
+        ),
+        (
+            "POST",
+            "/auth/password".into(),
+            Some(json!({ "password": PASSWORD })),
+        ),
+        ("POST", "/auth/2fa/setup".into(), None),
+        (
+            "POST",
+            "/auth/2fa/enable".into(),
+            Some(json!({ "code": "123456" })),
+        ),
+        ("POST", "/auth/sessions/revoke-others".into(), None),
+        ("DELETE", format!("/auth/sessions/{rita_session}"), None),
+    ] {
+        let (s, b) = call(&t.app, method, &path, Some(&grab), body).await;
+        assert_eq!(
+            (s, b["error"].as_str()),
+            (StatusCode::FORBIDDEN, Some("claimed_session")),
+            "{path}"
+        );
+    }
+    // It still plays in the room.
+    assert_eq!(
+        call(&t.app, "GET", "/me", Some(&grab), None).await.0,
+        StatusCode::OK
+    );
+    // The first device (it created the account) can sign the claimer out.
+    let (_, b) = call(
+        &t.app,
+        "POST",
+        "/auth/sessions/revoke-others",
+        Some(&rita),
+        None,
+    )
+    .await;
+    assert_eq!(b["revoked"], 1);
+    assert_eq!(
+        call(&t.app, "GET", "/auth/account", Some(&grab), None)
+            .await
+            .0,
+        StatusCode::UNAUTHORIZED
+    );
+
+    // Alone on the account, a claimed session may secure it: nothing is taken from anyone.
+    let (_, b) = legacy_join(&t.app, "RITA").await;
+    let grab = b["token"].as_str().unwrap().to_owned();
+    call(&t.app, "POST", "/auth/logout", Some(&rita), None).await;
+    let (s, b) = call(
+        &t.app,
+        "POST",
+        "/auth/credentials",
+        Some(&grab),
+        Some(json!({ "email": "rita@example.com", "password": PASSWORD })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{b}");
+    // A password sign-in is never claimed; the claimed one is limited again, but can sign itself out.
+    let (_, b) = login(&t, "rita@example.com", PASSWORD).await;
+    let fresh = b["token"].as_str().unwrap().to_owned();
+    let (s, _) = call(
+        &t.app,
+        "POST",
+        "/auth/sessions/revoke-others",
+        Some(&grab),
+        None,
+    )
+    .await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+    let own = session_id(&t, &grab).await;
+    let (s, _) = call(
+        &t.app,
+        "DELETE",
+        &format!("/auth/sessions/{own}"),
+        Some(&grab),
+        None,
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK);
+    let (_, b) = call(
+        &t.app,
+        "POST",
+        "/auth/sessions/revoke-others",
+        Some(&fresh),
+        None,
+    )
+    .await;
+    assert_eq!(b["revoked"], 0);
+}
+
+#[tokio::test]
+async fn a_reset_takes_back_an_email_someone_else_typed() {
+    let (t, grants) = oauth_setup().await;
+    // Someone signs up with Vic's address (never verified), links their own Discord, turns 2FA on.
+    let (squatter, squatter_id) = signup(&t, "vic@example.com", "Vic").await;
+    let (location, key) = oauth_round(
+        &t,
+        &grants,
+        "discord",
+        Some(&squatter),
+        true,
+        discord("666", "squatter@example.com", true),
+    )
+    .await;
+    assert_eq!(
+        redeem(&t, &location, &key).await.1,
+        json!({ "linked": "discord" })
+    );
+    let (_, setup) = call(&t.app, "POST", "/auth/2fa/setup", Some(&squatter), None).await;
+    let secret = setup["secret"].as_str().unwrap().to_owned();
+    let (s, _) = call(
+        &t.app,
+        "POST",
+        "/auth/2fa/enable",
+        Some(&squatter),
+        Some(json!({ "code": totp_code(&secret, now()).unwrap() })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK);
+
+    // Vic resets the password: the code proves the address, the account is Vic's alone.
+    let forgot = || {
+        call(
+            &t.app,
+            "POST",
+            "/auth/forgot",
+            None,
+            Some(json!({ "email": "vic@example.com" })),
+        )
+    };
+    forgot().await;
+    let code = wait_for_code(&t.mail, "vic@example.com", 2).await;
+    let (s, b) = call(
+        &t.app,
+        "POST",
+        "/auth/reset",
+        None,
+        Some(
+            json!({ "email": "vic@example.com", "code": code, "password": "le-vrai-mot-de-passe" }),
+        ),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{b}");
+    assert_eq!(b["user_id"].as_i64(), Some(squatter_id));
+    let vic = b["token"]
+        .as_str()
+        .expect("no 2FA step: someone else set it up")
+        .to_owned();
+    let (_, acct) = call(&t.app, "GET", "/auth/account", Some(&vic), None).await;
+    assert_eq!(
+        (
+            &acct["providers"],
+            &acct["totp"],
+            &acct["recovery_codes_left"],
+            &acct["email_verified"]
+        ),
+        (&json!([]), &json!(false), &json!(0), &json!(true))
+    );
+    assert_eq!(
+        call(&t.app, "GET", "/auth/account", Some(&squatter), None)
+            .await
+            .0,
+        StatusCode::UNAUTHORIZED
+    );
+    // The squatter's Discord doesn't lead there any more.
+    let (location, key) = oauth_round(
+        &t,
+        &grants,
+        "discord",
+        None,
+        false,
+        discord("666", "squatter@example.com", true),
+    )
+    .await;
+    let (_, b) = redeem(&t, &location, &key).await;
+    assert_eq!(b["new"], true);
+    assert_ne!(b["user_id"].as_i64(), Some(squatter_id));
+
+    // Once the address is proven, 2FA set up by its owner still applies to a reset.
+    let (_, setup) = call(&t.app, "POST", "/auth/2fa/setup", Some(&vic), None).await;
+    let secret = setup["secret"].as_str().unwrap().to_owned();
+    let (s, _) = call(
+        &t.app,
+        "POST",
+        "/auth/2fa/enable",
+        Some(&vic),
+        Some(json!({ "code": totp_code(&secret, now()).unwrap() })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK);
+    forgot().await;
+    let code = wait_for_code(&t.mail, "vic@example.com", 3).await;
+    let (s, b) = call(
+        &t.app,
+        "POST",
+        "/auth/reset",
+        None,
+        Some(
+            json!({ "email": "vic@example.com", "code": code, "password": "encore-un-autre-mdp" }),
+        ),
+    )
+    .await;
+    assert_eq!((s, &b["mfa"]), (StatusCode::OK, &json!("totp")), "{b}");
+}
+
+#[tokio::test]
+async fn oauth_redirect_code_alone_links_and_creates_nothing() {
+    let (t, grants) = oauth_setup().await;
+    let (_, b) = legacy_join(&t.app, "Ola").await;
+    let ola = b["token"].as_str().unwrap().to_owned();
+    // Ola starts a link, then gets someone else's browser through the provider: the redirect code
+    // without the key from `start` must not attach that person's identity to Ola's account.
+    let (location, key) = oauth_round(
+        &t,
+        &grants,
+        "discord",
+        Some(&ola),
+        true,
+        discord("777", "victim@example.com", true),
+    )
+    .await;
+    let users = count(&t, "SELECT COUNT(*) FROM users").await;
+    let (s, b) = redeem(&t, &location, "not-the-key").await;
+    assert_eq!(
+        (s, b["error"].as_str()),
+        (StatusCode::BAD_REQUEST, Some("bad_code"))
+    );
+    let (_, acct) = call(&t.app, "GET", "/auth/account", Some(&ola), None).await;
+    assert_eq!(
+        (&acct["providers"], &acct["email"]),
+        (&json!([]), &Value::Null)
+    );
+    // Sign-in mode: no account is created either.
+    let (other, _) = oauth_round(
+        &t,
+        &grants,
+        "discord",
+        None,
+        false,
+        discord("888", "new@example.com", true),
+    )
+    .await;
+    let (s, _) = redeem(&t, &other, "not-the-key").await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    assert_eq!(count(&t, "SELECT COUNT(*) FROM users").await, users);
+    assert_eq!(count(&t, "SELECT COUNT(*) FROM oauth_identities").await, 0);
+    // With the key, the link goes through.
+    let (s, b) = redeem(&t, &location, &key).await;
+    assert_eq!((s, b), (StatusCode::OK, json!({ "linked": "discord" })));
+
+    // Link mode from a claimed session (first-name grab): refused while another device exists.
+    let (_, b) = legacy_join(&t.app, "Kat").await;
+    let kat = b["token"].as_str().unwrap().to_owned();
+    let (_, b) = legacy_join(&t.app, "kat").await;
+    let grab = b["token"].as_str().unwrap().to_owned();
+    let (s, b) = call(
+        &t.app,
+        "POST",
+        "/auth/oauth/discord/start",
+        Some(&grab),
+        Some(json!({ "app_redirect": "quidenous://oauth", "link": true })),
+    )
+    .await;
+    assert_eq!(
+        (s, b["error"].as_str()),
+        (StatusCode::FORBIDDEN, Some("claimed_session"))
+    );
+    // The first device signs out: the claimer is alone and may start a link...
+    call(&t.app, "POST", "/auth/logout", Some(&kat), None).await;
+    let (location, key) = oauth_round(
+        &t,
+        &grants,
+        "discord",
+        Some(&grab),
+        true,
+        discord("999", "kat@example.com", true),
+    )
+    .await;
+    // ...but redeem checks again: someone else claimed the name meanwhile.
+    legacy_join(&t.app, "KAT").await;
+    let (s, b) = redeem(&t, &location, &key).await;
+    assert_eq!(
+        (s, b["error"].as_str()),
+        (StatusCode::FORBIDDEN, Some("claimed_session"))
+    );
+    let (_, acct) = call(&t.app, "GET", "/auth/account", Some(&grab), None).await;
+    assert_eq!(acct["providers"], json!([]));
 }

@@ -16,14 +16,14 @@ use base64::Engine;
 use jsonwebtoken::{Algorithm, DecodingKey, Validation, jwk::JwkSet};
 use rand::RngExt;
 use reqwest::Url;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
 use super::{
     ClientIp, Device, MaybeSession, Session, codes,
     crypto::{constant_eq, random_b64url, random_hex},
-    limits, sign_in,
+    limits, not_claimed, sign_in,
 };
 use crate::{
     AppState,
@@ -224,7 +224,8 @@ impl OAuth {
     }
 }
 
-/// Who the provider says this is.
+/// Who the provider says this is (kept in the one-time result until `redeem`).
+#[derive(Serialize, Deserialize)]
 struct Identity {
     subject: String,
     email: Option<String>,
@@ -266,11 +267,15 @@ pub async fn start(
     if !oauth.redirect_allowed(&body.app_redirect) {
         return Err(AppError::BadRequest("bad_redirect"));
     }
-    let link_user = if body.link {
-        Some(session.ok_or(AppError::Unauthorized)?.user_id)
-    } else {
-        None
+    let link = match (body.link, session) {
+        (false, _) => None,
+        (true, None) => return Err(AppError::Unauthorized),
+        (true, Some(s)) => {
+            not_claimed(&state, s.user_id, &s.token_hash).await?;
+            Some(s)
+        }
     };
+    let link_user = link.as_ref().map(|s| s.user_id);
     let csrf = random_hex(32);
     let verifier = random_b64url(32);
     let nonce = random_hex(16);
@@ -289,6 +294,8 @@ pub async fn start(
             "app_redirect": body.app_redirect,
             "key_hash": key_hash(&state, &key),
             "link": link_user.is_some(),
+            // Link mode: the session that asked, checked again on redeem.
+            "session": link.as_ref().map(|s| s.token_hash.clone()),
         })),
     )
     .await?;
@@ -338,6 +345,8 @@ fn expired_page() -> Response {
 }
 
 /// The provider sends the browser back here; the browser goes on to the app with a one-time code.
+/// Only the verified identity is kept: nothing is linked or created before `redeem` brings the key
+/// (a victim's browser finishing an attacker's link-mode URL must not attach the victim's identity).
 pub async fn callback(
     State(state): State<AppState>,
     Path(provider): Path<String>,
@@ -383,24 +392,19 @@ pub async fn callback(
             return back_to_app(&app_redirect, "error", "provider_error");
         }
     };
-    let outcome = match resolve(&state, &provider, &identity, row.user_id).await {
-        Ok(o) => json!({ "user_id": o.user_id, "new": o.new, "linked": o.linked }),
-        Err(Refusal::Because(code)) => json!({ "error": code }),
-        Err(Refusal::Failed(e)) => {
-            tracing::error!(error = %e, "oauth account resolution failed");
-            return back_to_app(&app_redirect, "error", "server_error");
-        }
-    };
     let result_code = random_hex(32);
-    let mut stored = outcome;
-    stored["key_hash"] = data["key_hash"].clone();
-    stored["provider"] = json!(provider);
-    let user_id = stored["user_id"].as_i64();
+    let stored = json!({
+        "key_hash": data["key_hash"],
+        "provider": provider,
+        "identity": identity,
+        "session": data["session"],
+    });
+    // user_id: the account to link to (link mode), none otherwise.
     if let Err(e) = codes::create(
         &state,
         codes::Kind::OAuthResult,
         &result_code,
-        user_id,
+        row.user_id,
         None,
         codes::OAUTH_RESULT_TTL,
         Some(stored),
@@ -698,7 +702,8 @@ pub struct RedeemBody {
     key: String,
 }
 
-/// The app trades the one-time code from the redirect + the key from `start` for the result.
+/// The app trades the one-time code from the redirect + the key from `start` for the result:
+/// only then is the identity linked, matched to an account or turned into a new one.
 pub async fn redeem(
     State(state): State<AppState>,
     ClientIp(ip): ClientIp,
@@ -709,28 +714,37 @@ pub async fn redeem(
     let row = codes::find(&state, codes::Kind::OAuthResult, &body.code)
         .await?
         .ok_or(AppError::BadRequest("bad_code"))?;
-    codes::alive(&row).map_err(|_| AppError::BadRequest("bad_code"))?;
+    match codes::take_try(&state, &row).await {
+        Err(AppError::BadRequest(_)) => return Err(AppError::BadRequest("bad_code")),
+        other => other?,
+    }
     let data = row.data();
     let expected = data["key_hash"].as_str().unwrap_or_default();
     if !constant_eq(expected, &key_hash(&state, &body.key)) {
-        codes::failed_try(&state, row.id).await?;
         return Err(AppError::BadRequest("bad_code"));
     }
     codes::consume(&state, row.id).await?;
-    if let Some(err) = data["error"].as_str() {
-        return Err(AppError::Conflict(match err {
-            "identity_taken" => "identity_taken",
-            "already_linked" => "already_linked",
-            _ => "email_taken",
-        }));
+    let provider = data["provider"]
+        .as_str()
+        .ok_or(AppError::BadRequest("bad_code"))?;
+    let identity: Identity = serde_json::from_value(data["identity"].clone())
+        .map_err(|_| AppError::BadRequest("bad_code"))?;
+    let link_user = row.user_id;
+    if let Some(user) = link_user {
+        // The session that started the link must still be there, and not a claimed one.
+        let session = data["session"].as_str().unwrap_or_default();
+        not_claimed(&state, user, session).await?;
     }
-    let user_id = row.user_id.ok_or(AppError::BadRequest("bad_code"))?;
-    if data["linked"].as_bool() == Some(true) {
-        return Ok(Json(json!({ "linked": data["provider"] })));
+    let outcome = match resolve(&state, provider, &identity, link_user).await {
+        Ok(o) => o,
+        Err(Refusal::Because(code)) => return Err(AppError::Conflict(code)),
+        Err(Refusal::Failed(e)) => return Err(e),
+    };
+    if outcome.linked {
+        return Ok(Json(json!({ "linked": provider })));
     }
-    let new = data["new"].as_bool().unwrap_or(false);
     Ok(Json(
-        sign_in(&state, user_id, new, device.as_deref()).await?,
+        sign_in(&state, outcome.user_id, outcome.new, device.as_deref()).await?,
     ))
 }
 
@@ -741,6 +755,7 @@ pub async fn unlink(
     Path(provider): Path<String>,
 ) -> AppResult<Json<Value>> {
     let user = session.user_id;
+    not_claimed(&state, user, &session.token_hash).await?;
     let (this, others): (i64, i64) = sqlx::query_as(
         "SELECT COALESCE(SUM(provider = ?1), 0), COALESCE(SUM(provider != ?1), 0) \
          FROM oauth_identities WHERE user_id = ?2",

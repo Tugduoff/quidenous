@@ -7,7 +7,7 @@ use serde_json::{Value, json};
 use super::{
     Account, ClientIp, Device, Session, account, codes,
     crypto::{self, normalize_recovery, now_unix, otpauth_url, totp_match},
-    is_secured, issue_token, limits, revoke_sessions,
+    is_secured, issue_token, limits, not_claimed, revoke_sessions,
 };
 use crate::{
     AppState,
@@ -113,17 +113,20 @@ pub async fn login_2fa(
     let row = codes::find(&state, codes::Kind::Mfa, &body.challenge)
         .await?
         .ok_or(AppError::BadRequest("bad_code"))?;
-    codes::alive(&row)?;
     let user_id = row.user_id.ok_or(AppError::BadRequest("bad_code"))?;
     let key = user_id.to_string();
     let limits = &state.auth.limits;
-    limits.check(&limits::MFA_ACCOUNT, &key)?;
+    // Both budgets are spent before the code is compared, so parallel guesses each pay.
+    limits.hit(&limits::MFA_ACCOUNT, &key)?;
+    if let Err(e) = codes::take_try(&state, &row).await {
+        limits.refund(&limits::MFA_ACCOUNT, &key);
+        return Err(e);
+    }
     let acct = account(&state, user_id).await?;
     if !second_factor(&state, &acct, &body.code, true).await? {
-        codes::failed_try(&state, row.id).await?;
-        limits.fail(&limits::MFA_ACCOUNT, &key);
         return Err(AppError::BadRequest("bad_code"));
     }
+    limits.refund(&limits::MFA_ACCOUNT, &key);
     codes::consume(&state, row.id).await?;
     let token = issue_token(&state.db, user_id, device.as_deref()).await?;
     let new = row.data()["new"].as_bool().unwrap_or(false);
@@ -138,6 +141,7 @@ pub async fn setup(State(state): State<AppState>, session: Session) -> AppResult
     if acct.totp_secret.is_some() {
         return Err(AppError::Conflict("totp_enabled"));
     }
+    not_claimed(&state, acct.id, &session.token_hash).await?;
     if !is_secured(&state.db, acct.id).await? {
         return Err(AppError::BadRequest("not_secured"));
     }
@@ -169,18 +173,19 @@ pub async fn enable(
     if acct.totp_secret.is_some() {
         return Err(AppError::Conflict("totp_enabled"));
     }
+    not_claimed(&state, acct.id, &session.token_hash).await?;
     let pending = acct
         .totp_pending
         .as_deref()
         .ok_or(AppError::BadRequest("no_setup"))?;
     let key = acct.id.to_string();
     let limits = &state.auth.limits;
-    limits.check(&limits::MFA_ACCOUNT, &key)?;
+    limits.hit(&limits::MFA_ACCOUNT, &key)?;
     let secret = open_secret(&state, pending)?;
     let Some(step) = totp_match(&secret, &body.code, now_unix()) else {
-        limits.fail(&limits::MFA_ACCOUNT, &key);
         return Err(AppError::BadRequest("bad_code"));
     };
+    limits.refund(&limits::MFA_ACCOUNT, &key);
     sqlx::query(
         "UPDATE users SET totp_secret = totp_pending, totp_pending = NULL, totp_last_step = ? WHERE id = ?",
     )
@@ -218,11 +223,11 @@ pub async fn disable(
     }
     let key = acct.id.to_string();
     let limits = &state.auth.limits;
-    limits.check(&limits::MFA_ACCOUNT, &key)?;
+    limits.hit(&limits::MFA_ACCOUNT, &key)?;
     if !second_factor(&state, &acct, &body.code, true).await? {
-        limits.fail(&limits::MFA_ACCOUNT, &key);
         return Err(AppError::BadRequest("bad_code"));
     }
+    limits.refund(&limits::MFA_ACCOUNT, &key);
     sqlx::query(
         "UPDATE users SET totp_secret = NULL, totp_pending = NULL, totp_last_step = NULL WHERE id = ?",
     )
@@ -248,11 +253,11 @@ pub async fn regenerate(
     }
     let key = acct.id.to_string();
     let limits = &state.auth.limits;
-    limits.check(&limits::MFA_ACCOUNT, &key)?;
+    limits.hit(&limits::MFA_ACCOUNT, &key)?;
     if !second_factor(&state, &acct, &body.code, false).await? {
-        limits.fail(&limits::MFA_ACCOUNT, &key);
         return Err(AppError::BadRequest("bad_code"));
     }
+    limits.refund(&limits::MFA_ACCOUNT, &key);
     Ok(Json(
         json!({ "recovery_codes": new_recovery_codes(&state, acct.id).await? }),
     ))

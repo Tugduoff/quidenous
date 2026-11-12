@@ -28,14 +28,15 @@ const fn rule(name: &'static str, capacity: u32, minutes: u64) -> Rule {
 pub const EMAIL_IP: Rule = rule("email_ip", 20, 10);
 pub const SIGNUP_IP: Rule = rule("signup_ip", 5, 60);
 pub const LOGIN_IP: Rule = rule("login_ip", 10, 10);
-/// Failures only; refills one every 3 min.
+/// Failures only (a success gives its token back); refills one every 3 min.
 pub const LOGIN_ACCOUNT: Rule = rule("login_account", 5, 15);
 pub const MFA_IP: Rule = rule("mfa_ip", 10, 10);
-/// Failures only.
+/// Failures only (a success gives its token back).
 pub const MFA_ACCOUNT: Rule = rule("mfa_account", 5, 15);
 pub const FORGOT_IP: Rule = rule("forgot_ip", 5, 60);
 pub const FORGOT_ACCOUNT: Rule = rule("forgot_account", 3, 60);
 pub const CODE_IP: Rule = rule("code_ip", 10, 10);
+pub const RESET_ACCOUNT: Rule = rule("reset_account", 10, 60);
 pub const VERIFY_SEND_ACCOUNT: Rule = rule("verify_send_account", 5, 60);
 pub const OAUTH_IP: Rule = rule("oauth_ip", 20, 10);
 pub const LEGACY_IP: Rule = rule("legacy_ip", 10, 60);
@@ -130,20 +131,12 @@ impl Limiter {
         }
     }
 
-    /// Failure-counting rules: is there a token left (without taking it)?
-    pub fn check(&self, rule: &Rule, key: &str) -> Result<(), AppError> {
+    /// Failure-counting rules: every attempt takes a token up front (with `hit`, so parallel
+    /// attempts can't all slip through), a success gives it back.
+    pub fn refund(&self, rule: &Rule, key: &str) {
         self.with(rule, key, |b| {
-            if b.tokens >= 1.0 {
-                Ok(())
-            } else {
-                Err(AppError::RateLimited(retry_after(b, rule)))
-            }
-        })
-    }
-
-    /// A failure: take a token if there is one.
-    pub fn fail(&self, rule: &Rule, key: &str) {
-        self.with(rule, key, |b| b.tokens = (b.tokens - 1.0).max(0.0));
+            b.tokens = (b.tokens + 1.0).min(f64::from(rule.capacity));
+        });
     }
 }
 
@@ -158,6 +151,7 @@ fn rule_by_name(name: &str) -> Option<Rule> {
         FORGOT_IP,
         FORGOT_ACCOUNT,
         CODE_IP,
+        RESET_ACCOUNT,
         VERIFY_SEND_ACCOUNT,
         OAUTH_IP,
         LEGACY_IP,
@@ -181,11 +175,15 @@ mod tests {
             other => panic!("{other:?}"),
         }
         l.hit(&SIGNUP_IP, "5.6.7.8").unwrap();
-        for _ in 0..5 {
-            l.check(&LOGIN_ACCOUNT, "a@b.c").unwrap();
-            l.fail(&LOGIN_ACCOUNT, "a@b.c");
+        // Successes give their token back, failures don't.
+        for _ in 0..10 {
+            l.hit(&LOGIN_ACCOUNT, "a@b.c").unwrap();
+            l.refund(&LOGIN_ACCOUNT, "a@b.c");
         }
-        assert!(l.check(&LOGIN_ACCOUNT, "a@b.c").is_err());
+        for _ in 0..5 {
+            l.hit(&LOGIN_ACCOUNT, "a@b.c").unwrap();
+        }
+        assert!(l.hit(&LOGIN_ACCOUNT, "a@b.c").is_err());
     }
 
     #[test]

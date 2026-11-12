@@ -256,13 +256,16 @@ async fn join(
     .execute(&mut *tx)
     .await?;
     let user_id = member.user_id.ok_or(AppError::Unauthorized)?;
+    // An existing member handed over by first name: that token can't lock the others out.
+    let claimed = signed_in.is_none() && !joined;
     sqlx::query(
-        "INSERT INTO user_tokens (token_hash, user_id, device, last_used_at) \
-         VALUES (?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))",
+        "INSERT INTO user_tokens (token_hash, user_id, device, claimed, last_used_at) \
+         VALUES (?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))",
     )
     .bind(hash_token(&token))
     .bind(user_id)
     .bind(crate::accounts::device_label(&headers))
+    .bind(claimed)
     .execute(&mut *tx)
     .await?;
     sqlx::query("UPDATE users SET last_group_id = ? WHERE id = ?")

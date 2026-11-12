@@ -122,6 +122,7 @@ const MESSAGES: Record<string, string> = {
   unknown_provider: 'Connexion indisponible',
   bad_redirect: 'Connexion indisponible',
   account_protected: 'Ce prénom a un compte : connecte-toi',
+  claimed_session: 'Fais-le depuis ton premier appareil.',
   sign_in_required: 'Connecte-toi pour continuer',
 };
 

@@ -49,4 +49,7 @@ CREATE INDEX auth_codes_email ON auth_codes(kind, email);
 -- Sessions: user_tokens already has created_at (0008).
 ALTER TABLE user_tokens ADD COLUMN last_used_at TEXT;
 ALTER TABLE user_tokens ADD COLUMN device TEXT;
+-- 1 = handed over by /api/join by first name (an existing member): can't add credentials, link a
+-- provider, set up 2FA, change the password or sign other devices out while another session exists.
+ALTER TABLE user_tokens ADD COLUMN claimed INTEGER NOT NULL DEFAULT 0;
 CREATE INDEX user_tokens_user ON user_tokens(user_id);

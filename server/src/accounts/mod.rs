@@ -115,7 +115,8 @@ pub fn features(state: &AppState) -> Vec<&'static str> {
 
 // ---------- extractors ----------
 
-/// The client's IP: the socket address, or the first `X-Forwarded-For` hop with `TRUST_PROXY=1`.
+/// The client's IP: the socket address, or with `TRUST_PROXY=1` the last `X-Forwarded-For`
+/// entry (the one our single reverse proxy appended; anything before it is client-controlled).
 /// `None` when unknown (in-process tests): per-IP limits then don't apply.
 pub struct ClientIp(pub Option<IpAddr>);
 
@@ -128,7 +129,7 @@ pub fn client_ip(
         && let Some(ip) = parts_headers
             .get("x-forwarded-for")
             .and_then(|v| v.to_str().ok())
-            .and_then(|v| v.split(',').next())
+            .and_then(|v| v.rsplit(',').next())
             .and_then(|v| v.trim().parse::<IpAddr>().ok())
     {
         return Some(ip);
@@ -408,6 +409,26 @@ pub(crate) async fn account_by_email(state: &AppState, email: &str) -> AppResult
     .await?)
 }
 
+/// A token handed over by `/api/join` by first name (`claimed`) can't change how the account
+/// signs in nor sign other devices out, unless it is the account's only session (nothing is
+/// then taken from anyone). `403 claimed_session`.
+pub(crate) async fn not_claimed(state: &AppState, user_id: i64, token_hash: &str) -> AppResult<()> {
+    let row: Option<(bool, bool)> = sqlx::query_as(
+        "SELECT claimed != 0, EXISTS (SELECT 1 FROM user_tokens o \
+             WHERE o.user_id = t.user_id AND o.token_hash != t.token_hash) \
+         FROM user_tokens t WHERE t.token_hash = ? AND t.user_id = ?",
+    )
+    .bind(token_hash)
+    .bind(user_id)
+    .fetch_optional(&state.db)
+    .await?;
+    match row {
+        None => Err(AppError::Unauthorized),
+        Some((true, true)) => Err(AppError::Forbidden("claimed_session")),
+        Some(_) => Ok(()),
+    }
+}
+
 /// Deletes every session of an account but `keep` (a token hash). Returns how many.
 pub(crate) async fn revoke_sessions(
     state: &AppState,
@@ -479,6 +500,19 @@ mod tests {
         assert_eq!(device_label(&h).as_deref(), Some("iPhone · iOS 18%"));
         h.insert("x-device", "a".repeat(200).parse().unwrap());
         assert_eq!(device_label(&h).unwrap().len(), 80);
+    }
+
+    #[test]
+    fn forwarded_for_is_read_from_the_end() {
+        let mut h = HeaderMap::new();
+        let socket: SocketAddr = "10.0.0.2:4000".parse().unwrap();
+        h.insert("x-forwarded-for", "6.6.6.6, 203.0.113.7".parse().unwrap());
+        let ip = |s: &str| Some(s.parse::<IpAddr>().unwrap());
+        // The first entry is whatever the client sent; the last one is the proxy's.
+        assert_eq!(client_ip(&h, Some(socket), true), ip("203.0.113.7"));
+        assert_eq!(client_ip(&h, Some(socket), false), ip("10.0.0.2"));
+        h.insert("x-forwarded-for", "garbage".parse().unwrap());
+        assert_eq!(client_ip(&h, Some(socket), true), ip("10.0.0.2"));
     }
 
     #[test]
@@ -625,7 +659,12 @@ pub(crate) mod codes {
         .fetch_optional(&state.db)
         .await?;
         let row = row.ok_or(AppError::BadRequest("bad_code"))?;
-        check(state, row, &hash(state, kind, Some(email), code)).await
+        take_try(state, &row).await?;
+        if !constant_eq(&row.code_hash, &hash(state, kind, Some(email), code)) {
+            return Err(AppError::BadRequest("bad_code"));
+        }
+        consume(state, row.id).await?;
+        Ok(row)
     }
 
     /// Looks a random token up by its hash (MFA challenge, OAuth state/result).
@@ -640,7 +679,7 @@ pub(crate) mod codes {
         .await?)
     }
 
-    /// Expired or out of tries?
+    /// Expired or out of tries? (No try used: for the OAuth state, which is consumed at once.)
     pub fn alive(row: &Row) -> AppResult<()> {
         if row.expires_at < now_unix() as i64 || row.attempts >= MAX_TRIES {
             return Err(AppError::BadRequest("expired"));
@@ -648,21 +687,21 @@ pub(crate) mod codes {
         Ok(())
     }
 
-    async fn check(state: &AppState, row: Row, expected: &str) -> AppResult<Row> {
-        alive(&row)?;
-        if !constant_eq(&row.code_hash, expected) {
-            failed_try(state, row.id).await?;
-            return Err(AppError::BadRequest("bad_code"));
+    /// Uses up one try before the guess is compared, in one statement: parallel guesses can't
+    /// all see the same count. `expired` when too old, out of tries or used meanwhile.
+    pub async fn take_try(state: &AppState, row: &Row) -> AppResult<()> {
+        let done = sqlx::query(
+            "UPDATE auth_codes SET attempts = attempts + 1 \
+             WHERE id = ? AND used_at IS NULL AND attempts < ? AND expires_at >= ?",
+        )
+        .bind(row.id)
+        .bind(MAX_TRIES)
+        .bind(now_unix() as i64)
+        .execute(&state.db)
+        .await?;
+        if done.rows_affected() == 0 {
+            return Err(AppError::BadRequest("expired"));
         }
-        consume(state, row.id).await?;
-        Ok(row)
-    }
-
-    pub async fn failed_try(state: &AppState, id: i64) -> AppResult<()> {
-        sqlx::query("UPDATE auth_codes SET attempts = attempts + 1 WHERE id = ?")
-            .bind(id)
-            .execute(&state.db)
-            .await?;
         Ok(())
     }
 

@@ -6,7 +6,7 @@ use axum::{
 };
 use serde_json::{Value, json};
 
-use super::{Session, revoke_sessions};
+use super::{Session, not_claimed, revoke_sessions};
 use crate::{
     AppState,
     error::{AppError, AppResult},
@@ -48,10 +48,15 @@ pub async fn revoke(
     if id.len() != 16 || !id.bytes().all(|b| b.is_ascii_hexdigit()) {
         return Err(AppError::NotFound);
     }
+    let id = id.to_lowercase();
+    // Signing this device out is always fine; another one, not from a claimed session.
+    if public_id(&session.token_hash) != id {
+        not_claimed(&state, session.user_id, &session.token_hash).await?;
+    }
     let done =
         sqlx::query("DELETE FROM user_tokens WHERE user_id = ? AND substr(token_hash, 1, 16) = ?")
             .bind(session.user_id)
-            .bind(id.to_lowercase())
+            .bind(&id)
             .execute(&state.db)
             .await?;
     if done.rows_affected() == 0 {
@@ -64,6 +69,7 @@ pub async fn revoke_others(
     State(state): State<AppState>,
     session: Session,
 ) -> AppResult<Json<Value>> {
+    not_claimed(&state, session.user_id, &session.token_hash).await?;
     let revoked = revoke_sessions(&state, session.user_id, Some(&session.token_hash)).await?;
     Ok(Json(json!({ "revoked": revoked })))
 }
