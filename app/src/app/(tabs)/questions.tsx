@@ -101,7 +101,7 @@ export default function QuestionsScreen() {
                 onChangeText={setText}
                 multiline
                 maxLength={200}
-                style={{ minHeight: 96, padding: 16, fontFamily: t.font.regular, fontSize: 16, color: t.txt, textAlignVertical: 'top' }}
+                style={{ minHeight: rank ? 60 : 96, padding: 16, paddingTop: rank ? 8 : 16, fontFamily: t.font.regular, fontSize: 16, color: t.txt, textAlignVertical: 'top' }}
               />
             </Card>
             <Pressable
@@ -122,7 +122,7 @@ export default function QuestionsScreen() {
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
             <Text style={{ flex: 1, fontFamily: t.font.regular, fontSize: 13, color: t.mut }}>
-              {(data?.custom.length ?? 0) + (data?.deck_left ?? 0)}
+              {`${(data?.custom.length ?? 0) + (data?.deck_left ?? 0)} à venir`}
               {imported ? `  ·  ${imported}` : ''}
             </Text>
             {/* Small switch: the next question is a ranking (everyone, first to last). */}
@@ -150,11 +150,19 @@ export default function QuestionsScreen() {
               accessibilityLabel="Importer un fichier de questions"
               disabled={importFile.isPending}
               onPress={pick}
-              style={[
-                { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card },
-                t.shadow,
-              ]}>
-              <FileUp size={20} color={importFile.isPending ? t.mut : t.txt} />
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 6,
+                height: 32,
+                paddingHorizontal: 10,
+                borderRadius: t.radius.pill,
+                backgroundColor: t.card,
+                borderWidth: 1.5,
+                borderColor: t.line,
+              }}>
+              <FileUp size={14} color={importFile.isPending ? t.mut : t.txt} />
+              <Text style={{ fontFamily: t.font.semibold, fontSize: 12, color: importFile.isPending ? t.mut : t.txt }}>Importer</Text>
             </Pressable>
           </View>
         </>
