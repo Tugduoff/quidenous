@@ -74,6 +74,7 @@ Traefik: point a router at the service on port 8080; WebSockets work out of the 
 | `OAUTH_REDIRECTS` | — | Extra allowed app redirect prefixes, comma-separated (e.g. `exp://` for Expo Go) |
 | `AUTH_REQUIRED` | off | `1` = no more anonymous join by first name (`/api/join`, `/api/start` answer 410). Only once every phone runs an app with sign-in |
 | `REPORT_EMAIL` | `contact@coflop.fr` | Where in-app reports (message, member, question) are emailed, through Mailgun. At most 30 emails an hour; every report is also stored in the `reports` table |
+| `UPDATES_PUBLISH_TOKEN` | — | Over-the-air app updates: the token CI uses to publish new JS bundles (same value as the GitHub secret). Without it publishing is off. Uploads are ~5 MB (`client_max_body_size 10m` is enough). See [docs/OTA.md](../docs/OTA.md) |
 
 Accounts, 2FA and sign-in details: [docs/AUTH.md](../docs/AUTH.md).
 

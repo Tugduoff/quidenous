@@ -1,8 +1,13 @@
-import { Check, Download, RefreshCw, Settings } from 'lucide-react-native';
+import { Check, Download, RefreshCw, Settings, Sparkles, X } from 'lucide-react-native';
+import { usePathname } from 'expo-router';
 import { useEffect } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
+import Animated from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Dialog, PressableScale } from '@/components/ui';
+import { motion } from '@/lib/motion';
+import { restart, useOtaReady } from '@/lib/ota';
 import { appVersion, checkForUpdate, clearCheck, install, later, openInstallSettings, UPDATES, useUpdate } from '@/lib/update';
 import { useTheme } from '@/lib/theme';
 
@@ -160,5 +165,57 @@ export function VersionLine() {
         </Pressable>
       )}
     </View>
+  );
+}
+
+const TABS = ['/', '/history', '/stats', '/questions'];
+
+/** An over-the-air update is downloaded: it applies on the next start, or now with Relancer. Floats above the tab bar (tabs only). */
+export function OtaToast() {
+  const t = useTheme();
+  const insets = useSafeAreaInsets();
+  const pathname = usePathname();
+  const { ready, dismiss } = useOtaReady();
+  if (!ready || !TABS.includes(pathname)) return null;
+  return (
+    <Animated.View
+      entering={motion.rise}
+      exiting={motion.exit}
+      style={{
+        position: 'absolute',
+        left: 16,
+        right: 16,
+        bottom: insets.bottom + 72,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        paddingLeft: 14,
+        paddingRight: 6,
+        paddingVertical: 6,
+        borderRadius: t.radius.pill,
+        backgroundColor: t.card,
+        borderWidth: 1,
+        borderColor: t.line,
+        ...t.shadow,
+      }}>
+      <Sparkles size={18} color={t.accInk} />
+      <Text numberOfLines={1} style={{ flex: 1, fontFamily: t.font.semibold, fontSize: 14, color: t.txt }}>
+        Nouvelle version prête
+      </Text>
+      <PressableScale
+        accessibilityRole="button"
+        onPress={restart}
+        style={{ height: 34, paddingHorizontal: 14, borderRadius: t.radius.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: t.acc }}>
+        <Text style={{ fontFamily: t.font.bold, fontSize: 14, color: t.accTxt }}>Relancer</Text>
+      </PressableScale>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Masquer"
+        onPress={dismiss}
+        hitSlop={6}
+        style={{ width: 34, height: 34, alignItems: 'center', justifyContent: 'center' }}>
+        <X size={18} color={t.mut} />
+      </Pressable>
+    </Animated.View>
   );
 }

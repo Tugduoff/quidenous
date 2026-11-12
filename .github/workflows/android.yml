@@ -85,7 +85,8 @@ jobs:
           # (fresh Metro cache, JS bundle task forced to run again).
           sed -i '/android.permission.REQUEST_INSTALL_PACKAGES/d' app/src/main/AndroidManifest.xml
           rm -rf "${TMPDIR:-/tmp}"/metro-* "${TMPDIR:-/tmp}"/haste-map-*
-          ./gradlew createBundleReleaseJsAndAssets --rerun bundleRelease -PplayUpload -PreactNativeArchitectures=arm64-v8a,armeabi-v7a,x86_64 --no-daemon
+          # expo-updates' resources (runtime fingerprint, embedded manifest) depend on the app config too: redo them.
+          ./gradlew createReleaseUpdatesResources --rerun createBundleReleaseJsAndAssets --rerun bundleRelease -PplayUpload -PreactNativeArchitectures=arm64-v8a,armeabi-v7a,x86_64 --no-daemon
           if unzip -p app/build/outputs/bundle/release/app-release.aab base/manifest/AndroidManifest.xml | tr -d '\0' | grep -c REQUEST_INSTALL_PACKAGES >/dev/null; then
             echo "::error::REQUEST_INSTALL_PACKAGES must not be in the Play bundle"; exit 1
           fi
@@ -95,3 +96,38 @@ jobs:
         with:
           name: quidenous-aab
           path: app/android/app/build/outputs/bundle/release/app-release.aab
+      # Over-the-air updates (docs/OTA.md): the JS of this commit goes to the phones that already run a build with the
+      # same native runtime (fingerprint read from the build itself). Dated like the build's embedded bundle, so a phone
+      # that installs this very APK doesn't download it again. A changed fingerprint just starts a new runtime.
+      - name: OTA runtimes
+        if: github.ref == 'refs/heads/main'
+        run: |
+          apk=app/build/outputs/apk/release/app-release.apk
+          aab=app/build/outputs/bundle/release/app-release.aab
+          commit_time() { node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>console.log(new Date(JSON.parse(s).commitTime).toISOString()))'; }
+          echo "OTA_APK_RUNTIME=$(unzip -p $apk assets/fingerprint)" >> "$GITHUB_ENV"
+          echo "OTA_APK_TIME=$(unzip -p $apk assets/app.manifest | commit_time)" >> "$GITHUB_ENV"
+          if [ -f $aab ]; then
+            echo "OTA_AAB_RUNTIME=$(unzip -p $aab base/assets/fingerprint)" >> "$GITHUB_ENV"
+            echo "OTA_AAB_TIME=$(unzip -p $aab base/assets/app.manifest | commit_time)" >> "$GITHUB_ENV"
+            # The two builds differ natively (install permission): the same runtime would send the APK's JS to Play.
+            [ "$(unzip -p $apk assets/fingerprint)" != "$(unzip -p $aab base/assets/fingerprint)" ] || { echo "::error::APK and AAB share a runtime"; exit 1; }
+          fi
+        working-directory: app/android
+      - name: OTA update (APK)
+        if: github.ref == 'refs/heads/main' && env.UPDATES_PUBLISH_TOKEN != '' && env.OTA_APK_RUNTIME != ''
+        env:
+          EXPO_PUBLIC_DISTRIBUTION: sideload
+          UPDATES_PUBLISH_TOKEN: ${{ secrets.UPDATES_PUBLISH_TOKEN }}
+          UPDATES_PRIVATE_KEY: ${{ secrets.UPDATES_PRIVATE_KEY }}
+        run: |
+          npx expo export --platform android --clear --output-dir dist-ota-apk
+          node scripts/ota-publish.mjs --dist dist-ota-apk --runtime "$OTA_APK_RUNTIME" --created-at "$OTA_APK_TIME"
+      - name: OTA update (Play)
+        if: github.ref == 'refs/heads/main' && env.UPDATES_PUBLISH_TOKEN != '' && env.OTA_AAB_RUNTIME != ''
+        env:
+          UPDATES_PUBLISH_TOKEN: ${{ secrets.UPDATES_PUBLISH_TOKEN }}
+          UPDATES_PRIVATE_KEY: ${{ secrets.UPDATES_PRIVATE_KEY }}
+        run: |
+          npx expo export --platform android --clear --output-dir dist-ota-play
+          node scripts/ota-publish.mjs --dist dist-ota-play --runtime "$OTA_AAB_RUNTIME" --created-at "$OTA_AAB_TIME"

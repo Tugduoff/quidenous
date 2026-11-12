@@ -1,0 +1,24 @@
+name: ota-rollback
+# Emergency brake for over-the-air updates (docs/OTA.md): phones go back to the JS bundle inside their APK.
+# (Publishing is part of the android workflow; to go back to an older JS instead, revert on main.)
+on:
+  workflow_dispatch:
+    inputs:
+      runtime:
+        description: Runtime version (fingerprint) to roll back; empty = every runtime currently served
+        required: false
+        default: ""
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: node scripts/ota-publish.mjs --rollback-embedded ${RUNTIME:+--runtime "$RUNTIME"}
+        working-directory: app
+        env:
+          RUNTIME: ${{ inputs.runtime }}
+          UPDATES_PUBLISH_TOKEN: ${{ secrets.UPDATES_PUBLISH_TOKEN }}
+          UPDATES_PRIVATE_KEY: ${{ secrets.UPDATES_PRIVATE_KEY }}

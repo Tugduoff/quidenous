@@ -44,3 +44,6 @@ example
 
 # Firebase config, injected by CI from a secret
 google-services.json
+
+# expo-updates code signing: the public certificate is committed (the private key is a CI secret only)
+!certs/certificate.pem

@@ -34,9 +34,12 @@ export type Release = { version: string; notes: string; url: string; size: numbe
 type Status = 'idle' | 'checking' | 'latest' | 'failed' | 'download' | 'blocked' | 'error';
 type State = { release: Release | null; open: boolean; status: Status; progress: number };
 
-/** The version this app was built as. */
+/**
+ * The version running: the app config of the JS bundle, which an over-the-air update brings along (so a JS-only
+ * release that already arrived over the air is not offered again as an APK), else the version of the build.
+ */
 export function appVersion() {
-  return (Platform.OS === 'web' ? null : Application.nativeApplicationVersion) ?? Constants.expoConfig?.version ?? '?';
+  return Constants.expoConfig?.version ?? (Platform.OS === 'web' ? null : Application.nativeApplicationVersion) ?? '?';
 }
 
 /** `a` is a later version than `b` (x.y.z, a leading "v" ignored). */
