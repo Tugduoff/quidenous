@@ -22,7 +22,14 @@ async fn test_app() -> Router {
         fcm_service_account: None,
     };
     std::fs::create_dir_all(&dir).unwrap();
-    app(state(config).await.unwrap())
+    let state = state(config).await.unwrap();
+    // Deck ranking questions come up at random; these tests vote by picking one person,
+    // so keep the deck to pick questions (ranking has its own test with its own question).
+    sqlx::query("DELETE FROM questions WHERE group_id IS NULL AND kind = 'rank'")
+        .execute(&state.db)
+        .await
+        .unwrap();
+    app(state)
 }
 
 fn rand_suffix() -> u128 {
@@ -1088,16 +1095,7 @@ async fn ranking_questions_use_points() {
     let (_, open) = call(&app, "GET", "/round/current", Some(&a), None).await;
     assert_eq!(open["kind"], "rank");
     let round = open["id"].as_i64().unwrap();
-    // A pick vote or an incomplete ranking is refused.
-    let (s, _) = call(
-        &app,
-        "POST",
-        "/round/current/vote",
-        Some(&a),
-        Some(json!({ "target_id": b_id })),
-    )
-    .await;
-    assert_eq!(s, StatusCode::BAD_REQUEST);
+    // Incomplete rankings are refused.
     let (s, _) = call(
         &app,
         "POST",
@@ -1143,4 +1141,50 @@ async fn ranking_questions_use_points() {
     assert_eq!(done["my_ranking"], json!([b_id, c_id, a_id]));
     let (_, history) = call(&app, "GET", "/history", Some(&a), None).await;
     assert_eq!(history[0]["winner_ids"], json!([b_id]));
+}
+
+#[tokio::test]
+async fn an_old_app_can_still_vote_on_a_ranking_question() {
+    let app = test_app().await;
+    let (a, a_id) = join(&app, "Ana").await;
+    let (b, b_id) = join(&app, "Bob").await;
+    call(
+        &app,
+        "POST",
+        "/questions",
+        Some(&a),
+        Some(json!({ "text": "Classe-nous du plus drôle au moins drôle", "kind": "rank" })),
+    )
+    .await;
+    for t in [&a, &b] {
+        vote_as(&app, t, a_id).await;
+    }
+    let (_, open) = call(&app, "GET", "/round/current", Some(&a), None).await;
+    let round = open["id"].as_i64().unwrap();
+    // Bob is on an old app: a single pick. Ana ranks.
+    let (s, _) = call(
+        &app,
+        "POST",
+        "/round/current/vote",
+        Some(&b),
+        Some(json!({ "target_id": a_id })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK);
+    let (s, _) = call(
+        &app,
+        "POST",
+        "/round/current/vote",
+        Some(&a),
+        Some(json!({ "ranking": [b_id, a_id] })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK);
+    let (_, done) = call(&app, "GET", &format!("/rounds/{round}"), Some(&a), None).await;
+    assert!(
+        done["closed_at"].is_string(),
+        "nobody waits for the old app"
+    );
+    assert_eq!(done["ranking"][0]["member_id"], b_id);
+    assert_eq!(done["ranking"][0]["points"], 2);
 }

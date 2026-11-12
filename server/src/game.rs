@@ -129,7 +129,11 @@ pub async fn vote(
     .await?
     .ok_or(AppError::Conflict("no_open_round"))?;
     // A ranking must place every active member exactly once; its #1 is also stored as the vote.
-    let target_id = if kind == "rank" {
+    let target_id = if kind == "rank" && ranking.is_none() && target_id.is_some() {
+        // An app too old to know ranking questions sends a single pick: it counts as voted
+        // (nobody waits for them) but adds no points.
+        target_id.unwrap_or_default()
+    } else if kind == "rank" {
         let ranking = ranking.ok_or(AppError::BadRequest("ranking_needed"))?;
         let mut active: Vec<i64> = sqlx::query_scalar(
             "SELECT id FROM members WHERE group_id = ? AND removed_at IS NULL ORDER BY id",
