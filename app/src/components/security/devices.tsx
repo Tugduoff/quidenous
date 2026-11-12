@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Globe, Lock, LogOut, Smartphone, X } from 'lucide-react-native';
-import { useState } from 'react';
+import { Fingerprint, Globe, Lock, LogOut, ScanFace, Smartphone, X } from 'lucide-react-native';
+import { useEffect, useState } from 'react';
 import { Pressable, Text } from 'react-native';
 
 import { ErrorText, Pill, Row, Section, TextLink } from '@/components/auth-ui';
@@ -18,7 +18,7 @@ import {
   type DeviceSession,
   type Provider,
 } from '@/lib/auth';
-import { lockSupported, setLock, useLock } from '@/lib/lock';
+import { lockMethod, lockSupported, setLock, useLock } from '@/lib/lock';
 import { useSession } from '@/lib/session';
 import { oauth } from '@/lib/sign-in';
 import { useTheme } from '@/lib/theme';
@@ -160,7 +160,14 @@ export function LockSection() {
   const t = useTheme();
   const { enabled } = useLock();
   const [error, setError] = useState<string | null>(null);
+  // Say what it actually asks for: "Face ID" means nothing on a phone with a fingerprint reader.
+  const [method, setMethod] = useState<'face' | 'fingerprint' | 'code'>('code');
+  useEffect(() => {
+    lockMethod().then(setMethod);
+  }, []);
   if (!lockSupported) return null;
+  const label = method === 'face' ? 'Déverrouiller avec le visage' : method === 'fingerprint' ? "Déverrouiller avec l'empreinte" : 'Déverrouiller avec le code';
+  const Icon = method === 'face' ? ScanFace : method === 'fingerprint' ? Fingerprint : Lock;
   const toggle = async (on: boolean) => {
     setError(null);
     const r = await setLock(on).catch(() => 'failed' as const);
@@ -169,8 +176,9 @@ export function LockSection() {
   return (
     <Section title="Verrouillage">
       <Row
-        icon={<Lock size={20} color={enabled ? t.accInk : t.mut} />}
-        title="Verrouiller l'app"
+        icon={<Icon size={20} color={enabled ? t.accInk : t.mut} />}
+        title={label}
+        sub="Demandé en rouvrant l'app"
         right={<Toggle label="" value={enabled} onChange={toggle} />}
       />
       <ErrorText>{error}</ErrorText>

@@ -16,6 +16,18 @@ if (Platform.OS !== 'web' && requireOptionalNativeModule('ExpoLocalAuthenticatio
 
 export const lockSupported = LA != null;
 
+/** What the phone unlocks with, to name it in the settings: face, fingerprint, or just the passcode. */
+export async function lockMethod(): Promise<'face' | 'fingerprint' | 'code'> {
+  if (!LA) return 'code';
+  try {
+    const types = await LA.supportedAuthenticationTypesAsync();
+    const enrolled = await LA.isEnrolledAsync();
+    if (enrolled && types.includes(LA.AuthenticationType.FACIAL_RECOGNITION)) return 'face';
+    if (enrolled && types.includes(LA.AuthenticationType.FINGERPRINT)) return 'fingerprint';
+  } catch {}
+  return 'code';
+}
+
 const KEY = 'qdn.lock';
 let enabled = false;
 let loaded = !lockSupported;
