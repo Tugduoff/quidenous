@@ -63,7 +63,7 @@ function Line({
         <Text numberOfLines={1} style={{ fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>
           {title}
         </Text>
-        {!!sub && <Text style={{ fontFamily: warn ? t.font.semibold : t.font.regular, fontSize: 13, color: warn ? t.tag : t.mut }}>{sub}</Text>}
+        {!!sub && <Text numberOfLines={1} style={{ fontFamily: warn ? t.font.semibold : t.font.regular, fontSize: 13, color: warn ? t.tag : t.mut }}>{sub}</Text>}
       </View>
       {right}
     </View>
@@ -113,12 +113,12 @@ export default function NotificationsScreen() {
     const sub = blocked
       ? Platform.OS === 'web'
         ? 'Bloquées par le navigateur'
-        : 'Bloquées dans les réglages du téléphone'
+        : 'Bloquées dans les réglages'
       : needsDevice
         ? 'À activer sur cet appareil'
         : state === 'unsupported'
-          ? 'Indisponibles sur cet appareil'
-          : 'Sur tous tes appareils';
+          ? 'Indisponibles ici'
+          : undefined;
 
     const setMaster = (on: boolean) => {
       setEnableFailed(false);

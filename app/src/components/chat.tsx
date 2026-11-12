@@ -78,7 +78,11 @@ export function ChatMessages({ roundId }: { roundId: number }) {
                   backgroundColor: mine ? (me?.color ?? t.card2) : t.card,
                   gap: 2,
                 }}>
-                {!mine && <Text style={{ fontFamily: t.font.bold, fontSize: 12, color: author?.color ?? t.mut }}>{author?.name ?? '?'}</Text>}
+                {!mine && (
+                  <Text numberOfLines={1} style={{ fontFamily: t.font.bold, fontSize: 12, color: author?.color ?? t.mut }}>
+                    {author?.name ?? '?'}
+                  </Text>
+                )}
                 <Text style={{ fontFamily: t.font.regular, fontSize: 15, lineHeight: 20, color: mine ? '#121216' : t.txt }}>{m.text}</Text>
                 <Text style={{ fontFamily: t.font.regular, fontSize: 10, color: mine ? '#121216' : t.mut, opacity: 0.7, alignSelf: 'flex-end' }}>
                   {TIME.format(new Date(m.created_at))}
@@ -119,7 +123,7 @@ export function ChatInput({ roundId }: { roundId: number }) {
         maxLength={MAX}
         {...sendOnEnter(submit)}
         // Under 16px, Safari on iPhone zooms the page in when the field gets the focus.
-        style={{ flex: 1, minHeight: 40, maxHeight: 100, paddingVertical: 10, fontFamily: t.font.regular, fontSize: 16, color: t.txt }}
+        style={{ flex: 1, minWidth: 0, minHeight: 40, maxHeight: 100, paddingVertical: 10, fontFamily: t.font.regular, fontSize: 16, color: t.txt }}
       />
       <PressableScale
         accessibilityRole="button"

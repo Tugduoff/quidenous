@@ -4,7 +4,7 @@ import { Platform, Pressable, Text, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 
 import { Screen } from '@/components/screen';
-import { Button, Card, Display, Logo } from '@/components/ui';
+import { Button, Card, CodeText, Display, Logo } from '@/components/ui';
 import { presetFriendCode, presetJoinCode } from '@/lib/api';
 import { useTheme } from '@/lib/theme';
 
@@ -48,7 +48,9 @@ export function InstallBanner({ onOpen, onClose }: { onOpen: () => void; onClose
         onPress={onOpen}
         style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10 }}>
         <Smartphone size={18} color={t.accTxt} />
-        <Text style={{ flex: 1, fontFamily: t.font.semibold, fontSize: 14, color: t.accTxt }}>Meilleure expérience avec l'app installée</Text>
+        <Text numberOfLines={1} style={{ flex: 1, fontFamily: t.font.semibold, fontSize: 14, color: t.accTxt }}>
+          Installe l&apos;app
+        </Text>
         <ChevronRight size={18} color={t.accTxt} />
       </Pressable>
       <Pressable
@@ -115,8 +117,8 @@ export function InstallScreen({ onClose }: { onClose?: () => void }) {
         <Display size={30}>{kind === 'desktop' ? 'Ça se joue sur téléphone' : "Installe l'app"}</Display>
         <Text style={text}>
           {kind === 'desktop'
-            ? 'Scanne ce QR code avec ton téléphone pour ouvrir qui de nous ? dessus.'
-            : "qui de nous ? marche depuis ton écran d'accueil : notifications, plein écran, et tu restes connecté."}
+            ? 'Scanne ce QR code avec ton téléphone.'
+            : 'Pour les notifications et le plein écran.'}
         </Text>
       </View>
 
@@ -130,16 +132,16 @@ export function InstallScreen({ onClose }: { onClose?: () => void }) {
 
       {kind === 'ios' && (
         <Card style={{ padding: 18, gap: 18 }}>
-          <Step n={1} Icon={Share} label="Touche Partager dans la barre du navigateur" />
-          <Step n={2} Icon={SquarePlus} label="Choisis « Sur l'écran d'accueil », puis Ajouter" />
-          <Step n={3} Icon={Smartphone} label="Ouvre qui de nous ? depuis ton écran d'accueil" />
+          <Step n={1} Icon={Share} label="Touche Partager" />
+          <Step n={2} Icon={SquarePlus} label="« Sur l'écran d'accueil »" />
+          <Step n={3} Icon={Smartphone} label="Ouvre l'app installée" />
         </Card>
       )}
 
       {kind === 'android' &&
         (installed ? (
           <Card style={{ padding: 18 }}>
-            <Step n={1} Icon={Smartphone} label="C'est installé : ouvre qui de nous ? depuis ton écran d'accueil" />
+            <Step n={1} Icon={Smartphone} label="Installée : ouvre-la" />
           </Card>
         ) : prompt ? (
           <Button onPress={install}>
@@ -148,20 +150,18 @@ export function InstallScreen({ onClose }: { onClose?: () => void }) {
           </Button>
         ) : (
           <Card style={{ padding: 18, gap: 18 }}>
-            <Step n={1} Icon={Download} label="Ouvre le menu ⋮ du navigateur" />
-            <Step n={2} Icon={SquarePlus} label="Choisis « Installer l'application » ou « Ajouter à l'écran d'accueil »" />
-            <Step n={3} Icon={Smartphone} label="Ouvre qui de nous ? depuis ton écran d'accueil" />
+            <Step n={1} Icon={Download} label="Ouvre le menu ⋮" />
+            <Step n={2} Icon={SquarePlus} label="Touche « Installer »" />
+            <Step n={3} Icon={Smartphone} label="Ouvre l'app installée" />
           </Card>
         ))}
 
       {kind !== 'desktop' && (code || friend) && (
         <Card style={{ padding: 18, gap: 6 }}>
           <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut }}>
-            {code ? "Ton code d'invitation, à entrer une fois dans l'app" : "Le code ami, à entrer une fois dans l'app"}
+            {code ? "Code d'invitation à entrer dans l'app" : "Code ami à entrer dans l'app"}
           </Text>
-          <Text selectable style={{ fontFamily: t.font.display, fontSize: 32, letterSpacing: 4, color: t.txt }}>
-            {code ?? friend}
-          </Text>
+          <CodeText code={(code ?? friend)!} size={32} />
         </Card>
       )}
     </Screen>

@@ -29,9 +29,12 @@ export function AuthScreen({
   children,
   footer,
   back = true,
+  oneLine,
 }: {
   title: string;
   sub?: ReactNode;
+  /** The grey line holds an e-mail: one line, cut with an ellipsis. */
+  oneLine?: boolean;
   children?: ReactNode;
   footer?: ReactNode;
   back?: boolean;
@@ -42,7 +45,11 @@ export function AuthScreen({
       {back && <BackButton />}
       <View style={{ gap: 8, marginTop: back ? 4 : 48, marginBottom: 4 }}>
         <Display size={32}>{title}</Display>
-        {!!sub && <Text style={{ fontFamily: t.font.regular, fontSize: 15, lineHeight: 21, color: t.mut }}>{sub}</Text>}
+        {!!sub && (
+          <Text numberOfLines={oneLine ? 1 : undefined} style={{ fontFamily: t.font.regular, fontSize: 15, lineHeight: 21, color: t.mut }}>
+            {sub}
+          </Text>
+        )}
       </View>
       {children}
     </Screen>
@@ -204,7 +211,9 @@ export function SoftButton({
         style,
       ]}>
       {loading ? <ActivityIndicator color={t.mut} /> : icon}
-      <Text style={{ fontFamily: t.font.semibold, fontSize: 16, color: t.txt }}>{children}</Text>
+      <Text numberOfLines={1} style={{ fontFamily: t.font.semibold, fontSize: 16, color: t.txt }}>
+        {children}
+      </Text>
     </Pressable>
   );
 }
@@ -303,7 +312,7 @@ export function Pill({
       {loading ? (
         <ActivityIndicator size="small" color={acc ? t.accTxt : t.mut} />
       ) : (
-        <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: acc ? t.accTxt : tone === 'danger' ? '#FF3B5C' : disabled ? t.mut : t.txt }}>
+        <Text numberOfLines={1} style={{ fontFamily: t.font.semibold, fontSize: 14, color: acc ? t.accTxt : tone === 'danger' ? '#FF3B5C' : disabled ? t.mut : t.txt }}>
           {children}
         </Text>
       )}

@@ -7,7 +7,7 @@ import QRCode from 'react-native-qrcode-svg';
 
 import { ScanButton } from '@/components/qr-scanner';
 import { Screen } from '@/components/screen';
-import { Avatar, Card, Display } from '@/components/ui';
+import { Avatar, Card, CodeText, Display } from '@/components/ui';
 import { api, ApiError, presetFriendCode, type Member } from '@/lib/api';
 import { keys, useFriends } from '@/lib/queries';
 import { friendLink, friendMessage, shareText } from '@/lib/share';
@@ -52,23 +52,17 @@ export default function FriendsScreen() {
         style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card }}>
         <ChevronLeft size={22} color={t.txt} />
       </Pressable>
-      <View style={{ gap: 6 }}>
-        <Display size={30}>Amis</Display>
-        {/* No friends yet: the code below is the way to get some. */}
-        {data && data.friends.length === 0 && (
-          <Text style={{ fontFamily: t.font.regular, fontSize: 15, lineHeight: 21, color: t.mut }}>Pas encore d'amis. Fais scanner ton code ou partage-le.</Text>
-        )}
-      </View>
+      <Display size={30}>Amis</Display>
 
       {data && (
         <Card style={{ padding: 20, gap: 14, alignItems: 'center' }}>
           <View style={{ padding: 12, borderRadius: 16, backgroundColor: '#fff' }}>
             <QRCode value={friendLink(data.code)} size={168} color="#121216" backgroundColor="#fff" />
           </View>
-          <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut }}>Mon code ami</Text>
-          <Text selectable style={{ fontFamily: t.font.display, fontSize: 32, letterSpacing: 4, color: t.txt }}>
-            {data.code}
-          </Text>
+          <View style={{ alignSelf: 'stretch', alignItems: 'center', gap: 2 }}>
+            <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut }}>Mon code ami</Text>
+            <CodeText code={data.code} size={32} center />
+          </View>
           <Pressable
             accessibilityRole="button"
             onPress={share}
@@ -136,8 +130,10 @@ export default function FriendsScreen() {
         <Card key={f.user_id} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12 }}>
           <Avatar member={{ id: f.user_id, name: f.name, color: f.color, photo_url: f.photo_url } as Member} size={40} />
           <View style={{ flex: 1, gap: 2 }}>
-            <Text style={{ fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>{f.name}</Text>
-            <Text style={{ fontFamily: t.font.regular, fontSize: 12, color: t.mut }}>
+            <Text numberOfLines={1} style={{ fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>
+              {f.name}
+            </Text>
+            <Text numberOfLines={1} style={{ fontFamily: t.font.regular, fontSize: 12, color: t.mut }}>
               {f.rooms_in_common ? `${f.rooms_in_common} salon${f.rooms_in_common > 1 ? 's' : ''} en commun` : 'Ajouté avec son code'}
             </Text>
           </View>
@@ -147,7 +143,7 @@ export default function FriendsScreen() {
               accessibilityLabel={`Retirer ${f.name} de mes amis`}
               onPress={() => remove.mutate(f.user_id)}
               hitSlop={8}
-              style={{ width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card2 }}>
+              style={{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card2 }}>
               <X size={16} color={t.mut} />
             </Pressable>
           )}

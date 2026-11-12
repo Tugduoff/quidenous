@@ -5,10 +5,12 @@ import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
 import { Screen } from '@/components/screen';
-import { Card, Display, QuestionText } from '@/components/ui';
+import { Card, Display, PressableScale, QuestionText } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { keys, useGroup, usePack } from '@/lib/queries';
 import { useTheme } from '@/lib/theme';
+
+const round = (bg: string) => ({ width: 40, height: 40, borderRadius: 20, alignItems: 'center' as const, justifyContent: 'center' as const, backgroundColor: bg });
 
 /** One pack: all its questions, install into the current room, report, delete (author). */
 export default function PackScreen() {
@@ -26,7 +28,7 @@ export default function PackScreen() {
       qc.invalidateQueries({ queryKey: keys.current });
     },
     onError: (e) =>
-      setNote(e instanceof ApiError && e.code === 'owner_only' ? 'Dans ce salon, seul le propriétaire ajoute des questions' : 'Raté, réessaie'),
+      setNote(e instanceof ApiError && e.code === 'owner_only' ? 'Réservé au propriétaire du salon' : 'Raté, réessaie'),
   });
   const report = useMutation({
     mutationFn: () => api(`/packs/${id}/report`, { method: 'POST' }),
@@ -48,8 +50,8 @@ export default function PackScreen() {
           accessibilityRole="button"
           disabled={install.isPending}
           onPress={() => install.mutate()}
-          style={{ height: 52, borderRadius: t.radius.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: t.acc }}>
-          <Text style={{ fontFamily: t.font.bold, fontSize: 16, color: t.accTxt }}>{`Installer dans « ${group?.name ?? '…'} »`}</Text>
+          style={{ height: 52, paddingHorizontal: 20, borderRadius: t.radius.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: t.acc }}>
+          <Text numberOfLines={1} style={{ fontFamily: t.font.bold, fontSize: 16, color: t.accTxt }}>{`Installer dans « ${group?.name ?? '…'} »`}</Text>
         </Pressable>
       }>
       <Pressable
@@ -61,7 +63,7 @@ export default function PackScreen() {
       </Pressable>
       <View style={{ gap: 4 }}>
         <Display size={28}>{pack.name}</Display>
-        <Text style={{ fontFamily: t.font.regular, fontSize: 14, color: t.mut }}>
+        <Text numberOfLines={1} style={{ fontFamily: t.font.regular, fontSize: 14, color: t.mut }}>
           {`${pack.questions.length} questions · par ${pack.author} · ${pack.installs} installations`}
         </Text>
         {!!pack.description && <Text style={{ fontFamily: t.font.regular, fontSize: 15, color: t.txt }}>{pack.description}</Text>}
@@ -79,15 +81,13 @@ export default function PackScreen() {
       </Card>
       <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 20 }}>
         {pack.mine ? (
-          <Pressable accessibilityRole="button" onPress={() => remove.mutate()} style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
-            <Trash2 size={16} color={t.tag} />
-            <Text style={{ fontFamily: t.font.semibold, color: t.tag }}>Retirer mon pack</Text>
-          </Pressable>
+          <PressableScale accessibilityRole="button" accessibilityLabel="Retirer mon pack" onPress={() => remove.mutate()} style={round(t.card)}>
+            <Trash2 size={18} color={t.tag} />
+          </PressableScale>
         ) : (
-          <Pressable accessibilityRole="button" onPress={() => report.mutate()} style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
-            <Flag size={16} color={t.mut} />
-            <Text style={{ fontFamily: t.font.semibold, color: t.mut }}>Signaler</Text>
-          </Pressable>
+          <PressableScale accessibilityRole="button" accessibilityLabel="Signaler" onPress={() => report.mutate()} style={round(t.card)}>
+            <Flag size={18} color={t.mut} />
+          </PressableScale>
         )}
       </View>
     </Screen>

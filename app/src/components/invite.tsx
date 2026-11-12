@@ -6,7 +6,7 @@ import { Platform, Pressable, Text, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 
 import { copyText } from '@/components/auth-ui';
-import { askConfirm, Avatar, Card, PressableScale } from '@/components/ui';
+import { askConfirm, Avatar, Card, CodeText, PressableScale } from '@/components/ui';
 import { api } from '@/lib/api';
 import { keys, useFriends, useGroup } from '@/lib/queries';
 import { inviteLink, inviteMessage, shareText } from '@/lib/share';
@@ -46,10 +46,10 @@ export function InviteCard({ qrSize = 168, rotate = true }: { qrSize?: number; r
       <View style={{ alignSelf: 'center', padding: 12, borderRadius: 16, backgroundColor: '#fff' }}>
         <QRCode value={inviteLink(group.code)} size={qrSize} color="#121216" backgroundColor="#fff" />
       </View>
-      <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut }}>Code d'invitation</Text>
-      <Text selectable style={{ fontFamily: t.font.display, fontSize: 34, letterSpacing: 4, color: t.txt }}>
-        {group.code}
-      </Text>
+      <View style={{ gap: 2 }}>
+        <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut }}>Code d'invitation</Text>
+        <CodeText code={group.code} />
+      </View>
       <View style={{ flexDirection: 'row', gap: 10 }}>
         <PressableScale
           accessibilityRole="button"
@@ -65,7 +65,9 @@ export function InviteCard({ qrSize = 168, rotate = true }: { qrSize?: number; r
             backgroundColor: t.acc,
           }}>
           <Share2 size={18} color={t.accTxt} />
-          <Text style={{ fontFamily: t.font.bold, fontSize: 15, color: t.accTxt }}>{shared ? 'Lien copié' : "Partager l'invitation"}</Text>
+          <Text numberOfLines={1} style={{ fontFamily: t.font.bold, fontSize: 15, color: t.accTxt }}>
+            {shared ? 'Lien copié' : 'Partager'}
+          </Text>
         </PressableScale>
         <PressableScale accessibilityRole="button" accessibilityLabel={copied ? 'Code copié' : 'Copier le code'} onPress={copy} style={round}>
           {copied ? <Check size={18} color={t.accInk} /> : <Copy size={18} color={t.txt} />}
@@ -87,8 +89,8 @@ export function InviteCard({ qrSize = 168, rotate = true }: { qrSize?: number; r
 }
 
 /**
- * Friends who aren't in this room yet, one tap to add them. With no friends at all, a way to add some;
- * `onlyIfAny` hides the whole block when there is nobody to add (the invite screen keeps to the invite).
+ * Friends who aren't in this room yet, one tap to add them. With no friends at all, a way to add some
+ * (unless `onlyIfAny`: the invite screen keeps to the invite); nothing when they are all here already.
  */
 export function AddFriends({ onlyIfAny }: { onlyIfAny?: boolean }) {
   const t = useTheme();
@@ -107,8 +109,8 @@ export function AddFriends({ onlyIfAny }: { onlyIfAny?: boolean }) {
   if (!group || !friends) return null;
   const inRoom = new Set(group.members.map((m) => m.user_id));
   const outside = friends.friends.filter((f) => !inRoom.has(f.user_id));
-  if (onlyIfAny && !outside.length) return null;
   const none = friends.friends.length === 0;
+  if (!outside.length && (onlyIfAny || !none)) return null;
   return (
     <View style={{ gap: 10 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginHorizontal: 4 }}>
@@ -119,7 +121,7 @@ export function AddFriends({ onlyIfAny }: { onlyIfAny?: boolean }) {
           </Pressable>
         )}
       </View>
-      {none ? (
+      {none && (
         <PressableScale scale={0.98} accessibilityRole="button" onPress={() => router.push('/friends')}>
           <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 }}>
             <UserPlus size={18} color={t.accInk} />
@@ -127,33 +129,21 @@ export function AddFriends({ onlyIfAny }: { onlyIfAny?: boolean }) {
             <ChevronRight size={18} color={t.mut} />
           </Card>
         </PressableScale>
-      ) : (
-        outside.length === 0 && (
-          <Text style={{ fontFamily: t.font.regular, fontSize: 14, color: t.mut, marginHorizontal: 4 }}>
-            Tous tes amis sont déjà là. Ajoutes-en avec leur code ami.
-          </Text>
-        )
       )}
       {outside.map((f) => (
         <Card key={f.user_id} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12 }}>
           <Avatar member={{ id: f.user_id, name: f.name, color: f.color, photo_url: f.photo_url }} size={36} />
-          <Text style={{ flex: 1, fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>{f.name}</Text>
+          <Text numberOfLines={1} style={{ flex: 1, fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>
+            {f.name}
+          </Text>
           <PressableScale
             accessibilityRole="button"
             accessibilityLabel={`Ajouter ${f.name} au salon`}
             disabled={add.isPending}
             onPress={() => add.mutate(f.user_id)}
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: 6,
-              height: 34,
-              paddingHorizontal: 12,
-              borderRadius: t.radius.pill,
-              backgroundColor: t.acc,
-            }}>
-            <UserPlus size={15} color={t.accTxt} />
-            <Text style={{ fontFamily: t.font.bold, fontSize: 13, color: t.accTxt }}>Ajouter</Text>
+            hitSlop={6}
+            style={{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: t.acc }}>
+            <UserPlus size={17} color={t.accTxt} />
           </PressableScale>
         </Card>
       ))}

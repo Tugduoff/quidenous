@@ -117,7 +117,7 @@ export default function Profile() {
             {busy === 'photo' ? <ActivityIndicator color={t.accTxt} /> : <Camera size={18} color={t.accTxt} />}
           </View>
         </Pressable>
-        <Display size={28}>{me?.name}</Display>
+        <Display size={(me?.name.length ?? 0) > 14 ? 22 : 28}>{me?.name}</Display>
       </View>
 
       <Card style={{ flexDirection: 'row', alignItems: 'center', paddingRight: 8 }}>
@@ -128,7 +128,7 @@ export default function Profile() {
           maxLength={24}
           returnKeyType="done"
           onSubmitEditing={() => name.trim() && name.trim() !== me?.name && saveName()}
-          style={{ flex: 1, padding: 16, fontFamily: t.font.semibold, fontSize: 16, color: t.txt }}
+          style={{ flex: 1, minWidth: 0, padding: 16, fontFamily: t.font.semibold, fontSize: 16, color: t.txt }}
         />
         <Button
           onPress={saveName}
@@ -191,7 +191,7 @@ export default function Profile() {
       <Pressable accessibilityRole="button" onPress={() => router.push('/friends')}>
         <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16 }}>
           <Users size={20} color={t.txt} />
-          <Text style={{ flex: 1, fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>Mes amis et mon code ami</Text>
+          <Text style={{ flex: 1, fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>Amis</Text>
           <ChevronRight size={20} color={t.mut} />
         </Card>
       </Pressable>

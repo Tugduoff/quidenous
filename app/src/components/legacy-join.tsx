@@ -82,7 +82,7 @@ export function LegacyJoin() {
         <Card>
           <TextInput
             accessibilityLabel="Nom du salon"
-            placeholder="Nom du salon (Les cousins, Le boulot…)"
+            placeholder="Nom du salon"
             placeholderTextColor={t.mut}
             value={room}
             ref={next}

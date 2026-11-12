@@ -41,6 +41,7 @@ export default function ResetStep() {
     <AuthScreen
       title="Nouveau mot de passe"
       sub={`Code envoyé à ${flow.email}`}
+      oneLine
       footer={
         <Button onPress={submit} loading={busy} disabled={!ok}>
           Valider
@@ -50,7 +51,7 @@ export default function ResetStep() {
       <PasswordField
         ref={passwordRef}
         fresh
-        placeholder={`Nouveau mot de passe (${PASSWORD_MIN} min.)`}
+        placeholder={`${PASSWORD_MIN} caractères min.`}
         value={password}
         onChangeText={setPassword}
         maxLength={128}

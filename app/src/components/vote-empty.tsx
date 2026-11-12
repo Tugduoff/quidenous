@@ -22,7 +22,7 @@ export function SoloInvite() {
       <View style={{ gap: 6 }}>
         <Display size={30}>Invite tes amis</Display>
         <Text style={{ fontFamily: t.font.regular, fontSize: 15, lineHeight: 21, color: t.mut }}>
-          La première question arrive dès que quelqu'un te rejoint.
+          On joue dès que quelqu'un te rejoint.
         </Text>
       </View>
       <InviteCard qrSize={208} rotate={false} />
@@ -39,7 +39,9 @@ function Action({ icon: Icon, label, onPress }: { icon: LucideIcon; label: strin
         <View style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: t.accSoft }}>
           <Icon size={20} color={t.accInk} />
         </View>
-        <Text style={{ flex: 1, fontFamily: t.font.semibold, fontSize: 16, color: t.txt }}>{label}</Text>
+        <Text numberOfLines={1} style={{ flex: 1, fontFamily: t.font.semibold, fontSize: 16, color: t.txt }}>
+          {label}
+        </Text>
         <ChevronRight size={18} color={t.mut} />
       </Card>
     </PressableScale>
@@ -90,7 +92,7 @@ export function NoQuestions() {
           <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16 }}>
             <Lock size={18} color={t.mut} />
             <Text style={{ flex: 1, fontFamily: t.font.regular, fontSize: 15, lineHeight: 21, color: t.mut }}>
-              Ici, c'est le propriétaire qui en ajoute.
+              Seul le propriétaire en ajoute.
             </Text>
           </Card>
           {features.askQuestions &&

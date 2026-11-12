@@ -42,11 +42,14 @@ const plural = (n: number, one: string, many: string) => `${n} ${n > 1 ? many : 
 function Tile({ value, label }: { value: string; label: string }) {
   const t = useTheme();
   return (
-    <Card style={{ flex: 1, padding: 14, gap: 2 }}>
-      <Text style={{ fontFamily: t.font.display, fontSize: 24, letterSpacing: -0.5, color: t.txt }} numberOfLines={1}>
+    <Card style={{ flex: 1, padding: 12, gap: 2 }}>
+      {/* Three tiles share 320 px at 360 px wide: a long duration ("2 j 4 h") gets a smaller size instead of an ellipsis. */}
+      <Text style={{ fontFamily: t.font.display, fontSize: value.length > 5 ? 19 : 24, letterSpacing: -0.5, color: t.txt }} numberOfLines={1}>
         {value}
       </Text>
-      <Text style={{ fontFamily: t.font.regular, fontSize: 12, lineHeight: 16, color: t.mut }}>{label}</Text>
+      <Text numberOfLines={1} style={{ fontFamily: t.font.regular, fontSize: 12, lineHeight: 16, color: t.mut }}>
+        {label}
+      </Text>
     </Card>
   );
 }
@@ -74,7 +77,7 @@ function AwardCard({
       <View style={{ flex: 1, gap: 2 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           <Icon size={14} color={tint} />
-          <Text style={{ fontFamily: t.font.bold, fontSize: 12, letterSpacing: 0.3, color: t.mut, textTransform: 'uppercase' }}>
+          <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: t.font.bold, fontSize: 12, letterSpacing: 0.3, color: t.mut, textTransform: 'uppercase' }}>
             {title}
           </Text>
         </View>
@@ -126,7 +129,7 @@ export default function StatsScreen() {
       <Screen>
         <Display size={30}>Stats</Display>
         <Text style={{ fontFamily: t.font.regular, fontSize: 15, color: t.mut }}>
-          Rien à compter pour l'instant : finissez une première question.
+          Rien à compter pour l'instant.
         </Text>
       </Screen>
     );
@@ -146,7 +149,7 @@ export default function StatsScreen() {
       <View style={{ flexDirection: 'row', gap: 10 }}>
         <Tile value={String(s.questions)} label={s.questions > 1 ? 'questions' : 'question'} />
         <Tile value={String(s.votes)} label={s.votes > 1 ? 'votes' : 'vote'} />
-        <Tile value={duration(s.seconds_voting)} label="à voter (environ)" />
+        <Tile value={duration(s.seconds_voting)} label="à voter" />
       </View>
 
       <View style={{ gap: 10 }}>

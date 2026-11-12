@@ -135,12 +135,12 @@ export default function QuestionsScreen() {
               lineHeight: 20,
               color: t.mut,
             }}>
-            Dans ce salon, seul le propriétaire ajoute des questions.
+            Seul le propriétaire en ajoute.
           </Text>
         </Card>
       ) : (
         <>
-          <Tip id="questions" text="Écris une question, importe un fichier ou installe un pack." />
+          <Tip id="questions" text="Ajoute une question ou un pack." />
           {/* Write one: the ranking switch and the add button sit under the text, in the same card. */}
           <Card style={{ paddingBottom: 10 }}>
             <TextInput
@@ -205,17 +205,17 @@ export default function QuestionsScreen() {
               alignItems: 'center',
               justifyContent: 'space-between',
             }}>
-            <Text style={{ fontFamily: t.font.bold, fontSize: 16, color: t.txt }}>
+            <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: t.font.bold, fontSize: 16, color: t.txt }}>
               {chosen.length} / {draft.length} à importer
             </Text>
-            <Pressable accessibilityRole="button" onPress={toggleAll} hitSlop={8}>
+            <Pressable accessibilityRole="button" accessibilityLabel={allOn ? 'Tout décocher' : 'Tout cocher'} onPress={toggleAll} hitSlop={8}>
               <Text
                 style={{
                   fontFamily: t.font.semibold,
                   fontSize: 14,
                   color: t.accInk,
                 }}>
-                {allOn ? 'Tout décocher' : 'Tout cocher'}
+                {allOn ? 'Aucune' : 'Toutes'}
               </Text>
             </Pressable>
           </View>
@@ -329,17 +329,15 @@ export default function QuestionsScreen() {
             onPress={() => shuffle.mutate()}
             hitSlop={8}
             style={{
-              flexDirection: 'row',
+              width: 36,
+              height: 36,
+              borderRadius: 18,
               alignItems: 'center',
-              gap: 6,
-              height: 32,
-              paddingHorizontal: 12,
-              borderRadius: t.radius.pill,
+              justifyContent: 'center',
               backgroundColor: t.accSoft,
               opacity: shuffle.isPending ? 0.5 : 1,
             }}>
-            <Shuffle size={14} color={t.accInk} />
-            <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.accInk }}>Mélanger</Text>
+            <Shuffle size={18} color={t.accInk} />
           </PressableScale>
         )}
       </View>

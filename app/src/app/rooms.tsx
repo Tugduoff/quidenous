@@ -49,11 +49,13 @@ export default function RoomsScreen() {
               }}>
               <View style={{ flex: 1, gap: 2 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Text style={{ fontFamily: t.font.bold, fontSize: 17, color: t.txt }}>{r.name}</Text>
+                  <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: t.font.bold, fontSize: 17, color: t.txt }}>
+                    {r.name}
+                  </Text>
                   {r.role === 'owner' && <Crown size={14} color={t.accInk} />}
                   {r.muted && <BellOff size={14} color={t.mut} accessibilityLabel="En sourdine" />}
                 </View>
-                <Text style={{ fontFamily: t.font.regular, fontSize: 13, color: t.mut }}>
+                <Text numberOfLines={1} style={{ fontFamily: t.font.regular, fontSize: 13, color: t.mut }}>
                   {`${r.members} membre${r.members > 1 ? 's' : ''}`}
                   {waiting ? ` · question #${r.open_number} à voter` : ''}
                 </Text>

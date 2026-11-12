@@ -1,6 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  ArrowLeft,
   ArrowRight,
   Bell,
   BellOff,
@@ -9,8 +8,10 @@ import {
   Eye,
   EyeOff,
   ChevronDown,
+  ChevronLeft,
   Inbox,
   Pin,
+  RotateCcw,
   Share2,
   SkipForward,
   Users,
@@ -72,8 +73,8 @@ function RoomPill() {
       accessibilityLabel={`Salon ${group.name}, changer de salon`}
       onPress={() => router.push('/rooms')}
       hitSlop={6}
-      style={{ flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start' }}>
-      <Text numberOfLines={1} style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.mut, maxWidth: 160 }}>
+      style={{ flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', maxWidth: '100%' }}>
+      <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: t.font.semibold, fontSize: 14, color: t.mut, maxWidth: 160 }}>
         {group.name}
       </Text>
       <ChevronDown size={14} color={t.mut} />
@@ -224,20 +225,11 @@ function Question({ round, result }: { round: Round; result?: boolean }) {
         />
         <PressableScale
           accessibilityRole="button"
-          accessibilityLabel={result ? 'Partager le résultat' : 'Partager la question'}
+          accessibilityLabel={copied ? 'Lien copié' : result ? 'Partager le résultat' : 'Partager la question'}
           onPress={share}
           hitSlop={8}
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 6,
-            height: 32,
-            paddingHorizontal: 12,
-            borderRadius: t.radius.pill,
-            backgroundColor: t.card,
-          }}>
-          {copied ? <Check size={15} color={t.accInk} /> : <Share2 size={15} color={t.txt} />}
-          <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: copied ? t.accInk : t.txt }}>{copied ? 'Copié' : 'Partager'}</Text>
+          style={{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card }}>
+          {copied ? <Check size={18} color={t.accInk} /> : <Share2 size={18} color={t.txt} />}
         </PressableScale>
       </View>
       <Display size={result ? 28 : 34}>{round.question}</Display>
@@ -246,7 +238,7 @@ function Question({ round, result }: { round: Round; result?: boolean }) {
 }
 
 /** First-run hint on the ballot: how a question ends. */
-const VoteTip = () => <Tip id="vote" text="Tout le monde vote, le résultat tombe quand le dernier a voté." />;
+const VoteTip = () => <Tip id="vote" text="Résultat dès que tous ont voté." />;
 
 /** The vote button bumps when it becomes usable (and each time the pick changes), so the next step is obvious. */
 function Springy({ trigger, when, children }: { trigger: unknown; when: boolean; children: ReactNode }) {
@@ -288,12 +280,16 @@ function RankBallot({ round, members, byId, onVoted }: { round: Round; members: 
           {round.voter_ids.length}/{round.member_count}
         </Text>
         {order.length > 0 && (
-          <Pressable accessibilityRole="button" onPress={() => setOrder([])} hitSlop={8}>
-            <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.accInk }}>Recommencer</Text>
-          </Pressable>
+          <PressableScale
+            accessibilityRole="button"
+            accessibilityLabel="Recommencer"
+            onPress={() => setOrder([])}
+            hitSlop={8}
+            style={{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card2 }}>
+            <RotateCcw size={18} color={t.txt} />
+          </PressableScale>
         )}
       </View>
-      <Text style={{ fontFamily: t.font.regular, fontSize: 14, color: t.mut }}>Touche chacun dans l'ordre, du premier au dernier.</Text>
       <VoteTip />
       {/* Ranked people move up to their place, the rest slide down. */}
       <View style={{ gap: 10 }}>
@@ -368,18 +364,27 @@ function PickBallot({ round, members, byId, onVoted }: { round: Round; members: 
       footer={
         <Springy trigger={pick} when={pick != null}>
           <Button disabled={!picked} loading={vote.isPending} onPress={() => pick != null && vote.mutate(pick)}>
-            {picked ? `Voter pour ${picked.name}` : `${round.voter_ids.length}/${round.member_count}`}
+            {picked ? (
+              <Text numberOfLines={1} style={{ flexShrink: 1, paddingHorizontal: 20, fontFamily: t.font.bold, fontSize: 17, color: t.accTxt }}>
+                Voter pour {picked.name}
+              </Text>
+            ) : (
+              `${round.voter_ids.length}/${round.member_count}`
+            )}
           </Button>
         </Springy>
       }>
       <Header />
       <Question round={round} />
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-        <AvatarStack members={round.voter_ids.map((id) => byId.get(id))} />
-        <Text style={{ fontFamily: t.font.regular, color: t.mut }}>
-          {round.voter_ids.length}/{round.member_count}
-        </Text>
-      </View>
+      {/* Nobody yet: the button below already says 0/N. */}
+      {round.voter_ids.length > 0 && (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <AvatarStack members={round.voter_ids.map((id) => byId.get(id))} />
+          <Text style={{ fontFamily: t.font.regular, color: t.mut }}>
+            {round.voter_ids.length}/{round.member_count}
+          </Text>
+        </View>
+      )}
       <VoteTip />
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
         {members.map((m) => {
@@ -482,16 +487,20 @@ function SkipButton({ member, round }: { member: Member; round: Round }) {
         style={{
           flexDirection: 'row',
           alignItems: 'center',
+          justifyContent: 'center',
           gap: 4,
-          height: 32,
-          paddingHorizontal: 10,
-          borderRadius: t.radius.pill,
+          minWidth: 36,
+          height: 36,
+          paddingHorizontal: state ? 10 : 0,
+          borderRadius: 18,
           backgroundColor: mine ? t.accSoft : t.card2,
         }}>
-        <SkipForward size={14} color={mine ? t.accInk : t.mut} />
-        <Text style={{ fontFamily: t.font.semibold, fontSize: 12, color: mine ? t.accInk : t.mut }}>
-          {state ? `${state.count}/${round.skip_needed}` : 'Passer'}
-        </Text>
+        <SkipForward size={16} color={mine ? t.accInk : t.mut} />
+        {state && (
+          <Text style={{ fontFamily: t.font.semibold, fontSize: 12, color: mine ? t.accInk : t.mut }}>
+            {state.count}/{round.skip_needed}
+          </Text>
+        )}
       </PressableScale>
     </>
   );
@@ -547,7 +556,7 @@ function Waiting({ round, byId, members }: { round: Round; byId: Map<number, Mem
         {pending.length > 0 && <Text style={label}>EN ATTENTE</Text>}
         {/* Someone who votes fades out of the list and the others close up. */}
         {pending.map((m) => (
-          <Animated.View key={m.id} exiting={motion.exit} layout={motion.layout} style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+          <Animated.View key={m.id} exiting={motion.exit} layout={motion.layout} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
             <Avatar member={m} size={32} />
             <Text numberOfLines={1} style={{ flex: 1, fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>
               {m.name}
@@ -597,9 +606,8 @@ function BackHeader({ onBack, round }: { onBack: () => void; round?: Round }) {
         accessibilityLabel="Retour"
         onPress={onBack}
         hitSlop={8}
-        style={{ flexDirection: 'row', alignItems: 'center', gap: 6, height: 36 }}>
-        <ArrowLeft size={22} color={t.txt} />
-        <Text style={{ fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>Historique</Text>
+        style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card }}>
+        <ChevronLeft size={22} color={t.txt} />
       </Pressable>
       {round && (
         <PressableScale
@@ -608,17 +616,8 @@ function BackHeader({ onBack, round }: { onBack: () => void; round?: Round }) {
           onPress={() => pin.mutate(!pinned)}
           disabled={pin.isPending}
           hitSlop={8}
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 6,
-            height: 36,
-            paddingHorizontal: 14,
-            borderRadius: t.radius.pill,
-            backgroundColor: pinned ? t.accSoft : t.card,
-          }}>
-          <Pin size={16} color={pinned ? t.accInk : t.txt} fill={pinned ? t.accInk : 'none'} />
-          <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: pinned ? t.accInk : t.txt }}>{pinned ? 'Épinglé' : 'Épingler'}</Text>
+          style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: pinned ? t.accSoft : t.card }}>
+          <Pin size={18} color={pinned ? t.accInk : t.txt} fill={pinned ? t.accInk : 'none'} />
         </PressableScale>
       )}
     </View>

@@ -63,7 +63,9 @@ export function VibeCards({ vibes, value, onChange }: { vibes: Vibe[]; value: st
               <Icon size={22} color={on ? t.accTxt : t.txt} />
             </View>
             <View style={{ flex: 1, gap: 2 }}>
-              <Text style={{ fontFamily: t.font.bold, fontSize: 16, color: t.txt }}>{v.name}</Text>
+              <Text numberOfLines={1} style={{ fontFamily: t.font.bold, fontSize: 16, color: t.txt }}>
+                {v.name}
+              </Text>
               {!!v.description && (
                 <Text numberOfLines={2} style={{ fontFamily: t.font.regular, fontSize: 13, lineHeight: 18, color: t.mut }}>
                   {v.description}
