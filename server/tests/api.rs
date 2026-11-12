@@ -1079,6 +1079,7 @@ async fn friends_by_code_and_into_a_room() {
     assert!(rooms.as_array().unwrap().iter().any(|r| r["id"] == main));
     let (_, inbox) = call_room(&app, "GET", "/inbox", &eve, main, None).await;
     assert_eq!(inbox["items"][0]["kind"], "added");
+    assert_eq!(inbox["items"][0]["room_id"], main);
     // A stranger can't be added.
     let (_, stranger) = call(
         &app,
@@ -1704,4 +1705,416 @@ async fn blocking_hides_messages_and_friend_requests() {
     )
     .await;
     assert_eq!(s, StatusCode::OK);
+}
+
+/// Members of the room on screen: (member id, user id, role) of current members, and ids of former ones.
+async fn roster(app: &Router, token: &str, room: i64) -> (Vec<(i64, i64, String)>, Vec<i64>) {
+    let (s, g) = call_room(app, "GET", "/group", token, room, None).await;
+    assert_eq!(s, StatusCode::OK, "{g}");
+    let members = g["members"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|m| {
+            (
+                m["id"].as_i64().unwrap(),
+                m["user_id"].as_i64().unwrap(),
+                m["role"].as_str().unwrap().to_owned(),
+            )
+        })
+        .collect();
+    let former = g["former"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|m| {
+            assert_eq!(m["left"], true);
+            assert!(m["name"].is_string());
+            m["id"].as_i64().unwrap()
+        })
+        .collect();
+    (members, former)
+}
+
+#[tokio::test]
+async fn leaving_is_not_being_removed() {
+    let app = test_app().await;
+    let (ana, _) = join(&app, "Ana").await;
+    let (bob, _) = join(&app, "Bob").await;
+    let (cyd, _) = join(&app, "Cyd").await;
+    let (_, room) = call(
+        &app,
+        "POST",
+        "/rooms",
+        Some(&ana),
+        Some(json!({ "name": "Les cousins" })),
+    )
+    .await;
+    let room = room["id"].as_i64().unwrap();
+    let (_, g) = call_room(&app, "GET", "/group", &ana, room, None).await;
+    let code = g["code"].as_str().unwrap().to_owned();
+    for t in [&bob, &cyd] {
+        let (s, _) = call(
+            &app,
+            "POST",
+            "/rooms/join",
+            Some(t),
+            Some(json!({ "code": code })),
+        )
+        .await;
+        assert_eq!(s, StatusCode::OK);
+    }
+    let (members, _) = roster(&app, &ana, room).await;
+    let bob_seat = members[1].0;
+    let cyd_seat = members[2].0;
+
+    // Bob leaves: shown as a former member, not a current one.
+    let (s, _) = call(
+        &app,
+        "POST",
+        &format!("/rooms/{room}/leave"),
+        Some(&bob),
+        None,
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK);
+    let (members, former) = roster(&app, &ana, room).await;
+    assert_eq!(members.len(), 2);
+    assert_eq!(former, [bob_seat]);
+    // He comes back with the code: same seat, so his history reconnects.
+    let (s, body) = call(
+        &app,
+        "POST",
+        "/rooms/join",
+        Some(&bob),
+        Some(json!({ "code": code })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{body}");
+    let (members, former) = roster(&app, &ana, room).await;
+    assert!(members.iter().any(|m| m.0 == bob_seat && m.2 == "member"));
+    assert!(former.is_empty());
+
+    // Cyd is removed by the owner: the code doesn't bring her back.
+    let (s, _) = call(
+        &app,
+        "DELETE",
+        &format!("/rooms/{room}/members/{cyd_seat}"),
+        Some(&ana),
+        None,
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK);
+    let (s, body) = call(
+        &app,
+        "POST",
+        "/rooms/join",
+        Some(&cyd),
+        Some(json!({ "code": code })),
+    )
+    .await;
+    assert_eq!(
+        (s, body["error"].as_str()),
+        (StatusCode::FORBIDDEN, Some("removed")),
+        "{body}"
+    );
+    // Only the owner can add her back.
+    let cyd_user = call(&app, "GET", "/friends", Some(&ana), None).await.1["friends"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|f| f["name"] == "Cyd")
+        .unwrap()["user_id"]
+        .as_i64()
+        .unwrap();
+    let (s, _) = call(
+        &app,
+        "POST",
+        &format!("/rooms/{room}/add"),
+        Some(&bob),
+        Some(json!({ "user_id": cyd_user })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+    let (s, _) = call(
+        &app,
+        "POST",
+        &format!("/rooms/{room}/add"),
+        Some(&ana),
+        Some(json!({ "user_id": cyd_user })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK);
+    let (members, _) = roster(&app, &ana, room).await;
+    assert!(members.iter().any(|m| m.0 == cyd_seat));
+}
+
+#[tokio::test]
+async fn leaving_the_first_room_by_name_also_comes_back() {
+    let app = test_app().await;
+    let (_ana, _) = join(&app, "Ana").await;
+    let (bob, bob_id) = join(&app, "Bob").await;
+    let (_, g) = call(&app, "GET", "/group", Some(&bob), None).await;
+    let main = g["id"].as_i64().unwrap();
+    call(
+        &app,
+        "POST",
+        &format!("/rooms/{main}/leave"),
+        Some(&bob),
+        None,
+    )
+    .await;
+    let (s, body) = call(
+        &app,
+        "POST",
+        "/join",
+        Some(&bob),
+        Some(json!({ "code": "code-1", "name": "Bob" })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{body}");
+    assert_eq!(body["member"]["id"], bob_id);
+}
+
+#[tokio::test]
+async fn a_room_never_loses_its_owner() {
+    let app = test_app().await;
+    let (ana, ana_id) = join(&app, "Ana").await;
+    let (bob, bob_id) = join(&app, "Bob").await;
+    let (cyd, _) = join(&app, "Cyd").await;
+    let (dan, _) = join(&app, "Dan").await;
+    let (_, g) = call(&app, "GET", "/group", Some(&ana), None).await;
+    let main = g["id"].as_i64().unwrap();
+    assert_eq!(g["my_role"], "owner");
+    // No vote removes the owner.
+    for t in [&bob, &cyd, &dan] {
+        let (s, body) = call(
+            &app,
+            "PUT",
+            &format!("/members/{ana_id}/kick"),
+            Some(t),
+            None,
+        )
+        .await;
+        assert_eq!(
+            (s, body["error"].as_str()),
+            (StatusCode::FORBIDDEN, Some("owner")),
+            "{body}"
+        );
+    }
+    // The owner leaves: the longest-standing member takes over.
+    call(
+        &app,
+        "POST",
+        &format!("/rooms/{main}/leave"),
+        Some(&ana),
+        None,
+    )
+    .await;
+    let (members, _) = roster(&app, &bob, main).await;
+    assert_eq!(
+        members
+            .iter()
+            .filter(|m| m.2 == "owner")
+            .map(|m| m.0)
+            .collect::<Vec<_>>(),
+        [bob_id]
+    );
+}
+
+#[tokio::test]
+async fn rooms_without_an_owner_are_repaired_at_startup() {
+    let dir = std::env::temp_dir().join(format!("qdn-test-{}", rand_suffix()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let config = || Config {
+        port: 0,
+        database_url: format!("sqlite://{}?mode=rwc", dir.join("test.db").display()),
+        data_dir: dir.clone(),
+        web_dir: None,
+        group_name: "Test".into(),
+        join_code: "CODE-1".into(),
+        vapid_private_key: None,
+        vapid_subject: "mailto:test@example.com".into(),
+        fcm_service_account: None,
+        ..Config::default()
+    };
+    let first = state(config()).await.unwrap();
+    let app = app(first.clone());
+    let (ana, _) = join(&app, "Ana").await;
+    let (_, bob_id) = join(&app, "Bob").await;
+    let (_, g) = call(&app, "GET", "/group", Some(&ana), None).await;
+    let main = g["id"].as_i64().unwrap();
+    // A room broken by an older version: its owner seat ended without a hand-over.
+    sqlx::query("UPDATE members SET removed_at = 'x', role = 'member' WHERE group_id = ? AND role = 'owner'")
+        .bind(main)
+        .execute(&first.db)
+        .await
+        .unwrap();
+    for _ in 0..2 {
+        let again = state(config()).await.unwrap();
+        let owners: Vec<i64> = sqlx::query_scalar(
+            "SELECT id FROM members WHERE group_id = ? AND role = 'owner' AND removed_at IS NULL",
+        )
+        .bind(main)
+        .fetch_all(&again.db)
+        .await
+        .unwrap();
+        assert_eq!(owners, [bob_id]);
+    }
+}
+
+#[tokio::test]
+async fn majority_votes_need_three_people() {
+    let app = test_app().await;
+    let (ana, _) = join(&app, "Ana").await;
+    let (bob, bob_id) = join(&app, "Bob").await;
+    // Two people: one can't skip or remove the other alone.
+    let (s, body) = call(
+        &app,
+        "PUT",
+        &format!("/round/current/skip/{bob_id}"),
+        Some(&ana),
+        None,
+    )
+    .await;
+    assert_eq!(
+        (s, body["error"].as_str()),
+        (StatusCode::FORBIDDEN, Some("too_few")),
+        "{body}"
+    );
+    let (s, _) = call(
+        &app,
+        "PUT",
+        &format!("/members/{bob_id}/kick"),
+        Some(&ana),
+        None,
+    )
+    .await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+    let (_, g) = call(&app, "GET", "/group", Some(&ana), None).await;
+    assert_eq!(g["votes"], false);
+    // Three: both others must agree.
+    let (cyd, cyd_id) = join(&app, "Cyd").await;
+    let (_, g) = call(&app, "GET", "/group", Some(&ana), None).await;
+    assert_eq!(g["votes"], true);
+    assert_eq!(g["kick_needed"], 2);
+    let (_, view) = call(&app, "GET", "/round/current", Some(&ana), None).await;
+    assert_eq!(view["skip_needed"], 2);
+    let (_, body) = call(
+        &app,
+        "PUT",
+        &format!("/round/current/skip/{cyd_id}"),
+        Some(&ana),
+        None,
+    )
+    .await;
+    assert_eq!(body["closed"], false);
+    let (_, body) = call(
+        &app,
+        "PUT",
+        &format!("/members/{cyd_id}/kick"),
+        Some(&bob),
+        None,
+    )
+    .await;
+    assert_eq!(
+        body["removed"], false,
+        "one of the two others is not enough"
+    );
+    let _ = cyd;
+}
+
+#[tokio::test]
+async fn the_quill_counts_only_written_questions() {
+    let app = test_app().await;
+    let (a, a_id) = join(&app, "Ana").await;
+    let (b, b_id) = join(&app, "Bob").await;
+    // Ana imports a file and installs a pack; Bob writes one question by hand.
+    let (s, _) = call(
+        &app,
+        "POST",
+        "/questions/import",
+        Some(&a),
+        Some(json!({ "text": "Qui volerait un vélo électrique ?\nQui dort en réunion ?\n" })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK);
+    let (_, pack) = call(
+        &app,
+        "POST",
+        "/packs",
+        Some(&b),
+        Some(json!({ "name": "Soirée", "text": "Qui a le plus de chaussettes dépareillées ?\nQui ferait le pire astronaute ?\nQui pleure devant les pubs ?\nQui perd toujours ses clés ?\nQui arrive toujours en retard ?\n" })),
+    )
+    .await;
+    let (s, _) = call(
+        &app,
+        "POST",
+        &format!("/packs/{}/install", pack["id"]),
+        Some(&a),
+        None,
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK);
+    let (s, _) = call(
+        &app,
+        "POST",
+        "/questions",
+        Some(&b),
+        Some(json!({ "text": "Qui de nous chante sous la douche ?" })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK);
+    let (_, stats) = call(&app, "GET", "/stats", Some(&a), None).await;
+    assert_eq!(stats["author"]["member_id"], b_id, "{stats}");
+    assert_eq!(stats["author"]["value"], 1);
+    let _ = a_id;
+}
+
+#[tokio::test]
+async fn csv_export_ranks_ranking_questions_on_points() {
+    let app = test_app().await;
+    let (a, a_id) = join(&app, "Ana").await;
+    let (b, b_id) = join(&app, "Bob").await;
+    let (c, c_id) = join(&app, "Cyd").await;
+    call(
+        &app,
+        "POST",
+        "/questions",
+        Some(&a),
+        Some(json!({ "text": "Classe-nous du plus fêtard au plus casanier", "kind": "rank" })),
+    )
+    .await;
+    for t in [&a, &b, &c] {
+        vote_as(&app, t, a_id).await;
+    }
+    // Everyone is 1st once; Bob has the most points.
+    for (t, order) in [
+        (&a, [a_id, b_id, c_id]),
+        (&b, [b_id, c_id, a_id]),
+        (&c, [c_id, b_id, a_id]),
+    ] {
+        let (s, body) = call(
+            &app,
+            "POST",
+            "/round/current/vote",
+            Some(t),
+            Some(json!({ "ranking": order })),
+        )
+        .await;
+        assert_eq!(s, StatusCode::OK, "{body}");
+    }
+    let req = Request::builder()
+        .uri(format!("/api/history/export?token={a}"))
+        .body(Body::empty())
+        .unwrap();
+    let res = app.clone().oneshot(req).await.unwrap();
+    let body =
+        String::from_utf8(res.into_body().collect().await.unwrap().to_bytes().to_vec()).unwrap();
+    let line = body.lines().nth(2).unwrap();
+    // Bob: 2+3+2 = 7, Cyd: 1+2+3 = 6, Ana: 3+1+1 = 5.
+    assert!(
+        line.contains("\"Bob\",7,3,\"Bob (7 pts) | Cyd (6 pts) | Ana (5 pts)\""),
+        "{body}"
+    );
 }

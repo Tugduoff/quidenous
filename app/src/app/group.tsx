@@ -17,7 +17,7 @@ import { useTheme } from '@/lib/theme';
 /** Ask before anything that can't be undone with one tap, in the app's own dialog. */
 const confirm = (message: string, title = 'Exclure du groupe ?', action = 'Voter') => askConfirm(title, message, action);
 
-/** The other members, each with a vote to remove them. A majority of the others removes someone. */
+/** The other members, each with a vote to remove them. A majority of the others removes someone (never the owner, and only from 3 people). */
 function Members() {
   const t = useTheme();
   const qc = useQueryClient();
@@ -40,7 +40,8 @@ function Members() {
     onSettled: () => qc.invalidateQueries({ queryKey: keys.group }),
   });
   if (!group) return null;
-  const voteOn = group.settings.kick_vote;
+  // With two people a majority is one person deciding alone: no vote then.
+  const voteOn = group.settings.kick_vote && group.members.length >= 3;
   const others = group.members.filter((m) => m.id !== me?.id);
   return (
     <View style={{ gap: 10 }}>
@@ -104,7 +105,7 @@ function Members() {
                   <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.tag }}>Retirer</Text>
                 </Pressable>
               </View>
-            ) : voteOn ? (
+            ) : voteOn && m.role !== 'owner' ? (
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={mine ? `Retirer mon vote contre ${m.name}` : `Voter pour exclure ${m.name}`}
@@ -354,9 +355,13 @@ function Exit() {
     } else router.replace('/rooms');
   };
   const leave = async () => {
-    const msg = owner
-      ? 'Le membre le plus ancien devient propriétaire. Seul dans le salon, il est supprimé.'
-      : 'Tu ne verras plus ce salon. Il faudra un code pour revenir.';
+    // Leaving isn't final: the invite code brings me back, with my history.
+    const msg =
+      owner && group.members.length <= 1
+        ? 'Tu es seul : le salon sera supprimé.'
+        : owner
+          ? "Le membre le plus ancien devient propriétaire. Tu pourras revenir avec le code d'invitation."
+          : "Tu pourras revenir avec le code d'invitation.";
     if (!(await confirm(msg, 'Quitter le salon ?', 'Quitter'))) return;
     await api(`/rooms/${group.id}/leave`, { method: 'POST' });
     await done();

@@ -66,9 +66,13 @@ export const useStats = () => useQuery({ queryKey: keys.stats, queryFn: () => ap
 
 export const useQueue = () => useQuery({ queryKey: keys.queue, queryFn: () => api<Queue>('/questions/queue') });
 
-/** id → member, for avatars everywhere. */
+/**
+ * id → member, for avatars everywhere: people who left too, so the history keeps their names and photos
+ * (a current member wins on an id clash). `members` is only who is in the room now.
+ */
 export function useMembers() {
   const { data } = useGroup();
-  const byId = new Map((data?.members ?? []).map((m) => [m.id, m]));
+  const everyone: (Member & { user_id?: number | null })[] = [...(data?.former ?? []), ...(data?.members ?? [])];
+  const byId = new Map(everyone.map((m) => [m.id, m]));
   return { members: data?.members ?? [], byId };
 }

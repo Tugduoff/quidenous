@@ -111,7 +111,8 @@ pub async fn compute(db: &SqlitePool, group_id: i64) -> AppResult<Stats> {
     .fetch_all(db)
     .await?;
     let authors: Vec<(i64, i64)> = sqlx::query_as(
-        "SELECT author_id, COUNT(*) FROM questions WHERE group_id = ? AND author_id IS NOT NULL GROUP BY author_id",
+        // Questions actually written: pack installs and file imports don't count.
+        "SELECT author_id, COUNT(*) FROM questions WHERE group_id = ? AND author_id IS NOT NULL AND origin = 'written' GROUP BY author_id",
     )
     .bind(group_id)
     .fetch_all(db)

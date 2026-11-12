@@ -485,6 +485,8 @@ function Waiting({ round, byId, members }: { round: Round; byId: Map<number, Mem
   const target = round.my_vote != null ? byId.get(round.my_vote) : undefined;
   const hidden = useHideVote();
   const pending = members.filter((m) => !round.voter_ids.includes(m.id));
+  // With two people a majority is one person deciding alone: no skip vote then.
+  const canSkip = members.length >= 3;
   const done = round.voter_ids.length;
   const label = { fontFamily: t.font.bold, fontSize: 11, letterSpacing: 0.6, color: t.mut } as const;
   return (
@@ -533,7 +535,7 @@ function Waiting({ round, byId, members }: { round: Round; byId: Map<number, Mem
               {m.name}
             </Text>
             {round.skipped_ids.includes(m.id) && <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut }}>passé</Text>}
-            {m.id !== me?.id && !round.skipped_ids.includes(m.id) && <SkipButton member={m} round={round} />}
+            {canSkip && m.id !== me?.id && !round.skipped_ids.includes(m.id) && <SkipButton member={m} round={round} />}
             {m.id !== me?.id && <NudgeButton member={m} roundId={round.id} />}
           </Animated.View>
         ))}

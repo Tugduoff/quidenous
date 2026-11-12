@@ -129,6 +129,7 @@ async fn features(State(state): State<AppState>) -> Json<Value> {
         "delete_account",
         "reports",
         "blocks",
+        "rejoin",
     ];
     f.extend(crate::accounts::features(&state));
     Json(json!(f))
@@ -206,7 +207,11 @@ async fn join(
             .await?
         }
     };
-    if existing.as_ref().is_some_and(|m| m.removed_at.is_some()) {
+    // Removed by the owner or a vote: only the owner can bring them back. Left on their own: welcome back.
+    if existing
+        .as_ref()
+        .is_some_and(|m| m.removed_at.is_some() && !m.left_by_self)
+    {
         return Err(AppError::Forbidden("removed"));
     }
     // A first name no longer hands over an account that can sign in: sign in instead.
@@ -216,9 +221,15 @@ async fn join(
     {
         return Err(AppError::Conflict("account_protected"));
     }
+    let rejoined = existing.as_ref().is_some_and(|m| m.removed_at.is_some());
     let joined = existing.is_none();
     let member = match existing {
-        Some(member) => member,
+        Some(member) => {
+            if rejoined {
+                rejoin_seat(&mut tx, member.id).await?;
+            }
+            member
+        }
         None => {
             let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM members WHERE group_id = ?")
                 .bind(group_id)
@@ -284,7 +295,7 @@ async fn join(
         .await?;
     let opened = game::ensure_open_round(&mut tx, group_id).await?;
     tx.commit().await?;
-    if joined {
+    if joined || rejoined {
         state.live.send(
             group_id,
             Event::MemberJoined {
@@ -400,12 +411,13 @@ async fn group(State(state): State<AppState>, Me(me): Me) -> AppResult<Json<Valu
         .bind(me.group_id)
         .fetch_one(&state.db)
         .await?;
-    let members: Vec<MemberRow> = sqlx::query_as(
-        "SELECT * FROM members WHERE group_id = ? AND removed_at IS NULL ORDER BY id",
-    )
-    .bind(me.group_id)
-    .fetch_all(&state.db)
-    .await?;
+    let (members, former): (Vec<MemberRow>, Vec<MemberRow>) =
+        sqlx::query_as::<_, MemberRow>("SELECT * FROM members WHERE group_id = ? ORDER BY id")
+            .bind(me.group_id)
+            .fetch_all(&state.db)
+            .await?
+            .into_iter()
+            .partition(|m| m.removed_at.is_none());
     let kicks: Vec<(i64, i64, bool)> = sqlx::query_as(
         "SELECT k.target_id, COUNT(*), MAX(k.from_id = ?) FROM kicks k JOIN members m ON m.id = k.target_id \
          WHERE m.group_id = ? AND m.removed_at IS NULL GROUP BY k.target_id",
@@ -419,7 +431,17 @@ async fn group(State(state): State<AppState>, Me(me): Me) -> AppResult<Json<Valu
         .map(|(target_id, count, mine)| json!({ "target_id": target_id, "count": count, "mine": mine }))
         .collect();
     let kick_needed = game::majority(members.len() as i64);
+    let votes = game::votes_possible(members.len() as i64);
     let members: Vec<Value> = members.iter().map(crate::rooms::member_with_role).collect();
+    // People who left keep their name and photo in the history, awards and chat.
+    let former: Vec<Value> = former
+        .iter()
+        .map(|m| {
+            let mut v = serde_json::to_value(Member::from(m)).unwrap_or_default();
+            v["left"] = json!(true);
+            v
+        })
+        .collect();
     Ok(Json(json!({
         "id": me.group_id,
         "name": name,
@@ -427,8 +449,10 @@ async fn group(State(state): State<AppState>, Me(me): Me) -> AppResult<Json<Valu
         "my_role": me.role,
         "settings": { "skip_vote": skip_vote, "kick_vote": kick_vote, "questions_by": questions_by },
         "members": members,
+        "former": former,
         "kicks": kicks,
         "kick_needed": kick_needed,
+        "votes": votes,
     })))
 }
 
@@ -594,8 +618,8 @@ async fn export_history(
             .into_iter()
             .collect();
     let name = |id: i64| names.get(&id).cloned().unwrap_or_else(|| "?".into());
-    let rounds: Vec<(i64, i64, String, String)> = sqlx::query_as(
-        "SELECT r.id, r.number, q.text, r.closed_at FROM rounds r JOIN questions q ON q.id = r.question_id \
+    let rounds: Vec<(i64, i64, String, String, String)> = sqlx::query_as(
+        "SELECT r.id, r.number, q.text, r.closed_at, q.kind FROM rounds r JOIN questions q ON q.id = r.question_id \
          WHERE r.group_id = ? AND r.closed_at IS NOT NULL ORDER BY r.number",
     )
     .bind(me.group_id)
@@ -604,27 +628,53 @@ async fn export_history(
     let cell = |v: &str| format!("\"{}\"", v.replace('"', "\"\""));
     // BOM so Excel reads the accents right.
     let mut csv =
-        String::from("\u{feff}numéro,date,question,gagnant(s),votes du gagnant,votes,détail\n");
-    for (id, number, question, closed_at) in rounds {
+        String::from("\u{feff}numéro,date,question,gagnant(s),score du gagnant,votes,détail\n");
+    for (id, number, question, closed_at, kind) in rounds {
         let tallies = game::tallies(&state.db, id).await?;
-        let top = tallies.first().map_or(0, |t| t.count);
-        let winners: Vec<String> = tallies
-            .iter()
-            .filter(|t| t.count == top)
-            .map(|t| name(t.target_id))
-            .collect();
-        let detail: Vec<String> = tallies
-            .iter()
-            .map(|t| {
-                let voters: Vec<String> = t.voter_ids.iter().map(|v| name(*v)).collect();
-                format!(
-                    "{} ({}) : {}",
-                    name(t.target_id),
-                    t.count,
-                    voters.join(", ")
-                )
-            })
-            .collect();
+        let votes = tallies.iter().map(|t| t.count).sum::<i64>();
+        let ranking = if kind == "rank" {
+            game::borda(&state.db, id).await?
+        } else {
+            Vec::new()
+        };
+        // A ranking question is won on points (the podium), not on who came first most often.
+        let (winners, top, detail): (Vec<String>, i64, Vec<String>) = if !ranking.is_empty() {
+            let top = ranking[0].points;
+            (
+                ranking
+                    .iter()
+                    .filter(|r| r.points == top)
+                    .map(|r| name(r.member_id))
+                    .collect(),
+                top,
+                ranking
+                    .iter()
+                    .map(|r| format!("{} ({} pts)", name(r.member_id), r.points))
+                    .collect(),
+            )
+        } else {
+            let top = tallies.first().map_or(0, |t| t.count);
+            (
+                tallies
+                    .iter()
+                    .filter(|t| t.count == top)
+                    .map(|t| name(t.target_id))
+                    .collect(),
+                top,
+                tallies
+                    .iter()
+                    .map(|t| {
+                        let voters: Vec<String> = t.voter_ids.iter().map(|v| name(*v)).collect();
+                        format!(
+                            "{} ({}) : {}",
+                            name(t.target_id),
+                            t.count,
+                            voters.join(", ")
+                        )
+                    })
+                    .collect(),
+            )
+        };
         csv.push_str(&format!(
             "{},{},{},{},{},{},{}\n",
             number,
@@ -632,7 +682,7 @@ async fn export_history(
             cell(&question),
             cell(&winners.join(", ")),
             top,
-            tallies.iter().map(|t| t.count).sum::<i64>(),
+            votes,
             cell(&detail.join(" | ")),
         ));
     }
@@ -677,6 +727,18 @@ async fn may_add_questions(state: &AppState, me: &MemberRow) -> AppResult<()> {
     Ok(())
 }
 
+/// Majority votes (skip, removal) need three people or more in the room.
+async fn enough_for_votes(state: &AppState, group_id: i64) -> AppResult<()> {
+    let mut tx = state.db.begin().await?;
+    let active = game::active_count(&mut tx, group_id).await?;
+    tx.commit().await?;
+    if game::votes_possible(active) {
+        Ok(())
+    } else {
+        Err(AppError::Forbidden("too_few"))
+    }
+}
+
 /// Agree not to wait for someone on the open question. With a majority, the question closes without them.
 async fn skip(
     State(state): State<AppState>,
@@ -687,6 +749,7 @@ async fn skip(
         return Err(AppError::BadRequest("self_skip"));
     }
     room_allows(&state, me.group_id, "skip_vote").await?;
+    enough_for_votes(&state, me.group_id).await?;
     let round = game::open_round(&state.db, me.group_id)
         .await?
         .ok_or(AppError::Conflict("no_open_round"))?;
@@ -770,15 +833,19 @@ async fn kick(
         return Err(AppError::BadRequest("self_kick"));
     }
     room_allows(&state, me.group_id, "kick_vote").await?;
-    let target: Option<i64> = sqlx::query_scalar(
-        "SELECT id FROM members WHERE id = ? AND group_id = ? AND removed_at IS NULL",
+    enough_for_votes(&state, me.group_id).await?;
+    let target: Option<String> = sqlx::query_scalar(
+        "SELECT role FROM members WHERE id = ? AND group_id = ? AND removed_at IS NULL",
     )
     .bind(member_id)
     .bind(me.group_id)
     .fetch_optional(&state.db)
     .await?;
-    if target.is_none() {
-        return Err(AppError::NotFound);
+    match target.as_deref() {
+        None => return Err(AppError::NotFound),
+        // The owner runs the room: no vote removes them (they can hand it over, or leave).
+        Some("owner") => return Err(AppError::Forbidden("owner")),
+        Some(_) => {}
     }
     let mut tx = state.db.begin().await?;
     sqlx::query("INSERT OR IGNORE INTO kicks (target_id, from_id) VALUES (?, ?)")
@@ -799,23 +866,27 @@ async fn kick(
         return Ok(Json(json!({ "ok": true, "removed": false })));
     }
     tx.commit().await?;
-    remove_member(&state, me.group_id, member_id, me.id).await?;
+    remove_member(&state, me.group_id, member_id, me.id, false).await?;
     Ok(Json(json!({ "ok": true, "removed": true })))
 }
 
-/// Takes someone's seat in a room away (vote, owner, or leaving). Their account, devices and other
+/// Takes someone's seat in a room away (vote, owner, or leaving: `left`). Their account, devices and other
 /// rooms are untouched; their past votes stay in the history; the open question stops waiting for them.
+/// An owner seat that ends hands the room to the longest-standing member.
 pub(crate) async fn remove_member(
     state: &AppState,
     group_id: i64,
     member_id: i64,
     actor: i64,
+    left: bool,
 ) -> AppResult<()> {
     let mut tx = state.db.begin().await?;
-    sqlx::query("UPDATE members SET removed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), role = 'member' WHERE id = ?")
+    sqlx::query("UPDATE members SET removed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), role = 'member', left_by_self = ? WHERE id = ?")
+        .bind(left)
         .bind(member_id)
         .execute(&mut *tx)
         .await?;
+    let promoted = game::ensure_owner(&mut tx, group_id).await?;
     sqlx::query("DELETE FROM kicks WHERE target_id = ?1 OR from_id = ?1")
         .bind(member_id)
         .execute(&mut *tx)
@@ -838,6 +909,9 @@ pub(crate) async fn remove_member(
     state
         .live
         .send(group_id, Event::MemberRemoved { member_id });
+    if promoted {
+        state.live.send(group_id, Event::RoomUpdated);
+    }
     if let Some(round_id) = open {
         let _ = after_round_change(state, group_id, actor, round_id, events).await?;
     }
@@ -1117,8 +1191,9 @@ pub(crate) async fn notify_round(
         Notification {
             title,
             body: body.clone(),
-            tag: "round".into(),
+            tag: format!("round-{group_id}"),
             url: "/".into(),
+            room: group_id,
         },
     );
     if closed {
@@ -1247,6 +1322,7 @@ async fn post_message(
             body: text.to_owned(),
             tag: format!("chat-{id}"),
             url: format!("/round/{id}"),
+            room: me.group_id,
         },
     );
     Ok(Json(message))
@@ -1413,8 +1489,9 @@ async fn nudge(
         Notification {
             title: format!("{} attend ton vote", me.name),
             body: round.text,
-            tag: "round".into(),
+            tag: format!("round-{}", me.group_id),
             url: "/".into(),
+            room: me.group_id,
         },
     );
     Ok(Json(json!({ "ok": true })))
@@ -1459,7 +1536,7 @@ async fn import_questions(
                 continue;
             }
             sqlx::query(
-                "INSERT INTO questions (group_id, text, author_id, kind) VALUES (?, ?, ?, ?)",
+                "INSERT INTO questions (group_id, text, author_id, kind, origin) VALUES (?, ?, ?, ?, 'import')",
             )
             .bind(me.group_id)
             .bind(text)
@@ -1486,4 +1563,18 @@ async fn import_questions(
     Ok(Json(
         json!({ "added": added, "skipped": valid.len() as u64 - added }),
     ))
+}
+
+/// Someone who left takes their old seat back: same member, so their history reconnects.
+pub(crate) async fn rejoin_seat(
+    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    member_id: i64,
+) -> AppResult<()> {
+    sqlx::query(
+        "UPDATE members SET removed_at = NULL, left_by_self = 0, role = 'member' WHERE id = ?",
+    )
+    .bind(member_id)
+    .execute(&mut **tx)
+    .await?;
+    Ok(())
 }

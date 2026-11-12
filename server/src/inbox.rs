@@ -14,6 +14,9 @@ pub struct InboxItem {
     pub text: String,
     pub created_at: String,
     pub read: bool,
+    /// The room this entry belongs to (an inbox is per seat): a tap opens it.
+    #[sqlx(default)]
+    pub room_id: i64,
 }
 
 /// One entry for every active member of the group, except `skip` (usually whoever caused it).
@@ -72,7 +75,7 @@ macro_rules! not_blocked {
 
 /// Latest 50 entries, newest first, and how many are unread; nothing from people I blocked.
 pub async fn list(db: &SqlitePool, me: &MemberRow) -> AppResult<(Vec<InboxItem>, i64)> {
-    let items = sqlx::query_as::<_, InboxItem>(concat!(
+    let mut items = sqlx::query_as::<_, InboxItem>(concat!(
         "SELECT id, kind, round_id, actor_id, text, created_at, read_at IS NOT NULL AS read \
          FROM inbox WHERE member_id = ?2 AND ",
         not_blocked!(),
@@ -82,6 +85,9 @@ pub async fn list(db: &SqlitePool, me: &MemberRow) -> AppResult<(Vec<InboxItem>,
     .bind(me.id)
     .fetch_all(db)
     .await?;
+    for item in &mut items {
+        item.room_id = me.group_id;
+    }
     let unread: i64 = sqlx::query_scalar(concat!(
         "SELECT COUNT(*) FROM inbox WHERE member_id = ?2 AND read_at IS NULL AND ",
         not_blocked!()

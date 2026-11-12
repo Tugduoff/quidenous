@@ -73,6 +73,13 @@ pub async fn state_with_mailer(
             "imported questions moved from the shared deck to the first room"
         );
     }
+    let owners = game::repair_owners(&db).await?;
+    if owners > 0 {
+        tracing::info!(
+            owners,
+            "rooms without an owner handed to their oldest member"
+        );
+    }
     let vapid = match &config.vapid_private_key {
         Some(key) => Some(push::Vapid::new(key, config.vapid_subject.clone())?),
         None => None,

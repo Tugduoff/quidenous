@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Platform } from 'react-native';
 
-import { useCurrentRound } from './queries';
+import { useCurrentRound, useGroup } from './queries';
 import { storage } from './storage';
 
+/** One per room: `qdn.milestone.<roomId>`. The bare key is what older versions kept for every room at once. */
 const KEY = 'qdn.milestone';
 
 export type Theme =
@@ -95,34 +96,44 @@ export const PREVIEW =
   Platform.OS === 'web' && typeof location !== 'undefined' ? Number(new URLSearchParams(location.search).get('fete')) || null : null;
 
 /**
- * The milestone to celebrate on this device, once: the latest one the group has passed and this phone has not shown yet.
- * A fresh install starts from where the group is, so nobody gets an old party.
+ * The milestone to celebrate on this device, once per room: the latest one the room has passed and this phone has not shown yet.
+ * A fresh install (or a room never opened here) starts from where the room is, so nobody gets an old party.
  */
 export function useMilestone() {
   const { data: round } = useCurrentRound();
-  const [seen, setSeen] = useState<number | null>(null);
-  const finished = round ? round.number - 1 : null;
+  const room = useGroup().data?.id ?? null;
+  // What this device has shown, tagged with the room it was read for: after a switch it counts as unknown until read again.
+  const [stored, setStored] = useState<{ room: number; n: number } | null>(null);
+  const seen = stored && stored.room === room ? stored.n : null;
+  const finished = round && seen != null ? round.number - 1 : null;
 
   useEffect(() => {
-    storage.get(KEY).then((v) => setSeen(v == null ? -1 : Number(v)));
-  }, []);
+    if (room == null) return;
+    let live = true;
+    // No key for this room (the old shared one included) = fresh start for it.
+    storage.get(`${KEY}.${room}`).then((v) => live && setStored({ room, n: v == null ? -1 : Number(v) }));
+    storage.remove(KEY).catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [room]);
 
   useEffect(() => {
-    if (seen === -1 && finished != null) {
+    if (room != null && seen === -1 && finished != null) {
       const start = lastMilestone(finished);
-      storage.set(KEY, String(start));
-      setSeen(start);
+      storage.set(`${KEY}.${room}`, String(start));
+      setStored({ room, n: start });
     }
-  }, [seen, finished]);
+  }, [room, seen, finished]);
 
   const [preview, setPreview] = useState(PREVIEW);
   const due = finished != null && seen != null && seen >= 0 ? lastMilestone(finished) : 0;
   const reached = due > (seen ?? 0) ? due : null;
   const dismiss = () => {
     if (preview != null) return setPreview(null);
-    if (reached == null) return;
-    storage.set(KEY, String(reached));
-    setSeen(reached);
+    if (reached == null || room == null) return;
+    storage.set(`${KEY}.${room}`, String(reached));
+    setStored({ room, n: reached });
   };
   return { milestone: preview ?? reached, dismiss };
 }

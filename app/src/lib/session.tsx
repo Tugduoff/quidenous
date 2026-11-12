@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { createContext, type PropsWithChildren, useContext, useEffect, useState } from 'react';
 
-import { API_URL, api, ApiError, apiRoom, setApiRoom, setApiToken, setApiUrl, setOnSignedOut, type Member } from './api';
+import { API_URL, api, ApiError, apiRoom, presetRoom, setApiRoom, setApiToken, setApiUrl, setOnSignedOut, type Member } from './api';
 import { auth, pendingJoinCode, setPendingCode, type SessionResult } from './auth';
 import { deviceHeader } from './device';
 import { storage } from './storage';
@@ -82,10 +82,13 @@ export function SessionProvider({ children }: PropsWithChildren) {
       if (server) setApiUrl(server);
       const saved = await storage.get(TOKEN_KEY);
       const savedRoom = Number(await storage.get(ROOM_KEY)) || null;
+      // A tapped notification (web) names its room: opened in it from the first request, nothing to refetch.
+      const preset = presetRoom();
       if (saved) {
         setApiToken(saved);
-        setApiRoom(savedRoom);
+        setApiRoom(preset ?? savedRoom);
         const found = await loadMe();
+        if (preset != null && typeof found === 'object' && apiRoom() === preset) await storage.set(ROOM_KEY, String(preset));
         if (found === 'out') {
           setApiToken(null);
           await storage.remove(TOKEN_KEY);
