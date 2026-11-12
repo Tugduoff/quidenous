@@ -91,7 +91,7 @@ pub fn router() -> Router<AppState> {
         )
         .route(
             "/friends/{user_id}",
-            axum::routing::delete(crate::friends::remove),
+            post(crate::friends::keep).delete(crate::friends::remove),
         )
         .route(
             "/rooms/{id}",

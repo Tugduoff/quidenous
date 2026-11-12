@@ -988,6 +988,72 @@ async fn owner_powers_and_settings() {
 }
 
 #[tokio::test]
+async fn keep_a_room_mate_as_a_friend() {
+    let (app, state) = test_app_with_state().await;
+    let (ana, _) = join(&app, "Ana").await;
+    let (bob, _) = join(&app, "Bob").await;
+    let (_, f) = call(&app, "GET", "/friends", Some(&ana), None).await;
+    let bob_id = f["friends"][0]["user_id"].as_i64().unwrap();
+    assert_eq!(f["friends"][0]["added"], false);
+    let (s, kept) = call(
+        &app,
+        "POST",
+        &format!("/friends/{bob_id}"),
+        Some(&ana),
+        None,
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{kept}");
+    assert_eq!(kept["name"], "Bob");
+    // Both ways, and still friends once Bob leaves the room.
+    let (_, rooms) = call(&app, "GET", "/rooms", Some(&bob), None).await;
+    let room = rooms[0]["id"].as_i64().unwrap();
+    let (s, _) = call(
+        &app,
+        "POST",
+        &format!("/rooms/{room}/leave"),
+        Some(&bob),
+        None,
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK);
+    let (_, f) = call(&app, "GET", "/friends", Some(&ana), None).await;
+    assert_eq!(f["friends"][0]["user_id"], bob_id);
+    assert_eq!(f["friends"][0]["added"], true);
+    assert_eq!(f["friends"][0]["rooms_in_common"], 0);
+    let (_, bf) = call(&app, "GET", "/friends", Some(&bob), None).await;
+    assert_eq!(bf["friends"][0]["name"], "Ana");
+    assert_eq!(bf["friends"][0]["added"], true);
+    // Not a room-mate (or myself): refused.
+    let (_, eve) = call(
+        &app,
+        "POST",
+        "/start",
+        None,
+        Some(json!({ "name": "Eve", "room": "Ailleurs" })),
+    )
+    .await;
+    let eve = eve["token"].as_str().unwrap().to_owned();
+    let eve_id: i64 = sqlx::query_scalar("SELECT id FROM users WHERE name = 'Eve'")
+        .fetch_one(&state.db)
+        .await
+        .unwrap();
+    let (s, _) = call(
+        &app,
+        "POST",
+        &format!("/friends/{eve_id}"),
+        Some(&ana),
+        None,
+    )
+    .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    let (_, ef) = call(&app, "GET", "/friends", Some(&eve), None).await;
+    assert_eq!(ef["friends"], json!([]));
+    let (s, _) = call(&app, "POST", "/friends/999999", Some(&ana), None).await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
 async fn friends_by_code_and_into_a_room() {
     let app = test_app().await;
     let (ana, _) = join(&app, "Ana").await;
