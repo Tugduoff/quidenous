@@ -527,9 +527,11 @@ export function Result({
   const t = useTheme();
   const { data: round } = useRound(roundId);
   const header = onBack ? <BackHeader onBack={onBack} round={round ?? undefined} /> : <Header />;
-  if (!round?.result) return <Screen>{header}</Screen>;
+  if (!round?.result) return <Screen tabs={!onBack}>{header}</Screen>;
   return (
     <Screen
+      // Opened from the history, the screen has no tab bar to keep it clear of the iPhone home bar.
+      tabs={!onBack}
       footer={
         <>
           <ChatInput roundId={round.id} />

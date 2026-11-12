@@ -105,7 +105,7 @@ export default function RoomsScreen() {
           value={name}
           onChangeText={setName}
           maxLength={40}
-          style={{ flex: 1, height: 44, fontFamily: t.font.regular, fontSize: 15, color: t.txt }}
+          style={{ flex: 1, height: 44, fontFamily: t.font.regular, fontSize: 16, color: t.txt }}
         />
         <Pressable
           accessibilityRole="button"

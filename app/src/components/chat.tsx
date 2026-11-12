@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Send } from 'lucide-react-native';
 import { type ComponentRef, useRef, useState } from 'react';
-import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 
 import { Avatar, Card } from '@/components/ui';
 import { api, type Message } from '@/lib/api';
@@ -82,6 +82,7 @@ export function ChatInput({ roundId }: { roundId: number }) {
     },
   });
   const ok = text.trim().length > 0 && !send.isPending;
+  const submit = () => ok && send.mutate(text.trim());
   return (
     <Card style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 8, padding: 6, paddingLeft: 16 }}>
       <TextInput
@@ -92,13 +93,24 @@ export function ChatInput({ roundId }: { roundId: number }) {
         onChangeText={setText}
         multiline
         maxLength={MAX}
-        style={{ flex: 1, minHeight: 40, maxHeight: 100, paddingVertical: 10, fontFamily: t.font.regular, fontSize: 15, color: t.txt }}
+        returnKeyType="send"
+        submitBehavior="submit"
+        onSubmitEditing={submit}
+        onKeyPress={(e) => {
+          // The web ignores submitBehavior: Enter sends, Shift+Enter goes to a new line.
+          const key = e.nativeEvent as typeof e.nativeEvent & { shiftKey?: boolean; isComposing?: boolean };
+          if (Platform.OS !== 'web' || key.key !== 'Enter' || key.shiftKey || key.isComposing) return;
+          e.preventDefault();
+          submit();
+        }}
+        // Under 16px, Safari on iPhone zooms the page in when the field gets the focus.
+        style={{ flex: 1, minHeight: 40, maxHeight: 100, paddingVertical: 10, fontFamily: t.font.regular, fontSize: 16, color: t.txt }}
       />
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Envoyer"
         disabled={!ok}
-        onPress={() => send.mutate(text.trim())}
+        onPress={submit}
         style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: ok ? t.acc : t.card2 }}>
         <Send size={18} color={ok ? t.accTxt : t.mut} />
       </Pressable>
