@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { type ReactNode, useState } from 'react';
 import { router } from 'expo-router';
 import { Bell, BellOff, Check, ChevronLeft, ChevronRight, Crown, Ellipsis, LogOut, Trash2, UserX } from 'lucide-react-native';
 import { Pressable, Switch, Text, TextInput, View } from 'react-native';
@@ -18,7 +18,64 @@ import { useSession } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
 
 /** Ask before anything that can't be undone with one tap, in the app's own dialog. */
-const confirm = (message: string, title = 'Exclure du groupe ?', action = 'Voter') => askConfirm(title, message, action);
+const confirm = (message: string, title: string, action: string) => askConfirm(title, message, action);
+
+/** The round icon button of a member row (36 px, like the "…" next to it). */
+function RowButton({
+  label,
+  onPress,
+  disabled,
+  tone = 'plain',
+  badge,
+  children,
+}: {
+  label: string;
+  onPress: () => void;
+  disabled?: boolean;
+  tone?: 'plain' | 'danger';
+  /** A small count on the corner (votes so far). */
+  badge?: string;
+  children: ReactNode;
+}) {
+  const t = useTheme();
+  return (
+    <PressableScale
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      disabled={disabled}
+      onPress={onPress}
+      hitSlop={4}
+      style={{
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: tone === 'danger' ? '#FF4FA322' : t.card2,
+      }}>
+      {children}
+      {badge && (
+        <View
+          style={{
+            position: 'absolute',
+            top: -4,
+            right: -6,
+            minWidth: 20,
+            height: 18,
+            paddingHorizontal: 4,
+            borderRadius: 9,
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: t.tag,
+            borderWidth: 2,
+            borderColor: t.card,
+          }}>
+          <Text style={{ fontFamily: t.font.bold, fontSize: 9, color: '#fff' }}>{badge}</Text>
+        </View>
+      )}
+    </PressableScale>
+  );
+}
 
 /** The other members, each with a vote to remove them. A majority of the others removes someone (never the owner, and only from 3 people). */
 function Members() {
@@ -48,96 +105,68 @@ function Members() {
   const others = group.members.filter((m) => m.id !== me?.id);
   return (
     <View style={{ gap: 10 }}>
-      <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut, marginLeft: 4 }}>
-        {owner
-          ? 'Tu es propriétaire : tu peux retirer quelqu’un ou passer la main'
-          : voteOn
-            ? `Exclure quelqu'un demande ${group.kick_needed} vote${group.kick_needed > 1 ? 's' : ''}`
-            : 'Membres'}
-      </Text>
+      <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut, marginLeft: 4 }}>Membres</Text>
+      {me && (
+        <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12 }}>
+          <Avatar member={me} size={36} />
+          <Text numberOfLines={1} style={{ flex: 1, fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>
+            {me.name}
+          </Text>
+          {owner && <Crown size={16} color={t.accInk} />}
+          <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut }}>toi</Text>
+        </Card>
+      )}
       {others.map((m) => {
         const state = group.kicks.find((k) => k.target_id === m.id);
         const mine = !!state?.mine;
         const onPress = async () => {
-          if (!mine && !(await confirm(`Voter pour exclure ${m.name} ? Avec ${group.kick_needed} votes, ${m.name} sort du groupe.`)))
-            return;
+          if (!mine && !(await confirm(`${m.name} sort du salon à ${group.kick_needed} votes.`, `Exclure ${m.name} ?`, 'Voter'))) return;
           kick.mutate({ id: m.id, undo: mine });
         };
         return (
           <Card key={m.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12 }}>
             <Avatar member={m} size={36} />
-            <Text style={{ flex: 1, fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>{m.name}</Text>
+            <Text numberOfLines={1} style={{ flex: 1, fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>
+              {m.name}
+            </Text>
             {m.role === 'owner' && <Crown size={16} color={t.accInk} />}
             {owner ? (
-              <View style={{ flexDirection: 'row', gap: 6 }}>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`Rendre ${m.name} propriétaire`}
+              <>
+                <RowButton
+                  label={`Rendre ${m.name} propriétaire`}
                   onPress={async () => {
                     if (await confirm(`${m.name} devient propriétaire du salon, et toi simple membre.`, 'Passer la main ?', 'Confirmer'))
                       transfer.mutate(m.id);
-                  }}
-                  hitSlop={6}
-                  style={{
-                    width: 34,
-                    height: 34,
-                    borderRadius: 17,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    backgroundColor: t.card2,
                   }}>
-                  <Crown size={15} color={t.mut} />
-                </Pressable>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`Retirer ${m.name} du salon`}
+                  <Crown size={16} color={t.mut} />
+                </RowButton>
+                <RowButton
+                  label={`Retirer ${m.name} du salon`}
+                  tone="danger"
                   onPress={async () => {
                     if (await confirm(`${m.name} sort du salon tout de suite.`, 'Retirer du salon ?', 'Retirer')) forceRemove.mutate(m.id);
-                  }}
-                  hitSlop={6}
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    gap: 6,
-                    height: 34,
-                    paddingHorizontal: 12,
-                    borderRadius: t.radius.pill,
-                    backgroundColor: '#FF4FA322',
                   }}>
-                  <UserX size={15} color={t.tag} />
-                  <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.tag }}>Retirer</Text>
-                </Pressable>
-              </View>
+                  <UserX size={16} color={t.tag} />
+                </RowButton>
+              </>
             ) : voteOn && m.role !== 'owner' ? (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={mine ? `Retirer mon vote contre ${m.name}` : `Voter pour exclure ${m.name}`}
+              <RowButton
+                label={
+                  (mine ? `Retirer mon vote contre ${m.name}` : `Voter pour exclure ${m.name}`) +
+                  (state ? `, ${state.count} vote${state.count > 1 ? 's' : ''} sur ${group.kick_needed}` : '')
+                }
+                tone={mine ? 'danger' : 'plain'}
                 disabled={kick.isPending}
                 onPress={onPress}
-                hitSlop={6}
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: 6,
-                  height: 34,
-                  paddingHorizontal: 12,
-                  borderRadius: t.radius.pill,
-                  backgroundColor: mine ? '#FF4FA322' : t.card2,
-                }}>
-                <UserX size={15} color={mine ? t.tag : t.mut} />
-                <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: mine ? t.tag : t.mut }}>
-                  {state ? `${state.count}/${group.kick_needed}` : 'Exclure'}
-                </Text>
-              </Pressable>
+                badge={state ? `${state.count}/${group.kick_needed}` : undefined}>
+                <UserX size={16} color={mine ? t.tag : t.mut} />
+              </RowButton>
             ) : null}
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`Plus d'actions pour ${m.name}`}
-              onPress={() => setTarget({ kind: 'member', id: m.id, person: { user_id: m.user_id, name: m.name, color: m.color, photo: m.photo_url } })}
-              hitSlop={6}
-              style={{ width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card2 }}>
+            <RowButton
+              label={`Plus d'actions pour ${m.name}`}
+              onPress={() => setTarget({ kind: 'member', id: m.id, person: { user_id: m.user_id, name: m.name, color: m.color, photo: m.photo_url } })}>
               <Ellipsis size={16} color={t.mut} />
-            </Pressable>
+            </RowButton>
           </Card>
         );
       })}
@@ -160,13 +189,18 @@ function Settings() {
     },
   });
   if (!group || group.my_role !== 'owner') return null;
-  const row = (label: string, hint: string, value: boolean, onChange: (v: boolean) => void) => (
+  const row = (label: string, value: boolean, onChange: (v: boolean) => void) => (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-      <View style={{ flex: 1, gap: 2 }}>
-        <Text style={{ fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>{label}</Text>
-        <Text style={{ fontFamily: t.font.regular, fontSize: 12, color: t.mut }}>{hint}</Text>
-      </View>
-      <Switch value={value} onValueChange={onChange} trackColor={{ true: t.accInk, false: t.card2 }} thumbColor="#fff" />
+      <Text numberOfLines={1} style={{ flex: 1, fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>
+        {label}
+      </Text>
+      <Switch
+        accessibilityLabel={label}
+        value={value}
+        onValueChange={onChange}
+        trackColor={{ true: t.accInk, false: t.card2 }}
+        thumbColor="#fff"
+      />
     </View>
   );
   const draft = name ?? group.name;
@@ -184,6 +218,7 @@ function Settings() {
             onSubmitEditing={() => draft.trim() && draft !== group.name && save.mutate({ name: draft.trim() }, { onSuccess: () => setName(null) })}
             style={{
               flex: 1,
+              minWidth: 0,
               height: 44,
               paddingHorizontal: 14,
               borderRadius: 14,
@@ -193,33 +228,26 @@ function Settings() {
               color: t.txt,
             }}
           />
-          <Pressable
+          <PressableScale
             accessibilityRole="button"
+            accessibilityLabel="Renommer le salon"
             disabled={!draft.trim() || draft === group.name}
             onPress={() => save.mutate({ name: draft.trim() }, { onSuccess: () => setName(null) })}
             style={{
+              width: 44,
               height: 44,
-              paddingHorizontal: 16,
-              borderRadius: 14,
+              borderRadius: 22,
               alignItems: 'center',
               justifyContent: 'center',
               backgroundColor: draft !== group.name && draft.trim() ? t.acc : t.card2,
             }}>
-            <Text style={{ fontFamily: t.font.bold, fontSize: 14, color: draft !== group.name && draft.trim() ? t.accTxt : t.mut }}>
-              OK
-            </Text>
-          </Pressable>
+            <Check size={20} color={draft !== group.name && draft.trim() ? t.accTxt : t.mut} />
+          </PressableScale>
         </View>
         <VibeRow value={group.settings.vibe ?? null} onChange={(v) => save.mutate({ vibe: v ?? '' })} />
-        {row('Passer quelqu’un à la majorité', 'Ne plus attendre celui qui ne vote pas', group.settings.skip_vote, (v) =>
-          save.mutate({ skip_vote: v }),
-        )}
-        {row('Exclure à la majorité', 'Les membres peuvent voter pour retirer quelqu’un', group.settings.kick_vote, (v) =>
-          save.mutate({ kick_vote: v }),
-        )}
-        {row('Questions réservées au proprio', 'Toi seul ajoutes ou importes des questions', group.settings.questions_by === 'owner', (v) =>
-          save.mutate({ questions_by: v ? 'owner' : 'everyone' }),
-        )}
+        {row('Passer à la majorité', group.settings.skip_vote, (v) => save.mutate({ skip_vote: v }))}
+        {row('Exclure à la majorité', group.settings.kick_vote, (v) => save.mutate({ kick_vote: v }))}
+        {row('Questions par toi seul', group.settings.questions_by === 'owner', (v) => save.mutate({ questions_by: v ? 'owner' : 'everyone' }))}
       </Card>
     </View>
   );
@@ -246,12 +274,11 @@ function VibeRow({ value, onChange }: { value: string | null; onChange: (vibe: s
         accessibilityLabel={`Ambiance : ${current?.name ?? 'aucune'}. Changer`}
         onPress={() => setOpen(true)}
         style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-        <View style={{ flex: 1, gap: 2 }}>
-          <Text style={{ fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>Ambiance</Text>
-          <Text style={{ fontFamily: t.font.regular, fontSize: 12, color: t.mut }}>Le ton des questions de base</Text>
-        </View>
+        <Text style={{ flex: 1, fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>Ambiance</Text>
         {current && <Icon size={16} color={t.accInk} />}
-        <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: current ? t.txt : t.mut }}>{current?.name ?? 'Aucune'}</Text>
+        <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: t.font.semibold, fontSize: 14, color: current ? t.txt : t.mut }}>
+          {current?.name ?? 'Aucune'}
+        </Text>
         <ChevronRight size={18} color={t.mut} />
       </PressableScale>
       <Dialog visible={open} onClose={() => setOpen(false)}>
@@ -374,7 +401,6 @@ function MuteButton({ id, muted }: { id: number; muted: boolean }) {
 /** The group's own page: its name and its members (my profile stays about me). */
 export default function GroupScreen() {
   const t = useTheme();
-  const { me } = useSession();
   const { data: group } = useGroup();
   const muted = useMuted(group?.id);
   return (
@@ -390,18 +416,11 @@ export default function GroupScreen() {
         {group && muted !== undefined && <MuteButton id={group.id} muted={muted} />}
       </View>
       <View style={{ gap: 4 }}>
-        <Display size={30}>{group?.name ?? 'Groupe'}</Display>
+        <Display size={30}>{group?.name ?? 'Salon'}</Display>
         <Text style={{ fontFamily: t.font.regular, fontSize: 14, color: t.mut }}>
           {group ? `${group.members.length} membre${group.members.length > 1 ? 's' : ''}${muted ? ' · en sourdine' : ''}` : ''}
         </Text>
       </View>
-      {me && (
-        <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12 }}>
-          <Avatar member={me} size={36} />
-          <Text style={{ flex: 1, fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>{me.name}</Text>
-          <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut }}>toi</Text>
-        </Card>
-      )}
       <InviteCard />
       <Members />
       <AddFriends />

@@ -84,7 +84,9 @@ function Welcome({ providers }: { providers: Provider[] }) {
             backgroundColor: t.accSoft,
           }}>
           <Ticket size={16} color={t.accInk} />
-          <Text style={{ fontFamily: t.font.bold, fontSize: 14, letterSpacing: 1, color: t.accInk }}>{invite}</Text>
+          <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: t.font.bold, fontSize: 14, letterSpacing: 1, color: t.accInk }}>
+            {invite}
+          </Text>
         </View>
       )}
     </Screen>

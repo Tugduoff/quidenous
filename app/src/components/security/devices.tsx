@@ -63,7 +63,6 @@ export function ProvidersSection({ account }: { account: Account }) {
             key={p}
             icon={<BrandIcon provider={p} />}
             title={PROVIDER_NAMES[p]}
-            sub={linked ? 'Lié' : null}
             right={
               linked ? (
                 <Pill tone="danger" onPress={() => unlink(p)} loading={busy === p} disabled={!!busy}>
@@ -166,7 +165,7 @@ export function LockSection() {
     lockMethod().then(setMethod);
   }, []);
   if (!lockSupported) return null;
-  const label = method === 'face' ? 'Déverrouiller avec le visage' : method === 'fingerprint' ? "Déverrouiller avec l'empreinte" : 'Déverrouiller avec le code';
+  const label = method === 'face' ? 'Avec le visage' : method === 'fingerprint' ? "Avec l'empreinte" : 'Avec le code';
   const Icon = method === 'face' ? ScanFace : method === 'fingerprint' ? Fingerprint : Lock;
   const toggle = async (on: boolean) => {
     setError(null);
@@ -178,8 +177,7 @@ export function LockSection() {
       <Row
         icon={<Icon size={20} color={enabled ? t.accInk : t.mut} />}
         title={label}
-        sub="Demandé en rouvrant l'app"
-        right={<Toggle label="" a11y={label} value={enabled} onChange={toggle} />}
+        right={<Toggle label="" a11y={`Déverrouiller ${label.toLowerCase()}`} value={enabled} onChange={toggle} />}
       />
       <ErrorText>{error}</ErrorText>
     </Section>

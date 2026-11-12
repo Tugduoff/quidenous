@@ -76,9 +76,7 @@ function QrScanner({ onScan, onClose }: { onScan: (s: Scanned) => void; onClose:
           </Pressable>
           {permission && !permission.granted ? (
             <View style={{ gap: 14, alignItems: 'center' }}>
-              <Text style={text}>
-                {permission.canAskAgain ? 'Il faut la caméra pour scanner le QR code.' : 'La caméra est bloquée : autorise-la dans les réglages.'}
-              </Text>
+              {!permission.canAskAgain && <Text style={text}>Caméra bloquée : autorise-la dans les réglages</Text>}
               {permission.canAskAgain && (
                 <Pressable
                   accessibilityRole="button"
@@ -90,7 +88,7 @@ function QrScanner({ onScan, onClose }: { onScan: (s: Scanned) => void; onClose:
             </View>
           ) : (
             <View style={{ alignSelf: 'center', paddingHorizontal: 16, paddingVertical: 10, borderRadius: t.radius.pill, backgroundColor: '#0008' }}>
-              <Text style={text}>{wrong ? "Ce QR code n'est pas une invitation qui de nous ?" : "Vise le QR code d'un salon ou d'un ami"}</Text>
+              <Text style={text}>{wrong ? 'QR code non reconnu' : 'Vise le QR code'}</Text>
             </View>
           )}
         </SafeAreaView>

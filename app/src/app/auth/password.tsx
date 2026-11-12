@@ -40,6 +40,7 @@ export default function PasswordStep() {
     <AuthScreen
       title={existing ? 'Bon retour' : 'Bienvenue'}
       sub={flow.email}
+      oneLine
       footer={
         <Button onPress={submit} loading={busy} disabled={!ok}>
           {existing ? 'Se connecter' : 'Créer mon compte'}
@@ -61,7 +62,7 @@ export default function PasswordStep() {
       <PasswordField
         ref={passwordRef}
         fresh={!existing}
-        placeholder={existing ? 'Mot de passe' : `Mot de passe (${PASSWORD_MIN} caractères min.)`}
+        placeholder={existing ? 'Mot de passe' : `Mot de passe (${PASSWORD_MIN} min.)`}
         value={password}
         onChangeText={setPassword}
         autoFocus={existing}

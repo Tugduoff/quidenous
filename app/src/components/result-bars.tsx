@@ -41,7 +41,7 @@ export function ResultBars({ result, byId }: { result: Tally[]; byId: Map<number
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12 }}>
               <Avatar member={m} />
               <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Text style={{ fontFamily: t.font.bold, fontSize: 16, color: t.txt }} numberOfLines={1}>
+                <Text style={{ flexShrink: 1, fontFamily: t.font.bold, fontSize: 16, color: t.txt }} numberOfLines={1}>
                   {m?.name}
                 </Text>
                 {win && (
@@ -50,7 +50,8 @@ export function ResultBars({ result, byId }: { result: Tally[]; byId: Map<number
                   </Landed>
                 )}
               </View>
-              <AvatarStack members={r.voter_ids.map((id) => byId.get(id))} size={24} />
+              {/* Capped so a big group's voters leave room for the name. */}
+              <AvatarStack members={r.voter_ids.map((id) => byId.get(id))} size={24} max={4} />
               <Text style={{ fontFamily: t.font.display, fontSize: 22, color: t.txt }}>{pct}%</Text>
             </View>
           </Land>

@@ -1,11 +1,11 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { LifeBuoy, ShieldCheck, ShieldOff } from 'lucide-react-native';
+import { Copy, LifeBuoy, Share, ShieldCheck, ShieldOff } from 'lucide-react-native';
 import { useState } from 'react';
 import { Linking, Platform, Text, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 
 import { CODE_LENGTH, CodeField, copyText, ErrorText, Field, Pill, Row, Section } from '@/components/auth-ui';
-import { Toggle } from '@/components/ui';
+import { PressableScale, Toggle } from '@/components/ui';
 import { accountKey, auth, authError, type Account } from '@/lib/auth';
 import { useTheme } from '@/lib/theme';
 
@@ -86,9 +86,16 @@ export function TwoFactorSection({ account }: { account: Account }) {
               <Text selectable style={{ flex: 1, fontFamily: MONO, fontSize: 14, letterSpacing: 1, color: t.txt }}>
                 {setup.secret.match(/.{1,4}/g)?.join(' ')}
               </Text>
-              <Pill onPress={() => copyText(setup.secret)}>{copyLabel}</Pill>
+              <PressableScale
+                accessibilityRole="button"
+                accessibilityLabel={`${copyLabel} la clé`}
+                onPress={() => copyText(setup.secret)}
+                hitSlop={4}
+                style={{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card2 }}>
+                {native ? <Share size={16} color={t.txt} /> : <Copy size={16} color={t.txt} />}
+              </PressableScale>
             </View>
-            {native && <Pill onPress={() => Linking.openURL(setup.otpauth_url).catch(() => {})}>Ouvrir dans l&apos;app d&apos;authentification</Pill>}
+            {native && <Pill onPress={() => Linking.openURL(setup.otpauth_url).catch(() => {})}>Ouvrir l&apos;app d&apos;authentification</Pill>}
             <CodeField inset autoFocus={false} value={code} onChange={setCode} onDone={enable} />
             <Toggle label="Déconnecter les autres appareils" value={revoke} onChange={setRevoke} />
             <ErrorText>{error}</ErrorText>
@@ -176,7 +183,7 @@ function RecoveryCodes({ codes, onDone }: { codes: string[]; onDone: () => void 
   const [copied, setCopied] = useState(false);
   return (
     <>
-      <Row icon={<LifeBuoy size={20} color={t.accInk} />} title="Tes codes de secours" sub="Garde-les à l'abri : ils ne s'afficheront plus" />
+      <Row icon={<LifeBuoy size={20} color={t.accInk} />} title="Tes codes de secours" sub="Affichés une seule fois" />
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', rowGap: 8, padding: 14, borderRadius: 14, backgroundColor: t.card2 }}>
         {codes.map((c) => (
           <Text key={c} selectable style={{ width: '50%', fontFamily: MONO, fontSize: 15, color: t.txt, textAlign: 'center' }}>

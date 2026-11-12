@@ -69,7 +69,7 @@ function Credentials({ onDone }: { onDone: (codeSent: boolean) => void }) {
   };
   return (
     <>
-      <Row icon={<Mail size={20} color={t.accInk} />} title="Ajoute un e-mail" sub="Pour retrouver ton compte partout" />
+      <Row icon={<Mail size={20} color={t.accInk} />} title="Ajoute un e-mail" />
       <Field
         inset
         placeholder="toi@exemple.fr"
@@ -219,7 +219,7 @@ function PasswordRow({ account, refresh }: { account: Account; refresh: () => vo
     try {
       const r = await auth.password({ ...(has && { current }), password, revoke_others: revoke });
       close();
-      setDone(r.revoked ? `Enregistré · ${r.revoked} appareil${r.revoked > 1 ? 's' : ''} déconnecté${r.revoked > 1 ? 's' : ''}` : 'Enregistré');
+      setDone(r.revoked ? `${r.revoked} appareil${r.revoked > 1 ? 's' : ''} déconnecté${r.revoked > 1 ? 's' : ''}` : 'Enregistré');
       refresh();
     } catch (e) {
       setError(e instanceof ApiError && e.code === 'bad_credentials' ? 'Mot de passe actuel incorrect' : authError(e));
@@ -263,7 +263,7 @@ function PasswordRow({ account, refresh }: { account: Account; refresh: () => vo
             inset
             fresh
             ref={nextRef}
-            placeholder={`Nouveau mot de passe (${PASSWORD_MIN} min.)`}
+            placeholder={`Nouveau (${PASSWORD_MIN} min.)`}
             value={password}
             onChangeText={setPassword}
             autoFocus={!has}

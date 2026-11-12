@@ -34,7 +34,7 @@ export default function TwoFactorStep() {
 
   return (
     <AuthScreen
-      title="Double authentification"
+      title="Vérification"
       sub={recovery ? 'Un de tes codes de secours' : "Le code de ton app d'authentification"}
       footer={
         <Button onPress={() => submit()} loading={busy} disabled={!ok}>

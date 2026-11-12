@@ -83,19 +83,21 @@ export default function PacksScreen() {
           value={q}
           onChangeText={setQ}
           returnKeyType="search"
-          style={{ flex: 1, height: 44, fontFamily: t.font.regular, fontSize: 16, color: t.txt }}
+          style={{ flex: 1, minWidth: 0, height: 44, fontFamily: t.font.regular, fontSize: 16, color: t.txt }}
         />
       </Card>
-      {packs?.length === 0 && <Text style={{ fontFamily: t.font.regular, color: t.mut, marginLeft: 4 }}>Aucun pack pour l’instant.</Text>}
+      {packs?.length === 0 && <Text style={{ fontFamily: t.font.regular, color: t.mut, marginLeft: 4 }}>Aucun pack</Text>}
       {packs?.map((p) => (
         <Pressable key={p.id} accessibilityRole="button" onPress={() => router.push(`/pack/${p.id}`)}>
           <Card style={{ padding: 16, gap: 6 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Text style={{ flex: 1, fontFamily: t.font.bold, fontSize: 17, color: t.txt }}>{p.name}</Text>
+              <Text numberOfLines={1} style={{ flex: 1, fontFamily: t.font.bold, fontSize: 17, color: t.txt }}>
+                {p.name}
+              </Text>
               <Download size={14} color={t.mut} />
               <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut }}>{p.installs}</Text>
             </View>
-            <Text style={{ fontFamily: t.font.regular, fontSize: 13, color: t.mut }}>
+            <Text numberOfLines={2} style={{ fontFamily: t.font.regular, fontSize: 13, color: t.mut }}>
               {`${p.count} questions · par ${p.author}${p.description ? ` · ${p.description}` : ''}`}
             </Text>
             {p.sample.map((s) => (
@@ -134,9 +136,6 @@ export default function PacksScreen() {
           style={input}
         />
         <Toggle label="Depuis un fichier" value={fromFile} onChange={setFromFile} />
-        <Text style={{ fontFamily: t.font.regular, fontSize: 12, color: t.mut }}>
-          {fromFile ? 'Tu choisis le fichier en publiant.' : 'Sinon, les questions ajoutées dans ce salon.'}
-        </Text>
         <Pressable
           accessibilityRole="button"
           disabled={!name.trim() || publish.isPending}

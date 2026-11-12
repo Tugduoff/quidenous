@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useSyncExternalStore } from 'react';
+import { type ReactNode, useEffect, useState, useSyncExternalStore } from 'react';
 import { Trophy, type LucideIcon } from 'lucide-react-native';
 import {
   ActivityIndicator,
@@ -187,6 +187,31 @@ export function Card({ children, style }: { children: ReactNode; style?: ViewSty
 export function Display({ children, size = 34 }: { children: ReactNode; size?: number }) {
   const t = useTheme();
   return <Text style={{ fontFamily: t.font.display, fontSize: size, lineHeight: size * 1.08, letterSpacing: -1, color: t.txt }}>{children}</Text>;
+}
+
+/**
+ * A code in big type (invite, friend code) that always stays on one line: the font shrinks to the width it gets.
+ * Measured rather than `adjustsFontSizeToFit`, which the web build ignores.
+ */
+export function CodeText({ code, size = 34, center }: { code: string; size?: number; center?: boolean }) {
+  const t = useTheme();
+  const [width, setWidth] = useState(0);
+  const spacing = code.length > 10 ? 1.5 : 4;
+  // Bricolage ExtraBold capitals and digits are about 0.68 em wide.
+  const fit = width ? Math.floor((width / code.length - spacing) / 0.68) : size;
+  const fontSize = Math.max(14, Math.min(size, fit));
+  return (
+    <View style={{ alignSelf: 'stretch' }} onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
+      <Text
+        selectable
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.4}
+        style={{ fontFamily: t.font.display, fontSize, lineHeight: size * 1.2, letterSpacing: spacing, color: t.txt, textAlign: center ? 'center' : 'left' }}>
+        {code}
+      </Text>
+    </View>
+  );
 }
 
 export function Logo({ size = 22 }: { size?: number }) {

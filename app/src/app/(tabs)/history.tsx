@@ -66,7 +66,7 @@ function HistoryCard({ item, lead, byId, order }: { item: HistoryItem; lead: num
           />
           <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 4 }}>
             <Crown size={14} color={winners.length === 1 ? (winner?.color ?? t.mut) : t.mut} style={{ flexShrink: 0, marginTop: 1 }} />
-            <Text style={{ flex: 1, fontFamily: t.font.regular, fontSize: 12, lineHeight: 16, color: t.mut }}>
+            <Text numberOfLines={1} style={{ flex: 1, fontFamily: t.font.regular, fontSize: 12, lineHeight: 16, color: t.mut }}>
               {winners.map((m) => m?.name).join(', ')}
             </Text>
           </View>
@@ -153,20 +153,8 @@ export default function HistoryScreen() {
             accessibilityLabel="Exporter l'historique"
             onPress={downloadHistory}
             hitSlop={8}
-            style={[
-              {
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 6,
-                height: 36,
-                paddingHorizontal: 14,
-                borderRadius: t.radius.pill,
-                backgroundColor: t.card,
-              },
-              t.shadow,
-            ]}>
-            <Download size={16} color={t.txt} />
-            <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.txt }}>Exporter</Text>
+            style={[{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card }, t.shadow]}>
+            <Download size={18} color={t.txt} />
           </PressableScale>
         )}
       </View>

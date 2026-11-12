@@ -38,6 +38,7 @@ export default function VerifyStep() {
       back={false}
       title="Vérifie ton e-mail"
       sub={flow.email ? `Code envoyé à ${flow.email}` : undefined}
+      oneLine
       footer={
         <>
           <Button onPress={() => submit()} loading={busy} disabled={code.length !== CODE_LENGTH}>

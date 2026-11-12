@@ -84,7 +84,7 @@ export default function InboxScreen() {
       </Pressable>
       <Display size={30}>Notifications</Display>
       {data && data.items.length === 0 && (
-        <Text style={{ fontFamily: t.font.regular, fontSize: 15, color: t.mut }}>Rien de neuf pour l'instant.</Text>
+        <Text style={{ fontFamily: t.font.regular, fontSize: 15, color: t.mut }}>Rien de neuf.</Text>
       )}
       {data?.items.map((item) => {
         const Icon = ICON[item.kind] ?? Bell;
@@ -103,7 +103,7 @@ export default function InboxScreen() {
                 </View>
               )}
               <View style={{ flex: 1, gap: 2 }}>
-                <Text style={{ fontFamily: t.font.bold, fontSize: 13, color: t.mut }}>
+                <Text numberOfLines={1} style={{ fontFamily: t.font.bold, fontSize: 13, color: t.mut }}>
                   {item.kind === 'message' && actor ? actor.name : (TITLE[item.kind] ?? 'Notification')} · {ago(item.created_at)}
                 </Text>
                 <Text numberOfLines={2} style={{ fontFamily: isNew ? t.font.semibold : t.font.regular, fontSize: 15, lineHeight: 20, color: t.txt }}>
