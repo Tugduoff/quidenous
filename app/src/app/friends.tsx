@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
-import { ChevronLeft, Share2, UserPlus, X } from 'lucide-react-native';
+import { Check, ChevronLeft, Share2, UserPlus, X } from 'lucide-react-native';
 import { useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
@@ -14,6 +14,8 @@ import { friendLink, friendMessage, shareText } from '@/lib/share';
 import { useTheme } from '@/lib/theme';
 
 const ERRORS: Record<string, string> = { bad_code: 'Code ami inconnu', self_friend: "C'est ton propre code" };
+
+const roomsText = (n: number) => `${n} salon${n > 1 ? 's' : ''} en commun`;
 
 /** My friend code (and QR), add someone by code, my friends. */
 export default function FriendsScreen() {
@@ -31,6 +33,11 @@ export default function FriendsScreen() {
       qc.invalidateQueries({ queryKey: keys.friends });
     },
     onError: (e) => setNote(e instanceof ApiError ? (ERRORS[e.code] ?? 'Raté, réessaie') : 'Raté, réessaie'),
+  });
+  // A room-mate is a friend only while we share a room: this keeps them for good.
+  const keep = useMutation({
+    mutationFn: (id: number) => api(`/friends/${id}`, { method: 'POST' }),
+    onSettled: () => qc.invalidateQueries({ queryKey: keys.friends }),
   });
   const remove = useMutation({
     mutationFn: (id: number) => api(`/friends/${id}`, { method: 'DELETE' }),
@@ -134,9 +141,35 @@ export default function FriendsScreen() {
               {f.name}
             </Text>
             <Text numberOfLines={1} style={{ fontFamily: t.font.regular, fontSize: 12, color: t.mut }}>
-              {f.rooms_in_common ? `${f.rooms_in_common} salon${f.rooms_in_common > 1 ? 's' : ''} en commun` : 'Ajouté avec son code'}
+              {f.rooms_in_common
+                ? f.added
+                  ? `Ami · ${roomsText(f.rooms_in_common)}`
+                  : roomsText(f.rooms_in_common)
+                : 'Ajouté en ami'}
             </Text>
           </View>
+          {!f.added && (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Ajouter ${f.name} en ami`}
+              disabled={keep.isPending}
+              onPress={() => keep.mutate(f.user_id)}
+              hitSlop={8}
+              style={{
+                height: 36,
+                paddingHorizontal: 12,
+                borderRadius: 18,
+                flexDirection: 'row',
+                gap: 6,
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: t.acc,
+              }}>
+              <UserPlus size={16} color={t.accTxt} />
+              <Text style={{ fontFamily: t.font.bold, fontSize: 13, color: t.accTxt }}>Ajouter</Text>
+            </Pressable>
+          )}
+          {f.added && !!f.rooms_in_common && <Check size={18} color={t.accInk} />}
           {f.added && !f.rooms_in_common && (
             <Pressable
               accessibilityRole="button"

@@ -105,6 +105,40 @@ pub async fn add(
     Ok(Json(json!({ "user_id": other, "name": name })))
 }
 
+/// Keep someone I share a room with as a friend, so they stay one after either of us leaves
+/// (it works both ways at once, like a code).
+pub async fn keep(
+    State(state): State<AppState>,
+    UserId(me): UserId,
+    Path(other): Path<i64>,
+) -> AppResult<Json<Value>> {
+    if other == me {
+        return Err(AppError::BadRequest("self_friend"));
+    }
+    // Only a room-mate, with no block either way: anyone else looks unknown.
+    let name: String = sqlx::query_scalar(
+        "SELECT u.name FROM users u WHERE u.id = ?2 AND u.deleted_at IS NULL \
+         AND EXISTS (SELECT 1 FROM members a JOIN members b ON a.group_id = b.group_id \
+                     JOIN groups g ON g.id = a.group_id AND g.deleted_at IS NULL \
+                     WHERE a.user_id = ?1 AND b.user_id = ?2 AND a.removed_at IS NULL AND b.removed_at IS NULL) \
+         AND NOT EXISTS (SELECT 1 FROM blocks WHERE (user_id = ?1 AND blocked_id = ?2) \
+                         OR (user_id = ?2 AND blocked_id = ?1))",
+    )
+    .bind(me)
+    .bind(other)
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or(AppError::BadRequest("not_room_mate"))?;
+    for (a, b) in [(me, other), (other, me)] {
+        sqlx::query("INSERT OR IGNORE INTO friends (user_id, friend_id) VALUES (?, ?)")
+            .bind(a)
+            .bind(b)
+            .execute(&state.db)
+            .await?;
+    }
+    Ok(Json(json!({ "user_id": other, "name": name })))
+}
+
 /// Remove a friend added by code (people I share a room with stay friends).
 pub async fn remove(
     State(state): State<AppState>,
