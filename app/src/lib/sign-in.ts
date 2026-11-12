@@ -30,7 +30,17 @@ export async function oauth(provider: Provider, link = false): Promise<RedeemRes
   if (web) {
     sessionStorage.setItem(KEY, key);
     window.location.assign(url);
-    return new Promise(() => {}); // the page is leaving
+    // The page is leaving. If the person comes back with the browser's Back button instead (the page is restored
+    // as it was, button spinning), stop waiting.
+    return new Promise((resolve) => {
+      const back = (e: PageTransitionEvent) => {
+        if (!e.persisted) return;
+        window.removeEventListener('pageshow', back);
+        sessionStorage.removeItem(KEY);
+        resolve(null);
+      };
+      window.addEventListener('pageshow', back);
+    });
   }
   const res = await WebBrowser.openAuthSessionAsync(url, redirect);
   if (res.type !== 'success') return null;

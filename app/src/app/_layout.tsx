@@ -2,7 +2,7 @@ import { BricolageGrotesque_800ExtraBold } from '@expo-google-fonts/bricolage-gr
 import { Inter_400Regular, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useFonts } from 'expo-font';
-import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
+import { DarkTheme, DefaultTheme, router, Stack, ThemeProvider, useGlobalSearchParams, usePathname } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import * as SystemUI from 'expo-system-ui';
@@ -42,6 +42,7 @@ function Root() {
   // Only once the screens below are mounted: navigating before that fails.
   const inApp = ready && !!fonts && themeLoaded && lock.loaded && install !== 'block' && stage === 'in';
   useRoomParam(inApp);
+  useStageRoute(stage, ready && !!fonts && themeLoaded && lock.loaded && install !== 'block');
   useNotificationTaps(inApp);
   useEffect(() => {
     if (stage === 'in') registerNativePush().catch(() => {});
@@ -121,4 +122,31 @@ export default function Layout() {
       </SessionProvider>
     </QueryClientProvider>
   );
+}
+
+type Stage = 'out' | 'verify' | 'room' | 'in';
+const STAGE_HOME: Record<Stage, string> = { out: '/join', verify: '/auth/verify', room: '/setup', in: '/' };
+const SIGNED_OUT = ['/join', '/auth/email', '/auth/password', '/auth/two-factor', '/auth/forgot', '/auth/reset'];
+
+/**
+ * Keep the screen on the current stage: when signing up, in or out changes it, go to that stage's screen.
+ * Without this the router falls back to the only unguarded route (/oauth), which bounced to `/` and back forever.
+ */
+function useStageRoute(stage: Stage, mounted: boolean) {
+  const pathname = usePathname();
+  const { code, error } = useGlobalSearchParams<{ code?: string; error?: string }>();
+  useEffect(() => {
+    if (!mounted) return;
+    // Back from Google / Discord with an answer: that page finishes the sign-in itself.
+    if (pathname === '/oauth' && (code || error)) return;
+    const ok =
+      stage === 'out'
+        ? SIGNED_OUT.includes(pathname)
+        : stage === 'verify'
+          ? pathname === '/auth/verify'
+          : stage === 'room'
+            ? pathname === '/setup'
+            : pathname !== '/oauth' && pathname !== '/setup' && pathname !== '/join' && !pathname.startsWith('/auth');
+    if (!ok) router.replace(STAGE_HOME[stage] as never);
+  }, [stage, pathname, mounted, code, error]);
 }
