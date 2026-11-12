@@ -1,23 +1,15 @@
-import { useMutation } from '@tanstack/react-query';
 import { router } from 'expo-router';
-import { Check, ChevronLeft, ChevronRight, Crown, LogIn, Plus } from 'lucide-react-native';
-import { useState } from 'react';
-import { Pressable, Text, TextInput, View } from 'react-native';
+import { Check, ChevronLeft, ChevronRight, Crown } from 'lucide-react-native';
+import { Pressable, Text, View } from 'react-native';
 
-import { ScanButton } from '@/components/qr-scanner';
+import { RoomForms } from '@/components/room-forms';
 import { Screen } from '@/components/screen';
 import { Card, Display } from '@/components/ui';
-import { api, ApiError, presetJoinCode } from '@/lib/api';
+import { presetJoinCode } from '@/lib/api';
 import { useRooms } from '@/lib/queries';
 import { useSwitchRoom } from '@/lib/rooms';
 import { useSession } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
-
-const ERRORS: Record<string, string> = {
-  bad_code: 'Code inconnu',
-  removed: 'Tu as été retiré de ce salon',
-  bad_room_name: 'Donne-lui un nom (40 caractères max)',
-};
 
 /** All my rooms, to switch between them, plus create one or join one with a code. */
 export default function RoomsScreen() {
@@ -25,21 +17,6 @@ export default function RoomsScreen() {
   const { room } = useSession();
   const { data: rooms } = useRooms();
   const switchRoom = useSwitchRoom();
-  const [name, setName] = useState('');
-  const [code, setCode] = useState(presetJoinCode() ?? '');
-  const [error, setError] = useState<string | null>(null);
-  const fail = (e: unknown) => setError(e instanceof ApiError ? (ERRORS[e.code] ?? 'Raté, réessaie') : 'Raté, réessaie');
-
-  const create = useMutation({
-    mutationFn: () => api<{ id: number }>('/rooms', { method: 'POST', json: { name: name.trim() } }),
-    onSuccess: (r) => switchRoom(r.id),
-    onError: fail,
-  });
-  const join = useMutation({
-    mutationFn: (value: string) => api<{ id: number }>('/rooms/join', { method: 'POST', json: { code: value.trim() } }),
-    onSuccess: (r) => switchRoom(r.id),
-    onError: fail,
-  });
   const current = room ?? rooms?.[0]?.id;
 
   return (
@@ -97,74 +74,7 @@ export default function RoomsScreen() {
         );
       })}
 
-      <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut, marginLeft: 4, marginTop: 8 }}>Nouveau salon</Text>
-      <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 8, padding: 6, paddingLeft: 16 }}>
-        <TextInput
-          accessibilityLabel="Nom du salon"
-          placeholder="Les cousins, Le boulot…"
-          placeholderTextColor={t.mut}
-          value={name}
-          onChangeText={setName}
-          maxLength={40}
-          returnKeyType="go"
-          onSubmitEditing={() => name.trim() && !create.isPending && create.mutate()}
-          style={{ flex: 1, height: 44, fontFamily: t.font.regular, fontSize: 16, color: t.txt }}
-        />
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Créer le salon"
-          disabled={!name.trim() || create.isPending}
-          onPress={() => create.mutate()}
-          style={{
-            width: 44,
-            height: 44,
-            borderRadius: 22,
-            alignItems: 'center',
-            justifyContent: 'center',
-            backgroundColor: name.trim() ? t.acc : t.card2,
-          }}>
-          <Plus size={20} color={name.trim() ? t.accTxt : t.mut} />
-        </Pressable>
-      </Card>
-
-      <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut, marginLeft: 4 }}>Rejoindre avec un code</Text>
-      <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 8, padding: 6, paddingLeft: 16 }}>
-        <TextInput
-          accessibilityLabel="Code d'invitation"
-          placeholder="ABC234"
-          placeholderTextColor={t.mut}
-          value={code}
-          onChangeText={(v) => setCode(v.toUpperCase())}
-          autoCapitalize="characters"
-          maxLength={20}
-          returnKeyType="go"
-          onSubmitEditing={() => code.trim() && !join.isPending && join.mutate(code)}
-          style={{ flex: 1, minWidth: 0, height: 44, fontFamily: t.font.bold, fontSize: 16, letterSpacing: 2, color: t.txt }}
-        />
-        <ScanButton
-          onScan={(s) => {
-            if (!s.code) return setError("Ce QR code n'est pas celui d'un salon");
-            setCode(s.code);
-            join.mutate(s.code);
-          }}
-        />
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Rejoindre"
-          disabled={!code.trim() || join.isPending}
-          onPress={() => join.mutate(code)}
-          style={{
-            width: 44,
-            height: 44,
-            borderRadius: 22,
-            alignItems: 'center',
-            justifyContent: 'center',
-            backgroundColor: code.trim() ? t.acc : t.card2,
-          }}>
-          <LogIn size={20} color={code.trim() ? t.accTxt : t.mut} />
-        </Pressable>
-      </Card>
-      {error && <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.tag, marginLeft: 4 }}>{error}</Text>}
+      <RoomForms initialCode={presetJoinCode() ?? ''} onEntered={switchRoom} />
     </Screen>
   );
 }
