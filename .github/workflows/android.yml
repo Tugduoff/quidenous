@@ -115,6 +115,8 @@ jobs:
           cat "$GITHUB_ENV" | grep OTA_
         working-directory: app/android
       - name: OTA update (APK)
+        # Never blocks the APK release (server down or not yet deployed): the next push publishes again.
+        continue-on-error: true
         if: github.ref == 'refs/heads/main' && env.UPDATES_PUBLISH_TOKEN != '' && env.OTA_APK_RUNTIME != ''
         env:
           EXPO_PUBLIC_DISTRIBUTION: sideload
@@ -124,6 +126,7 @@ jobs:
           npx expo export --platform android --clear --output-dir dist-ota-apk
           node scripts/ota-publish.mjs --dist dist-ota-apk --runtime "$OTA_APK_RUNTIME" --created-at "$OTA_APK_TIME"
       - name: OTA update (Play)
+        continue-on-error: true
         if: github.ref == 'refs/heads/main' && env.UPDATES_PUBLISH_TOKEN != '' && env.OTA_AAB_RUNTIME != ''
         env:
           UPDATES_PUBLISH_TOKEN: ${{ secrets.UPDATES_PUBLISH_TOKEN }}
