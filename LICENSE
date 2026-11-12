@@ -1,0 +1,48 @@
+qui de nous ? — Proprietary License (source available, all rights reserved)
+
+Copyright (c) 2026 Tugdual de Reviers and the qui de nous ? contributors (Coflop).
+All rights reserved.
+
+1. Visibility only. The source code, assets, question decks, designs, texts and
+   all other material in this repository (the "Software") are made publicly
+   visible for transparency and review only. Being able to see the Software
+   does not grant any licence to it.
+
+2. No rights granted. Except for viewing the Software on the hosting platform
+   and creating a fork there solely as that platform's terms of service require,
+   no permission is granted to use, copy, reproduce, modify, merge, translate,
+   adapt, compile, run, deploy, host, publish, distribute, sublicense, sell,
+   rent, or create derivative works from the Software, in whole or in part, by
+   any means, for any purpose, commercial or not.
+
+3. In particular, without prior written permission from the copyright holders,
+   no one may:
+   a. publish the Software, or an app, website or service built from it or
+      substantially similar to it, on any app store, marketplace or website;
+   b. reuse the question decks, packs, texts, visual identity, icons or
+      screenshots;
+   c. use the Software or any part of it to train or evaluate machine-learning
+      models.
+
+4. Names and marks. "qui de nous ?", "Coflop", their logos and the app icon are
+   not licensed under any terms and may not be used to identify any other
+   product or service.
+
+5. Contributions. By submitting a contribution (pull request, patch, issue
+   content), you agree that the copyright holders may use, modify and
+   distribute it as part of the Software under any terms, and you confirm you
+   have the right to grant this.
+
+6. Third-party components. Third-party libraries used by the Software remain
+   under their own licences; this licence covers only the original material of
+   the Software.
+
+7. No warranty. The Software is provided "as is", without warranty of any kind.
+   The copyright holders are not liable for any claim, damages or other
+   liability arising from it.
+
+8. Termination and enforcement. Any use outside this licence is copyright
+   infringement and may be pursued, including through takedown requests to
+   hosting platforms and app stores.
+
+Permission requests: contact@coflop.fr

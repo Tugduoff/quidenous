@@ -40,3 +40,7 @@ Config (env): `PORT` (8080), `DATA_DIR` (`data`), `DATABASE_URL`, `GROUP_NAME`, 
 ## Deploy (homelab)
 
 See [deploy/README.md](deploy/README.md): one Docker image (API + web app), HTTPS reverse proxy with WebSockets.
+
+## Licence
+
+Source visible, all rights reserved: no copying, reuse or publication without written permission. See [LICENSE](LICENSE).
