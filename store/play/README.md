@@ -85,7 +85,7 @@ Built-in questions worth softening in `server/deck/fr.txt` (they drive the ratin
 | Financial features | None |
 | Health features | None |
 
-The privacy page (`server/assets/legal/privacy.html`, section "Âge") says **15 ans et plus**: change it to **16 ans et plus** to match.
+The privacy page says **16 ans et plus** (changed from 15 in this branch).
 
 ## Data safety
 
