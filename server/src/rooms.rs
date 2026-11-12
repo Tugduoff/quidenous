@@ -413,8 +413,11 @@ pub struct StartBody {
 /// No code, no account yet: create both, with a fresh room I own (the way in for newcomers).
 pub async fn start(
     State(state): State<AppState>,
+    crate::accounts::ClientIp(ip): crate::accounts::ClientIp,
+    crate::accounts::Device(device): crate::accounts::Device,
     Json(body): Json<StartBody>,
 ) -> AppResult<Json<Value>> {
+    crate::routes::legacy_gate(&state, ip)?;
     let name = body.name.trim();
     if name.is_empty() || name.chars().count() > 24 {
         return Err(AppError::BadRequest("bad_name"));
@@ -429,11 +432,15 @@ pub async fn start(
     .bind(COLORS[0])
     .fetch_one(&mut *tx)
     .await?;
-    sqlx::query("INSERT INTO user_tokens (token_hash, user_id) VALUES (?, ?)")
-        .bind(crate::auth::hash_token(&token))
-        .bind(user)
-        .execute(&mut *tx)
-        .await?;
+    sqlx::query(
+        "INSERT INTO user_tokens (token_hash, user_id, device, last_used_at) \
+         VALUES (?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))",
+    )
+    .bind(crate::auth::hash_token(&token))
+    .bind(user)
+    .bind(device)
+    .execute(&mut *tx)
+    .await?;
     tx.commit().await?;
     let created = create(
         State(state.clone()),

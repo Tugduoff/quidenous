@@ -9,19 +9,10 @@ import { Avatar, Card, Display } from '@/components/ui';
 import { api, type InboxItem } from '@/lib/api';
 import { keys, useInbox, useMembers } from '@/lib/queries';
 import { useTheme } from '@/lib/theme';
+import { ago } from '@/lib/time';
 
 const ICON = { message: MessageCircle, nudge: BellRing, result: Crown, question: Sparkles } as const;
 const TITLE = { message: 'Nouveau message', nudge: 'Relance', result: 'Résultat dispo', question: 'Nouvelle question' } as const;
-
-/** "il y a 5 min", "hier", "12 nov." */
-function ago(iso: string) {
-  const s = (Date.now() - new Date(iso).getTime()) / 1000;
-  if (s < 60) return "à l'instant";
-  if (s < 3600) return `il y a ${Math.floor(s / 60)} min`;
-  if (s < 86400) return `il y a ${Math.floor(s / 3600)} h`;
-  if (s < 172800) return 'hier';
-  return new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short' }).format(new Date(iso));
-}
 
 /** Everything that happened lately: results, new questions, nudges, messages. Opening it marks all as read. */
 export default function InboxScreen() {

@@ -9,9 +9,11 @@ import * as SystemUI from 'expo-system-ui';
 import { useEffect, useState } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 
+import { AppLock } from '@/components/app-lock';
 import { InstallBanner, InstallScreen, installMode } from '@/components/install';
 import { ConfirmHost } from '@/components/ui';
 import { useLive } from '@/lib/live';
+import { useLock } from '@/lib/lock';
 import { registerNativePush } from '@/lib/native-push';
 import { SessionProvider, useSession } from '@/lib/session';
 import { useScheme, useTheme, useThemeLoaded } from '@/lib/theme';
@@ -20,7 +22,10 @@ SplashScreen.preventAutoHideAsync();
 const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: 10_000 } } });
 
 function Root() {
-  const { ready, token, room } = useSession();
+  const { ready, token, room, roomless, verifying } = useSession();
+  // Signed out → sign-in screens; just signed up → email code; no room yet → join or create one; else the app.
+  const stage = !token ? 'out' : verifying ? 'verify' : roomless ? 'room' : 'in';
+  const lock = useLock();
   const t = useTheme();
   const scheme = useScheme();
   const themeLoaded = useThemeLoaded();
@@ -29,13 +34,13 @@ function Root() {
   const [install] = useState(installMode);
   const [banner, setBanner] = useState(install === 'banner');
   const [steps, setSteps] = useState(false);
-  useLive(install === 'block' ? null : token, room);
+  useLive(install === 'block' || stage !== 'in' ? null : token, room);
   useEffect(() => {
-    if (token) registerNativePush().catch(() => {});
-  }, [token]);
+    if (stage === 'in') registerNativePush().catch(() => {});
+  }, [stage]);
   useEffect(() => {
-    if (ready && fonts && themeLoaded) SplashScreen.hideAsync();
-  }, [ready, fonts, themeLoaded]);
+    if (ready && fonts && themeLoaded && lock.loaded) SplashScreen.hideAsync();
+  }, [ready, fonts, themeLoaded, lock.loaded]);
   // Native: the window behind every screen (seen while one loads or slides in) takes the theme's background.
   useEffect(() => {
     if (Platform.OS !== 'web') SystemUI.setBackgroundColorAsync(t.bg).catch(() => {});
@@ -48,7 +53,7 @@ function Root() {
     document.body.style.backgroundColor = t.bg;
     for (const meta of document.querySelectorAll('meta[name="theme-color"]')) meta.setAttribute('content', t.bg);
   }, [t.bg]);
-  if (!ready || !fonts || !themeLoaded) return null;
+  if (!ready || !fonts || !themeLoaded || !lock.loaded) return null;
   if (install === 'block') return <InstallScreen />;
   // Navigation's own background (cards, tab scenes) follows the theme too, instead of its default white.
   const base = scheme === 'light' ? DefaultTheme : DarkTheme;
@@ -58,7 +63,7 @@ function Root() {
       <StatusBar style={scheme === 'light' ? 'dark' : 'light'} />
       {banner && <InstallBanner onOpen={() => setSteps(true)} onClose={() => setBanner(false)} />}
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: t.bg } }}>
-        <Stack.Protected guard={!!token}>
+        <Stack.Protected guard={stage === 'in'}>
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="round/[id]" />
           <Stack.Screen name="profile" />
@@ -68,16 +73,31 @@ function Root() {
           <Stack.Screen name="friends" />
           <Stack.Screen name="packs" />
           <Stack.Screen name="pack/[id]" />
+          <Stack.Screen name="security" />
         </Stack.Protected>
-        <Stack.Protected guard={!token}>
+        <Stack.Protected guard={stage === 'room'}>
+          <Stack.Screen name="setup" />
+        </Stack.Protected>
+        <Stack.Protected guard={stage === 'verify'}>
+          <Stack.Screen name="auth/verify" />
+        </Stack.Protected>
+        <Stack.Protected guard={stage === 'out'}>
           <Stack.Screen name="join" />
+          <Stack.Screen name="auth/email" />
+          <Stack.Screen name="auth/password" />
+          <Stack.Screen name="auth/two-factor" />
+          <Stack.Screen name="auth/forgot" />
+          <Stack.Screen name="auth/reset" />
         </Stack.Protected>
+        {/* Back from Google / Discord: signing in (signed out) or linking (signed in). */}
+        <Stack.Screen name="oauth" />
       </Stack>
       {steps && (
         <View style={StyleSheet.absoluteFill}>
           <InstallScreen onClose={() => setSteps(false)} />
         </View>
       )}
+      <AppLock active={!!token} />
       <ConfirmHost />
     </ThemeProvider>
   );

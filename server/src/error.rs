@@ -17,6 +17,17 @@ pub enum AppError {
     Conflict(&'static str),
     #[error("{0}")]
     Forbidden(&'static str),
+    #[error("{0}")]
+    Missing(&'static str),
+    #[error("{0}")]
+    Gone(&'static str),
+    #[error("{0}")]
+    Unavailable(&'static str),
+    /// Seconds to wait.
+    #[error("rate limited")]
+    RateLimited(u64),
+    #[error("{0}")]
+    Internal(String),
     #[error(transparent)]
     Db(#[from] sqlx::Error),
     #[error(transparent)]
@@ -33,8 +44,19 @@ impl IntoResponse for AppError {
             Self::BadRequest(code) => (StatusCode::BAD_REQUEST, *code),
             Self::Conflict(code) => (StatusCode::CONFLICT, *code),
             Self::Forbidden(code) => (StatusCode::FORBIDDEN, *code),
+            Self::Missing(code) => (StatusCode::NOT_FOUND, *code),
+            Self::Gone(code) => (StatusCode::GONE, *code),
+            Self::Unavailable(code) => (StatusCode::SERVICE_UNAVAILABLE, *code),
+            Self::RateLimited(secs) => {
+                return (
+                    StatusCode::TOO_MANY_REQUESTS,
+                    [(axum::http::header::RETRY_AFTER, secs.to_string())],
+                    Json(json!({ "error": "rate_limited", "retry_after": secs })),
+                )
+                    .into_response();
+            }
             Self::Image(_) => (StatusCode::BAD_REQUEST, "bad_image"),
-            Self::Db(_) | Self::Io(_) => {
+            Self::Db(_) | Self::Io(_) | Self::Internal(_) => {
                 tracing::error!(error = %self, "internal error");
                 (StatusCode::INTERNAL_SERVER_ERROR, "internal")
             }

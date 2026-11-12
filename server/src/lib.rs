@@ -1,3 +1,4 @@
+pub mod accounts;
 pub mod auth;
 pub mod config;
 pub mod deck;
@@ -35,6 +36,7 @@ pub struct AppState {
     pub live: Live,
     pub config: Arc<Config>,
     pub push: Push,
+    pub auth: Arc<accounts::Auth>,
 }
 
 pub async fn connect(url: &str) -> anyhow_free::Result<SqlitePool> {
@@ -51,6 +53,15 @@ pub async fn connect(url: &str) -> anyhow_free::Result<SqlitePool> {
 }
 
 pub async fn state(config: Config) -> anyhow_free::Result<AppState> {
+    let mailer = accounts::Auth::mailer_from(&config);
+    state_with_mailer(config, mailer).await
+}
+
+/// Same as [`state`], with a chosen mailer (tests record the emails).
+pub async fn state_with_mailer(
+    config: Config,
+    mailer: Arc<dyn accounts::Mailer>,
+) -> anyhow_free::Result<AppState> {
     let db = connect(&config.database_url).await?;
     deck::seed(&db).await?;
     let first_group = deck::ensure_group(&db, &config.group_name, &config.join_code).await?;
@@ -74,11 +85,20 @@ pub async fn state(config: Config) -> anyhow_free::Result<AppState> {
         fcm = fcm.is_some(),
         "push notifications"
     );
+    let auth = accounts::Auth::new(&config, mailer)?;
+    tracing::info!(
+        email = auth.mailer.configured(),
+        oauth = ?auth.oauth.enabled(),
+        auth_required = config.auth_required,
+        trust_proxy = config.trust_proxy,
+        "accounts"
+    );
     Ok(AppState {
         db,
         live: Live::new(),
         config: Arc::new(config),
         push: Push::new(vapid, fcm),
+        auth: Arc::new(auth),
     })
 }
 

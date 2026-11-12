@@ -3,13 +3,15 @@ import { File as FsFile } from 'expo-file-system';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
-import { Camera, ChevronLeft, ChevronRight, LogOut, Moon, Sun, SunMoon, Users } from 'lucide-react-native';
+import { Camera, ChevronLeft, ChevronRight, LogOut, Moon, ShieldCheck, Sun, SunMoon, Users } from 'lucide-react-native';
 import { useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, Text, TextInput, View } from 'react-native';
 
 import { Screen } from '@/components/screen';
+import { useSignOut } from '@/components/security/devices';
 import { Avatar, Button, Card, Display } from '@/components/ui';
 import { api, ApiError, apiUpload, type Member } from '@/lib/api';
+import { useAccount, useFeatures } from '@/lib/auth';
 import { keys } from '@/lib/queries';
 import { useSession } from '@/lib/session';
 import { ACCENTS, setAccent, setThemePref, useAccent, useTheme, useThemePref, type Accent, type ThemePref } from '@/lib/theme';
@@ -39,7 +41,10 @@ async function photoForm(uri: string) {
 export default function Profile() {
   const t = useTheme();
   const qc = useQueryClient();
-  const { me, setMe, leave } = useSession();
+  const { me, setMe } = useSession();
+  const features = useFeatures();
+  const { data: account } = useAccount();
+  const signOut = useSignOut();
   const pref = useThemePref();
   const accent = useAccent();
   const [name, setName] = useState(me?.name ?? '');
@@ -191,11 +196,22 @@ export default function Profile() {
         </Card>
       </Pressable>
 
+      {features.auth && (
+        <Pressable accessibilityRole="button" onPress={() => router.push('/security')}>
+          <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16 }}>
+            <ShieldCheck size={20} color={t.txt} />
+            <Text style={{ flex: 1, fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>Sécurité</Text>
+            {account && !account.secured && <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: t.tag }} />}
+            <ChevronRight size={20} color={t.mut} />
+          </Card>
+        </Pressable>
+      )}
+
       <View style={{ flex: 1 }} />
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Se déconnecter"
-        onPress={() => leave().then(() => router.replace('/join'))}
+        onPress={signOut}
         style={{ alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12 }}>
         <LogOut size={18} color={t.mut} />
       </Pressable>

@@ -1,145 +1,92 @@
-import { ArrowRight } from 'lucide-react-native';
-import { type ComponentRef, useRef, useState } from 'react';
-import { Pressable, Text, TextInput, View } from 'react-native';
+import { router, useLocalSearchParams } from 'expo-router';
+import { Mail, Ticket } from 'lucide-react-native';
+import { useState } from 'react';
+import { ActivityIndicator, Text, View } from 'react-native';
 
-import { ScanButton } from '@/components/qr-scanner';
+import { ErrorText, SoftButton } from '@/components/auth-ui';
+import { BrandIcon } from '@/components/brand-icons';
+import { LegacyJoin } from '@/components/legacy-join';
 import { Screen } from '@/components/screen';
-import { Button, Card, Logo } from '@/components/ui';
-import { ApiError, presetJoinCode, SERVER_FIELD } from '@/lib/api';
-import { useSession } from '@/lib/session';
+import { Button, Logo } from '@/components/ui';
+import { authError, isLinked, pendingJoinCode, PROVIDER_NAMES, setPendingCode, useFeatures, type Provider } from '@/lib/auth';
+import { oauth, useFinishSignIn } from '@/lib/sign-in';
 import { useTheme } from '@/lib/theme';
 
-const ERRORS: Record<string, string> = {
-  bad_code: 'Code inconnu',
-  bad_name: 'Prénom invalide',
-  bad_room_name: 'Donne un nom à ton salon',
-  removed: 'Tu as été retiré de ce salon',
-};
-
-export default function Join() {
+/** The entry screen. An invite link (`?code=`) is kept for after signing in. An older server keeps the old join screen. */
+export default function Entry() {
   const t = useTheme();
-  const { join, start } = useSession();
-  const [name, setName] = useState('');
-  const [preset] = useState(presetJoinCode);
-  const [code, setCode] = useState(preset ?? '');
-  // Without an invite: join with a code, or start a room of my own.
-  const [creating, setCreating] = useState(false);
-  const [room, setRoom] = useState('');
-  const [server, setServer] = useState('https://');
-  const [busy, setBusy] = useState(false);
-  const next = useRef<ComponentRef<typeof TextInput>>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { code } = useLocalSearchParams<{ code?: string }>();
+  useState(() => code && setPendingCode(code));
+  const features = useFeatures();
+  if (!features.loaded)
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: t.bg }}>
+        <ActivityIndicator color={t.mut} />
+      </View>
+    );
+  if (!features.auth) return <LegacyJoin />;
+  return <Welcome providers={features.providers} />;
+}
 
-  const submit = async () => {
-    setBusy(true);
+function Welcome({ providers }: { providers: Provider[] }) {
+  const t = useTheme();
+  const finish = useFinishSignIn();
+  const [busy, setBusy] = useState<Provider | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const invite = pendingJoinCode();
+
+  const withProvider = async (p: Provider) => {
+    setBusy(p);
     setError(null);
     try {
-      if (creating) await start(name, room, SERVER_FIELD ? server : undefined);
-      else await join(code, name, SERVER_FIELD ? server : undefined);
+      const r = await oauth(p);
+      if (r && !isLinked(r)) await finish(r);
     } catch (e) {
-      setError(e instanceof ApiError ? (ERRORS[e.code] ?? 'Erreur') : 'Pas de connexion');
-      if (e instanceof ApiError && e.code === 'bad_code' && preset) setCode('');
+      setError(authError(e));
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   };
 
-  const ready = !!name.trim() && !!(creating ? room.trim() : code.trim()) && !busy;
-  const go = () => ready && submit();
-  const input = { fontFamily: t.font.semibold, fontSize: 16, color: t.txt, padding: 16 };
   return (
     <Screen
       tabs={false}
       footer={
-        <Button onPress={submit} loading={busy} disabled={!name.trim() || !(creating ? room.trim() : code.trim())}>
-          <Text style={{ fontFamily: t.font.bold, fontSize: 17, color: t.accTxt }}>{creating ? 'Créer mon salon' : 'Rejoindre'}</Text>
-          <ArrowRight size={20} color={t.accTxt} />
-        </Button>
+        <>
+          <ErrorText>{error}</ErrorText>
+          {providers.map((p) => (
+            <SoftButton key={p} icon={<BrandIcon provider={p} />} loading={busy === p} disabled={!!busy} onPress={() => withProvider(p)}>
+              {`Continuer avec ${PROVIDER_NAMES[p]}`}
+            </SoftButton>
+          ))}
+          <Button onPress={() => router.push('/auth/email')} disabled={!!busy}>
+            <Mail size={20} color={t.accTxt} />
+            <Text style={{ fontFamily: t.font.bold, fontSize: 17, color: t.accTxt }}>Continuer avec un e-mail</Text>
+          </Button>
+        </>
       }>
-      <View style={{ marginTop: 48, gap: 14, marginBottom: 32 }}>
+      <View style={{ marginTop: 48, gap: 14 }}>
         <Logo size={44} />
         <Text style={{ fontFamily: t.font.regular, fontSize: 16, lineHeight: 22, color: t.mut }}>
           Une question. Tout le monde vote.{'\n'}Personne n&apos;est à l&apos;abri.
         </Text>
       </View>
-      <Card>
-        <TextInput
-          accessibilityLabel="Prénom"
-          placeholder="Prénom"
-          placeholderTextColor={t.mut}
-          value={name}
-          onChangeText={setName}
-          autoComplete="given-name"
-          returnKeyType="next"
-          submitBehavior="submit"
-          onSubmitEditing={() => (preset && code ? go() : next.current?.focus())}
-          style={input}
-        />
-      </Card>
-      {creating ? (
-        <Card>
-          <TextInput
-            accessibilityLabel="Nom du salon"
-            placeholder="Nom du salon (Les cousins, Le boulot…)"
-            placeholderTextColor={t.mut}
-            value={room}
-            ref={next}
-            onChangeText={setRoom}
-            maxLength={40}
-            returnKeyType="go"
-            onSubmitEditing={go}
-            style={input}
-          />
-        </Card>
-      ) : (
-        (!preset || !code) && (
-          <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingRight: 6 }}>
-            <TextInput
-              ref={next}
-              accessibilityLabel="Code du groupe"
-              placeholder="CODE"
-              placeholderTextColor={t.mut}
-              value={code}
-              onChangeText={(v) => setCode(v.toUpperCase())}
-              autoCapitalize="characters"
-              autoCorrect={false}
-              returnKeyType="go"
-              onSubmitEditing={go}
-              style={[input, { flex: 1, minWidth: 0, letterSpacing: 6 }]}
-            />
-            <ScanButton onScan={(s) => s.code && setCode(s.code)} />
-          </Card>
-        )
+      {invite && (
+        <View
+          style={{
+            alignSelf: 'flex-start',
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 8,
+            paddingHorizontal: 14,
+            paddingVertical: 8,
+            borderRadius: t.radius.pill,
+            backgroundColor: t.accSoft,
+          }}>
+          <Ticket size={16} color={t.accInk} />
+          <Text style={{ fontFamily: t.font.bold, fontSize: 14, letterSpacing: 1, color: t.accInk }}>{invite}</Text>
+        </View>
       )}
-      {!preset && (
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => setCreating((c) => !c)}
-          hitSlop={8}
-          style={{ alignSelf: 'center', padding: 8 }}>
-          <Text style={{ fontFamily: t.font.semibold, fontSize: 15, color: t.accInk }}>
-            {creating ? "J'ai un code d'invitation" : 'Pas de code ? Crée ton salon'}
-          </Text>
-        </Pressable>
-      )}
-      {SERVER_FIELD && (
-        <Card>
-          <TextInput
-            accessibilityLabel="Serveur"
-            placeholder="https://…"
-            placeholderTextColor={t.mut}
-            value={server}
-            onChangeText={setServer}
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="url"
-            returnKeyType="go"
-            onSubmitEditing={go}
-            style={input}
-          />
-        </Card>
-      )}
-      {error && <Text style={{ fontFamily: t.font.semibold, color: t.tag }}>{error}</Text>}
     </Screen>
   );
 }

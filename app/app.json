@@ -57,6 +57,12 @@
           "microphonePermission": false,
           "recordAudioAndroid": false
         }
+      ],
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Pour verrouiller l’app avec Face ID."
+        }
       ]
     ],
     "experiments": {
