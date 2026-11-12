@@ -2,7 +2,7 @@
   "expo": {
     "name": "qui de nous ?",
     "slug": "quidenous",
-    "version": "0.22.0",
+    "version": "0.23.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "quidenous",
@@ -21,7 +21,7 @@
       "predictiveBackGestureEnabled": false,
       "package": "com.tugduoff.quidenous",
       "googleServicesFile": "./google-services.json",
-      "versionCode": 47
+      "versionCode": 48
     },
     "web": {
       "output": "single",
