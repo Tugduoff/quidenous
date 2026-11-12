@@ -41,7 +41,7 @@ export default function PacksScreen() {
     onSuccess: (r) => {
       setName('');
       setDesc('');
-      setNote(`Publié : ${r.count} questions 🎉`);
+      setNote(`Publié : ${r.count} questions`);
       qc.invalidateQueries({ queryKey: ['packs'] });
     },
     onError: (e) =>

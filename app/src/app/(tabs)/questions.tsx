@@ -1,12 +1,12 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import * as DocumentPicker from 'expo-document-picker';
 import { router } from 'expo-router';
-import { Check, FileUp, Lock, MessageCircleQuestion, Plus, Shuffle, Trash2, X } from 'lucide-react-native';
+import { Check, FileUp, Lock, MessageCircleQuestion, Package, Plus, Shuffle, Trash2, Trophy, X } from 'lucide-react-native';
 import { useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 
 import { Screen } from '@/components/screen';
-import { Avatar, Card, ConfirmModal, Display, Toggle } from '@/components/ui';
+import { Avatar, Card, ConfirmModal, Display, QuestionText, Toggle } from '@/components/ui';
 import { api } from '@/lib/api';
 import { parseQuestions, splitTag, type DraftLine } from '@/lib/import-draft';
 import { keys, useGroup, useMembers, useQueue } from '@/lib/queries';
@@ -85,7 +85,7 @@ export default function QuestionsScreen() {
   const shuffle = useMutation({
     mutationFn: () => api<{ shuffled: number }>('/questions/shuffle', { method: 'POST' }),
     onSuccess: () => {
-      setImported('Mélangé 🔀');
+      setImported('Mélangé');
       qc.invalidateQueries({ queryKey: keys.queue });
     },
     onError: () => setImported('Mélange raté'),
@@ -143,7 +143,7 @@ export default function QuestionsScreen() {
             />
             <View style={{ flexDirection: 'row', alignItems: 'center', paddingLeft: 16, paddingRight: 10 }}>
               {/* The next question is a ranking (everyone, first to last). */}
-              <Toggle label="🏆 Classement" value={rank} onChange={setRank} />
+              <Toggle icon={Trophy} label="Classement" value={rank} onChange={setRank} />
               <View style={{ flex: 1 }} />
               <Pressable
                 accessibilityRole="button"
@@ -164,7 +164,7 @@ export default function QuestionsScreen() {
           </Card>
           {/* Or many at once. */}
           <View style={{ flexDirection: 'row', gap: 10 }}>
-            <BulkButton label="Packs" emoji="📦" onPress={() => router.push('/packs')} />
+            <BulkButton label="Packs" icon={<Package size={16} color={t.txt} />} onPress={() => router.push('/packs')} />
             <BulkButton
               label={importFile.isPending ? 'Import…' : 'Importer'}
               icon={<FileUp size={16} color={t.txt} />}
@@ -198,7 +198,7 @@ export default function QuestionsScreen() {
             </Pressable>
           </View>
           {/* Ask them in a random order instead of the file's. */}
-          <Toggle label="🔀 Ordre aléatoire" value={mix} onChange={setMix} />
+          <Toggle icon={Shuffle} label="Ordre aléatoire" value={mix} onChange={setMix} />
           {draft.map((l, i) => (
             <Pressable
               key={i}
@@ -228,6 +228,7 @@ export default function QuestionsScreen() {
                 }}>
                 {l.selected && <Check size={14} color={t.accTxt} strokeWidth={3} />}
               </View>
+              {l.rank && <Trophy size={14} color={t.accInk} style={{ marginTop: 3 }} />}
               <Text
                 style={{
                   flex: 1,
@@ -236,7 +237,6 @@ export default function QuestionsScreen() {
                   lineHeight: 20,
                   color: t.txt,
                 }}>
-                {l.rank && <Text>🏆 </Text>}
                 {l.text}
                 {l.problem && <Text style={{ color: t.tag }}>{`  · ${l.problem}`}</Text>}
               </Text>
@@ -331,16 +331,12 @@ export default function QuestionsScreen() {
             padding: 14,
           }}>
           {q.author_id != null ? <Avatar member={byId.get(q.author_id)} size={32} /> : <MessageCircleQuestion size={20} color={t.mut} />}
-          <Text
-            style={{
-              flex: 1,
-              fontFamily: t.font.semibold,
-              fontSize: 15,
-              color: t.txt,
-            }}>
-            {q.kind === 'rank' ? '🏆 ' : ''}
-            {q.text}
-          </Text>
+          <QuestionText
+            text={q.text}
+            rank={q.kind === 'rank'}
+            containerStyle={{ flex: 1 }}
+            style={{ fontFamily: t.font.semibold, fontSize: 15, lineHeight: 20, color: t.txt }}
+          />
           {/* Its author or the room owner can take it out before it's asked. */}
           {(q.author_id === me?.id || group?.my_role === 'owner') && (
             <Pressable
@@ -387,15 +383,13 @@ function shuffled<T>(items: T[]): T[] {
 /** One of the two "many at once" buttons under the composer. */
 function BulkButton({
   label,
-  emoji,
   icon,
   onPress,
   disabled,
   accessibilityLabel,
 }: {
   label: string;
-  emoji?: string;
-  icon?: React.ReactNode;
+  icon: React.ReactNode;
   onPress: () => void;
   disabled?: boolean;
   accessibilityLabel?: string;
@@ -420,7 +414,7 @@ function BulkButton({
         borderColor: t.line,
         opacity: disabled ? 0.5 : pressed ? 0.7 : 1,
       })}>
-      {emoji ? <Text style={{ fontSize: 15 }}>{emoji}</Text> : icon}
+      {icon}
       <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.txt }}>{label}</Text>
     </Pressable>
   );

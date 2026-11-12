@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
 import { Screen } from '@/components/screen';
-import { Card, Display } from '@/components/ui';
+import { Card, Display, QuestionText } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { keys, useGroup, usePack } from '@/lib/queries';
 import { useTheme } from '@/lib/theme';
@@ -26,9 +26,7 @@ export default function PackScreen() {
       qc.invalidateQueries({ queryKey: keys.current });
     },
     onError: (e) =>
-      setNote(
-        e instanceof ApiError && e.code === 'owner_only' ? 'Dans ce salon, seul le propriétaire ajoute des questions' : 'Raté, réessaie',
-      ),
+      setNote(e instanceof ApiError && e.code === 'owner_only' ? 'Dans ce salon, seul le propriétaire ajoute des questions' : 'Raté, réessaie'),
   });
   const report = useMutation({
     mutationFn: () => api(`/packs/${id}/report`, { method: 'POST' }),
@@ -71,26 +69,22 @@ export default function PackScreen() {
       {note && <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.accInk }}>{note}</Text>}
       <Card style={{ padding: 16, gap: 10 }}>
         {pack.questions.map((q, i) => (
-          <Text key={i} style={{ fontFamily: t.font.regular, fontSize: 14, lineHeight: 20, color: t.txt }}>
-            {q.kind === 'rank' ? '🏆 ' : '· '}
-            {q.text}
-          </Text>
+          <QuestionText
+            key={i}
+            text={q.text}
+            rank={q.kind === 'rank'}
+            style={{ fontFamily: t.font.regular, fontSize: 14, lineHeight: 20, color: t.txt }}
+          />
         ))}
       </Card>
       <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 20 }}>
         {pack.mine ? (
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => remove.mutate()}
-            style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+          <Pressable accessibilityRole="button" onPress={() => remove.mutate()} style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
             <Trash2 size={16} color={t.tag} />
             <Text style={{ fontFamily: t.font.semibold, color: t.tag }}>Retirer mon pack</Text>
           </Pressable>
         ) : (
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => report.mutate()}
-            style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+          <Pressable accessibilityRole="button" onPress={() => report.mutate()} style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
             <Flag size={16} color={t.mut} />
             <Text style={{ fontFamily: t.font.semibold, color: t.mut }}>Signaler</Text>
           </Pressable>

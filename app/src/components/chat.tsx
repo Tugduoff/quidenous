@@ -22,7 +22,7 @@ export function ChatMessages({ roundId }: { roundId: number }) {
   if (!messages?.length) {
     return (
       <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut, marginLeft: 4 }}>
-        Pas encore de messages. Lance le débat 👇
+        Pas encore de messages. Lance le débat.
       </Text>
     );
   }

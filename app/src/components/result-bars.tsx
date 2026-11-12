@@ -58,7 +58,8 @@ export function ResultBars({ result, byId }: { result: Tally[]; byId: Map<number
 export function RankResult({ ranking, byId, mine }: { ranking: RankEntry[]; byId: Map<number, Member>; mine: number[] | null }) {
   const t = useTheme();
   const best = ranking[0]?.points || 1;
-  const medals = ['🥇', '🥈', '🥉'];
+  // Gold, silver, bronze discs for the podium.
+  const podium = ['#F5C542', '#C9D0DA', '#D9935A'];
   return (
     <View style={{ gap: 10 }}>
       {ranking.map((r, i) => {
@@ -85,9 +86,17 @@ export function RankResult({ ranking, byId, mine }: { ranking: RankEntry[]; byId
               }}
             />
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12 }}>
-              <Text style={{ width: 30, textAlign: 'center', fontFamily: t.font.display, fontSize: i < 3 ? 22 : 18, color: t.txt }}>
-                {medals[i] ?? i + 1}
-              </Text>
+              <View
+                style={{
+                  width: 30,
+                  height: 30,
+                  borderRadius: 15,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: podium[i] ?? 'transparent',
+                }}>
+                <Text style={{ fontFamily: t.font.display, fontSize: i < 3 ? 15 : 18, color: i < 3 ? '#1A1A1A' : t.txt }}>{i + 1}</Text>
+              </View>
               <Avatar member={m} size={36} />
               <View style={{ flex: 1 }}>
                 <Text style={{ fontFamily: t.font.bold, fontSize: 16, color: t.txt }} numberOfLines={1}>

@@ -3,7 +3,7 @@ import { Crown, Download, PartyPopper, Pin } from 'lucide-react-native';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 
 import { Screen } from '@/components/screen';
-import { Avatar, AvatarStack, avatarStackWidth, Display } from '@/components/ui';
+import { Avatar, AvatarStack, avatarStackWidth, Display, QuestionText } from '@/components/ui';
 import type { HistoryItem, Member } from '@/lib/api';
 import { isMilestone } from '@/lib/milestones';
 import { downloadHistory } from '@/lib/share';
@@ -51,17 +51,14 @@ function HistoryCard({ item, lead, byId }: { item: HistoryItem; lead: number; by
       onPress={() => router.push(`/round/${item.id}`)}
       style={[{ flexDirection: 'row', gap: 12, alignItems: 'center', padding: 14, borderRadius: 20, backgroundColor: t.card }, t.shadow]}>
       <View style={{ width: lead, alignItems: 'center' }}>
-        {winners.length > 1 ? (
-          <AvatarStack members={winners} size={TIED} ring={t.card} max={MAX} />
-        ) : (
-          <Avatar member={winner} size={SOLO} />
-        )}
+        {winners.length > 1 ? <AvatarStack members={winners} size={TIED} ring={t.card} max={MAX} /> : <Avatar member={winner} size={SOLO} />}
       </View>
       <View style={{ flex: 1, gap: 4 }}>
-        <Text style={{ fontFamily: t.font.semibold, fontSize: 15, lineHeight: 19, color: t.txt }}>
-          {item.kind === 'rank' ? '🏆 ' : ''}
-          {item.question}
-        </Text>
+        <QuestionText
+          text={item.question}
+          rank={item.kind === 'rank'}
+          style={{ fontFamily: t.font.semibold, fontSize: 15, lineHeight: 19, color: t.txt }}
+        />
         <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 4 }}>
           <Crown size={14} color={winners.length === 1 ? (winner?.color ?? t.mut) : t.mut} style={{ flexShrink: 0, marginTop: 1 }} />
           <Text style={{ flex: 1, fontFamily: t.font.regular, fontSize: 12, lineHeight: 16, color: t.mut }}>

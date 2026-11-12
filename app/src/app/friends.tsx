@@ -12,7 +12,7 @@ import { keys, useFriends } from '@/lib/queries';
 import { friendLink, friendMessage, shareText } from '@/lib/share';
 import { useTheme } from '@/lib/theme';
 
-const ERRORS: Record<string, string> = { bad_code: 'Code ami inconnu', self_friend: "C'est ton propre code 🙃" };
+const ERRORS: Record<string, string> = { bad_code: 'Code ami inconnu', self_friend: "C'est ton propre code" };
 
 /** My friend code (and QR), add someone by code, my friends. */
 export default function FriendsScreen() {
@@ -26,7 +26,7 @@ export default function FriendsScreen() {
     mutationFn: () => api<{ name: string }>('/friends', { method: 'POST', json: { code: code.trim() } }),
     onSuccess: (r) => {
       setCode('');
-      setNote(`${r.name} est ton ami 🎉`);
+      setNote(`${r.name} est ton ami`);
       qc.invalidateQueries({ queryKey: keys.friends });
     },
     onError: (e) => setNote(e instanceof ApiError ? (ERRORS[e.code] ?? 'Raté, réessaie') : 'Raté, réessaie'),

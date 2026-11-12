@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
-import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
+import { Trophy, type LucideIcon } from 'lucide-react-native';
+import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View, type TextStyle, type ViewStyle } from 'react-native';
 import { Image } from 'expo-image';
 
 import { photoUrl, type Member } from '@/lib/api';
@@ -37,17 +38,7 @@ export function avatarStackWidth(count: number, size: number, max?: number) {
 }
 
 /** Overlapping avatars. `ring` should match the surface behind it; past `max`, a "+N" bubble. */
-export function AvatarStack({
-  members,
-  size = 28,
-  ring,
-  max,
-}: {
-  members: (Member | undefined)[];
-  size?: number;
-  ring?: string;
-  max?: number;
-}) {
+export function AvatarStack({ members, size = 28, ring, max }: { members: (Member | undefined)[]; size?: number; ring?: string; max?: number }) {
   const t = useTheme();
   const shown = max && members.length > max ? members.slice(0, max - 1) : members;
   const extra = members.length - shown.length;
@@ -137,9 +128,7 @@ export function Card({ children, style }: { children: ReactNode; style?: ViewSty
 
 export function Display({ children, size = 34 }: { children: ReactNode; size?: number }) {
   const t = useTheme();
-  return (
-    <Text style={{ fontFamily: t.font.display, fontSize: size, lineHeight: size * 1.08, letterSpacing: -1, color: t.txt }}>{children}</Text>
-  );
+  return <Text style={{ fontFamily: t.font.display, fontSize: size, lineHeight: size * 1.08, letterSpacing: -1, color: t.txt }}>{children}</Text>;
 }
 
 export function Logo({ size = 22 }: { size?: number }) {
@@ -157,7 +146,7 @@ const styles = StyleSheet.create({
 });
 
 /** A small on/off switch with its label, drawn to match the app (lime when on). */
-export function Toggle({ label, value, onChange }: { label: string; value: boolean; onChange: (v: boolean) => void }) {
+export function Toggle({ label, value, onChange, icon: Icon }: { label: string; value: boolean; onChange: (v: boolean) => void; icon?: LucideIcon }) {
   const t = useTheme();
   return (
     <Pressable
@@ -167,6 +156,7 @@ export function Toggle({ label, value, onChange }: { label: string; value: boole
       onPress={() => onChange(!value)}
       hitSlop={8}
       style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+      {Icon && <Icon size={14} color={value ? t.accInk : t.mut} style={{ marginRight: -3 }} />}
       <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: value ? t.accInk : t.mut }}>{label}</Text>
       <View
         style={{
@@ -183,6 +173,28 @@ export function Toggle({ label, value, onChange }: { label: string; value: boole
         <View style={{ width: 16, height: 16, borderRadius: 8, backgroundColor: value ? t.accTxt : t.mut }} />
       </View>
     </Pressable>
+  );
+}
+
+/** A question's text; ranking questions get a trophy in front, lined up with the first line. */
+export function QuestionText({
+  text,
+  rank,
+  style,
+  containerStyle,
+}: {
+  text: string;
+  rank: boolean;
+  style: TextStyle & { fontSize: number; lineHeight: number };
+  containerStyle?: ViewStyle;
+}) {
+  const t = useTheme();
+  const size = Math.round(style.fontSize * 0.95);
+  return (
+    <View style={[{ flexDirection: 'row', alignItems: 'flex-start', gap: 6, flexShrink: 1 }, containerStyle]}>
+      {rank && <Trophy size={size} color={t.accInk} style={{ flexShrink: 0, marginTop: (style.lineHeight - size) / 2 }} />}
+      <Text style={[{ flex: 1 }, style]}>{text}</Text>
+    </View>
   );
 }
 
@@ -214,7 +226,16 @@ export function ConfirmModal({
         {/* Taps inside the card don't close it. */}
         <Pressable
           onPress={() => {}}
-          style={{ width: '100%', maxWidth: 380, borderRadius: 24, padding: 22, gap: 12, backgroundColor: t.card, borderWidth: 1, borderColor: t.line }}>
+          style={{
+            width: '100%',
+            maxWidth: 380,
+            borderRadius: 24,
+            padding: 22,
+            gap: 12,
+            backgroundColor: t.card,
+            borderWidth: 1,
+            borderColor: t.line,
+          }}>
           <Text style={{ fontFamily: t.font.bold, fontSize: 18, color: t.txt }}>{title}</Text>
           {!!message && <Text style={{ fontFamily: t.font.regular, fontSize: 15, lineHeight: 21, color: t.mut }}>{message}</Text>}
           <View style={{ flexDirection: 'row', gap: 10, marginTop: 6 }}>
