@@ -11,7 +11,7 @@ import { Avatar, Button, Card, Display } from '@/components/ui';
 import { api, apiUpload, type Member } from '@/lib/api';
 import { keys } from '@/lib/queries';
 import { useSession } from '@/lib/session';
-import { setThemePref, useTheme, useThemePref, type ThemePref } from '@/lib/theme';
+import { ACCENTS, setAccent, setThemePref, useAccent, useTheme, useThemePref, type Accent, type ThemePref } from '@/lib/theme';
 
 const PHOTO_WIDTH = 512;
 const THEMES: { pref: ThemePref; Icon: typeof Sun; label: string }[] = [
@@ -39,6 +39,7 @@ export default function Profile() {
   const qc = useQueryClient();
   const { me, setMe, leave } = useSession();
   const pref = useThemePref();
+  const accent = useAccent();
   const [name, setName] = useState(me?.name ?? '');
   const [busy, setBusy] = useState<'photo' | 'name' | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -144,6 +145,31 @@ export default function Profile() {
                 t.shadow,
               ]}>
               <Icon size={22} color={on ? t.accInk : t.mut} />
+            </Pressable>
+          );
+        })}
+      </View>
+
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+        {(Object.keys(ACCENTS) as Accent[]).map((k) => {
+          const on = k === accent;
+          return (
+            <Pressable
+              key={k}
+              accessibilityRole="radio"
+              accessibilityLabel={`Couleur ${ACCENTS[k].label}`}
+              accessibilityState={{ selected: on }}
+              onPress={() => setAccent(k)}
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 22,
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderWidth: 2,
+                borderColor: on ? t.txt : 'transparent',
+              }}>
+              <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: ACCENTS[k].acc }} />
             </Pressable>
           );
         })}
