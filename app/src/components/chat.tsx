@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Send } from 'lucide-react-native';
-import { type ComponentRef, useRef, useState } from 'react';
-import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { useState } from 'react';
+import { Pressable, Text, TextInput, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 
 import { ModerationDialog, type ModTarget } from '@/components/moderation';
@@ -17,14 +17,13 @@ import { useTheme } from '@/lib/theme';
 const TIME = new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit' });
 const MAX = 500;
 
-/** The conversation under a result, in its own scrollable box that follows the newest message. */
+/** The conversation under a result, oldest first. Part of the page's own scroll (no box of its own: one scroll at a time). */
 export function ChatMessages({ roundId }: { roundId: number }) {
   const t = useTheme();
   const { me } = useSession();
   const { byId } = useMembers();
   const { data } = useMessages(roundId);
   const { ids: blocked } = useBlocks();
-  const box = useRef<ComponentRef<typeof ScrollView>>(null);
   // Long-press on someone else's message: report it, block its author.
   const [target, setTarget] = useState<ModTarget | null>(null);
   const authorId = (m: Message) => m.user_id ?? byId.get(m.member_id)?.user_id;
@@ -39,12 +38,7 @@ export function ChatMessages({ roundId }: { roundId: number }) {
       <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut, marginLeft: 4 }}>
         {`${messages.length} message${messages.length > 1 ? 's' : ''}`}
       </Text>
-      <ScrollView
-        ref={box}
-        nestedScrollEnabled
-        style={{ maxHeight: 320, borderRadius: 20 }}
-        contentContainerStyle={{ gap: 10 }}
-        onContentSizeChange={() => box.current?.scrollToEnd({ animated: false })}>
+      <View style={{ gap: 10 }}>
         {messages.map((m) => {
           const author = byId.get(m.member_id);
           const mine = m.member_id === me?.id;
@@ -91,14 +85,14 @@ export function ChatMessages({ roundId }: { roundId: number }) {
             </Animated.View>
           );
         })}
-      </ScrollView>
+      </View>
       <ModerationDialog target={target} onClose={() => setTarget(null)} />
     </View>
   );
 }
 
 /** The message box, meant for the screen footer (always reachable, above Suivante, rises with the keyboard). */
-export function ChatInput({ roundId }: { roundId: number }) {
+export function ChatInput({ roundId, onFocus, onSent }: { roundId: number; onFocus?: () => void; onSent?: () => void }) {
   const t = useTheme();
   const qc = useQueryClient();
   const [text, setText] = useState('');
@@ -106,6 +100,7 @@ export function ChatInput({ roundId }: { roundId: number }) {
     mutationFn: (body: string) => api<Message>(`/rounds/${roundId}/messages`, { method: 'POST', json: { text: body } }),
     onSuccess: (m) => {
       setText('');
+      onSent?.();
       qc.setQueryData<Message[]>(keys.messages(roundId), (old) => (old?.some((x) => x.id === m.id) ? old : [...(old ?? []), m]));
     },
   });
@@ -119,6 +114,7 @@ export function ChatInput({ roundId }: { roundId: number }) {
         placeholderTextColor={t.mut}
         value={text}
         onChangeText={setText}
+        onFocus={onFocus}
         multiline
         maxLength={MAX}
         {...sendOnEnter(submit)}

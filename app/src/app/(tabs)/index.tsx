@@ -17,18 +17,19 @@ import {
   Users,
 } from 'lucide-react-native';
 import { router } from 'expo-router';
-import { type ReactNode, useEffect, useState } from 'react';
+import { type ComponentRef, type ReactNode, useEffect, useRef, useState } from 'react';
 import { enablePush, pushState, refreshPush, type PushState } from '@/lib/push';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, type ScrollView, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import { ChatInput, ChatMessages } from '@/components/chat';
-import { RankResult, ResultBars } from '@/components/result-bars';
+import { BIG_GROUP, gridColumns, MemberGrid, MemberTile } from '@/components/member-grid';
+import { RankResult, ResultBars, ResultSummary } from '@/components/result-bars';
 import { Screen } from '@/components/screen';
 import { SecureCard } from '@/components/secure-card';
 import { Tip } from '@/components/tip';
 import { NoQuestions, SoloInvite } from '@/components/vote-empty';
-import { Avatar, AvatarStack, Button, Card, ConfirmModal, Display, Logo, PressableScale, Tag } from '@/components/ui';
+import { Avatar, AvatarStack, Button, Card, ConfirmModal, Dialog, Display, Logo, PressableScale, Tag } from '@/components/ui';
 import { api, type Member, type Round } from '@/lib/api';
 import { EASE, motion, usePop } from '@/lib/motion';
 import { keys, useCurrentRound, useGroup, useInbox, useMembers, useRound, useUnseenRound } from '@/lib/queries';
@@ -263,6 +264,9 @@ function RankBallot({ round, members, byId, onVoted }: { round: Round; members: 
   const toggle = (id: number) => setOrder((o) => (o.includes(id) ? o.filter((x) => x !== id) : [...o, id]));
   const done = order.length === members.length;
   const next = order.length + 1;
+  const sorted = [...order.map((id) => members.find((m) => m.id === id)), ...members.filter((m) => !order.includes(m.id))].filter(
+    (m): m is Member => !!m,
+  );
   return (
     <Screen
       footer={
@@ -275,7 +279,7 @@ function RankBallot({ round, members, byId, onVoted }: { round: Round; members: 
       <Header />
       <Question round={round} />
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-        <AvatarStack members={round.voter_ids.map((id) => byId.get(id))} />
+        <AvatarStack members={round.voter_ids.map((id) => byId.get(id))} max={6} />
         <Text style={{ flex: 1, fontFamily: t.font.regular, color: t.mut }}>
           {round.voter_ids.length}/{round.member_count}
         </Text>
@@ -291,52 +295,71 @@ function RankBallot({ round, members, byId, onVoted }: { round: Round; members: 
         )}
       </View>
       <VoteTip />
-      {/* Ranked people move up to their place, the rest slide down. */}
-      <View style={{ gap: 10 }}>
-        {[...order.map((id) => members.find((m) => m.id === id)!), ...members.filter((m) => !order.includes(m.id))].filter(Boolean).map((m) => {
-          const place = order.indexOf(m.id) + 1;
-          return (
-            <Animated.View key={m.id} layout={motion.layout}>
-              <PressableScale
-                scale={0.98}
-                accessibilityRole="button"
-                accessibilityLabel={place ? `${m.name}, ${place}e. Retirer` : `Classer ${m.name}`}
+      {/* Ranked people move up to their place, the rest slide down. A big group gets a grid of faces (no endless list). */}
+      {members.length > BIG_GROUP + 1 ? (
+        <MemberGrid>
+          {sorted.map((m) => {
+            const place = order.indexOf(m.id) + 1;
+            return (
+              <MemberTile
+                key={m.id}
+                member={m}
+                cols={gridColumns(members.length)}
+                selected={place > 0}
+                badge={place || undefined}
+                label={place ? `${m.name}, ${place}e. Retirer` : `Classer ${m.name}`}
                 onPress={() => toggle(m.id)}
-                style={[
-                  {
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    gap: 12,
-                    padding: 12,
-                    borderRadius: 18,
-                    borderWidth: 2,
-                    borderColor: place ? t.accInk : 'transparent',
-                    backgroundColor: place ? t.accSoft : t.card,
-                  },
-                  t.shadow,
-                ]}>
-                <Pop on={place > 0} to={1.2}>
-                  <View
-                    style={{
-                      width: 32,
-                      height: 32,
-                      borderRadius: 16,
+              />
+            );
+          })}
+        </MemberGrid>
+      ) : (
+        <View style={{ gap: 10 }}>
+          {sorted.map((m) => {
+            const place = order.indexOf(m.id) + 1;
+            return (
+              <Animated.View key={m.id} layout={motion.layout}>
+                <PressableScale
+                  scale={0.98}
+                  accessibilityRole="button"
+                  accessibilityLabel={place ? `${m.name}, ${place}e. Retirer` : `Classer ${m.name}`}
+                  onPress={() => toggle(m.id)}
+                  style={[
+                    {
+                      flexDirection: 'row',
                       alignItems: 'center',
-                      justifyContent: 'center',
-                      backgroundColor: place ? t.acc : t.card2,
-                    }}>
-                    <Text style={{ fontFamily: t.font.display, fontSize: 16, color: place ? t.accTxt : t.mut }}>{place || '·'}</Text>
-                  </View>
-                </Pop>
-                <Avatar member={m} size={36} />
-                <Text style={{ flex: 1, fontFamily: t.font.semibold, fontSize: 16, color: t.txt }} numberOfLines={1}>
-                  {m.name}
-                </Text>
-              </PressableScale>
-            </Animated.View>
-          );
-        })}
-      </View>
+                      gap: 12,
+                      padding: 12,
+                      borderRadius: 18,
+                      borderWidth: 2,
+                      borderColor: place ? t.accInk : 'transparent',
+                      backgroundColor: place ? t.accSoft : t.card,
+                    },
+                    t.shadow,
+                  ]}>
+                  <Pop on={place > 0} to={1.2}>
+                    <View
+                      style={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: 16,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        backgroundColor: place ? t.acc : t.card2,
+                      }}>
+                      <Text style={{ fontFamily: t.font.display, fontSize: 16, color: place ? t.accTxt : t.mut }}>{place || '·'}</Text>
+                    </View>
+                  </Pop>
+                  <Avatar member={m} size={36} />
+                  <Text style={{ flex: 1, fontFamily: t.font.semibold, fontSize: 16, color: t.txt }} numberOfLines={1}>
+                    {m.name}
+                  </Text>
+                </PressableScale>
+              </Animated.View>
+            );
+          })}
+        </View>
+      )}
     </Screen>
   );
 }
@@ -379,47 +402,62 @@ function PickBallot({ round, members, byId, onVoted }: { round: Round; members: 
       {/* Nobody yet: the button below already says 0/N. */}
       {round.voter_ids.length > 0 && (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <AvatarStack members={round.voter_ids.map((id) => byId.get(id))} />
+          <AvatarStack members={round.voter_ids.map((id) => byId.get(id))} max={6} />
           <Text style={{ fontFamily: t.font.regular, color: t.mut }}>
             {round.voter_ids.length}/{round.member_count}
           </Text>
         </View>
       )}
       <VoteTip />
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
-        {members.map((m) => {
-          const on = m.id === pick;
-          return (
-            <PressableScale
+      {members.length > BIG_GROUP ? (
+        <MemberGrid>
+          {members.map((m) => (
+            <MemberTile
               key={m.id}
-              scale={0.97}
-              accessibilityRole="radio"
-              accessibilityState={{ selected: on }}
+              member={m}
+              cols={gridColumns(members.length)}
+              role="radio"
+              selected={m.id === pick}
               onPress={() => setPick(m.id)}
-              style={[
-                {
-                  width: '48%',
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: 10,
-                  padding: 14,
-                  borderRadius: 20,
-                  borderWidth: 2,
-                  borderColor: on ? t.accInk : 'transparent',
-                  backgroundColor: on ? t.accSoft : t.card,
-                },
-                t.shadow,
-              ]}>
-              <Pop on={on}>
-                <Avatar member={m} />
-              </Pop>
-              <Text style={{ fontFamily: t.font.semibold, fontSize: 16, color: t.txt, flex: 1 }} numberOfLines={1}>
-                {m.name}
-              </Text>
-            </PressableScale>
-          );
-        })}
-      </View>
+            />
+          ))}
+        </MemberGrid>
+      ) : (
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+          {members.map((m) => {
+            const on = m.id === pick;
+            return (
+              <PressableScale
+                key={m.id}
+                scale={0.97}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: on }}
+                onPress={() => setPick(m.id)}
+                style={[
+                  {
+                    width: '48%',
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 10,
+                    padding: 14,
+                    borderRadius: 20,
+                    borderWidth: 2,
+                    borderColor: on ? t.accInk : 'transparent',
+                    backgroundColor: on ? t.accSoft : t.card,
+                  },
+                  t.shadow,
+                ]}>
+                <Pop on={on}>
+                  <Avatar member={m} />
+                </Pop>
+                <Text style={{ fontFamily: t.font.semibold, fontSize: 16, color: t.txt, flex: 1 }} numberOfLines={1}>
+                  {m.name}
+                </Text>
+              </PressableScale>
+            );
+          })}
+        </View>
+      )}
     </Screen>
   );
 }
@@ -508,10 +546,12 @@ function SkipButton({ member, round }: { member: Member; round: Round }) {
 
 function Waiting({ round, byId, members }: { round: Round; byId: Map<number, Member>; members: Member[] }) {
   const t = useTheme();
-  const { me } = useSession();
   const target = round.my_vote != null ? byId.get(round.my_vote) : undefined;
   const hidden = useHideVote();
   const pending = members.filter((m) => !round.voter_ids.includes(m.id));
+  // The face tapped in the grid; closes by itself once they've voted.
+  const [open, setOpen] = useState<number | null>(null);
+  const opened = pending.find((m) => m.id === open);
   // With two people a majority is one person deciding alone: no skip vote then.
   const canSkip = members.length >= 3;
   const done = round.voter_ids.length;
@@ -550,24 +590,61 @@ function Waiting({ round, byId, members }: { round: Round; byId: Map<number, Mem
           <Text style={{ flex: 1, fontFamily: t.font.bold, fontSize: 15, color: t.txt }}>
             {done} sur {round.member_count} ont voté
           </Text>
-          <AvatarStack members={round.voter_ids.map((id) => byId.get(id))} size={26} ring={t.card} />
+          <AvatarStack members={round.voter_ids.map((id) => byId.get(id))} size={26} ring={t.card} max={6} />
         </View>
         <Progress value={done / Math.max(round.member_count, 1)} />
         {pending.length > 0 && <Text style={label}>EN ATTENTE</Text>}
-        {/* Someone who votes fades out of the list and the others close up. */}
-        {pending.map((m) => (
-          <Animated.View key={m.id} exiting={motion.exit} layout={motion.layout} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-            <Avatar member={m} size={32} />
-            <Text numberOfLines={1} style={{ flex: 1, fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>
-              {m.name}
-            </Text>
-            {round.skipped_ids.includes(m.id) && <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut }}>passé</Text>}
-            {canSkip && m.id !== me?.id && !round.skipped_ids.includes(m.id) && <SkipButton member={m} round={round} />}
-            {m.id !== me?.id && <NudgeButton member={m} roundId={round.id} />}
-          </Animated.View>
-        ))}
+        {/* Many still to vote: a grid of faces; tap one for the bell and the skip. */}
+        {pending.length > BIG_WAIT ? (
+          <MemberGrid>
+            {pending.map((m) => {
+              const skipped = round.skipped_ids.includes(m.id);
+              const asked = round.skips.some((s) => s.target_id === m.id);
+              return (
+                <Animated.View key={m.id} exiting={motion.exit} layout={motion.layout} style={{ width: '20%' }}>
+                  <MemberTile
+                    member={m}
+                    cols={1}
+                    plain
+                    dim={skipped}
+                    badge={skipped || asked ? <SkipForward size={12} color={t.mut} /> : undefined}
+                    label={skipped ? `${m.name}, passé` : m.name}
+                    onPress={() => setOpen(m.id)}
+                  />
+                </Animated.View>
+              );
+            })}
+          </MemberGrid>
+        ) : (
+          /* Someone who votes fades out of the list and the others close up. */
+          pending.map((m) => <PendingRow key={m.id} member={m} round={round} canSkip={canSkip} />)
+        )}
       </Animated.View>
+      <Dialog visible={!!opened} onClose={() => setOpen(null)}>
+        {opened && <PendingRow member={opened} round={round} canSkip={canSkip} big />}
+      </Dialog>
     </Screen>
+  );
+}
+
+/** Up to this many people still to vote, one row each; more, a grid of faces. */
+const BIG_WAIT = 5;
+
+/** Someone we're waiting for: name, "passé" once skipped, the skip and the bell. */
+function PendingRow({ member: m, round, canSkip, big }: { member: Member; round: Round; canSkip: boolean; big?: boolean }) {
+  const t = useTheme();
+  const { me } = useSession();
+  const skipped = round.skipped_ids.includes(m.id);
+  return (
+    <Animated.View exiting={motion.exit} layout={motion.layout} style={{ flexDirection: 'row', alignItems: 'center', gap: big ? 12 : 10 }}>
+      <Avatar member={m} size={big ? 44 : 32} />
+      <Text numberOfLines={1} style={{ flex: 1, fontFamily: big ? t.font.bold : t.font.semibold, fontSize: big ? 17 : 15, color: t.txt }}>
+        {m.name}
+      </Text>
+      {skipped && <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut }}>passé</Text>}
+      {canSkip && m.id !== me?.id && !skipped && <SkipButton member={m} round={round} />}
+      {m.id !== me?.id && <NudgeButton member={m} roundId={round.id} />}
+    </Animated.View>
   );
 }
 
@@ -616,7 +693,14 @@ function BackHeader({ onBack, round }: { onBack: () => void; round?: Round }) {
           onPress={() => pin.mutate(!pinned)}
           disabled={pin.isPending}
           hitSlop={8}
-          style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: pinned ? t.accSoft : t.card }}>
+          style={{
+            width: 40,
+            height: 40,
+            borderRadius: 20,
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: pinned ? t.accSoft : t.card,
+          }}>
           <Pin size={18} color={pinned ? t.accInk : t.txt} fill={pinned ? t.accInk : 'none'} />
         </PressableScale>
       )}
@@ -626,16 +710,50 @@ function BackHeader({ onBack, round }: { onBack: () => void; round?: Round }) {
 
 export function Result({ roundId, byId, onNext, onBack }: { roundId: number; byId: Map<number, Member>; onNext?: () => void; onBack?: () => void }) {
   const t = useTheme();
+  const { members } = useMembers();
   const { data: round } = useRound(roundId);
+  const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
+  // One scroll for the whole page (no box inside a box). Where the full result ends, and whether
+  // it has scrolled out of sight: then its one-line summary stays pinned on top.
+  const resultEnd = useRef(0);
+  const [away, setAway] = useState(false);
+  // Follow the newest message while the bottom is in view, and right after I write or send one.
+  const follow = useRef(false);
+  const toEnd = () => {
+    follow.current = true;
+    // After the keyboard has opened (and the page shrunk), not before.
+    setTimeout(() => scroll.current?.scrollToEnd({ animated: true }), 300);
+  };
   const header = onBack ? <BackHeader onBack={onBack} round={round ?? undefined} /> : <Header />;
   if (!round?.result) return <Screen tabs={!onBack}>{header}</Screen>;
   return (
     <Screen
       // Opened from the history, the screen has no tab bar to keep it clear of the iPhone home bar.
       tabs={!onBack}
+      scroller={scroll}
+      onScroll={({ contentOffset, layoutMeasurement, contentSize }) => {
+        setAway(resultEnd.current > 0 && contentOffset.y > resultEnd.current - 24);
+        follow.current = contentOffset.y + layoutMeasurement.height >= contentSize.height - 80;
+      }}
+      onContentSizeChange={() => follow.current && scroll.current?.scrollToEnd({ animated: true })}
+      overlay={
+        away && (
+          <Animated.View entering={motion.drop} exiting={motion.exit} style={{ position: 'absolute', top: 8, left: 20, right: 20 }}>
+            <ResultSummary
+              result={round.result}
+              ranking={round.ranking}
+              byId={byId}
+              onPress={() => {
+                follow.current = false;
+                scroll.current?.scrollTo({ y: 0, animated: true });
+              }}
+            />
+          </Animated.View>
+        )
+      }
       footer={
         <>
-          <ChatInput roundId={round.id} />
+          <ChatInput roundId={round.id} onFocus={toEnd} onSent={toEnd} />
           {onNext && (
             <Button onPress={onNext}>
               <Text style={{ fontFamily: t.font.bold, fontSize: 17, color: t.accTxt }}>Suivante</Text>
@@ -645,8 +763,18 @@ export function Result({ roundId, byId, onNext, onBack }: { roundId: number; byI
         </>
       }>
       {header}
-      <Question round={round} result />
-      {round.ranking ? <RankResult ranking={round.ranking} byId={byId} mine={round.my_ranking} /> : <ResultBars result={round.result} byId={byId} />}
+      <View
+        style={{ gap: 16 }}
+        onLayout={({ nativeEvent: { layout } }) => {
+          resultEnd.current = layout.y + layout.height;
+        }}>
+        <Question round={round} result />
+        {round.ranking ? (
+          <RankResult ranking={round.ranking} byId={byId} mine={round.my_ranking} />
+        ) : (
+          <ResultBars result={round.result} byId={byId} members={members} />
+        )}
+      </View>
       <ChatMessages roundId={round.id} />
     </Screen>
   );

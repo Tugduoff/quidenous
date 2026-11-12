@@ -3,6 +3,7 @@ import {
   Easing,
   FadeIn,
   FadeInDown,
+  FadeInUp,
   FadeOut,
   LinearTransition,
   ReduceMotion,
@@ -32,6 +33,8 @@ export const motion = {
   exit: FadeOut.duration(150).reduceMotion(sys),
   /** A new message: rises a few pixels while fading in. */
   rise: FadeInDown.duration(220).easing(EASE).reduceMotion(sys),
+  /** Something pinned to the top dropping into place (the result summary). */
+  drop: FadeInUp.duration(200).easing(EASE).reduceMotion(sys),
   /** A voter's face joining a stack. */
   pop: ZoomIn.springify().damping(14).stiffness(220).reduceMotion(sys),
   /** A new question: slides up a little while fading in. (No custom offset: on the web that takes it out of the layout.) */
