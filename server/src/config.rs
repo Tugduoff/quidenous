@@ -30,6 +30,9 @@ pub struct Config {
     pub oauth_redirects: Vec<String>,
     /// `REPORT_EMAIL`: where content reports go (`contact@coflop.fr` when unset).
     pub report_email: Option<String>,
+    /// `UPDATES_PUBLISH_TOKEN`: bearer token CI uses to publish OTA updates (`/api/updates/publish`).
+    /// Absent: publishing and the update admin endpoints answer 404.
+    pub updates_publish_token: Option<String>,
 }
 
 pub const DEFAULT_REPORT_EMAIL: &str = "contact@coflop.fr";
@@ -140,6 +143,7 @@ impl Config {
                 })
                 .unwrap_or_default(),
             report_email: var("REPORT_EMAIL"),
+            updates_publish_token: var("UPDATES_PUBLISH_TOKEN"),
         }
     }
 }

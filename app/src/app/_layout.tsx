@@ -14,9 +14,10 @@ import { AppLock } from '@/components/app-lock';
 import { CelebrationPreview } from '@/components/celebration';
 import { InstallBanner, InstallScreen, installMode } from '@/components/install';
 import { ConfirmHost } from '@/components/ui';
-import { UpdateDialog } from '@/components/update';
+import { OtaToast, UpdateDialog } from '@/components/update';
 import { useLive } from '@/lib/live';
 import { useLock } from '@/lib/lock';
+import { useOtaCheck } from '@/lib/ota';
 import { registerNativePush, useNotificationTaps } from '@/lib/native-push';
 import { useNotifTzSync } from '@/lib/notifications';
 import { useRoomParam } from '@/lib/rooms';
@@ -54,6 +55,8 @@ function Root() {
   useNotifTzSync(stage === 'in');
   // The APK installed by hand looks for a newer release (never in the Play build).
   useUpdateCheck(ready && install !== 'block');
+  // Over-the-air JS updates (both builds): checked again when the app comes back to the foreground.
+  useOtaCheck(ready);
   useEffect(() => {
     if (ready && fonts && themeLoaded && lock.loaded) SplashScreen.hideAsync();
   }, [ready, fonts, themeLoaded, lock.loaded]);
@@ -120,6 +123,7 @@ function Root() {
       <AppLock active={!!token} />
       <ConfirmHost />
       <UpdateDialog />
+      {stage === 'in' && <OtaToast />}
     </ThemeProvider>
   );
 }

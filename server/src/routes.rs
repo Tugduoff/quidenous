@@ -123,6 +123,7 @@ pub fn router() -> Router<AppState> {
         .route("/push/config", get(push_config))
         .route("/push/subscribe", post(push_subscribe))
         .route("/push/unsubscribe", post(push_unsubscribe))
+        .merge(crate::updates::router())
 }
 
 async fn features(State(state): State<AppState>) -> Json<Value> {
@@ -146,6 +147,7 @@ async fn features(State(state): State<AppState>) -> Json<Value> {
         "solo_wait",
         "notification_settings",
         "stats_v2",
+        "ota",
     ];
     f.extend(crate::accounts::features(&state));
     Json(json!(f))
