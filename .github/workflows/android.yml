@@ -39,3 +39,44 @@ jobs:
         with:
           name: quidenous-apk
           path: app/android/app/build/outputs/apk/release/app-release.apk
+      # Google Play: an app bundle signed with the upload key (the APK above keeps its old key,
+      # so the APKs people installed by hand still update in place).
+      - name: Play upload signing
+        if: env.UPLOAD_B64 != ''
+        env:
+          UPLOAD_B64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_B64 }}
+        run: |
+          printf '%s' "$UPLOAD_B64" | base64 -d > "$RUNNER_TEMP/upload.p12"
+          cat >> app/build.gradle <<'GRADLE'
+
+          // Added by CI for the Play bundle only (-PplayUpload).
+          if (project.hasProperty('playUpload')) {
+              android {
+                  signingConfigs {
+                      upload {
+                          storeFile file(System.getenv('UPLOAD_STORE_FILE'))
+                          storeType 'pkcs12'
+                          storePassword System.getenv('UPLOAD_STORE_PASSWORD')
+                          keyAlias 'upload'
+                          keyPassword System.getenv('UPLOAD_STORE_PASSWORD')
+                      }
+                  }
+                  buildTypes { release { signingConfig signingConfigs.upload } }
+              }
+          }
+          GRADLE
+        working-directory: app/android
+      - name: Play bundle (AAB)
+        if: hashFiles('app/android/app/build.gradle') != ''
+        env:
+          UPLOAD_STORE_FILE: ${{ runner.temp }}/upload.p12
+          UPLOAD_STORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_PASSWORD }}
+        run: |
+          [ -f "$UPLOAD_STORE_FILE" ] || { echo "no upload key, skipping"; exit 0; }
+          ./gradlew bundleRelease -PplayUpload -PreactNativeArchitectures=arm64-v8a,armeabi-v7a,x86_64 --no-daemon
+        working-directory: app/android
+      - uses: actions/upload-artifact@v4
+        if: hashFiles('app/android/app/build/outputs/bundle/release/*.aab') != ''
+        with:
+          name: quidenous-aab
+          path: app/android/app/build/outputs/bundle/release/app-release.aab
