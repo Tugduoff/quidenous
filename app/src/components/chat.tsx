@@ -71,7 +71,7 @@ export function ChatMessages({ roundId }: { roundId: number }) {
                 setTarget({
                   kind: 'message',
                   id: m.id,
-                  person: author && userId != null ? { user_id: userId, name: author.name, color: author.color, photo: author.photo_url } : undefined,
+                  person: author && userId != null ? { user_id: userId, name: author.name, color: author.color, photo: author.photo_url, avatar: author.avatar } : undefined,
                 });
           return (
             <Animated.View

@@ -167,8 +167,8 @@ pub async fn list_blocks(
     State(state): State<AppState>,
     UserId(me): UserId,
 ) -> AppResult<Json<Value>> {
-    let rows: Vec<(i64, String, String, Option<String>)> = sqlx::query_as(
-        "SELECT u.id, u.name, u.color, u.photo FROM blocks b JOIN users u ON u.id = b.blocked_id \
+    let rows: Vec<(i64, String, String, Option<String>, Option<String>)> = sqlx::query_as(
+        "SELECT u.id, u.name, u.color, u.photo, u.avatar FROM blocks b JOIN users u ON u.id = b.blocked_id \
          WHERE b.user_id = ? ORDER BY b.created_at DESC, u.id",
     )
     .bind(me)
@@ -176,9 +176,9 @@ pub async fn list_blocks(
     .await?;
     let list: Vec<Value> = rows
         .into_iter()
-        .map(|(id, name, color, photo)| {
+        .map(|(id, name, color, photo, avatar)| {
             let url = photo.map(|p| format!("/photos/{p}"));
-            json!({ "user_id": id, "name": name, "color": color, "photo": url, "photo_url": url })
+            json!({ "user_id": id, "name": name, "color": color, "photo": url, "photo_url": url, "avatar": avatar })
         })
         .collect();
     Ok(Json(json!(list)))

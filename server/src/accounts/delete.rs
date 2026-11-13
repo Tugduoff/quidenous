@@ -198,7 +198,7 @@ pub(crate) async fn erase(state: &AppState, user_id: i64) -> AppResult<()> {
         sqlx::query(sql).bind(user_id).execute(&mut *tx).await?;
     }
     sqlx::query(
-        "UPDATE members SET name = ?1, photo = NULL, user_id = NULL, role = 'member', \
+        "UPDATE members SET name = ?1, photo = NULL, avatar = NULL, user_id = NULL, role = 'member', \
          removed_at = COALESCE(removed_at, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) WHERE user_id = ?2",
     )
     .bind(DELETED_NAME)
@@ -224,7 +224,7 @@ pub(crate) async fn erase(state: &AppState, user_id: i64) -> AppResult<()> {
     }
     // A longer random friend code than the real ones (8 hex): nobody can type it.
     sqlx::query(
-        "UPDATE users SET name = ?1, photo = NULL, email = NULL, password_hash = NULL, \
+        "UPDATE users SET name = ?1, photo = NULL, avatar = NULL, email = NULL, password_hash = NULL, \
          email_verified_at = NULL, totp_secret = NULL, totp_pending = NULL, totp_last_step = NULL, \
          last_group_id = NULL, friend_code = lower(hex(randomblob(16))), \
          deleted_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?2",

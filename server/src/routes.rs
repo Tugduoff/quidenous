@@ -44,6 +44,7 @@ pub fn router() -> Router<AppState> {
             "/me/photo",
             put(upload_photo).layer(axum::extract::DefaultBodyLimit::max(PHOTO_UPLOAD_MAX)),
         )
+        .route("/me/avatar", put(set_avatar))
         .route("/group", get(group))
         .route("/round/current", get(current_round))
         .route("/round/current/vote", post(vote))
@@ -150,6 +151,7 @@ async fn features(State(state): State<AppState>) -> Json<Value> {
         "stats_v2",
         "ota",
         "mentions",
+        "avatars",
     ];
     f.extend(crate::accounts::features(&state));
     Json(json!(f))
@@ -268,18 +270,19 @@ async fn join(
                     .await?
                 }
             };
-            let (user_name, photo): (String, Option<String>) =
-                sqlx::query_as("SELECT name, photo FROM users WHERE id = ?")
+            let (user_name, photo, avatar): (String, Option<String>, Option<String>) =
+                sqlx::query_as("SELECT name, photo, avatar FROM users WHERE id = ?")
                     .bind(user_id)
                     .fetch_one(&mut *tx)
                     .await?;
             sqlx::query_as::<_, MemberRow>(
-                "INSERT INTO members (group_id, name, color, photo, token_hash, user_id) VALUES (?, ?, ?, ?, ?, ?) RETURNING *",
+                "INSERT INTO members (group_id, name, color, photo, avatar, token_hash, user_id) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING *",
             )
             .bind(group_id)
             .bind(&user_name)
             .bind(color)
             .bind(photo)
+            .bind(avatar)
             .bind(hash_token(&new_token()))
             .bind(user_id)
             .fetch_one(&mut *tx)
@@ -402,17 +405,83 @@ async fn upload_photo(
     if let Some(old) = &me.photo {
         let _ = tokio::fs::remove_file(dir.join(old)).await;
     }
-    sqlx::query("UPDATE users SET photo = ? WHERE id = ?")
+    // A photo replaces the drawn avatar.
+    sqlx::query("UPDATE users SET photo = ?, avatar = NULL WHERE id = ?")
         .bind(&file)
         .bind(me.user_id)
         .execute(&state.db)
         .await?;
-    sqlx::query("UPDATE members SET photo = ?1 WHERE user_id = ?2 OR id = ?3")
+    sqlx::query("UPDATE members SET photo = ?1, avatar = NULL WHERE user_id = ?2 OR id = ?3")
         .bind(&file)
         .bind(me.user_id)
         .bind(me.id)
         .execute(&state.db)
         .await?;
+    let member = sqlx::query_as::<_, MemberRow>("SELECT * FROM members WHERE id = ?")
+        .bind(me.id)
+        .fetch_one(&state.db)
+        .await?;
+    state
+        .live
+        .send(me.group_id, Event::MemberUpdated { member_id: me.id });
+    Ok(Json(Member::from(&member)))
+}
+
+#[derive(Deserialize)]
+struct AvatarBody {
+    /// A spec (see `avatar`), or null to go back to the initial.
+    #[serde(default)]
+    avatar: Option<String>,
+}
+
+/// Pick a drawn avatar (it replaces the photo), or drop it with `null`. Account-wide, like the photo.
+async fn set_avatar(
+    State(state): State<AppState>,
+    Me(me): Me,
+    Json(body): Json<AvatarBody>,
+) -> AppResult<Json<Member>> {
+    let avatar = body.avatar;
+    if avatar.as_deref().is_some_and(|a| !crate::avatar::valid(a)) {
+        return Err(AppError::BadRequest("bad_avatar"));
+    }
+    if let Some(avatar) = &avatar {
+        let photos: Vec<String> = sqlx::query_scalar(
+            "SELECT photo FROM users WHERE id = ?1 AND photo IS NOT NULL \
+             UNION SELECT photo FROM members WHERE (user_id = ?1 OR id = ?2) AND photo IS NOT NULL",
+        )
+        .bind(me.user_id)
+        .bind(me.id)
+        .fetch_all(&state.db)
+        .await?;
+        sqlx::query("UPDATE users SET avatar = ?, photo = NULL WHERE id = ?")
+            .bind(avatar)
+            .bind(me.user_id)
+            .execute(&state.db)
+            .await?;
+        sqlx::query("UPDATE members SET avatar = ?1, photo = NULL WHERE user_id = ?2 OR id = ?3")
+            .bind(avatar)
+            .bind(me.user_id)
+            .bind(me.id)
+            .execute(&state.db)
+            .await?;
+        let dir = state.config.data_dir.join("photos");
+        for photo in photos {
+            // Server-made names only (`<id>-<hex>.jpg`); never a path.
+            if !photo.is_empty() && !photo.contains(['/', '\\']) && !photo.starts_with('.') {
+                let _ = tokio::fs::remove_file(dir.join(photo)).await;
+            }
+        }
+    } else {
+        sqlx::query("UPDATE users SET avatar = NULL WHERE id = ?")
+            .bind(me.user_id)
+            .execute(&state.db)
+            .await?;
+        sqlx::query("UPDATE members SET avatar = NULL WHERE user_id = ?1 OR id = ?2")
+            .bind(me.user_id)
+            .bind(me.id)
+            .execute(&state.db)
+            .await?;
+    }
     let member = sqlx::query_as::<_, MemberRow>("SELECT * FROM members WHERE id = ?")
         .bind(me.id)
         .fetch_one(&state.db)

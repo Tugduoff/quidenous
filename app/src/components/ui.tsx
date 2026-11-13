@@ -25,7 +25,9 @@ import Animated, {
 } from 'react-native-reanimated';
 import { Image } from 'expo-image';
 
+import { AvatarArt } from '@/components/avatar-art';
 import { photoUrl, type Member } from '@/lib/api';
+import { parseAvatar } from '@/lib/avatar';
 import { EASE, motion, SPRING } from '@/lib/motion';
 import { useTheme } from '@/lib/theme';
 
@@ -61,6 +63,8 @@ export function PressableScale({
 export function Avatar({ member, size = 40 }: { member?: Member; size?: number }) {
   const t = useTheme();
   const uri = member && photoUrl(member);
+  // A drawn avatar the app knows how to draw (a newer one falls back to the initial).
+  const avatar = !uri && parseAvatar(member?.avatar) ? member?.avatar : null;
   return (
     <View
       style={{
@@ -74,6 +78,8 @@ export function Avatar({ member, size = 40 }: { member?: Member; size?: number }
       }}>
       {uri ? (
         <Image source={{ uri }} style={{ width: size, height: size }} />
+      ) : avatar ? (
+        <AvatarArt avatar={avatar} size={size} />
       ) : (
         <Text style={{ fontFamily: t.font.bold, fontSize: size * 0.42, color: '#121216' }}>{member?.name[0]?.toUpperCase() ?? '?'}</Text>
       )}

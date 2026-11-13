@@ -137,18 +137,19 @@ pub async fn create(
         }
     }
     let room_id = room_id.ok_or(AppError::Conflict("code_clash"))?;
-    let (user_name, color, photo): (String, String, Option<String>) =
-        sqlx::query_as("SELECT name, color, photo FROM users WHERE id = ?")
+    let (user_name, color, photo, avatar): (String, String, Option<String>, Option<String>) =
+        sqlx::query_as("SELECT name, color, photo, avatar FROM users WHERE id = ?")
             .bind(user)
             .fetch_one(&mut *tx)
             .await?;
     sqlx::query(
-        "INSERT INTO members (group_id, name, color, photo, token_hash, user_id, role) VALUES (?, ?, ?, ?, ?, ?, 'owner')",
+        "INSERT INTO members (group_id, name, color, photo, avatar, token_hash, user_id, role) VALUES (?, ?, ?, ?, ?, ?, ?, 'owner')",
     )
     .bind(room_id)
     .bind(&user_name)
     .bind(color)
     .bind(photo)
+    .bind(avatar)
     .bind(crate::auth::hash_token(&crate::auth::new_token()))
     .bind(user)
     .execute(&mut *tx)
@@ -203,18 +204,19 @@ pub async fn join(
                 .bind(room_id)
                 .fetch_one(&mut *tx)
                 .await?;
-            let (user_name, photo): (String, Option<String>) =
-                sqlx::query_as("SELECT name, photo FROM users WHERE id = ?")
+            let (user_name, photo, avatar): (String, Option<String>, Option<String>) =
+                sqlx::query_as("SELECT name, photo, avatar FROM users WHERE id = ?")
                     .bind(user)
                     .fetch_one(&mut *tx)
                     .await?;
             let member_id: i64 = sqlx::query_scalar(
-                "INSERT INTO members (group_id, name, color, photo, token_hash, user_id) VALUES (?, ?, ?, ?, ?, ?) RETURNING id",
+                "INSERT INTO members (group_id, name, color, photo, avatar, token_hash, user_id) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id",
             )
             .bind(room_id)
             .bind(&user_name)
             .bind(COLORS[count as usize % COLORS.len()])
             .bind(photo)
+            .bind(avatar)
             .bind(crate::auth::hash_token(&crate::auth::new_token()))
             .bind(user)
             .fetch_one(&mut *tx)

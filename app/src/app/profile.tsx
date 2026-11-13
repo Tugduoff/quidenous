@@ -3,13 +3,13 @@ import { File as FsFile } from 'expo-file-system';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
-import { Bell, Camera, ChevronLeft, ChevronRight, LogOut, Moon, ShieldCheck, Sun, SunMoon, Users } from 'lucide-react-native';
+import { Bell, Camera, ChevronLeft, ChevronRight, Images, type LucideIcon, LogOut, Moon, Pencil, ShieldCheck, Smile, Sun, SunMoon, Users } from 'lucide-react-native';
 import { useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, Text, TextInput, View } from 'react-native';
 
 import { Screen } from '@/components/screen';
 import { useSignOut } from '@/components/security/devices';
-import { Avatar, Button, Card, Display } from '@/components/ui';
+import { Avatar, Button, Card, Dialog, DialogTitle, Display } from '@/components/ui';
 import { VersionLine } from '@/components/update';
 import { api, ApiError, apiUpload, type Member } from '@/lib/api';
 import { useAccount, useFeatures } from '@/lib/auth';
@@ -39,6 +39,29 @@ async function photoForm(uri: string) {
   return form;
 }
 
+function Choice({ icon: Icon, label, onPress }: { icon: LucideIcon; label: string; onPress: () => void }) {
+  const t = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={onPress}
+      style={({ pressed }) => ({
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        height: 52,
+        paddingHorizontal: 16,
+        borderRadius: 16,
+        backgroundColor: t.card2,
+        opacity: pressed ? 0.7 : 1,
+      })}>
+      <Icon size={20} color={t.txt} />
+      <Text style={{ flex: 1, fontFamily: t.font.semibold, fontSize: 16, color: t.txt }}>{label}</Text>
+      <ChevronRight size={18} color={t.mut} />
+    </Pressable>
+  );
+}
+
 export default function Profile() {
   const t = useTheme();
   const qc = useQueryClient();
@@ -51,21 +74,23 @@ export default function Profile() {
   const [name, setName] = useState(me?.name ?? '');
   const [busy, setBusy] = useState<'photo' | 'name' | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [choosing, setChoosing] = useState(false);
 
   const updated = (m: Member) => {
     setMe(m);
     qc.invalidateQueries({ queryKey: keys.group });
   };
 
-  const pickPhoto = async () => {
+  const pickPhoto = async (from: 'library' | 'camera') => {
+    setChoosing(false);
     setError(null);
     try {
-      const picked = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'],
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 1,
-      });
+      const options: ImagePicker.ImagePickerOptions = { mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 1 };
+      if (from === 'camera' && Platform.OS !== 'web' && !(await ImagePicker.requestCameraPermissionsAsync()).granted) {
+        setError('Accès à l’appareil photo refusé');
+        return;
+      }
+      const picked = await (from === 'camera' ? ImagePicker.launchCameraAsync(options) : ImagePicker.launchImageLibraryAsync(options));
       if (picked.canceled || !picked.assets[0]) return;
       setBusy('photo');
       updated(await apiUpload<Member>('/me/photo', await photoForm(picked.assets[0].uri)));
@@ -99,7 +124,7 @@ export default function Profile() {
         <ChevronLeft size={22} color={t.txt} />
       </Pressable>
       <View style={{ alignItems: 'center', gap: 12, marginVertical: 8 }}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Changer la photo" onPress={pickPhoto}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Changer la photo" onPress={() => setChoosing(true)}>
           <Avatar member={me ?? undefined} size={112} />
           <View
             style={{
@@ -115,11 +140,27 @@ export default function Profile() {
               borderWidth: 3,
               borderColor: t.bg,
             }}>
-            {busy === 'photo' ? <ActivityIndicator color={t.accTxt} /> : <Camera size={18} color={t.accTxt} />}
+            {busy === 'photo' ? <ActivityIndicator color={t.accTxt} /> : <Pencil size={16} color={t.accTxt} />}
           </View>
         </Pressable>
         <Display size={(me?.name.length ?? 0) > 14 ? 22 : 28}>{me?.name}</Display>
       </View>
+
+      <Dialog visible={choosing} onClose={() => setChoosing(false)}>
+        <DialogTitle title="Photo de profil" />
+        {features.avatars && (
+          <Choice
+            icon={Smile}
+            label="Avatar"
+            onPress={() => {
+              setChoosing(false);
+              router.push('/avatar');
+            }}
+          />
+        )}
+        <Choice icon={Images} label="Galerie" onPress={() => pickPhoto('library')} />
+        <Choice icon={Camera} label="Appareil photo" onPress={() => pickPhoto('camera')} />
+      </Dialog>
 
       <Card style={{ flexDirection: 'row', alignItems: 'center', paddingRight: 8 }}>
         <TextInput

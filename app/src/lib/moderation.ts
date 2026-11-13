@@ -16,7 +16,7 @@ export const REASONS: { value: ReportReason; label: string }[] = [
 ];
 
 /** Someone I blocked (`GET /api/blocks`). */
-export type Blocked = { user_id: number; name: string; color: string; photo: string | null };
+export type Blocked = { user_id: number; name: string; color: string; photo: string | null; avatar?: string | null };
 
 export const report = (kind: ReportKind, id: number, reason: ReportReason, details?: string) =>
   api<{ ok: boolean }>('/reports', { method: 'POST', json: { kind, id, reason, ...(details && { details }) } });
@@ -27,6 +27,7 @@ export const blockedAsMember = (b: Blocked): Member => ({
   name: b.name,
   color: b.color,
   photo_url: b.photo ? (b.photo.startsWith('/') ? b.photo : `/photos/${b.photo}`) : null,
+  avatar: b.avatar,
 });
 
 const NONE = new Set<number>();
