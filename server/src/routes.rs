@@ -85,12 +85,46 @@ pub fn router() -> Router<AppState> {
             "/packs",
             get(crate::packs::list).post(crate::packs::publish),
         )
+        .route("/packs/mine", get(crate::packs::mine))
         .route(
             "/packs/{id}",
-            get(crate::packs::get).delete(crate::packs::delete),
+            get(crate::packs::get)
+                .put(crate::packs::edit)
+                .delete(crate::packs::delete),
         )
         .route("/packs/{id}/install", post(crate::packs::install))
         .route("/packs/{id}/report", post(crate::packs::report))
+        .route(
+            "/packs/{id}/like",
+            post(crate::packs::like).delete(crate::packs::unlike),
+        )
+        .route("/creators/{user_id}", get(crate::packs::creator))
+        .route(
+            "/community/me",
+            get(crate::packs::community_me).put(crate::packs::set_community_me),
+        )
+        .route("/admin/review", get(crate::packs::review))
+        .route("/admin/packs/{id}/approve", post(crate::packs::approve))
+        .route("/admin/packs/{id}/remove", post(crate::packs::remove))
+        .route("/admin/packs/{id}/feature", post(crate::packs::feature))
+        .route(
+            "/admin/suggestions/{id}/approve",
+            post(crate::suggestions::approve),
+        )
+        .route(
+            "/admin/suggestions/{id}/reject",
+            post(crate::suggestions::reject),
+        )
+        .route("/suggestions", post(crate::suggestions::create))
+        .route("/suggestions/next", get(crate::suggestions::next))
+        .route("/suggestions/mine", get(crate::suggestions::mine))
+        .route("/suggestions/{id}/vote", post(crate::suggestions::vote))
+        .route(
+            "/play/{token}",
+            get(crate::play::get).post(crate::play::play),
+        )
+        .route("/rounds/{id}/challenge", post(crate::play::challenge))
+        .route("/rounds/{id}/challenges", get(crate::play::challenges))
         .route("/rooms/{id}/add", post(crate::friends::add_to_room))
         .route(
             "/friends",
@@ -158,6 +192,7 @@ async fn features(State(state): State<AppState>) -> Json<Value> {
         "mentions",
         "avatars",
         "languages",
+        "community",
     ];
     f.extend(crate::accounts::features(&state));
     Json(json!(f))
@@ -821,7 +856,7 @@ async fn room_allows(state: &AppState, group_id: i64, setting: &str) -> AppResul
 }
 
 /// The owner can keep adding and importing questions to themselves.
-async fn may_add_questions(state: &AppState, me: &MemberRow) -> AppResult<()> {
+pub(crate) async fn may_add_questions(state: &AppState, me: &MemberRow) -> AppResult<()> {
     let by: String = sqlx::query_scalar("SELECT questions_by FROM groups WHERE id = ?")
         .bind(me.group_id)
         .fetch_one(&state.db)
@@ -1200,10 +1235,17 @@ async fn delete_question(
     if author != Some(me.id) && me.role != "owner" {
         return Err(AppError::Forbidden("not_author"));
     }
+    // A challenge waiting on this question goes with it.
+    let mut tx = state.db.begin().await?;
+    sqlx::query("DELETE FROM challenges WHERE question_id = ?")
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
     sqlx::query("DELETE FROM questions WHERE id = ?")
         .bind(id)
-        .execute(&state.db)
+        .execute(&mut *tx)
         .await?;
+    tx.commit().await?;
     state
         .live
         .send(me.group_id, Event::QuestionAdded { question_id: id });

@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Check, FileUp, Lock, MessageCircleQuestion, Package, Plus, Shuffle, Trash2, Trophy, X } from 'lucide-react-native';
+import { Check, FileUp, Lightbulb, Lock, MessageCircleQuestion, Package, Plus, Shuffle, Trash2, Trophy, X } from 'lucide-react-native';
 import { type ComponentRef, useEffect, useRef, useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import Animated from 'react-native-reanimated';
@@ -10,6 +10,7 @@ import { Screen } from '@/components/screen';
 import { Tip } from '@/components/tip';
 import { Avatar, Card, ConfirmModal, Display, PressableScale, QuestionText, Toggle } from '@/components/ui';
 import { api } from '@/lib/api';
+import { useFeatures } from '@/lib/auth';
 import { useT } from '@/lib/i18n';
 import { pickQuestionFile, splitTag, takeHandedDraft, type DraftLine } from '@/lib/import-draft';
 import { motion, useArrivals } from '@/lib/motion';
@@ -32,6 +33,7 @@ export default function QuestionsScreen() {
   const [text, setText] = useState('');
   const [rank, setRank] = useState(false);
   const { me } = useSession();
+  const { community } = useFeatures();
   const [toDelete, setToDelete] = useState<{ id: number; text: string } | null>(null);
   // Long-press on someone else's question: report it.
   const [toReport, setToReport] = useState<ModTarget | null>(null);
@@ -142,7 +144,15 @@ export default function QuestionsScreen() {
             {tr('questions.ownerOnly')}
           </Text>
         </Card>
-      ) : (
+      ) : null}
+      {/* Packs to browse and the official deck stay open to everyone. */}
+      {locked && community && (
+        <View style={{ flexDirection: 'row', gap: 10 }}>
+          <BulkButton label={tr('questions.packs')} icon={<Package size={16} color={t.txt} />} onPress={() => router.push('/packs')} />
+          <BulkButton label={tr('community.entry')} icon={<Lightbulb size={16} color={t.txt} />} onPress={() => router.push('/suggest')} />
+        </View>
+      )}
+      {locked ? null : (
         <>
           <Tip id="questions" text={tr('questions.tip')} />
           {/* Write one: the ranking switch and the add button sit under the text, in the same card. */}
@@ -198,6 +208,8 @@ export default function QuestionsScreen() {
               disabled={importFile.isPending}
               onPress={pick}
             />
+            {/* A question for the official deck, voted on by everyone. */}
+            {community && <BulkButton label={tr('community.entry')} icon={<Lightbulb size={16} color={t.txt} />} onPress={() => router.push('/suggest')} />}
           </View>
         </>
       )}
@@ -415,7 +427,7 @@ function shuffled<T>(items: T[]): T[] {
   return out;
 }
 
-/** One of the two "many at once" buttons under the composer. */
+/** One of the buttons under the composer (packs, import, suggest). */
 function BulkButton({
   label,
   icon,
@@ -450,7 +462,9 @@ function BulkButton({
         opacity: disabled ? 0.5 : 1,
       }}>
       {icon}
-      <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.txt }}>{label}</Text>
+      <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: t.font.semibold, fontSize: 14, color: t.txt }}>
+        {label}
+      </Text>
     </PressableScale>
   );
 }

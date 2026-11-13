@@ -23,6 +23,9 @@ pub enum AppError {
     Gone(&'static str),
     #[error("{0}")]
     Unavailable(&'static str),
+    /// `429` with its own code (a quota, not a retry-after rate limit).
+    #[error("{0}")]
+    TooMany(&'static str),
     /// Seconds to wait.
     #[error("rate limited")]
     RateLimited(u64),
@@ -47,6 +50,7 @@ impl IntoResponse for AppError {
             Self::Missing(code) => (StatusCode::NOT_FOUND, *code),
             Self::Gone(code) => (StatusCode::GONE, *code),
             Self::Unavailable(code) => (StatusCode::SERVICE_UNAVAILABLE, *code),
+            Self::TooMany(code) => (StatusCode::TOO_MANY_REQUESTS, *code),
             Self::RateLimited(secs) => {
                 return (
                     StatusCode::TOO_MANY_REQUESTS,

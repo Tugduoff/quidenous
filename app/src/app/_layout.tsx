@@ -6,7 +6,7 @@ import { DarkTheme, DefaultTheme, router, Stack, ThemeProvider, useGlobalSearchP
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import * as SystemUI from 'expo-system-ui';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 import { useReducedMotion } from 'react-native-reanimated';
 
@@ -15,6 +15,7 @@ import { CelebrationPreview } from '@/components/celebration';
 import { InstallBanner, InstallScreen, installMode } from '@/components/install';
 import { ConfirmHost } from '@/components/ui';
 import { OtaToast, UpdateDialog } from '@/components/update';
+import { pendingPlayToken } from '@/lib/auth';
 import { useLive } from '@/lib/live';
 import { useLock } from '@/lib/lock';
 import { useOtaCheck } from '@/lib/ota';
@@ -96,6 +97,11 @@ function Root() {
           <Stack.Screen name="friends" />
           <Stack.Screen name="packs" />
           <Stack.Screen name="pack/[id]" />
+          <Stack.Screen name="pack/edit" />
+          <Stack.Screen name="packs-mine" />
+          <Stack.Screen name="creator/[id]" />
+          <Stack.Screen name="admin" />
+          <Stack.Screen name="suggest" />
           <Stack.Screen name="security" />
           <Stack.Screen name="notifications" />
         </Stack.Protected>
@@ -115,6 +121,8 @@ function Root() {
         </Stack.Protected>
         {/* Back from Google / Discord: signing in (signed out) or linking (signed in). */}
         <Stack.Screen name="oauth" />
+        {/* A shared question to play (`/play?share=`): shown signed out too, kept through sign-in. */}
+        <Stack.Screen name="play" />
       </Stack>
       {steps && (
         <View style={StyleSheet.absoluteFill}>
@@ -151,18 +159,27 @@ const SIGNED_OUT = ['/join', '/auth/email', '/auth/password', '/auth/two-factor'
 function useStageRoute(stage: Stage, mounted: boolean) {
   const pathname = usePathname();
   const { code, error } = useGlobalSearchParams<{ code?: string; error?: string }>();
+  // Seen signed out (or verifying): a shared question opened meanwhile is resumed once in.
+  const wasOut = useRef(false);
   useEffect(() => {
     if (!mounted) return;
+    if (stage === 'out' || stage === 'verify') wasOut.current = true;
     // Back from Google / Discord with an answer: that page finishes the sign-in itself.
     if (pathname === '/oauth' && (code || error)) return;
+    if ((stage === 'in' || stage === 'room') && wasOut.current) {
+      wasOut.current = false;
+      if (pendingPlayToken() && pathname !== '/play') return void router.replace('/play');
+    }
     const ok =
-      stage === 'out'
-        ? SIGNED_OUT.includes(pathname)
-        : stage === 'verify'
-          ? pathname === '/auth/verify'
-          : stage === 'room'
-            ? pathname === '/setup'
-            : pathname !== '/oauth' && pathname !== '/setup' && pathname !== '/join' && !pathname.startsWith('/auth');
+      pathname === '/play' && stage !== 'verify'
+        ? true
+        : stage === 'out'
+          ? SIGNED_OUT.includes(pathname)
+          : stage === 'verify'
+            ? pathname === '/auth/verify'
+            : stage === 'room'
+              ? pathname === '/setup'
+              : pathname !== '/oauth' && pathname !== '/setup' && pathname !== '/join' && !pathname.startsWith('/auth');
     if (!ok) router.replace(STAGE_HOME[stage] as never);
   }, [stage, pathname, mounted, code, error]);
 }

@@ -24,6 +24,8 @@ import { inbox } from './fr/inbox';
 import { notifications } from './fr/notifications';
 import { nav } from './fr/nav';
 import { legal } from './fr/legal';
+import { community } from './fr/community';
+import { admin } from './fr/admin';
 
 export const fr = {
   common,
@@ -51,6 +53,8 @@ export const fr = {
   notifications,
   nav,
   legal,
+  community,
+  admin,
 };
 
 /** The shape every language follows (strings widened, same keys). */

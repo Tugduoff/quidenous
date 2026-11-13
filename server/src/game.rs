@@ -434,6 +434,12 @@ pub async fn view(db: &SqlitePool, round: RoundRow, me: i64) -> AppResult<RoundV
     } else {
         (None, None)
     };
+    let suggested_by: Option<String> = sqlx::query_scalar(
+        "SELECT u.name FROM questions q JOIN users u ON u.id = q.suggested_by WHERE q.id = ?",
+    )
+    .bind(round.question_id)
+    .fetch_optional(db)
+    .await?;
     Ok(RoundView {
         id: round.id,
         number: round.number,
@@ -452,6 +458,7 @@ pub async fn view(db: &SqlitePool, round: RoundRow, me: i64) -> AppResult<RoundV
         skipped_ids,
         ranking,
         my_ranking,
+        suggested_by,
     })
 }
 

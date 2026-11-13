@@ -22,6 +22,7 @@ import { enablePush, pushState, refreshPush, type PushState } from '@/lib/push';
 import { Pressable, type ScrollView, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
+import { ChallengeButton, Challenges } from '@/components/challenge';
 import { useSecretPicker } from '@/components/celebration';
 import { ChatInput, ChatMessages } from '@/components/chat';
 import { BIG_GROUP, gridColumns, MemberGrid, MemberTile } from '@/components/member-grid';
@@ -243,16 +244,27 @@ function Question({ round, result }: { round: Round; result?: boolean }) {
           label={`${tr(result ? 'vote.kind.result' : round.kind === 'rank' ? 'vote.kind.rank' : round.custom ? 'vote.kind.custom' : 'vote.kind.pick')} · #${round.number}`}
           tone={result ? 'acc' : 'tag'}
         />
-        <PressableScale
-          accessibilityRole="button"
-          accessibilityLabel={tr(copied ? 'vote.linkCopied' : result ? 'vote.shareResult' : 'vote.shareQuestion')}
-          onPress={share}
-          hitSlop={8}
-          style={{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card }}>
-          {copied ? <Check size={18} color={t.accInk} /> : <Share2 size={18} color={t.txt} />}
-        </PressableScale>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          {result && <ChallengeButton round={round} />}
+          <PressableScale
+            accessibilityRole="button"
+            accessibilityLabel={tr(copied ? 'vote.linkCopied' : result ? 'vote.shareResult' : 'vote.shareQuestion')}
+            onPress={share}
+            hitSlop={8}
+            style={{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card }}>
+            {copied ? <Check size={18} color={t.accInk} /> : <Share2 size={18} color={t.txt} />}
+          </PressableScale>
+        </View>
       </View>
-      <Display size={result ? 28 : 34}>{round.question}</Display>
+      <View style={{ gap: 6 }}>
+        <Display size={result ? 28 : 34}>{round.question}</Display>
+        {/* A deck question that came from someone's suggestion. */}
+        {!!round.suggested_by && (
+          <Text numberOfLines={1} style={{ fontFamily: t.font.regular, fontSize: 13, color: t.mut }}>
+            {tr('community.credit', { name: round.suggested_by })}
+          </Text>
+        )}
+      </View>
     </Animated.View>
   );
 }
@@ -826,6 +838,7 @@ export function Result({
           <ResultBars result={round.result} byId={byId} />
         )}
       </View>
+      <Challenges roundId={round.id} />
       <ChatMessages roundId={round.id} />
     </Screen>
   );

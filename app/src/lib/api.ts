@@ -61,6 +61,8 @@ export type Round = {
   skipped_ids: number[];
   ranking: RankEntry[] | null;
   my_ranking: number[] | null;
+  /** A shared-deck question that came from someone's suggestion: their name (absent from an older server). */
+  suggested_by?: string | null;
 };
 export type RankEntry = { member_id: number; points: number; average: number; firsts: number };
 /** A count of agreements (skip someone, remove someone), and whether mine is one of them. */
@@ -315,10 +317,12 @@ const roomQuery = () => (room != null ? `&room=${room}` : '');
 /** Plain link to the CSV of the whole history (the token rides in the query so a browser can download it). */
 export const historyExportUrl = () => `${API_URL}/api/history/export?token=${token ?? ''}${roomQuery()}`;
 
-export async function api<T>(path: string, init: RequestInit & { json?: unknown } = {}): Promise<T> {
+/** `room`: this call is about another room than the current one (`X-Room` for it alone). */
+export async function api<T>(path: string, init: RequestInit & { json?: unknown; room?: number } = {}): Promise<T> {
   const headers: Record<string, string> = { ...deviceHeader(), ...(init.headers as Record<string, string>) };
   if (token) headers.authorization = `Bearer ${token}`;
-  if (room != null) headers['x-room'] = String(room);
+  const target = init.room ?? room;
+  if (target != null) headers['x-room'] = String(target);
   let body = init.body;
   if (init.json !== undefined) {
     headers['content-type'] = 'application/json';
