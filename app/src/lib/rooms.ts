@@ -22,14 +22,14 @@ export function useRoomGone() {
   };
 }
 
-/** Switch the whole app to another room: every cached screen belongs to the old one. */
+/** Switch the whole app to another room: every cached screen belongs to the old one. A party opens on its own screen. */
 export function useSwitchRoom() {
   const qc = useQueryClient();
   const { setRoom } = useSession();
-  return async (id: number) => {
+  return async (id: number, kind?: 'room' | 'party') => {
     await setRoom(id);
     qc.clear();
-    router.replace('/');
+    router.replace(kind === 'party' ? `/party/${id}` : '/');
   };
 }
 

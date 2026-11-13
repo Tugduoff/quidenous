@@ -16,7 +16,7 @@ import {
   SkipForward,
   Users,
 } from 'lucide-react-native';
-import { router } from 'expo-router';
+import { Redirect, router } from 'expo-router';
 import { type ComponentRef, type ReactNode, useEffect, useRef, useState } from 'react';
 import { enablePush, pushState, refreshPush, type PushState } from '@/lib/push';
 import { Pressable, type ScrollView, Text, View } from 'react-native';
@@ -36,7 +36,7 @@ import { Avatar, AvatarStack, Button, Card, ConfirmModal, Dialog, Display, Logo,
 import { api, type Member, type Round } from '@/lib/api';
 import { getLang, t as translate, useT } from '@/lib/i18n';
 import { EASE, motion, usePop } from '@/lib/motion';
-import { keys, useCurrentRound, useGroup, useInbox, useMembers, useRound, useUnseenRound } from '@/lib/queries';
+import { keys, useCurrentRound, useGroup, useInbox, useMembers, useRooms, useRound, useUnseenRound } from '@/lib/queries';
 import { useSession } from '@/lib/session';
 import { setHideVote, useHideVote } from '@/lib/prefs';
 import { publicLink, questionMessage, resultMessage, shareText } from '@/lib/share';
@@ -185,6 +185,11 @@ export default function VoteScreen() {
   // Paced room: the last result stays up until the owner launches the next question or its delay is over.
   const pace = group.data?.pace;
   const held = !round && pace?.waiting && pace.round_id ? pace.round_id : null;
+  // A party has its own screen (the room list says so too, in case the room's own answer doesn't).
+  const { data: rooms } = useRooms();
+  const roomId = group.data?.id;
+  if (roomId != null && (group.data?.kind === 'party' || rooms?.find((r) => r.id === roomId)?.kind === 'party'))
+    return <Redirect href={`/party/${roomId}`} />;
 
   // Recap first: a question I voted on finished while I was away (or with my vote).
   if (unseen.data) {

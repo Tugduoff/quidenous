@@ -31,4 +31,6 @@ export const common = {
     hoursMinutes: '{h} h {mm}',
   },
   members: { one: '{count} membre', other: '{count} membres' },
+  /** In place of the name of someone whose account was deleted. */
+  deletedAccount: 'Compte supprimé',
 };

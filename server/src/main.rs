@@ -55,6 +55,7 @@ async fn main() -> quidenous_server::anyhow_free::Result<()> {
         return Ok(());
     }
     quidenous_server::pacing::spawn_scheduler(state.clone());
+    quidenous_server::party::spawn_sweeper(state.clone());
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", port)).await?;
     tracing::info!(port, "qui de nous ? server listening");
     axum::serve(

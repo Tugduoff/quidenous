@@ -14,6 +14,7 @@ pub mod moderation;
 pub mod notifications;
 pub mod pacing;
 pub mod packs;
+pub mod party;
 pub mod play;
 pub mod push;
 pub mod rooms;

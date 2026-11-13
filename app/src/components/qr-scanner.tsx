@@ -12,6 +12,9 @@ export type Scanned = { code?: string; friend?: string };
 /** What a qui de nous ? QR code holds: an invite link `/?code=…` or a friend link `/?friend=…`. */
 function read(data: string): Scanned | null {
   try {
+    // A party's join link `/party/join/K7PQM`: its code joins like a room's.
+    const party = new URL(data).pathname.match(/^\/party\/join\/([A-Za-z0-9]+)\/?$/);
+    if (party) return { code: party[1].toUpperCase() };
     const params = new URL(data).searchParams;
     const code = params.get('code') ?? undefined;
     const friend = params.get('friend') ?? undefined;

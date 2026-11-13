@@ -61,18 +61,45 @@ pub async fn round(db: &SqlitePool, group_id: i64, round_id: i64) -> AppResult<R
 }
 
 /// Built-in deck questions this room can still get (the deck of its language), with their vibe tags.
+/// Parties draw pick questions only.
 async fn deck_candidates<'e, E: sqlx::SqliteExecutor<'e>>(
     db: E,
     group_id: i64,
 ) -> AppResult<Vec<(i64, Option<String>)>> {
     Ok(sqlx::query_as(concat!(
         "SELECT q.id, q.vibes FROM questions q WHERE q.group_id IS NULL \
-         AND q.lang = (SELECT language FROM groups WHERE id = ?1) AND ",
+         AND q.lang = (SELECT language FROM groups WHERE id = ?1) \
+         AND (q.kind = 'pick' OR (SELECT kind FROM groups WHERE id = ?1) = 'room') AND ",
         unused!()
     ))
     .bind(group_id)
     .fetch_all(db)
     .await?)
+}
+
+/// A party's settings: seconds per question, and whether it is over (`party_ends_at` passed).
+#[derive(Debug, Clone, Copy)]
+pub struct Party {
+    pub timer: i64,
+    pub over: bool,
+}
+
+/// `Some` when the room is a party (see `party`).
+pub async fn party<'e, E: sqlx::SqliteExecutor<'e>>(
+    db: E,
+    group_id: i64,
+) -> AppResult<Option<Party>> {
+    let row: Option<(bool, i64, bool)> = sqlx::query_as(
+        "SELECT kind = 'party', party_timer, \
+         party_ends_at IS NOT NULL AND party_ends_at <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now') \
+         FROM groups WHERE id = ?",
+    )
+    .bind(group_id)
+    .fetch_optional(db)
+    .await?;
+    Ok(row
+        .filter(|r| r.0)
+        .map(|(_, timer, over)| Party { timer, over }))
 }
 
 async fn room_vibe<'e, E: sqlx::SqliteExecutor<'e>>(
@@ -105,7 +132,8 @@ pub async fn deck_left(db: &SqlitePool, group_id: i64) -> AppResult<i64> {
 async fn next_question(tx: &mut Transaction<'_, Sqlite>, group_id: i64) -> AppResult<Option<i64>> {
     use rand::seq::IndexedRandom;
     let custom: Option<i64> = sqlx::query_scalar(concat!(
-        "SELECT q.id FROM questions q WHERE q.group_id = ?1 AND ",
+        "SELECT q.id FROM questions q WHERE q.group_id = ?1 \
+         AND (q.kind = 'pick' OR (SELECT kind FROM groups WHERE id = ?1) = 'room') AND ",
         unused!(),
         " ORDER BY COALESCE(q.sort_key, q.id), q.id LIMIT 1"
     ))
@@ -132,11 +160,16 @@ async fn next_question(tx: &mut Transaction<'_, Sqlite>, group_id: i64) -> AppRe
 
 /// Opens the next round when none is open and at least two people are in the room (alone,
 /// there is nobody to vote for: the room waits for its second member). Returns the new round id, if any.
+/// A party question gets a deadline (now + the party's timer) and the list of who may vote on it.
 pub async fn ensure_open_round(
     tx: &mut Transaction<'_, Sqlite>,
     group_id: i64,
 ) -> AppResult<Option<i64>> {
     if active_count(tx, group_id).await? < 2 {
+        return Ok(None);
+    }
+    let party = party(&mut **tx, group_id).await?;
+    if party.is_some_and(|p| p.over) {
         return Ok(None);
     }
     // Paced room: the closed question waits for the owner or the delay (see `pacing`).
@@ -159,15 +192,27 @@ pub async fn ensure_open_round(
     let Some(question_id) = next_question(tx, group_id).await? else {
         return Ok(None);
     };
-    let id = sqlx::query_scalar(
-        "INSERT INTO rounds (group_id, question_id, number) \
-         VALUES (?1, ?2, (SELECT COALESCE(MAX(number), 0) + 1 FROM rounds WHERE group_id = ?1)) \
+    let id: i64 = sqlx::query_scalar(
+        "INSERT INTO rounds (group_id, question_id, number, deadline_at) \
+         VALUES (?1, ?2, (SELECT COALESCE(MAX(number), 0) + 1 FROM rounds WHERE group_id = ?1), \
+                 CASE WHEN ?3 IS NOT NULL THEN strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '+' || ?3 || ' seconds') END) \
          RETURNING id",
     )
     .bind(group_id)
     .bind(question_id)
+    .bind(party.map(|p| p.timer))
     .fetch_one(&mut **tx)
     .await?;
+    if party.is_some() {
+        sqlx::query(
+            "INSERT INTO party_players (round_id, member_id) \
+             SELECT ?, id FROM members WHERE group_id = ? AND removed_at IS NULL",
+        )
+        .bind(id)
+        .bind(group_id)
+        .execute(&mut **tx)
+        .await?;
+    }
     Ok(Some(id))
 }
 
@@ -180,6 +225,11 @@ pub async fn vote(
     ranking: Option<Vec<i64>>,
 ) -> AppResult<Vec<Event>> {
     let mut tx = db.begin().await?;
+    // A party that is over is a read-only memory.
+    let party = party(&mut *tx, group_id).await?;
+    if party.is_some_and(|p| p.over) {
+        return Err(AppError::Gone("party_over"));
+    }
     let (round_id, kind): (i64, String) = sqlx::query_as(
         "SELECT r.id, q.kind FROM rounds r JOIN questions q ON q.id = r.question_id \
          WHERE r.group_id = ? AND r.closed_at IS NULL",
@@ -188,6 +238,10 @@ pub async fn vote(
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::Conflict("no_open_round"))?;
+    // Party: only who was there when the question opened votes on it (and can be picked).
+    if party.is_some() && !party_player(&mut tx, round_id, voter_id).await? {
+        return Err(AppError::Conflict("joined_late"));
+    }
     // A question left open in a room that has since dropped to one person waits for company.
     if active_count(&mut tx, group_id).await? < 2 {
         return Err(AppError::Conflict("alone"));
@@ -233,7 +287,9 @@ pub async fn vote(
     .bind(group_id)
     .fetch_optional(&mut *tx)
     .await?;
-    if target_in_group.is_none() {
+    if target_in_group.is_none()
+        || (party.is_some() && !party_player(&mut tx, round_id, target_id).await?)
+    {
         return Err(AppError::BadRequest("unknown_member"));
     }
     let inserted = sqlx::query(
@@ -252,6 +308,21 @@ pub async fn vote(
     events.extend(close_if_done(&mut tx, group_id, round_id).await?);
     tx.commit().await?;
     Ok(events)
+}
+
+/// Was this member in the party when the question opened?
+async fn party_player(
+    tx: &mut Transaction<'_, Sqlite>,
+    round_id: i64,
+    member_id: i64,
+) -> AppResult<bool> {
+    Ok(sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM party_players WHERE round_id = ? AND member_id = ?)",
+    )
+    .bind(round_id)
+    .bind(member_id)
+    .fetch_one(&mut **tx)
+    .await?)
 }
 
 /// Agreements needed to skip or remove someone: a majority of the other active members
@@ -322,11 +393,28 @@ pub async fn skipped(
 
 /// Closes the round once every active member has voted or been skipped, and opens the next one
 /// (unless the room is paced: then it waits for the owner or the delay, see `pacing`).
+/// A party question closes once everyone it was opened for and still there has voted, and never
+/// opens the next one by itself (the reveal waits for the taps, see `party`).
 pub async fn close_if_done(
     tx: &mut Transaction<'_, Sqlite>,
     group_id: i64,
     round_id: i64,
 ) -> AppResult<Vec<Event>> {
+    if party(&mut **tx, group_id).await?.is_some() {
+        let (eligible, voted): (i64, i64) = sqlx::query_as(
+            "SELECT COUNT(*), COALESCE(SUM(EXISTS (SELECT 1 FROM votes v WHERE v.round_id = p.round_id \
+                                                   AND v.voter_id = p.member_id)), 0) \
+             FROM party_players p JOIN members m ON m.id = p.member_id AND m.removed_at IS NULL \
+             WHERE p.round_id = ?",
+        )
+        .bind(round_id)
+        .fetch_one(&mut **tx)
+        .await?;
+        if voted >= eligible {
+            return close_party_round(tx, group_id, round_id, None).await;
+        }
+        return Ok(Vec::new());
+    }
     let votes: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM votes v JOIN members m ON m.id = v.voter_id AND m.removed_at IS NULL WHERE v.round_id = ?",
     )
@@ -349,6 +437,37 @@ pub async fn close_if_done(
         }
     }
     Ok(events)
+}
+
+/// Closes a party question (everyone voted, its deadline, or the end of the party) at `now`
+/// (database clock when `None`) and pauses the party for the reveal. Idempotent: a closed question
+/// gives no events.
+pub async fn close_party_round(
+    tx: &mut Transaction<'_, Sqlite>,
+    group_id: i64,
+    round_id: i64,
+    now: Option<&str>,
+) -> AppResult<Vec<Event>> {
+    let done = sqlx::query(
+        "UPDATE rounds SET closed_at = COALESCE(?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) \
+         WHERE id = ? AND closed_at IS NULL",
+    )
+    .bind(now)
+    .bind(round_id)
+    .execute(&mut **tx)
+    .await?;
+    if done.rows_affected() == 0 {
+        return Ok(Vec::new());
+    }
+    sqlx::query(
+        "UPDATE groups SET paused_at = COALESCE(?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')), next_open_at = NULL \
+         WHERE id = ?",
+    )
+    .bind(now)
+    .bind(group_id)
+    .execute(&mut **tx)
+    .await?;
+    Ok(vec![Event::RoundClosed { round_id }, Event::RoomUpdated])
 }
 
 pub async fn tallies(db: &SqlitePool, round_id: i64) -> AppResult<Vec<Tally>> {

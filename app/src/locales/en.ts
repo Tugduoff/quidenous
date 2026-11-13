@@ -27,6 +27,7 @@ import { nav } from './en/nav';
 import { legal } from './en/legal';
 import { community } from './en/community';
 import { admin } from './en/admin';
+import { party } from './en/party';
 
 export const en: Messages = {
   common,
@@ -56,4 +57,5 @@ export const en: Messages = {
   legal,
   community,
   admin,
+  party,
 };

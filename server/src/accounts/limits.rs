@@ -40,6 +40,8 @@ pub const RESET_ACCOUNT: Rule = rule("reset_account", 10, 60);
 pub const VERIFY_SEND_ACCOUNT: Rule = rule("verify_send_account", 5, 60);
 pub const OAUTH_IP: Rule = rule("oauth_ip", 20, 10);
 pub const LEGACY_IP: Rule = rule("legacy_ip", 10, 60);
+/// Joining a party without an account: a whole party shares one Wi-Fi.
+pub const PARTY_GUEST_IP: Rule = rule("party_guest_ip", 30, 60);
 pub const DELETE_SEND_IP: Rule = rule("delete_send_ip", 5, 60);
 pub const DELETE_SEND_ACCOUNT: Rule = rule("delete_send_account", 3, 60);
 pub const DELETE_CONFIRM_ACCOUNT: Rule = rule("delete_confirm_account", 10, 60);
@@ -161,6 +163,7 @@ fn rule_by_name(name: &str) -> Option<Rule> {
         VERIFY_SEND_ACCOUNT,
         OAUTH_IP,
         LEGACY_IP,
+        PARTY_GUEST_IP,
         DELETE_SEND_IP,
         DELETE_SEND_ACCOUNT,
         DELETE_CONFIRM_ACCOUNT,

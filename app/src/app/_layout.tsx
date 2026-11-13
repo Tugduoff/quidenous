@@ -104,6 +104,8 @@ function Root() {
           <Stack.Screen name="suggest" />
           <Stack.Screen name="security" />
           <Stack.Screen name="notifications" />
+          <Stack.Screen name="party/new" />
+          <Stack.Screen name="party/[id]" />
         </Stack.Protected>
         <Stack.Protected guard={stage === 'room'}>
           <Stack.Screen name="setup" />
@@ -123,6 +125,9 @@ function Root() {
         <Stack.Screen name="oauth" />
         {/* A shared question to play (`/play?share=`): shown signed out too, kept through sign-in. */}
         <Stack.Screen name="play" />
+        {/* A party's join link and its big-screen view: open to anyone, signed in or not. */}
+        <Stack.Screen name="party/join/[code]" />
+        <Stack.Screen name="party/screen/[code]" />
       </Stack>
       {steps && (
         <View style={StyleSheet.absoluteFill}>
@@ -170,8 +175,10 @@ function useStageRoute(stage: Stage, mounted: boolean) {
       wasOut.current = false;
       if (pendingPlayToken() && pathname !== '/play') return void router.replace('/play');
     }
+    // A party's join link and big screen work at every stage (a guest has no account yet).
+    const open = pathname.startsWith('/party/join/') || pathname.startsWith('/party/screen/');
     const ok =
-      pathname === '/play' && stage !== 'verify'
+      open || (pathname === '/play' && stage !== 'verify')
         ? true
         : stage === 'out'
           ? SIGNED_OUT.includes(pathname)

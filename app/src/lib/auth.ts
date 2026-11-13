@@ -95,6 +95,8 @@ export function useFeatures() {
     avatars: on.has('avatars'),
     /** Packs 2.0, suggestions to the deck, share → play, challenges (docs/COMMUNITY.md). */
     community: on.has('community'),
+    /** Party mode: one question at a time for people in the same place (docs/PARTY.md). */
+    party: on.has('party'),
   };
 }
 

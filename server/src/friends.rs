@@ -1,4 +1,4 @@
-//! Friends: anyone I share a room with, plus people added with their friend code.
+//! Friends: anyone I share a room with (parties don't count), plus people added with their friend code.
 //! A friend can be put straight into one of my rooms.
 
 use axum::{
@@ -27,7 +27,7 @@ async fn are_friends(state: &AppState, me: i64, other: i64) -> AppResult<bool> {
         "SELECT 1 FROM ( \
              SELECT 1 FROM friends WHERE user_id = ?1 AND friend_id = ?2 \
              UNION SELECT 1 FROM members a JOIN members b ON a.group_id = b.group_id \
-             JOIN groups g ON g.id = a.group_id AND g.deleted_at IS NULL \
+             JOIN groups g ON g.id = a.group_id AND g.deleted_at IS NULL AND g.kind = 'room' \
              WHERE a.user_id = ?1 AND b.user_id = ?2 AND a.removed_at IS NULL AND b.removed_at IS NULL) \
          WHERE NOT EXISTS (SELECT 1 FROM blocks WHERE (user_id = ?1 AND blocked_id = ?2) \
                            OR (user_id = ?2 AND blocked_id = ?1))",
@@ -58,7 +58,7 @@ pub async fn list(State(state): State<AppState>, UserId(me): UserId) -> AppResul
         "WITH shared AS ( \
              SELECT b.user_id AS uid, COUNT(DISTINCT a.group_id) AS rooms FROM members a \
              JOIN members b ON a.group_id = b.group_id AND b.user_id != a.user_id \
-             JOIN groups g ON g.id = a.group_id AND g.deleted_at IS NULL \
+             JOIN groups g ON g.id = a.group_id AND g.deleted_at IS NULL AND g.kind = 'room' \
              WHERE a.user_id = ?1 AND a.removed_at IS NULL AND b.removed_at IS NULL GROUP BY b.user_id), \
          added AS (SELECT friend_id AS uid FROM friends WHERE user_id = ?1) \
          SELECT u.id, u.name, u.color, u.photo, u.avatar, COALESCE(s.rooms, 0), u.id IN (SELECT uid FROM added) \

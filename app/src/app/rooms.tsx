@@ -1,12 +1,13 @@
 import { router } from 'expo-router';
-import { BellOff, Check, ChevronLeft, ChevronRight, Crown } from 'lucide-react-native';
+import { BellOff, Check, ChevronLeft, ChevronRight, Crown, PartyPopper } from 'lucide-react-native';
 import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
 import { RoomForms } from '@/components/room-forms';
 import { Screen } from '@/components/screen';
 import { Card, Display } from '@/components/ui';
-import { presetJoinCode } from '@/lib/api';
+import { presetJoinCode, type RoomSummary } from '@/lib/api';
+import { useFeatures } from '@/lib/auth';
 import { useT } from '@/lib/i18n';
 import { useRooms } from '@/lib/queries';
 import { useSwitchRoom } from '@/lib/rooms';
@@ -20,6 +21,12 @@ export default function RoomsScreen() {
   const { room } = useSession();
   const { data: rooms } = useRooms();
   const switchRoom = useSwitchRoom();
+  const features = useFeatures();
+  const open = (r: RoomSummary, on: boolean) => {
+    if (r.kind === 'party') return on ? router.replace(`/party/${r.id}`) : switchRoom(r.id, 'party');
+    if (on) router.back();
+    else switchRoom(r.id);
+  };
   const current = room ?? rooms?.[0]?.id;
   // Picking a new room's vibe: only that on screen.
   const [creating, setCreating] = useState(false);
@@ -37,9 +44,10 @@ export default function RoomsScreen() {
 
       {!creating && rooms?.map((r) => {
         const on = r.id === current;
-        const waiting = r.open_number != null && !r.voted;
+        const party = r.kind === 'party';
+        const waiting = !party && r.open_number != null && !r.voted;
         return (
-          <Pressable key={r.id} accessibilityRole="button" onPress={() => (on ? router.back() : switchRoom(r.id))}>
+          <Pressable key={r.id} accessibilityRole="button" onPress={() => open(r, on)}>
             <Card
               style={{
                 flexDirection: 'row',
@@ -54,10 +62,12 @@ export default function RoomsScreen() {
                   <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: t.font.bold, fontSize: 17, color: t.txt }}>
                     {r.name}
                   </Text>
+                  {party && <PartyPopper size={14} color={r.over ? t.mut : t.accInk} />}
                   {r.role === 'owner' && <Crown size={14} color={t.accInk} />}
                   {r.muted && <BellOff size={14} color={t.mut} accessibilityLabel={tr('room.list.muted')} />}
                 </View>
                 <Text numberOfLines={1} style={{ fontFamily: t.font.regular, fontSize: 13, color: t.mut }}>
+                  {party ? `${tr(r.over ? 'party.over' : 'party.live')} · ` : ''}
                   {tr('common.members', { count: r.members })}
                   {waiting ? ` · ${tr('room.list.toVote', { number: r.open_number! })}` : ''}
                 </Text>
@@ -81,6 +91,18 @@ export default function RoomsScreen() {
           </Pressable>
         );
       })}
+
+      {!creating && features.party && (
+        <Pressable accessibilityRole="button" onPress={() => router.push('/party/new')}>
+          <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, backgroundColor: t.accSoft }}>
+            <PartyPopper size={20} color={t.accInk} />
+            <Text numberOfLines={1} style={{ flex: 1, fontFamily: t.font.bold, fontSize: 16, color: t.txt }}>
+              {tr('party.entry')}
+            </Text>
+            <ChevronRight size={20} color={t.accInk} />
+          </Card>
+        </Pressable>
+      )}
 
       <RoomForms initialCode={presetJoinCode() ?? ''} onEntered={switchRoom} onVibeStep={setCreating} />
     </Screen>

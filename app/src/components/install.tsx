@@ -31,6 +31,8 @@ if (web) {
  */
 export function installMode(): 'none' | 'banner' | 'block' {
   if (!web || __DEV__) return 'none';
+  // A party (its join link, its screen, its big-screen view on a TV or laptop): played right in the browser.
+  if (location.pathname.startsWith('/party/')) return 'none';
   const standalone =
     window.matchMedia('(display-mode: standalone)').matches ||
     window.matchMedia('(display-mode: fullscreen)').matches ||

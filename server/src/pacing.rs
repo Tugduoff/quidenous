@@ -138,6 +138,9 @@ pub async fn launch(
     if !owner_next {
         return Err(AppError::Forbidden("owner_next_off"));
     }
+    if game::party(&mut *tx, room).await?.is_some() {
+        return Err(AppError::Conflict("party"));
+    }
     if !paused {
         return Err(AppError::Conflict("not_waiting"));
     }

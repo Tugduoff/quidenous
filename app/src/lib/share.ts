@@ -4,7 +4,7 @@ import { api, API_URL, historyExportUrl, type Member, type Round, type StatsPeri
 import { t } from './i18n';
 
 /** Where friends can open the app (web app served by the API server). */
-const appUrl = () => API_URL || (typeof location !== 'undefined' ? location.origin : '');
+export const appUrl = () => API_URL || (typeof location !== 'undefined' ? location.origin : '');
 
 /** My friend link (what the QR code holds). */
 export const friendLink = (code: string) => `${appUrl()}/?friend=${code}`;

@@ -46,6 +46,10 @@ pub enum Event {
     },
     InboxChanged,
     RoomUpdated,
+    /// A party's "Suivante" taps or reactions changed.
+    PartyUpdated {
+        round_id: i64,
+    },
     RoomDeleted,
 }
 

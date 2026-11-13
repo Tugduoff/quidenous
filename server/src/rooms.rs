@@ -24,7 +24,12 @@ const CODE_ALPHABET: &[u8] = b"ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
 /// Six characters, no look-alikes (0/O, 1/I).
 fn new_code() -> String {
-    let mut bytes = [0u8; 6];
+    code_of_len(6)
+}
+
+/// `len` characters from the no-look-alike alphabet (parties use 5).
+pub(crate) fn code_of_len(len: usize) -> String {
+    let mut bytes = vec![0u8; len];
     rand::rng().fill_bytes(&mut bytes);
     // 32 symbols: a byte modulo 32 stays uniform.
     bytes
@@ -73,6 +78,9 @@ type RoomRow = (
     i64,
     bool,
     String,
+    String,
+    Option<String>,
+    bool,
 );
 
 pub async fn list(State(state): State<AppState>, UserId(user): UserId) -> AppResult<Json<Value>> {
@@ -85,7 +93,8 @@ pub async fn list(State(state): State<AppState>, UserId(user): UserId) -> AppRes
                 (SELECT COUNT(*) FROM inbox WHERE inbox.member_id = m.id AND inbox.read_at IS NULL AND \
                  NOT EXISTS (SELECT 1 FROM members a JOIN blocks b ON b.blocked_id = a.user_id \
                              WHERE a.id = inbox.actor_id AND b.user_id = ?1)), \
-                m.muted, g.language \
+                m.muted, g.language, g.kind, g.party_ends_at, \
+                (g.party_ends_at IS NOT NULL AND g.party_ends_at <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) \
          FROM members m JOIN groups g ON g.id = m.group_id AND g.deleted_at IS NULL \
          JOIN users u ON u.id = m.user_id \
          WHERE m.user_id = ?1 AND m.removed_at IS NULL \
@@ -97,10 +106,28 @@ pub async fn list(State(state): State<AppState>, UserId(user): UserId) -> AppRes
     let rooms: Vec<Value> = rows
         .into_iter()
         .map(
-            |(id, name, role, members, open, voted, unread, muted, language)| {
-                json!({ "id": id, "name": name, "role": role, "members": members,
+            |(
+                id,
+                name,
+                role,
+                members,
+                open,
+                voted,
+                unread,
+                muted,
+                language,
+                kind,
+                ends_at,
+                over,
+            )| {
+                let mut room = json!({ "id": id, "name": name, "role": role, "members": members,
                     "open_number": open, "voted": voted, "unread": unread, "muted": muted,
-                    "language": language })
+                    "language": language, "kind": kind });
+                if kind == "party" {
+                    room["ends_at"] = json!(ends_at);
+                    room["over"] = json!(over);
+                }
+                room
             },
         )
         .collect();
@@ -204,8 +231,8 @@ pub async fn join(
     UserId(user): UserId,
     Json(body): Json<JoinBody>,
 ) -> AppResult<Json<Value>> {
-    let room_id: i64 =
-        sqlx::query_scalar("SELECT id FROM groups WHERE join_code = ? AND deleted_at IS NULL")
+    let (room_id, kind): (i64, String) =
+        sqlx::query_as("SELECT id, kind FROM groups WHERE join_code = ? AND deleted_at IS NULL")
             .bind(body.code.trim().to_uppercase())
             .fetch_optional(&state.db)
             .await?
@@ -216,6 +243,10 @@ pub async fn join(
             .bind(user)
             .fetch_optional(&state.db)
             .await?;
+    // A party: not once it is over, and not beyond its player cap.
+    if kind == "party" {
+        crate::party::may_take_seat(&state, room_id, existing.as_ref()).await?;
+    }
     let mut tx = state.db.begin().await?;
     let joined = match existing {
         // Removed by the owner or a vote: only the owner can add them back.
@@ -267,7 +298,7 @@ pub async fn join(
             notify_round(&state, room_id, Some(member_id), Some(round_id), false).await?;
         }
     }
-    Ok(Json(json!({ "id": room_id })))
+    Ok(Json(json!({ "id": room_id, "kind": kind })))
 }
 
 #[derive(Deserialize)]
@@ -345,6 +376,12 @@ pub async fn update(
     if body
         .next_delay
         .is_some_and(|d| !crate::pacing::DELAYS.contains(&d))
+    {
+        return Err(AppError::BadRequest("bad_setting"));
+    }
+    // A party runs its own pace (taps and the owner, see `party`).
+    if (body.owner_next.is_some() || body.next_delay.is_some())
+        && crate::game::party(&state.db, room).await?.is_some()
     {
         return Err(AppError::BadRequest("bad_setting"));
     }

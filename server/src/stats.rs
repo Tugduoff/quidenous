@@ -12,7 +12,7 @@ use sqlx::SqlitePool;
 
 use crate::{
     error::{AppError, AppResult},
-    i18n::Lang,
+    i18n::{self, Lang},
 };
 
 /// Rough time to read a question, think and vote, for the "time lost" estimate.
@@ -358,6 +358,8 @@ fn first_name(name: &str) -> String {
 struct MemberInfo {
     name: String,
     joined: f64,
+    /// A deleted account: shown as the placeholder in the reader's language.
+    deleted: bool,
 }
 
 /// One finished question and what the computation needs about it.
@@ -404,7 +406,7 @@ impl RoundCalc {
 }
 
 type RoundRow = (i64, i64, String, String, f64, f64);
-type MemberRowT = (i64, String, f64, bool);
+type MemberRowT = (i64, String, f64, bool, bool);
 
 /// [`for_group_in`] French.
 pub async fn for_group(
@@ -452,8 +454,9 @@ pub async fn compute(
     let members_q = sqlx::query_as::<_, MemberRowT>(concat!(
         "SELECT id, name, ",
         unix!("created_at"),
-        ", removed_at IS NULL FROM members WHERE group_id = ? ORDER BY id"
+        ", removed_at IS NULL, user_id IS NULL AND name = ? FROM members WHERE group_id = ? ORDER BY id"
     ))
+    .bind(crate::accounts::delete::DELETED_NAME)
     .bind(group_id)
     .fetch_all(db);
     let rounds_q = sqlx::query_as::<_, RoundRow>(concat!(
@@ -561,11 +564,18 @@ impl Calc {
     ) -> Self {
         let mut info = HashMap::new();
         let mut current_ids = Vec::new();
-        for (id, name, joined, active) in member_rows {
+        for (id, name, joined, active, deleted) in member_rows {
             if active {
                 current_ids.push(id);
             }
-            info.insert(id, MemberInfo { name, joined });
+            info.insert(
+                id,
+                MemberInfo {
+                    name,
+                    joined,
+                    deleted,
+                },
+            );
         }
         let current: HashSet<i64> = current_ids.iter().copied().collect();
         let mut rounds: Vec<RoundCalc> = round_rows
@@ -1145,15 +1155,21 @@ impl Calc {
             .collect()
     }
 
-    fn name(&self, id: i64) -> String {
+    fn name(&self, id: i64, lang: Lang) -> String {
         self.info
             .get(&id)
-            .map(|m| first_name(&m.name))
+            .map(|m| {
+                if m.deleted {
+                    i18n::deleted_name(lang).to_owned()
+                } else {
+                    first_name(&m.name)
+                }
+            })
             .unwrap_or_else(|| "?".into())
     }
 
     fn stories(&self, s: &Stats, spicy: bool, lang: Lang) -> Vec<Story> {
-        let drafts = drafts(s, &|id| self.name(id), &self.rounds, spicy, lang);
+        let drafts = drafts(s, &|id| self.name(id, lang), &self.rounds, spicy, lang);
         let mut used: HashMap<i64, usize> = HashMap::new();
         let mut keys: HashSet<&'static str> = HashSet::new();
         let mut out = Vec::new();
