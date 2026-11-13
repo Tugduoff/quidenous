@@ -735,7 +735,6 @@ export function Result({
   gate?: ReactNode;
 }) {
   const t = useTheme();
-  const { members } = useMembers();
   const { data: round } = useRound(roundId);
   const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
   // One scroll for the whole page (no box inside a box). Where the full result ends, and whether
@@ -798,7 +797,7 @@ export function Result({
         {round.ranking ? (
           <RankResult ranking={round.ranking} byId={byId} mine={round.my_ranking} />
         ) : (
-          <ResultBars result={round.result} byId={byId} members={members} />
+          <ResultBars result={round.result} byId={byId} />
         )}
       </View>
       <ChatMessages roundId={round.id} />

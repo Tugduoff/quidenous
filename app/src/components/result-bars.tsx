@@ -1,6 +1,6 @@
 import { ChevronDown, ChevronUp, Crown } from 'lucide-react-native';
 import { type ReactNode, useEffect, useState } from 'react';
-import { Pressable, type StyleProp, Text, View, type ViewStyle } from 'react-native';
+import { type StyleProp, Text, View, type ViewStyle } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   useReducedMotion,
@@ -12,7 +12,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import type { Member, RankEntry, Tally } from '@/lib/api';
-import { BOUNCE, EASE, motion } from '@/lib/motion';
+import { BOUNCE, EASE } from '@/lib/motion';
 import { useTheme } from '@/lib/theme';
 
 import { Avatar, AvatarStack, PressableScale } from './ui';
@@ -22,17 +22,13 @@ const TOP = 5;
 /** Only fold the list when that hides at least two rows (hiding a single one saves nothing). */
 const folded = <T,>(rows: T[], all: boolean) => (all || rows.length <= TOP + 1 ? rows : rows.slice(0, TOP));
 
-/**
- * Pick result: one bar per person who got votes (the top 5, then "Voir tout"),
- * and everyone nobody voted for folded into one row.
- */
-export function ResultBars({ result, byId, members }: { result: Tally[]; byId: Map<number, Member>; members?: Member[] }) {
+/** Pick result: one bar per person who got votes (the top 5, then "Voir tout"). */
+export function ResultBars({ result, byId }: { result: Tally[]; byId: Map<number, Member> }) {
   const t = useTheme();
   const [all, setAll] = useState(false);
   const total = result.reduce((n, r) => n + r.count, 0) || 1;
   const top = result[0]?.count ?? 0;
   const shown = folded(result, all);
-  const nobody = members?.filter((m) => !result.some((r) => r.target_id === m.id)) ?? [];
   return (
     <View style={{ gap: 12 }}>
       {shown.map((r, i) => {
@@ -71,7 +67,6 @@ export function ResultBars({ result, byId, members }: { result: Tally[]; byId: M
       })}
       {shown.length < result.length && <More count={result.length} onPress={() => setAll(true)} />}
       {all && result.length > TOP + 1 && <More less onPress={() => setAll(false)} />}
-      {nobody.length > 0 && <Nobody members={nobody} />}
     </View>
   );
 }
@@ -97,41 +92,6 @@ function More({ count, less, onPress }: { count?: number; less?: boolean; onPres
       <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.mut }}>{less ? 'Réduire' : `Voir tout (${count})`}</Text>
       <Icon size={16} color={t.mut} />
     </PressableScale>
-  );
-}
-
-/** Everyone who got no vote, as one row of faces; tap it for their names. */
-function Nobody({ members }: { members: Member[] }) {
-  const t = useTheme();
-  const [open, setOpen] = useState(false);
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`Aucun vote : ${members.map((m) => m.name).join(', ')}`}
-      onPress={() => setOpen((o) => !o)}
-      style={{ borderRadius: 18, backgroundColor: t.card, paddingHorizontal: 12, paddingVertical: 10, gap: 10 }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 28 }}>
-        <AvatarStack members={members} size={24} max={7} ring={t.card} />
-        <Text numberOfLines={1} style={{ flex: 1, fontFamily: t.font.semibold, fontSize: 14, color: t.mut }}>
-          Aucun vote
-        </Text>
-        {open ? <ChevronUp size={16} color={t.mut} /> : <ChevronDown size={16} color={t.mut} />}
-      </View>
-      {open && (
-        <Animated.View entering={motion.enter} style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-          {members.map((m) => (
-            <View
-              key={m.id}
-              style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingRight: 10, borderRadius: 14, backgroundColor: t.card2 }}>
-              <Avatar member={m} size={24} />
-              <Text numberOfLines={1} style={{ maxWidth: 120, fontFamily: t.font.semibold, fontSize: 13, color: t.txt }}>
-                {m.name}
-              </Text>
-            </View>
-          ))}
-        </Animated.View>
-      )}
-    </Pressable>
   );
 }
 
