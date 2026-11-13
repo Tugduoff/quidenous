@@ -167,7 +167,8 @@ pub async fn list_blocks(
     State(state): State<AppState>,
     UserId(me): UserId,
 ) -> AppResult<Json<Value>> {
-    let rows: Vec<(i64, String, String, Option<String>, Option<String>)> = sqlx::query_as(
+    type Row = (i64, String, String, Option<String>, Option<String>);
+    let rows: Vec<Row> = sqlx::query_as(
         "SELECT u.id, u.name, u.color, u.photo, u.avatar FROM blocks b JOIN users u ON u.id = b.blocked_id \
          WHERE b.user_id = ? ORDER BY b.created_at DESC, u.id",
     )

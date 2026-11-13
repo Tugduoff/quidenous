@@ -43,7 +43,15 @@ pub async fn list(State(state): State<AppState>, UserId(me): UserId) -> AppResul
         .bind(me)
         .fetch_one(&state.db)
         .await?;
-    type Row = (i64, String, String, Option<String>, Option<String>, i64, bool);
+    type Row = (
+        i64,
+        String,
+        String,
+        Option<String>,
+        Option<String>,
+        i64,
+        bool,
+    );
     let rows: Vec<Row> = sqlx::query_as(
         "WITH shared AS ( \
              SELECT b.user_id AS uid, COUNT(DISTINCT a.group_id) AS rooms FROM members a \

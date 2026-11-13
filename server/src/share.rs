@@ -97,13 +97,12 @@ pub async fn create_stat(
     // Frozen as `[[first name, colour, avatar|null], ...]` (rows from before avatars have 2 items).
     let mut people: Vec<(String, String, Option<String>)> = Vec::new();
     for id in &story.member_ids {
-        let (name, color, avatar): (String, String, Option<String>) = sqlx::query_as(
-            "SELECT name, color, avatar FROM members WHERE id = ? AND group_id = ?",
-        )
-        .bind(id)
-        .bind(me.group_id)
-        .fetch_one(&state.db)
-        .await?;
+        let (name, color, avatar): (String, String, Option<String>) =
+            sqlx::query_as("SELECT name, color, avatar FROM members WHERE id = ? AND group_id = ?")
+                .bind(id)
+                .bind(me.group_id)
+                .fetch_one(&state.db)
+                .await?;
         let first = name.split_whitespace().next().unwrap_or("?").to_owned();
         people.push((first, color, avatar));
     }
@@ -430,7 +429,14 @@ fn question_svg(card: &QuestionCard) -> String {
                 border = if i == 0 { esc(&person.color) } else { "#1A1A21".into() },
                 bw = if i == 0 { 3 } else { 0 },
             ));
-            out.push_str(&face(person, x + 52.0, y + 48.0, 30.0, 28.0, &format!("qa{i}")));
+            out.push_str(&face(
+                person,
+                x + 52.0,
+                y + 48.0,
+                30.0,
+                28.0,
+                &format!("qa{i}"),
+            ));
             out.push_str(&format!(
                 r##"<text x="{nx}" y="{ny}" font-family="Inter" font-weight="700" font-size="28" fill="{txt}">{medal}. {name}</text>
 <text x="{nx}" y="{vy}" font-family="Inter" font-size="22" fill="{mut_}">{value}</text>
@@ -583,7 +589,10 @@ mod tests {
     fn stat_people_old_and_new_forms() {
         let old = parse_people(r##"[["Ana","#FF7A45"],["Bob","#5BC8FF"]]"##);
         assert_eq!(old.len(), 2);
-        assert_eq!((old[1].name.as_str(), old[1].color.as_str()), ("Bob", "#5BC8FF"));
+        assert_eq!(
+            (old[1].name.as_str(), old[1].color.as_str()),
+            ("Bob", "#5BC8FF")
+        );
         assert!(old.iter().all(|p| p.avatar.is_none()));
         let new = parse_people(r##"[["Ana","#FF7A45","0.1"],["Bob","#5BC8FF",null]]"##);
         assert_eq!(new[0].avatar.as_deref(), Some("0.1"));

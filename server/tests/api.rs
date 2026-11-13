@@ -3237,3 +3237,241 @@ async fn owner_and_delay_together() {
     );
     assert_eq!(current_number(&app, &bob).await, None);
 }
+
+/// A small PNG as a multipart `photo` upload to `PUT /me/photo`.
+async fn upload_photo(app: &Router, token: &str) -> (StatusCode, Value) {
+    let mut png = Vec::new();
+    image::RgbImage::from_pixel(8, 8, image::Rgb([200, 80, 40]))
+        .write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
+        .unwrap();
+    let mut body = b"--XB\r\nContent-Disposition: form-data; name=\"photo\"; filename=\"p.png\"\r\nContent-Type: image/png\r\n\r\n".to_vec();
+    body.extend_from_slice(&png);
+    body.extend_from_slice(b"\r\n--XB--\r\n");
+    let req = Request::builder()
+        .method("PUT")
+        .uri("/api/me/photo")
+        .header("authorization", format!("Bearer {token}"))
+        .header("content-type", "multipart/form-data; boundary=XB")
+        .body(Body::from(body))
+        .unwrap();
+    let res = app.clone().oneshot(req).await.unwrap();
+    let status = res.status();
+    let bytes = res.into_body().collect().await.unwrap().to_bytes();
+    (
+        status,
+        serde_json::from_slice(&bytes).unwrap_or(Value::Null),
+    )
+}
+
+#[tokio::test]
+async fn drawn_avatars_replace_photos_and_follow_the_account() {
+    let (app, state) = test_app_with_state().await;
+    let (ana, _) = join(&app, "Ana").await;
+    let (bob, _) = join(&app, "Bob").await;
+    let (_, f) = call(&app, "GET", "/features", None, None).await;
+    assert!(f.as_array().unwrap().contains(&json!("avatars")));
+    let presets = quidenous_server::avatar::presets();
+    assert!(presets.len() >= 20, "about twenty ready-made avatars");
+    let spec = presets[0].clone();
+    let fields = spec.split('.').count();
+
+    // Ana is in a second room (Bob's) before picking an avatar.
+    let (_, room) = call(
+        &app,
+        "POST",
+        "/rooms",
+        Some(&bob),
+        Some(json!({ "name": "Cousins" })),
+    )
+    .await;
+    let cousins = room["id"].as_i64().unwrap();
+    let (_, g) = call_room(&app, "GET", "/group", &bob, cousins, None).await;
+    let code = g["code"].as_str().unwrap().to_owned();
+    let (s, _) = call(
+        &app,
+        "POST",
+        "/rooms/join",
+        Some(&ana),
+        Some(json!({ "code": code })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK);
+
+    // Only valid specs: right field count, canonical numbers, in range. Never markup.
+    let too_far = spec
+        .split('.')
+        .enumerate()
+        .map(|(i, v)| if i == 0 { "99" } else { v })
+        .collect::<Vec<_>>()
+        .join(".");
+    for bad in [
+        json!({ "avatar": "" }),
+        json!({ "avatar": "<svg onload=alert(1)/>" }),
+        json!({ "avatar": format!("{spec}.0") }),
+        json!({ "avatar": vec!["0"; fields - 1].join(".") }),
+        json!({ "avatar": vec!["01"; fields].join(".") }),
+        json!({ "avatar": too_far }),
+        json!({ "avatar": 3 }),
+    ] {
+        let (s, _) = call_room(&app, "PUT", "/me/avatar", &ana, cousins, Some(bad.clone())).await;
+        assert!(s.is_client_error(), "{bad} gave {s}");
+    }
+
+    // A photo first: picking an avatar drops it (and its file), in every room.
+    let (s, m) = upload_photo(&app, &ana).await;
+    assert_eq!(s, StatusCode::OK, "{m}");
+    let photo = m["photo_url"]
+        .as_str()
+        .unwrap()
+        .trim_start_matches("/photos/")
+        .to_owned();
+    let file = state.config.data_dir.join("photos").join(&photo);
+    assert!(file.exists());
+    let (s, m) = call(
+        &app,
+        "PUT",
+        "/me/avatar",
+        Some(&ana),
+        Some(json!({ "avatar": spec })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{m}");
+    assert_eq!(m["avatar"], json!(spec));
+    assert_eq!(m["photo_url"], Value::Null);
+    assert!(!file.exists(), "the replaced photo is deleted");
+    for (token, room) in [(&bob, None), (&bob, Some(cousins))] {
+        let (_, g) = match room {
+            Some(r) => call_room(&app, "GET", "/group", token, r, None).await,
+            None => call(&app, "GET", "/group", Some(token), None).await,
+        };
+        let me = g["members"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|m| m["name"] == "Ana")
+            .unwrap()
+            .clone();
+        assert_eq!(me["avatar"], json!(spec), "{g}");
+        assert_eq!(me["photo_url"], Value::Null);
+    }
+    let (_, me) = call(&app, "GET", "/me", Some(&ana), None).await;
+    assert_eq!(me["avatar"], json!(spec));
+    // Friends see it too.
+    let (_, fr) = call(&app, "GET", "/friends", Some(&bob), None).await;
+    let f = fr["friends"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|f| f["name"] == "Ana")
+        .unwrap()
+        .clone();
+    assert_eq!(f["avatar"], json!(spec));
+
+    // A new seat inherits it.
+    let (_, room) = call(
+        &app,
+        "POST",
+        "/rooms",
+        Some(&bob),
+        Some(json!({ "name": "Voisins" })),
+    )
+    .await;
+    let voisins = room["id"].as_i64().unwrap();
+    let (_, g) = call_room(&app, "GET", "/group", &bob, voisins, None).await;
+    let code = g["code"].as_str().unwrap().to_owned();
+    call(
+        &app,
+        "POST",
+        "/rooms/join",
+        Some(&ana),
+        Some(json!({ "code": code })),
+    )
+    .await;
+    let (_, g) = call_room(&app, "GET", "/group", &bob, voisins, None).await;
+    let seat = g["members"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|m| m["name"] == "Ana")
+        .unwrap()
+        .clone();
+    assert_eq!(seat["avatar"], json!(spec));
+
+    // A photo again replaces the avatar everywhere.
+    let (s, m) = upload_photo(&app, &ana).await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(m["avatar"], Value::Null);
+    assert!(m["photo_url"].is_string());
+    let left: i64 = sqlx::query_scalar(
+        "SELECT (SELECT COUNT(*) FROM members WHERE avatar IS NOT NULL) + (SELECT COUNT(*) FROM users WHERE avatar IS NOT NULL)",
+    )
+    .fetch_one(&state.db)
+    .await
+    .unwrap();
+    assert_eq!(left, 0);
+
+    // Back to an avatar, then null: the initial (and the photo stays gone).
+    call(
+        &app,
+        "PUT",
+        "/me/avatar",
+        Some(&ana),
+        Some(json!({ "avatar": presets[1] })),
+    )
+    .await;
+    let (s, m) = call(
+        &app,
+        "PUT",
+        "/me/avatar",
+        Some(&ana),
+        Some(json!({ "avatar": null })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(
+        (&m["avatar"], &m["photo_url"]),
+        (&Value::Null, &Value::Null)
+    );
+}
+
+#[tokio::test]
+async fn share_cards_draw_avatars() {
+    let app = test_app().await;
+    let (a, a_id) = join(&app, "Ana").await;
+    let (b, _) = join(&app, "Bob").await;
+    let spec = quidenous_server::avatar::presets()[3].clone();
+    call(
+        &app,
+        "PUT",
+        "/me/avatar",
+        Some(&a),
+        Some(json!({ "avatar": spec })),
+    )
+    .await;
+    let (_, open) = call(&app, "GET", "/round/current", Some(&a), None).await;
+    let round = open["id"].as_i64().unwrap();
+    vote_as(&app, &a, a_id).await;
+    vote_as(&app, &b, a_id).await;
+    let (_, share) = call(
+        &app,
+        "POST",
+        &format!("/rounds/{round}/share"),
+        Some(&a),
+        Some(json!({ "result": true })),
+    )
+    .await;
+    let token = share["token"].as_str().unwrap();
+    let res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri(format!("/s/{token}/card.png"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let png = res.into_body().collect().await.unwrap().to_bytes();
+    assert_eq!(&png[1..4], b"PNG");
+}

@@ -314,7 +314,13 @@ mod tests {
     fn spec_with(field: usize, value: &str) -> String {
         let p = parts();
         (0..p.fields.len())
-            .map(|i| if i == field { value.to_owned() } else { "0".into() })
+            .map(|i| {
+                if i == field {
+                    value.to_owned()
+                } else {
+                    "0".into()
+                }
+            })
             .collect::<Vec<_>>()
             .join(".")
     }
