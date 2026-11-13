@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Check, FileUp, Lightbulb, Lock, MessageCircleQuestion, Package, Plus, Shuffle, Trash2, Trophy, X } from 'lucide-react-native';
+import { Cable, Check, FileUp, Lightbulb, Lock, MessageCircleQuestion, Package, Plus, Shuffle, Trash2, Trophy, X } from 'lucide-react-native';
 import { type ComponentRef, useEffect, useRef, useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import Animated from 'react-native-reanimated';
@@ -9,10 +9,10 @@ import { ModerationDialog, type ModTarget } from '@/components/moderation';
 import { Screen } from '@/components/screen';
 import { Tip } from '@/components/tip';
 import { Avatar, Card, ConfirmModal, Display, PressableScale, QuestionText, Toggle } from '@/components/ui';
-import { api } from '@/lib/api';
+import { api, ApiError, type QuestionKind } from '@/lib/api';
 import { useFeatures } from '@/lib/auth';
 import { useT } from '@/lib/i18n';
-import { pickQuestionFile, splitTag, takeHandedDraft, type DraftLine } from '@/lib/import-draft';
+import { ITEM_MAX, ITEMS_MAX, ITEMS_MIN, itemsOk, pickQuestionFile, splitTag, takeHandedDraft, type DraftLine } from '@/lib/import-draft';
 import { motion, useArrivals } from '@/lib/motion';
 import { keys, useGroup, useMembers, useQueue } from '@/lib/queries';
 import { useSession } from '@/lib/session';
@@ -32,6 +32,10 @@ export default function QuestionsScreen() {
   const { byId } = useMembers();
   const [text, setText] = useState('');
   const [rank, setRank] = useState(false);
+  // "Qui choisit quoi": the question and its 2 to 4 items.
+  const [choose, setChoose] = useState(false);
+  const [items, setItems] = useState<string[]>(['', '']);
+  const [addError, setAddError] = useState<string | null>(null);
   const { me } = useSession();
   const { community } = useFeatures();
   const [toDelete, setToDelete] = useState<{ id: number; text: string } | null>(null);
@@ -44,22 +48,30 @@ export default function QuestionsScreen() {
       qc.invalidateQueries({ queryKey: keys.queue });
     },
   });
-  // Typing `[classement] …` (or `[rank] …`) by hand works too.
+  // Typing `[classement] …` (or `[rank] …`, `[choix] … | A | B`) by hand works too.
   const typed = splitTag(text.trim());
+  const kind: QuestionKind = choose || typed.kind === 'choose' ? 'choose' : rank || typed.rank ? 'rank' : 'pick';
+  const chosenItems = choose ? items.map((i) => i.trim()) : (typed.items ?? []);
+  const sameItems = new Set(chosenItems.filter(Boolean).map((i) => i.toLowerCase())).size < chosenItems.filter(Boolean).length;
   const add = useMutation({
     mutationFn: () =>
       api('/questions', {
         method: 'POST',
-        json: { text: typed.text, kind: rank || typed.rank ? 'rank' : 'pick' },
+        json: kind === 'choose' ? { text: typed.text, kind, items: chosenItems } : { text: typed.text, kind },
       }),
     onSuccess: () => {
       setText('');
       setRank(false);
+      setChoose(false);
+      setItems(['', '']);
+      setAddError(null);
       qc.invalidateQueries({ queryKey: keys.queue });
       qc.invalidateQueries({ queryKey: keys.current });
     },
+    onError: (e) => setAddError(e instanceof ApiError && e.code === 'bad_items' ? tr('questions.badItems') : null),
   });
-  const ok = text.trim().length >= MIN && !add.isPending;
+  const ok = typed.text.length >= MIN && (kind !== 'choose' || itemsOk(chosenItems)) && !add.isPending;
+  const setItem = (i: number, v: string) => setItems((l) => l.map((x, j) => (j === i ? v : x)));
   const [imported, setImported] = useState<string | null>(null);
   // Pick a file, show what's in it, send only what's ticked.
   const [draft, setDraft] = useState<DraftLine[] | null>(null);
@@ -160,7 +172,7 @@ export default function QuestionsScreen() {
             <TextInput
               ref={composer}
               accessibilityLabel={tr('questions.newQuestion')}
-              placeholder={rank ? tr('questions.placeholderRank') : tr('questions.placeholder')}
+              placeholder={choose ? tr('questions.placeholderChoose') : rank ? tr('questions.placeholderRank') : tr('questions.placeholder')}
               placeholderTextColor={t.mut}
               value={text}
               onChangeText={setText}
@@ -177,9 +189,85 @@ export default function QuestionsScreen() {
                 textAlignVertical: 'top',
               }}
             />
-            <View style={{ flexDirection: 'row', alignItems: 'center', paddingLeft: 16, paddingRight: 10 }}>
-              {/* The next question is a ranking (everyone, first to last). */}
-              <Toggle icon={Trophy} label={tr('questions.ranking')} value={rank} onChange={setRank} />
+            {/* A choose question's items: 2 to 4, one per line. */}
+            {choose && (
+              <View style={{ paddingHorizontal: 12, paddingBottom: 10, gap: 8 }}>
+                {items.map((item, i) => (
+                  <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <TextInput
+                      accessibilityLabel={tr('questions.item', { n: i + 1 })}
+                      placeholder={tr('questions.item', { n: i + 1 })}
+                      placeholderTextColor={t.mut}
+                      value={item}
+                      onChangeText={(v) => setItem(i, v)}
+                      maxLength={ITEM_MAX}
+                      returnKeyType="send"
+                      submitBehavior="blurAndSubmit"
+                      onSubmitEditing={() => ok && add.mutate()}
+                      style={{
+                        flex: 1,
+                        height: 44,
+                        paddingHorizontal: 12,
+                        borderRadius: 12,
+                        backgroundColor: t.card2,
+                        fontFamily: t.font.regular,
+                        fontSize: 16,
+                        color: t.txt,
+                      }}
+                    />
+                    {items.length > ITEMS_MIN && (
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={tr('questions.removeItem', { n: i + 1 })}
+                        onPress={() => setItems((l) => l.filter((_, j) => j !== i))}
+                        hitSlop={6}
+                        style={{ width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card2 }}>
+                        <X size={16} color={t.mut} />
+                      </Pressable>
+                    )}
+                  </View>
+                ))}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 32 }}>
+                  {items.length < ITEMS_MAX && (
+                    <Pressable
+                      accessibilityRole="button"
+                      onPress={() => setItems((l) => [...l, ''])}
+                      hitSlop={6}
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6, paddingHorizontal: 4 }}>
+                      <Plus size={16} color={t.accInk} />
+                      <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.accInk }}>{tr('questions.addItem')}</Text>
+                    </Pressable>
+                  )}
+                  {(sameItems || addError) && (
+                    <Text numberOfLines={1} style={{ flex: 1, textAlign: 'right', fontFamily: t.font.regular, fontSize: 13, color: t.tag }}>
+                      {sameItems ? tr('questions.sameItems') : addError}
+                    </Text>
+                  )}
+                </View>
+              </View>
+            )}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, paddingLeft: 16, paddingRight: 10 }}>
+              {/* The next question is a ranking (everyone, first to last), or a choose (who'd take which item). */}
+              <Toggle
+                icon={Trophy}
+                label={tr('questions.ranking')}
+                value={rank}
+                onChange={(v) => {
+                  setRank(v);
+                  if (v) setChoose(false);
+                }}
+              />
+              <Toggle
+                icon={Cable}
+                label={tr('questions.choosing')}
+                a11y={tr('questions.choosingLabel')}
+                value={choose}
+                onChange={(v) => {
+                  setChoose(v);
+                  setAddError(null);
+                  if (v) setRank(false);
+                }}
+              />
               <View style={{ flex: 1 }} />
               <PressableScale
                 accessibilityRole="button"
@@ -271,17 +359,24 @@ export default function QuestionsScreen() {
                 {l.selected && <Check size={14} color={t.accTxt} strokeWidth={3} />}
               </View>
               {l.rank && <Trophy size={14} color={t.accInk} style={{ marginTop: 3 }} />}
-              <Text
-                style={{
-                  flex: 1,
-                  fontFamily: t.font.regular,
-                  fontSize: 14,
-                  lineHeight: 20,
-                  color: t.txt,
-                }}>
-                {l.text}
-                {l.problem && <Text style={{ color: t.tag }}>{`  · ${tr(`questions.problem.${l.problem}`)}`}</Text>}
-              </Text>
+              {l.kind === 'choose' && <Cable size={14} color={t.accInk} style={{ marginTop: 3 }} />}
+              <View style={{ flex: 1 }}>
+                <Text
+                  style={{
+                    fontFamily: t.font.regular,
+                    fontSize: 14,
+                    lineHeight: 20,
+                    color: t.txt,
+                  }}>
+                  {l.text}
+                  {l.problem && <Text style={{ color: t.tag }}>{`  · ${tr(`questions.problem.${l.problem}`)}`}</Text>}
+                </Text>
+                {!!l.items?.length && (
+                  <Text numberOfLines={1} style={{ fontFamily: t.font.regular, fontSize: 13, lineHeight: 18, color: t.mut }}>
+                    {l.items.join(' · ')}
+                  </Text>
+                )}
+              </View>
             </Pressable>
           ))}
           <View style={{ flexDirection: 'row', gap: 10 }}>
@@ -375,12 +470,20 @@ export default function QuestionsScreen() {
               padding: 14,
             }}>
             {q.author_id != null ? <Avatar member={byId.get(q.author_id)} size={32} /> : <MessageCircleQuestion size={20} color={t.mut} />}
-            <QuestionText
-              text={q.text}
-              rank={q.kind === 'rank'}
-              containerStyle={{ flex: 1 }}
-              style={{ fontFamily: t.font.semibold, fontSize: 15, lineHeight: 20, color: t.txt }}
-            />
+            <View style={{ flex: 1, gap: 2 }}>
+              <QuestionText
+                text={q.text}
+                rank={q.kind === 'rank'}
+                choose={q.kind === 'choose'}
+                style={{ fontFamily: t.font.semibold, fontSize: 15, lineHeight: 20, color: t.txt }}
+              />
+              {/* A choose question's items, in one line. */}
+              {!!q.items?.length && (
+                <Text numberOfLines={1} style={{ fontFamily: t.font.regular, fontSize: 13, lineHeight: 18, color: t.mut }}>
+                  {q.items.join(' · ')}
+                </Text>
+              )}
+            </View>
             {/* Its author or the room owner can take it out before it's asked. */}
             {(q.author_id === me?.id || group?.my_role === 'owner') && (
               <Pressable

@@ -1,5 +1,5 @@
 import { type ReactNode, useEffect, useState, useSyncExternalStore } from 'react';
-import { Trophy, type LucideIcon } from 'lucide-react-native';
+import { Cable, Trophy, type LucideIcon } from 'lucide-react-native';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -142,18 +142,22 @@ export function Button({
   disabled,
   loading,
   style,
+  testID,
 }: {
   children: ReactNode;
   onPress?: () => void;
   disabled?: boolean;
   loading?: boolean;
   style?: ViewStyle;
+  testID?: string;
 }) {
   const t = useTheme();
   const off = disabled || loading;
   return (
     <PressableScale
+      testID={testID}
       accessibilityRole="button"
+      accessibilityState={{ disabled: !!off }}
       disabled={off}
       onPress={onPress}
       style={[styles.button, { backgroundColor: off ? t.card2 : t.acc }, style]}>
@@ -282,15 +286,17 @@ export function Toggle({
   );
 }
 
-/** A question's text; ranking questions get a trophy in front, lined up with the first line. */
+/** A question's text; ranking questions get a trophy in front, choose questions wires, lined up with the first line. */
 export function QuestionText({
   text,
   rank,
+  choose,
   style,
   containerStyle,
 }: {
   text: string;
   rank: boolean;
+  choose?: boolean;
   style: TextStyle & { fontSize: number; lineHeight: number };
   containerStyle?: ViewStyle;
 }) {
@@ -299,6 +305,7 @@ export function QuestionText({
   return (
     <View style={[{ flexDirection: 'row', alignItems: 'flex-start', gap: 6, flexShrink: 1 }, containerStyle]}>
       {rank && <Trophy size={size} color={t.accInk} style={{ flexShrink: 0, marginTop: (style.lineHeight - size) / 2 }} />}
+      {choose && <Cable size={size} color={t.accInk} style={{ flexShrink: 0, marginTop: (style.lineHeight - size) / 2 }} />}
       <Text style={[{ flex: 1 }, style]}>{text}</Text>
     </View>
   );

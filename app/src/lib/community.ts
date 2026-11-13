@@ -22,7 +22,7 @@ export type Suggestion = {
 export type SuggestionVote = 1 | -1 | 0;
 
 /** `GET /play/{token}` (public): the shared question; `closed`: its round is over, so playing it makes a challenge. */
-export type PlayInfo = { question: string; kind: 'pick' | 'rank'; lang: 'fr' | 'en'; room: string; closed: boolean };
+export type PlayInfo = { question: string; kind: 'pick' | 'rank' | 'choose'; lang: 'fr' | 'en'; room: string; closed: boolean };
 
 /** Someone on a podium of another room (or of this one): no member id, only what the avatar needs. */
 export type PodiumEntry = { name: string; color: string; avatar?: string | null; photo_url: string | null; score: number };

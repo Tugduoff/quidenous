@@ -47,8 +47,8 @@ export type Round = {
   number: number;
   question: string;
   custom: boolean;
-  /** 'pick' one person, or 'rank' everyone from first to last. */
-  kind: 'pick' | 'rank';
+  /** 'pick' one person, 'rank' everyone from first to last, or 'choose' an item for everyone (docs/CHOOSE.md). */
+  kind: QuestionKind;
   opened_at: string;
   closed_at: string | null;
   member_count: number;
@@ -62,8 +62,25 @@ export type Round = {
   skipped_ids: number[];
   ranking: RankEntry[] | null;
   my_ranking: number[] | null;
+  /** Choose question: its items (null otherwise; absent from an older server). */
+  items: string[] | null;
+  /** Choose question: my wires (`item` = index in `items`), once I voted. */
+  my_choices: Choice[] | null;
+  /** Choose question, closed: per person what the others guessed and what they took, and who guessed best. */
+  choose: ChooseResult | null;
   /** A shared-deck question that came from someone's suggestion: their name (absent from an older server). */
   suggested_by?: string | null;
+};
+export type QuestionKind = 'pick' | 'rank' | 'choose';
+/** A wire: this person (`member_id`) takes `items[item]`. */
+export type Choice = { member_id: number; item: number };
+/**
+ * `people` in member order: `real` their own wire (null if they didn't wire), `guesses` the others' wires to them,
+ * `top` the most guessed item(s). `scores`: each voter's guesses that matched (`hits`) out of those that could (`total`), best first.
+ */
+export type ChooseResult = {
+  people: { member_id: number; real: number | null; top: number[]; guesses: { voter_id: number; item: number }[] }[];
+  scores: { member_id: number; hits: number; total: number }[];
 };
 export type RankEntry = { member_id: number; points: number; average: number; firsts: number };
 /** A count of agreements (skip someone, remove someone), and whether mine is one of them. */
@@ -148,7 +165,8 @@ export type HistoryItem = {
   top_count: number;
   vote_count: number;
   pinned: boolean;
-  kind: 'pick' | 'rank';
+  /** Choose: `winner_ids` are the best guessers, `top_count` their hits. */
+  kind: QuestionKind;
 };
 /**
  * `user_id`: the author's account (null once deleted; absent from an older server).
@@ -289,7 +307,7 @@ export function normalizeStats(raw: Partial<Stats> | null, period: StatsPeriod):
   return s as Stats;
 }
 export type Queue = {
-  custom: { id: number; text: string; author_id: number | null; kind: 'pick' | 'rank' }[];
+  custom: { id: number; text: string; author_id: number | null; kind: QuestionKind; items?: string[] | null }[];
   deck_left: number;
 };
 
@@ -336,7 +354,8 @@ export const historyExportUrl = () => `${API_URL}/api/history/export?token=${tok
 
 /** `room`: this call is about another room than the current one (`X-Room` for it alone). */
 export async function api<T>(path: string, init: RequestInit & { json?: unknown; room?: number } = {}): Promise<T> {
-  const headers: Record<string, string> = { ...deviceHeader(), ...(init.headers as Record<string, string>) };
+  // `x-kinds`: this app answers choose questions (an older one gets them as a plain pick).
+  const headers: Record<string, string> = { ...deviceHeader(), 'x-kinds': 'choose', ...(init.headers as Record<string, string>) };
   if (token) headers.authorization = `Bearer ${token}`;
   const target = init.room ?? room;
   if (target != null) headers['x-room'] = String(target);
@@ -361,7 +380,10 @@ export const liveUrl = (t: string) => `${API_URL.replace(/^http/, 'ws')}/api/liv
 export async function apiUpload<T>(path: string, form: FormData, method = 'PUT'): Promise<T> {
   const res = await fetch(`${API_URL}/api${path}`, {
     method,
-    headers: token ? { authorization: `Bearer ${token}`, ...(room != null ? { 'x-room': String(room) } : {}) } : undefined,
+    headers: {
+      'x-kinds': 'choose',
+      ...(token ? { authorization: `Bearer ${token}`, ...(room != null ? { 'x-room': String(room) } : {}) } : {}),
+    },
     body: form,
   });
   if (!res.ok) return fail(res, !!token);

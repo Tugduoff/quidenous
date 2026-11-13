@@ -8,4 +8,5 @@ export const history: Messages['history'] = {
   yesterday: 'Yesterday',
   empty: 'Results will show up here.',
   goVote: 'Go vote',
+  nobodyGuessed: 'Nobody guessed right',
 };

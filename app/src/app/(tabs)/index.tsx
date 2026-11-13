@@ -25,6 +25,7 @@ import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-na
 import { ChallengeButton, Challenges } from '@/components/challenge';
 import { useSecretPicker } from '@/components/celebration';
 import { ChatInput, ChatMessages } from '@/components/chat';
+import { ChooseBallot, ChooseResult, myRealChoice } from '@/components/choose';
 import { BIG_GROUP, gridColumns, MemberGrid, MemberTile } from '@/components/member-grid';
 import { RankResult, ResultBars, ResultSummary } from '@/components/result-bars';
 import { Screen } from '@/components/screen';
@@ -245,10 +246,7 @@ function Question({ round, result }: { round: Round; result?: boolean }) {
   return (
     <Animated.View entering={fresh ? motion.question : undefined} style={{ gap: 14 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Tag
-          label={`${tr(result ? 'vote.kind.result' : round.kind === 'rank' ? 'vote.kind.rank' : round.custom ? 'vote.kind.custom' : 'vote.kind.pick')} · #${round.number}`}
-          tone={result ? 'acc' : 'tag'}
-        />
+        <Tag label={`${tr(kindLabel(round, result))} · #${round.number}`} tone={result ? 'acc' : 'tag'} />
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           {result && <ChallengeButton round={round} />}
           <PressableScale
@@ -273,6 +271,18 @@ function Question({ round, result }: { round: Round; result?: boolean }) {
     </Animated.View>
   );
 }
+
+/** The tag over a question: its kind (a choose or ranking question says so even when it's ours), or "Résultat". */
+const kindLabel = (round: Round, result?: boolean) =>
+  result
+    ? 'vote.kind.result'
+    : round.kind === 'rank'
+      ? 'vote.kind.rank'
+      : round.kind === 'choose'
+        ? 'vote.kind.choose'
+        : round.custom
+          ? 'vote.kind.custom'
+          : 'vote.kind.pick';
 
 /** First-run hint on the ballot: how a question ends. */
 function VoteTip() {
@@ -415,6 +425,22 @@ function RankBallot({ round, members, byId, onVoted }: { round: Round; members: 
 function Ballot({ round, members, byId, onVoted }: { round: Round; members: Member[]; byId: Map<number, Member>; onVoted: () => void }) {
   // Same component instance per round (keyed by id), so the kind never changes under it.
   if (round.kind === 'rank') return <RankBallot round={round} members={members} byId={byId} onVoted={onVoted} />;
+  // A choose question without its items (shouldn't happen) falls back to a plain pick.
+  if (round.kind === 'choose' && (round.items?.length ?? 0) >= 2)
+    return (
+      <ChooseBallot
+        round={round}
+        members={members}
+        byId={byId}
+        onVoted={onVoted}
+        top={
+          <>
+            <Header />
+            <Question round={round} />
+          </>
+        }
+      />
+    );
   return <PickBallot round={round} members={members} byId={byId} onVoted={onVoted} />;
 }
 
@@ -598,6 +624,9 @@ function SkipButton({ member, round }: { member: Member; round: Round }) {
 function Waiting({ round, byId, members }: { round: Round; byId: Map<number, Member>; members: Member[] }) {
   const t = useTheme();
   const tr = useT();
+  const { me } = useSession();
+  // A choose question: my own real choice (my vote's target is me).
+  const choice = round.kind === 'choose' ? myRealChoice(round, me?.id) : null;
   const target = round.my_vote != null ? byId.get(round.my_vote) : undefined;
   const hidden = useHideVote();
   const pending = members.filter((m) => !round.voter_ids.includes(m.id));
@@ -622,9 +651,11 @@ function Waiting({ round, byId, members }: { round: Round; byId: Map<number, Mem
           <Avatar member={target} size={44} />
         )}
         <View style={{ flex: 1, gap: 2 }}>
-          <Text style={label}>{tr(round.kind === 'rank' ? 'vote.waiting.yourFirst' : 'vote.waiting.yourVote')}</Text>
+          <Text style={label}>
+            {tr(round.kind === 'rank' ? 'vote.waiting.yourFirst' : round.kind === 'choose' ? 'vote.waiting.yourChoice' : 'vote.waiting.yourVote')}
+          </Text>
           <Text numberOfLines={1} style={{ fontFamily: t.font.bold, fontSize: 17, color: hidden ? t.mut : t.txt }}>
-            {hidden ? tr('vote.waiting.hidden') : (target?.name ?? '?')}
+            {hidden ? tr('vote.waiting.hidden') : round.kind === 'choose' ? (choice ?? '?') : (target?.name ?? '?')}
           </Text>
         </View>
         <PressableScale
@@ -792,7 +823,7 @@ export function Result({
     setTimeout(() => scroll.current?.scrollToEnd({ animated: true }), 300);
   };
   const header = onBack ? <BackHeader onBack={onBack} round={round ?? undefined} /> : <Header />;
-  if (!round?.result) return <Screen tabs={!onBack}>{header}</Screen>;
+  if (!round?.result && !round?.choose) return <Screen tabs={!onBack}>{header}</Screen>;
   return (
     <Screen
       // Opened from the history, the screen has no tab bar to keep it clear of the iPhone home bar.
@@ -807,8 +838,9 @@ export function Result({
         away && (
           <Animated.View entering={motion.drop} exiting={motion.exit} style={{ position: 'absolute', top: 8, left: 20, right: 20 }}>
             <ResultSummary
-              result={round.result}
+              result={round.result ?? []}
               ranking={round.ranking}
+              choose={round.choose}
               byId={byId}
               onPress={() => {
                 follow.current = false;
@@ -837,10 +869,12 @@ export function Result({
           resultEnd.current = layout.y + layout.height;
         }}>
         <Question round={round} result />
-        {round.ranking ? (
+        {round.kind === 'choose' && round.choose ? (
+          <ChooseResult round={round} data={round.choose} byId={byId} />
+        ) : round.ranking ? (
           <RankResult ranking={round.ranking} byId={byId} mine={round.my_ranking} />
         ) : (
-          <ResultBars result={round.result} byId={byId} />
+          <ResultBars result={round.result ?? []} byId={byId} />
         )}
       </View>
       <Challenges roundId={round.id} />
