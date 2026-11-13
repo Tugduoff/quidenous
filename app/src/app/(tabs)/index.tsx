@@ -38,6 +38,7 @@ import { api, type Member, type Round } from '@/lib/api';
 import { getLang, t as translate, useT } from '@/lib/i18n';
 import { EASE, motion, usePop } from '@/lib/motion';
 import { keys, useCurrentRound, useGroup, useInbox, useMembers, useRooms, useRound, useUnseenRound } from '@/lib/queries';
+import { tidy } from '@/lib/party';
 import { useSession } from '@/lib/session';
 import { setHideVote, useHideVote } from '@/lib/prefs';
 import { publicLink, questionMessage, resultMessage, shareText } from '@/lib/share';
@@ -260,7 +261,7 @@ function Question({ round, result }: { round: Round; result?: boolean }) {
         </View>
       </View>
       <View style={{ gap: 6 }}>
-        <Display size={result ? 28 : 34}>{round.question}</Display>
+        <Display size={result ? 28 : 34}>{tidy(round.question)}</Display>
         {/* A deck question that came from someone's suggestion. */}
         {!!round.suggested_by && (
           <Text numberOfLines={1} style={{ fontFamily: t.font.regular, fontSize: 13, color: t.mut }}>

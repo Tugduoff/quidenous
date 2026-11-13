@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
 import { ArrowRight, Cable, Check, CircleCheck, Crown, List, Sparkles } from 'lucide-react-native';
-import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { type ComponentRef, type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, Text, useWindowDimensions, View } from 'react-native';
 import { GestureDetector, GestureHandlerRootView, usePanGesture } from 'react-native-gesture-handler';
 import Animated, {
@@ -62,6 +62,10 @@ type Geometry = {
 };
 
 const PAD = 10;
+/** Web: no text selection while dragging wires with a mouse. */
+const NO_SELECT = Platform.OS === 'web' ? ({ userSelect: 'none' } as object) : null;
+/** Kept free under the board: the vote button and the tab bar. */
+const BOTTOM = 150;
 /** Where a wire leaves a person's row: the socket at its right end (from the row's right edge). */
 const SOCKET = 12;
 
@@ -161,19 +165,23 @@ function WireBoard({
   const win = useWindowDimensions();
   const g = geometry(people.length);
   const [width, setWidth] = useState(0);
-  // Items: where their stack sits in the board, and each one in it.
-  const [stackY, setStackY] = useState(0);
+  // Items: their stack's height, and each one in it.
   const [stackH, setStackH] = useState(items.length * 60);
   const [rects, setRects] = useState<(Rect | undefined)[]>([]);
 
-  const left = Math.round(width * 0.4);
-  const itemsW = Math.round(width * 0.36);
+  const left = Math.round(width * 0.47);
+  const itemsW = Math.round(width * 0.33);
   const itemsX = width - PAD - itemsW;
   const anchorX = PAD + left - SOCKET;
   const content = PAD * 2 + people.length * g.row + Math.max(0, people.length - 1) * g.gap;
-  // Tall enough for the items; past a screenful of people, the list scrolls inside the board.
-  const height = Math.max(stackH + PAD * 2, Math.min(content, Math.max(300, Math.round(win.height * 0.55))));
+  // Tall enough for the items; past what fits above the vote button, the list scrolls inside the board (not the page).
+  const box = useRef<ComponentRef<typeof View>>(null);
+  const [boardTop, setBoardTop] = useState<number | null>(null);
+  const room = boardTop == null ? Math.round(win.height * 0.55) : win.height - boardTop - BOTTOM;
+  const height = Math.max(stackH + PAD * 2, Math.min(content, Math.max(260, room)));
   const rowTop = (i: number) => PAD + i * (g.row + g.gap);
+  // The stack is centred in the board (computed: on web, onLayout misses moves that don't resize).
+  const stackY = Math.max(0, (height - stackH) / 2);
 
   const scrollY = useSharedValue(0);
   const onScroll = useAnimatedScrollHandler((e) => {
@@ -261,8 +269,12 @@ function WireBoard({
   return (
     <GestureHandlerRootView style={{ height }}>
       <View
-        onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
-        style={[{ height, borderRadius: t.radius.card, backgroundColor: t.card, overflow: 'hidden' }, t.shadow]}>
+        ref={box}
+        onLayout={(e) => {
+          setWidth(e.nativeEvent.layout.width);
+          box.current?.measureInWindow((_x: number, y: number) => setBoardTop((old) => (old == null || Math.abs(old - y) > 4 ? y : old)));
+        }}
+        style={[{ height, borderRadius: t.radius.card, backgroundColor: t.card, overflow: 'hidden' }, NO_SELECT, t.shadow]}>
         {width > 0 && (
           <>
             <Animated.ScrollView
@@ -313,12 +325,7 @@ function WireBoard({
               </Svg>
             </View>
             <View style={{ position: 'absolute', top: 0, bottom: 0, right: PAD, width: itemsW, justifyContent: 'center' }}>
-              <View
-                style={{ gap: 10 }}
-                onLayout={(e) => {
-                  setStackY(e.nativeEvent.layout.y);
-                  setStackH(e.nativeEvent.layout.height);
-                }}>
+              <View style={{ gap: 10 }} onLayout={(e) => setStackH(e.nativeEvent.layout.height)}>
                 {items.map((label, k) => (
                   <ItemPlug
                     key={k}
