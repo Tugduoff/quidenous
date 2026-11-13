@@ -63,7 +63,7 @@ export function KeyNumbers({ s }: { s: Stats }) {
     s.median_round_seconds != null && { Icon: Timer, value: duration(s.median_round_seconds), label: 'Par question' },
   ].filter((f): f is Fact => !!f);
   return (
-    <View style={{ gap: 12 }}>
+    <View style={{ gap: 10 }}>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
         <Tile Icon={MessageCircleQuestion} value={int(s.questions)} label={plural(s.questions, 'question', 'questions')} />
         <Tile Icon={Vote} value={int(s.votes)} label={plural(s.votes, 'vote', 'votes')} />
