@@ -1,0 +1,62 @@
+/** community strings: suggestions to the deck, share → play, challenges (see docs/COMMUNITY.md). */
+export const community = {
+  title: 'Proposer',
+  /** Entry button on the Questions tab. */
+  entry: 'Proposer',
+  compose: {
+    label: 'Une question pour tout le monde',
+    placeholder: 'Qui de nous…',
+    placeholderRank: 'Classe-nous du plus… au moins…',
+    ranking: 'Classement',
+    send: 'Envoyer la proposition',
+    left: "{left}/{max} aujourd'hui",
+    sent: 'Envoyée, place au vote',
+  },
+  vote: {
+    title: 'À voter',
+    empty: 'Rien à voter',
+    up: 'Pour',
+    down: 'Contre',
+    skip: 'Passer',
+  },
+  mine: {
+    title: 'Mes propositions',
+    voting: 'En vote · {score}',
+    queued: 'En attente de validation',
+    approved: 'Ajoutée',
+    rejected: 'Refusée',
+    more: 'Tout voir',
+    less: 'Moins',
+  },
+  /** Under a question card: the deck question came from someone's suggestion. */
+  credit: 'proposée par {name}',
+  play: {
+    from: 'Depuis {room}',
+    pick: 'Dans quel salon ?',
+    newRoom: 'Nouveau salon avec cette question',
+    signIn: 'Se connecter pour jouer',
+    challenge: 'Vos podiums seront comparés',
+    gone: 'Ce lien ne marche plus',
+  },
+  challenge: {
+    action: 'Défier un autre salon',
+    noRooms: "Pas d'autre salon",
+    link: 'Partager un lien',
+    sent: 'Défi envoyé',
+    copied: 'Lien copié',
+    vs: '{a} vs {b}',
+    waiting: 'En attente de {room}',
+    share: 'On a joué « {question} ». À vous : {link}',
+  },
+  errors: {
+    tooMany: "Plus de propositions pour aujourd'hui",
+    duplicate: 'Déjà proposée',
+    own: "C'est ta proposition",
+    closed: 'Le vote est fini',
+    alreadyAsked: "Ce salon l'a déjà jouée",
+    ownerOnly: 'Seul le propriétaire ajoute des questions',
+    notInRoom: "Tu n'es plus dans ce salon",
+    sameRoom: "C'est le même salon",
+    notFound: 'Ce lien ne marche plus',
+  },
+};

@@ -31,11 +31,14 @@ export function RoomForms({
   onEntered,
   joinFirst,
   onVibeStep,
+  createOnly,
 }: {
   initialCode?: string;
   onEntered: (id: number) => void;
   joinFirst?: boolean;
   onVibeStep?: (on: boolean) => void;
+  /** Only the create form, under this title (no code field): a room made for something, like a shared question. */
+  createOnly?: string;
 }) {
   const t = useTheme();
   const tr = useT();
@@ -87,7 +90,7 @@ export function RoomForms({
 
   const createForm = (
     <>
-      <Text style={[label, { marginTop: 8 }]}>{tr('room.create.title')}</Text>
+      <Text style={[label, { marginTop: 8 }]}>{createOnly ?? tr('room.create.title')}</Text>
       <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 8, padding: 6, paddingLeft: 16 }}>
         <TextInput
           accessibilityLabel={tr('room.create.name')}
@@ -197,6 +200,13 @@ export function RoomForms({
       </Animated.View>
     );
 
+  if (createOnly)
+    return (
+      <>
+        {createForm}
+        {errorLine}
+      </>
+    );
   return (
     <>
       {joinFirst ? joinForm : createForm}

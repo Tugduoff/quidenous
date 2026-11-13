@@ -25,6 +25,8 @@ import { inbox } from './en/inbox';
 import { notifications } from './en/notifications';
 import { nav } from './en/nav';
 import { legal } from './en/legal';
+import { community } from './en/community';
+import { admin } from './en/admin';
 
 export const en: Messages = {
   common,
@@ -52,4 +54,6 @@ export const en: Messages = {
   notifications,
   nav,
   legal,
+  community,
+  admin,
 };

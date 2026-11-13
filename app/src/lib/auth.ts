@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { Platform } from 'react-native';
 
 import { errors } from '@/locales/fr/errors';
 
@@ -92,6 +93,8 @@ export function useFeatures() {
     notificationSettings: on.has('notification_settings'),
     /** Drawn avatars (`PUT /me/avatar`). */
     avatars: on.has('avatars'),
+    /** Packs 2.0, suggestions to the deck, share → play, challenges (docs/COMMUNITY.md). */
+    community: on.has('community'),
   };
 }
 
@@ -112,6 +115,26 @@ export const setPendingCode = (code: string | null) => {
   pendingCode = code?.trim().toUpperCase() || null;
 };
 export const pendingJoinCode = () => pendingCode;
+
+/**
+ * A shared question to play (`/play?share=…`) opened before signing in: back on /play right after.
+ * On the web it is read at load (the router drops the query) and kept in the tab's session storage,
+ * so leaving for Google / Discord and coming back keeps it.
+ */
+const PLAY_KEY = 'qdn.play';
+const webSession = () => (Platform.OS === 'web' && typeof sessionStorage !== 'undefined' ? sessionStorage : null);
+let pendingPlay: string | null = (() => {
+  if (Platform.OS !== 'web' || typeof location === 'undefined') return null;
+  const fromUrl = location.pathname.replace(/\/+$/, '') === '/play' ? new URLSearchParams(location.search).get('share') : null;
+  if (fromUrl) webSession()?.setItem(PLAY_KEY, fromUrl);
+  return fromUrl || webSession()?.getItem(PLAY_KEY) || null;
+})();
+export const setPendingPlay = (token: string | null) => {
+  pendingPlay = token?.trim() || null;
+  if (pendingPlay) webSession()?.setItem(PLAY_KEY, pendingPlay);
+  else webSession()?.removeItem(PLAY_KEY);
+};
+export const pendingPlayToken = () => pendingPlay;
 
 export const PASSWORD_MIN = 8;
 
