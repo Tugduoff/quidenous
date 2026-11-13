@@ -217,7 +217,12 @@ async fn load(state: &AppState, token: &str) -> AppResult<Card> {
     };
     let mut podium = Vec::new();
     if with_result && round.closed_at.is_some() {
-        if round.kind == "rank" {
+        if round.kind == "choose" {
+            let scores = game::choose_result(&state.db, round_id).await?.scores;
+            for s in scores.into_iter().filter(|s| s.hits > 0).take(3) {
+                podium.push((member(s.member_id).await, format!("{}/{}", s.hits, s.total)));
+            }
+        } else if round.kind == "rank" {
             for r in game::borda(&state.db, round_id).await?.into_iter().take(3) {
                 podium.push((member(r.member_id).await, i18n::points(r.points)));
             }

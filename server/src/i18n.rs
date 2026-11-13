@@ -172,6 +172,14 @@ pub fn everyone_voted(lang: Lang) -> &'static str {
     lang.pick("Tout le monde a voté.", "Everyone has voted.")
 }
 
+/// A choose question seen by an app too old to show it (docs/CHOOSE.md).
+pub fn update_to_answer(lang: Lang, question: &str) -> String {
+    match lang {
+        Lang::Fr => format!("Mets l'app à jour pour répondre : {question}"),
+        Lang::En => format!("Update the app to answer: {question}"),
+    }
+}
+
 pub fn new_question(lang: Lang) -> &'static str {
     lang.pick("Nouvelle question", "New question")
 }

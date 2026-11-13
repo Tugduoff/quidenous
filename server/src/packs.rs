@@ -335,10 +335,10 @@ fn parse_text(text: &str) -> Vec<(String, String)> {
     text.lines()
         .map(str::trim)
         .filter(|l| !l.is_empty() && !l.starts_with('#'))
-        .map(|l| {
-            let (t, k) = parse_line(l);
-            (t.to_owned(), k.to_owned())
-        })
+        .map(parse_line)
+        // Packs hold pick and ranking questions only (docs/CHOOSE.md).
+        .filter(|(_, k)| *k != "choose")
+        .map(|(t, k)| (t.to_owned(), k.to_owned()))
         .collect()
 }
 
@@ -416,7 +416,9 @@ pub async fn publish(
         (None, Some(text)) => parse_text(text),
         (None, None) => match current_room(&state, user, &headers).await? {
             Some(room) => {
-                sqlx::query_as("SELECT text, kind FROM questions WHERE group_id = ? ORDER BY id")
+                sqlx::query_as(
+                    "SELECT text, kind FROM questions WHERE group_id = ? AND kind <> 'choose' ORDER BY id",
+                )
                     .bind(room)
                     .fetch_all(&state.db)
                     .await?

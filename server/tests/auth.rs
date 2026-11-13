@@ -1929,7 +1929,7 @@ async fn in_room(
 /// A room created by `owner`, joined by `others` in that order. Deck ranking questions are
 /// dropped so votes pick one person.
 async fn room_with(t: &T, owner: &str, others: &[&str]) -> i64 {
-    sqlx::query("DELETE FROM questions WHERE group_id IS NULL AND kind = 'rank'")
+    sqlx::query("DELETE FROM questions WHERE group_id IS NULL AND kind <> 'pick'")
         .execute(&t.state.db)
         .await
         .unwrap();

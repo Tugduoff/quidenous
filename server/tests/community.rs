@@ -40,7 +40,7 @@ async fn setup() -> T {
     let mail = Arc::new(MemoryMailer::default());
     let state = state_with_mailer(config, mail.clone()).await.unwrap();
     // Votes here pick one person: keep the deck to pick questions.
-    sqlx::query("DELETE FROM questions WHERE group_id IS NULL AND kind = 'rank'")
+    sqlx::query("DELETE FROM questions WHERE group_id IS NULL AND kind <> 'pick'")
         .execute(&state.db)
         .await
         .unwrap();

@@ -5,14 +5,17 @@ use sqlx::{Sqlite, SqlitePool, Transaction};
 use crate::{
     error::{AppError, AppResult},
     live::Event,
-    models::{RankEntry, RoundRow, RoundView, SkipState, Tally},
+    models::{
+        Choice, ChooseGuess, ChoosePerson, ChooseResult, ChooseScore, RankEntry, RoundRow,
+        RoundView, SkipState, Tally,
+    },
 };
 
 macro_rules! round_select {
     ($where:literal) => {
         concat!(
             "SELECT r.id, r.group_id, r.question_id, r.number, r.opened_at, r.closed_at, q.text, ",
-            "(q.group_id IS NOT NULL) AS custom, q.kind FROM rounds r JOIN questions q ON q.id = r.question_id ",
+            "(q.group_id IS NOT NULL) AS custom, q.kind, q.items FROM rounds r JOIN questions q ON q.id = r.question_id ",
             $where
         )
     };
@@ -223,6 +226,7 @@ pub async fn vote(
     voter_id: i64,
     target_id: Option<i64>,
     ranking: Option<Vec<i64>>,
+    choices: Option<Vec<Choice>>,
 ) -> AppResult<Vec<Event>> {
     let mut tx = db.begin().await?;
     // A party that is over is a read-only memory.
@@ -230,8 +234,8 @@ pub async fn vote(
     if party.is_some_and(|p| p.over) {
         return Err(AppError::Gone("party_over"));
     }
-    let (round_id, kind): (i64, String) = sqlx::query_as(
-        "SELECT r.id, q.kind FROM rounds r JOIN questions q ON q.id = r.question_id \
+    let (round_id, kind, items): (i64, String, Option<String>) = sqlx::query_as(
+        "SELECT r.id, q.kind, q.items FROM rounds r JOIN questions q ON q.id = r.question_id \
          WHERE r.group_id = ? AND r.closed_at IS NULL",
     )
     .bind(group_id)
@@ -247,10 +251,40 @@ pub async fn vote(
         return Err(AppError::Conflict("alone"));
     }
     // A ranking must place every active member exactly once; its #1 is also stored as the vote.
-    let target_id = if kind == "rank" && ranking.is_none() && target_id.is_some() {
-        // An app too old to know ranking questions sends a single pick: it counts as voted
-        // (nobody waits for them) but adds no points.
+    let target_id = if (kind == "rank" && ranking.is_none()
+        || kind == "choose" && choices.is_none())
+        && target_id.is_some()
+    {
+        // An app too old to know ranking (or choose) questions sends a single pick: it counts as
+        // voted (nobody waits for them) but adds nothing to the result.
         target_id.unwrap_or_default()
+    } else if kind == "choose" {
+        // Every active member wired exactly once, to an existing item; the votes row points at the voter.
+        let choices = choices.ok_or(AppError::BadRequest("choices_needed"))?;
+        let count = crate::models::parse_items(items.as_deref()).map_or(0, |i| i.len()) as i64;
+        let active: Vec<i64> = sqlx::query_scalar(
+            "SELECT id FROM members WHERE group_id = ? AND removed_at IS NULL ORDER BY id",
+        )
+        .bind(group_id)
+        .fetch_all(&mut *tx)
+        .await?;
+        let mut given: Vec<i64> = choices.iter().map(|c| c.member_id).collect();
+        given.sort_unstable();
+        if given != active || choices.iter().any(|c| !(0..count).contains(&c.item)) {
+            return Err(AppError::BadRequest("bad_choices"));
+        }
+        for c in &choices {
+            sqlx::query(
+                "INSERT OR IGNORE INTO choices (round_id, voter_id, member_id, item) VALUES (?, ?, ?, ?)",
+            )
+            .bind(round_id)
+            .bind(voter_id)
+            .bind(c.member_id)
+            .bind(c.item)
+            .execute(&mut *tx)
+            .await?;
+        }
+        voter_id
     } else if kind == "rank" {
         let ranking = ranking.ok_or(AppError::BadRequest("ranking_needed"))?;
         let mut active: Vec<i64> = sqlx::query_scalar(
@@ -553,6 +587,30 @@ pub async fn view(db: &SqlitePool, round: RoundRow, me: i64) -> AppResult<RoundV
     } else {
         (None, None)
     };
+    let (items, my_choices, choose) = if round.kind == "choose" {
+        let mine: Vec<(i64, i64)> = sqlx::query_as(
+            "SELECT member_id, item FROM choices WHERE round_id = ? AND voter_id = ? ORDER BY member_id",
+        )
+        .bind(round.id)
+        .bind(me)
+        .fetch_all(db)
+        .await?;
+        let choose = match round.closed_at {
+            Some(_) => Some(choose_result(db, round.id).await?),
+            None => None,
+        };
+        (
+            crate::models::parse_items(round.items.as_deref()),
+            (!mine.is_empty()).then(|| {
+                mine.into_iter()
+                    .map(|(member_id, item)| Choice { member_id, item })
+                    .collect()
+            }),
+            choose,
+        )
+    } else {
+        (None, None, None)
+    };
     let suggested_by: Option<String> = sqlx::query_scalar(
         "SELECT u.name FROM questions q JOIN users u ON u.id = q.suggested_by WHERE q.id = ?",
     )
@@ -578,7 +636,87 @@ pub async fn view(db: &SqlitePool, round: RoundRow, me: i64) -> AppResult<RoundV
         ranking,
         my_ranking,
         suggested_by,
+        items,
+        my_choices,
+        choose,
     })
+}
+
+/// A choose question's result: per person (member order) their own wire, the others' guesses and
+/// the most guessed item(s); per voter how many guesses matched a real choice, best first.
+pub async fn choose_result(db: &SqlitePool, round_id: i64) -> AppResult<ChooseResult> {
+    let rows: Vec<(i64, i64, i64)> = sqlx::query_as(
+        "SELECT voter_id, member_id, item FROM choices WHERE round_id = ? ORDER BY member_id, voter_id",
+    )
+    .bind(round_id)
+    .fetch_all(db)
+    .await?;
+    Ok(compute_choose(&rows))
+}
+
+/// [`choose_result`] from `(voter, member, item)` wires.
+pub fn compute_choose(rows: &[(i64, i64, i64)]) -> ChooseResult {
+    use std::collections::BTreeMap;
+    let real: BTreeMap<i64, i64> = rows
+        .iter()
+        .filter(|(v, m, _)| v == m)
+        .map(|(_, m, i)| (*m, *i))
+        .collect();
+    let mut people: BTreeMap<i64, ChoosePerson> = BTreeMap::new();
+    let mut scores: BTreeMap<i64, ChooseScore> = BTreeMap::new();
+    for &(voter_id, member_id, item) in rows {
+        let person = people.entry(member_id).or_insert_with(|| ChoosePerson {
+            member_id,
+            real: real.get(&member_id).copied(),
+            top: Vec::new(),
+            guesses: Vec::new(),
+        });
+        if voter_id == member_id {
+            continue;
+        }
+        person.guesses.push(ChooseGuess { voter_id, item });
+        if let Some(&truth) = real.get(&member_id) {
+            let score = scores.entry(voter_id).or_insert(ChooseScore {
+                member_id: voter_id,
+                hits: 0,
+                total: 0,
+            });
+            score.total += 1;
+            score.hits += i64::from(item == truth);
+        }
+    }
+    // Voters whose guesses could not be checked (nobody else answered) still get a line.
+    for &(voter_id, _, _) in rows {
+        scores.entry(voter_id).or_insert(ChooseScore {
+            member_id: voter_id,
+            hits: 0,
+            total: 0,
+        });
+    }
+    for person in people.values_mut() {
+        let mut counts: BTreeMap<i64, i64> = BTreeMap::new();
+        for g in &person.guesses {
+            *counts.entry(g.item).or_default() += 1;
+        }
+        let best = counts.values().copied().max().unwrap_or(0);
+        person.top = counts
+            .into_iter()
+            .filter(|&(_, n)| n == best && best > 0)
+            .map(|(i, _)| i)
+            .collect();
+    }
+    let mut scores: Vec<ChooseScore> = scores.into_values().collect();
+    // Best first: most hits, then the better ratio (fewer misses), then member order.
+    scores.sort_by(|a, b| {
+        b.hits
+            .cmp(&a.hits)
+            .then((a.total - a.hits).cmp(&(b.total - b.hits)))
+            .then(a.member_id.cmp(&b.member_id))
+    });
+    ChooseResult {
+        people: people.into_values().collect(),
+        scores,
+    }
 }
 
 /// Points per member for a ranking question: with N members ranked, 1st gets N points, last gets 1.

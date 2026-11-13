@@ -31,7 +31,7 @@ async fn test_app_with_state() -> (Router, quidenous_server::AppState) {
     let state = state(config).await.unwrap();
     // Deck ranking questions come up at random; these tests vote by picking one person,
     // so keep the deck to pick questions (ranking has its own test with its own question).
-    sqlx::query("DELETE FROM questions WHERE group_id IS NULL AND kind = 'rank'")
+    sqlx::query("DELETE FROM questions WHERE group_id IS NULL AND kind <> 'pick'")
         .execute(&state.db)
         .await
         .unwrap();
@@ -2207,7 +2207,12 @@ fn deck_with(tag: &str) -> Vec<String> {
     include_str!("../deck/fr.txt")
         .lines()
         .map(str::trim)
-        .filter(|l| !l.is_empty() && !l.starts_with('#') && !l.starts_with("[classement]"))
+        .filter(|l| {
+            !l.is_empty()
+                && !l.starts_with('#')
+                && !l.starts_with("[classement]")
+                && !l.starts_with("[choix]")
+        })
         .filter_map(|l| {
             let mut rest = l;
             let mut tags = Vec::new();
