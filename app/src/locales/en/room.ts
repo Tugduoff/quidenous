@@ -96,7 +96,7 @@ export const room: Messages['room'] = {
     skipVote: 'Skip by majority',
     kickVote: 'Remove by majority',
     questions: 'Questions',
-    whoAdds: 'Who can add some',
+    whoAdds: 'Who can add them',
     whoAddsA11y: 'Who can add questions',
     everyone: 'All',
     you: 'You',

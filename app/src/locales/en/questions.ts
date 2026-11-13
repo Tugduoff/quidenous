@@ -5,7 +5,7 @@ export const questions: Messages['questions'] = {
   ownerOnly: 'Only the owner adds them.',
   tip: 'Add a question or a pack.',
   newQuestion: 'New question',
-  placeholder: 'Who of us…',
+  placeholder: 'Which of us…',
   placeholderRank: 'Rank us from most… to least…',
   ranking: 'Ranking',
   packs: 'Packs',
