@@ -1,85 +1,55 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import * as DocumentPicker from 'expo-document-picker';
 import { router } from 'expo-router';
-import { ChevronLeft, Download, Search } from 'lucide-react-native';
-import { type ComponentRef, useRef, useState } from 'react';
-import { Pressable, Text, TextInput, View } from 'react-native';
+import { Flame, Library, Plus, Search, ShieldCheck, X } from 'lucide-react-native';
+import { useState } from 'react';
+import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 
+import { Chip, IconButton, PackCard, PageHeader } from '@/components/pack-card';
 import { Screen } from '@/components/screen';
-import { Card, Display, Toggle } from '@/components/ui';
-import { api, ApiError } from '@/lib/api';
-import { getLang, type TKey, useT } from '@/lib/i18n';
-import { useGroup, usePacks } from '@/lib/queries';
+import { Card, Display } from '@/components/ui';
+import { api } from '@/lib/api';
+import { useT } from '@/lib/i18n';
+import { motion } from '@/lib/motion';
+import { type CommunityMe, PACK_TAGS, type PackSort, type PackTag, packKeys, TAG_ICONS, useCommunityMe, usePackList } from '@/lib/packs';
+import { useGroup } from '@/lib/queries';
 import { useTheme } from '@/lib/theme';
 
-const ERRORS: Record<string, TKey> = {
-  bad_pack: 'packs.errors.bad_pack',
-  pack_size: 'packs.errors.pack_size',
-  too_many_packs: 'packs.errors.too_many_packs',
-};
+const SORTS: PackSort[] = ['trending', 'new', 'liked', 'featured'];
 
-/** Community packs: browse and search; publish one from this room's questions or a file. */
+/** Community packs: sort, filter by category, search; my packs, publish, moderation (admins). */
 export default function PacksScreen() {
   const t = useTheme();
   const tr = useT();
   const qc = useQueryClient();
   const [q, setQ] = useState('');
-  const { data: packs } = usePacks(q.trim());
-  // A pack in another language than the room's gets a small tag (no tag when either is unknown: older server).
+  const [sort, setSort] = useState<PackSort>('trending');
+  const [tag, setTag] = useState<PackTag | null>(null);
+  const { data: packs } = usePackList(sort, tag, q.trim());
   const { data: group } = useGroup();
-  const roomLang = group?.language;
-  const [name, setName] = useState('');
-  const [desc, setDesc] = useState('');
-  const descField = useRef<ComponentRef<typeof TextInput>>(null);
-  const [fromFile, setFromFile] = useState(false);
-  const [note, setNote] = useState<string | null>(null);
-  const publish = useMutation({
-    mutationFn: async () => {
-      let text: string | undefined;
-      if (fromFile) {
-        const picked = await DocumentPicker.getDocumentAsync({ type: ['text/plain', 'text/*'], copyToCacheDirectory: true });
-        if (picked.canceled || !picked.assets[0]) throw new Error('cancel');
-        const a = picked.assets[0];
-        text = a.file ? await a.file.text() : await (await fetch(a.uri)).text();
-      }
-      // The pack's language: the room's when known, else the app's.
-      const language = group?.language ?? getLang();
-      return api<{ id: number; count: number }>('/packs', { method: 'POST', json: { name: name.trim(), description: desc.trim(), text, language } });
+  const { data: me } = useCommunityMe();
+  const roomSpicy = group?.settings.vibe === 'pimente';
+  const spicyOn = roomSpicy || !!me?.show_spicy;
+  const spicy = useMutation({
+    mutationFn: (show_spicy: boolean) => api<CommunityMe>('/community/me', { method: 'PUT', json: { show_spicy } }),
+    onMutate: (show_spicy) => {
+      qc.setQueryData<CommunityMe>(packKeys.me, (m) => m && { ...m, show_spicy });
+      if (!show_spicy && tag === 'pimente') setTag(null);
     },
-    onSuccess: (r) => {
-      setName('');
-      setDesc('');
-      setNote(tr('packs.published', { count: r.count }));
-      qc.invalidateQueries({ queryKey: ['packs'] });
-    },
-    onError: (e) =>
-      setNote(
-        e instanceof ApiError
-          ? tr(ERRORS[e.code] ?? 'common.failed')
-          : e instanceof Error && e.message === 'cancel'
-            ? null
-            : tr('common.failed'),
-      ),
+    onSuccess: (m) => qc.setQueryData(packKeys.me, m),
+    onError: () => qc.invalidateQueries({ queryKey: packKeys.me }),
+    onSettled: () => qc.invalidateQueries({ queryKey: ['packs', 'list'] }),
   });
-  const input = {
-    height: 44,
-    paddingHorizontal: 14,
-    borderRadius: 14,
-    backgroundColor: t.card2,
-    fontFamily: t.font.regular,
-    fontSize: 16,
-    color: t.txt,
-  };
+  // The Pimenté category only lists something once 16+ packs are shown.
+  const tags = PACK_TAGS.filter((id) => id !== 'pimente' || spicyOn);
 
   return (
     <Screen tabs={false}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={tr('common.back')}
-        onPress={() => (router.canGoBack() ? router.back() : router.replace('/questions'))}
-        style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card }}>
-        <ChevronLeft size={22} color={t.txt} />
-      </Pressable>
+      <PageHeader fallback="/questions">
+        {me?.admin && <IconButton icon={ShieldCheck} label={tr('admin.title')} onPress={() => router.push('/admin')} />}
+        <IconButton icon={Library} label={tr('packs.mine')} onPress={() => router.push('/packs-mine')} />
+        <IconButton icon={Plus} label={tr('packs.create')} onPress={() => router.push('/pack/edit')} />
+      </PageHeader>
       <Display size={30}>{tr('packs.title')}</Display>
       <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14 }}>
         <Search size={18} color={t.mut} />
@@ -92,85 +62,74 @@ export default function PacksScreen() {
           returnKeyType="search"
           style={{ flex: 1, minWidth: 0, height: 44, fontFamily: t.font.regular, fontSize: 16, color: t.txt }}
         />
+        {!!q && (
+          <Pressable accessibilityRole="button" accessibilityLabel={tr('common.close')} hitSlop={8} onPress={() => setQ('')}>
+            <X size={18} color={t.mut} />
+          </Pressable>
+        )}
       </Card>
-      {packs?.length === 0 && <Text style={{ fontFamily: t.font.regular, color: t.mut, marginLeft: 4 }}>{tr('packs.none')}</Text>}
-      {packs?.map((p) => (
-        <Pressable key={p.id} accessibilityRole="button" onPress={() => router.push(`/pack/${p.id}`)}>
-          <Card style={{ padding: 16, gap: 6 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Text numberOfLines={1} style={{ flex: 1, fontFamily: t.font.bold, fontSize: 17, color: t.txt }}>
-                {p.name}
-              </Text>
-              {!!p.language && !!roomLang && p.language !== roomLang && <LangTag lang={p.language} />}
-              <Download size={14} color={t.mut} />
-              <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut }}>{p.installs}</Text>
-            </View>
-            <Text numberOfLines={2} style={{ fontFamily: t.font.regular, fontSize: 13, color: t.mut }}>
-              {tr('packs.byline', { count: p.count, author: p.author }) + (p.description ? ` · ${p.description}` : '')}
-            </Text>
-            {p.sample.map((s) => (
-              <Text key={s} numberOfLines={1} style={{ fontFamily: t.font.regular, fontSize: 13, color: t.txt, opacity: 0.8 }}>
-                {`· ${s}`}
-              </Text>
-            ))}
-          </Card>
-        </Pressable>
-      ))}
 
-      <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut, marginLeft: 4, marginTop: 8 }}>{tr('packs.publishTitle')}</Text>
-      <Card style={{ padding: 16, gap: 10 }}>
-        <TextInput
-          accessibilityLabel={tr('packs.name')}
-          placeholder={tr('packs.name')}
-          placeholderTextColor={t.mut}
-          value={name}
-          onChangeText={setName}
-          maxLength={40}
-          returnKeyType="next"
-          submitBehavior="submit"
-          onSubmitEditing={() => descField.current?.focus()}
-          style={input}
-        />
-        <TextInput
-          accessibilityLabel={tr('packs.description')}
-          placeholder={tr('packs.descriptionPlaceholder')}
-          placeholderTextColor={t.mut}
-          value={desc}
-          ref={descField}
-          onChangeText={setDesc}
-          maxLength={140}
-          returnKeyType="send"
-          onSubmitEditing={() => name.trim() && !publish.isPending && publish.mutate()}
-          style={input}
-        />
-        <Toggle label={tr('packs.fromFile')} value={fromFile} onChange={setFromFile} />
-        <Pressable
-          accessibilityRole="button"
-          disabled={!name.trim() || publish.isPending}
-          onPress={() => publish.mutate()}
-          style={{
-            height: 46,
-            borderRadius: t.radius.pill,
-            alignItems: 'center',
-            justifyContent: 'center',
-            backgroundColor: name.trim() ? t.acc : t.card2,
-          }}>
-          <Text style={{ fontFamily: t.font.bold, fontSize: 15, color: name.trim() ? t.accTxt : t.mut }}>
-            {publish.isPending ? tr('packs.publishing') : tr('packs.publish')}
-          </Text>
-        </Pressable>
-        {note && <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.accInk }}>{note}</Text>}
-      </Card>
+      <SortTabs value={sort} onChange={setSort} />
+
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={{ marginHorizontal: -20, flexGrow: 0 }}
+        contentContainerStyle={{ paddingHorizontal: 20, gap: 8 }}>
+        {tags.map((id) => (
+          <Chip key={id} icon={TAG_ICONS[id]} label={tr(`packs.tags.${id}`)} on={tag === id} onPress={() => setTag(tag === id ? null : id)} />
+        ))}
+        {!roomSpicy && me && <Chip icon={Flame} label={tr('packs.spicy')} on={me.show_spicy} hot onPress={() => spicy.mutate(!me.show_spicy)} />}
+      </ScrollView>
+
+      {packs?.length === 0 && (
+        <Text style={{ fontFamily: t.font.regular, fontSize: 15, color: t.mut, textAlign: 'center', marginTop: 24 }}>{tr('packs.none')}</Text>
+      )}
+      {packs?.map((p, i) => (
+        <Animated.View key={p.id} entering={motion.stagger(i)} layout={motion.layout}>
+          <PackCard pack={p} roomLang={group?.language} />
+        </Animated.View>
+      ))}
     </Screen>
   );
 }
 
-/** A pack in another language than the room's: "EN", "FR". */
-function LangTag({ lang }: { lang: string }) {
+/** Trending / new / most liked / featured, as equal pills in one track. */
+function SortTabs({ value, onChange }: { value: PackSort; onChange: (s: PackSort) => void }) {
   const t = useTheme();
+  const tr = useT();
   return (
-    <View style={{ paddingHorizontal: 6, height: 18, borderRadius: 6, justifyContent: 'center', backgroundColor: t.card2 }}>
-      <Text style={{ fontFamily: t.font.bold, fontSize: 10, letterSpacing: 0.5, color: t.mut }}>{lang.toUpperCase()}</Text>
+    <View
+      accessibilityRole="radiogroup"
+      accessibilityLabel={tr('packs.sort.label')}
+      style={{ flexDirection: 'row', padding: 3, gap: 2, borderRadius: t.radius.pill, backgroundColor: t.card2 }}>
+      {SORTS.map((s) => {
+        const on = s === value;
+        return (
+          <Pressable
+            key={s}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: on }}
+            onPress={() => !on && onChange(s)}
+            style={{
+              flex: 1,
+              height: 32,
+              paddingHorizontal: 4,
+              borderRadius: t.radius.pill,
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: on ? t.acc : 'transparent',
+            }}>
+            <Text
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.8}
+              style={{ fontFamily: t.font.semibold, fontSize: 13, color: on ? t.accTxt : t.mut }}>
+              {tr(`packs.sort.${s}`)}
+            </Text>
+          </Pressable>
+        );
+      })}
     </View>
   );
 }
