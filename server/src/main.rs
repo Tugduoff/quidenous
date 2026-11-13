@@ -54,6 +54,7 @@ async fn main() -> quidenous_server::anyhow_free::Result<()> {
         println!("{added} new questions imported");
         return Ok(());
     }
+    quidenous_server::pacing::spawn_scheduler(state.clone());
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", port)).await?;
     tracing::info!(port, "qui de nous ? server listening");
     axum::serve(

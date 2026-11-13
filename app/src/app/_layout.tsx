@@ -89,6 +89,7 @@ function Root() {
           <Stack.Screen name="round/[id]" />
           <Stack.Screen name="profile" />
           <Stack.Screen name="group" />
+          <Stack.Screen name="room-settings" />
           <Stack.Screen name="inbox" options={{ animation: reduced ? 'none' : 'fade_from_bottom' }} />
           <Stack.Screen name="rooms" />
           <Stack.Screen name="friends" />

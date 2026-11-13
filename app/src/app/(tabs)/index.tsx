@@ -29,6 +29,7 @@ import { RankResult, ResultBars, ResultSummary } from '@/components/result-bars'
 import { Screen } from '@/components/screen';
 import { SecureCard } from '@/components/secure-card';
 import { Tip } from '@/components/tip';
+import { NextGate } from '@/components/next-gate';
 import { NoQuestions, SoloInvite } from '@/components/vote-empty';
 import { Avatar, AvatarStack, Button, Card, ConfirmModal, Dialog, Display, Logo, PressableScale, Tag } from '@/components/ui';
 import { api, type Member, type Round } from '@/lib/api';
@@ -174,11 +175,15 @@ export default function VoteScreen() {
   const qc = useQueryClient();
   const group = useGroup();
   const round = current.data;
+  // Paced room: the last result stays up until the owner launches the next question or its delay is over.
+  const pace = group.data?.pace;
+  const held = !round && pace?.waiting && pace.round_id ? pace.round_id : null;
 
   // Recap first: a question I voted on finished while I was away (or with my vote).
   if (unseen.data) {
     const seen = () => api(`/rounds/${unseen.data!.id}/seen`, { method: 'POST' }).finally(() => qc.invalidateQueries({ queryKey: keys.unseen }));
-    return <Result key={unseen.data.id} roundId={unseen.data.id} byId={byId} onNext={seen} />;
+    const gate = held === unseen.data.id && group.data ? <NextGate group={group.data} onLaunched={seen} /> : undefined;
+    return <Result key={unseen.data.id} roundId={unseen.data.id} byId={byId} onNext={seen} gate={gate} />;
   }
   // Alone in the room: invite first (an older room may still have a question open, nobody else would vote on it).
   // Someone joining refreshes the room (live event), and this turns into the question by itself.
@@ -190,6 +195,7 @@ export default function VoteScreen() {
       </Screen>
     );
   }
+  if (held && group.data) return <Result key={held} roundId={held} byId={byId} gate={<NextGate group={group.data} />} />;
   if (!round) {
     return (
       <Screen>
@@ -714,7 +720,20 @@ function BackHeader({ onBack, round }: { onBack: () => void; round?: Round }) {
   );
 }
 
-export function Result({ roundId, byId, onNext, onBack }: { roundId: number; byId: Map<number, Member>; onNext?: () => void; onBack?: () => void }) {
+export function Result({
+  roundId,
+  byId,
+  onNext,
+  onBack,
+  gate,
+}: {
+  roundId: number;
+  byId: Map<number, Member>;
+  onNext?: () => void;
+  onBack?: () => void;
+  /** Shown instead of "Suivante" while a paced room waits for its next question. */
+  gate?: ReactNode;
+}) {
   const t = useTheme();
   const { members } = useMembers();
   const { data: round } = useRound(roundId);
@@ -760,12 +779,13 @@ export function Result({ roundId, byId, onNext, onBack }: { roundId: number; byI
       footer={
         <>
           <ChatInput roundId={round.id} onFocus={toEnd} onSent={toEnd} />
-          {onNext && (
-            <Button onPress={onNext}>
-              <Text style={{ fontFamily: t.font.bold, fontSize: 17, color: t.accTxt }}>Suivante</Text>
-              <ArrowRight size={20} color={t.accTxt} />
-            </Button>
-          )}
+          {gate ??
+            (onNext && (
+              <Button onPress={onNext}>
+                <Text style={{ fontFamily: t.font.bold, fontSize: 17, color: t.accTxt }}>Suivante</Text>
+                <ArrowRight size={20} color={t.accTxt} />
+              </Button>
+            ))}
         </>
       }>
       {header}

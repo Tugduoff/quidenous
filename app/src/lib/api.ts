@@ -70,8 +70,20 @@ export type Group = {
   name: string;
   code: string;
   my_role: Role;
-  /** `vibe`: the built-in deck's tone (null = none; absent from an older server). */
-  settings: { skip_vote: boolean; kick_vote: boolean; questions_by: 'everyone' | 'owner'; vibe?: string | null };
+  /**
+   * `vibe`: the built-in deck's tone (null = none). `owner_next`: only the owner launches the next question.
+   * `next_delay`: seconds to wait before the next one (0 = none). All three absent from an older server.
+   */
+  settings: {
+    skip_vote: boolean;
+    kick_vote: boolean;
+    questions_by: 'everyone' | 'owner';
+    vibe?: string | null;
+    owner_next?: boolean;
+    next_delay?: number;
+  };
+  /** Pacing between questions: waiting for the owner or the delay, and when the next opens by itself (absent from an older server). */
+  pace?: { waiting: boolean; next_open_at: string | null; round_id?: number | null };
   /** Current members only. */
   members: (Member & { role: Role; user_id: number })[];
   /** People who left or were removed (absent from an older server). */
@@ -294,6 +306,9 @@ export async function api<T>(path: string, init: RequestInit & { json?: unknown 
   if (!res.ok) return fail(res, !!token);
   return (await res.json().catch(() => null)) as T;
 }
+
+/** Owner: open the next question now (pacing). `round_id`: the question opened, null if none could be. */
+export const launchNext = (roomId: number) => api<{ round_id: number | null }>(`/rooms/${roomId}/next`, { method: 'POST' });
 
 export const photoUrl = (m: Member) => (m.photo_url ? `${API_URL}${m.photo_url}` : null);
 

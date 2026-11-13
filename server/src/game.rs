@@ -138,6 +138,15 @@ pub async fn ensure_open_round(
     if active_count(tx, group_id).await? < 2 {
         return Ok(None);
     }
+    // Paced room: the closed question waits for the owner or the delay (see `pacing`).
+    let paused: bool = sqlx::query_scalar("SELECT paused_at IS NOT NULL FROM groups WHERE id = ?")
+        .bind(group_id)
+        .fetch_optional(&mut **tx)
+        .await?
+        .unwrap_or(false);
+    if paused {
+        return Ok(None);
+    }
     let open: Option<i64> =
         sqlx::query_scalar("SELECT id FROM rounds WHERE group_id = ? AND closed_at IS NULL")
             .bind(group_id)
@@ -310,7 +319,8 @@ pub async fn skipped(
     .await?)
 }
 
-/// Closes the round (and opens the next) once every active member has voted or been skipped.
+/// Closes the round once every active member has voted or been skipped, and opens the next one
+/// (unless the room is paced: then it waits for the owner or the delay, see `pacing`).
 pub async fn close_if_done(
     tx: &mut Transaction<'_, Sqlite>,
     group_id: i64,
@@ -331,7 +341,9 @@ pub async fn close_if_done(
             .execute(&mut **tx)
             .await?;
         events.push(Event::RoundClosed { round_id });
-        if let Some(next) = ensure_open_round(tx, group_id).await? {
+        if crate::pacing::pause(tx, group_id).await? {
+            events.push(Event::RoomUpdated);
+        } else if let Some(next) = ensure_open_round(tx, group_id).await? {
             events.push(Event::RoundOpened { round_id: next });
         }
     }
