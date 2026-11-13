@@ -195,6 +195,7 @@ async fn features(State(state): State<AppState>) -> Json<Value> {
         "languages",
         "community",
         "party",
+        "choose",
     ];
     f.extend(crate::accounts::features(&state));
     Json(json!(f))
@@ -619,11 +620,32 @@ async fn group(State(state): State<AppState>, Me(me): Me) -> AppResult<Json<Valu
 async fn current_round(
     State(state): State<AppState>,
     Me(me): Me,
+    headers: axum::http::HeaderMap,
 ) -> AppResult<Json<Option<RoundView>>> {
     let Some(round) = game::open_round(&state.db, me.group_id).await? else {
         return Ok(Json(None));
     };
-    Ok(Json(Some(game::view(&state.db, round, me.id).await?)))
+    let view = game::view(&state.db, round, me.id).await?;
+    Ok(Json(Some(for_client(&state, &headers, me.id, view).await?)))
+}
+
+/// Apps that don't know choose questions (no `x-kinds: choose` header) get their text as
+/// "update the app to answer: …"; their single pick still counts as a vote (see `game::vote`).
+async fn for_client(
+    state: &AppState,
+    headers: &axum::http::HeaderMap,
+    me: i64,
+    mut view: RoundView,
+) -> AppResult<RoundView> {
+    let knows = headers
+        .get("x-kinds")
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|v| v.split(',').any(|k| k.trim() == "choose"));
+    if view.kind == "choose" && !knows {
+        let lang = i18n::of_member(&state.db, me).await?;
+        view.question = i18n::update_to_answer(lang, &view.question);
+    }
+    Ok(view)
 }
 
 #[derive(Deserialize)]
@@ -631,6 +653,8 @@ struct VoteBody {
     target_id: Option<i64>,
     /// Ranking questions: every member, first to last.
     ranking: Option<Vec<i64>>,
+    /// Choose questions: every member wired to an item.
+    choices: Option<Vec<crate::models::Choice>>,
 }
 
 async fn vote(
@@ -638,7 +662,15 @@ async fn vote(
     Me(me): Me,
     Json(body): Json<VoteBody>,
 ) -> AppResult<Json<Value>> {
-    let events = game::vote(&state.db, me.group_id, me.id, body.target_id, body.ranking).await?;
+    let events = game::vote(
+        &state.db,
+        me.group_id,
+        me.id,
+        body.target_id,
+        body.ranking,
+        body.choices,
+    )
+    .await?;
     let closed = events
         .iter()
         .any(|e| matches!(e, Event::RoundClosed { .. }));
@@ -659,9 +691,11 @@ async fn round(
     State(state): State<AppState>,
     Me(me): Me,
     Path(id): Path<i64>,
+    headers: axum::http::HeaderMap,
 ) -> AppResult<Json<RoundView>> {
     let round = game::round(&state.db, me.group_id, id).await?;
-    Ok(Json(game::view(&state.db, round, me.id).await?))
+    let view = game::view(&state.db, round, me.id).await?;
+    Ok(Json(for_client(&state, &headers, me.id, view).await?))
 }
 
 #[derive(Deserialize)]
@@ -718,6 +752,27 @@ async fn history_items(
     for (id, number, question, closed_at, pinned, kind) in rounds {
         let tallies = game::tallies(db, id).await?;
         let top_count = tallies.first().map_or(0, |t| t.count);
+        // Choose questions: the winners are the best guessers (none when nobody guessed right).
+        if kind == "choose" {
+            let scores = game::choose_result(db, id).await?.scores;
+            let best = scores.first().map_or(0, |s| s.hits);
+            items.push(HistoryItem {
+                id,
+                number,
+                question,
+                closed_at,
+                winner_ids: scores
+                    .iter()
+                    .filter(|s| s.hits == best && best > 0)
+                    .map(|s| s.member_id)
+                    .collect(),
+                top_count: best,
+                vote_count: tallies.iter().map(|t| t.count).sum(),
+                pinned,
+                kind,
+            });
+            continue;
+        }
         // Ranking questions: the winner is the top of the points table.
         if kind == "rank" {
             let ranking = game::borda(db, id).await?;
@@ -800,8 +855,24 @@ async fn export_history(
         } else {
             Vec::new()
         };
-        // A ranking question is won on points (the podium), not on who came first most often.
-        let (winners, top, detail): (Vec<String>, i64, Vec<String>) = if !ranking.is_empty() {
+        // A ranking question is won on points (the podium), not on who came first most often;
+        // a choose question by the best guessers.
+        let (winners, top, detail): (Vec<String>, i64, Vec<String>) = if kind == "choose" {
+            let scores = game::choose_result(&state.db, id).await?.scores;
+            let top = scores.first().map_or(0, |s| s.hits);
+            (
+                scores
+                    .iter()
+                    .filter(|s| s.hits == top && top > 0)
+                    .map(|s| name(s.member_id))
+                    .collect(),
+                top,
+                scores
+                    .iter()
+                    .map(|s| format!("{} ({}/{})", name(s.member_id), s.hits, s.total))
+                    .collect(),
+            )
+        } else if !ranking.is_empty() {
             let top = ranking[0].points;
             (
                 ranking
@@ -1160,8 +1231,10 @@ async fn stats(
 #[derive(Deserialize)]
 struct QuestionBody {
     text: String,
-    /// 'pick' (default) or 'rank'.
+    /// 'pick' (default), 'rank' or 'choose'.
     kind: Option<String>,
+    /// Choose questions: 2 to 4 items.
+    items: Option<Vec<String>>,
 }
 
 async fn add_question(
@@ -1175,14 +1248,28 @@ async fn add_question(
     if !(QUESTION_MIN..=QUESTION_MAX).contains(&len) {
         return Err(AppError::BadRequest("bad_question"));
     }
+    let kind = match body.kind.as_deref() {
+        Some("rank") => "rank",
+        Some("choose") => "choose",
+        _ => "pick",
+    };
+    let items = if kind == "choose" {
+        let items = crate::deck::clean_items(body.items.unwrap_or_default())
+            .ok_or(AppError::BadRequest("bad_items"))?;
+        Some(serde_json::to_string(&items).unwrap_or_default())
+    } else {
+        None
+    };
     let mut tx = state.db.begin().await?;
     let question = sqlx::query_as::<_, QueuedQuestion>(
-        "INSERT INTO questions (group_id, text, author_id, kind) VALUES (?, ?, ?, ?) RETURNING id, text, author_id, kind",
+        "INSERT INTO questions (group_id, text, author_id, kind, items) VALUES (?, ?, ?, ?, ?) \
+         RETURNING id, text, author_id, kind, items",
     )
     .bind(me.group_id)
     .bind(text)
     .bind(me.id)
-    .bind(if body.kind.as_deref() == Some("rank") { "rank" } else { "pick" })
+    .bind(kind)
+    .bind(items)
     .fetch_one(&mut *tx)
     .await?;
     let opened = game::ensure_open_round(&mut tx, me.group_id).await?;
@@ -1274,7 +1361,7 @@ async fn delete_question(
 
 async fn queue(State(state): State<AppState>, Me(me): Me) -> AppResult<Json<Value>> {
     let custom: Vec<QueuedQuestion> = sqlx::query_as(concat!(
-        "SELECT q.id, q.text, q.author_id, q.kind FROM questions q WHERE q.group_id = ?1 AND ",
+        "SELECT q.id, q.text, q.author_id, q.kind, q.items FROM questions q WHERE q.group_id = ?1 AND ",
         game::unused!(),
         " ORDER BY COALESCE(q.sort_key, q.id), q.id"
     ))
@@ -1692,11 +1779,13 @@ async fn push_unsubscribe(
 async fn unseen_round(
     State(state): State<AppState>,
     Me(me): Me,
+    headers: axum::http::HeaderMap,
 ) -> AppResult<Json<Option<RoundView>>> {
     let Some(round) = game::unseen_round(&state.db, &me).await? else {
         return Ok(Json(None));
     };
-    Ok(Json(Some(game::view(&state.db, round, me.id).await?)))
+    let view = game::view(&state.db, round, me.id).await?;
+    Ok(Json(Some(for_client(&state, &headers, me.id, view).await?)))
 }
 
 async fn mark_seen(
@@ -1840,21 +1929,28 @@ async fn import_questions(
     Json(body): Json<ImportBody>,
 ) -> AppResult<Json<Value>> {
     may_add_questions(&state, &me).await?;
-    // `[classement]` lines become ranking questions; the length rule applies to the question itself.
-    let valid: Vec<(&str, &str)> = body
+    // `[classement]` lines become ranking questions, `[choix] … | A | B` choose questions (skipped
+    // when their items are not valid); the length rule applies to the question itself.
+    let valid: Vec<(&str, &str, Option<String>)> = body
         .text
         .lines()
         .map(str::trim)
         .filter(|l| !l.is_empty() && !l.starts_with('#'))
-        .map(crate::deck::parse_line)
-        .filter(|(text, _)| (QUESTION_MIN..=QUESTION_MAX).contains(&text.chars().count()))
+        .map(|l| {
+            let (text, kind) = crate::deck::parse_line(l);
+            (text, kind, crate::deck::items_json(l))
+        })
+        .filter(|(text, kind, items)| {
+            (QUESTION_MIN..=QUESTION_MAX).contains(&text.chars().count())
+                && (*kind != "choose" || items.is_some())
+        })
         .collect();
     // Imports belong to this room only (asked before the shared deck, in file order),
     // never to the deck every room draws from.
     let mut added: u64 = 0;
     {
         let mut tx = state.db.begin().await?;
-        for (text, kind) in &valid {
+        for (text, kind, items) in &valid {
             let known: Option<i64> = sqlx::query_scalar(
                 "SELECT id FROM questions WHERE group_id = ? AND lower(text) = lower(?)",
             )
@@ -1866,12 +1962,13 @@ async fn import_questions(
                 continue;
             }
             sqlx::query(
-                "INSERT INTO questions (group_id, text, author_id, kind, origin) VALUES (?, ?, ?, ?, 'import')",
+                "INSERT INTO questions (group_id, text, author_id, kind, origin, items) VALUES (?, ?, ?, ?, 'import', ?)",
             )
             .bind(me.group_id)
             .bind(text)
             .bind(me.id)
             .bind(kind)
+            .bind(items)
             .execute(&mut *tx)
             .await?;
             added += 1;

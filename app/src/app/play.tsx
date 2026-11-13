@@ -109,7 +109,7 @@ export default function PlayScreen() {
       </View>
       {!creating && (
         <Animated.View entering={motion.question} style={{ gap: 12 }}>
-          <Tag label={tr(q.kind === 'rank' ? 'vote.kind.rank' : 'vote.kind.pick')} />
+          <Tag label={tr(q.kind === 'rank' ? 'vote.kind.rank' : q.kind === 'choose' ? 'vote.kind.choose' : 'vote.kind.pick')} />
           <Display size={30}>{q.question}</Display>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
             {q.closed && <Swords size={14} color={t.mut} />}

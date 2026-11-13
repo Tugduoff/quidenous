@@ -37,6 +37,15 @@ export function questionMessage(round: Round) {
 
 /** A finished question with its podium. */
 export function resultMessage(round: Round, byId: Map<number, Member>) {
+  // A choose question: what each person really took (the first few).
+  if (round.choose && round.items) {
+    const items = round.items;
+    const lines = round.choose.people
+      .filter((p) => p.real != null)
+      .slice(0, 5)
+      .map((p) => `${byId.get(p.member_id)?.name ?? '?'} · ${items[p.real!] ?? '?'}`);
+    return t('share.result', { number: round.number, question: round.question, lines: lines.join('\n'), url: appUrl() });
+  }
   if (round.ranking) {
     const medals = ['🥇', '🥈', '🥉'];
     const lines = round.ranking

@@ -235,7 +235,17 @@ async fn podium(db: &SqlitePool, round_id: i64) -> AppResult<Vec<Value>> {
     .bind(round_id)
     .fetch_one(db)
     .await?;
-    let top: Vec<(i64, i64)> = if kind == "rank" {
+    let top: Vec<(i64, i64)> = if kind == "choose" {
+        // Who guessed the others' real choices best.
+        game::choose_result(db, round_id)
+            .await?
+            .scores
+            .into_iter()
+            .filter(|s| s.hits > 0)
+            .take(3)
+            .map(|s| (s.member_id, s.hits))
+            .collect()
+    } else if kind == "rank" {
         game::borda(db, round_id)
             .await?
             .into_iter()

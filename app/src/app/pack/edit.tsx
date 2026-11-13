@@ -53,7 +53,13 @@ export default function PackEditScreen() {
     setQuestions(pack.questions);
   } else if (!seeded && id == null && queue) {
     setSeeded(true);
-    setQuestions((qs) => merge(qs, queue.custom));
+    // A new pack starts from the room's own questions (packs don't carry choose questions).
+    setQuestions((qs) =>
+      merge(
+        qs,
+        queue.custom.filter((q) => q.kind !== 'choose').map((q) => ({ text: q.text, kind: q.kind === 'rank' ? 'rank' : 'pick' })),
+      ),
+    );
   }
 
   const spicy = spicyPick || tags.includes('pimente');
@@ -74,7 +80,8 @@ export default function PackEditScreen() {
     setQuestions((qs) =>
       merge(
         qs,
-        lines.filter((l) => !l.problem).map((l) => ({ text: l.text, kind: l.rank ? 'rank' : 'pick' })),
+        // Packs don't carry choose questions (docs/CHOOSE.md).
+        lines.filter((l) => !l.problem && l.kind !== 'choose').map((l) => ({ text: l.text, kind: l.rank ? 'rank' : 'pick' })),
       ),
     );
   };

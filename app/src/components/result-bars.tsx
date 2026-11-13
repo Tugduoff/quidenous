@@ -11,7 +11,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-import type { Member, RankEntry, Tally } from '@/lib/api';
+import type { ChooseResult, Member, RankEntry, Tally } from '@/lib/api';
 import { useT } from '@/lib/i18n';
 import { BOUNCE, EASE } from '@/lib/motion';
 import { useTheme } from '@/lib/theme';
@@ -169,22 +169,34 @@ export function RankResult({ ranking, byId, mine }: { ranking: RankEntry[]; byId
 export function ResultSummary({
   result,
   ranking,
+  choose,
   byId,
   onPress,
 }: {
   result: Tally[];
   ranking: RankEntry[] | null;
+  /** A choose question: its best guesser, hits out of guesses. */
+  choose?: ChooseResult | null;
   byId: Map<number, Member>;
   onPress: () => void;
 }) {
   const t = useTheme();
   const tr = useT();
   const total = result.reduce((n, r) => n + r.count, 0) || 1;
-  const winnerId = ranking ? ranking[0]?.member_id : result[0]?.target_id;
+  const guesser = choose?.scores[0];
+  const winnerId = choose ? guesser?.member_id : ranking ? ranking[0]?.member_id : result[0]?.target_id;
   const m = winnerId != null ? byId.get(winnerId) : undefined;
-  const score = ranking ? tr('results.points', { count: ranking[0]?.points ?? 0 }) : `${Math.round(((result[0]?.count ?? 0) / total) * 100)}%`;
+  const score = choose
+    ? `${guesser?.hits ?? 0}/${guesser?.total ?? 0}`
+    : ranking
+      ? tr('results.points', { count: ranking[0]?.points ?? 0 })
+      : `${Math.round(((result[0]?.count ?? 0) / total) * 100)}%`;
   // Several people sharing first place: "+1" after the name.
-  const tied = ranking ? 0 : result.filter((r) => r.count === result[0]?.count).length - 1;
+  const tied = choose
+    ? choose.scores.filter((s) => s.hits === guesser?.hits && s.total === guesser?.total).length - 1
+    : ranking
+      ? 0
+      : result.filter((r) => r.count === result[0]?.count).length - 1;
   return (
     <PressableScale
       accessibilityRole="button"

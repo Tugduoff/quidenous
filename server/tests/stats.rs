@@ -36,7 +36,7 @@ async fn test_app_with_state() -> (Router, AppState) {
     std::fs::create_dir_all(&dir).unwrap();
     let state = state(config).await.unwrap();
     // Pick questions only from the deck; ranking tests add their own.
-    sqlx::query("DELETE FROM questions WHERE group_id IS NULL AND kind = 'rank'")
+    sqlx::query("DELETE FROM questions WHERE group_id IS NULL AND kind <> 'pick'")
         .execute(&state.db)
         .await
         .unwrap();

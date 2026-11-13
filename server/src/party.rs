@@ -891,7 +891,7 @@ async fn vote(
     Json(body): Json<VoteBody>,
 ) -> AppResult<Json<Value>> {
     let (me, _) = party_seat(&state, user, id).await?;
-    let events = game::vote(&state.db, id, me.id, Some(body.target_id), None).await?;
+    let events = game::vote(&state.db, id, me.id, Some(body.target_id), None, None).await?;
     for e in events {
         state.live.send(id, e);
     }

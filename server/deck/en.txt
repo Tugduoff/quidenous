@@ -306,3 +306,30 @@ Who would adopt a dog on a whim and figure it out later?
 [pimente] Who would be dumped first on Love Island?
 [classement] [pimente] Rank us from smoothest charmer to most awkward.
 [classement] [pimente] Rank us from most faithful to most likely to stray.
+
+# "Who would choose what?": [choose] the question | 2 to 4 answers. Everyone wires each person to an answer.
+[choose] [potes] [famille] [boulot] Who orders what at the restaurant? | Pizza | Sushi | Burger | Tacos
+[choose] [potes] [famille] Who goes where on holiday? | Beach | Mountains | Big city | Road trip
+[choose] [potes] [famille] [boulot] Who drinks what in the morning? | Coffee | Tea | Orange juice | Nothing
+[choose] [potes] [famille] Who picks which superpower? | Flying | Invisibility | Teleportation | Mind reading
+[choose] [potes] Who orders what at the bar? | Beer | Wine | Cocktail | Soft drink
+[choose] [potes] [famille] Who survives a zombie apocalypse how? | Leads the group | Hides in a bunker | Bitten on day one | Betrays everyone
+[choose] [potes] [famille] [boulot] Who spends Sunday how? | Couch and series | Sport | Going out | Sleeping in
+[choose] [potes] [famille] Who gets which pet? | Cat | Dog | Goldfish | None
+[choose] [potes] [famille] [boulot] Who travels how? | Plane | Train | Car | Bike
+[choose] [potes] [famille] Who watches what tonight? | Horror film | Rom-com | Documentary | Anime
+[choose] [potes] [boulot] Who handles money how? | Saves it all | Spends it all | Invests it | No idea where it goes
+[choose] [potes] [famille] Who has which dessert? | Tiramisu | Ice cream | Chocolate cake | Cheese
+[choose] [potes] [famille] Who would be which movie character? | The hero | The villain | The comic relief | First to die
+[choose] [potes] [boulot] Who would work where? | Startup | Big company | Freelance | Nowhere
+[choose] [potes] [famille] Who picks which season? | Spring | Summer | Autumn | Winter
+[choose] [potes] Who does what at a party? | On the dance floor | At the buffet | In the kitchen | Gone by 11
+[choose] [potes] [famille] [boulot] Who answers a text how? | Within a minute | The next day | Never | Voice note
+[choose] [potes] [famille] Who would live where? | Big city | Countryside | Abroad | On a boat
+[choose] [potes] [famille] Who eats what for breakfast? | Sweet | Savoury | Nothing | Last night's leftovers
+[choose] [potes] [boulot] Who shows up to a meeting how? | Early | Right on time | A bit late | Cancels
+[choose] [potes] [famille] Who would pick which era? | Prehistory | Middle Ages | The 80s | The future
+[choose] [potes] [famille] Who plays what? | Board games | Video games | Cards | Nothing, just watches
+[choose] [potes] [famille] [boulot] Who listens to what in the car? | Rap | Pop | Podcast | Silence
+[choose] [potes] Who ends the night how? | Late-night kebab | Straight to bed | Afterparty | In tears
+[choose] [potes] [famille] Who would win what at the Olympics? | Sprint | Swimming | Chess | Nothing at all

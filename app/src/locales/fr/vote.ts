@@ -11,7 +11,7 @@ export const vote = {
     profile: 'Profil',
   },
   /** The tag over the question. */
-  kind: { result: 'Résultat', rank: 'Classement', custom: 'De nous', pick: 'Dilemme' },
+  kind: { result: 'Résultat', rank: 'Classement', custom: 'De nous', pick: 'Dilemme', choose: 'Qui choisit quoi' },
   linkCopied: 'Lien copié',
   shareResult: 'Partager le résultat',
   shareQuestion: 'Partager la question',
@@ -26,6 +26,18 @@ export const vote = {
     ranked: '{name}, {place}e. Retirer',
     add: 'Classer {name}',
   },
+  /** Choose question: wire everyone to an item (mine: my real choice, the others: my guesses). */
+  choose: {
+    tip: "Relie chacun à ce qu'il prendrait.",
+    me: 'Toi',
+    real: 'ton vrai choix',
+    wired: '{done}/{total} reliés',
+    submit: 'Valider',
+    failed: 'Raté, réessaie.',
+    pick: 'Relier {name}',
+    wiredTo: '{name}, relié à {item}',
+    wireTo: 'Relier {name} à {item}',
+  },
   voteFor: 'Voter pour {name}',
   nudge: 'Relancer {name}',
   skip: {
@@ -38,6 +50,7 @@ export const vote = {
   waiting: {
     yourFirst: 'TON 1ER',
     yourVote: 'TON VOTE',
+    yourChoice: 'TON CHOIX',
     hidden: 'Caché',
     show: 'Montrer mon vote',
     hide: 'Cacher mon vote',

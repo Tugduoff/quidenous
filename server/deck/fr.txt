@@ -248,3 +248,30 @@ Qui en sait trop sur tout le monde ici ?
 [pimente] Qui a déjà dragué en utilisant une réplique de film ?
 [classement] [pimente] Classe-nous du plus séducteur au moins séducteur.
 [classement] [pimente] Classe-nous du plus fidèle au plus volage.
+
+# « Qui choisirait quoi ? » : [choix] la question | 2 à 4 réponses. Chacun relie tout le monde à une réponse.
+[choix] [potes] [famille] [boulot] Qui prendrait quoi au resto ? | Pizza | Sushi | Burger | Tacos
+[choix] [potes] [famille] Qui partirait où pour les vacances ? | Plage | Montagne | Grande ville | Road trip
+[choix] [potes] [famille] [boulot] Qui boit quoi le matin ? | Café | Thé | Jus d'orange | Rien
+[choix] [potes] [famille] Qui choisirait quel super-pouvoir ? | Voler | Invisibilité | Téléportation | Lire les pensées
+[choix] [potes] Qui commande quoi au bar ? | Bière | Vin | Cocktail | Soft
+[choix] [potes] [famille] Qui survit comment à une apocalypse zombie ? | Chef du groupe | Planqué au bunker | Mordu le premier jour | Traître
+[choix] [potes] [famille] [boulot] Qui passe son dimanche comment ? | Canapé et séries | Sport | Sorties | Grasse mat'
+[choix] [potes] [famille] Qui prend quel animal ? | Chat | Chien | Poisson rouge | Aucun
+[choix] [potes] [famille] [boulot] Qui voyage comment ? | Avion | Train | Voiture | Vélo
+[choix] [potes] [famille] Qui regarde quoi ce soir ? | Film d'horreur | Comédie romantique | Documentaire | Anime
+[choix] [potes] [boulot] Qui garde son argent comment ? | Il épargne tout | Il claque tout | Il investit | Il ne sait pas où il passe
+[choix] [potes] [famille] Qui prend quoi comme dessert ? | Tiramisu | Glace | Fondant au chocolat | Fromage
+[choix] [potes] [famille] Qui serait quel personnage de film ? | Le héros | Le méchant | Le comique | Le premier à mourir
+[choix] [potes] [boulot] Qui travaillerait où ? | Startup | Grande entreprise | À son compte | Nulle part
+[choix] [potes] [famille] Qui choisit quelle saison ? | Printemps | Été | Automne | Hiver
+[choix] [potes] Qui fait quoi en soirée ? | Sur la piste | Au buffet | Dans la cuisine | Parti à 23 h
+[choix] [potes] [famille] [boulot] Qui répond comment à un message ? | Dans la minute | Le lendemain | Jamais | En vocal
+[choix] [potes] [famille] Qui vivrait où ? | Paris | À la campagne | À l'étranger | Sur un bateau
+[choix] [potes] [famille] Qui mange quoi au petit-déj ? | Sucré | Salé | Rien | Les restes de la veille
+[choix] [potes] [boulot] Qui arrive comment à un rendez-vous ? | En avance | Pile à l'heure | Un peu en retard | Il annule
+[choix] [potes] [famille] Qui choisirait quelle époque ? | Préhistoire | Moyen Âge | Années 80 | Futur
+[choix] [potes] [famille] Qui jouerait à quoi ? | Jeux de société | Jeux vidéo | Cartes | Rien, il regarde
+[choix] [potes] [famille] [boulot] Qui écoute quoi en voiture ? | Rap | Variété française | Podcast | Silence
+[choix] [potes] Qui finit la soirée comment ? | Kebab | Dodo direct | Afterparty | Il pleure
+[choix] [potes] [famille] Qui gagnerait à quoi aux JO ? | Sprint | Natation | Échecs | Rien du tout

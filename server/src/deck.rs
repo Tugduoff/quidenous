@@ -28,12 +28,13 @@ pub async fn seed(db: &SqlitePool) -> sqlx::Result<u64> {
                 tags.join(",")
             };
             sqlx::query(
-                "UPDATE questions SET vibes = ?1 WHERE group_id IS NULL AND text = ?2 AND lang = ?3 \
-                 AND vibes IS NOT ?1",
+                "UPDATE questions SET vibes = ?1, items = ?4 WHERE group_id IS NULL AND text = ?2 AND lang = ?3 \
+                 AND (vibes IS NOT ?1 OR items IS NOT ?4)",
             )
             .bind(tags)
             .bind(text)
             .bind(lang.as_str())
+            .bind(items_json(line))
             .execute(db)
             .await?;
         }
@@ -52,12 +53,17 @@ pub async fn import_lang(db: &SqlitePool, text: &str, lang: Lang) -> sqlx::Resul
     let mut added = 0;
     for line in deck_lines(text) {
         let (text, kind) = parse_line(line);
+        let items = items_json(line);
+        if kind == "choose" && items.is_none() {
+            continue;
+        }
         added += sqlx::query(
-            "INSERT INTO questions (text, kind, lang) VALUES (?, ?, ?) ON CONFLICT DO NOTHING",
+            "INSERT INTO questions (text, kind, lang, items) VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING",
         )
         .bind(text)
         .bind(kind)
         .bind(lang.as_str())
+        .bind(items)
         .execute(db)
         .await?
         .rows_affected();
@@ -65,7 +71,8 @@ pub async fn import_lang(db: &SqlitePool, text: &str, lang: Lang) -> sqlx::Resul
     Ok(added)
 }
 
-/// `[classement] Classe-nous…` is a ranking question; anything else picks one person.
+/// `[classement] Classe-nous…` is a ranking question, `[choix] Qui prendrait quoi ? | A | B` a
+/// "who would choose what" question (see [`choose_items`]); anything else picks one person.
 /// Vibe tags (`[famille]`) are dropped: only the built-in deck uses them.
 pub fn parse_line(line: &str) -> (&str, &'static str) {
     let (text, kind, _) = parse_tagged(line);
@@ -73,6 +80,7 @@ pub fn parse_line(line: &str) -> (&str, &'static str) {
 }
 
 /// A line's leading tags, in any order: `[classement]` / `[rank]` make it a ranking question,
+/// `[choix]` / `[choose]` a choose question (its text stops at the first `|`),
 /// known vibe tags (`[famille]`) are returned. The first unknown `[…]` is part of the question.
 pub fn parse_tagged(line: &str) -> (&str, &'static str, Vec<String>) {
     let mut rest = line.trim();
@@ -83,6 +91,8 @@ pub fn parse_tagged(line: &str) -> (&str, &'static str, Vec<String>) {
         let tag = after[..end].trim().to_lowercase();
         if tag == "classement" || tag == "rank" {
             kind = "rank";
+        } else if tag == "choix" || tag == "choose" {
+            kind = "choose";
         } else if crate::vibes::is_tag(&tag) {
             if !tags.contains(&tag) {
                 tags.push(tag);
@@ -92,7 +102,46 @@ pub fn parse_tagged(line: &str) -> (&str, &'static str, Vec<String>) {
         }
         rest = after[end + 1..].trim_start();
     }
+    if kind == "choose" {
+        rest = rest.split('|').next().unwrap_or_default().trim_end();
+    }
     (rest, kind, tags)
+}
+
+/// Items of a choose question: 2 to 4, each 1 to 40 characters.
+pub const ITEMS_MIN: usize = 2;
+pub const ITEMS_MAX: usize = 4;
+pub const ITEM_MAX: usize = 40;
+
+/// A choose line's items (the parts after the question, `|`-separated), when they are valid.
+pub fn choose_items(line: &str) -> Option<Vec<String>> {
+    if parse_tagged(line).1 != "choose" {
+        return None;
+    }
+    let items: Vec<String> = line
+        .split('|')
+        .skip(1)
+        .map(str::trim)
+        .filter(|i| !i.is_empty())
+        .map(str::to_owned)
+        .collect();
+    clean_items(items)
+}
+
+/// Trimmed items, when there are 2 to 4 of them, each 1 to 40 characters, no two alike (case-insensitive).
+pub fn clean_items(items: Vec<String>) -> Option<Vec<String>> {
+    let items: Vec<String> = items.into_iter().map(|i| i.trim().to_owned()).collect();
+    let mut seen = std::collections::HashSet::new();
+    let ok = (ITEMS_MIN..=ITEMS_MAX).contains(&items.len())
+        && items
+            .iter()
+            .all(|i| (1..=ITEM_MAX).contains(&i.chars().count()) && seen.insert(i.to_lowercase()));
+    ok.then_some(items)
+}
+
+/// A choose line's items as stored (`questions.items`, a JSON array); `None` for other lines.
+pub fn items_json(line: &str) -> Option<String> {
+    choose_items(line).map(|i| serde_json::to_string(&i).unwrap_or_default())
 }
 
 /// Before 0.10.1, importing a file put its questions in the shared deck. Those questions belong
@@ -172,10 +221,25 @@ mod tests {
             )
         );
         assert_eq!(parse_tagged("[PS] Qui ?"), ("[PS] Qui ?", "pick", vec![]));
+        assert_eq!(
+            parse_tagged("[choix] [boulot] Qui prendrait quoi ? | Pizza | Sushi "),
+            ("Qui prendrait quoi ?", "choose", vec!["boulot".to_owned()])
+        );
+        assert_eq!(
+            choose_items("[Choose] Who? | Pizza |  Sushi | | Tacos"),
+            Some(vec!["Pizza".into(), "Sushi".into(), "Tacos".into()])
+        );
+        assert_eq!(choose_items("[choix] Qui ? | Pizza"), None);
+        assert_eq!(choose_items("[choix] Qui ? | Pizza | pizza"), None);
+        assert_eq!(choose_items("[choix] Qui ? | A | B | C | D | E"), None);
+        assert_eq!(choose_items("Qui ? | A | B"), None);
+        assert_eq!(parse_line("Qui ? | A | B"), ("Qui ? | A | B", "pick"));
         // Every built-in line parses to a non-empty question.
         for (_, deck) in DECKS {
             for line in deck_lines(deck) {
-                assert!(parse_tagged(line).0.len() > 8, "{line}");
+                let (text, kind, _) = parse_tagged(line);
+                assert!(text.len() > 8, "{line}");
+                assert_eq!(kind == "choose", choose_items(line).is_some(), "{line}");
             }
         }
     }

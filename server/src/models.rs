@@ -1,4 +1,4 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize, Serializer};
 
 #[derive(Clone, Debug, sqlx::FromRow)]
 pub struct MemberRow {
@@ -59,6 +59,8 @@ pub struct RoundRow {
     pub text: String,
     pub custom: bool,
     pub kind: String,
+    /// Choose questions: the items, a JSON array (`questions.items`).
+    pub items: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -74,7 +76,7 @@ pub struct RoundView {
     pub number: i64,
     pub question: String,
     pub custom: bool,
-    /// 'pick' (one person) or 'rank' (everyone, first to last).
+    /// 'pick' (one person), 'rank' (everyone, first to last) or 'choose' (everyone wired to an item).
     pub kind: String,
     pub opened_at: String,
     pub closed_at: Option<String>,
@@ -97,6 +99,50 @@ pub struct RoundView {
     pub my_ranking: Option<Vec<i64>>,
     /// A deck question that came from an approved suggestion: its author's name.
     pub suggested_by: Option<String>,
+    /// Choose questions: the items people are wired to.
+    pub items: Option<Vec<String>>,
+    /// Choose questions: my wires, once I voted.
+    pub my_choices: Option<Vec<Choice>>,
+    /// Choose questions, once closed: per person what the others guessed, and who guessed best.
+    pub choose: Option<ChooseResult>,
+}
+
+/// A wire: `member_id` goes to item number `item`.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Choice {
+    pub member_id: i64,
+    pub item: i64,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct ChooseResult {
+    pub people: Vec<ChoosePerson>,
+    pub scores: Vec<ChooseScore>,
+}
+
+/// One person's reveal: their own choice against what the others guessed for them.
+#[derive(Clone, Debug, Serialize)]
+pub struct ChoosePerson {
+    pub member_id: i64,
+    /// Their own wire (`None` when they didn't answer with wires).
+    pub real: Option<i64>,
+    /// The most guessed item(s); empty when nobody guessed.
+    pub top: Vec<i64>,
+    pub guesses: Vec<ChooseGuess>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct ChooseGuess {
+    pub voter_id: i64,
+    pub item: i64,
+}
+
+/// "Who knows you best": guesses that matched someone's real choice, out of those that could.
+#[derive(Clone, Debug, Serialize)]
+pub struct ChooseScore {
+    pub member_id: i64,
+    pub hits: i64,
+    pub total: i64,
 }
 
 /// Borda count: last place 1 point, first place N points; ties broken by number of firsts.
@@ -134,4 +180,16 @@ pub struct QueuedQuestion {
     pub text: String,
     pub author_id: Option<i64>,
     pub kind: String,
+    /// Choose questions: the items, JSON-encoded in the database, an array in the API.
+    #[serde(serialize_with = "items_array")]
+    pub items: Option<String>,
+}
+
+/// `questions.items` (a JSON array) as stored.
+pub fn parse_items(items: Option<&str>) -> Option<Vec<String>> {
+    items.and_then(|i| serde_json::from_str(i).ok())
+}
+
+fn items_array<S: Serializer>(items: &Option<String>, s: S) -> Result<S::Ok, S::Error> {
+    parse_items(items.as_deref()).serialize(s)
 }

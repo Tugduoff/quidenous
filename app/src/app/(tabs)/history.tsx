@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { Crown, Download, Hourglass, PartyPopper, Pin } from 'lucide-react-native';
+import { Cable, Crown, Download, Hourglass, PartyPopper, Pin, Target } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
@@ -46,8 +46,12 @@ function byDay(items: HistoryItem[]) {
 
 function HistoryCard({ item, lead, byId, order }: { item: HistoryItem; lead: number; byId: Map<number, Member>; order?: number }) {
   const t = useTheme();
+  const tr = useT();
   const winners = item.winner_ids.map((id) => byId.get(id));
   const winner = winners[0];
+  // A choose question's "winners" are its best guessers (none when nobody guessed right).
+  const choose = item.kind === 'choose';
+  const Mark = choose ? Target : Crown;
   return (
     <Animated.View entering={order != null ? motion.stagger(order) : undefined}>
       <PressableScale
@@ -56,18 +60,28 @@ function HistoryCard({ item, lead, byId, order }: { item: HistoryItem; lead: num
         onPress={() => router.push(`/round/${item.id}`)}
         style={[{ flexDirection: 'row', gap: 12, alignItems: 'center', padding: 14, borderRadius: 20, backgroundColor: t.card }, t.shadow]}>
         <View style={{ width: lead, alignItems: 'center' }}>
-          {winners.length > 1 ? <AvatarStack members={winners} size={TIED} ring={t.card} max={MAX} /> : <Avatar member={winner} size={SOLO} />}
+          {winners.length > 1 ? (
+            <AvatarStack members={winners} size={TIED} ring={t.card} max={MAX} />
+          ) : winner || !choose ? (
+            <Avatar member={winner} size={SOLO} />
+          ) : (
+            <View
+              style={{ width: SOLO, height: SOLO, borderRadius: SOLO / 2, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card2 }}>
+              <Cable size={20} color={t.mut} />
+            </View>
+          )}
         </View>
         <View style={{ flex: 1, gap: 4 }}>
           <QuestionText
             text={item.question}
             rank={item.kind === 'rank'}
+            choose={choose}
             style={{ fontFamily: t.font.semibold, fontSize: 15, lineHeight: 19, color: t.txt }}
           />
           <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 4 }}>
-            <Crown size={14} color={winners.length === 1 ? (winner?.color ?? t.mut) : t.mut} style={{ flexShrink: 0, marginTop: 1 }} />
+            <Mark size={14} color={winners.length === 1 ? (winner?.color ?? t.mut) : t.mut} style={{ flexShrink: 0, marginTop: 1 }} />
             <Text numberOfLines={1} style={{ flex: 1, fontFamily: t.font.regular, fontSize: 12, lineHeight: 16, color: t.mut }}>
-              {winners.map((m) => m?.name).join(', ')}
+              {winners.length ? winners.map((m) => m?.name).join(', ') : choose ? tr('history.nobodyGuessed') : ''}
             </Text>
           </View>
         </View>

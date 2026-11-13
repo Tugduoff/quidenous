@@ -7,4 +7,6 @@ export const history = {
   yesterday: 'Hier',
   empty: 'Les résultats arriveront ici.',
   goVote: 'Aller voter',
+  /** Choose question where no guess was right. */
+  nobodyGuessed: "Personne n'a deviné",
 };
