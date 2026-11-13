@@ -359,6 +359,16 @@ mod tests {
     }
 
     #[test]
+    fn the_app_draws_from_the_same_parts() {
+        // Regenerate both with `node scripts/avatar-parts.mjs` (from app/).
+        assert!(
+            include_str!("../assets/avatar.json")
+                == include_str!("../../app/src/lib/avatar-parts.json"),
+            "server/assets/avatar.json and app/src/lib/avatar-parts.json differ"
+        );
+    }
+
+    #[test]
     fn validation() {
         let p = parts();
         let zero = spec_with(usize::MAX, "");

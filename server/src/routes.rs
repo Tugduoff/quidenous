@@ -362,14 +362,7 @@ async fn update_me(
         .bind(me.id)
         .execute(&state.db)
         .await?;
-    let member = sqlx::query_as::<_, MemberRow>("SELECT * FROM members WHERE id = ?")
-        .bind(me.id)
-        .fetch_one(&state.db)
-        .await?;
-    state
-        .live
-        .send(me.group_id, Event::MemberUpdated { member_id: me.id });
-    Ok(Json(Member::from(&member)))
+    profile_changed(&state, &me).await
 }
 
 async fn upload_photo(
@@ -417,13 +410,27 @@ async fn upload_photo(
         .bind(me.id)
         .execute(&state.db)
         .await?;
+    profile_changed(&state, &me).await
+}
+
+/// After a name, photo or avatar change (account-wide): every room I sit in hears it live; my seat here comes back.
+async fn profile_changed(state: &AppState, me: &MemberRow) -> AppResult<Json<Member>> {
+    let seats: Vec<(i64, i64)> = sqlx::query_as(
+        "SELECT id, group_id FROM members WHERE (user_id = ?1 OR id = ?2) AND removed_at IS NULL",
+    )
+    .bind(me.user_id)
+    .bind(me.id)
+    .fetch_all(&state.db)
+    .await?;
+    for (member_id, group_id) in seats {
+        state
+            .live
+            .send(group_id, Event::MemberUpdated { member_id });
+    }
     let member = sqlx::query_as::<_, MemberRow>("SELECT * FROM members WHERE id = ?")
         .bind(me.id)
         .fetch_one(&state.db)
         .await?;
-    state
-        .live
-        .send(me.group_id, Event::MemberUpdated { member_id: me.id });
     Ok(Json(Member::from(&member)))
 }
 
@@ -482,14 +489,7 @@ async fn set_avatar(
             .execute(&state.db)
             .await?;
     }
-    let member = sqlx::query_as::<_, MemberRow>("SELECT * FROM members WHERE id = ?")
-        .bind(me.id)
-        .fetch_one(&state.db)
-        .await?;
-    state
-        .live
-        .send(me.group_id, Event::MemberUpdated { member_id: me.id });
-    Ok(Json(Member::from(&member)))
+    profile_changed(&state, &me).await
 }
 
 async fn group(State(state): State<AppState>, Me(me): Me) -> AppResult<Json<Value>> {
