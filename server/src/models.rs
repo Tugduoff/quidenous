@@ -29,6 +29,10 @@ pub struct Member {
     pub photo_url: Option<String>,
     /// Drawn avatar spec; old apps ignore it and show the initial.
     pub avatar: Option<String>,
+    /// Only present (`true`) for a deleted account: `name` keeps the stored placeholder for old
+    /// apps, newer ones show their own localised label.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub deleted: bool,
 }
 
 impl From<&MemberRow> for Member {
@@ -39,6 +43,7 @@ impl From<&MemberRow> for Member {
             color: m.color.clone(),
             photo_url: m.photo.as_ref().map(|p| format!("/photos/{p}")),
             avatar: m.avatar.clone(),
+            deleted: crate::i18n::is_deleted(&m.name, m.user_id),
         }
     }
 }

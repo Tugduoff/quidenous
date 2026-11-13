@@ -126,6 +126,7 @@ pub fn router() -> Router<AppState> {
         .route("/rounds/{id}/challenge", post(crate::play::challenge))
         .route("/rounds/{id}/challenges", get(crate::play::challenges))
         .route("/rooms/{id}/add", post(crate::friends::add_to_room))
+        .merge(crate::party::router())
         .route(
             "/friends",
             get(crate::friends::list).post(crate::friends::add),
@@ -193,6 +194,7 @@ async fn features(State(state): State<AppState>) -> Json<Value> {
         "avatars",
         "languages",
         "community",
+        "party",
     ];
     f.extend(crate::accounts::features(&state));
     Json(json!(f))
@@ -233,11 +235,13 @@ async fn join(
         legacy_gate(&state, ip)?;
     }
     let name = clean_name(&body.name)?;
-    let group_id: i64 = sqlx::query_scalar("SELECT id FROM groups WHERE join_code = ?")
-        .bind(body.code.trim().to_uppercase())
-        .fetch_optional(&state.db)
-        .await?
-        .ok_or(AppError::BadRequest("bad_code"))?;
+    // Parties have their own way in (`POST /parties/join`).
+    let group_id: i64 =
+        sqlx::query_scalar("SELECT id FROM groups WHERE join_code = ? AND kind = 'room'")
+            .bind(body.code.trim().to_uppercase())
+            .fetch_optional(&state.db)
+            .await?
+            .ok_or(AppError::BadRequest("bad_code"))?;
     // Already signed in: the same account joins one more room.
     let signed_in = match headers
         .get(axum::http::header::AUTHORIZATION)
@@ -544,10 +548,15 @@ async fn group(State(state): State<AppState>, Me(me): Me) -> AppResult<Json<Valu
         bool,
         i64,
         String,
+        String,
+        Option<String>,
+        bool,
     );
-    let (name, code, skip_vote, kick_vote, questions_by, vibe, owner_next, next_delay, language): Settings =
+    let (name, code, skip_vote, kick_vote, questions_by, vibe, owner_next, next_delay, language, kind, ends_at, over): Settings =
         sqlx::query_as(
-            "SELECT name, join_code, skip_vote, kick_vote, questions_by, vibe, owner_next, next_delay, language \
+            "SELECT name, join_code, skip_vote, kick_vote, questions_by, vibe, owner_next, next_delay, language, \
+             kind, party_ends_at, \
+             (party_ends_at IS NOT NULL AND party_ends_at <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) \
              FROM groups WHERE id = ?",
         )
     .bind(me.group_id)
@@ -584,12 +593,13 @@ async fn group(State(state): State<AppState>, Me(me): Me) -> AppResult<Json<Valu
             v
         })
         .collect();
-    Ok(Json(json!({
+    let mut out = json!({
         "id": me.group_id,
         "name": name,
         "code": code,
         "my_role": me.role,
         "language": language,
+        "kind": kind,
         "settings": { "skip_vote": skip_vote, "kick_vote": kick_vote, "questions_by": questions_by, "vibe": vibe,
                       "owner_next": owner_next, "next_delay": next_delay, "language": language },
         "pace": crate::pacing::view(&state, me.group_id).await?,
@@ -598,7 +608,12 @@ async fn group(State(state): State<AppState>, Me(me): Me) -> AppResult<Json<Valu
         "kicks": kicks,
         "kick_needed": kick_needed,
         "votes": votes,
-    })))
+    });
+    if kind == "party" {
+        out["ends_at"] = json!(ends_at);
+        out["over"] = json!(over);
+    }
+    Ok(Json(out))
 }
 
 async fn current_round(
@@ -755,13 +770,17 @@ async fn export_history(
     Query(q): Query<ExportQuery>,
 ) -> AppResult<Response> {
     let me = crate::auth::member_in_room(&state, &q.token, q.room).await?;
+    let lang = i18n::of_member(&state.db, me.id).await?;
     let names: std::collections::HashMap<i64, String> =
-        sqlx::query_as::<_, (i64, String)>("SELECT id, name FROM members WHERE group_id = ?")
-            .bind(me.group_id)
-            .fetch_all(&state.db)
-            .await?
-            .into_iter()
-            .collect();
+        sqlx::query_as::<_, (i64, String, Option<i64>)>(
+            "SELECT id, name, user_id FROM members WHERE group_id = ?",
+        )
+        .bind(me.group_id)
+        .fetch_all(&state.db)
+        .await?
+        .into_iter()
+        .map(|(id, name, user_id)| (id, i18n::member_name(lang, &name, user_id)))
+        .collect();
     let name = |id: i64| names.get(&id).cloned().unwrap_or_else(|| "?".into());
     let rounds: Vec<(i64, i64, String, String, String)> = sqlx::query_as(
         "SELECT r.id, r.number, q.text, r.closed_at, q.kind FROM rounds r JOIN questions q ON q.id = r.question_id \
@@ -771,7 +790,6 @@ async fn export_history(
     .fetch_all(&state.db)
     .await?;
     let cell = |v: &str| format!("\"{}\"", v.replace('"', "\"\""));
-    let lang = i18n::of_member(&state.db, me.id).await?;
     // BOM so Excel reads the accents right.
     let mut csv = format!("\u{feff}{}\n", i18n::csv_header(lang));
     for (id, number, question, closed_at, kind) in rounds {
@@ -1055,6 +1073,8 @@ pub(crate) async fn remove_member(
     if let Some(round_id) = open {
         let _ = after_round_change(state, group_id, actor, round_id, events).await?;
     }
+    // A party: 75 % of fewer players may now have tapped "Suivante".
+    crate::party::after_leave(state, group_id).await?;
     Ok(())
 }
 
@@ -1267,17 +1287,25 @@ async fn queue(State(state): State<AppState>, Me(me): Me) -> AppResult<Json<Valu
 
 #[derive(Deserialize)]
 struct LiveQuery {
-    token: String,
+    token: Option<String>,
     room: Option<i64>,
+    /// A party's code: the big screen follows that party without an account.
+    screen: Option<String>,
 }
 
 /// WebSocket: `?token=` because browsers cannot set headers on a socket.
+/// `?screen=<code>`: a party's events, no account (party rooms only).
 async fn live(
     State(state): State<AppState>,
     Query(q): Query<LiveQuery>,
     ws: WebSocketUpgrade,
 ) -> AppResult<Response> {
-    let me = crate::auth::member_in_room(&state, &q.token, q.room).await?;
+    if let Some(code) = &q.screen {
+        let group_id = crate::party::by_code(&state, code).await?;
+        return Ok(ws.on_upgrade(move |socket| relay(socket, state, group_id, None)));
+    }
+    let token = q.token.ok_or(AppError::Unauthorized)?;
+    let me = crate::auth::member_in_room(&state, &token, q.room).await?;
     Ok(ws.on_upgrade(move |socket| relay(socket, state, me.group_id, me.user_id)))
 }
 
@@ -1324,6 +1352,10 @@ pub(crate) async fn notify_round(
     opened: Option<i64>,
     closed: bool,
 ) -> AppResult<()> {
+    // Parties happen in the same place: no push, no inbox for their questions and results.
+    if game::party(&state.db, group_id).await?.is_some() {
+        return Ok(());
+    }
     let question: Option<String> = match opened {
         Some(id) => Some(
             sqlx::query_scalar(
@@ -1694,6 +1726,10 @@ async fn nudge(
 ) -> AppResult<Json<Value>> {
     if body.member_id == me.id {
         return Err(AppError::BadRequest("self_nudge"));
+    }
+    // Everyone is in the same place at a party: no push.
+    if game::party(&state.db, me.group_id).await?.is_some() {
+        return Err(AppError::Conflict("party"));
     }
     let round = game::open_round(&state.db, me.group_id)
         .await?

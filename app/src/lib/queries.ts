@@ -1,6 +1,7 @@
 import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query';
 
 import { api, type Friend, type Pack, type PackSummary, type Group, type RoomSummary, type HistoryItem, type InboxItem, type Message, type Member, type Queue, type Round, normalizeStats, type Stats, type StatsPeriod, type Vibe } from './api';
+import { localizeGroup } from './names';
 
 export const keys = {
   group: ['group'] as const,
@@ -23,8 +24,9 @@ export const keys = {
   vibes: ['vibes'] as const,
 };
 
+/** The room, deleted accounts named in my language (`select` runs again when the screen re-renders on a language change). */
 export const useGroup = () =>
-  useQuery({ queryKey: keys.group, queryFn: () => api<Group>('/group') });
+  useQuery({ queryKey: keys.group, queryFn: () => api<Group>('/group'), select: (g) => localizeGroup(g) });
 
 export const useCurrentRound = () =>
   useQuery({ queryKey: keys.current, queryFn: () => api<Round | null>('/round/current') });

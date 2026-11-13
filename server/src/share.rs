@@ -105,13 +105,19 @@ pub async fn create_stat(
     // Frozen as `[[first name, colour, avatar|null], ...]` (rows from before avatars have 2 items).
     let mut people: Vec<(String, String, Option<String>)> = Vec::new();
     for id in &story.member_ids {
-        let (name, color, avatar): (String, String, Option<String>) =
-            sqlx::query_as("SELECT name, color, avatar FROM members WHERE id = ? AND group_id = ?")
-                .bind(id)
-                .bind(me.group_id)
-                .fetch_one(&state.db)
-                .await?;
-        let first = name.split_whitespace().next().unwrap_or("?").to_owned();
+        let (name, color, avatar, user_id): (String, String, Option<String>, Option<i64>) =
+            sqlx::query_as(
+                "SELECT name, color, avatar, user_id FROM members WHERE id = ? AND group_id = ?",
+            )
+            .bind(id)
+            .bind(me.group_id)
+            .fetch_one(&state.db)
+            .await?;
+        let first = if i18n::is_deleted(&name, user_id) {
+            i18n::deleted_name(lang).to_owned()
+        } else {
+            name.split_whitespace().next().unwrap_or("?").to_owned()
+        };
         people.push((first, color, avatar));
     }
     let token = crate::auth::new_token()[..12].to_owned();
@@ -195,15 +201,15 @@ async fn load(state: &AppState, token: &str) -> AppResult<Card> {
     let member = |id: i64| {
         let db = state.db.clone();
         async move {
-            let row = sqlx::query_as::<_, (String, String, Option<String>)>(
-                "SELECT name, color, avatar FROM members WHERE id = ?",
+            let row = sqlx::query_as::<_, (String, String, Option<String>, Option<i64>)>(
+                "SELECT name, color, avatar, user_id FROM members WHERE id = ?",
             )
             .bind(id)
             .fetch_one(&db)
             .await
-            .unwrap_or_else(|_| ("?".into(), "#8D8D99".into(), None));
+            .unwrap_or_else(|_| ("?".into(), "#8D8D99".into(), None, Some(0)));
             Person {
-                name: row.0,
+                name: i18n::member_name(lang, &row.0, row.3),
                 color: row.1,
                 avatar: row.2,
             }

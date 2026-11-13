@@ -223,6 +223,38 @@ pub fn added_to_room(lang: Lang, name: &str, room: &str) -> String {
     }
 }
 
+// ---------- member names ----------
+
+/// What a deleted account is called. The database keeps the French placeholder
+/// (`accounts::delete::DELETED_NAME`); texts for a reader use their language.
+pub fn deleted_name(lang: Lang) -> &'static str {
+    lang.pick(crate::accounts::delete::DELETED_NAME, "Deleted account")
+}
+
+/// Is this seat the leftover of a deleted account? (anonymised: no account, the placeholder name)
+pub fn is_deleted(name: &str, user_id: Option<i64>) -> bool {
+    user_id.is_none() && name == crate::accounts::delete::DELETED_NAME
+}
+
+/// A member's name as shown to a reader: a deleted account's placeholder in the reader's language.
+pub fn member_name(lang: Lang, name: &str, user_id: Option<i64>) -> String {
+    if is_deleted(name, user_id) {
+        deleted_name(lang).to_owned()
+    } else {
+        name.to_owned()
+    }
+}
+
+// ---------- party ----------
+
+/// The name of a party created without one.
+pub fn party_default_name(lang: Lang, host: &str) -> String {
+    match lang {
+        Lang::Fr => format!("Soirée de {host}"),
+        Lang::En => format!("{host}'s party"),
+    }
+}
+
 // ---------- history export (CSV) ----------
 
 pub fn csv_header(lang: Lang) -> &'static str {

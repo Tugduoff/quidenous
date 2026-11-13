@@ -2,7 +2,7 @@
 //! A session is still a bearer token in `user_tokens`; legacy token-only accounts keep working.
 
 pub mod crypto;
-mod delete;
+pub mod delete;
 pub mod limits;
 pub mod mail;
 mod mfa;

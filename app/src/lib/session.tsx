@@ -31,6 +31,8 @@ type Session = {
   doneVerifying: () => void;
   /** First room of a roomless account (joined or created). */
   enterRoom: (id: number) => Promise<void>;
+  /** Seated at a party from its link: `guestToken` when that made a new guest account (else my session stays), then into that room. */
+  joinParty: (guestToken: string | null, roomId: number) => Promise<void>;
   setMe: (m: Member) => void;
   /** Forget the session on this device only. */
   leave: () => Promise<void>;
@@ -157,6 +159,28 @@ export function SessionProvider({ children }: PropsWithChildren) {
     setRoomless(false);
   };
 
+  const joinParty = async (guestToken: string | null, roomId: number) => {
+    if (guestToken) {
+      setApiToken(guestToken);
+      await storage.set(TOKEN_KEY, guestToken);
+      await storage.set(SERVER_KEY, API_URL);
+    }
+    setApiRoom(roomId);
+    await storage.set(ROOM_KEY, String(roomId));
+    qc.clear();
+    const found = await loadMe();
+    if (found === 'out') throw new ApiError(401, 'unauthorized');
+    // Set together: the screens switch once (a guest goes from signed out to in).
+    setMe(typeof found === 'object' ? found : null);
+    setRoomless(found === 'no_room');
+    setRoomState(apiRoom());
+    if (guestToken) {
+      setVerifying(false);
+      setToken(guestToken);
+      syncLang();
+    }
+  };
+
   const leave = async () => {
     await storage.remove(TOKEN_KEY);
     await storage.remove(ROOM_KEY);
@@ -197,6 +221,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
         signIn,
         doneVerifying: () => setVerifying(false),
         enterRoom,
+        joinParty,
         setMe,
         leave,
         signOut,

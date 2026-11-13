@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { AppState } from 'react-native';
 
 import { liveUrl } from './api';
+import { PARTY_EVENTS, partyKeys } from './party';
 import { keys } from './queries';
 
 const RETRY_MS = 3000;
@@ -30,7 +31,11 @@ export function useLive(token: string | null, room: number | null) {
       };
       ws.onmessage = (msg) => {
         const event = JSON.parse(String(msg.data)) as { type: string; round_id?: number };
+        // A party's screen follows every event of its room (the socket only carries the current room's).
+        if (PARTY_EVENTS.has(event.type)) qc.invalidateQueries({ queryKey: partyKeys.all });
         switch (event.type) {
+          case 'party_updated':
+            break;
           case 'vote_cast':
             qc.invalidateQueries({ queryKey: keys.current });
             break;

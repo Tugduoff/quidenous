@@ -39,7 +39,8 @@ export const setApiUrl = (url: string) => {
 
 /** `left`: someone who left or was removed (kept for names and photos in the history). */
 /** `avatar`: a drawn avatar's spec (lib/avatar.ts), only when there is no photo. */
-export type Member = { id: number; name: string; color: string; photo_url: string | null; avatar?: string | null; left?: boolean };
+/** `deleted`: the account was deleted (the name is kept; shown as "Compte supprimé", see lib/names.ts). */
+export type Member = { id: number; name: string; color: string; photo_url: string | null; avatar?: string | null; left?: boolean; deleted?: boolean };
 export type Tally = { target_id: number; count: number; voter_ids: number[] };
 export type Round = {
   id: number;
@@ -73,6 +74,8 @@ export type Group = {
   name: string;
   code: string;
   my_role: Role;
+  /** A party (docs/PARTY.md) has its own screen (absent from an older server: a room). */
+  kind?: 'room' | 'party';
   /** The language of the room's built-in questions (absent from an older server: French). */
   language?: 'fr' | 'en';
   /**
@@ -120,8 +123,22 @@ export type PackSummary = {
   language?: 'fr' | 'en';
 };
 export type Pack = Omit<PackSummary, 'count' | 'sample'> & { questions: { text: string; kind: 'pick' | 'rank' }[] };
-/** `muted`: no pushes from this room for me (absent from an older server). */
-export type RoomSummary = { id: number; name: string; role: Role; members: number; open_number: number | null; voted: boolean; unread: number; muted?: boolean; language?: 'fr' | 'en' };
+/** `muted`: no pushes from this room for me (absent from an older server). `kind`, `ends_at`: a party and when it ends (docs/PARTY.md). */
+export type RoomSummary = {
+  id: number;
+  name: string;
+  role: Role;
+  members: number;
+  open_number: number | null;
+  voted: boolean;
+  unread: number;
+  muted?: boolean;
+  language?: 'fr' | 'en';
+  kind?: 'room' | 'party';
+  ends_at?: string | null;
+  /** A party past its end: a read-only memory. */
+  over?: boolean;
+};
 export type HistoryItem = {
   id: number;
   number: number;

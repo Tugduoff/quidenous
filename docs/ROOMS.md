@@ -50,6 +50,10 @@ Two owner settings, both off by default (= the next question opens as soon as on
 
 A paced room that closes a question is *paused* (`groups.paused_at`, `next_open_at` = close + delay, null with no delay): nothing opens it (joins, new questions included) until the owner launches it, the deadline passes, or the owner switches pacing off. Both on: the owner can launch early, else it opens at the deadline. A scheduler task (every 20 s, first run at startup, so restarts lose nothing) opens due rooms and pushes "Nouvelle question". Changing the delay while waiting counts from the close. `GET /group` carries `pace: {waiting, next_open_at, round_id}`; the vote tab keeps that result up with "En attente du propriétaire", a countdown, or the owner's "Lancer la suivante". Older apps just see no open question until it opens.
 
+## Parties
+
+A party (`groups.kind = 'party'`) is a room for an evening in the same place: one question at a time with a countdown, guests without an account, "Suivante" taps. See `docs/PARTY.md`.
+
 ## Starting a room
 
 - A room with one active member opens no question: alone, there is nobody to vote for. The app shows an invite screen instead; the first question opens when the second person joins (code, link or "add a friend"), and the others get "Nouvelle question". A question left open when a room drops to one person stays open but can't be voted on (`409 alone`).
