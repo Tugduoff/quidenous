@@ -135,7 +135,7 @@ export default function FriendsScreen() {
       )}
       {data?.friends.map((f) => (
         <Card key={f.user_id} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12 }}>
-          <Avatar member={{ id: f.user_id, name: f.name, color: f.color, photo_url: f.photo_url } as Member} size={40} />
+          <Avatar member={{ id: f.user_id, name: f.name, color: f.color, photo_url: f.photo_url, avatar: f.avatar } as Member} size={40} />
           <View style={{ flex: 1, gap: 2 }}>
             <Text numberOfLines={1} style={{ fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>
               {f.name}

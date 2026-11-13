@@ -150,7 +150,7 @@ function Members() {
             <RowButton
               label={`Plus d'actions pour ${m.name}`}
               onPress={() =>
-                setTarget({ kind: 'member', id: m.id, person: { user_id: m.user_id, name: m.name, color: m.color, photo: m.photo_url } })
+                setTarget({ kind: 'member', id: m.id, person: { user_id: m.user_id, name: m.name, color: m.color, photo: m.photo_url, avatar: m.avatar } })
               }>
               <Ellipsis size={16} color={t.mut} />
             </RowButton>

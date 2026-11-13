@@ -43,14 +43,23 @@ pub async fn list(State(state): State<AppState>, UserId(me): UserId) -> AppResul
         .bind(me)
         .fetch_one(&state.db)
         .await?;
-    let rows: Vec<(i64, String, String, Option<String>, i64, bool)> = sqlx::query_as(
+    type Row = (
+        i64,
+        String,
+        String,
+        Option<String>,
+        Option<String>,
+        i64,
+        bool,
+    );
+    let rows: Vec<Row> = sqlx::query_as(
         "WITH shared AS ( \
              SELECT b.user_id AS uid, COUNT(DISTINCT a.group_id) AS rooms FROM members a \
              JOIN members b ON a.group_id = b.group_id AND b.user_id != a.user_id \
              JOIN groups g ON g.id = a.group_id AND g.deleted_at IS NULL \
              WHERE a.user_id = ?1 AND a.removed_at IS NULL AND b.removed_at IS NULL GROUP BY b.user_id), \
          added AS (SELECT friend_id AS uid FROM friends WHERE user_id = ?1) \
-         SELECT u.id, u.name, u.color, u.photo, COALESCE(s.rooms, 0), u.id IN (SELECT uid FROM added) \
+         SELECT u.id, u.name, u.color, u.photo, u.avatar, COALESCE(s.rooms, 0), u.id IN (SELECT uid FROM added) \
          FROM users u LEFT JOIN shared s ON s.uid = u.id \
          WHERE u.id IN (SELECT uid FROM shared UNION SELECT uid FROM added) \
          AND NOT EXISTS (SELECT 1 FROM blocks b WHERE b.user_id = ?1 AND b.blocked_id = u.id) \
@@ -61,9 +70,10 @@ pub async fn list(State(state): State<AppState>, UserId(me): UserId) -> AppResul
     .await?;
     let friends: Vec<Value> = rows
         .into_iter()
-        .map(|(id, name, color, photo, rooms, added)| {
+        .map(|(id, name, color, photo, avatar, rooms, added)| {
             json!({ "user_id": id, "name": name, "color": color,
-                    "photo_url": photo.map(|p| format!("/photos/{p}")), "rooms_in_common": rooms, "added": added })
+                    "photo_url": photo.map(|p| format!("/photos/{p}")), "avatar": avatar,
+                    "rooms_in_common": rooms, "added": added })
         })
         .collect();
     Ok(Json(json!({ "code": code, "friends": friends })))
@@ -197,18 +207,19 @@ pub async fn add_to_room(
                 .bind(room)
                 .fetch_one(&mut *tx)
                 .await?;
-            let (name, photo): (String, Option<String>) =
-                sqlx::query_as("SELECT name, photo FROM users WHERE id = ?")
+            let (name, photo, avatar): (String, Option<String>, Option<String>) =
+                sqlx::query_as("SELECT name, photo, avatar FROM users WHERE id = ?")
                     .bind(body.user_id)
                     .fetch_one(&mut *tx)
                     .await?;
             sqlx::query_scalar(
-                "INSERT INTO members (group_id, name, color, photo, token_hash, user_id) VALUES (?, ?, ?, ?, ?, ?) RETURNING id",
+                "INSERT INTO members (group_id, name, color, photo, avatar, token_hash, user_id) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id",
             )
             .bind(room)
             .bind(name)
             .bind(COLORS[count as usize % COLORS.len()])
             .bind(photo)
+            .bind(avatar)
             .bind(crate::auth::hash_token(&crate::auth::new_token()))
             .bind(body.user_id)
             .fetch_one(&mut *tx)

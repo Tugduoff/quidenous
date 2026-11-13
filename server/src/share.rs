@@ -2,7 +2,7 @@
 //! and `/s/{token}/card.png` the picture they show. Only the question, the room name and, if the sharer
 //! chose it, the podium (first names and counts) are visible. No votes, no other data.
 //! A token can also be a shared stat story: a frozen snapshot of its title, figure, punchline and the
-//! first names and colours of the people in it.
+//! first names, colours and drawn avatars of the people in it.
 
 use std::sync::{Arc, OnceLock};
 
@@ -94,16 +94,17 @@ pub async fn create_stat(
         .into_iter()
         .find(|st| st.key == body.key)
         .ok_or(AppError::NotFound)?;
-    let mut people: Vec<(String, String)> = Vec::new();
+    // Frozen as `[[first name, colour, avatar|null], ...]` (rows from before avatars have 2 items).
+    let mut people: Vec<(String, String, Option<String>)> = Vec::new();
     for id in &story.member_ids {
-        let (name, color): (String, String) =
-            sqlx::query_as("SELECT name, color FROM members WHERE id = ? AND group_id = ?")
+        let (name, color, avatar): (String, String, Option<String>) =
+            sqlx::query_as("SELECT name, color, avatar FROM members WHERE id = ? AND group_id = ?")
                 .bind(id)
                 .bind(me.group_id)
                 .fetch_one(&state.db)
                 .await?;
         let first = name.split_whitespace().next().unwrap_or("?").to_owned();
-        people.push((first, color));
+        people.push((first, color, avatar));
     }
     let token = crate::auth::new_token()[..12].to_owned();
     sqlx::query(
@@ -135,8 +136,14 @@ struct StatCard {
     title: String,
     big: String,
     line: String,
-    /// (first name, colour)
-    people: Vec<(String, String)>,
+    people: Vec<Person>,
+}
+
+/// Someone on a card: name, colour and drawn avatar (spec), if they have one.
+struct Person {
+    name: String,
+    color: String,
+    avatar: Option<String>,
 }
 
 struct QuestionCard {
@@ -144,8 +151,8 @@ struct QuestionCard {
     number: i64,
     question: String,
     rank: bool,
-    /// (name, color, value) for the top 3, when the sharer shows the result.
-    podium: Vec<(String, String, String)>,
+    /// The top 3 and their score, when the sharer shows the result.
+    podium: Vec<(Person, String)>,
 }
 
 async fn load(state: &AppState, token: &str) -> AppResult<Card> {
@@ -167,26 +174,34 @@ async fn load(state: &AppState, token: &str) -> AppResult<Card> {
     let member = |id: i64| {
         let db = state.db.clone();
         async move {
-            sqlx::query_as::<_, (String, String)>("SELECT name, color FROM members WHERE id = ?")
-                .bind(id)
-                .fetch_one(&db)
-                .await
-                .unwrap_or_else(|_| ("?".into(), "#8D8D99".into()))
+            let row = sqlx::query_as::<_, (String, String, Option<String>)>(
+                "SELECT name, color, avatar FROM members WHERE id = ?",
+            )
+            .bind(id)
+            .fetch_one(&db)
+            .await
+            .unwrap_or_else(|_| ("?".into(), "#8D8D99".into(), None));
+            Person {
+                name: row.0,
+                color: row.1,
+                avatar: row.2,
+            }
         }
     };
     let mut podium = Vec::new();
     if with_result && round.closed_at.is_some() {
         if round.kind == "rank" {
             for r in game::borda(&state.db, round_id).await?.into_iter().take(3) {
-                let (n, c) = member(r.member_id).await;
-                podium.push((n, c, format!("{} pts", r.points)));
+                podium.push((member(r.member_id).await, format!("{} pts", r.points)));
             }
         } else {
             let tallies = game::tallies(&state.db, round_id).await?;
             let total: i64 = tallies.iter().map(|t| t.count).sum::<i64>().max(1);
             for t in tallies.into_iter().take(3) {
-                let (n, c) = member(t.target_id).await;
-                podium.push((n, c, format!("{} %", t.count * 100 / total)));
+                podium.push((
+                    member(t.target_id).await,
+                    format!("{} %", t.count * 100 / total),
+                ));
             }
         }
     }
@@ -214,8 +229,23 @@ async fn load_stat(state: &AppState, token: &str) -> AppResult<StatCard> {
         title,
         big,
         line,
-        people: serde_json::from_str(&people).unwrap_or_default(),
+        people: parse_people(&people),
     })
+}
+
+/// `stat_shares.people`: `[[first name, colour, avatar|null], ...]`, or `[[first name, colour], ...]`
+/// for shares made before avatars.
+fn parse_people(json: &str) -> Vec<Person> {
+    let rows: Vec<Vec<Value>> = serde_json::from_str(json).unwrap_or_default();
+    rows.into_iter()
+        .filter_map(|row| {
+            Some(Person {
+                name: row.first()?.as_str()?.to_owned(),
+                color: row.get(1)?.as_str()?.to_owned(),
+                avatar: row.get(2).and_then(Value::as_str).map(str::to_owned),
+            })
+        })
+        .collect()
 }
 
 fn esc(s: &str) -> String {
@@ -275,6 +305,28 @@ fn footer() -> String {
     )
 }
 
+/// A person's round picture centred on (cx, cy): their drawn avatar, else their colour and initial.
+/// `id` must be unique in the card (it names the avatar's clipPath).
+fn face(p: &Person, cx: f32, cy: f32, r: f32, font: f32, id: &str) -> String {
+    if let Some(avatar) = p.avatar.as_deref().and_then(|a| crate::avatar::svg(a, id)) {
+        return format!(
+            r##"<g transform="translate({x} {y}) scale({s})">{avatar}</g>
+"##,
+            x = cx - r,
+            y = cy - r,
+            s = r * 2.0 / 100.0,
+        );
+    }
+    format!(
+        r##"<circle cx="{cx}" cy="{cy}" r="{r}" fill="{color}"/>
+<text x="{cx}" y="{iy}" text-anchor="middle" font-family="Inter" font-weight="700" font-size="{font}" fill="#121216">{initial}</text>
+"##,
+        iy = cy + (font * 0.35).round(),
+        color = esc(&p.color),
+        initial = esc(&initial(&p.name)),
+    )
+}
+
 fn initial(name: &str) -> String {
     name.chars()
         .next()
@@ -320,19 +372,14 @@ fn stat_svg(card: &StatCard) -> String {
     }
     let mut x = 70.0;
     let y = 528.0;
-    for (name, color) in &card.people {
-        let name: String = name.chars().take(14).collect();
+    for (i, person) in card.people.iter().enumerate() {
+        let name: String = person.name.chars().take(14).collect();
+        out.push_str(&face(person, x + 28.0, y, 28.0, 26.0, &format!("sa{i}")));
         out.push_str(&format!(
-            r##"<circle cx="{cx}" cy="{y}" r="28" fill="{color}"/>
-<text x="{cx}" y="{iy}" text-anchor="middle" font-family="Inter" font-weight="700" font-size="26" fill="#121216">{initial}</text>
-<text x="{nx}" y="{ny}" font-family="Inter" font-weight="700" font-size="28" fill="{TXT}">{name}</text>
+            r##"<text x="{nx}" y="{ny}" font-family="Inter" font-weight="700" font-size="28" fill="{TXT}">{name}</text>
 "##,
-            cx = x + 28.0,
-            iy = y + 9.0,
             nx = x + 70.0,
             ny = y + 10.0,
-            color = esc(color),
-            initial = esc(&initial(&name)),
             name = esc(&name),
         ));
         x += 70.0 + name.chars().count() as f32 * 17.0 + 48.0;
@@ -374,28 +421,32 @@ fn question_svg(card: &QuestionCard) -> String {
     if !card.podium.is_empty() {
         let y = 452.0;
         let medals = ["1", "2", "3"];
-        for (i, (name, color, value)) in card.podium.iter().enumerate() {
+        for (i, (person, value)) in card.podium.iter().enumerate() {
             let x = 70.0 + i as f32 * 360.0;
-            let initial = initial(name);
             out.push_str(&format!(
                 r##"<rect x="{x}" y="{y}" width="340" height="96" rx="26" fill="#1A1A21" stroke="{border}" stroke-width="{bw}"/>
-<circle cx="{cx}" cy="{cy}" r="30" fill="{color}"/>
-<text x="{cx}" y="{iy}" text-anchor="middle" font-family="Inter" font-weight="700" font-size="28" fill="#121216">{initial}</text>
-<text x="{nx}" y="{ny}" font-family="Inter" font-weight="700" font-size="28" fill="{txt}">{medal}. {name}</text>
+"##,
+                border = if i == 0 { esc(&person.color) } else { "#1A1A21".into() },
+                bw = if i == 0 { 3 } else { 0 },
+            ));
+            out.push_str(&face(
+                person,
+                x + 52.0,
+                y + 48.0,
+                30.0,
+                28.0,
+                &format!("qa{i}"),
+            ));
+            out.push_str(&format!(
+                r##"<text x="{nx}" y="{ny}" font-family="Inter" font-weight="700" font-size="28" fill="{txt}">{medal}. {name}</text>
 <text x="{nx}" y="{vy}" font-family="Inter" font-size="22" fill="{mut_}">{value}</text>
 "##,
-                border = if i == 0 { color.as_str() } else { "#1A1A21" },
-                bw = if i == 0 { 3 } else { 0 },
-                cx = x + 52.0,
-                cy = y + 48.0,
-                iy = y + 58.0,
                 nx = x + 98.0,
                 ny = y + 44.0,
                 vy = y + 74.0,
                 medal = medals[i],
-                name = esc(&name.chars().take(14).collect::<String>()),
+                name = esc(&person.name.chars().take(14).collect::<String>()),
                 value = esc(value),
-                color = esc(color),
             ));
         }
     }
@@ -524,8 +575,67 @@ fn question_desc(card: &QuestionCard) -> String {
         let names: Vec<String> = card
             .podium
             .iter()
-            .map(|(n, _, v)| format!("{n} ({v})"))
+            .map(|(p, v)| format!("{} ({v})", p.name))
             .collect();
         format!("Résultat : {}", names.join(", "))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn stat_people_old_and_new_forms() {
+        let old = parse_people(r##"[["Ana","#FF7A45"],["Bob","#5BC8FF"]]"##);
+        assert_eq!(old.len(), 2);
+        assert_eq!(
+            (old[1].name.as_str(), old[1].color.as_str()),
+            ("Bob", "#5BC8FF")
+        );
+        assert!(old.iter().all(|p| p.avatar.is_none()));
+        let new = parse_people(r##"[["Ana","#FF7A45","0.1"],["Bob","#5BC8FF",null]]"##);
+        assert_eq!(new[0].avatar.as_deref(), Some("0.1"));
+        assert!(new[1].avatar.is_none());
+        assert!(parse_people("nope").is_empty());
+        assert_eq!(parse_people(r##"[["Ana"],[1,2],["Bob","#000"]]"##).len(), 1);
+    }
+
+    #[test]
+    fn cards_with_avatars_render() {
+        let spec = crate::avatar::presets()[0].clone();
+        let people = |n: usize| -> Vec<Person> {
+            (0..n)
+                .map(|i| Person {
+                    name: format!("P{i}"),
+                    color: "#FF7A45".into(),
+                    // Every other one drawn; a stale spec falls back to the initial.
+                    avatar: match i % 3 {
+                        0 => Some(spec.clone()),
+                        1 => None,
+                        _ => Some("9.9".into()),
+                    },
+                })
+                .collect()
+        };
+        let stat = Card::Stat(StatCard {
+            room: "Salon".into(),
+            title: "Titre".into(),
+            big: "42".into(),
+            line: "Une ligne".into(),
+            people: people(3),
+        });
+        let question = Card::Question(QuestionCard {
+            room: "Salon".into(),
+            number: 3,
+            question: "Qui ?".into(),
+            rank: false,
+            podium: people(3).into_iter().map(|p| (p, "50 %".into())).collect(),
+        });
+        for card in [stat, question] {
+            let svg = svg(&card);
+            assert_eq!(svg.matches("clipPath id=").count(), 1, "{svg}");
+            assert!(render(&card).is_some());
+        }
     }
 }

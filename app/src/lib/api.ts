@@ -38,7 +38,8 @@ export const setApiUrl = (url: string) => {
 };
 
 /** `left`: someone who left or was removed (kept for names and photos in the history). */
-export type Member = { id: number; name: string; color: string; photo_url: string | null; left?: boolean };
+/** `avatar`: a drawn avatar's spec (lib/avatar.ts), only when there is no photo. */
+export type Member = { id: number; name: string; color: string; photo_url: string | null; avatar?: string | null; left?: boolean };
 export type Tally = { target_id: number; count: number; voter_ids: number[] };
 export type Round = {
   id: number;
@@ -93,7 +94,15 @@ export type Group = {
 };
 /** A tone for a room's built-in questions; `icon` is a lucide name in kebab-case. */
 export type Vibe = { id: string; name: string; icon: string; description: string };
-export type Friend = { user_id: number; name: string; color: string; photo_url: string | null; rooms_in_common: number; added: boolean };
+export type Friend = {
+  user_id: number;
+  name: string;
+  color: string;
+  photo_url: string | null;
+  avatar?: string | null;
+  rooms_in_common: number;
+  added: boolean;
+};
 export type PackSummary = { id: number; name: string; description: string; author: string; installs: number; count: number; mine: boolean; sample: string[] };
 export type Pack = Omit<PackSummary, 'count' | 'sample'> & { questions: { text: string; kind: 'pick' | 'rank' }[] };
 /** `muted`: no pushes from this room for me (absent from an older server). */

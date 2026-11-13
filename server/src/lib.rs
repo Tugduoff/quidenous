@@ -1,5 +1,6 @@
 pub mod accounts;
 pub mod auth;
+pub mod avatar;
 pub mod config;
 pub mod deck;
 pub mod error;

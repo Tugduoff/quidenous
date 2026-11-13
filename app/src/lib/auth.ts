@@ -85,6 +85,8 @@ export function useFeatures() {
     askQuestions: on.has('ask_questions'),
     /** Per-account push settings (`/notifications`) and muting a room (`/rooms/{id}/mute`). */
     notificationSettings: on.has('notification_settings'),
+    /** Drawn avatars (`PUT /me/avatar`). */
+    avatars: on.has('avatars'),
   };
 }
 

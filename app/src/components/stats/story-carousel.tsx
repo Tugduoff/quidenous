@@ -6,6 +6,7 @@ import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
 import { Avatar, PressableScale } from '@/components/ui';
 import { type Member, photoUrl, type StatsPeriod, type Story } from '@/lib/api';
+import { parseAvatar } from '@/lib/avatar';
 import { motion } from '@/lib/motion';
 import { shareStory } from '@/lib/share';
 import { useTheme } from '@/lib/theme';
@@ -87,7 +88,7 @@ function StoryCard({
           {people.slice(0, 2).map((m, i) => (
             <View key={m.id} style={{ marginLeft: i ? -14 : 0, borderRadius: 40, borderWidth: 3, borderColor: i ? b : a }}>
               {/* On their own colour a plain avatar would vanish: initials go ink-on-colour reversed. */}
-              {photoUrl(m) ? (
+              {photoUrl(m) || parseAvatar(m.avatar) ? (
                 <Avatar member={m} size={56} />
               ) : (
                 <View style={{ width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center', backgroundColor: INK }}>

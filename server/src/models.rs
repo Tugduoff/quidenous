@@ -16,6 +16,9 @@ pub struct MemberRow {
     /// The seat ended because they left (not removed): the invite code brings them back.
     #[sqlx(default)]
     pub left_by_self: bool,
+    /// Drawn avatar spec (see `avatar`), instead of a photo.
+    #[sqlx(default)]
+    pub avatar: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -24,6 +27,8 @@ pub struct Member {
     pub name: String,
     pub color: String,
     pub photo_url: Option<String>,
+    /// Drawn avatar spec; old apps ignore it and show the initial.
+    pub avatar: Option<String>,
 }
 
 impl From<&MemberRow> for Member {
@@ -33,6 +38,7 @@ impl From<&MemberRow> for Member {
             name: m.name.clone(),
             color: m.color.clone(),
             photo_url: m.photo.as_ref().map(|p| format!("/photos/{p}")),
+            avatar: m.avatar.clone(),
         }
     }
 }
