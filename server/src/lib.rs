@@ -10,6 +10,7 @@ pub mod live;
 pub mod models;
 pub mod moderation;
 pub mod notifications;
+pub mod pacing;
 pub mod packs;
 pub mod push;
 pub mod rooms;

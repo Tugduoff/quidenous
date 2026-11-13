@@ -5,6 +5,23 @@ import { useEffect, useRef } from 'react';
 import { api, setApiRoom, type RoomSummary } from './api';
 import { useSession } from './session';
 
+/** After leaving or deleting the current room: on to another room I'm in, else the room list. */
+export function useRoomGone() {
+  const qc = useQueryClient();
+  const { setRoom } = useSession();
+  return async () => {
+    await setRoom(null);
+    qc.clear();
+    const rooms = await api<{ id: number }[]>('/rooms').catch(() => []);
+    // From a page deep in the stack (the room's settings): back to the bottom first.
+    if (router.canDismiss()) router.dismissAll();
+    if (rooms.length) {
+      await setRoom(rooms[0].id);
+      router.replace('/');
+    } else router.replace('/rooms');
+  };
+}
+
 /** Switch the whole app to another room: every cached screen belongs to the old one. */
 export function useSwitchRoom() {
   const qc = useQueryClient();

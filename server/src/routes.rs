@@ -101,6 +101,7 @@ pub fn router() -> Router<AppState> {
         .route("/rooms/{id}/code", post(crate::rooms::rotate_code))
         .route("/rooms/{id}/owner", post(crate::rooms::transfer))
         .route("/rooms/{id}/leave", post(crate::rooms::leave))
+        .route("/rooms/{id}/next", post(crate::pacing::launch))
         .route(
             "/rooms/{id}/members/{member_id}",
             axum::routing::delete(crate::rooms::force_remove),
@@ -423,10 +424,20 @@ async fn upload_photo(
 }
 
 async fn group(State(state): State<AppState>, Me(me): Me) -> AppResult<Json<Value>> {
-    type Settings = (String, String, bool, bool, String, Option<String>);
-    let (name, code, skip_vote, kick_vote, questions_by, vibe): Settings = sqlx::query_as(
-        "SELECT name, join_code, skip_vote, kick_vote, questions_by, vibe FROM groups WHERE id = ?",
-    )
+    type Settings = (
+        String,
+        String,
+        bool,
+        bool,
+        String,
+        Option<String>,
+        bool,
+        i64,
+    );
+    let (name, code, skip_vote, kick_vote, questions_by, vibe, owner_next, next_delay): Settings =
+        sqlx::query_as(
+            "SELECT name, join_code, skip_vote, kick_vote, questions_by, vibe, owner_next, next_delay FROM groups WHERE id = ?",
+        )
     .bind(me.group_id)
     .fetch_one(&state.db)
     .await?;
@@ -466,7 +477,9 @@ async fn group(State(state): State<AppState>, Me(me): Me) -> AppResult<Json<Valu
         "name": name,
         "code": code,
         "my_role": me.role,
-        "settings": { "skip_vote": skip_vote, "kick_vote": kick_vote, "questions_by": questions_by, "vibe": vibe },
+        "settings": { "skip_vote": skip_vote, "kick_vote": kick_vote, "questions_by": questions_by, "vibe": vibe,
+                      "owner_next": owner_next, "next_delay": next_delay },
+        "pace": crate::pacing::view(&state, me.group_id).await?,
         "members": members,
         "former": former,
         "kicks": kicks,

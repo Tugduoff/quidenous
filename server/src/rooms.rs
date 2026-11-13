@@ -247,9 +247,13 @@ pub struct SettingsBody {
     questions_by: Option<String>,
     /// A vibe id, or "" for none.
     vibe: Option<String>,
+    /// Only the owner launches the next question.
+    owner_next: Option<bool>,
+    /// Seconds to wait after a close before the next question opens (one of `pacing::DELAYS`).
+    next_delay: Option<i64>,
 }
 
-/// Owner only: rename, turn majority skip/removal on or off, who can add questions.
+/// Owner only: rename, turn majority skip/removal on or off, who can add questions, vibe, pacing.
 pub async fn update(
     State(state): State<AppState>,
     UserId(user): UserId,
@@ -295,6 +299,23 @@ pub async fn update(
             .bind(room)
             .execute(&state.db)
             .await?;
+    }
+    if body
+        .next_delay
+        .is_some_and(|d| !crate::pacing::DELAYS.contains(&d))
+    {
+        return Err(AppError::BadRequest("bad_setting"));
+    }
+    if body.owner_next.is_some() || body.next_delay.is_some() {
+        sqlx::query(
+            "UPDATE groups SET owner_next = COALESCE(?, owner_next), next_delay = COALESCE(?, next_delay) WHERE id = ?",
+        )
+        .bind(body.owner_next)
+        .bind(body.next_delay)
+        .bind(room)
+        .execute(&state.db)
+        .await?;
+        crate::pacing::settings_changed(&state, room).await?;
     }
     state.live.send(room, Event::RoomUpdated);
     Ok(Json(json!({ "ok": true })))

@@ -38,7 +38,16 @@ Status: design, 2026-11-11. Built in phases so the live group never breaks and o
 
 A majority is more than half of the other members (the target doesn't count), and never one person alone. Whenever an owner seat ends (leaving, removal, account deletion) the oldest remaining member becomes owner; rooms left without one are repaired at startup. People who left stay in `/group` as `former` (flagged `left`) so the history, awards and chat keep their name and photo.
 
-Settings per room: majority skip on/off, majority removal on/off, who can add or import questions (everyone / owner).
+Settings per room: majority skip on/off, majority removal on/off, who can add or import questions (everyone / owner), pacing (below). In the app they live on the owner's "Paramètres du salon" screen (gear on the room page).
+
+## Pacing
+
+Two owner settings, both off by default (= the next question opens as soon as one closes):
+
+- `owner_next`: only the owner launches the next question (`POST /rooms/{id}/next`, `403 owner_next_off` when off, `409 not_waiting` when nothing waits). Whoever is owner at the time can.
+- `next_delay`: seconds to wait after a close (0, 900, 3600, 10800, 43200, 86400).
+
+A paced room that closes a question is *paused* (`groups.paused_at`, `next_open_at` = close + delay, null with no delay): nothing opens it (joins, new questions included) until the owner launches it, the deadline passes, or the owner switches pacing off. Both on: the owner can launch early, else it opens at the deadline. A scheduler task (every 20 s, first run at startup, so restarts lose nothing) opens due rooms and pushes "Nouvelle question". Changing the delay while waiting counts from the close. `GET /group` carries `pace: {waiting, next_open_at, round_id}`; the vote tab keeps that result up with "En attente du propriétaire", a countdown, or the owner's "Lancer la suivante". Older apps just see no open question until it opens.
 
 ## Starting a room
 

@@ -7,3 +7,10 @@ export function ago(iso: string) {
   if (s < 172800) return 'hier';
   return new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short' }).format(new Date(iso));
 }
+
+/** Time left until `iso`: "2 h 05", "14 min", "1 min" (never below a minute). */
+export function until(iso: string, now = Date.now()) {
+  const min = Math.max(1, Math.ceil((new Date(iso).getTime() - now) / 60000));
+  if (min < 60) return `${min} min`;
+  return `${Math.floor(min / 60)} h ${String(min % 60).padStart(2, '0')}`;
+}
