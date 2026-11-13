@@ -161,7 +161,7 @@ Migration `0016_play.sql` (store readiness): `users.deleted_at`, `auth_codes.kin
 **Deleting an account** — from the app (Profile > Sécurité > Supprimer mon compte) or from the public page `/delete-account` (server-rendered, French, inline form: email → 6-digit code → confirm; accounts without an email are told to use the app or write to contact@coflop.fr). What happens:
 
 1. Every active seat is given up like `/rooms/{id}/leave` (`rooms::leave_seat`): an owner hands over to the oldest other active member, alone = the room is deleted.
-2. One transaction: their chat messages and the inbox entries they received or caused are deleted; every seat they ever had is anonymised (`Compte supprimé`, no photo, `user_id` NULL, `removed_at` set); sessions, recovery codes, providers, auth codes, push subscriptions, friends and blocks (both ways) are deleted; the `users` row stays (votes, packs and reports point at it) but is scrubbed: `Compte supprimé`, no email / password / 2FA / photo, an untypeable friend code, `deleted_at` set.
+2. One transaction: their chat messages and the inbox entries they received or caused are deleted; every seat they ever had is anonymised (`Compte supprimé`, no photo, `user_id` NULL, `removed_at` set); sessions, recovery codes, providers, auth codes, push subscriptions, friends and blocks (both ways) are deleted; the `users` row stays (votes, packs and reports point at it) but is scrubbed: `Compte supprimé`, no email / password / 2FA / photo / avatar, an untypeable friend code, `deleted_at` set.
 3. Photo files are removed from `DATA_DIR/photos`.
 
 Votes, rankings, rounds, questions they added and packs they published stay, so the others' history and stats still add up (the seat is renamed `Compte supprimé`; the app shows removed members without a name, like anyone who left). Reports they filed are kept. The email is free again afterwards.
@@ -176,7 +176,7 @@ Votes, rankings, rounds, questions they added and packs they published stay, so 
 | `POST /auth/delete/send` | | `email` | `{sent: true}` always (nothing sent for an unknown email) · `bad_email`, `503 email_not_configured` |
 | `POST /auth/delete/confirm` | | `email, code` | `{deleted: true}` · `bad_code`, `expired` (30 min, 5 tries, single use) |
 | `POST /reports` | yes | `kind` (`message`/`member`/`question`), `id`, `reason` (`offensive`/`harassment`/`sexual`/`spam`/`other`), `details?` (≤ 500) | `{ok}` (also for a repeat) · `bad_report` (unknown kind / reason, details too long), `bad_target` (myself), `404 not_found` (unknown, or not in a room of mine), `429` |
-| `GET /blocks` | yes | | `[{user_id, name, color, photo, photo_url}]` (`photo` = `photo_url` = `/photos/…` or null) |
+| `GET /blocks` | yes | | `[{user_id, name, color, photo, photo_url, avatar}]` (`photo` = `photo_url` = `/photos/…` or null) |
 | `PUT /blocks/{user_id}` | yes | | `{ok}` (idempotent) · `bad_target` (myself), `404 not_found` (unknown or deleted) |
 | `DELETE /blocks/{user_id}` | yes | | `{ok}` |
 
