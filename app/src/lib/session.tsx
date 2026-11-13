@@ -4,6 +4,7 @@ import { createContext, type PropsWithChildren, useContext, useEffect, useState 
 import { API_URL, api, ApiError, apiRoom, presetRoom, setApiRoom, setApiToken, setApiUrl, setOnSignedOut, type Member } from './api';
 import { auth, pendingJoinCode, setPendingCode, type SessionResult } from './auth';
 import { deviceHeader } from './device';
+import { adoptAccountLang, loadLang, syncLang } from './i18n';
 import { storage } from './storage';
 
 const TOKEN_KEY = 'qdn.token';
@@ -81,6 +82,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
       const server = await storage.get(SERVER_KEY);
       if (server) setApiUrl(server);
       const saved = await storage.get(TOKEN_KEY);
+      await loadLang(!!saved);
       const savedRoom = Number(await storage.get(ROOM_KEY)) || null;
       // A tapped notification (web) names its room: opened in it from the first request, nothing to refetch.
       const preset = presetRoom();
@@ -94,6 +96,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
           await storage.remove(TOKEN_KEY);
         } else {
           if (typeof found === 'object') setMe(found);
+          if (found !== 'offline') syncLang();
           setRoomless(found === 'no_room');
           setRoomState(apiRoom());
           setToken(saved); // offline too: keep the session
@@ -117,6 +120,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
     setApiToken(res.token);
     setToken(res.token);
     setMe(res.member);
+    syncLang();
   };
 
   const signIn = async (res: SessionResult) => {
@@ -137,6 +141,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
     }
     const found = await loadMe();
     if (found === 'out') throw new ApiError(401, 'unauthorized');
+    adoptAccountLang();
     // Set together: the screens switch once, straight to the right one.
     setMe(typeof found === 'object' ? found : null);
     setRoomless(found === 'no_room');

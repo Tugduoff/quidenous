@@ -104,14 +104,14 @@ export function useScheme(): 'light' | 'dark' {
   return chosen === 'system' ? (system === 'light' ? 'light' : 'dark') : chosen;
 }
 
-/** Accent colour, independent of light/dark: buttons, highlights, selections. */
+/** Accent colour, independent of light/dark: buttons, highlights, selections. Names: `profile.accents.<key>`. */
 export const ACCENTS = {
-  lime: { label: 'Citron', acc: '#C8FF3D', inkDark: '#C8FF3D', inkLight: '#4F7D00', softDark: '#1F2412', softLight: '#F1FFD0' },
-  rose: { label: 'Rose', acc: '#FF6DB5', inkDark: '#FF6DB5', inkLight: '#C2186B', softDark: '#2A1220', softLight: '#FFE3F0' },
-  bleu: { label: 'Bleu', acc: '#5AC8FA', inkDark: '#5AC8FA', inkLight: '#0A6FA8', softDark: '#0F2230', softLight: '#DFF4FF' },
-  orange: { label: 'Orange', acc: '#FFB547', inkDark: '#FFB547', inkLight: '#B26A00', softDark: '#2A1E0B', softLight: '#FFF0D6' },
-  violet: { label: 'Violet', acc: '#B48CFF', inkDark: '#C2A3FF', inkLight: '#6A3FD0', softDark: '#1E1830', softLight: '#EFE7FF' },
-  menthe: { label: 'Menthe', acc: '#5EF2B0', inkDark: '#5EF2B0', inkLight: '#0F8A5A', softDark: '#0F2A20', softLight: '#DDFBEE' },
+  lime: { acc: '#C8FF3D', inkDark: '#C8FF3D', inkLight: '#4F7D00', softDark: '#1F2412', softLight: '#F1FFD0' },
+  rose: { acc: '#FF6DB5', inkDark: '#FF6DB5', inkLight: '#C2186B', softDark: '#2A1220', softLight: '#FFE3F0' },
+  bleu: { acc: '#5AC8FA', inkDark: '#5AC8FA', inkLight: '#0A6FA8', softDark: '#0F2230', softLight: '#DFF4FF' },
+  orange: { acc: '#FFB547', inkDark: '#FFB547', inkLight: '#B26A00', softDark: '#2A1E0B', softLight: '#FFF0D6' },
+  violet: { acc: '#B48CFF', inkDark: '#C2A3FF', inkLight: '#6A3FD0', softDark: '#1E1830', softLight: '#EFE7FF' },
+  menthe: { acc: '#5EF2B0', inkDark: '#5EF2B0', inkLight: '#0F8A5A', softDark: '#0F2A20', softLight: '#DDFBEE' },
 } as const;
 export type Accent = keyof typeof ACCENTS;
 

@@ -1,7 +1,13 @@
-import type { Member } from './api';
+import { en } from '@/locales/en';
+import { fr } from '@/locales/fr';
 
-/** The whole-room token: pings everyone in the room. */
-export const EVERYONE = 'tous';
+import type { Member } from './api';
+import { t } from './i18n';
+
+/** The whole-room token in the app's language (`tous`, `everyone`): pings everyone in the room. */
+export const everyone = () => t('chat.everyone');
+/** Every language's word: a message written in either one shows (and pings) the whole room. */
+const EVERYONE_WORDS = [...new Set([fr.chat.everyone, en.chat.everyone])];
 
 /** Lower case, no accents: "Éloïse" → "eloise". */
 export const fold = (s: string) => (typeof s.normalize === 'function' ? s.normalize('NFD').replace(/[\u0300-\u036f]/g, '') : s).toLowerCase();
@@ -54,7 +60,7 @@ export function outgoing(text: string, picked: number[], members: Member[]) {
     const twins = members.filter((x) => fold(x.name) === fold(m.name)).length;
     if (twins === 1 && hasToken(text, `@${m.name}`)) ids.add(m.id);
   }
-  return { mentions: [...ids], everyone: hasToken(text, `@${EVERYONE}`) };
+  return { mentions: [...ids], everyone: EVERYONE_WORDS.some((w) => hasToken(text, `@${w}`)) };
 }
 
 export type Segment = { text: string; member?: Member; everyone?: boolean };
@@ -62,7 +68,7 @@ export type Segment = { text: string; member?: Member; everyone?: boolean };
 /** Splits a message into plain text and mentions. Longest names first, so "@Louis-Marie" isn't read as "@Louis". */
 export function segments(text: string, mentioned: Member[], everyone: boolean): Segment[] {
   const tokens: { token: string; member?: Member }[] = mentioned.filter((m) => m.name.trim()).map((m) => ({ token: `@${m.name}`, member: m }));
-  if (everyone) tokens.push({ token: `@${EVERYONE}` });
+  if (everyone) for (const w of EVERYONE_WORDS) tokens.push({ token: `@${w}` });
   if (!tokens.length) return [{ text }];
   tokens.sort((a, b) => b.token.length - a.token.length);
   const out: Segment[] = [];

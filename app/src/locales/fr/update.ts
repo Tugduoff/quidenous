@@ -1,0 +1,20 @@
+/** Updates: the APK dialog, the version line in the profile, the over-the-air toast (components/update.tsx). */
+export const update = {
+  title: 'Mise à jour',
+  megabytes: '{size} Mo',
+  blocked: 'Bloquée ? Autorise l’app à installer des mises à jour.',
+  settings: 'Réglages',
+  downloadFailed: 'Téléchargement impossible',
+  later: 'Plus tard',
+  install: 'Installer',
+  percent: '{percent} %',
+  checking: 'Vérification…',
+  latest: 'À jour',
+  checkFailed: 'Vérification impossible',
+  available: 'Mise à jour {version}',
+  check: 'Vérifier les mises à jour',
+  version: 'Version {version}',
+  ready: 'Nouvelle version prête',
+  restart: 'Relancer',
+  hide: 'Masquer',
+};

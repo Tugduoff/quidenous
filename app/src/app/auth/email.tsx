@@ -4,9 +4,11 @@ import { useState } from 'react';
 import { AuthScreen, ErrorText, Field } from '@/components/auth-ui';
 import { Button } from '@/components/ui';
 import { auth, authError, flow, looksLikeEmail } from '@/lib/auth';
+import { useT } from '@/lib/i18n';
 
 /** Step 1: the email. The next step signs in or signs up, whichever fits. */
 export default function EmailStep() {
+  const tr = useT();
   const [email, setEmail] = useState(flow.email);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -31,15 +33,15 @@ export default function EmailStep() {
 
   return (
     <AuthScreen
-      title="Ton e-mail"
+      title={tr('auth.email.title')}
       footer={
         <Button onPress={submit} loading={busy} disabled={!ok}>
-          Continuer
+          {tr('common.continue')}
         </Button>
       }>
       <Field
-        placeholder="toi@exemple.fr"
-        accessibilityLabel="E-mail"
+        placeholder={tr('auth.emailPlaceholder')}
+        accessibilityLabel={tr('auth.emailLabel')}
         value={email}
         onChangeText={setEmail}
         keyboardType="email-address"

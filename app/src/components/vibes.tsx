@@ -3,6 +3,7 @@ import { Text, View } from 'react-native';
 
 import { PressableScale } from '@/components/ui';
 import type { Vibe } from '@/lib/api';
+import { t as tr, useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 
 /** The server names icons in lucide's kebab-case; one this version doesn't know gets sparkles. */
@@ -22,9 +23,16 @@ const ICONS: Record<string, LucideIcon> = {
 
 export const vibeIcon = (name: string | undefined): LucideIcon => (name && ICONS[name]) || Sparkles;
 
+/** The server's vibes (server/deck/vibes.json) come in French: the app has them in each language. A newer one keeps the server's text. */
+const KNOWN = ['potes', 'pimente', 'boulot', 'famille'] as const;
+const known = (id: string): id is (typeof KNOWN)[number] => (KNOWN as readonly string[]).includes(id);
+export const vibeName = (v: Vibe) => (known(v.id) ? tr(`room.vibes.${v.id}.name`) : v.name);
+export const vibeDescription = (v: Vibe) => (known(v.id) ? tr(`room.vibes.${v.id}.description`) : v.description);
+
 /** The tones as selectable cards (icon, name, one line). */
 export function VibeCards({ vibes, value, onChange }: { vibes: Vibe[]; value: string | null; onChange: (id: string) => void }) {
   const t = useTheme();
+  useT();
   return (
     <View style={{ gap: 10 }}>
       {vibes.map((v) => {
@@ -36,7 +44,7 @@ export function VibeCards({ vibes, value, onChange }: { vibes: Vibe[]; value: st
             scale={0.98}
             accessibilityRole="radio"
             accessibilityState={{ selected: on }}
-            accessibilityLabel={v.name}
+            accessibilityLabel={vibeName(v)}
             onPress={() => onChange(v.id)}
             style={[
               {
@@ -64,11 +72,11 @@ export function VibeCards({ vibes, value, onChange }: { vibes: Vibe[]; value: st
             </View>
             <View style={{ flex: 1, gap: 2 }}>
               <Text numberOfLines={1} style={{ fontFamily: t.font.bold, fontSize: 16, color: t.txt }}>
-                {v.name}
+                {vibeName(v)}
               </Text>
-              {!!v.description && (
+              {!!vibeDescription(v) && (
                 <Text numberOfLines={2} style={{ fontFamily: t.font.regular, fontSize: 13, lineHeight: 18, color: t.mut }}>
-                  {v.description}
+                  {vibeDescription(v)}
                 </Text>
               )}
             </View>

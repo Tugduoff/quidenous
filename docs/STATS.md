@@ -26,9 +26,9 @@ type QuestionRef = { round_id: number; number: number; question: string; kind: '
 type Story = {
   key: string;              // award key it comes from (see table), unique in the list
   icon: string;             // lucide icon name, kebab-case, from the table below
-  title: string;            // the award title
-  big: string;              // the big figure: "14", "6 d'affilée", "3 h 12"
-  line: string;             // one punchline, French, <= 90 chars, names already in it
+  title: string;            // the award title, in the reader's language
+  big: string;              // the big figure: "14", "6 d'affilée" / "6 in a row", "3 h 12"
+  line: string;             // one punchline, French or English (the reader's `users.locale`), <= 90 chars, names already in it
   member_ids: number[];     // 0, 1 or 2 members shown with their photo
   round_id?: number;        // question stories
 };
@@ -121,7 +121,7 @@ ranked, 1st gets N points); a ranking question nobody ranked on (old apps only) 
 
 The server picks up to 6 stories from the awards above, funniest first (streak >= 3, comeback, narcissist, crush,
 twins, contrarian, kingmaker, night owl, slowest, hottest, most_split, then the rest), skipping awards that are null
-and never using the same member in more than 2 stories. Copy is French, short, cheeky, never mean. Rooms with the
+and never using the same member in more than 2 stories. Copy is French or English, the reader's language (`users.locale`; a shared story keeps the sharer's), short, cheeky, never mean. Rooms with the
 `pimente` vibe (16+) get spicier lines for some stories.
 
 The rest, in order: loyal (unless it is the same pair as the crush), longest_streak (unless it is the current streak),

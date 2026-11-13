@@ -6,6 +6,7 @@ import { Platform, View, type ViewStyle } from 'react-native';
 import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSpring } from 'react-native-reanimated';
 
 import { Celebration } from '@/components/celebration';
+import { useT } from '@/lib/i18n';
 import { useMilestone } from '@/lib/milestones';
 import { BOUNCE, SPRING, usePop } from '@/lib/motion';
 import { useTheme } from '@/lib/theme';
@@ -41,6 +42,7 @@ function TabIcon({ Icon, focused }: { Icon: Icon; focused: boolean }) {
 
 export default function TabsLayout() {
   const t = useTheme();
+  const tr = useT();
   const { milestone, dismiss } = useMilestone();
   const reduced = useReducedMotion();
   const tab = (Icon: Icon, label: string) => ({
@@ -60,10 +62,10 @@ export default function TabsLayout() {
           tabBarStyle: [{ backgroundColor: t.bg, borderTopColor: t.line }, Platform.OS === 'web' && WEB_TAB_BAR],
           tabBarItemStyle: { paddingTop: 6 },
         }}>
-        <Tabs.Screen name="index" options={tab(Vote, 'Vote')} />
-        <Tabs.Screen name="history" options={tab(History, 'Historique')} />
-        <Tabs.Screen name="stats" options={tab(ChartNoAxesColumn, 'Stats')} />
-        <Tabs.Screen name="questions" options={tab(MessageCircleQuestion, 'Questions')} />
+        <Tabs.Screen name="index" options={tab(Vote, tr('vote.tabs.vote'))} />
+        <Tabs.Screen name="history" options={tab(History, tr('vote.tabs.history'))} />
+        <Tabs.Screen name="stats" options={tab(ChartNoAxesColumn, tr('vote.tabs.stats'))} />
+        <Tabs.Screen name="questions" options={tab(MessageCircleQuestion, tr('vote.tabs.questions'))} />
       </Tabs>
       {milestone != null && <Celebration key={milestone} count={milestone} onDone={dismiss} />}
     </View>

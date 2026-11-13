@@ -7,14 +7,13 @@ import Animated from 'react-native-reanimated';
 import { Screen } from '@/components/screen';
 import { Avatar, AvatarStack, avatarStackWidth, Display, PressableScale, QuestionText } from '@/components/ui';
 import type { HistoryItem, Member } from '@/lib/api';
+import { dateFormat, t as translate, useT } from '@/lib/i18n';
 import { isMilestone } from '@/lib/milestones';
 import { motion } from '@/lib/motion';
 import { downloadHistory } from '@/lib/share';
 import { useHistory, useMembers, usePinned } from '@/lib/queries';
 import { useTheme } from '@/lib/theme';
 
-const DAY = new Intl.DateTimeFormat('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
-const DAY_YEAR = new Intl.DateTimeFormat('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 /** Solo winner size; tied faces are 4 px smaller so that with their 2 px ring they match it. */
 const SOLO = 44;
 const TIED = 40;
@@ -26,9 +25,10 @@ const dayKey = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
 function dayLabel(d: Date) {
   const now = new Date();
   const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
-  if (dayKey(d) === dayKey(now)) return "Aujourd'hui";
-  if (dayKey(d) === dayKey(yesterday)) return 'Hier';
-  const label = (d.getFullYear() === now.getFullYear() ? DAY : DAY_YEAR).format(d);
+  if (dayKey(d) === dayKey(now)) return translate('history.today');
+  if (dayKey(d) === dayKey(yesterday)) return translate('history.yesterday');
+  const sameYear = d.getFullYear() === now.getFullYear();
+  const label = dateFormat({ weekday: 'long', day: 'numeric', month: 'long', ...(sameYear ? {} : { year: 'numeric' }) }).format(d);
   return label[0].toUpperCase() + label.slice(1);
 }
 
@@ -105,14 +105,15 @@ function SectionLabel({ children }: { children: string }) {
 /** No result yet: one line, and the way back to the vote. */
 function Empty() {
   const t = useTheme();
+  const tr = useT();
   return (
     <Animated.View entering={motion.enter} style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, paddingBottom: 60 }}>
       <View style={{ width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card }}>
         <Hourglass size={24} color={t.mut} />
       </View>
-      <Text style={{ fontFamily: t.font.semibold, fontSize: 15, color: t.mut, textAlign: 'center' }}>Les résultats arriveront ici.</Text>
+      <Text style={{ fontFamily: t.font.semibold, fontSize: 15, color: t.mut, textAlign: 'center' }}>{tr('history.empty')}</Text>
       <Pressable accessibilityRole="button" onPress={() => router.navigate('/')} hitSlop={8}>
-        <Text style={{ fontFamily: t.font.semibold, fontSize: 15, color: t.accInk }}>Aller voter</Text>
+        <Text style={{ fontFamily: t.font.semibold, fontSize: 15, color: t.accInk }}>{tr('history.goVote')}</Text>
       </Pressable>
     </Animated.View>
   );
@@ -120,6 +121,7 @@ function Empty() {
 
 export default function HistoryScreen() {
   const t = useTheme();
+  const tr = useT();
   const history = useHistory();
   const { data: pinned } = usePinned();
   const data = history.data?.pages.flat();
@@ -145,12 +147,12 @@ export default function HistoryScreen() {
   return (
     <Screen onEndReached={more}>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Display size={30}>Historique</Display>
+        <Display size={30}>{tr('history.title')}</Display>
         {/* Nothing to export yet. */}
         {!!(data?.length || pinned?.length) && (
           <PressableScale
             accessibilityRole="button"
-            accessibilityLabel="Exporter l'historique"
+            accessibilityLabel={tr('history.export')}
             onPress={downloadHistory}
             hitSlop={8}
             style={[{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card }, t.shadow]}>
@@ -160,7 +162,7 @@ export default function HistoryScreen() {
       </View>
       {!!pinned?.length && (
         <View style={{ gap: 10 }}>
-          <SectionLabel>Épinglés</SectionLabel>
+          <SectionLabel>{tr('history.pinned')}</SectionLabel>
           {pinned.map((item) => (
             <HistoryCard key={item.id} item={item} lead={lead} byId={byId} order={order()} />
           ))}

@@ -3,6 +3,7 @@
 //! chose it, the podium (first names and counts) are visible. No votes, no other data.
 //! A token can also be a shared stat story: a frozen snapshot of its title, figure, punchline and the
 //! first names, colours and drawn avatars of the people in it.
+//! Cards and pages speak the sharer's language at share time (`shares.lang`, `stat_shares.lang`).
 
 use std::sync::{Arc, OnceLock};
 
@@ -19,7 +20,9 @@ use crate::{
     AppState,
     auth::Me,
     error::{AppError, AppResult},
-    game, stats,
+    game,
+    i18n::{self, Lang},
+    stats,
 };
 
 const W: u32 = 1200;
@@ -41,12 +44,14 @@ pub async fn create(
     let round = game::round(&state.db, me.group_id, round_id).await?;
     // A result can only be shown once the question is closed.
     let with_result = body.result && round.closed_at.is_some();
+    let lang = i18n::of_member(&state.db, me.id).await?;
     let existing: Option<String> = sqlx::query_scalar(
-        "SELECT token FROM shares WHERE round_id = ? AND member_id = ? AND with_result = ?",
+        "SELECT token FROM shares WHERE round_id = ? AND member_id = ? AND with_result = ? AND lang = ?",
     )
     .bind(round_id)
     .bind(me.id)
     .bind(with_result)
+    .bind(lang.as_str())
     .fetch_optional(&state.db)
     .await?;
     let token = match existing {
@@ -54,12 +59,13 @@ pub async fn create(
         None => {
             let t = crate::auth::new_token()[..12].to_owned();
             sqlx::query(
-                "INSERT INTO shares (token, round_id, member_id, with_result) VALUES (?, ?, ?, ?)",
+                "INSERT INTO shares (token, round_id, member_id, with_result, lang) VALUES (?, ?, ?, ?, ?)",
             )
             .bind(&t)
             .bind(round_id)
             .bind(me.id)
             .bind(with_result)
+            .bind(lang.as_str())
             .execute(&state.db)
             .await?;
             t
@@ -88,7 +94,8 @@ pub async fn create_stat(
 ) -> AppResult<Json<Value>> {
     let period = stats::Period::parse(body.period.as_deref())?;
     let tz = stats::clamp_tz(body.tz.unwrap_or(0));
-    let s = stats::for_group(&state.db, me.group_id, period, tz).await?;
+    let lang = i18n::of_member(&state.db, me.id).await?;
+    let s = stats::for_group_in(&state.db, me.group_id, period, tz, lang).await?;
     let story = s
         .stories
         .into_iter()
@@ -108,8 +115,8 @@ pub async fn create_stat(
     }
     let token = crate::auth::new_token()[..12].to_owned();
     sqlx::query(
-        "INSERT INTO stat_shares (token, group_id, member_id, key, title, big, line, people) \
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO stat_shares (token, group_id, member_id, key, title, big, line, people, lang) \
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&token)
     .bind(me.group_id)
@@ -119,6 +126,7 @@ pub async fn create_stat(
     .bind(&story.big)
     .bind(&story.line)
     .bind(json!(people).to_string())
+    .bind(lang.as_str())
     .execute(&state.db)
     .await?;
     Ok(Json(
@@ -131,7 +139,17 @@ enum Card {
     Stat(StatCard),
 }
 
+impl Card {
+    fn lang(&self) -> Lang {
+        match self {
+            Card::Question(c) => c.lang,
+            Card::Stat(c) => c.lang,
+        }
+    }
+}
+
 struct StatCard {
+    lang: Lang,
     room: String,
     title: String,
     big: String,
@@ -147,6 +165,7 @@ struct Person {
 }
 
 struct QuestionCard {
+    lang: Lang,
     room: String,
     number: i64,
     question: String,
@@ -156,16 +175,17 @@ struct QuestionCard {
 }
 
 async fn load(state: &AppState, token: &str) -> AppResult<Card> {
-    let question: Option<(i64, i64, bool)> = sqlx::query_as(
-        "SELECT s.round_id, r.group_id, s.with_result FROM shares s JOIN rounds r ON r.id = s.round_id \
+    let question: Option<(i64, i64, bool, String)> = sqlx::query_as(
+        "SELECT s.round_id, r.group_id, s.with_result, s.lang FROM shares s JOIN rounds r ON r.id = s.round_id \
          JOIN groups g ON g.id = r.group_id AND g.deleted_at IS NULL WHERE s.token = ?",
     )
     .bind(token)
     .fetch_optional(&state.db)
     .await?;
-    let Some((round_id, group_id, with_result)) = question else {
+    let Some((round_id, group_id, with_result, lang)) = question else {
         return load_stat(state, token).await.map(Card::Stat);
     };
+    let lang = Lang::from_db(Some(&lang));
     let round = game::round(&state.db, group_id, round_id).await?;
     let room: String = sqlx::query_scalar("SELECT name FROM groups WHERE id = ?")
         .bind(group_id)
@@ -192,7 +212,7 @@ async fn load(state: &AppState, token: &str) -> AppResult<Card> {
     if with_result && round.closed_at.is_some() {
         if round.kind == "rank" {
             for r in game::borda(&state.db, round_id).await?.into_iter().take(3) {
-                podium.push((member(r.member_id).await, format!("{} pts", r.points)));
+                podium.push((member(r.member_id).await, i18n::points(r.points)));
             }
         } else {
             let tallies = game::tallies(&state.db, round_id).await?;
@@ -200,12 +220,13 @@ async fn load(state: &AppState, token: &str) -> AppResult<Card> {
             for t in tallies.into_iter().take(3) {
                 podium.push((
                     member(t.target_id).await,
-                    format!("{} %", t.count * 100 / total),
+                    i18n::percent(lang, t.count * 100 / total),
                 ));
             }
         }
     }
     Ok(Card::Question(QuestionCard {
+        lang,
         room,
         number: round.number,
         question: round.text,
@@ -215,9 +236,9 @@ async fn load(state: &AppState, token: &str) -> AppResult<Card> {
 }
 
 async fn load_stat(state: &AppState, token: &str) -> AppResult<StatCard> {
-    let (room, title, big, line, people): (String, String, String, String, String) =
+    let (room, title, big, line, people, lang): (String, String, String, String, String, String) =
         sqlx::query_as(
-            "SELECT g.name, s.title, s.big, s.line, s.people FROM stat_shares s \
+            "SELECT g.name, s.title, s.big, s.line, s.people, s.lang FROM stat_shares s \
              JOIN groups g ON g.id = s.group_id AND g.deleted_at IS NULL WHERE s.token = ?",
         )
         .bind(token)
@@ -225,6 +246,7 @@ async fn load_stat(state: &AppState, token: &str) -> AppResult<StatCard> {
         .await?
         .ok_or(AppError::NotFound)?;
     Ok(StatCard {
+        lang: Lang::from_db(Some(&lang)),
         room,
         title,
         big,
@@ -297,11 +319,12 @@ fn frame(room: &str, tag: &str, tag_color: &str) -> String {
     )
 }
 
-fn footer() -> String {
+fn footer(lang: Lang) -> String {
     format!(
-        r##"<text x="70" y="{fy}" font-family="Inter" font-size="24" fill="{MUTED}">Joue avec tes potes sur qui de nous ?</text>
+        r##"<text x="70" y="{fy}" font-family="Inter" font-size="24" fill="{MUTED}">{text}</text>
 </svg>"##,
-        fy = H - 34
+        fy = H - 34,
+        text = esc(i18n::card_footer(lang)),
     )
 }
 
@@ -384,7 +407,7 @@ fn stat_svg(card: &StatCard) -> String {
         ));
         x += 70.0 + name.chars().count() as f32 * 17.0 + 48.0;
     }
-    out.push_str(&footer());
+    out.push_str(&footer(card.lang));
     out
 }
 
@@ -400,12 +423,12 @@ fn question_svg(card: &QuestionCard) -> String {
     }
     let tag = if card.podium.is_empty() {
         if card.rank {
-            format!("CLASSEMENT · #{}", card.number)
+            i18n::card_tag_rank(card.lang, card.number)
         } else {
-            format!("QUESTION · #{}", card.number)
+            i18n::card_tag_question(card.lang, card.number)
         }
     } else {
-        format!("RÉSULTAT · #{}", card.number)
+        i18n::card_tag_result(card.lang, card.number)
     };
     let tag_color = if card.podium.is_empty() { pink } else { lime };
     let mut out = frame(&card.room, &tag, tag_color);
@@ -450,7 +473,7 @@ fn question_svg(card: &QuestionCard) -> String {
             ));
         }
     }
-    out.push_str(&footer());
+    out.push_str(&footer(card.lang));
     out
 }
 
@@ -511,9 +534,14 @@ pub async fn page(
     headers: HeaderMap,
 ) -> Response {
     let Ok(card) = load(&state, &token).await else {
+        // Nobody to ask the language of: both.
         return (
             StatusCode::NOT_FOUND,
-            Html("<h1>Lien expiré</h1>".to_owned()),
+            Html(format!(
+                "<!doctype html><html lang=\"fr\"><head><meta charset=\"utf-8\"></head><body><h1>{}</h1><p lang=\"en\">{}</p></body></html>",
+                i18n::share_expired(Lang::Fr),
+                i18n::share_expired(Lang::En)
+            )),
         )
             .into_response();
     };
@@ -536,8 +564,9 @@ pub async fn page(
         Card::Question(c) => (c.question.clone(), question_desc(c)),
         Card::Stat(c) => (format!("{} · {}", c.title, c.big), c.line.clone()),
     };
+    let lang = card.lang();
     let html = format!(
-        r##"<!doctype html><html lang="fr"><head><meta charset="utf-8">
+        r##"<!doctype html><html lang="{lang}"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{q} · qui de nous ?</title>
 <meta property="og:type" content="website">
@@ -556,28 +585,28 @@ a{{display:block;width:100%;max-width:420px;text-align:center;padding:16px;borde
 .go{{background:#C8FF3D;color:#121216}} .alt{{color:#8D8D99}}
 </style></head><body>
 <img src="/s/{token}/card.png" alt="{q}">
-<a class="go" href="/">Ouvrir qui de nous ?</a>
-<a class="alt" href="/">Pas encore de salon ? Crée le tien, c'est gratuit</a>
+<a class="go" href="/">{open}</a>
+<a class="alt" href="/">{create}</a>
 </body></html>"##,
+        lang = lang.as_str(),
         q = esc(&title),
         d = esc(&desc),
+        open = esc(i18n::share_open(lang)),
+        create = esc(i18n::share_create(lang)),
     );
     Html(html).into_response()
 }
 
 fn question_desc(card: &QuestionCard) -> String {
     if card.podium.is_empty() {
-        format!(
-            "Question #{} dans « {} ». Et toi, tu votes pour qui ?",
-            card.number, card.room
-        )
+        i18n::share_question_desc(card.lang, card.number, &card.room)
     } else {
         let names: Vec<String> = card
             .podium
             .iter()
             .map(|(p, v)| format!("{} ({v})", p.name))
             .collect();
-        format!("Résultat : {}", names.join(", "))
+        i18n::share_result_desc(card.lang, &names.join(", "))
     }
 }
 
@@ -619,6 +648,7 @@ mod tests {
                 .collect()
         };
         let stat = Card::Stat(StatCard {
+            lang: Lang::En,
             room: "Salon".into(),
             title: "Titre".into(),
             big: "42".into(),
@@ -626,6 +656,7 @@ mod tests {
             people: people(3),
         });
         let question = Card::Question(QuestionCard {
+            lang: Lang::Fr,
             room: "Salon".into(),
             number: 3,
             question: "Qui ?".into(),

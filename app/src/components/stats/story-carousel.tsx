@@ -7,11 +7,12 @@ import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { Avatar, PressableScale } from '@/components/ui';
 import { type Member, photoUrl, type StatsPeriod, type Story } from '@/lib/api';
 import { parseAvatar } from '@/lib/avatar';
+import { useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
 import { shareStory } from '@/lib/share';
 import { useTheme } from '@/lib/theme';
 
-import { Caps, iconFor } from './common';
+import { AWARD_ICONS, awardTitle, Caps, iconFor } from './common';
 
 const HEIGHT = 300;
 /** Text on a member's colour (they are all light and bright), same as the initials on avatars. */
@@ -31,6 +32,9 @@ function StoryCard({
   onOpen: (story: Story) => void;
 }) {
   const t = useTheme();
+  const tr = useT();
+  // Known awards get their title in the app's language; anything newer keeps the server's.
+  const title = AWARD_ICONS[story.key] ? awardTitle(story.key) : story.title;
   const people = story.member_ids.map((id) => byId.get(id)).filter((m): m is Member => !!m);
   const [a, b] = [people[0]?.color ?? t.acc, people[1]?.color ?? people[0]?.color ?? t.acc];
   const ink = people.length ? INK : t.accTxt;
@@ -40,7 +44,7 @@ function StoryCard({
   const [box, setBox] = useState({ w: 0, h: 0 });
   const share = async () => {
     setState('busy');
-    const outcome = await shareStory(period, story);
+    const outcome = await shareStory(period, { ...story, title });
     setState(outcome === 'copied' ? 'copied' : 'idle');
     if (outcome === 'copied') setTimeout(() => setState('idle'), 1800);
   };
@@ -48,7 +52,7 @@ function StoryCard({
     <PressableScale
       scale={0.98}
       accessibilityRole="button"
-      accessibilityLabel={`${story.title}. ${story.big}. ${story.line}`}
+      accessibilityLabel={`${title}. ${story.big}. ${story.line}`}
       onPress={() => onOpen(story)}
       onLayout={(e) => setBox({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}
       style={{ height: HEIGHT, borderRadius: 28, overflow: 'hidden', padding: 22, backgroundColor: a }}>
@@ -67,11 +71,11 @@ function StoryCard({
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
         <Icon size={16} color={ink} strokeWidth={2.5} />
         <View style={{ flex: 1 }}>
-          <Caps color={ink}>{story.title}</Caps>
+          <Caps color={ink}>{title}</Caps>
         </View>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={state === 'copied' ? 'Lien copié' : 'Partager'}
+          accessibilityLabel={state === 'copied' ? tr('stats.story.linkCopied') : tr('common.share')}
           onPress={share}
           disabled={state === 'busy'}
           hitSlop={10}
@@ -129,6 +133,7 @@ export function StoryCarousel({
   onOpen: (story: Story) => void;
 }) {
   const t = useTheme();
+  const tr = useT();
   const [width, setWidth] = useState(0);
   const [page, setPage] = useState(0);
   const ref = useRef<ScrollViewInstance>(null);
@@ -156,7 +161,7 @@ export function StoryCarousel({
             <Pressable
               key={s.key}
               accessibilityRole="button"
-              accessibilityLabel={`${i + 1} sur ${stories.length}`}
+              accessibilityLabel={tr('stats.story.page', { n: i + 1, total: stories.length })}
               hitSlop={6}
               onPress={() => ref.current?.scrollTo({ x: i * width, animated: true })}>
               <Animated.View

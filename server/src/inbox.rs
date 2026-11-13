@@ -1,9 +1,23 @@
 //! In-app notifications: one row per recipient, read all at once from the inbox screen.
+//! The text is stored in the recipient's language (`users.locale`) at the time it is written.
 
 use serde::Serialize;
 use sqlx::SqlitePool;
 
-use crate::{error::AppResult, models::MemberRow};
+use crate::{error::AppResult, i18n::Text, models::MemberRow};
+
+/// The recipient's language (`u` = their account): `?en` when English, else `?fr`.
+macro_rules! text_for {
+    ($fr:literal, $en:literal) => {
+        concat!(
+            "CASE WHEN u.locale = 'en' THEN ?",
+            $en,
+            " ELSE ?",
+            $fr,
+            " END"
+        )
+    };
+}
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct InboxItem {
@@ -27,16 +41,19 @@ pub async fn to_group(
     kind: &str,
     round_id: Option<i64>,
     actor_id: Option<i64>,
-    text: &str,
+    text: &Text,
 ) -> AppResult<()> {
-    sqlx::query(
-        "INSERT INTO inbox (member_id, kind, round_id, actor_id, text) \
-         SELECT id, ?, ?, ?, ? FROM members WHERE group_id = ? AND removed_at IS NULL AND id IS NOT ?",
-    )
+    sqlx::query(concat!(
+        "INSERT INTO inbox (member_id, kind, round_id, actor_id, text) SELECT m.id, ?1, ?2, ?3, ",
+        text_for!("4", "5"),
+        " FROM members m LEFT JOIN users u ON u.id = m.user_id \
+         WHERE m.group_id = ?6 AND m.removed_at IS NULL AND m.id IS NOT ?7"
+    ))
     .bind(kind)
     .bind(round_id)
     .bind(actor_id)
-    .bind(text)
+    .bind(&text.fr)
+    .bind(&text.en)
     .bind(group_id)
     .bind(skip)
     .execute(db)
@@ -51,19 +68,22 @@ pub async fn to_members(
     kind: &str,
     round_id: Option<i64>,
     actor_id: Option<i64>,
-    text: &str,
+    text: &Text,
 ) -> AppResult<()> {
     if member_ids.is_empty() {
         return Ok(());
     }
-    sqlx::query(
-        "INSERT INTO inbox (member_id, kind, round_id, actor_id, text) \
-         SELECT id, ?, ?, ?, ? FROM members WHERE id IN (SELECT value FROM json_each(?)) AND removed_at IS NULL",
-    )
+    sqlx::query(concat!(
+        "INSERT INTO inbox (member_id, kind, round_id, actor_id, text) SELECT m.id, ?1, ?2, ?3, ",
+        text_for!("4", "5"),
+        " FROM members m LEFT JOIN users u ON u.id = m.user_id \
+         WHERE m.id IN (SELECT value FROM json_each(?6)) AND m.removed_at IS NULL"
+    ))
     .bind(kind)
     .bind(round_id)
     .bind(actor_id)
-    .bind(text)
+    .bind(&text.fr)
+    .bind(&text.en)
     .bind(serde_json::to_string(member_ids).unwrap_or_else(|_| "[]".into()))
     .execute(db)
     .await?;
@@ -76,16 +96,19 @@ pub async fn to_member(
     kind: &str,
     round_id: Option<i64>,
     actor_id: Option<i64>,
-    text: &str,
+    text: &Text,
 ) -> AppResult<()> {
-    sqlx::query(
-        "INSERT INTO inbox (member_id, kind, round_id, actor_id, text) VALUES (?, ?, ?, ?, ?)",
-    )
+    sqlx::query(concat!(
+        "INSERT INTO inbox (member_id, kind, round_id, actor_id, text) SELECT m.id, ?2, ?3, ?4, ",
+        text_for!("5", "6"),
+        " FROM members m LEFT JOIN users u ON u.id = m.user_id WHERE m.id = ?1"
+    ))
     .bind(member_id)
     .bind(kind)
     .bind(round_id)
     .bind(actor_id)
-    .bind(text)
+    .bind(&text.fr)
+    .bind(&text.en)
     .execute(db)
     .await?;
     Ok(())

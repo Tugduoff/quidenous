@@ -5,11 +5,13 @@ import { TextInput } from 'react-native';
 import { AuthScreen, ErrorText, Field, PasswordField, TextLink } from '@/components/auth-ui';
 import { Button } from '@/components/ui';
 import { auth, authError, flow, PASSWORD_MIN, useFeatures } from '@/lib/auth';
+import { useT } from '@/lib/i18n';
 import { useSession } from '@/lib/session';
 import { useFinishSignIn } from '@/lib/sign-in';
 
 /** Step 2: the password. Signs in when the email has an account, else signs up (first name + password). */
 export default function PasswordStep() {
+  const tr = useT();
   const { signIn } = useSession();
   const finish = useFinishSignIn();
   const { email: canEmail } = useFeatures();
@@ -38,17 +40,17 @@ export default function PasswordStep() {
 
   return (
     <AuthScreen
-      title={existing ? 'Bon retour' : 'Bienvenue'}
+      title={existing ? tr('auth.signIn.welcomeBack') : tr('auth.signIn.welcome')}
       sub={flow.email}
       oneLine
       footer={
         <Button onPress={submit} loading={busy} disabled={!ok}>
-          {existing ? 'Se connecter' : 'Créer mon compte'}
+          {existing ? tr('auth.signIn.signIn') : tr('auth.signIn.signUp')}
         </Button>
       }>
       {!existing && (
         <Field
-          placeholder="Prénom"
+          placeholder={tr('auth.name')}
           value={name}
           onChangeText={setName}
           maxLength={24}
@@ -62,7 +64,7 @@ export default function PasswordStep() {
       <PasswordField
         ref={passwordRef}
         fresh={!existing}
-        placeholder={existing ? 'Mot de passe' : `Mot de passe (${PASSWORD_MIN} min.)`}
+        placeholder={existing ? tr('auth.password') : tr('auth.newPassword', { min: PASSWORD_MIN })}
         value={password}
         onChangeText={setPassword}
         autoFocus={existing}
@@ -71,7 +73,7 @@ export default function PasswordStep() {
         onSubmitEditing={submit}
       />
       <ErrorText>{error}</ErrorText>
-      {existing && canEmail && <TextLink onPress={() => router.push('/auth/forgot')}>Mot de passe oublié ?</TextLink>}
+      {existing && canEmail && <TextLink onPress={() => router.push('/auth/forgot')}>{tr('auth.signIn.forgot')}</TextLink>}
     </AuthScreen>
   );
 }

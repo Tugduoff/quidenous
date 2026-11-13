@@ -5,10 +5,12 @@ import { TextInput } from 'react-native';
 import { AuthScreen, CODE_LENGTH, CodeField, ErrorText, PasswordField, TextLink, useCooldown } from '@/components/auth-ui';
 import { Button } from '@/components/ui';
 import { auth, authError, flow, PASSWORD_MIN } from '@/lib/auth';
+import { useT } from '@/lib/i18n';
 import { useFinishSignIn } from '@/lib/sign-in';
 
 /** The emailed code and a new password: signed in (or on to 2FA), every other device signed out. */
 export default function ResetStep() {
+  const tr = useT();
   const finish = useFinishSignIn();
   const [code, setCode] = useState('');
   const [password, setPassword] = useState('');
@@ -39,19 +41,19 @@ export default function ResetStep() {
 
   return (
     <AuthScreen
-      title="Nouveau mot de passe"
-      sub={`Code envoyé à ${flow.email}`}
+      title={tr('auth.reset.title')}
+      sub={tr('auth.codeSentTo', { email: flow.email })}
       oneLine
       footer={
         <Button onPress={submit} loading={busy} disabled={!ok}>
-          Valider
+          {tr('auth.validate')}
         </Button>
       }>
       <CodeField value={code} onChange={setCode} onDone={() => passwordRef.current?.focus()} />
       <PasswordField
         ref={passwordRef}
         fresh
-        placeholder={`${PASSWORD_MIN} caractères min.`}
+        placeholder={tr('auth.reset.placeholder', { min: PASSWORD_MIN })}
         value={password}
         onChangeText={setPassword}
         maxLength={128}
@@ -60,7 +62,7 @@ export default function ResetStep() {
       />
       <ErrorText>{error}</ErrorText>
       <TextLink onPress={resend} disabled={wait > 0}>
-        {wait > 0 ? `Renvoyer (${wait} s)` : 'Renvoyer le code'}
+        {wait > 0 ? tr('auth.resendIn', { count: wait }) : tr('auth.reset.resendCode')}
       </TextLink>
     </AuthScreen>
   );

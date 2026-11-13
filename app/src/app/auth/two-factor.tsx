@@ -5,10 +5,12 @@ import { AuthScreen, CODE_LENGTH, CodeField, ErrorText, RecoveryField, TextLink 
 import { Button } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { auth, authError, flow } from '@/lib/auth';
+import { useT } from '@/lib/i18n';
 import { useSession } from '@/lib/session';
 
 /** 2FA sign-in: the code of the authenticator app, or a recovery code. */
 export default function TwoFactorStep() {
+  const tr = useT();
   const { signIn } = useSession();
   const [recovery, setRecovery] = useState(false);
   const [code, setCode] = useState('');
@@ -25,7 +27,7 @@ export default function TwoFactorStep() {
       await signIn(await auth.login2fa(flow.challenge, value));
       flow.challenge = '';
     } catch (e) {
-      setError(e instanceof ApiError && e.code === 'expired' ? 'Trop tard, reconnecte-toi' : authError(e));
+      setError(e instanceof ApiError && e.code === 'expired' ? tr('auth.twoFactor.tooLate') : authError(e));
       setCode('');
     } finally {
       setBusy(false);
@@ -34,11 +36,11 @@ export default function TwoFactorStep() {
 
   return (
     <AuthScreen
-      title="Vérification"
-      sub={recovery ? 'Un de tes codes de secours' : "Le code de ton app d'authentification"}
+      title={tr('auth.twoFactor.title')}
+      sub={recovery ? tr('auth.twoFactor.recoverySub') : tr('auth.twoFactor.appSub')}
       footer={
         <Button onPress={() => submit()} loading={busy} disabled={!ok}>
-          Valider
+          {tr('auth.validate')}
         </Button>
       }>
       {recovery ? (
@@ -53,7 +55,7 @@ export default function TwoFactorStep() {
           setCode('');
           setError(null);
         }}>
-        {recovery ? "Utiliser l'app d'authentification" : 'Utiliser un code de secours'}
+        {recovery ? tr('auth.twoFactor.useApp') : tr('auth.twoFactor.useRecovery')}
       </TextLink>
     </AuthScreen>
   );

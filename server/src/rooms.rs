@@ -13,6 +13,7 @@ use crate::{
     auth::UserId,
     error::{AppError, AppResult},
     game,
+    i18n::Lang,
     live::Event,
     models::{Member, MemberRow},
     routes::{COLORS, notify_round, remove_member},
@@ -62,7 +63,17 @@ async fn owner_seat(state: &AppState, user_id: i64, room: i64) -> AppResult<Memb
 }
 
 /// My rooms, most recently used first, with what's waiting for me in each.
-type RoomRow = (i64, String, String, i64, Option<i64>, bool, i64, bool);
+type RoomRow = (
+    i64,
+    String,
+    String,
+    i64,
+    Option<i64>,
+    bool,
+    i64,
+    bool,
+    String,
+);
 
 pub async fn list(State(state): State<AppState>, UserId(user): UserId) -> AppResult<Json<Value>> {
     let rows: Vec<RoomRow> = sqlx::query_as(
@@ -74,7 +85,7 @@ pub async fn list(State(state): State<AppState>, UserId(user): UserId) -> AppRes
                 (SELECT COUNT(*) FROM inbox WHERE inbox.member_id = m.id AND inbox.read_at IS NULL AND \
                  NOT EXISTS (SELECT 1 FROM members a JOIN blocks b ON b.blocked_id = a.user_id \
                              WHERE a.id = inbox.actor_id AND b.user_id = ?1)), \
-                m.muted \
+                m.muted, g.language \
          FROM members m JOIN groups g ON g.id = m.group_id AND g.deleted_at IS NULL \
          JOIN users u ON u.id = m.user_id \
          WHERE m.user_id = ?1 AND m.removed_at IS NULL \
@@ -85,10 +96,13 @@ pub async fn list(State(state): State<AppState>, UserId(user): UserId) -> AppRes
     .await?;
     let rooms: Vec<Value> = rows
         .into_iter()
-        .map(|(id, name, role, members, open, voted, unread, muted)| {
-            json!({ "id": id, "name": name, "role": role, "members": members,
-                    "open_number": open, "voted": voted, "unread": unread, "muted": muted })
-        })
+        .map(
+            |(id, name, role, members, open, voted, unread, muted, language)| {
+                json!({ "id": id, "name": name, "role": role, "members": members,
+                    "open_number": open, "voted": voted, "unread": unread, "muted": muted,
+                    "language": language })
+            },
+        )
         .collect();
     Ok(Json(json!(rooms)))
 }
@@ -99,6 +113,14 @@ pub struct CreateBody {
     /// A vibe id from `/vibes`; none = the classics.
     #[serde(default)]
     vibe: Option<String>,
+    /// Language of the deck questions it draws (`fr` | `en`); none = French.
+    #[serde(default)]
+    language: Option<String>,
+}
+
+/// A room language: `fr` or `en` (`400 bad_language` otherwise).
+fn clean_language(language: &str) -> AppResult<Lang> {
+    Lang::parse(language.trim()).ok_or(AppError::BadRequest("bad_language"))
 }
 
 /// A known vibe id, or none for an empty one.
@@ -119,16 +141,21 @@ pub async fn create(
 ) -> AppResult<Json<Value>> {
     let name = clean_room_name(&body.name)?;
     let vibe = clean_vibe(body.vibe.as_deref())?;
+    let language = match body.language.as_deref() {
+        Some(l) => clean_language(l)?,
+        None => Lang::Fr,
+    };
     let mut tx = state.db.begin().await?;
     let mut room_id = None;
     // Codes are unique: retry on the (rare) clash.
     for _ in 0..5 {
         let inserted: Option<i64> = sqlx::query_scalar(
-            "INSERT INTO groups (name, join_code, vibe) VALUES (?, ?, ?) ON CONFLICT DO NOTHING RETURNING id",
+            "INSERT INTO groups (name, join_code, vibe, language) VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING RETURNING id",
         )
         .bind(&name)
         .bind(new_code())
         .bind(vibe)
+        .bind(language.as_str())
         .fetch_optional(&mut *tx)
         .await?;
         if inserted.is_some() {
@@ -161,7 +188,9 @@ pub async fn create(
         .await?;
     // Alone in it: no question yet, the first one opens when someone joins.
     tx.commit().await?;
-    Ok(Json(json!({ "id": room_id, "name": name, "vibe": vibe })))
+    Ok(Json(
+        json!({ "id": room_id, "name": name, "vibe": vibe, "language": language.as_str() }),
+    ))
 }
 
 #[derive(Deserialize)]
@@ -253,9 +282,12 @@ pub struct SettingsBody {
     owner_next: Option<bool>,
     /// Seconds to wait after a close before the next question opens (one of `pacing::DELAYS`).
     next_delay: Option<i64>,
+    /// `fr` | `en`: the deck its next questions come from.
+    language: Option<String>,
 }
 
-/// Owner only: rename, turn majority skip/removal on or off, who can add questions, vibe, pacing.
+/// Owner only: rename, turn majority skip/removal on or off, who can add questions, vibe, pacing,
+/// language (only future questions change).
 pub async fn update(
     State(state): State<AppState>,
     UserId(user): UserId,
@@ -263,6 +295,7 @@ pub async fn update(
     Json(body): Json<SettingsBody>,
 ) -> AppResult<Json<Value>> {
     owner_seat(&state, user, room).await?;
+    let language = body.language.as_deref().map(clean_language).transpose()?;
     if let Some(name) = &body.name {
         let name = clean_room_name(name)?;
         sqlx::query("UPDATE groups SET name = ? WHERE id = ?")
@@ -298,6 +331,13 @@ pub async fn update(
     if let Some(v) = &body.vibe {
         sqlx::query("UPDATE groups SET vibe = ? WHERE id = ?")
             .bind(clean_vibe(Some(v))?)
+            .bind(room)
+            .execute(&state.db)
+            .await?;
+    }
+    if let Some(v) = language {
+        sqlx::query("UPDATE groups SET language = ? WHERE id = ?")
+            .bind(v.as_str())
             .bind(room)
             .execute(&state.db)
             .await?;
@@ -509,6 +549,7 @@ pub async fn start(
         Json(CreateBody {
             name: room,
             vibe: body.vibe,
+            language: None,
         }),
     )
     .await?;

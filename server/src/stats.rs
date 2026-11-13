@@ -1,4 +1,5 @@
-//! Group stats: counts, awards, per-member profiles and short French stories, computed in Rust from
+//! Group stats: counts, awards, per-member profiles and short stories (French or English, the
+//! reader's language), computed in Rust from
 //! a handful of queries over the finished questions of a period. Contract: `docs/STATS.md`.
 
 use std::{
@@ -9,7 +10,10 @@ use std::{
 use serde::Serialize;
 use sqlx::SqlitePool;
 
-use crate::error::{AppError, AppResult};
+use crate::{
+    error::{AppError, AppResult},
+    i18n::Lang,
+};
 
 /// Rough time to read a question, think and vote, for the "time lost" estimate.
 const SECONDS_PER_VOTE: i64 = 20;
@@ -325,20 +329,24 @@ fn pct(value: i64, total: i64) -> i64 {
     }
 }
 
-/// "42 s", "12 min", "3 h 12", "2 j 4 h".
-fn duration(secs: i64) -> String {
+/// "42 s", "12 min", "3 h 12", "2 j 4 h" (English: "2 d 4 h").
+fn duration(secs: i64, lang: Lang) -> String {
     let secs = secs.max(0);
     match secs {
         s if s < 60 => format!("{s} s"),
         s if s < 3600 => format!("{} min", s / 60),
         s if s < DAY => format!("{} h {:02}", s / 3600, (s % 3600) / 60),
-        s => format!("{} j {} h", s / DAY, (s % DAY) / 3600),
+        s => format!("{} {} {} h", s / DAY, lang.pick("j", "d"), (s % DAY) / 3600),
     }
 }
 
-/// "2,1": French decimal comma.
-fn decimal(v: f64) -> String {
-    format!("{v:.1}").replace('.', ",")
+/// "2,1": French decimal comma; "2.1" in English.
+fn decimal(v: f64, lang: Lang) -> String {
+    let s = format!("{v:.1}");
+    match lang {
+        Lang::Fr => s.replace('.', ","),
+        Lang::En => s,
+    }
 }
 
 fn first_name(name: &str) -> String {
@@ -398,19 +406,30 @@ impl RoundCalc {
 type RoundRow = (i64, i64, String, String, f64, f64);
 type MemberRowT = (i64, String, f64, bool);
 
-/// The room's vibe, then [`compute`].
+/// [`for_group_in`] French.
 pub async fn for_group(
     db: &SqlitePool,
     group_id: i64,
     period: Period,
     tz_minutes: i32,
 ) -> AppResult<Stats> {
+    for_group_in(db, group_id, period, tz_minutes, Lang::Fr).await
+}
+
+/// The room's vibe, then [`compute`]. Story texts are in `lang`.
+pub async fn for_group_in(
+    db: &SqlitePool,
+    group_id: i64,
+    period: Period,
+    tz_minutes: i32,
+    lang: Lang,
+) -> AppResult<Stats> {
     let vibe: Option<String> = sqlx::query_scalar("SELECT vibe FROM groups WHERE id = ?")
         .bind(group_id)
         .fetch_optional(db)
         .await?
         .flatten();
-    compute(db, group_id, period, tz_minutes, vibe.as_deref()).await
+    compute(db, group_id, period, tz_minutes, vibe.as_deref(), lang).await
 }
 
 pub async fn compute(
@@ -419,6 +438,7 @@ pub async fn compute(
     period: Period,
     tz_minutes: i32,
     vibe: Option<&str>,
+    lang: Lang,
 ) -> AppResult<Stats> {
     let tz = i64::from(tz_minutes.clamp(-TZ_MAX, TZ_MAX)) * 60;
     let now = now();
@@ -510,7 +530,7 @@ pub async fn compute(
         point_rows,
         message_rows,
     )
-    .finish(nudges, authors, spicy))
+    .finish(nudges, authors, spicy, lang))
 }
 
 /// Everything loaded, ready to be turned into [`Stats`].
@@ -628,7 +648,13 @@ impl Calc {
             || r.votes.iter().any(|v| v.0 == member)
     }
 
-    fn finish(self, nudges: Vec<(i64, i64)>, authors: Vec<(i64, i64)>, spicy: bool) -> Stats {
+    fn finish(
+        self,
+        nudges: Vec<(i64, i64)>,
+        authors: Vec<(i64, i64)>,
+        spicy: bool,
+        lang: Lang,
+    ) -> Stats {
         let cur = &self.current;
         let votes_total: i64 = self.rounds.iter().map(|r| r.votes.len() as i64).sum();
         let mut s = Stats {
@@ -982,7 +1008,7 @@ impl Calc {
         s.profiles = self.profiles(
             &s, &pairs, &received, &cast, &wins, &selfish, &medians, &avg_rank,
         );
-        s.stories = self.stories(&s, spicy);
+        s.stories = self.stories(&s, spicy, lang);
         s.edges = edges;
         s
     }
@@ -1126,8 +1152,8 @@ impl Calc {
             .unwrap_or_else(|| "?".into())
     }
 
-    fn stories(&self, s: &Stats, spicy: bool) -> Vec<Story> {
-        let drafts = drafts(s, &|id| self.name(id), &self.rounds, spicy);
+    fn stories(&self, s: &Stats, spicy: bool, lang: Lang) -> Vec<Story> {
+        let drafts = drafts(s, &|id| self.name(id), &self.rounds, spicy, lang);
         let mut used: HashMap<i64, usize> = HashMap::new();
         let mut keys: HashSet<&'static str> = HashSet::new();
         let mut out = Vec::new();
@@ -1146,7 +1172,7 @@ impl Calc {
                 *used.entry(*m).or_default() += 1;
             }
             keys.insert(d.key);
-            let (title, icon) = meta(d.key);
+            let (title, icon) = meta(d.key, lang);
             out.push(Story {
                 key: d.key,
                 icon,
@@ -1227,39 +1253,40 @@ fn titles(s: &Stats) -> HashMap<i64, Vec<&'static str>> {
 
 // ---------- stories ----------
 
-/// (title, lucide icon) of an award key.
-pub fn meta(key: &str) -> (&'static str, &'static str) {
-    match key {
-        "most_chosen" => ("La star", "star"),
-        "most_crowned" => ("Collection de couronnes", "crown"),
-        "narcissist" => ("Narcisse", "flower-2"),
-        "fastest" => ("Gâchette facile", "zap"),
-        "slowest" => ("Prend son temps", "snail"),
-        "last_voter" => ("Tout le monde attend", "hourglass"),
-        "nudger" => ("Relou officiel", "bell-ring"),
-        "most_nudged" => ("Toujours relancé", "alarm-clock"),
-        "author" => ("La plume", "feather"),
-        "duo" => ("Le crush", "heart"),
-        "never_chosen" => ("Les invisibles", "ghost"),
-        "contrarian" => ("Le contrarian", "shuffle"),
-        "sheep" => ("Le mouton", "users"),
-        "loyal" => ("Le fidèle", "anchor"),
-        "twins" => ("Les jumeaux de vote", "copy"),
-        "kingmaker" => ("Le faiseur de rois", "gavel"),
-        "streak" => ("Série en cours", "flame"),
-        "longest_streak" => ("Record de série", "trophy"),
-        "comeback" => ("Le revenant", "rotate-ccw"),
-        "night_owl" => ("Couche-tard", "moon"),
-        "early_bird" => ("Lève-tôt", "sunrise"),
-        "chatterbox" => ("Le bavard", "message-circle"),
-        "silent" => ("Le roi du silence", "volume-x"),
-        "best_rank" => ("Toujours sur le podium", "medal"),
-        "worst_rank" => ("Lanterne rouge", "turtle"),
-        "most_split" => ("La plus clivante", "split"),
-        "most_unanimous" => ("La plus unanime", "handshake"),
-        "hottest" => ("Le moment le plus chaud", "flame"),
-        _ => ("Stat", "sparkles"),
-    }
+/// (title in `lang`, lucide icon) of an award key.
+pub fn meta(key: &str, lang: Lang) -> (&'static str, &'static str) {
+    let (fr, en, icon) = match key {
+        "most_chosen" => ("La star", "The star", "star"),
+        "most_crowned" => ("Collection de couronnes", "Crown collector", "crown"),
+        "narcissist" => ("Narcisse", "Narcissus", "flower-2"),
+        "fastest" => ("Gâchette facile", "Quick draw", "zap"),
+        "slowest" => ("Prend son temps", "Takes their time", "snail"),
+        "last_voter" => ("Tout le monde attend", "Everyone's waiting", "hourglass"),
+        "nudger" => ("Relou officiel", "Official pest", "bell-ring"),
+        "most_nudged" => ("Toujours relancé", "Always nudged", "alarm-clock"),
+        "author" => ("La plume", "The pen", "feather"),
+        "duo" => ("Le crush", "The crush", "heart"),
+        "never_chosen" => ("Les invisibles", "The invisibles", "ghost"),
+        "contrarian" => ("Le contrarian", "The contrarian", "shuffle"),
+        "sheep" => ("Le mouton", "The sheep", "users"),
+        "loyal" => ("Le fidèle", "The loyal one", "anchor"),
+        "twins" => ("Les jumeaux de vote", "Vote twins", "copy"),
+        "kingmaker" => ("Le faiseur de rois", "The kingmaker", "gavel"),
+        "streak" => ("Série en cours", "Current streak", "flame"),
+        "longest_streak" => ("Record de série", "Longest streak", "trophy"),
+        "comeback" => ("Le revenant", "The comeback", "rotate-ccw"),
+        "night_owl" => ("Couche-tard", "Night owl", "moon"),
+        "early_bird" => ("Lève-tôt", "Early bird", "sunrise"),
+        "chatterbox" => ("Le bavard", "The chatterbox", "message-circle"),
+        "silent" => ("Le roi du silence", "Silent king", "volume-x"),
+        "best_rank" => ("Toujours sur le podium", "Always on the podium", "medal"),
+        "worst_rank" => ("Lanterne rouge", "Bringing up the rear", "turtle"),
+        "most_split" => ("La plus clivante", "Most divisive", "split"),
+        "most_unanimous" => ("La plus unanime", "Most unanimous", "handshake"),
+        "hottest" => ("Le moment le plus chaud", "Hottest moment", "flame"),
+        _ => ("Stat", "Stat", "sparkles"),
+    };
+    (lang.pick(fr, en), icon)
 }
 
 struct Draft {
@@ -1319,11 +1346,13 @@ fn pick_line(lines: &[String], seed: usize) -> String {
 }
 
 /// Every possible story, funniest first. Spicy rooms (16+) get their own lines where written.
+/// Each story has its lines in French and in English (same count, same tone).
 fn drafts(
     s: &Stats,
     name: &dyn Fn(i64) -> String,
     rounds: &[RoundCalc],
     spicy: bool,
+    lang: Lang,
 ) -> Vec<Draft> {
     let pick = |normal: Vec<String>, hot: Vec<String>| {
         if spicy && !hot.is_empty() {
@@ -1332,40 +1361,61 @@ fn drafts(
             normal
         }
     };
+    // The French or the English lines.
+    let l = |fr: Vec<String>, en: Vec<String>| lang.pick(fr, en);
+    let percent = |pc: i64| lang.pick(format!("{pc} %"), format!("{pc}%"));
+    let in_a_row = |n: i64| lang.pick(format!("{n} d'affilée"), format!("{n} in a row"));
     let mut d: Vec<Draft> = Vec::new();
     let streak = |a: &Award, d: &mut Vec<Draft>| {
         let (who, n) = (name(a.member_id), a.value);
         let lines = if n >= 3 {
             pick(
-                vec![
-                    format!(
-                        "{who} gagne depuis {n} questions d'affilée. Quelqu'un peut l'arrêter ?"
-                    ),
-                    format!("{n} victoires de suite pour {who}. Les autres font de la figuration."),
-                    format!("{who} enchaîne {n} victoires. Ça devient une habitude."),
-                ],
-                vec![
-                    format!(
-                        "{n} victoires d'affilée pour {who}. Le groupe a clairement un faible."
-                    ),
-                    format!(
-                        "{who} gagne encore. {n} fois de suite, ce n'est plus du charme, c'est de l'hypnose."
-                    ),
-                ],
+                l(
+                    vec![
+                        format!(
+                            "{who} gagne depuis {n} questions d'affilée. Quelqu'un peut l'arrêter ?"
+                        ),
+                        format!(
+                            "{n} victoires de suite pour {who}. Les autres font de la figuration."
+                        ),
+                        format!("{who} enchaîne {n} victoires. Ça devient une habitude."),
+                    ],
+                    vec![
+                        format!("{who} has won {n} questions in a row. Can anyone stop them?"),
+                        format!("{n} wins in a row for {who}. Everyone else is just an extra."),
+                        format!("{who} racks up {n} wins. It's becoming a habit."),
+                    ],
+                ),
+                l(
+                    vec![
+                        format!(
+                            "{n} victoires d'affilée pour {who}. Le groupe a clairement un faible."
+                        ),
+                        format!(
+                            "{who} gagne encore. {n} fois de suite, ce n'est plus du charme, c'est de l'hypnose."
+                        ),
+                    ],
+                    vec![
+                        format!("{n} wins in a row for {who}. The group clearly has a soft spot."),
+                        format!(
+                            "{who} wins again. {n} times running: that's not charm, that's hypnosis."
+                        ),
+                    ],
+                ),
             )
         } else {
-            vec![
-                format!("{who} a gagné les {n} dernières questions. Ça commence à se voir."),
-                format!("Deux victoires de suite pour {who}. Jamais deux sans trois ?"),
-            ]
+            l(
+                vec![
+                    format!("{who} a gagné les {n} dernières questions. Ça commence à se voir."),
+                    format!("Deux victoires de suite pour {who}. Jamais deux sans trois ?"),
+                ],
+                vec![
+                    format!("{who} won the last {n} questions. People are starting to notice."),
+                    format!("Two wins in a row for {who}. Third time's the charm?"),
+                ],
+            )
         };
-        d.push(draft(
-            "streak",
-            vec![a.member_id],
-            format!("{n} d'affilée"),
-            lines,
-            n,
-        ));
+        d.push(draft("streak", vec![a.member_id], in_a_row(n), lines, n));
     };
     if let Some(a) = s.streak.as_ref().filter(|a| a.value >= 3) {
         streak(a, &mut d);
@@ -1377,15 +1427,28 @@ fn drafts(
             vec![a.member_id],
             format!("{n} questions"),
             pick(
-                vec![
-                    format!("{n} questions sans rien, puis {who} gagne. Le retour que personne n'attendait."),
-                    format!("Après {n} questions dans l'ombre, {who} remonte sur le trône."),
-                    format!("{who} n'avait rien gagné depuis {n} questions. C'est réparé."),
-                ],
-                vec![
-                    format!("{n} questions dans l'ombre, puis {who} revient. Comme un ex à 2 h du matin."),
-                    format!("{who} revient après {n} questions d'absence. Le retour de flamme."),
-                ],
+                l(
+                    vec![
+                        format!("{n} questions sans rien, puis {who} gagne. Le retour que personne n'attendait."),
+                        format!("Après {n} questions dans l'ombre, {who} remonte sur le trône."),
+                        format!("{who} n'avait rien gagné depuis {n} questions. C'est réparé."),
+                    ],
+                    vec![
+                        format!("{n} questions with nothing, then {who} wins. Nobody saw that coming."),
+                        format!("After {n} questions in the shadows, {who} is back on the throne."),
+                        format!("{who} hadn't won anything in {n} questions. Fixed."),
+                    ],
+                ),
+                l(
+                    vec![
+                        format!("{n} questions dans l'ombre, puis {who} revient. Comme un ex à 2 h du matin."),
+                        format!("{who} revient après {n} questions d'absence. Le retour de flamme."),
+                    ],
+                    vec![
+                        format!("{n} questions in the shadows, then {who} is back. Like an ex at 2 a.m."),
+                        format!("{who} is back after {n} questions away. The old flame rekindles."),
+                    ],
+                ),
             ),
             n,
         ));
@@ -1397,15 +1460,28 @@ fn drafts(
             vec![a.member_id],
             n.to_string(),
             pick(
-                vec![
-                    format!("{who} s'est donné sa propre voix {n} fois. La confiance, ça ne s'achète pas."),
-                    format!("{n} votes de {who} pour {who}. Au moins une personne y croit."),
-                    format!("{who} vote pour {who}, {n} fois. On n'est jamais mieux servi que par soi-même."),
-                ],
-                vec![
-                    format!("Le crush numéro un de {who} ? {who}. {n} votes pour soi."),
-                    format!("{n} votes pour soi. {who} s'aime, et l'assume pleinement."),
-                ],
+                l(
+                    vec![
+                        format!("{who} s'est donné sa propre voix {n} fois. La confiance, ça ne s'achète pas."),
+                        format!("{n} votes de {who} pour {who}. Au moins une personne y croit."),
+                        format!("{who} vote pour {who}, {n} fois. On n'est jamais mieux servi que par soi-même."),
+                    ],
+                    vec![
+                        format!("{who} voted for themselves {n} times. You can't buy that confidence."),
+                        format!("{n} votes from {who} for {who}. At least someone believes."),
+                        format!("{who} votes for {who}, {n} times. If you want it done right…"),
+                    ],
+                ),
+                l(
+                    vec![
+                        format!("Le crush numéro un de {who} ? {who}. {n} votes pour soi."),
+                        format!("{n} votes pour soi. {who} s'aime, et l'assume pleinement."),
+                    ],
+                    vec![
+                        format!("{who}'s number one crush? {who}. {n} votes for themselves."),
+                        format!("{n} votes for themselves. {who} is in love, and owns it."),
+                    ],
+                ),
             ),
             n,
         ));
@@ -1417,22 +1493,38 @@ fn drafts(
             vec![p.voter_id, p.target_id],
             n.to_string(),
             pick(
-                vec![
-                    format!("{a} a voté {n} fois pour {b}. On dit ça, on dit rien."),
-                    format!("{n} votes de {a} pour {b}. Ce n'est plus un hasard, c'est un signal."),
-                    format!(
-                        "{a} trouve toujours une raison de choisir {b}. {n} fois, pour être précis."
-                    ),
-                ],
-                vec![
-                    format!(
-                        "{a} a choisi {b} {n} fois. À ce stade, il faut un deuxième rendez-vous."
-                    ),
-                    format!(
-                        "{n} votes de {a} pour {b}. Quelqu'un leur réserve une table pour deux ?"
-                    ),
-                    format!("{a} et ses {n} votes pour {b}. Le groupe a vu, le groupe sait."),
-                ],
+                l(
+                    vec![
+                        format!("{a} a voté {n} fois pour {b}. On dit ça, on dit rien."),
+                        format!(
+                            "{n} votes de {a} pour {b}. Ce n'est plus un hasard, c'est un signal."
+                        ),
+                        format!(
+                            "{a} trouve toujours une raison de choisir {b}. {n} fois, pour être précis."
+                        ),
+                    ],
+                    vec![
+                        format!("{a} voted for {b} {n} times. Just saying."),
+                        format!("{n} votes from {a} for {b}. That's not chance, that's a signal."),
+                        format!("{a} always finds a reason to pick {b}. {n} times, to be exact."),
+                    ],
+                ),
+                l(
+                    vec![
+                        format!(
+                            "{a} a choisi {b} {n} fois. À ce stade, il faut un deuxième rendez-vous."
+                        ),
+                        format!(
+                            "{n} votes de {a} pour {b}. Quelqu'un leur réserve une table pour deux ?"
+                        ),
+                        format!("{a} et ses {n} votes pour {b}. Le groupe a vu, le groupe sait."),
+                    ],
+                    vec![
+                        format!("{a} picked {b} {n} times. At this point, it's time for a second date."),
+                        format!("{n} votes from {a} for {b}. Can someone book them a table for two?"),
+                        format!("{a} and their {n} votes for {b}. The group saw. The group knows."),
+                    ],
+                ),
             ),
             n,
         ));
@@ -1443,19 +1535,38 @@ fn drafts(
         d.push(draft(
             "twins",
             vec![p.a_id, p.b_id],
-            format!("{pc} %"),
+            percent(pc),
             pick(
-                vec![
-                    format!("{a} et {b} votent pareil {pc} % du temps. Télépathie ou triche ?"),
-                    format!("Même choix {n} fois sur {t}. {a} et {b} partagent un cerveau."),
-                    format!("{a} et {b} : d'accord {n} fois sur {t}. Ça se concerte en douce ?"),
-                ],
-                vec![
-                    format!("{a} et {b} : {pc} % de votes identiques. Ça se fiance quand ?"),
-                    format!(
-                        "{a} et {b} en phase {n} fois sur {t}. Il se passe quoi en coulisses ?"
-                    ),
-                ],
+                l(
+                    vec![
+                        format!("{a} et {b} votent pareil {pc} % du temps. Télépathie ou triche ?"),
+                        format!("Même choix {n} fois sur {t}. {a} et {b} partagent un cerveau."),
+                        format!(
+                            "{a} et {b} : d'accord {n} fois sur {t}. Ça se concerte en douce ?"
+                        ),
+                    ],
+                    vec![
+                        format!(
+                            "{a} and {b} vote the same {pc}% of the time. Telepathy or cheating?"
+                        ),
+                        format!("Same pick {n} times out of {t}. {a} and {b} share a brain."),
+                        format!("{a} and {b}: agreed {n} times out of {t}. Conferring in secret?"),
+                    ],
+                ),
+                l(
+                    vec![
+                        format!("{a} et {b} : {pc} % de votes identiques. Ça se fiance quand ?"),
+                        format!(
+                            "{a} et {b} en phase {n} fois sur {t}. Il se passe quoi en coulisses ?"
+                        ),
+                    ],
+                    vec![
+                        format!("{a} and {b}: {pc}% identical votes. When's the engagement?"),
+                        format!(
+                            "{a} and {b} in sync {n} times out of {t}. What's going on backstage?"
+                        ),
+                    ],
+                ),
             ),
             n,
         ));
@@ -1466,12 +1577,23 @@ fn drafts(
         d.push(draft(
             "contrarian",
             vec![a.member_id],
-            format!("{pc} %"),
-            vec![
-                format!("{who} vote à contre-courant {pc} % du temps. Toujours un avis à part."),
-                format!("{n} votes sur {t} contre l'avis du groupe. {who} fait bande à part."),
-                format!("Quand tout le monde va à gauche, {who} va à droite. {pc} % du temps."),
-            ],
+            percent(pc),
+            l(
+                vec![
+                    format!(
+                        "{who} vote à contre-courant {pc} % du temps. Toujours un avis à part."
+                    ),
+                    format!("{n} votes sur {t} contre l'avis du groupe. {who} fait bande à part."),
+                    format!("Quand tout le monde va à gauche, {who} va à droite. {pc} % du temps."),
+                ],
+                vec![
+                    format!(
+                        "{who} votes against the tide {pc}% of the time. Always their own take."
+                    ),
+                    format!("{n} votes out of {t} against the group. {who} goes it alone."),
+                    format!("When everyone goes left, {who} goes right. {pc}% of the time."),
+                ],
+            ),
             n,
         ));
     }
@@ -1482,21 +1604,34 @@ fn drafts(
             vec![a.member_id],
             n.to_string(),
             pick(
-                vec![
-                    format!(
-                        "{n} victoires à une voix près, et {who} était dedans. Craignez son vote."
-                    ),
-                    format!("{who} a fait basculer {n} votes serrés. Le vrai pouvoir est là."),
-                    format!("Gagné à une voix près, {n} fois : c'était celle de {who}."),
-                ],
-                vec![
-                    format!(
-                        "{n} victoires serrées décidées par {who}. On fait la cour à qui, déjà ?"
-                    ),
-                    format!(
-                        "{who} a fait basculer {n} votes serrés. Tout le monde veut ses faveurs."
-                    ),
-                ],
+                l(
+                    vec![
+                        format!(
+                            "{n} victoires à une voix près, et {who} était dedans. Craignez son vote."
+                        ),
+                        format!("{who} a fait basculer {n} votes serrés. Le vrai pouvoir est là."),
+                        format!("Gagné à une voix près, {n} fois : c'était celle de {who}."),
+                    ],
+                    vec![
+                        format!("{n} wins by a single vote, and {who} was in on it. Fear their vote."),
+                        format!("{who} tipped {n} close votes. That's where the real power is."),
+                        format!("Won by one vote, {n} times: it was {who}'s."),
+                    ],
+                ),
+                l(
+                    vec![
+                        format!(
+                            "{n} victoires serrées décidées par {who}. On fait la cour à qui, déjà ?"
+                        ),
+                        format!(
+                            "{who} a fait basculer {n} votes serrés. Tout le monde veut ses faveurs."
+                        ),
+                    ],
+                    vec![
+                        format!("{n} close wins decided by {who}. Remind us who to flirt with?"),
+                        format!("{who} tipped {n} close votes. Everyone wants their favour."),
+                    ],
+                ),
             ),
             n,
         ));
@@ -1508,35 +1643,63 @@ fn drafts(
             vec![a.member_id],
             n.to_string(),
             pick(
-                vec![
-                    format!("{n} votes entre 23 h et 5 h. {who} ne dort jamais, apparemment."),
-                    format!("{who} vote quand tout le monde dort. {n} fois après 23 h."),
-                    format!("{n} votes nocturnes pour {who}. Les meilleures idées viennent la nuit."),
-                ],
-                vec![
-                    format!("{n} votes après 23 h. On ne demandera pas à {who} ce qui se passait à côté."),
-                    format!("{who} vote la nuit, {n} fois. Insomnie ou soirée qui s'éternise ?"),
-                ],
+                l(
+                    vec![
+                        format!("{n} votes entre 23 h et 5 h. {who} ne dort jamais, apparemment."),
+                        format!("{who} vote quand tout le monde dort. {n} fois après 23 h."),
+                        format!("{n} votes nocturnes pour {who}. Les meilleures idées viennent la nuit."),
+                    ],
+                    vec![
+                        format!("{n} votes between 11 p.m. and 5 a.m. {who} never sleeps, apparently."),
+                        format!("{who} votes while everyone sleeps. {n} times after 11 p.m."),
+                        format!("{n} late-night votes for {who}. The best ideas come at night."),
+                    ],
+                ),
+                l(
+                    vec![
+                        format!("{n} votes après 23 h. On ne demandera pas à {who} ce qui se passait à côté."),
+                        format!("{who} vote la nuit, {n} fois. Insomnie ou soirée qui s'éternise ?"),
+                    ],
+                    vec![
+                        format!("{n} votes after 11 p.m. We won't ask {who} what else was going on."),
+                        format!("{who} votes at night, {n} times. Insomnia or a party that won't end?"),
+                    ],
+                ),
             ),
             n,
         ));
     }
     if let Some(a) = &s.slowest {
-        let (who, t) = (name(a.member_id), duration(a.value));
+        let (who, t) = (name(a.member_id), duration(a.value, lang));
         d.push(draft(
             "slowest",
             vec![a.member_id],
             t.clone(),
             pick(
-                vec![
-                    format!("{who} met {t} à voter, en général. Le suspense, c'est un art."),
-                    format!("{t} avant de voter. {who} a le temps de se faire un café."),
-                    format!("{who} vote en {t}, en médiane. Rien ne presse, visiblement."),
-                ],
-                vec![
-                    format!("{t} pour se décider. {who} aime faire monter la tension."),
-                    format!("{who} fait attendre tout le monde {t}. L'art de se faire désirer."),
-                ],
+                l(
+                    vec![
+                        format!("{who} met {t} à voter, en général. Le suspense, c'est un art."),
+                        format!("{t} avant de voter. {who} a le temps de se faire un café."),
+                        format!("{who} vote en {t}, en médiane. Rien ne presse, visiblement."),
+                    ],
+                    vec![
+                        format!("{who} usually takes {t} to vote. Suspense is an art."),
+                        format!("{t} before voting. {who} has time to make a coffee."),
+                        format!("{who} votes in {t}, median. No rush, clearly."),
+                    ],
+                ),
+                l(
+                    vec![
+                        format!("{t} pour se décider. {who} aime faire monter la tension."),
+                        format!(
+                            "{who} fait attendre tout le monde {t}. L'art de se faire désirer."
+                        ),
+                    ],
+                    vec![
+                        format!("{t} to make up their mind. {who} likes to build the tension."),
+                        format!("{who} keeps everyone waiting {t}. Playing hard to get."),
+                    ],
+                ),
             ),
             a.value / 60,
         ));
@@ -1555,17 +1718,30 @@ fn drafts(
             vec![],
             n.to_string(),
             pick(
-                vec![
-                    format!(
-                        "{n} messages sous la question #{num}. Le groupe avait des choses à dire."
-                    ),
-                    format!("Question #{num}, {n} messages. Ça a débattu sec."),
-                    format!("{n} messages pour un seul résultat. Quelqu'un l'a mal pris."),
-                ],
-                vec![
-                    format!("{n} messages sous la question #{num}. Ambiance fin de soirée."),
-                    format!("Question #{num} : {n} messages. Ça a chauffé, et pas qu'un peu."),
-                ],
+                l(
+                    vec![
+                        format!(
+                            "{n} messages sous la question #{num}. Le groupe avait des choses à dire."
+                        ),
+                        format!("Question #{num}, {n} messages. Ça a débattu sec."),
+                        format!("{n} messages pour un seul résultat. Quelqu'un l'a mal pris."),
+                    ],
+                    vec![
+                        format!("{n} messages under question #{num}. The group had things to say."),
+                        format!("Question #{num}, {n} messages. That was a heated debate."),
+                        format!("{n} messages for a single result. Someone took it badly."),
+                    ],
+                ),
+                l(
+                    vec![
+                        format!("{n} messages sous la question #{num}. Ambiance fin de soirée."),
+                        format!("Question #{num} : {n} messages. Ça a chauffé, et pas qu'un peu."),
+                    ],
+                    vec![
+                        format!("{n} messages under question #{num}. Very end-of-the-night energy."),
+                        format!("Question #{num}: {n} messages. Things got hot, and not just a little."),
+                    ],
+                ),
             ),
         ));
     }
@@ -1576,13 +1752,22 @@ fn drafts(
             "most_split",
             vec![],
             n.to_string(),
-            vec![
-                format!(
-                    "Question #{num} : {n} noms différents pour {t} votes. Personne n'est d'accord."
-                ),
-                format!("{t} votes, {n} réponses différentes. Le consensus a pris des vacances."),
-                format!("La question #{num} a éparpillé le groupe : {n} noms pour {t} votes."),
-            ],
+            l(
+                vec![
+                    format!(
+                        "Question #{num} : {n} noms différents pour {t} votes. Personne n'est d'accord."
+                    ),
+                    format!(
+                        "{t} votes, {n} réponses différentes. Le consensus a pris des vacances."
+                    ),
+                    format!("La question #{num} a éparpillé le groupe : {n} noms pour {t} votes."),
+                ],
+                vec![
+                    format!("Question #{num}: {n} different names for {t} votes. Nobody agrees."),
+                    format!("{t} votes, {n} different answers. Consensus went on holiday."),
+                    format!("Question #{num} scattered the group: {n} names for {t} votes."),
+                ],
+            ),
         ));
     }
     // The rest.
@@ -1602,16 +1787,30 @@ fn drafts(
             d.push(draft(
                 "loyal",
                 vec![p.voter_id, p.target_id],
-                format!("{pc} %"),
+                percent(pc),
                 pick(
-                    vec![
-                        format!("{pc} % des votes de {a} vont à {b}. La fidélité, ça existe."),
-                        format!("{a} vote pour {b} {n} fois sur {t}. Inébranlable."),
-                    ],
-                    vec![
-                        format!("{a} réserve {pc} % de ses voix à {b}. Exclusif, apparemment."),
-                        format!("{n} votes sur {t} pour {b}. {a} ne regarde personne d'autre."),
-                    ],
+                    l(
+                        vec![
+                            format!("{pc} % des votes de {a} vont à {b}. La fidélité, ça existe."),
+                            format!("{a} vote pour {b} {n} fois sur {t}. Inébranlable."),
+                        ],
+                        vec![
+                            format!("{pc}% of {a}'s votes go to {b}. Loyalty is real."),
+                            format!("{a} votes for {b} {n} times out of {t}. Unshakeable."),
+                        ],
+                    ),
+                    l(
+                        vec![
+                            format!("{a} réserve {pc} % de ses voix à {b}. Exclusif, apparemment."),
+                            format!("{n} votes sur {t} pour {b}. {a} ne regarde personne d'autre."),
+                        ],
+                        vec![
+                            format!(
+                                "{a} saves {pc}% of their votes for {b}. Exclusive, apparently."
+                            ),
+                            format!("{n} votes out of {t} for {b}. {a} has eyes for no one else."),
+                        ],
+                    ),
                 ),
                 n,
             ));
@@ -1627,11 +1826,23 @@ fn drafts(
             d.push(draft(
                 "longest_streak",
                 vec![a.member_id],
-                format!("{n} d'affilée"),
-                vec![
-                    format!("Record : {n} victoires de suite pour {who}. Personne n'a fait mieux."),
-                    format!("{who} a aligné {n} victoires d'affilée. Le record tient toujours."),
-                ],
+                in_a_row(n),
+                l(
+                    vec![
+                        format!(
+                            "Record : {n} victoires de suite pour {who}. Personne n'a fait mieux."
+                        ),
+                        format!(
+                            "{who} a aligné {n} victoires d'affilée. Le record tient toujours."
+                        ),
+                    ],
+                    vec![
+                        format!("Record: {n} wins in a row for {who}. Nobody has done better."),
+                        format!(
+                            "{who} strung together {n} wins in a row. The record still stands."
+                        ),
+                    ],
+                ),
                 n,
             ));
         }
@@ -1643,14 +1854,26 @@ fn drafts(
             vec![a.member_id],
             n.to_string(),
             pick(
-                vec![
-                    format!("{n} votes reçus. Le groupe ne voit que par {who}."),
-                    format!("{who} a reçu {n} votes. Une vraie tête d'affiche."),
-                ],
-                vec![
-                    format!("{n} votes pour {who}. Tout le monde y pense, personne ne le dit."),
-                    format!("{who} attire {n} votes. Magnétique, c'est le mot."),
-                ],
+                l(
+                    vec![
+                        format!("{n} votes reçus. Le groupe ne voit que par {who}."),
+                        format!("{who} a reçu {n} votes. Une vraie tête d'affiche."),
+                    ],
+                    vec![
+                        format!("{n} votes received. The group only has eyes for {who}."),
+                        format!("{who} got {n} votes. A true headliner."),
+                    ],
+                ),
+                l(
+                    vec![
+                        format!("{n} votes pour {who}. Tout le monde y pense, personne ne le dit."),
+                        format!("{who} attire {n} votes. Magnétique, c'est le mot."),
+                    ],
+                    vec![
+                        format!("{n} votes for {who}. Everyone's thinking it, nobody's saying it."),
+                        format!("{who} pulls in {n} votes. Magnetic is the word."),
+                    ],
+                ),
             ),
             n,
         ));
@@ -1661,10 +1884,16 @@ fn drafts(
             "most_crowned",
             vec![a.member_id],
             n.to_string(),
-            vec![
-                format!("{who} a gagné {n} questions. Il va falloir une étagère."),
-                format!("{n} couronnes pour {who}. À ce rythme, on va manquer de place."),
-            ],
+            l(
+                vec![
+                    format!("{who} a gagné {n} questions. Il va falloir une étagère."),
+                    format!("{n} couronnes pour {who}. À ce rythme, on va manquer de place."),
+                ],
+                vec![
+                    format!("{who} won {n} questions. Time to buy a trophy shelf."),
+                    format!("{n} crowns for {who}. At this rate, we'll run out of room."),
+                ],
+            ),
             n,
         ));
     }
@@ -1674,11 +1903,19 @@ fn drafts(
         d.push(draft(
             "sheep",
             vec![a.member_id],
-            format!("{pc} %"),
-            vec![
-                format!("{who} vote avec la majorité {pc} % du temps. Du flair, ou le troupeau ?"),
-                format!("{n} fois sur {t}, {who} a suivi le groupe. Toujours du bon côté."),
-            ],
+            percent(pc),
+            l(
+                vec![
+                    format!(
+                        "{who} vote avec la majorité {pc} % du temps. Du flair, ou le troupeau ?"
+                    ),
+                    format!("{n} fois sur {t}, {who} a suivi le groupe. Toujours du bon côté."),
+                ],
+                vec![
+                    format!("{who} votes with the majority {pc}% of the time. Good instincts, or the herd?"),
+                    format!("{n} times out of {t}, {who} went with the group. Always on the right side."),
+                ],
+            ),
             n,
         ));
     }
@@ -1689,18 +1926,30 @@ fn drafts(
             vec![a.member_id],
             n.to_string(),
             pick(
-                vec![
-                    format!("{n} messages signés {who}. Le chat, c'est sa deuxième maison."),
-                    format!("{who} a écrit {n} messages. Les autres votent, {who} commente."),
-                ],
-                vec![
-                    format!(
-                        "{n} messages de {who}. Toujours le dernier mot, et souvent le plus osé."
-                    ),
-                    format!(
-                        "{who} a écrit {n} messages. Ça parle beaucoup, et pas toujours sagement."
-                    ),
-                ],
+                l(
+                    vec![
+                        format!("{n} messages signés {who}. Le chat, c'est sa deuxième maison."),
+                        format!("{who} a écrit {n} messages. Les autres votent, {who} commente."),
+                    ],
+                    vec![
+                        format!("{n} messages from {who}. The chat is their second home."),
+                        format!("{who} wrote {n} messages. The others vote, {who} comments."),
+                    ],
+                ),
+                l(
+                    vec![
+                        format!(
+                            "{n} messages de {who}. Toujours le dernier mot, et souvent le plus osé."
+                        ),
+                        format!(
+                            "{who} a écrit {n} messages. Ça parle beaucoup, et pas toujours sagement."
+                        ),
+                    ],
+                    vec![
+                        format!("{n} messages from {who}. Always the last word, often the boldest."),
+                        format!("{who} wrote {n} messages. Lots of talk, not always well-behaved."),
+                    ],
+                ),
             ),
             n,
         ));
@@ -1708,20 +1957,37 @@ fn drafts(
     if let Some(a) = &s.silent {
         let (who, n) = (name(a.member_id), a.value);
         let lines = if n == 0 {
-            vec![
-                format!("Zéro message pour {who}. Ça vote, ça observe, ça ne dit rien."),
-                format!("{who} n'a jamais écrit un mot dans le chat. Le mystère reste entier."),
-            ]
+            l(
+                vec![
+                    format!("Zéro message pour {who}. Ça vote, ça observe, ça ne dit rien."),
+                    format!("{who} n'a jamais écrit un mot dans le chat. Le mystère reste entier."),
+                ],
+                vec![
+                    format!("Zero messages from {who}. Votes, watches, says nothing."),
+                    format!("{who} has never written a word in the chat. The mystery remains."),
+                ],
+            )
         } else {
             let pl = if n > 1 { "s" } else { "" };
             pick(
-                vec![
-                    format!("{n} message{pl} en tout pour {who}. Rare, donc précieux."),
-                    format!("{who} parle peu : {n} message{pl}. Mais ça vote, et ça observe."),
-                ],
-                vec![format!(
-                    "Discrétion totale pour {who} : {n} message{pl}. Les plus calmes cachent bien leur jeu."
-                )],
+                l(
+                    vec![
+                        format!("{n} message{pl} en tout pour {who}. Rare, donc précieux."),
+                        format!("{who} parle peu : {n} message{pl}. Mais ça vote, et ça observe."),
+                    ],
+                    vec![
+                        format!("{n} message{pl} in total from {who}. Rare, so precious."),
+                        format!("{who} says little: {n} message{pl}. But votes, and watches."),
+                    ],
+                ),
+                l(
+                    vec![format!(
+                        "Discrétion totale pour {who} : {n} message{pl}. Les plus calmes cachent bien leur jeu."
+                    )],
+                    vec![format!(
+                        "Total discretion from {who}: {n} message{pl}. It's always the quiet ones."
+                    )],
+                ),
             )
         };
         d.push(draft("silent", vec![a.member_id], n.to_string(), lines, n));
@@ -1733,27 +1999,44 @@ fn drafts(
             vec![a.member_id],
             n.to_string(),
             pick(
-                vec![
-                    format!("{n} votes avant 9 h. {who} vote avant même le café."),
-                    format!("{who} vote au réveil, {n} fois avant 9 h. Respect."),
-                ],
-                vec![format!(
-                    "{n} votes avant 9 h. {who} vote encore au lit, visiblement."
-                )],
+                l(
+                    vec![
+                        format!("{n} votes avant 9 h. {who} vote avant même le café."),
+                        format!("{who} vote au réveil, {n} fois avant 9 h. Respect."),
+                    ],
+                    vec![
+                        format!("{n} votes before 9 a.m. {who} votes before their coffee."),
+                        format!("{who} votes on waking up, {n} times before 9 a.m. Respect."),
+                    ],
+                ),
+                l(
+                    vec![format!(
+                        "{n} votes avant 9 h. {who} vote encore au lit, visiblement."
+                    )],
+                    vec![format!(
+                        "{n} votes before 9 a.m. {who} votes from bed, clearly."
+                    )],
+                ),
             ),
             n,
         ));
     }
     if let Some(a) = &s.fastest {
-        let (who, t) = (name(a.member_id), duration(a.value));
+        let (who, t) = (name(a.member_id), duration(a.value, lang));
         d.push(draft(
             "fastest",
             vec![a.member_id],
             t.clone(),
-            vec![
-                format!("{who} vote en {t}, en général. Ça ne traîne pas."),
-                format!("{t} chrono : {who} a déjà voté avant que tu lises la question."),
-            ],
+            l(
+                vec![
+                    format!("{who} vote en {t}, en général. Ça ne traîne pas."),
+                    format!("{t} chrono : {who} a déjà voté avant que tu lises la question."),
+                ],
+                vec![
+                    format!("{who} usually votes in {t}. No hanging around."),
+                    format!("{t} flat: {who} has voted before you've read the question."),
+                ],
+            ),
             a.value,
         ));
     }
@@ -1764,15 +2047,26 @@ fn drafts(
             vec![a.member_id],
             n.to_string(),
             pick(
-                vec![
-                    format!("{n} fois, tout le monde attendait {who}. Mais ça valait le coup."),
-                    format!(
-                        "Dernier vote du groupe : {who}, {n} fois. L'art de se faire attendre."
-                    ),
-                ],
-                vec![format!(
-                    "{who} vote en dernier, {n} fois. Toujours aimé se faire désirer."
-                )],
+                l(
+                    vec![
+                        format!("{n} fois, tout le monde attendait {who}. Mais ça valait le coup."),
+                        format!(
+                            "Dernier vote du groupe : {who}, {n} fois. L'art de se faire attendre."
+                        ),
+                    ],
+                    vec![
+                        format!("{n} times, everyone was waiting for {who}. Worth it, though."),
+                        format!("Last vote in the group: {who}, {n} times. The art of the late entrance."),
+                    ],
+                ),
+                l(
+                    vec![format!(
+                        "{who} vote en dernier, {n} fois. Toujours aimé se faire désirer."
+                    )],
+                    vec![format!(
+                        "{who} votes last, {n} times. Always loved to keep them waiting."
+                    )],
+                ),
             ),
             n,
         ));
@@ -1788,46 +2082,63 @@ fn drafts(
                 let who = name(w);
                 (
                     vec![w],
-                    vec![
-                        format!(
-                            "{n} votes sur {n} pour {who}. Pour une fois, tout le monde est d'accord."
-                        ),
-                        format!(
-                            "Question #{} : {who}, à l'unanimité. Aucun débat.",
-                            q.number
-                        ),
-                    ],
+                    l(
+                        vec![
+                            format!(
+                                "{n} votes sur {n} pour {who}. Pour une fois, tout le monde est d'accord."
+                            ),
+                            format!(
+                                "Question #{} : {who}, à l'unanimité. Aucun débat.",
+                                q.number
+                            ),
+                        ],
+                        vec![
+                            format!("{n} votes out of {n} for {who}. For once, everyone agrees."),
+                            format!("Question #{}: {who}, unanimously. No debate.", q.number),
+                        ],
+                    ),
                 )
             }
             None => (
                 vec![],
-                vec![format!(
-                    "{n} votes, un seul nom. Pour une fois, tout le monde est d'accord."
-                )],
+                l(
+                    vec![format!(
+                        "{n} votes, un seul nom. Pour une fois, tout le monde est d'accord."
+                    )],
+                    vec![format!(
+                        "{n} votes, a single name. For once, everyone agrees."
+                    )],
+                ),
             ),
         };
         d.push(round_draft(
             q,
             "most_unanimous",
             members,
-            format!("{n} sur {n}"),
+            lang.pick(format!("{n} sur {n}"), format!("{n} of {n}")),
             lines,
         ));
     }
     if let Some(r) = &s.best_rank {
-        let (who, avg, c) = (name(r.member_id), decimal(r.avg), r.count);
+        let (who, avg, c) = (name(r.member_id), decimal(r.avg, lang), r.count);
         d.push(draft(
             "best_rank",
             vec![r.member_id],
             avg.clone(),
-            vec![
-                format!(
-                    "Place moyenne de {who} dans les classements : {avg}. Abonnement au podium."
-                ),
-                format!(
-                    "Sur {c} classements, {who} est en moyenne à la place {avg}. Indéboulonnable."
-                ),
-            ],
+            l(
+                vec![
+                    format!(
+                        "Place moyenne de {who} dans les classements : {avg}. Abonnement au podium."
+                    ),
+                    format!(
+                        "Sur {c} classements, {who} est en moyenne à la place {avg}. Indéboulonnable."
+                    ),
+                ],
+                vec![
+                    format!("{who}'s average place in rankings: {avg}. A podium regular."),
+                    format!("Over {c} rankings, {who} averages place {avg}. Unbudgeable."),
+                ],
+            ),
             c,
         ));
     }
@@ -1837,10 +2148,18 @@ fn drafts(
             "nudger",
             vec![a.member_id],
             n.to_string(),
-            vec![
-                format!("{who} a relancé les autres {n} fois. Quelqu'un doit bien s'en charger."),
-                format!("{n} relances signées {who}. Le réveil-matin du groupe."),
-            ],
+            l(
+                vec![
+                    format!(
+                        "{who} a relancé les autres {n} fois. Quelqu'un doit bien s'en charger."
+                    ),
+                    format!("{n} relances signées {who}. Le réveil-matin du groupe."),
+                ],
+                vec![
+                    format!("{who} nudged the others {n} times. Someone has to do it."),
+                    format!("{n} nudges from {who}. The group's alarm clock."),
+                ],
+            ),
             n,
         ));
     }
@@ -1850,10 +2169,16 @@ fn drafts(
             "most_nudged",
             vec![a.member_id],
             n.to_string(),
-            vec![
-                format!("{n} relances pour {who}. Le groupe ne lâche rien."),
-                format!("On a relancé {who} {n} fois. Et ça finit toujours par voter."),
-            ],
+            l(
+                vec![
+                    format!("{n} relances pour {who}. Le groupe ne lâche rien."),
+                    format!("On a relancé {who} {n} fois. Et ça finit toujours par voter."),
+                ],
+                vec![
+                    format!("{n} nudges for {who}. The group never gives up."),
+                    format!("{who} got nudged {n} times. And always votes in the end."),
+                ],
+            ),
             n,
         ));
     }
@@ -1863,25 +2188,39 @@ fn drafts(
             "author",
             vec![a.member_id],
             n.to_string(),
-            vec![
-                format!("{who} a écrit {n} questions. Le groupe lui doit pas mal de débats."),
-                format!("{n} questions signées {who}. La plume officielle du groupe."),
-            ],
+            l(
+                vec![
+                    format!("{who} a écrit {n} questions. Le groupe lui doit pas mal de débats."),
+                    format!("{n} questions signées {who}. La plume officielle du groupe."),
+                ],
+                vec![
+                    format!("{who} wrote {n} questions. The group owes them quite a few debates."),
+                    format!("{n} questions by {who}. The group's official pen."),
+                ],
+            ),
             n,
         ));
     }
     if let Some(r) = &s.worst_rank {
-        let (who, avg) = (name(r.member_id), decimal(r.avg));
+        let (who, avg) = (name(r.member_id), decimal(r.avg, lang));
         d.push(draft(
             "worst_rank",
             vec![r.member_id],
             avg.clone(),
-            vec![
-                format!(
-                    "Place moyenne de {who} : {avg}. Il faut bien quelqu'un pour fermer la marche."
-                ),
-                format!("{who} ferme la marche des classements, {avg} de moyenne. Avec panache."),
-            ],
+            l(
+                vec![
+                    format!(
+                        "Place moyenne de {who} : {avg}. Il faut bien quelqu'un pour fermer la marche."
+                    ),
+                    format!(
+                        "{who} ferme la marche des classements, {avg} de moyenne. Avec panache."
+                    ),
+                ],
+                vec![
+                    format!("{who}'s average place: {avg}. Someone has to bring up the rear."),
+                    format!("{who} brings up the rear in rankings, {avg} on average. With style."),
+                ],
+            ),
             r.count,
         ));
     }
@@ -1907,10 +2246,103 @@ mod tests {
 
     #[test]
     fn durations_read_well() {
-        assert_eq!(duration(42), "42 s");
-        assert_eq!(duration(754), "12 min");
-        assert_eq!(duration(3 * 3600 + 12 * 60), "3 h 12");
-        assert_eq!(decimal(2.14), "2,1");
+        assert_eq!(duration(42, Lang::Fr), "42 s");
+        assert_eq!(duration(754, Lang::Fr), "12 min");
+        assert_eq!(duration(3 * 3600 + 12 * 60, Lang::Fr), "3 h 12");
+        assert_eq!(duration(2 * DAY + 4 * 3600, Lang::Fr), "2 j 4 h");
+        assert_eq!(duration(2 * DAY + 4 * 3600, Lang::En), "2 d 4 h");
+        assert_eq!(decimal(2.14, Lang::Fr), "2,1");
+        assert_eq!(decimal(2.14, Lang::En), "2.1");
+    }
+
+    #[test]
+    fn stories_exist_in_both_languages() {
+        let award = |member_id, value| {
+            Some(Award {
+                member_id,
+                value,
+                total: Some(10),
+            })
+        };
+        let duo = Some(Duo {
+            voter_id: 1,
+            target_id: 2,
+            value: 4,
+            total: Some(10),
+        });
+        let question = Some(QuestionRef {
+            round_id: 1,
+            number: 3,
+            question: "Qui ?".into(),
+            kind: "pick".into(),
+            value: 4,
+            total: 5,
+        });
+        let rank = Some(RankAward {
+            member_id: 1,
+            avg: 1.5,
+            count: 4,
+        });
+        let s = Stats {
+            most_chosen: award(1, 5),
+            most_crowned: award(1, 5),
+            narcissist: award(1, 3),
+            fastest: award(1, 42),
+            slowest: award(2, 2 * DAY),
+            last_voter: award(2, 3),
+            nudger: award(1, 3),
+            most_nudged: award(2, 3),
+            author: award(1, 3),
+            duo: duo.clone(),
+            contrarian: award(1, 3),
+            sheep: award(2, 7),
+            loyal: Some(Duo {
+                voter_id: 2,
+                target_id: 1,
+                ..duo.clone().unwrap()
+            }),
+            twins: Some(Pair {
+                a_id: 1,
+                b_id: 2,
+                value: 8,
+                total: 10,
+            }),
+            kingmaker: award(1, 2),
+            streak: award(1, 4),
+            longest_streak: award(2, 6),
+            comeback: award(2, 5),
+            night_owl: award(1, 4),
+            early_bird: award(2, 4),
+            chatterbox: award(1, 9),
+            silent: award(2, 1),
+            best_rank: rank.clone(),
+            worst_rank: rank,
+            most_split: question.clone(),
+            most_unanimous: question.clone(),
+            hottest: question,
+            ..Stats::default()
+        };
+        let name = |id: i64| ["", "Ana", "Bob"][id as usize].to_owned();
+        for spicy in [false, true] {
+            let fr = drafts(&s, &name, &[], spicy, Lang::Fr);
+            let en = drafts(&s, &name, &[], spicy, Lang::En);
+            assert_eq!(fr.len(), en.len());
+            for (f, e) in fr.iter().zip(&en) {
+                assert_eq!((f.key, f.lines.len()), (e.key, e.lines.len()));
+                assert_ne!(meta(f.key, Lang::Fr).0, "Stat", "{}", f.key);
+                assert!(
+                    e.lines.iter().all(|l| !l.contains(" pour ")),
+                    "{:?}",
+                    e.lines
+                );
+            }
+            let slow = en.iter().find(|d| d.key == "slowest").unwrap();
+            assert_eq!(slow.big, "2 d 0 h");
+            let twins = en.iter().find(|d| d.key == "twins").unwrap();
+            assert_eq!(twins.big, "80%");
+        }
+        assert_eq!(meta("duo", Lang::En).0, "The crush");
+        assert_eq!(meta("duo", Lang::Fr).0, "Le crush");
     }
 
     #[test]

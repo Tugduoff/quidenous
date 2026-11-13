@@ -5,9 +5,10 @@ import { Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-na
 
 import { Avatar, Dialog, PressableScale, QuestionText } from '@/components/ui';
 import type { Member, MemberStats, QuestionRef } from '@/lib/api';
+import { useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 
-import { AWARD_META, Caps, dec, duration, iconFor, int, plural } from './common';
+import { AWARD_ICONS, awardTitle, Caps, duration, iconFor, int, pct, place } from './common';
 
 function Mini({ value, label }: { value: string; label: string }) {
   const t = useTheme();
@@ -34,6 +35,7 @@ function Block({ title, children }: { title: string; children: ReactNode }) {
 
 function People({ list, byId, onOpen }: { list: { member_id: number; value: number }[]; byId: Map<number, Member>; onOpen: (id: number) => void }) {
   const t = useTheme();
+  const tr = useT();
   return (
     <View style={{ gap: 6 }}>
       {list.map((p) => (
@@ -47,7 +49,7 @@ function People({ list, byId, onOpen }: { list: { member_id: number; value: numb
             {byId.get(p.member_id)?.name ?? '?'}
           </Text>
           <Text style={{ fontFamily: t.font.bold, fontSize: 15, color: t.txt }}>{p.value}</Text>
-          <Text style={{ fontFamily: t.font.regular, fontSize: 12, color: t.mut, width: 34 }}>{plural(p.value, 'vote', 'votes')}</Text>
+          <Text style={{ fontFamily: t.font.regular, fontSize: 12, color: t.mut, width: 34 }}>{tr('stats.unit.votes', { count: p.value })}</Text>
         </Pressable>
       ))}
     </View>
@@ -88,6 +90,7 @@ export function ProfileSheet({
   onClose: () => void;
 }) {
   const t = useTheme();
+  const tr = useT();
   const { height } = useWindowDimensions();
   // Keeps the last person on screen while the dialog fades out.
   const last = useRef(profile);
@@ -113,12 +116,12 @@ export function ProfileSheet({
                 {m?.name ?? '?'}
               </Text>
               <Text style={{ fontFamily: t.font.regular, fontSize: 13, color: t.mut }}>
-                {p.present} {plural(p.present, 'question jouée', 'questions jouées')}
+                {tr('stats.profile.played', { count: p.present })}
               </Text>
             </View>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Fermer"
+              accessibilityLabel={tr('common.close')}
               onPress={onClose}
               hitSlop={10}
               style={{
@@ -134,12 +137,12 @@ export function ProfileSheet({
             </Pressable>
           </View>
 
-          {p.titles.some((k) => AWARD_META[k]) && (
+          {p.titles.some((k) => AWARD_ICONS[k]) && (
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
               {p.titles
-                .filter((k) => AWARD_META[k])
+                .filter((k) => AWARD_ICONS[k])
                 .map((k) => {
-                  const Icon = iconFor(AWARD_META[k].icon);
+                  const Icon = iconFor(AWARD_ICONS[k]);
                   return (
                     <View
                       key={k}
@@ -154,7 +157,7 @@ export function ProfileSheet({
                       }}>
                       <Icon size={13} color={t.accInk} strokeWidth={2.5} />
                       <Text numberOfLines={1} style={{ fontFamily: t.font.semibold, fontSize: 12, color: t.txt }}>
-                        {AWARD_META[k].title}
+                        {awardTitle(k)}
                       </Text>
                     </View>
                   );
@@ -163,37 +166,37 @@ export function ProfileSheet({
           )}
 
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-            <Mini value={`${Math.round(p.win_rate * 100)} %`} label={`${p.wins} ${plural(p.wins, 'victoire', 'victoires')}`} />
-            <Mini value={int(p.received)} label={plural(p.received, 'vote reçu', 'votes reçus')} />
-            <Mini value={int(p.votes_cast)} label={plural(p.votes_cast, 'vote donné', 'votes donnés')} />
-            <Mini value={int(p.messages)} label={plural(p.messages, 'message', 'messages')} />
-            {p.median_vote_seconds != null && <Mini value={duration(p.median_vote_seconds)} label="pour voter" />}
-            {p.avg_rank != null && <Mini value={`${dec(p.avg_rank)}e`} label="place moyenne" />}
-            {p.self_votes > 0 && <Mini value={int(p.self_votes)} label="votes pour soi" />}
+            <Mini value={pct(p.win_rate, 1)} label={tr('stats.profile.wins', { count: p.wins })} />
+            <Mini value={int(p.received)} label={tr('stats.unit.received', { count: p.received })} />
+            <Mini value={int(p.votes_cast)} label={tr('stats.unit.cast', { count: p.votes_cast })} />
+            <Mini value={int(p.messages)} label={tr('stats.unit.messages', { count: p.messages })} />
+            {p.median_vote_seconds != null && <Mini value={duration(p.median_vote_seconds)} label={tr('stats.profile.toVote')} />}
+            {p.avg_rank != null && <Mini value={place(p.avg_rank)} label={tr('stats.profile.avgPlace')} />}
+            {p.self_votes > 0 && <Mini value={int(p.self_votes)} label={tr('stats.profile.selfVotes')} />}
           </View>
 
           {p.top_voters.length > 0 && (
-            <Block title="Ses fans">
+            <Block title={tr('stats.profile.fans')}>
               <People list={p.top_voters} byId={byId} onOpen={onOpen} />
             </Block>
           )}
           {p.top_targets.length > 0 && (
-            <Block title="Son cœur balance">
+            <Block title={tr('stats.profile.crushes')}>
               <People list={p.top_targets} byId={byId} onOpen={onOpen} />
             </Block>
           )}
           {p.best && (
-            <Block title="Son heure de gloire">
+            <Block title={tr('stats.profile.best')}>
               <Question
                 q={p.best}
-                line={`${p.best.value} ${plural(p.best.value, 'vote', 'votes')} sur ${p.best.total}`}
+                line={tr('stats.profile.bestLine', { count: p.best.value, total: p.best.total })}
                 onPress={() => openRound(p.best!.round_id)}
               />
             </Block>
           )}
           {p.worst && (
-            <Block title="Son pire classement">
-              <Question q={p.worst} line={`${p.worst.value}e place en moyenne`} onPress={() => openRound(p.worst!.round_id)} />
+            <Block title={tr('stats.profile.worst')}>
+              <Question q={p.worst} line={tr('stats.profile.worstLine', { n: p.worst.value })} onPress={() => openRound(p.worst!.round_id)} />
             </Block>
           )}
         </ScrollView>

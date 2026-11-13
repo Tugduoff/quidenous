@@ -28,6 +28,7 @@ import { Image } from 'expo-image';
 import { AvatarArt } from '@/components/avatar-art';
 import { photoUrl, type Member } from '@/lib/api';
 import { parseAvatar } from '@/lib/avatar';
+import { useT } from '@/lib/i18n';
 import { EASE, motion, SPRING } from '@/lib/motion';
 import { useTheme } from '@/lib/theme';
 
@@ -303,14 +304,58 @@ export function QuestionText({
   );
 }
 
+/** A compact two-or-more way choice: pills in a track (`label` names the group for screen readers). */
+export function Segmented<T extends string>({
+  label,
+  options,
+  value,
+  onChange,
+}: {
+  label: string;
+  options: { id: T; name: string }[];
+  value: T;
+  onChange: (v: T) => void;
+}) {
+  const t = useTheme();
+  return (
+    <View
+      accessibilityRole="radiogroup"
+      accessibilityLabel={label}
+      style={{ flexDirection: 'row', padding: 3, gap: 2, borderRadius: t.radius.pill, backgroundColor: t.card2 }}>
+      {options.map((o) => {
+        const on = o.id === value;
+        return (
+          <Pressable
+            key={o.id}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: on }}
+            accessibilityLabel={o.name}
+            onPress={() => !on && onChange(o.id)}
+            style={{
+              height: 30,
+              paddingHorizontal: 12,
+              borderRadius: t.radius.pill,
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: on ? t.acc : 'transparent',
+            }}>
+            <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: on ? t.accTxt : t.mut }}>{o.name}</Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
 /** The app's dialog: a card centred on a dark backdrop (tapping the backdrop closes it). Rises with the keyboard. */
 export function Dialog({ visible, onClose, children }: { visible: boolean; onClose: () => void; children: ReactNode }) {
   const t = useTheme();
+  const tr = useT();
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <Pressable
-          accessibilityLabel="Fermer"
+          accessibilityLabel={tr('common.close')}
           onPress={onClose}
           style={{ flex: 1, backgroundColor: '#0008', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
           {/* Taps inside the card don't close it. */}
@@ -359,6 +404,7 @@ export function DialogActions({
   disabled?: boolean;
 }) {
   const t = useTheme();
+  const tr = useT();
   const off = busy || disabled;
   return (
     <View style={{ flexDirection: 'row', gap: 10, marginTop: 6 }}>
@@ -373,7 +419,7 @@ export function DialogActions({
           justifyContent: 'center',
           backgroundColor: t.card2,
         }}>
-        <Text style={{ fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>Annuler</Text>
+        <Text style={{ fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>{tr('common.cancel')}</Text>
       </PressableScale>
       <PressableScale
         accessibilityRole="button"

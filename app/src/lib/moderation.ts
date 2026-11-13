@@ -7,13 +7,8 @@ import { useSession } from './session';
 export type ReportKind = 'message' | 'member' | 'question';
 export type ReportReason = 'offensive' | 'harassment' | 'sexual' | 'spam' | 'other';
 
-export const REASONS: { value: ReportReason; label: string }[] = [
-  { value: 'offensive', label: 'Offensant' },
-  { value: 'harassment', label: 'Harcèlement' },
-  { value: 'sexual', label: 'Contenu sexuel' },
-  { value: 'spam', label: 'Spam' },
-  { value: 'other', label: 'Autre' },
-];
+/** In the order shown; the label is `moderation.reasons.<reason>`. */
+export const REASONS: ReportReason[] = ['offensive', 'harassment', 'sexual', 'spam', 'other'];
 
 /** Someone I blocked (`GET /api/blocks`). */
 export type Blocked = { user_id: number; name: string; color: string; photo: string | null; avatar?: string | null };

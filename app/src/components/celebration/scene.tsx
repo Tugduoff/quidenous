@@ -1,6 +1,7 @@
 import type { ComponentType, ReactNode } from 'react';
 import { Text, View } from 'react-native';
 
+import { useT } from '@/lib/i18n';
 import type { Milestone } from '@/lib/milestones';
 import { type Theme, themes } from '@/lib/theme';
 
@@ -66,6 +67,7 @@ export function Headline({
   cy: number;
   box: number;
 }) {
+  const tr = useT();
   return (
     <>
       <View
@@ -77,7 +79,7 @@ export function Headline({
         pointerEvents="none"
         style={{ position: 'absolute', left: 0, right: 0, top: cy + box / 2 + 4, alignItems: 'center', paddingHorizontal: 32 }}>
         <Reveal clock={clock} at={at} style={{ alignItems: 'center' }}>
-          <Text style={{ fontFamily: t.font.display, fontSize: 28, letterSpacing: -0.5, color: ink ?? t.txt }}>questions !</Text>
+          <Text style={{ fontFamily: t.font.display, fontSize: 28, letterSpacing: -0.5, color: ink ?? t.txt }}>{tr('celebration.questions')}</Text>
         </Reveal>
         <Reveal clock={clock} at={at + 140} style={{ alignItems: 'center', marginTop: 10 }}>
           <Text style={{ fontFamily: t.font.semibold, fontSize: 16, lineHeight: 22, color: sub ?? t.mut, textAlign: 'center', maxWidth: 290 }}>

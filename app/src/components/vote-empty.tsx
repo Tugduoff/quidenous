@@ -9,6 +9,7 @@ import { AddFriends, InviteCard } from '@/components/invite';
 import { Button, Card, Display, PressableScale } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { useFeatures } from '@/lib/auth';
+import { useT } from '@/lib/i18n';
 import { handOffDraft, pickQuestionFile } from '@/lib/import-draft';
 import { motion } from '@/lib/motion';
 import { keys, useGroup } from '@/lib/queries';
@@ -17,13 +18,12 @@ import { useTheme } from '@/lib/theme';
 /** Alone in the room: nothing to vote on until someone joins, so the whole tab is the invite. */
 export function SoloInvite() {
   const t = useTheme();
+  const tr = useT();
   return (
     <Animated.View entering={motion.enter} style={{ gap: 16 }}>
       <View style={{ gap: 6 }}>
-        <Display size={30}>Invite tes amis</Display>
-        <Text style={{ fontFamily: t.font.regular, fontSize: 15, lineHeight: 21, color: t.mut }}>
-          On joue dès que quelqu'un te rejoint.
-        </Text>
+        <Display size={30}>{tr('vote.solo.title')}</Display>
+        <Text style={{ fontFamily: t.font.regular, fontSize: 15, lineHeight: 21, color: t.mut }}>{tr('vote.solo.body')}</Text>
       </View>
       <InviteCard qrSize={208} rotate={false} />
       <AddFriends onlyIfAny />
@@ -54,6 +54,7 @@ const asked = new Set<number>();
 /** The queue is empty: ways to add questions, or (owner-only room) ask the owner for some. */
 export function NoQuestions() {
   const t = useTheme();
+  const tr = useT();
   const qc = useQueryClient();
   const { data: group } = useGroup();
   const features = useFeatures();
@@ -70,7 +71,7 @@ export function NoQuestions() {
       if (e instanceof ApiError && e.code === 'already_asked') return markAsked();
       // The owner opened questions to everyone meanwhile: the actions show once the room is fresh.
       if (e instanceof ApiError && e.code === 'not_needed') return qc.invalidateQueries({ queryKey: keys.group });
-      setNote('Raté, réessaie');
+      setNote(tr('common.failed'));
     },
   });
   const locked = group?.settings.questions_by === 'owner' && group.my_role !== 'owner';
@@ -78,7 +79,7 @@ export function NoQuestions() {
   const importFile = async () => {
     setNote(null);
     const lines = await pickQuestionFile().catch(() => null);
-    if (lines === 'empty') return setNote('Fichier vide');
+    if (lines === 'empty') return setNote(tr('vote.empty.emptyFile'));
     if (!lines) return;
     handOffDraft(lines);
     router.navigate({ pathname: '/questions', params: { import: '1' } });
@@ -86,32 +87,34 @@ export function NoQuestions() {
 
   return (
     <Animated.View entering={motion.enter} style={{ gap: 16 }}>
-      <Display size={30}>Plus de questions</Display>
+      <Display size={30}>{tr('vote.empty.title')}</Display>
       {locked ? (
         <>
           <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16 }}>
             <Lock size={18} color={t.mut} />
-            <Text style={{ flex: 1, fontFamily: t.font.regular, fontSize: 15, lineHeight: 21, color: t.mut }}>
-              Seul le propriétaire en ajoute.
-            </Text>
+            <Text style={{ flex: 1, fontFamily: t.font.regular, fontSize: 15, lineHeight: 21, color: t.mut }}>{tr('vote.empty.ownerOnly')}</Text>
           </Card>
           {features.askQuestions &&
             (done ? (
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 58 }}>
                 <Check size={20} color={t.accInk} />
-                <Text style={{ fontFamily: t.font.bold, fontSize: 16, color: t.accInk }}>Demande envoyée</Text>
+                <Text style={{ fontFamily: t.font.bold, fontSize: 16, color: t.accInk }}>{tr('vote.empty.asked')}</Text>
               </View>
             ) : (
               <Button loading={ask.isPending} onPress={() => ask.mutate()}>
-                Demander au propriétaire
+                {tr('vote.empty.ask')}
               </Button>
             ))}
         </>
       ) : (
         <View style={{ gap: 10 }}>
-          <Action icon={PenLine} label="Écrire une question" onPress={() => router.navigate({ pathname: '/questions', params: { compose: '1' } })} />
-          <Action icon={Package} label="Installer un pack" onPress={() => router.push('/packs')} />
-          <Action icon={FileUp} label="Importer un fichier" onPress={importFile} />
+          <Action
+            icon={PenLine}
+            label={tr('vote.empty.write')}
+            onPress={() => router.navigate({ pathname: '/questions', params: { compose: '1' } })}
+          />
+          <Action icon={Package} label={tr('vote.empty.pack')} onPress={() => router.push('/packs')} />
+          <Action icon={FileUp} label={tr('vote.empty.import')} onPress={importFile} />
         </View>
       )}
       {note && <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.tag, marginLeft: 4 }}>{note}</Text>}

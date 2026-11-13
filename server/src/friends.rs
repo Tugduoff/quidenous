@@ -12,7 +12,9 @@ use crate::{
     AppState,
     auth::UserId,
     error::{AppError, AppResult},
-    game, inbox,
+    game,
+    i18n::{self, Text},
+    inbox,
     live::Event,
     push::{Kind, Notification},
     rooms::seat,
@@ -229,7 +231,7 @@ pub async fn add_to_room(
     // The second person in: the room's first question opens.
     let opened = game::ensure_open_round(&mut tx, room).await?;
     tx.commit().await?;
-    let text = format!("{} t'a ajouté à « {} »", my_seat.name, room_name);
+    let text = Text::by(|l| i18n::added_to_room(l, &my_seat.name, &room_name));
     inbox::to_member(&state.db, member_id, "added", None, Some(my_seat.id), &text).await?;
     state.live.send(room, Event::MemberJoined { member_id });
     state.live.send(room, Event::InboxChanged);
@@ -239,7 +241,7 @@ pub async fn add_to_room(
         Some(me),
         Notification {
             kinds: vec![Kind::Added],
-            title: "Nouveau salon".into(),
+            title: Text::by(|l| i18n::new_room(l).into()),
             body: text,
             tag: format!("room-{room}"),
             url: "/".into(),

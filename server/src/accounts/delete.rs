@@ -106,10 +106,11 @@ pub async fn send(
             None,
         )
         .await?;
+        let lang = crate::i18n::of_user(&state.db, acct.id).await?;
         // In the background: the answer takes the same time whether the account exists or not.
         let mailer = state.auth.mailer.clone();
         tokio::spawn(async move {
-            if let Err(e) = mailer.send(mail::delete_account(&email, &code)).await {
+            if let Err(e) = mailer.send(mail::delete_account(&email, &code, lang)).await {
                 tracing::warn!(error = %e, "account deletion email not sent");
             }
         });
@@ -226,7 +227,7 @@ pub(crate) async fn erase(state: &AppState, user_id: i64) -> AppResult<()> {
     sqlx::query(
         "UPDATE users SET name = ?1, photo = NULL, avatar = NULL, email = NULL, password_hash = NULL, \
          email_verified_at = NULL, totp_secret = NULL, totp_pending = NULL, totp_last_step = NULL, \
-         last_group_id = NULL, friend_code = lower(hex(randomblob(16))), \
+         last_group_id = NULL, friend_code = lower(hex(randomblob(16))), locale = NULL, locale_pref = NULL, \
          deleted_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?2",
     )
     .bind(DELETED_NAME)

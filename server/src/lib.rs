@@ -6,6 +6,7 @@ pub mod deck;
 pub mod error;
 pub mod friends;
 pub mod game;
+pub mod i18n;
 pub mod inbox;
 pub mod live;
 pub mod models;
@@ -139,6 +140,25 @@ pub fn app(state: AppState) -> Router {
             "/terms",
             axum::routing::get(|| async {
                 axum::response::Html(include_str!("../assets/legal/terms.html"))
+            }),
+        )
+        // The same three pages in English.
+        .route(
+            "/en/privacy",
+            axum::routing::get(|| async {
+                axum::response::Html(include_str!("../assets/legal/privacy.en.html"))
+            }),
+        )
+        .route(
+            "/en/delete-account",
+            axum::routing::get(|| async {
+                axum::response::Html(include_str!("../assets/legal/delete-account.en.html"))
+            }),
+        )
+        .route(
+            "/en/terms",
+            axum::routing::get(|| async {
+                axum::response::Html(include_str!("../assets/legal/terms.en.html"))
             }),
         )
         .nest_service("/photos", photos);

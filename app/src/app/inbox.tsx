@@ -7,6 +7,7 @@ import { Pressable, Text, View } from 'react-native';
 import { Screen } from '@/components/screen';
 import { Avatar, Card, Display } from '@/components/ui';
 import { api, type InboxItem } from '@/lib/api';
+import { type TKey, useT } from '@/lib/i18n';
 import { keys, useGroup, useInbox, useMembers } from '@/lib/queries';
 import { useSwitchRoom, useSwitchRoomHere } from '@/lib/rooms';
 import { useSession } from '@/lib/session';
@@ -23,19 +24,20 @@ const ICON: Record<string, LucideIcon> = {
   added: UserPlus,
   ask: MessageCircleQuestion,
 };
-const TITLE: Record<string, string> = {
-  message: 'Nouveau message',
-  mention: 'Mention',
-  nudge: 'Relance',
-  result: 'Résultat dispo',
-  question: 'Nouvelle question',
-  added: 'Ajouté à un groupe',
-  ask: 'Questions',
+const TITLE: Record<string, TKey> = {
+  message: 'inbox.kinds.message',
+  mention: 'inbox.kinds.mention',
+  nudge: 'inbox.kinds.nudge',
+  result: 'inbox.kinds.result',
+  question: 'inbox.kinds.question',
+  added: 'inbox.kinds.added',
+  ask: 'inbox.kinds.ask',
 };
 
 /** Everything that happened lately: results, new questions, nudges, messages. Opening it marks all as read. */
 export default function InboxScreen() {
   const t = useTheme();
+  const tr = useT();
   const qc = useQueryClient();
   const { data } = useInbox();
   const { byId } = useMembers();
@@ -87,15 +89,13 @@ export default function InboxScreen() {
     <Screen tabs={false}>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Retour"
+        accessibilityLabel={tr('common.back')}
         onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
         style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card }}>
         <ChevronLeft size={22} color={t.txt} />
       </Pressable>
-      <Display size={30}>Notifications</Display>
-      {data && data.items.length === 0 && (
-        <Text style={{ fontFamily: t.font.regular, fontSize: 15, color: t.mut }}>Rien de neuf.</Text>
-      )}
+      <Display size={30}>{tr('inbox.title')}</Display>
+      {data && data.items.length === 0 && <Text style={{ fontFamily: t.font.regular, fontSize: 15, color: t.mut }}>{tr('inbox.empty')}</Text>}
       {data?.items.map((item) => {
         const Icon = ICON[item.kind] ?? Bell;
         const isNew = !item.read || !!fresh?.has(item.id);
@@ -106,8 +106,8 @@ export default function InboxScreen() {
           item.kind === 'message' && actor
             ? actor.name
             : item.kind === 'mention' && actor
-              ? `${actor.name} t'a mentionné`
-              : (TITLE[item.kind] ?? 'Notification');
+              ? tr('inbox.mentioned', { name: actor.name })
+              : tr(TITLE[item.kind] ?? 'inbox.kinds.other');
         return (
           <Pressable key={item.id} accessibilityRole="button" onPress={() => open(item)}>
             <Card style={{ flexDirection: 'row', gap: 12, alignItems: 'center', padding: 14 }}>

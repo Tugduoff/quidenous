@@ -339,7 +339,8 @@ fn expired_page() -> Response {
     (
         StatusCode::BAD_REQUEST,
         [(axum::http::header::CONTENT_TYPE, "text/plain; charset=utf-8")],
-        "Ce lien de connexion a expiré ou a déjà servi. Retourne dans l'app Qui de nous ? et recommence.",
+        "Ce lien de connexion a expiré ou a déjà servi. Retourne dans l'app Qui de nous ? et recommence.\n\n\
+         This sign-in link has expired or was already used. Go back to the Qui de nous ? app and try again.",
     )
         .into_response()
 }

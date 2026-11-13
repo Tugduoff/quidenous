@@ -32,8 +32,9 @@ pub(super) async fn send_verify(state: &AppState, user_id: i64, email: &str) -> 
         None,
     )
     .await?;
+    let lang = crate::i18n::of_user(&state.db, user_id).await?;
     let mailer = &state.auth.mailer;
-    match mailer.send(mail::verify_email(email, &code)).await {
+    match mailer.send(mail::verify_email(email, &code, lang)).await {
         Ok(()) => Ok(mailer.configured()),
         Err(e) => {
             tracing::warn!(error = %e, "verification email not sent");
@@ -63,6 +64,9 @@ pub struct SignupBody {
     email: String,
     password: String,
     name: String,
+    /// `fr` | `en`: the app's language, so the first e-mail is already in it (anything else: French).
+    #[serde(default)]
+    locale: Option<String>,
 }
 
 pub async fn signup(
@@ -80,14 +84,20 @@ pub async fn signup(
     }
     let hash = state.auth.hasher.hash(&body.password).await?;
     let color = COLORS[rand::rng().random_range(0..COLORS.len())];
+    let locale = body
+        .locale
+        .as_deref()
+        .and_then(crate::i18n::Lang::parse)
+        .map(|l| l.as_str());
     let user_id: i64 = sqlx::query_scalar(
-        "INSERT INTO users (name, color, friend_code, email, password_hash) \
-         VALUES (?, ?, upper(hex(randomblob(4))), ?, ?) RETURNING id",
+        "INSERT INTO users (name, color, friend_code, email, password_hash, locale) \
+         VALUES (?, ?, upper(hex(randomblob(4))), ?, ?, ?) RETURNING id",
     )
     .bind(&name)
     .bind(color)
     .bind(&email)
     .bind(&hash)
+    .bind(locale)
     .fetch_one(&state.db)
     .await
     .map_err(|e| {
@@ -159,10 +169,11 @@ pub async fn forgot(
             None,
         )
         .await?;
+        let lang = crate::i18n::of_user(&state.db, acct.id).await?;
         // In the background: the answer takes the same time whether the account exists or not.
         let mailer = state.auth.mailer.clone();
         tokio::spawn(async move {
-            if let Err(e) = mailer.send(mail::reset_password(&email, &code)).await {
+            if let Err(e) = mailer.send(mail::reset_password(&email, &code, lang)).await {
                 tracing::warn!(error = %e, "reset email not sent");
             }
         });

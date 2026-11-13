@@ -8,16 +8,18 @@ import { SignInSection } from '@/components/security/sign-in';
 import { TwoFactorSection } from '@/components/security/two-factor';
 import { Display } from '@/components/ui';
 import { authError, useAccount } from '@/lib/auth';
+import { useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 
 /** Profile > Sécurité: email, password, 2FA, linked accounts, devices, blocked people, app lock, sign out, delete the account. */
 export default function Security() {
   const t = useTheme();
+  const tr = useT();
   const { data: account, error } = useAccount();
   return (
     <Screen tabs={false}>
       <BackButton />
-      <Display size={30}>Sécurité</Display>
+      <Display size={30}>{tr('security.title')}</Display>
       {!account ? (
         error ? (
           <ErrorText>{authError(error)}</ErrorText>

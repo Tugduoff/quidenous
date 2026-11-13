@@ -54,6 +54,7 @@ A paced room that closes a question is *paused* (`groups.paused_at`, `next_open_
 
 - A room with one active member opens no question: alone, there is nobody to vote for. The app shows an invite screen instead; the first question opens when the second person joins (code, link or "add a friend"), and the others get "Nouvelle question". A question left open when a room drops to one person stays open but can't be voted on (`409 alone`).
 - **Vibe**: picked after naming the room (skippable), changeable by the owner. The vibes live in `server/deck/vibes.json` (`GET /vibes`); each one draws built-in deck questions by tag, favourite tag first (`[famille] Qui…` in `server/deck/fr.txt`, untagged = `potes`). No vibe = `potes`, which is what every room had before.
+- **Language**: `groups.language` (`fr` | `en`, French by default and for every older room), picked at creation (`POST /rooms {language}`), changeable by the owner (`PATCH /rooms/{id} {language}`, future questions only). The room draws the built-in deck of its language (`server/deck/fr.txt` or `en.txt`); its own questions and installed packs come whatever their language. See `docs/I18N.md`.
 - **Out of questions**: the Vote tab offers to write one, install a pack or import a file. When only the owner may add questions, a member can ask them (`POST /questions/ask`: inbox `ask` + push, once per 12 h). Adding one question, installing a pack or importing a file that reopens a stalled room tells the room.
 
 ## Phases

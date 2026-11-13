@@ -1,6 +1,7 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { Platform } from 'react-native';
 
+import { t, type TKey } from './i18n';
 import { useCurrentRound, useGroup } from './queries';
 import { storage } from './storage';
 
@@ -23,53 +24,48 @@ export type Theme =
   | 'night';
 export type Milestone = { n: number; theme: Theme; line: string; epic?: boolean };
 
-/** Numbers that get their own party, on top of every 50. */
-const SPECIAL: Record<number, Omit<Milestone, 'n'>> = {
-  10: { theme: 'confetti', line: 'Dix. L’échauffement est fini.' },
-  42: { theme: 'emoji', line: 'La réponse à la grande question sur la vie, l’univers et le reste.', epic: true },
-  69: { theme: 'emoji', line: 'Nice.', epic: true },
-  100: { theme: 'gold', line: 'Vous vous connaissez trop bien.' },
-  101: { theme: 'emoji', line: '101 dalmatiens. Qui fait Cruella ?' },
-  111: { theme: 'confetti', line: 'Que des 1. Joli.' },
-  112: { theme: 'siren', line: 'On appelle les urgences ?' },
-  123: { theme: 'confetti', line: '1, 2, 3… soleil !' },
-  180: { theme: 'emoji', line: 'One hundred and eightyyy !' },
-  214: { theme: 'hearts', line: '14/02, en chiffres. Qui a un crush ?' },
-  222: { theme: 'confetti', line: 'Que des 2.' },
-  256: { theme: 'pixel', line: 'Un octet plein. Les geeks apprécieront.' },
-  300: { theme: 'emoji', line: 'Partie parfaite au bowling.' },
-  314: { theme: 'emoji', line: '3,14. Comme π. Et comme la tarte.', epic: true },
-  321: { theme: 'rocket', line: '3, 2, 1… décollage !' },
-  333: { theme: 'confetti', line: 'Que des 3. Moitié du diable, attention.' },
-  365: { theme: 'emoji', line: 'Une année de questions, si vous étiez assidus.' },
-  404: { theme: 'glitch', line: 'Question introuvable. Ah si, la voilà.' },
-  444: { theme: 'confetti', line: 'Que des 4.' },
-  500: { theme: 'gold', line: 'La moitié de mille. Respect.' },
-  512: { theme: 'pixel', line: 'Encore une puissance de 2.' },
-  555: { theme: 'confetti', line: 'Que des 5. Tapez-vous dans la main.' },
-  666: { theme: 'devil', line: 'Le nombre de la bête. Qui a vendu son âme ?', epic: true },
-  777: { theme: 'jackpot', line: 'Jackpot ! Vous avez gagné… une autre question.', epic: true },
-  888: { theme: 'confetti', line: 'Que des 8. Infini, version debout.' },
-  999: { theme: 'confetti', line: 'Que des 9. Le prochain, c’est le grand.' },
-  1000: { theme: 'gold', line: 'MILLE. Vous êtes officiellement inséparables.', epic: true },
-  1001: { theme: 'night', line: 'Les mille et une nuits.', epic: true },
-  1024: { theme: 'pixel', line: 'Un kilo de questions (pour les geeks).', epic: true },
-  1234: { theme: 'confetti', line: '1, 2, 3, 4. On recommence ?' },
-  1337: { theme: 'matrix', line: 'Vous êtes des l33t h4x0rs.', epic: true },
-  1515: { theme: 'tricolore', line: 'Marignan. La seule date que tout le monde retient.', epic: true },
-  1664: { theme: 'emoji', line: 'Santé !' },
-  1789: { theme: 'tricolore', line: 'Prise de la Bastille. Vive la révolution !', epic: true },
-  2000: { theme: 'gold', line: 'Deux mille. Qui tient encore le compte ?', epic: true },
-  2048: { theme: 'pixel', line: 'Vous avez gagné la partie.', epic: true },
+/** Numbers that get their own party, on top of every 50. Their punchline: `celebration.lines.m<n>`. */
+const SPECIAL: Record<number, Omit<Milestone, 'n' | 'line'>> = {
+  10: { theme: 'confetti' },
+  42: { theme: 'emoji', epic: true },
+  69: { theme: 'emoji', epic: true },
+  100: { theme: 'gold' },
+  101: { theme: 'emoji' },
+  111: { theme: 'confetti' },
+  112: { theme: 'siren' },
+  123: { theme: 'confetti' },
+  180: { theme: 'emoji' },
+  214: { theme: 'hearts' },
+  222: { theme: 'confetti' },
+  256: { theme: 'pixel' },
+  300: { theme: 'emoji' },
+  314: { theme: 'emoji', epic: true },
+  321: { theme: 'rocket' },
+  333: { theme: 'confetti' },
+  365: { theme: 'emoji' },
+  404: { theme: 'glitch' },
+  444: { theme: 'confetti' },
+  500: { theme: 'gold' },
+  512: { theme: 'pixel' },
+  555: { theme: 'confetti' },
+  666: { theme: 'devil', epic: true },
+  777: { theme: 'jackpot', epic: true },
+  888: { theme: 'confetti' },
+  999: { theme: 'confetti' },
+  1000: { theme: 'gold', epic: true },
+  1001: { theme: 'night', epic: true },
+  1024: { theme: 'pixel', epic: true },
+  1234: { theme: 'confetti' },
+  1337: { theme: 'matrix', epic: true },
+  1515: { theme: 'tricolore', epic: true },
+  1664: { theme: 'emoji' },
+  1789: { theme: 'tricolore', epic: true },
+  2000: { theme: 'gold', epic: true },
+  2048: { theme: 'pixel', epic: true },
 };
 
-const FIFTY: Record<number, string> = {
-  50: 'Déjà. Ça devient sérieux.',
-  150: 'Et toujours pas fâchés.',
-  200: 'Il reste encore des secrets ?',
-  250: 'Quelqu’un devrait écrire un livre.',
-  300: 'Plus aucun mystère entre vous.',
-};
+/** Every 50 with a punchline of its own (`celebration.fifty.f<n>`); the others get `celebration.other`. */
+const FIFTY = [50, 150, 200, 250, 300];
 
 export const isMilestone = (n: number) => (n >= 50 && n % 50 === 0) || n in SPECIAL;
 
@@ -98,8 +94,9 @@ export const SPECIAL_NUMBERS = Object.keys(SPECIAL).map(Number);
 
 export function milestone(n: number): Milestone {
   const special = SPECIAL[n];
-  if (special) return { n, ...special };
-  return { n, theme: 'confetti', line: FIFTY[n] ?? 'Toujours pas lassés ?' };
+  // Read at call time: the punchline follows the app's language.
+  if (special) return { n, ...special, line: t(`celebration.lines.m${n}` as TKey) };
+  return { n, theme: 'confetti', line: FIFTY.includes(n) ? t(`celebration.fifty.f${n}` as TKey) : t('celebration.other') };
 }
 
 const param = (k: string) =>

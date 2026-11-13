@@ -5,6 +5,7 @@ import { Pressable, Text, View } from 'react-native';
 import { ErrorText, Field } from '@/components/auth-ui';
 import { Dialog, DialogActions, DialogTitle } from '@/components/ui';
 import { authError } from '@/lib/auth';
+import { useT } from '@/lib/i18n';
 import { REASONS, report, useBlockActions, useBlocks, type Blocked, type ReportKind, type ReportReason } from '@/lib/moderation';
 import { useTheme } from '@/lib/theme';
 
@@ -18,6 +19,7 @@ type Step = 'menu' | 'report' | 'block' | 'done';
 /** Report (pick a reason) and block / unblock, in one dialog: no second modal on top of the first. */
 export function ModerationDialog({ target, onClose }: { target: ModTarget | null; onClose: () => void }) {
   const t = useTheme();
+  const tr = useT();
   const { ids } = useBlocks();
   const { block, unblock } = useBlockActions();
   // The last target stays drawn while the dialog fades out.
@@ -72,21 +74,21 @@ export function ModerationDialog({ target, onClose }: { target: ModTarget | null
   const what = !shown
     ? ''
     : shown.kind === 'message'
-      ? 'Signaler ce message'
+      ? tr('moderation.reportMessage')
       : shown.kind === 'question'
-        ? 'Signaler cette question'
-        : `Signaler ${person?.name ?? ''}`;
+        ? tr('moderation.reportQuestion')
+        : tr('moderation.reportPerson', { name: person?.name ?? '' });
 
   return (
     <Dialog visible={!!target} onClose={onClose}>
       {step === 'menu' && person && (
         <>
           <DialogTitle title={person.name} />
-          <Action icon={Flag} label="Signaler" onPress={() => setStep('report')} />
+          <Action icon={Flag} label={tr('moderation.report')} onPress={() => setStep('report')} />
           {blocked ? (
             <Action
               icon={Ban}
-              label={`Débloquer ${person.name}`}
+              label={tr('moderation.unblock', { name: person.name })}
               disabled={busy}
               onPress={() =>
                 run(async () => {
@@ -96,7 +98,7 @@ export function ModerationDialog({ target, onClose }: { target: ModTarget | null
               }
             />
           ) : (
-            <Action icon={Ban} label={`Bloquer ${person.name}`} danger onPress={() => setStep('block')} />
+            <Action icon={Ban} label={tr('moderation.block', { name: person.name })} danger onPress={() => setStep('block')} />
           )}
           <ErrorText>{error}</ErrorText>
           <Pressable
@@ -110,7 +112,7 @@ export function ModerationDialog({ target, onClose }: { target: ModTarget | null
               justifyContent: 'center',
               backgroundColor: t.card2,
             }}>
-            <Text style={{ fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>Annuler</Text>
+            <Text style={{ fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>{tr('common.cancel')}</Text>
           </Pressable>
         </>
       )}
@@ -119,13 +121,13 @@ export function ModerationDialog({ target, onClose }: { target: ModTarget | null
           <DialogTitle title={what} />
           <View accessibilityRole="radiogroup" style={{ gap: 6 }}>
             {REASONS.map((r) => {
-              const on = reason === r.value;
+              const on = reason === r;
               return (
                 <Pressable
-                  key={r.value}
+                  key={r}
                   accessibilityRole="radio"
                   accessibilityState={{ checked: on }}
-                  onPress={() => setReason(r.value)}
+                  onPress={() => setReason(r)}
                   style={{
                     flexDirection: 'row',
                     alignItems: 'center',
@@ -148,7 +150,7 @@ export function ModerationDialog({ target, onClose }: { target: ModTarget | null
                     }}>
                     {on && <Check size={13} color={t.accTxt} strokeWidth={3} />}
                   </View>
-                  <Text style={{ fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>{r.label}</Text>
+                  <Text style={{ fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>{tr(`moderation.reasons.${r}`)}</Text>
                 </Pressable>
               );
             })}
@@ -157,7 +159,7 @@ export function ModerationDialog({ target, onClose }: { target: ModTarget | null
             <Field
               inset
               autoFocus
-              placeholder="Précise (facultatif)"
+              placeholder={tr('moderation.details')}
               value={details}
               onChangeText={setDetails}
               maxLength={500}
@@ -166,15 +168,15 @@ export function ModerationDialog({ target, onClose }: { target: ModTarget | null
             />
           )}
           <ErrorText>{error}</ErrorText>
-          <DialogActions confirmLabel="Signaler" onConfirm={send} onCancel={onClose} busy={busy} disabled={!reason} />
+          <DialogActions confirmLabel={tr('moderation.report')} onConfirm={send} onCancel={onClose} busy={busy} disabled={!reason} />
         </>
       )}
       {step === 'block' && person && (
         <>
-          <DialogTitle title={`Bloquer ${person.name} ?`} message="Tu ne verras plus ses messages." />
+          <DialogTitle title={tr('moderation.blockTitle', { name: person.name })} message={tr('moderation.blockBody')} />
           <ErrorText>{error}</ErrorText>
           <DialogActions
-            confirmLabel="Bloquer"
+            confirmLabel={tr('moderation.blockConfirm')}
             busy={busy}
             onCancel={onClose}
             onConfirm={() =>
@@ -189,7 +191,7 @@ export function ModerationDialog({ target, onClose }: { target: ModTarget | null
       {step === 'done' && (
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 8 }}>
           <Check size={22} color={t.accInk} strokeWidth={3} />
-          <Text style={{ fontFamily: t.font.bold, fontSize: 18, color: t.txt }}>Signalé</Text>
+          <Text style={{ fontFamily: t.font.bold, fontSize: 18, color: t.txt }}>{tr('moderation.done')}</Text>
         </View>
       )}
     </Dialog>

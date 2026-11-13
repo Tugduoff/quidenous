@@ -12,6 +12,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import type { Member, RankEntry, Tally } from '@/lib/api';
+import { useT } from '@/lib/i18n';
 import { BOUNCE, EASE } from '@/lib/motion';
 import { useTheme } from '@/lib/theme';
 
@@ -74,6 +75,7 @@ export function ResultBars({ result, byId }: { result: Tally[]; byId: Map<number
 /** "Voir tout (N)" under a folded result, "Réduire" once it is open. */
 function More({ count, less, onPress }: { count?: number; less?: boolean; onPress: () => void }) {
   const t = useTheme();
+  const tr = useT();
   const Icon = less ? ChevronUp : ChevronDown;
   return (
     <PressableScale
@@ -89,7 +91,9 @@ function More({ count, less, onPress }: { count?: number; less?: boolean; onPres
         minHeight: 44,
         paddingHorizontal: 16,
       }}>
-      <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.mut }}>{less ? 'Réduire' : `Voir tout (${count})`}</Text>
+      <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.mut }}>
+        {less ? tr('results.less') : tr('results.seeAll', { count: count ?? 0 })}
+      </Text>
       <Icon size={16} color={t.mut} />
     </PressableScale>
   );
@@ -98,6 +102,7 @@ function More({ count, less, onPress }: { count?: number; less?: boolean; onPres
 /** Ranking result: everyone in order, with points (Borda) and how many put them first. */
 export function RankResult({ ranking, byId, mine }: { ranking: RankEntry[]; byId: Map<number, Member>; mine: number[] | null }) {
   const t = useTheme();
+  const tr = useT();
   const [all, setAll] = useState(false);
   const best = ranking[0]?.points || 1;
   // Gold, silver, bronze discs for the podium.
@@ -140,12 +145,12 @@ export function RankResult({ ranking, byId, mine }: { ranking: RankEntry[]; byId
                 </Text>
                 {/* Only where my ranking differs from the group's. */}
                 {myPlace > 0 && myPlace !== i + 1 && (
-                  <Text style={{ fontFamily: t.font.regular, fontSize: 12, color: t.mut }}>{`toi : ${myPlace}e`}</Text>
+                  <Text style={{ fontFamily: t.font.regular, fontSize: 12, color: t.mut }}>{tr('results.you', { place: myPlace })}</Text>
                 )}
               </View>
               <Text style={{ fontFamily: t.font.display, fontSize: 20, color: t.txt }}>
                 {r.points}
-                <Text style={{ fontFamily: t.font.semibold, fontSize: 12, color: t.mut }}> pts</Text>
+                <Text style={{ fontFamily: t.font.semibold, fontSize: 12, color: t.mut }}> {tr('results.pts')}</Text>
               </Text>
             </View>
           </Land>
@@ -173,16 +178,17 @@ export function ResultSummary({
   onPress: () => void;
 }) {
   const t = useTheme();
+  const tr = useT();
   const total = result.reduce((n, r) => n + r.count, 0) || 1;
   const winnerId = ranking ? ranking[0]?.member_id : result[0]?.target_id;
   const m = winnerId != null ? byId.get(winnerId) : undefined;
-  const score = ranking ? `${ranking[0]?.points ?? 0} pts` : `${Math.round(((result[0]?.count ?? 0) / total) * 100)}%`;
+  const score = ranking ? tr('results.points', { count: ranking[0]?.points ?? 0 }) : `${Math.round(((result[0]?.count ?? 0) / total) * 100)}%`;
   // Several people sharing first place: "+1" after the name.
   const tied = ranking ? 0 : result.filter((r) => r.count === result[0]?.count).length - 1;
   return (
     <PressableScale
       accessibilityRole="button"
-      accessibilityLabel={`${m?.name ?? '?'} en tête, ${score}. Voir le résultat`}
+      accessibilityLabel={tr('results.summary', { name: m?.name ?? '?', score })}
       onPress={onPress}
       style={[
         {

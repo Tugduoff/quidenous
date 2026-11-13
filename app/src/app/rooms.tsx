@@ -7,6 +7,7 @@ import { RoomForms } from '@/components/room-forms';
 import { Screen } from '@/components/screen';
 import { Card, Display } from '@/components/ui';
 import { presetJoinCode } from '@/lib/api';
+import { useT } from '@/lib/i18n';
 import { useRooms } from '@/lib/queries';
 import { useSwitchRoom } from '@/lib/rooms';
 import { useSession } from '@/lib/session';
@@ -15,6 +16,7 @@ import { useTheme } from '@/lib/theme';
 /** All my rooms, to switch between them, plus create one or join one with a code. */
 export default function RoomsScreen() {
   const t = useTheme();
+  const tr = useT();
   const { room } = useSession();
   const { data: rooms } = useRooms();
   const switchRoom = useSwitchRoom();
@@ -26,12 +28,12 @@ export default function RoomsScreen() {
     <Screen tabs={false}>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Retour"
+        accessibilityLabel={tr('common.back')}
         onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
         style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card }}>
         <ChevronLeft size={22} color={t.txt} />
       </Pressable>
-      {!creating && <Display size={30}>Mes salons</Display>}
+      {!creating && <Display size={30}>{tr('room.list.title')}</Display>}
 
       {!creating && rooms?.map((r) => {
         const on = r.id === current;
@@ -53,11 +55,11 @@ export default function RoomsScreen() {
                     {r.name}
                   </Text>
                   {r.role === 'owner' && <Crown size={14} color={t.accInk} />}
-                  {r.muted && <BellOff size={14} color={t.mut} accessibilityLabel="En sourdine" />}
+                  {r.muted && <BellOff size={14} color={t.mut} accessibilityLabel={tr('room.list.muted')} />}
                 </View>
                 <Text numberOfLines={1} style={{ fontFamily: t.font.regular, fontSize: 13, color: t.mut }}>
-                  {`${r.members} membre${r.members > 1 ? 's' : ''}`}
-                  {waiting ? ` · question #${r.open_number} à voter` : ''}
+                  {tr('common.members', { count: r.members })}
+                  {waiting ? ` · ${tr('room.list.toVote', { number: r.open_number! })}` : ''}
                 </Text>
               </View>
               {r.unread > 0 && (

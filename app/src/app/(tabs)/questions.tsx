@@ -10,6 +10,7 @@ import { Screen } from '@/components/screen';
 import { Tip } from '@/components/tip';
 import { Avatar, Card, ConfirmModal, Display, PressableScale, QuestionText, Toggle } from '@/components/ui';
 import { api } from '@/lib/api';
+import { useT } from '@/lib/i18n';
 import { pickQuestionFile, splitTag, takeHandedDraft, type DraftLine } from '@/lib/import-draft';
 import { motion, useArrivals } from '@/lib/motion';
 import { keys, useGroup, useMembers, useQueue } from '@/lib/queries';
@@ -21,6 +22,7 @@ const MIN = 8;
 
 export default function QuestionsScreen() {
   const t = useTheme();
+  const tr = useT();
   const qc = useQueryClient();
   const { data } = useQueue();
   // The queue as it first loads just shows; questions added afterwards fade in.
@@ -40,7 +42,7 @@ export default function QuestionsScreen() {
       qc.invalidateQueries({ queryKey: keys.queue });
     },
   });
-  // Typing `[classement] …` by hand works too.
+  // Typing `[classement] …` (or `[rank] …`) by hand works too.
   const typed = splitTag(text.trim());
   const add = useMutation({
     mutationFn: () =>
@@ -66,7 +68,7 @@ export default function QuestionsScreen() {
   };
   const pick = async () => {
     const lines = await pickQuestionFile();
-    if (lines === 'empty') setImported('Fichier vide');
+    if (lines === 'empty') setImported(tr('questions.emptyFile'));
     else if (lines) review(lines);
   };
   // Sent here from the Vote tab's "no more questions": `compose` opens the keyboard, `import` brings the file picked there.
@@ -93,21 +95,23 @@ export default function QuestionsScreen() {
       }),
     onSuccess: (res) => {
       setDraft(null);
-      setImported(`+${res.added}` + (res.skipped ? ` · ${res.skipped} déjà là` : ''));
+      setImported(
+        res.skipped ? tr('questions.importedSkipped', { added: res.added, skipped: res.skipped }) : tr('questions.imported', { added: res.added }),
+      );
       qc.invalidateQueries({ queryKey: keys.queue });
       qc.invalidateQueries({ queryKey: keys.current });
     },
-    onError: () => setImported('Import raté'),
+    onError: () => setImported(tr('questions.importFailed')),
   });
   const chosen = draft?.filter((l) => l.selected).map((l) => l.line) ?? [];
   // Shuffle the whole upcoming queue (questions added later still go last).
   const shuffle = useMutation({
     mutationFn: () => api<{ shuffled: number }>('/questions/shuffle', { method: 'POST' }),
     onSuccess: () => {
-      setImported('Mélangé');
+      setImported(tr('questions.shuffled'));
       qc.invalidateQueries({ queryKey: keys.queue });
     },
-    onError: () => setImported('Mélange raté'),
+    onError: () => setImported(tr('questions.shuffleFailed')),
   });
   const toggle = (i: number) => setDraft((d) => d && d.map((l, j) => (j === i && !l.problem ? { ...l, selected: !l.selected } : l)));
   const allOn = !!draft && draft.every((l) => l.selected || l.problem);
@@ -117,7 +121,7 @@ export default function QuestionsScreen() {
   const locked = group?.settings.questions_by === 'owner' && group.my_role !== 'owner';
   return (
     <Screen>
-      <Display size={30}>Questions</Display>
+      <Display size={30}>{tr('questions.title')}</Display>
       {locked ? (
         <Card
           style={{
@@ -135,18 +139,18 @@ export default function QuestionsScreen() {
               lineHeight: 20,
               color: t.mut,
             }}>
-            Seul le propriétaire en ajoute.
+            {tr('questions.ownerOnly')}
           </Text>
         </Card>
       ) : (
         <>
-          <Tip id="questions" text="Ajoute une question ou un pack." />
+          <Tip id="questions" text={tr('questions.tip')} />
           {/* Write one: the ranking switch and the add button sit under the text, in the same card. */}
           <Card style={{ paddingBottom: 10 }}>
             <TextInput
               ref={composer}
-              accessibilityLabel="Nouvelle question"
-              placeholder={rank ? 'Classe-nous du plus… au moins…' : 'Qui de nous…'}
+              accessibilityLabel={tr('questions.newQuestion')}
+              placeholder={rank ? tr('questions.placeholderRank') : tr('questions.placeholder')}
               placeholderTextColor={t.mut}
               value={text}
               onChangeText={setText}
@@ -165,11 +169,11 @@ export default function QuestionsScreen() {
             />
             <View style={{ flexDirection: 'row', alignItems: 'center', paddingLeft: 16, paddingRight: 10 }}>
               {/* The next question is a ranking (everyone, first to last). */}
-              <Toggle icon={Trophy} label="Classement" value={rank} onChange={setRank} />
+              <Toggle icon={Trophy} label={tr('questions.ranking')} value={rank} onChange={setRank} />
               <View style={{ flex: 1 }} />
               <PressableScale
                 accessibilityRole="button"
-                accessibilityLabel="Ajouter"
+                accessibilityLabel={tr('common.add')}
                 disabled={!ok}
                 onPress={() => add.mutate()}
                 style={{
@@ -186,11 +190,11 @@ export default function QuestionsScreen() {
           </Card>
           {/* Or many at once. */}
           <View style={{ flexDirection: 'row', gap: 10 }}>
-            <BulkButton label="Packs" icon={<Package size={16} color={t.txt} />} onPress={() => router.push('/packs')} />
+            <BulkButton label={tr('questions.packs')} icon={<Package size={16} color={t.txt} />} onPress={() => router.push('/packs')} />
             <BulkButton
-              label={importFile.isPending ? 'Import…' : 'Importer'}
+              label={importFile.isPending ? tr('questions.importing') : tr('questions.import')}
               icon={<FileUp size={16} color={t.txt} />}
-              accessibilityLabel="Importer un fichier de questions"
+              accessibilityLabel={tr('questions.importFile')}
               disabled={importFile.isPending}
               onPress={pick}
             />
@@ -206,21 +210,25 @@ export default function QuestionsScreen() {
               justifyContent: 'space-between',
             }}>
             <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: t.font.bold, fontSize: 16, color: t.txt }}>
-              {chosen.length} / {draft.length} à importer
+              {tr('questions.toImport', { chosen: chosen.length, total: draft.length })}
             </Text>
-            <Pressable accessibilityRole="button" accessibilityLabel={allOn ? 'Tout décocher' : 'Tout cocher'} onPress={toggleAll} hitSlop={8}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={allOn ? tr('questions.uncheckAll') : tr('questions.checkAll')}
+              onPress={toggleAll}
+              hitSlop={8}>
               <Text
                 style={{
                   fontFamily: t.font.semibold,
                   fontSize: 14,
                   color: t.accInk,
                 }}>
-                {allOn ? 'Aucune' : 'Toutes'}
+                {allOn ? tr('questions.none') : tr('questions.all')}
               </Text>
             </Pressable>
           </View>
           {/* Ask them in a random order instead of the file's. */}
-          <Toggle icon={Shuffle} label="Ordre aléatoire" value={mix} onChange={setMix} />
+          <Toggle icon={Shuffle} label={tr('questions.randomOrder')} value={mix} onChange={setMix} />
           {draft.map((l, i) => (
             <Pressable
               key={i}
@@ -260,7 +268,7 @@ export default function QuestionsScreen() {
                   color: t.txt,
                 }}>
                 {l.text}
-                {l.problem && <Text style={{ color: t.tag }}>{`  · ${l.problem}`}</Text>}
+                {l.problem && <Text style={{ color: t.tag }}>{`  · ${tr(`questions.problem.${l.problem}`)}`}</Text>}
               </Text>
             </Pressable>
           ))}
@@ -285,7 +293,7 @@ export default function QuestionsScreen() {
                   fontSize: 15,
                   color: t.txt,
                 }}>
-                Annuler
+                {tr('common.cancel')}
               </Text>
             </Pressable>
             <Pressable
@@ -306,7 +314,7 @@ export default function QuestionsScreen() {
                   fontSize: 15,
                   color: chosen.length ? t.accTxt : t.mut,
                 }}>
-                {importFile.isPending ? 'Import…' : `Importer ${chosen.length}`}
+                {importFile.isPending ? tr('questions.importing') : tr('questions.importCount', { count: chosen.length })}
               </Text>
             </Pressable>
           </View>
@@ -314,7 +322,7 @@ export default function QuestionsScreen() {
       )}
       {/* What's coming: count, last action, shuffle. */}
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 }}>
-        <Text style={{ fontFamily: t.font.bold, fontSize: 18, color: t.txt }}>À venir</Text>
+        <Text style={{ fontFamily: t.font.bold, fontSize: 18, color: t.txt }}>{tr('questions.upcoming')}</Text>
         <View style={{ paddingHorizontal: 8, height: 22, borderRadius: 11, justifyContent: 'center', backgroundColor: t.card2 }}>
           <Text style={{ fontFamily: t.font.semibold, fontSize: 12, color: t.mut }}>{(data?.custom.length ?? 0) + (data?.deck_left ?? 0)}</Text>
         </View>
@@ -324,7 +332,7 @@ export default function QuestionsScreen() {
         {!locked && (data?.custom.length ?? 0) > 1 && (
           <PressableScale
             accessibilityRole="button"
-            accessibilityLabel="Mélanger les questions à venir"
+            accessibilityLabel={tr('questions.shuffleUpcoming')}
             disabled={shuffle.isPending}
             onPress={() => shuffle.mutate()}
             hitSlop={8}
@@ -365,7 +373,7 @@ export default function QuestionsScreen() {
             {(q.author_id === me?.id || group?.my_role === 'owner') && (
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Supprimer la question"
+                accessibilityLabel={tr('questions.deleteQuestion')}
                 onPress={() => setToDelete(q)}
                 hitSlop={8}
                 style={{
@@ -386,9 +394,9 @@ export default function QuestionsScreen() {
       <ModerationDialog target={toReport} onClose={() => setToReport(null)} />
       <ConfirmModal
         visible={!!toDelete}
-        title="Supprimer cette question ?"
-        message={toDelete ? `« ${toDelete.text.replace(/ ([?!:;»])/g, '\u00A0$1')} »\nElle ne sera jamais posée.` : undefined}
-        confirmLabel="Supprimer"
+        title={tr('questions.deleteTitle')}
+        message={toDelete ? tr('questions.deleteBody', { text: toDelete.text.replace(/ ([?!:;»])/g, '\u00A0$1') }) : undefined}
+        confirmLabel={tr('common.delete')}
         busy={remove.isPending}
         onCancel={() => setToDelete(null)}
         onConfirm={() => toDelete && remove.mutate(toDelete.id)}

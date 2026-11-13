@@ -18,6 +18,7 @@ import {
   type DeviceSession,
   type Provider,
 } from '@/lib/auth';
+import { t as translate, useT } from '@/lib/i18n';
 import { lockMethod, lockSupported, setLock, useLock } from '@/lib/lock';
 import { useSession } from '@/lib/session';
 import { oauth } from '@/lib/sign-in';
@@ -27,6 +28,7 @@ import { ago } from '@/lib/time';
 /** Google / Discord: link (the web leaves for the provider and comes back on /oauth), unlink. */
 export function ProvidersSection({ account }: { account: Account }) {
   const t = useTheme();
+  const tr = useT();
   const qc = useQueryClient();
   const { providers } = useFeatures();
   const [busy, setBusy] = useState<Provider | null>(null);
@@ -51,11 +53,12 @@ export function ProvidersSection({ account }: { account: Account }) {
       if (r && !isLinked(r)) throw new Error('not linked');
     });
   const unlink = async (p: Provider) => {
-    if (await askConfirm(`Délier ${PROVIDER_NAMES[p]} ?`, undefined, 'Délier')) run(p, () => auth.unlink(p));
+    if (await askConfirm(tr('security.providers.unlinkConfirm', { provider: PROVIDER_NAMES[p] }), undefined, tr('security.providers.unlink')))
+      run(p, () => auth.unlink(p));
   };
 
   return (
-    <Section title="Comptes liés">
+    <Section title={tr('security.providers.title')}>
       {providers.map((p) => {
         const linked = account.providers.includes(p);
         return (
@@ -66,11 +69,11 @@ export function ProvidersSection({ account }: { account: Account }) {
             right={
               linked ? (
                 <Pill tone="danger" onPress={() => unlink(p)} loading={busy === p} disabled={!!busy}>
-                  Délier
+                  {tr('security.providers.unlink')}
                 </Pill>
               ) : (
                 <Pill onPress={() => link(p)} loading={busy === p} disabled={!!busy}>
-                  Lier
+                  {tr('security.providers.link')}
                 </Pill>
               )
             }
@@ -84,7 +87,7 @@ export function ProvidersSection({ account }: { account: Account }) {
 
 /** The server stores the label as sent (percent-encoded, see lib/device.ts): shown decoded. */
 function label(s: DeviceSession) {
-  if (!s.device) return 'Appareil inconnu';
+  if (!s.device) return translate('security.devices.unknown');
   try {
     return decodeURIComponent(s.device);
   } catch {
@@ -95,6 +98,7 @@ function label(s: DeviceSession) {
 /** Where I'm signed in: this device first, sign one out, or every other one. */
 export function SessionsSection() {
   const t = useTheme();
+  const tr = useT();
   const qc = useQueryClient();
   const { data: sessions } = useQuery({ queryKey: ['sessions'], queryFn: auth.sessions });
   const [error, setError] = useState<string | null>(null);
@@ -104,13 +108,13 @@ export function SessionsSection() {
   const others = list.filter((s) => !s.current).length;
 
   const revoke = async (s: DeviceSession) => {
-    if (!(await askConfirm('Déconnecter cet appareil ?', label(s), 'Déconnecter'))) return;
+    if (!(await askConfirm(tr('security.devices.confirmOne'), label(s), tr('security.devices.signOut')))) return;
     setError(null);
     await auth.revoke(s.id).catch((e) => setError(authError(e)));
     refresh();
   };
   const revokeOthers = async () => {
-    if (!(await askConfirm('Déconnecter les autres appareils ?', undefined, 'Déconnecter'))) return;
+    if (!(await askConfirm(tr('security.devices.confirmOthers'), undefined, tr('security.devices.signOut')))) return;
     setBusy(true);
     setError(null);
     await auth.revokeOthers().catch((e) => setError(authError(e)));
@@ -120,7 +124,7 @@ export function SessionsSection() {
 
   if (!sessions) return null;
   return (
-    <Section title="Appareils">
+    <Section title={tr('security.devices.title')}>
       {list.map((s) => {
         const Icon = label(s).startsWith('Web') ? Globe : Smartphone;
         return (
@@ -128,12 +132,12 @@ export function SessionsSection() {
             key={s.id}
             icon={<Icon size={20} color={s.current ? t.accInk : t.mut} />}
             title={label(s)}
-            sub={s.current ? 'Cet appareil' : `Actif ${ago(s.last_used_at ?? s.created_at)}`}
+            sub={s.current ? tr('security.devices.current') : tr('security.devices.active', { when: ago(s.last_used_at ?? s.created_at) })}
             right={
               !s.current && (
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel={`Déconnecter ${label(s)}`}
+                  accessibilityLabel={tr('security.devices.signOutA11y', { device: label(s) })}
                   onPress={() => revoke(s)}
                   hitSlop={8}
                   style={{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card2 }}>
@@ -147,7 +151,7 @@ export function SessionsSection() {
       <ErrorText>{error}</ErrorText>
       {others > 1 && (
         <TextLink onPress={revokeOthers} disabled={busy}>
-          Déconnecter les autres appareils
+          {tr('security.revokeOthers')}
         </TextLink>
       )}
     </Section>
@@ -157,6 +161,7 @@ export function SessionsSection() {
 /** Face ID / fingerprint when coming back to the app (phones with the native module only). */
 export function LockSection() {
   const t = useTheme();
+  const tr = useT();
   const { enabled } = useLock();
   const [error, setError] = useState<string | null>(null);
   // Say what it actually asks for: "Face ID" means nothing on a phone with a fingerprint reader.
@@ -165,19 +170,19 @@ export function LockSection() {
     lockMethod().then(setMethod);
   }, []);
   if (!lockSupported) return null;
-  const label = method === 'face' ? 'Avec le visage' : method === 'fingerprint' ? "Avec l'empreinte" : 'Avec le code';
+  const label = tr(`security.lock.${method}`);
   const Icon = method === 'face' ? ScanFace : method === 'fingerprint' ? Fingerprint : Lock;
   const toggle = async (on: boolean) => {
     setError(null);
     const r = await setLock(on).catch(() => 'failed' as const);
-    if (r === 'unavailable') setError("Active d'abord un code ou Face ID sur ton téléphone");
+    if (r === 'unavailable') setError(tr('security.lock.unavailable'));
   };
   return (
-    <Section title="Verrouillage">
+    <Section title={tr('security.lock.title')}>
       <Row
         icon={<Icon size={20} color={enabled ? t.accInk : t.mut} />}
         title={label}
-        right={<Toggle label="" a11y={`Déverrouiller ${label.toLowerCase()}`} value={enabled} onChange={toggle} />}
+        right={<Toggle label="" a11y={tr('security.lock.a11y', { method: label.toLowerCase() })} value={enabled} onChange={toggle} />}
       />
       <ErrorText>{error}</ErrorText>
     </Section>
@@ -186,21 +191,19 @@ export function LockSection() {
 
 /** Sign out, after a warning when the account has no way back in (legacy, token only). */
 export function useSignOut() {
+  const tr = useT();
   const { signOut } = useSession();
   const { data: account } = useAccount();
   return async () => {
     const lost = !account?.secured;
-    const ok = await askConfirm(
-      'Se déconnecter ?',
-      lost ? 'Sans e-mail ni compte lié, tu ne pourras plus revenir sur ce compte.' : undefined,
-      'Se déconnecter',
-    );
+    const ok = await askConfirm(tr('security.signOut.confirm'), lost ? tr('security.signOut.lost') : undefined, tr('security.signOut.button'));
     if (ok) await signOut();
   };
 }
 
 export function SignOutButton() {
   const t = useTheme();
+  const tr = useT();
   const signOut = useSignOut();
   return (
     <Pressable
@@ -208,7 +211,7 @@ export function SignOutButton() {
       onPress={signOut}
       style={{ alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12 }}>
       <LogOut size={18} color="#FF3B5C" />
-      <Text style={{ fontFamily: t.font.semibold, fontSize: 15, color: '#FF3B5C' }}>Se déconnecter</Text>
+      <Text style={{ fontFamily: t.font.semibold, fontSize: 15, color: '#FF3B5C' }}>{tr('security.signOut.button')}</Text>
     </Pressable>
   );
 }

@@ -4,6 +4,7 @@ import { StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import Animated, { Extrapolation, interpolate, useAnimatedStyle } from 'react-native-reanimated';
 import Svg, { Circle, Defs, Ellipse, G, LinearGradient, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
 
+import { useT } from '@/lib/i18n';
 import type { Theme } from '@/lib/theme';
 
 import { BigNumber, burst, type Clock, Flash, Glow, paper, type Particle, Particles, Pop, Rays, Shockwave, Slam, sparks } from '../engine';
@@ -1039,11 +1040,12 @@ const rocket: SceneFactory = (m, t) => {
 // ——— 365: tear-off calendar ———
 
 function Page({ day, font, bold }: { day: number; font: string; bold: string }) {
+  const tr = useT();
   return (
     <View
       style={{ width: 140, height: 156, borderRadius: 18, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#00000018', overflow: 'hidden' }}>
       <View style={{ height: 42, backgroundColor: '#E5484D', alignItems: 'center', justifyContent: 'center' }}>
-        <Text style={{ fontFamily: bold, fontSize: 17, letterSpacing: 2, color: '#FFFFFF' }}>DÉC.</Text>
+        <Text style={{ fontFamily: bold, fontSize: 17, letterSpacing: 2, color: '#FFFFFF' }}>{tr('celebration.december')}</Text>
       </View>
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
         <Text style={{ fontFamily: font, fontSize: 76, lineHeight: 84, letterSpacing: -3, color: '#121216' }}>{day}</Text>

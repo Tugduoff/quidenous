@@ -1,7 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
 
+import { errors } from '@/locales/fr/errors';
+
 import { API_URL, api, ApiError, presetJoinCode } from './api';
 import { deviceHeader } from './device';
+import { getLang, t } from './i18n';
 
 export type Provider = 'google' | 'discord';
 export const PROVIDERS: Provider[] = ['google', 'discord'];
@@ -37,7 +40,7 @@ const post = <T>(path: string, json: object = {}, session = false) =>
 
 export const auth = {
   email: (email: string) => post<{ account: boolean }>('/email', { email }),
-  signup: (email: string, password: string, name: string) => post<SessionResult>('/signup', { email, password, name }, true),
+  signup: (email: string, password: string, name: string) => post<SessionResult>('/signup', { email, password, name, locale: getLang() }, true),
   login: (email: string, password: string) => post<AuthResult>('/login', { email, password }, true),
   login2fa: (challenge: string, code: string) => post<SessionResult>('/login/2fa', { challenge, code }, true),
   forgot: (email: string) => post<{ sent: boolean }>('/forgot', { email }),
@@ -81,6 +84,8 @@ export function useFeatures() {
     providers: PROVIDERS.filter((p) => on.has(`oauth_${p}`)),
     /** Rooms can pick a tone for their built-in questions (`/vibes`). */
     vibes: on.has('vibes'),
+    /** The app in French or English, and each room picks the language of its questions (`language`). */
+    languages: on.has('languages'),
     /** A member who can't add questions can ask the owner for some (`/questions/ask`). */
     askQuestions: on.has('ask_questions'),
     /** Per-account push settings (`/notifications`) and muting a room (`/rooms/{id}/mute`). */
@@ -112,38 +117,14 @@ export const PASSWORD_MIN = 8;
 
 export const looksLikeEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
 
-const MESSAGES: Record<string, string> = {
-  bad_email: 'E-mail invalide',
-  bad_name: 'Prénom invalide',
-  weak_password: `${PASSWORD_MIN} caractères minimum`,
-  common_password: 'Mot de passe trop courant',
-  email_taken: 'E-mail déjà utilisé',
-  bad_credentials: 'Mot de passe incorrect',
-  bad_code: 'Code incorrect',
-  expired: 'Code expiré',
-  email_not_configured: "Envoi d'e-mails indisponible",
-  already_secured: 'Compte déjà sécurisé',
-  already_verified: 'E-mail déjà vérifié',
-  no_email: "Ajoute d'abord un e-mail",
-  no_setup: 'Recommence la configuration',
-  identity_taken: 'Ce compte est déjà lié à un autre profil',
-  last_method: 'Garde au moins un moyen de connexion',
-  unknown_provider: 'Connexion indisponible',
-  bad_redirect: 'Connexion indisponible',
-  account_protected: 'Ce prénom a un compte : connecte-toi',
-  claimed_session: 'Fais-le depuis ton premier appareil.',
-  sign_in_required: 'Connecte-toi pour continuer',
-  reauth_required: "Confirme que c'est bien toi",
-  bad_target: 'Impossible sur toi-même',
-  not_found: 'Introuvable',
-  bad_report: 'Signalement invalide',
-};
+const wait = (s?: number) =>
+  !s ? t('common.later') : s < 60 ? t('common.inSeconds', { count: s }) : t('common.inMinutes', { count: Math.ceil(s / 60) });
 
-const wait = (s?: number) => (!s ? 'plus tard' : s < 60 ? `dans ${s} s` : `dans ${Math.ceil(s / 60)} min`);
-
-/** A short French message for whatever went wrong. */
+/** A short message for whatever went wrong, in the current language (`errors.<code>`, see locales/fr/errors.ts). */
 export function authError(e: unknown): string {
-  if (!(e instanceof ApiError)) return 'Pas de connexion';
-  if (e.code === 'rate_limited') return `Trop d'essais, réessaie ${wait(e.retryAfter)}`;
-  return MESSAGES[e.code] ?? 'Raté, réessaie';
+  if (!(e instanceof ApiError)) return t('common.offline');
+  if (e.code === 'rate_limited') return t('common.tooManyTries', { when: wait(e.retryAfter) });
+  return Object.prototype.hasOwnProperty.call(errors, e.code)
+    ? t(`errors.${e.code as keyof typeof errors}`, { min: PASSWORD_MIN })
+    : t('common.failed');
 }
