@@ -4,7 +4,10 @@ use std::{sync::Mutex, time::Duration};
 
 use futures::future::BoxFuture;
 
-use crate::config::Mailgun;
+use crate::{
+    config::Mailgun,
+    i18n::{self, Lang},
+};
 
 #[derive(Clone, Debug)]
 pub struct Email {
@@ -133,9 +136,10 @@ impl Mailer for MemoryMailer {
     }
 }
 
-fn layout(title: &str, intro: &str, code: &str, outro: &str) -> String {
+fn layout(lang: Lang, title: &str, intro: &str, code: &str, outro: &str) -> String {
+    let lang = lang.as_str();
     format!(
-        "<!doctype html><html lang=\"fr\"><body style=\"margin:0;padding:24px;background:#f4f1ec;font-family:-apple-system,Segoe UI,Roboto,sans-serif;color:#1d1a16\">\
+        "<!doctype html><html lang=\"{lang}\"><body style=\"margin:0;padding:24px;background:#f4f1ec;font-family:-apple-system,Segoe UI,Roboto,sans-serif;color:#1d1a16\">\
 <div style=\"max-width:420px;margin:0 auto;background:#fff;border-radius:16px;padding:28px\">\
 <h1 style=\"font-size:20px;margin:0 0 12px\">{title}</h1>\
 <p style=\"font-size:15px;line-height:1.5;margin:0 0 20px\">{intro}</p>\
@@ -145,37 +149,26 @@ fn layout(title: &str, intro: &str, code: &str, outro: &str) -> String {
     )
 }
 
-pub fn verify_email(to: &str, code: &str) -> Email {
-    let intro = "Voici ton code pour vérifier ton adresse e-mail sur Qui de nous ?";
-    let outro = "Il expire dans 15 minutes. Si tu n'as rien demandé, ignore cet e-mail.";
+/// A code e-mail in the reader's language (texts in `i18n`).
+fn code_email(to: &str, code: &str, lang: Lang, m: i18n::CodeMail) -> Email {
     Email {
         to: to.to_owned(),
-        subject: format!("{code} · ton code Qui de nous ?"),
-        text: format!("{intro}\n\n{code}\n\n{outro}\n"),
-        html: layout("Vérifie ton adresse", intro, code, outro),
+        subject: m.subject,
+        text: format!("{}\n\n{code}\n\n{}\n", m.intro, m.outro),
+        html: layout(lang, m.heading, m.intro, code, m.outro),
     }
 }
 
-pub fn reset_password(to: &str, code: &str) -> Email {
-    let intro = "Voici ton code pour choisir un nouveau mot de passe sur Qui de nous ?";
-    let outro = "Il expire dans 30 minutes. Si tu n'as rien demandé, ignore cet e-mail : ton mot de passe ne change pas.";
-    Email {
-        to: to.to_owned(),
-        subject: format!("{code} · nouveau mot de passe Qui de nous ?"),
-        text: format!("{intro}\n\n{code}\n\n{outro}\n"),
-        html: layout("Mot de passe oublié", intro, code, outro),
-    }
+pub fn verify_email(to: &str, code: &str, lang: Lang) -> Email {
+    code_email(to, code, lang, i18n::verify_email(lang, code))
 }
 
-pub fn delete_account(to: &str, code: &str) -> Email {
-    let intro = "Voici ton code pour supprimer ton compte Qui de nous ?";
-    let outro = "Il expire dans 30 minutes. La suppression est définitive. Si tu n'as rien demandé, ignore cet e-mail : ton compte reste tel quel.";
-    Email {
-        to: to.to_owned(),
-        subject: format!("{code} · supprimer ton compte Qui de nous ?"),
-        text: format!("{intro}\n\n{code}\n\n{outro}\n"),
-        html: layout("Supprimer ton compte", intro, code, outro),
-    }
+pub fn reset_password(to: &str, code: &str, lang: Lang) -> Email {
+    code_email(to, code, lang, i18n::reset_password(lang, code))
+}
+
+pub fn delete_account(to: &str, code: &str, lang: Lang) -> Email {
+    code_email(to, code, lang, i18n::delete_account(lang, code))
 }
 
 /// Escapes text for the HTML part of an email.
@@ -186,7 +179,7 @@ pub fn escape(s: &str) -> String {
         .replace('"', "&quot;")
 }
 
-/// A content report, for whoever moderates (`REPORT_EMAIL`). `lines` are (label, value).
+/// A content report, for whoever moderates (`REPORT_EMAIL`), in French. `lines` are (label, value).
 pub fn report(to: &str, subject: &str, lines: &[(&str, String)]) -> Email {
     let text: String = lines.iter().map(|(k, v)| format!("{k} : {v}\n")).collect();
     let rows: String = lines

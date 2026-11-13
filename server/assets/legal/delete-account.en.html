@@ -1,0 +1,72 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><style>body{font-family:Inter,system-ui,sans-serif;max-width:680px;margin:0 auto;padding:32px 20px 64px;line-height:1.6;color:#121216;background:#F5F5F0}h1{font-size:30px;line-height:1.2}h2{font-size:19px;margin-top:28px}a{color:#4F7D00}form{margin:12px 0}label{display:block;font-weight:600;margin:12px 0 4px}input{font:inherit;font-size:16px;width:100%;box-sizing:border-box;padding:12px 14px;border-radius:12px;border:1px solid #C9C9C2;background:#fff;color:inherit}input#code{letter-spacing:6px;font-size:22px;max-width:220px}button{font:inherit;font-size:16px;font-weight:600;margin-top:14px;padding:12px 20px;border:0;border-radius:12px;background:#121216;color:#F5F5F0;cursor:pointer}button.danger{background:#C62828;color:#fff}button:disabled{opacity:.5;cursor:default}.msg{margin-top:12px;font-weight:600}.err{color:#C62828}.ok{color:#4F7D00}.hidden{display:none}@media(prefers-color-scheme:dark){body{background:#0E0E12;color:#EDEDF0}a{color:#C8FF3D}input{background:#1A1A20;border-color:#3A3A44}button{background:#EDEDF0;color:#0E0E12}button.danger{background:#FF5A5A;color:#0E0E12}.err{color:#FF7A7A}.ok{color:#C8FF3D}}.lang{margin:0;text-align:right;font-size:14px}</style><title>Delete my account · qui de nous ?</title></head><body>
+<p class="lang"><a href="/delete-account" hreflang="fr" lang="fr">Français</a></p>
+<h1>Delete my account</h1>
+<p>You can delete your <strong>qui de nous ?</strong> account at any time. It is immediate and permanent.</p>
+<h2>What is deleted</h2>
+<ul>
+<li>Your profile: first name, photo, e-mail address, password, two-factor authentication, friend code.</li>
+<li>Your sign-ins: sessions on all your devices, linked Google or Discord accounts, push notifications.</li>
+<li>Your messages in rooms, your friends and the people you blocked.</li>
+<li>Your places in rooms: you leave them all. If you were alone in a room, it is deleted; otherwise the person who joined earliest becomes its owner.</li>
+</ul>
+<h2>What stays, anonymised</h2>
+<p>So that everyone else's history stays accurate, your votes, rankings and added questions stay in the rooms, anonymised, with no link to you. The question packs you published also stay, without your name.</p>
+<h2>How to</h2>
+<p><strong>In the app</strong>: Profile &gt; Security &gt; Delete my account.</p>
+<p><strong>Here</strong>, if your account has an e-mail address: we send you a code, you enter it, and the account is deleted.</p>
+<form id="step1" autocomplete="on">
+<label for="email">Your e-mail address</label>
+<input id="email" name="email" type="email" inputmode="email" autocomplete="email" required>
+<button id="send" type="submit">Get a code</button>
+</form>
+<form id="step2" class="hidden" autocomplete="off">
+<p>If an account uses this address, a 6-digit code has just been sent to it (it expires in 30 minutes).</p>
+<label for="code">Code received by e-mail</label>
+<input id="code" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" required>
+<button id="confirm" class="danger" type="submit">Permanently delete my account</button>
+</form>
+<p id="msg" class="msg" role="status" aria-live="polite"></p>
+<p><strong>Account without an e-mail address</strong> (created with just a first name): delete it from the app, or write to us at <a href="mailto:contact@coflop.fr">contact@coflop.fr</a> giving your first name and the name of your room.</p>
+<p><a href="/en/privacy">Privacy</a> · <a href="/en/terms">Terms of use</a> · <a href="/">Open the app</a></p>
+<script>
+(function () {
+  var errors = {
+    bad_email: "This e-mail address is not valid.",
+    bad_code: "Wrong code.",
+    expired: "This code has expired or had too many attempts: ask for a new one.",
+    rate_limited: "Too many attempts. Try again a bit later.",
+    email_not_configured: "Sending e-mails is not available right now. Delete your account from the app or write to us."
+  };
+  var $ = function (id) { return document.getElementById(id); };
+  var msg = $('msg');
+  function show(text, ok) { msg.textContent = text; msg.className = 'msg ' + (ok ? 'ok' : 'err'); if (msg.scrollIntoView) msg.scrollIntoView({ block: 'nearest' }); }
+  function post(path, body) {
+    return fetch('/api/auth/delete/' + path, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body)
+    }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (b) {
+        if (!r.ok) throw new Error(errors[b.error] || "Something went wrong. Try again.");
+        return b;
+      });
+    }, function () { throw new Error("No connection. Try again."); });
+  }
+  $('step1').addEventListener('submit', function (e) {
+    e.preventDefault();
+    $('send').disabled = true; show('', true);
+    post('send', { email: $('email').value }).then(function () {
+      $('step2').classList.remove('hidden'); $('code').focus();
+      $('send').textContent = 'Send a new code';
+    }, function (err) { show(err.message, false); }).then(function () { $('send').disabled = false; });
+  });
+  $('step2').addEventListener('submit', function (e) {
+    e.preventDefault();
+    if (!window.confirm('Delete your account? This cannot be undone.')) return;
+    $('confirm').disabled = true; show('', true);
+    post('confirm', { email: $('email').value, code: $('code').value.trim() }).then(function () {
+      $('step1').classList.add('hidden'); $('step2').classList.add('hidden');
+      show('Your account has been deleted. You have been signed out of all your devices.', true);
+    }, function (err) { show(err.message, false); $('confirm').disabled = false; });
+  });
+})();
+</script>
+</body></html>

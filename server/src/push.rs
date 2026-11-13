@@ -23,6 +23,8 @@ use sha2::Sha256;
 use sqlx::SqlitePool;
 use tokio::sync::Mutex;
 
+use crate::i18n::{Lang, Text};
+
 const RECORD_SIZE: u32 = 4096;
 const TTL_SECONDS: &str = "86400";
 const JWT_LIFETIME_SECONDS: u64 = 12 * 3600;
@@ -69,13 +71,13 @@ impl Kind {
     }
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug)]
 pub struct Notification {
     /// Sent if the person wants any of these (a result with the next question is both).
-    #[serde(skip)]
     pub kinds: Vec<Kind>,
-    pub title: String,
-    pub body: String,
+    /// In both languages: each device gets its account's (`users.locale`).
+    pub title: Text,
+    pub body: Text,
     /// Groups notifications on the phone: a newer one replaces the older one.
     pub tag: String,
     /// Path in the app; the room is added as `?room=` on the way out, so a tap opens the right room.
@@ -90,6 +92,25 @@ impl Notification {
         self.url = format!("{}{sep}room={}", self.url, self.room);
         self
     }
+
+    /// What the web app's service worker gets, in one language.
+    fn payload(&self, lang: Lang) -> serde_json::Value {
+        serde_json::json!({
+            "title": self.title.get(lang),
+            "body": self.body.get(lang),
+            "tag": self.tag,
+            "url": self.url,
+            "room": self.room,
+        })
+    }
+}
+
+/// A push as a device would have received it (tests record them instead of sending).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Sent {
+    pub user_id: Option<i64>,
+    pub title: String,
+    pub body: String,
 }
 
 /// One device, the room it would hear about, and what its owner wants pushed.
@@ -108,9 +129,15 @@ pub struct Recipient {
     quiet_start: Option<i64>,
     quiet_end: Option<i64>,
     tz_offset: Option<i64>,
+    locale: Option<String>,
 }
 
 impl Recipient {
+    /// The language this device's account reads.
+    pub fn lang(&self) -> Lang {
+        Lang::from_db(self.locale.as_deref())
+    }
+
     /// Their settings let this through: room not muted, master switch on, one of the kinds on,
     /// and not their quiet hours (dropped then: the inbox has it).
     fn wants(&self, kinds: &[Kind], now: u64) -> bool {
@@ -351,6 +378,8 @@ pub struct Push {
     vapid: Option<Arc<Vapid>>,
     fcm: Option<Arc<Fcm>>,
     presence: Presence,
+    /// Tests: pushes are recorded here instead of sent, once [`Push::record`] is called.
+    recorded: Arc<std::sync::Mutex<Option<Vec<Sent>>>>,
 }
 
 pub enum Target {
@@ -385,7 +414,20 @@ impl Push {
             vapid: vapid.map(Arc::new),
             fcm: fcm.map(Arc::new),
             presence: Presence::default(),
+            recorded: Arc::default(),
         }
+    }
+
+    /// From now on, keep pushes in memory instead of sending them (tests).
+    pub fn record(&self) {
+        let mut rec = self.recorded.lock().unwrap_or_else(|e| e.into_inner());
+        rec.get_or_insert_with(Vec::new);
+    }
+
+    /// Pushes recorded since [`Push::record`].
+    pub fn recorded(&self) -> Vec<Sent> {
+        let rec = self.recorded.lock().unwrap_or_else(|e| e.into_inner());
+        rec.clone().unwrap_or_default()
     }
 
     pub fn presence(&self) -> &Presence {
@@ -482,6 +524,17 @@ impl Push {
                 Ok(subs) => subs,
                 Err(e) => return tracing::error!(error = %e, "push: load subscriptions"),
             };
+            {
+                let mut rec = push.recorded.lock().unwrap_or_else(|e| e.into_inner());
+                if let Some(rec) = rec.as_mut() {
+                    rec.extend(subs.iter().map(|sub| Sent {
+                        user_id: sub.user_id,
+                        title: n.title.get(sub.lang()).to_owned(),
+                        body: n.body.get(sub.lang()).to_owned(),
+                    }));
+                    return;
+                }
+            }
             // Everyone at once: a slow push service must not delay the others.
             let results =
                 futures::future::join_all(subs.iter().map(|sub| push.deliver(sub, &n))).await;
@@ -516,8 +569,9 @@ impl Push {
             ($where:literal) => {
                 concat!(
                     "SELECT s.id, s.kind, s.endpoint, s.p256dh, s.auth, s.user_id, m.group_id, \
-                     m.muted, p.enabled, p.off, p.quiet_start, p.quiet_end, p.tz_offset \
+                     m.muted, p.enabled, p.off, p.quiet_start, p.quiet_end, p.tz_offset, u.locale \
                      FROM push_subscriptions s JOIN members m ON m.user_id = s.user_id \
+                     LEFT JOIN users u ON u.id = s.user_id \
                      LEFT JOIN notification_prefs p ON p.user_id = s.user_id WHERE ",
                     $where,
                     " AND NOT EXISTS (SELECT 1 FROM blocks b WHERE b.user_id = s.user_id AND b.blocked_id = ?)"
@@ -593,7 +647,7 @@ impl Push {
         let (Some(p256dh), Some(auth)) = (&sub.p256dh, &sub.auth) else {
             return Delivery::Gone;
         };
-        let payload = serde_json::to_vec(n).unwrap_or_default();
+        let payload = serde_json::to_vec(&n.payload(sub.lang())).unwrap_or_default();
         let body = match encrypt(&payload, p256dh, auth) {
             Ok(b) => b,
             Err(e) => return Delivery::Failed(e),
@@ -635,7 +689,7 @@ impl Push {
         let message = serde_json::json!({
             "message": {
                 "token": sub.endpoint,
-                "notification": { "title": n.title, "body": n.body },
+                "notification": { "title": n.title.get(sub.lang()), "body": n.body.get(sub.lang()) },
                 "data": { "url": n.url, "room": n.room.to_string() },
                 "android": {
                     "priority": "high",

@@ -15,6 +15,7 @@ use crate::{
     auth::{Me, hash_token, new_token},
     error::{AppError, AppResult},
     game,
+    i18n::{self, Text},
     live::Event,
     models::{HistoryItem, Member, MemberRow, QueuedQuestion, RoundView},
     push::{Kind, Notification},
@@ -45,6 +46,10 @@ pub fn router() -> Router<AppState> {
             put(upload_photo).layer(axum::extract::DefaultBodyLimit::max(PHOTO_UPLOAD_MAX)),
         )
         .route("/me/avatar", put(set_avatar))
+        .route(
+            "/me/locale",
+            get(crate::i18n::get_locale).put(crate::i18n::put_locale),
+        )
         .route("/group", get(group))
         .route("/round/current", get(current_round))
         .route("/round/current/vote", post(vote))
@@ -152,6 +157,7 @@ async fn features(State(state): State<AppState>) -> Json<Value> {
         "ota",
         "mentions",
         "avatars",
+        "languages",
     ];
     f.extend(crate::accounts::features(&state));
     Json(json!(f))
@@ -502,10 +508,12 @@ async fn group(State(state): State<AppState>, Me(me): Me) -> AppResult<Json<Valu
         Option<String>,
         bool,
         i64,
+        String,
     );
-    let (name, code, skip_vote, kick_vote, questions_by, vibe, owner_next, next_delay): Settings =
+    let (name, code, skip_vote, kick_vote, questions_by, vibe, owner_next, next_delay, language): Settings =
         sqlx::query_as(
-            "SELECT name, join_code, skip_vote, kick_vote, questions_by, vibe, owner_next, next_delay FROM groups WHERE id = ?",
+            "SELECT name, join_code, skip_vote, kick_vote, questions_by, vibe, owner_next, next_delay, language \
+             FROM groups WHERE id = ?",
         )
     .bind(me.group_id)
     .fetch_one(&state.db)
@@ -546,8 +554,9 @@ async fn group(State(state): State<AppState>, Me(me): Me) -> AppResult<Json<Valu
         "name": name,
         "code": code,
         "my_role": me.role,
+        "language": language,
         "settings": { "skip_vote": skip_vote, "kick_vote": kick_vote, "questions_by": questions_by, "vibe": vibe,
-                      "owner_next": owner_next, "next_delay": next_delay },
+                      "owner_next": owner_next, "next_delay": next_delay, "language": language },
         "pace": crate::pacing::view(&state, me.group_id).await?,
         "members": members,
         "former": former,
@@ -727,9 +736,9 @@ async fn export_history(
     .fetch_all(&state.db)
     .await?;
     let cell = |v: &str| format!("\"{}\"", v.replace('"', "\"\""));
+    let lang = i18n::of_member(&state.db, me.id).await?;
     // BOM so Excel reads the accents right.
-    let mut csv =
-        String::from("\u{feff}numéro,date,question,gagnant(s),score du gagnant,votes,détail\n");
+    let mut csv = format!("\u{feff}{}\n", i18n::csv_header(lang));
     for (id, number, question, closed_at, kind) in rounds {
         let tallies = game::tallies(&state.db, id).await?;
         let votes = tallies.iter().map(|t| t.count).sum::<i64>();
@@ -766,12 +775,7 @@ async fn export_history(
                     .iter()
                     .map(|t| {
                         let voters: Vec<String> = t.voter_ids.iter().map(|v| name(*v)).collect();
-                        format!(
-                            "{} ({}) : {}",
-                            name(t.target_id),
-                            t.count,
-                            voters.join(", ")
-                        )
+                        i18n::csv_votes(lang, &name(t.target_id), t.count, &voters.join(", "))
                     })
                     .collect(),
             )
@@ -792,7 +796,7 @@ async fn export_history(
             (axum::http::header::CONTENT_TYPE, "text/csv; charset=utf-8"),
             (
                 axum::http::header::CONTENT_DISPOSITION,
-                "attachment; filename=\"qui-de-nous-historique.csv\"",
+                i18n::csv_disposition(lang),
             ),
         ],
         csv,
@@ -1091,8 +1095,10 @@ async fn stats(
 ) -> AppResult<Json<crate::stats::Stats>> {
     let period = crate::stats::Period::parse(q.period.as_deref())?;
     let tz = crate::stats::parse_tz(q.tz.as_deref());
+    // Story titles and punchlines in the reader's language.
+    let lang = i18n::of_member(&state.db, me.id).await?;
     Ok(Json(
-        crate::stats::for_group(&state.db, me.group_id, period, tz).await?,
+        crate::stats::for_group_in(&state.db, me.group_id, period, tz, lang).await?,
     ))
 }
 
@@ -1289,16 +1295,20 @@ pub(crate) async fn notify_round(
     };
     let (title, body, kinds) = match (closed, question) {
         (true, Some(q)) => (
-            "Résultat dispo · nouvelle question".to_owned(),
-            q,
+            Text::by(|l| i18n::result_and_question(l).into()),
+            Text::same(q),
             vec![Kind::Result, Kind::Question],
         ),
         (true, None) => (
-            "Résultat dispo".to_owned(),
-            "Tout le monde a voté.".to_owned(),
+            Text::by(|l| i18n::result_ready(l).into()),
+            Text::by(|l| i18n::everyone_voted(l).into()),
             vec![Kind::Result],
         ),
-        (false, Some(q)) => ("Nouvelle question".to_owned(), q, vec![Kind::Question]),
+        (false, Some(q)) => (
+            Text::by(|l| i18n::new_question(l).into()),
+            Text::same(q),
+            vec![Kind::Question],
+        ),
         (false, None) => return Ok(()),
     };
     state.push.notify_group(
@@ -1329,7 +1339,7 @@ pub(crate) async fn notify_round(
             "result",
             Some(round_id),
             None,
-            &text,
+            &Text::same(text),
         )
         .await?;
     } else if let Some(round_id) = opened {
@@ -1481,8 +1491,9 @@ async fn post_message(
         mentions
     };
     let rest: Vec<i64> = others.into_iter().filter(|m| !pinged.contains(m)).collect();
-    crate::inbox::to_members(&state.db, &rest, "message", Some(id), Some(me.id), text).await?;
-    crate::inbox::to_members(&state.db, &pinged, "mention", Some(id), Some(me.id), text).await?;
+    let said = Text::same(text);
+    crate::inbox::to_members(&state.db, &rest, "message", Some(id), Some(me.id), &said).await?;
+    crate::inbox::to_members(&state.db, &pinged, "mention", Some(id), Some(me.id), &said).await?;
     state.live.send(
         me.group_id,
         Event::MessagePosted {
@@ -1499,8 +1510,8 @@ async fn post_message(
         &me,
         Notification {
             kinds: vec![Kind::Chat],
-            title: format!("{} · « {} »", me.name, round.text),
-            body: text.to_owned(),
+            title: Text::by(|l| i18n::chat_title(l, &me.name, &round.text)),
+            body: said.clone(),
             tag: format!("chat-{id}"),
             url: format!("/round/{id}"),
             room: me.group_id,
@@ -1514,8 +1525,8 @@ async fn post_message(
         &me,
         Notification {
             kinds: vec![Kind::Mention, Kind::Chat],
-            title: format!("{} t'a mentionné · « {} »", me.name, round.text),
-            body: text.to_owned(),
+            title: Text::by(|l| i18n::mention_title(l, &me.name, &round.text)),
+            body: said,
             tag: format!("mention-{id}"),
             url: format!("/round/{id}"),
             room: me.group_id,
@@ -1674,7 +1685,7 @@ async fn nudge(
         "nudge",
         Some(round.id),
         Some(me.id),
-        &format!("{} attend ton vote", me.name),
+        &Text::by(|l| i18n::nudge(l, &me.name)),
     )
     .await?;
     state.live.send(me.group_id, Event::InboxChanged);
@@ -1684,8 +1695,8 @@ async fn nudge(
         me.user_id,
         Notification {
             kinds: vec![Kind::Nudge],
-            title: format!("{} attend ton vote", me.name),
-            body: round.text,
+            title: Text::by(|l| i18n::nudge(l, &me.name)),
+            body: Text::same(round.text),
             tag: format!("round-{}", me.group_id),
             url: "/".into(),
             room: me.group_id,
@@ -1719,7 +1730,7 @@ async fn ask_questions(State(state): State<AppState>, Me(me): Me) -> AppResult<J
     if recent.is_some() {
         return Err(AppError::Conflict("already_asked"));
     }
-    let title = format!("{} demande des questions", me.name);
+    let title = Text::by(|l| i18n::ask_questions(l, &me.name));
     crate::inbox::to_member(&state.db, owner, "ask", None, Some(me.id), &title).await?;
     state.live.send(me.group_id, Event::InboxChanged);
     state.push.notify_member(
@@ -1729,7 +1740,7 @@ async fn ask_questions(State(state): State<AppState>, Me(me): Me) -> AppResult<J
         Notification {
             kinds: vec![Kind::Ask],
             title,
-            body: format!("Plus de questions dans « {room} »."),
+            body: Text::by(|l| i18n::out_of_questions(l, &room)),
             tag: format!("ask-{}", me.group_id),
             url: "/questions".into(),
             room: me.group_id,

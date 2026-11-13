@@ -1,0 +1,308 @@
+# One question per line. Blank lines and lines starting with # are ignored.
+# Vibes (deck/vibes.json): [pimente], [boulot], [famille]… at the start of a line; untagged = [potes].
+Who would sell out the whole group for £10k?
+Who would end up in prison first?
+[potes] [famille] Who would survive the shortest time on a desert island?
+Who would ghost the group without warning?
+[potes] [famille] Who would forget your birthday even with a reminder?
+Who would be the worst flatmate?
+Who would choose money over love?
+[potes] [famille] [boulot] Who would last the shortest without their phone?
+Who would be first to spill a group secret?
+Who would die first in a horror film?
+Who would start a cult if nobody stopped them?
+[potes] [famille] Who would cry at a cartoon?
+[potes] [famille] [boulot] Who is most likely to become a millionaire?
+Who is most likely to lose everything at the casino?
+[potes] [boulot] Who would lie in a job interview without blinking?
+Who would get married in Vegas on a whim?
+Who would need someone to wipe their browser history if they died tomorrow?
+Who has the most embarrassing search history?
+Who would crack first under interrogation?
+Who would nick the last slice of pizza without asking?
+Who would make the worst world leader?
+Who would make the best world leader?
+Who would make the worst parent?
+Who would move to the other side of the world overnight?
+Who would end up on a reality TV show?
+Who would fall for a Nigerian prince scam?
+Who is most likely to get fired for something stupid?
+Who would grass the group up to the police to save themselves?
+Who would never see the group again for £1 million?
+[potes] [famille] [boulot] Who would be the first zombie of the apocalypse?
+Who would survive longest in a zombie apocalypse?
+Who has lied to someone in this group this week?
+Who is the stingiest person in the group?
+Who blows their whole pay cheque on payday?
+Who would sell their soul to be famous?
+Who would become a different person after winning the lottery?
+Who would secretly keep the jackpot if we won the lottery as a group?
+[potes] [famille] [boulot] Who is the sorest loser?
+[potes] [famille] [boulot] Who tells the worst jokes?
+Who is most likely to start a fight in a club?
+[potes] [pimente] Who would end up marrying their ex?
+[potes] [pimente] Who still stalks their ex on Instagram?
+Who is the king or queen of leaving people on read?
+[potes] [famille] Who is always late, even to their own birthday?
+[potes] [famille] [boulot] Who would get lost even with Google Maps?
+Who would eat a live bug for £50?
+Who would shave their head for £500?
+Who would go skydiving without a second thought?
+Who would scream loudest on a rollercoaster?
+Who would become an influencer if they could?
+Who is most likely to spend this weekend in a police cell?
+[potes] [famille] [boulot] Who would make the best spy?
+Who would make the worst spy?
+Who would fall in love with an AI?
+[potes] [boulot] Who would be the first replaced by an AI at work?
+Who would take a one-way ticket to Mars?
+Who would get kicked off a plane?
+Who is most likely to get someone's name tattooed on them?
+Who has a tattoo they regret, or definitely will one day?
+Who could live in a cave with no internet for a year?
+[potes] [pimente] Who would ditch the group for a crush?
+[potes] [boulot] Who would choose their career over their friends?
+Who lies most about their age?
+Who has the biggest ego in the group?
+Who thinks they're funny but isn't?
+Who would be the first voted off Survivor?
+Who would win a fight with no rules?
+Who creates the most drama over nothing?
+Who would be the best lawyer to defend you?
+Who would help you bury a body, no questions asked?
+Who would call the police if you asked them to help bury a body?
+Who is always the first to leave the party?
+Who is always the last one standing at a party?
+[potes] [pimente] Who sends messages they regret at 3am?
+Who is most likely to have a secret child somewhere?
+Who will end up with the most kids?
+Who will end up alone with twelve cats?
+Who would take a bullet for the group?
+Who would use the group as a human shield?
+Who would be the most useless in an escape room?
+Who would sell a kidney for the new iPhone?
+Who gets talked into buying stuff by TikTok ads?
+Who secretly believes in conspiracy theories?
+Who would turn into a conspiracy theorist after one night on YouTube?
+Who could eat the same meal every day for a year?
+Who wouldn't last a week without a takeaway?
+Who would be the worst driver on a road trip?
+Who would set the kitchen on fire boiling pasta?
+Who would flirt their way to a promotion?
+Who would leave their partner for a celebrity?
+Who would keep quiet after seeing a friend's partner cheating?
+Who would tell everyone after seeing a friend's partner cheating?
+Who has snooped through someone else's phone?
+Who reads messages over people's shoulders?
+Who would be capable of shoplifting?
+Who would hand back a wallet stuffed with cash?
+Who would keep the wallet without a hint of guilt?
+Who could become a criminal mastermind?
+Who would get caught on their very first heist?
+Who would make the worst teacher?
+[potes] [famille] Who would make the best teacher?
+Who would cope worst with a week of total silence?
+Who would be unbearable if they got famous?
+Who would forget about us if they got famous?
+Who has the worst taste in music?
+[potes] [famille] Who sings the most out of tune in the shower?
+Who would make the worst first impression on your parents?
+Who would make the best impression on your parents?
+Who is most likely to end up in a true crime documentary?
+Who could be a serial killer without anyone suspecting a thing?
+Who would be the serial killer's first victim?
+Who would choose to be immortal, even if it meant being alone?
+Who regifts the presents we give them?
+Who always gives the same present?
+Who is most likely to lose their savings on crypto?
+Who would be the first to panic during a power cut?
+Who could secretly live in an IKEA?
+Who would get thrown out of a wedding?
+Who would give the most cringe wedding speech?
+Who would do a runner on their own wedding day?
+Who would turn up late to a funeral?
+Who would be the worst Formula 1 driver?
+Who would go to prison to save a friend?
+Who would let a friend go to prison in their place?
+Who would get kidnapped and drive the kidnappers mad?
+Who would haggle their own ransom down?
+Who would be the worst person to share a survival bunker with?
+Who would want to know the date of their death?
+Who would erase a memory of an ex if they could?
+Who would happily relive the same day on a loop?
+[potes] [pimente] Who would be first to say yes to an indecent proposal?
+Who would cheat to win a board game?
+[potes] [famille] Who cheats at Monopoly?
+[potes] [famille] Who sulks after losing a board game?
+Who has the most secrets in this group?
+Who knows way too much about everyone here?
+Who would get lost in their own neighbourhood after a night out?
+Who has the most chaotic camera roll?
+Who would win a million on a TV quiz show?
+Who would start a podcast nobody asked for?
+Who would accidentally join a pyramid scheme?
+Who would turn up to a fancy dress party in normal clothes?
+Who would cry at their own birthday party?
+Who would order for the whole table and get it all wrong?
+Who would book a holiday and forget their passport?
+Who has the most unread notifications right now?
+Who would win a hot dog eating contest?
+Who would bring a guitar to a party nobody invited them to?
+Who would be the first to suggest a 4am kebab?
+Who is the group's unpaid therapist?
+Who would win an argument they were completely wrong about?
+Who would rather die than admit they're lost?
+Who would rename the group chat at 2am?
+Who is most likely to send the group chat a drunk voice note?
+Who would get banned from a karaoke bar?
+Who would try to survive in the wild using only YouTube tutorials?
+Who would spend their last £5 on a scratch card?
+Who has the most questionable ex?
+Who is secretly a millionaire and just hasn't told us?
+Who would get scammed buying concert tickets online?
+Who would be the worst person to be stuck in a lift with?
+Who would last longest alone in a haunted house?
+Who would sell the group's secrets for a book deal?
+Who would turn up to brunch still wearing last night's outfit?
+Who would quit everything to open a beach bar?
+Who would get a bad haircut and pretend they love it?
+Who would bail on plans the most times in a row?
+Who would be the first to cave and text first after a fight?
+Who would adopt a dog on a whim and figure it out later?
+[potes] [famille] Who would win a staring contest?
+[potes] [famille] Who would scream the loudest at a spider?
+[potes] [famille] [boulot] Who would win a game of hide and seek?
+[potes] [famille] [boulot] Who would you want on your quiz team?
+[potes] [famille] [boulot] Who laughs at their own jokes before the punchline?
+[potes] [boulot] Who would quit their job to travel the world?
+[potes] [pimente] Who would date someone just for their dog?
+# Rankings: everyone gets ranked, from first to last.
+[classement] Rank us from biggest party animal to biggest homebody.
+[classement] [potes] [famille] [boulot] Rank us from always late to always on time.
+[classement] [potes] [famille] [boulot] Rank us from funniest to least funny.
+[classement] Rank us from last survivor of the zombie apocalypse to first one eaten.
+[classement] Rank us from stingiest to most generous.
+[classement] [potes] [pimente] Rank us from biggest flirt to shyest.
+[classement] Rank us from most easily offended to most chilled.
+[classement] [potes] [famille] [boulot] Rank us from chattiest to quietest.
+[classement] [potes] [famille] Rank us from best cook to worst.
+[classement] Rank us from most to least likely to get rich.
+[classement] [potes] [famille] [boulot] Rank us from most glued to their phone to most offline.
+[classement] Rank us from sorest loser to best sport.
+[classement] Rank us from most dramatic to calmest.
+[classement] Rank us from best dancer to worst.
+[classement] Rank us from best secret-keeper to worst.
+[classement] Rank us from most to least likely to become famous.
+[classement] Rank the group by how long they'd survive alone in the wild.
+
+# Family: for all ages.
+[famille] Who would phone their mum to ask how to boil an egg?
+[famille] Who always falls asleep during the Sunday night film?
+[famille] Who eats the last yoghurt without telling anyone?
+[famille] Who would be the worst at keeping a present a surprise?
+[famille] Who would open their presents before the big day?
+[famille] Who spends the longest in the bathroom?
+[famille] Who has the most borrowed Tupperware they never gave back?
+[famille] Who would win a funny face competition?
+[famille] Who tells the same story at every family dinner?
+[famille] Who would get lost in a big supermarket?
+[famille] Who would be first in bed on New Year's Eve?
+[famille] Who would adopt every cat in the neighbourhood?
+[famille] Who would make the best chef?
+[famille] Who would burn the toast?
+[famille] Who would stay in their pyjamas all Sunday?
+[famille] Who would forget where they parked the car?
+[famille] Who would plan the best holiday?
+[famille] Who would make the best detective?
+[famille] Who would be the first to get told off by Grandma?
+[famille] Who takes the most photos on holiday?
+[famille] Who would eat a whole cake by themselves?
+[famille] Who would be the worst at building flat-pack furniture?
+[famille] Who could talk on the phone for hours?
+[famille] Who would ask "are we there yet?" every five minutes?
+[famille] Who would make the best superhero?
+[famille] Who has the worst sense of direction?
+[famille] Who never gives back the books they borrow?
+[famille] Who would get up in the middle of the night to finish the leftovers?
+[famille] Who would win a snowball fight?
+[famille] Who would build the best sandcastle?
+[famille] Who would hog the TV remote?
+[famille] Who would be the best at charades at Christmas?
+[famille] Who would sneak a puppy into the house without asking?
+[famille] Who knows every word to every Disney song?
+[famille] Who would be first to fall asleep on a long car journey?
+[classement] [famille] Rank us from biggest sweet tooth to most sensible eater.
+[classement] [famille] Rank us from earliest riser to biggest fan of a lie-in.
+[classement] [famille] Rank us from messiest bedroom to tidiest.
+
+# Work: between colleagues, keeping it clean.
+[boulot] Who turns up to meetings with no idea what they're about?
+[boulot] Who answers emails at 11pm?
+[boulot] Who will end up running the company?
+[boulot] Who has the most tabs open right now?
+[boulot] Who eats lunch at their desk every day?
+[boulot] Who always forgets to mute their mic?
+[boulot] Who would fake a bad connection to dodge a question?
+[boulot] Who would host the best leaving do?
+[boulot] Who drinks the most coffee a day?
+[boulot] Who has the messiest desk?
+[boulot] Who says "let's circle back" and never does?
+[boulot] Who would be the most comfortable presenting to the whole company?
+[boulot] Who would accidentally reply-all to the entire company?
+[boulot] Who knows all the office gossip?
+[boulot] Who would negotiate the best pay rise?
+[boulot] Who starts the most projects without finishing them?
+[boulot] Who would turn a two-line email into an hour-long meeting?
+[boulot] Who has the strangest desktop wallpaper?
+[boulot] Who would last the shortest without the office Wi-Fi?
+[boulot] Who would organise the best team away day?
+[boulot] Who will start their own company?
+[boulot] Who is the king or queen of spreadsheets?
+[boulot] Who always forgets their badge?
+[boulot] Who has the most plants on their desk?
+[boulot] Who has the best excuses for being late?
+[boulot] Who would work from a beach if nobody stopped them?
+[boulot] Who would be best at calming down an angry client?
+[boulot] Who always has a snack hidden in their drawer?
+[boulot] Who would be the first to suggest after-work drinks?
+[boulot] Who puts emojis in every single email?
+[boulot] Who would win the office bake-off?
+[boulot] Who has the most passive-aggressive email sign-off?
+[boulot] Who would survive longest on a desert island with only office supplies?
+[boulot] Who actually reads the instructions for every new tool?
+[classement] [boulot] Rank us from most organised to most chaotic.
+[classement] [boulot] Rank us from first into the office to last.
+[classement] [boulot] Rank us from most to least likely to reply to a message on a Sunday.
+
+# Spicy 16+: cheekier, never explicit.
+[pimente] Who has the most matches on dating apps?
+[pimente] Who has kissed someone without knowing their name?
+[pimente] Who would text their ex tonight?
+[pimente] Who has lied about their body count?
+[pimente] Who flirts without even realising it?
+[pimente] Who would end the night at an afterparty with total strangers?
+[pimente] Who has chats they would never show anyone?
+[pimente] Who has ghosted someone after a first date?
+[pimente] Who would fall in love in a single night?
+[pimente] Who has had a crush on someone in this group?
+[pimente] Who would declare their love in front of everyone?
+[pimente] Who has the worst track record of disastrous dates?
+[pimente] Who would be first to suggest strip poker?
+[pimente] Who would go home with someone they met at a wedding?
+[pimente] Who has the most compromising photos on their phone?
+[pimente] Who is most likely to get back with an ex?
+[pimente] Who has kissed someone to win a bet?
+[pimente] Who would be the most jealous partner?
+[pimente] Who would be first to fall for a colleague?
+[pimente] Who has made up an excuse to escape a date?
+[pimente] Who would thrive on a dating show?
+[pimente] Who has sent a flirty text to the wrong person?
+[pimente] Who is most likely to have a one-night stand this weekend?
+[pimente] Who keeps a secret folder of screenshots?
+[pimente] Who has used a film quote as a chat-up line?
+[pimente] Who would slide into a celebrity's DMs?
+[pimente] Who has the most dramatic love life?
+[pimente] Who would kiss a stranger at midnight on New Year's Eve?
+[pimente] Who would be dumped first on Love Island?
+[classement] [pimente] Rank us from smoothest charmer to most awkward.
+[classement] [pimente] Rank us from most faithful to most likely to stray.

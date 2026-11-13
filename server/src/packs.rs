@@ -14,6 +14,7 @@ use crate::{
     deck::parse_line,
     error::{AppError, AppResult},
     game,
+    i18n::Lang,
     live::Event,
 };
 
@@ -31,6 +32,8 @@ pub struct ListQuery {
     q: Option<String>,
 }
 
+type PackRow = (i64, String, String, String, i64, i64, bool, String);
+
 /// Public packs, most installed first, with a few sample questions.
 pub async fn list(
     State(state): State<AppState>,
@@ -38,9 +41,9 @@ pub async fn list(
     Query(q): Query<ListQuery>,
 ) -> AppResult<Json<Value>> {
     let like = format!("%{}%", q.q.unwrap_or_default().trim().to_lowercase());
-    let rows: Vec<(i64, String, String, String, i64, i64, bool)> = sqlx::query_as(
+    let rows: Vec<PackRow> = sqlx::query_as(
         "SELECT p.id, p.name, p.description, u.name, p.installs, \
-                (SELECT COUNT(*) FROM pack_questions x WHERE x.pack_id = p.id), p.author_id = ? \
+                (SELECT COUNT(*) FROM pack_questions x WHERE x.pack_id = p.id), p.author_id = ?, p.language \
          FROM packs p JOIN users u ON u.id = p.author_id \
          WHERE p.hidden = 0 AND (lower(p.name) LIKE ?2 OR lower(p.description) LIKE ?2) \
          ORDER BY p.installs DESC, p.id DESC LIMIT 50",
@@ -50,7 +53,7 @@ pub async fn list(
     .fetch_all(&state.db)
     .await?;
     let mut packs = Vec::with_capacity(rows.len());
-    for (id, name, description, author, installs, count, mine) in rows {
+    for (id, name, description, author, installs, count, mine, language) in rows {
         let sample: Vec<String> = sqlx::query_scalar(
             "SELECT text FROM pack_questions WHERE pack_id = ? ORDER BY position LIMIT 3",
         )
@@ -59,7 +62,8 @@ pub async fn list(
         .await?;
         packs.push(
             json!({ "id": id, "name": name, "description": description, "author": author,
-                           "installs": installs, "count": count, "mine": mine, "sample": sample }),
+                           "installs": installs, "count": count, "mine": mine, "sample": sample,
+                           "language": language }),
         );
     }
     Ok(Json(json!(packs)))
@@ -71,8 +75,8 @@ pub async fn get(
     UserId(me): UserId,
     Path(id): Path<i64>,
 ) -> AppResult<Json<Value>> {
-    let (name, description, author, installs, author_id): (String, String, String, i64, i64) = sqlx::query_as(
-        "SELECT p.name, p.description, u.name, p.installs, p.author_id FROM packs p JOIN users u ON u.id = p.author_id \
+    let (name, description, author, installs, author_id, language): (String, String, String, i64, i64, String) = sqlx::query_as(
+        "SELECT p.name, p.description, u.name, p.installs, p.author_id, p.language FROM packs p JOIN users u ON u.id = p.author_id \
          WHERE p.id = ? AND (p.hidden = 0 OR p.author_id = ?)",
     )
     .bind(id)
@@ -91,7 +95,8 @@ pub async fn get(
         .collect();
     Ok(Json(
         json!({ "id": id, "name": name, "description": description, "author": author,
-                    "installs": installs, "mine": author_id == me, "questions": questions }),
+                    "installs": installs, "mine": author_id == me, "questions": questions,
+                    "language": language }),
     ))
 }
 
@@ -102,6 +107,9 @@ pub struct PublishBody {
     description: String,
     /// A question file (`[classement]` lines allowed). Without it: the questions this room added.
     text: Option<String>,
+    /// `fr` | `en`, the language its questions are written in; none = French.
+    #[serde(default)]
+    language: Option<String>,
 }
 
 /// Publish a pack, from a file or from the questions my room added.
@@ -113,6 +121,10 @@ pub async fn publish(
     let user = me.user_id.ok_or(AppError::Unauthorized)?;
     let name = body.name.trim();
     let description = body.description.trim();
+    let language = match body.language.as_deref() {
+        Some(l) => Lang::parse(l.trim()).ok_or(AppError::BadRequest("bad_language"))?,
+        None => Lang::Fr,
+    };
     if name.is_empty() || name.chars().count() > NAME_MAX || description.chars().count() > DESC_MAX
     {
         return Err(AppError::BadRequest("bad_pack"));
@@ -149,11 +161,12 @@ pub async fn publish(
     }
     let mut tx = state.db.begin().await?;
     let id: i64 = sqlx::query_scalar(
-        "INSERT INTO packs (name, description, author_id) VALUES (?, ?, ?) RETURNING id",
+        "INSERT INTO packs (name, description, author_id, language) VALUES (?, ?, ?, ?) RETURNING id",
     )
     .bind(name)
     .bind(description)
     .bind(user)
+    .bind(language.as_str())
     .fetch_one(&mut *tx)
     .await?;
     for (i, (text, kind)) in questions.iter().enumerate() {

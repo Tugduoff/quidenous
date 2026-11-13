@@ -1,47 +1,66 @@
 use sqlx::SqlitePool;
 
-const DECK: &str = include_str!("../deck/fr.txt");
+use crate::i18n::Lang;
+
+/// The built-in decks, one per language (same vibe tags). A room draws the one of its language.
+pub const DECKS: [(Lang, &str); 2] = [
+    (Lang::Fr, include_str!("../deck/fr.txt")),
+    (Lang::En, include_str!("../deck/en.txt")),
+];
+
+/// A deck file's question lines (no blanks, no `#` comments).
+fn deck_lines(deck: &str) -> impl Iterator<Item = &str> {
+    deck.lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty() && !l.starts_with('#'))
+}
 
 /// Inserts deck questions that are not in the database yet, and keeps their vibe tags in sync.
 pub async fn seed(db: &SqlitePool) -> sqlx::Result<u64> {
-    let added = import(db, DECK).await?;
-    for line in DECK
-        .lines()
-        .map(str::trim)
-        .filter(|l| !l.is_empty() && !l.starts_with('#'))
-    {
-        let (text, _, tags) = parse_tagged(line);
-        let tags = if tags.is_empty() {
-            crate::vibes::DEFAULT_TAG.to_owned()
-        } else {
-            tags.join(",")
-        };
-        sqlx::query("UPDATE questions SET vibes = ?1 WHERE group_id IS NULL AND text = ?2 AND vibes IS NOT ?1")
+    let mut added = 0;
+    for (lang, deck) in DECKS {
+        added += import_lang(db, deck, lang).await?;
+        for line in deck_lines(deck) {
+            let (text, _, tags) = parse_tagged(line);
+            let tags = if tags.is_empty() {
+                crate::vibes::DEFAULT_TAG.to_owned()
+            } else {
+                tags.join(",")
+            };
+            sqlx::query(
+                "UPDATE questions SET vibes = ?1 WHERE group_id IS NULL AND text = ?2 AND lang = ?3 \
+                 AND vibes IS NOT ?1",
+            )
             .bind(tags)
             .bind(text)
+            .bind(lang.as_str())
             .execute(db)
             .await?;
+        }
     }
     Ok(added)
 }
 
-/// Adds questions from a text file (one per line, `#` comments), skipping ones already known.
-/// Asked questions never come back: a round is only opened on a question the group has not seen.
+/// Adds questions from a text file (one per line, `#` comments) to the French deck, skipping ones
+/// already known. Asked questions never come back: a round is only opened on a question the group has not seen.
 pub async fn import(db: &SqlitePool, text: &str) -> sqlx::Result<u64> {
+    import_lang(db, text, Lang::Fr).await
+}
+
+/// Same, into the deck of `lang`.
+pub async fn import_lang(db: &SqlitePool, text: &str, lang: Lang) -> sqlx::Result<u64> {
     let mut added = 0;
-    let lines = text
-        .lines()
-        .map(str::trim)
-        .filter(|l| !l.is_empty() && !l.starts_with('#'));
-    for line in lines {
+    for line in deck_lines(text) {
         let (text, kind) = parse_line(line);
-        added +=
-            sqlx::query("INSERT INTO questions (text, kind) VALUES (?, ?) ON CONFLICT DO NOTHING")
-                .bind(text)
-                .bind(kind)
-                .execute(db)
-                .await?
-                .rows_affected();
+        added += sqlx::query(
+            "INSERT INTO questions (text, kind, lang) VALUES (?, ?, ?) ON CONFLICT DO NOTHING",
+        )
+        .bind(text)
+        .bind(kind)
+        .bind(lang.as_str())
+        .execute(db)
+        .await?
+        .rows_affected();
     }
     Ok(added)
 }
@@ -80,10 +99,9 @@ pub fn parse_tagged(line: &str) -> (&str, &'static str, Vec<String>) {
 /// to the first room (the only one back then): move every shared question that is not in the
 /// built-in deck there. Idempotent: afterwards only the built-in deck is shared.
 pub async fn adopt_imports(db: &SqlitePool, first_group: i64) -> sqlx::Result<u64> {
-    let builtin: std::collections::HashSet<&str> = DECK
-        .lines()
-        .map(str::trim)
-        .filter(|l| !l.is_empty() && !l.starts_with('#'))
+    let builtin: std::collections::HashSet<&str> = DECKS
+        .iter()
+        .flat_map(|(_, deck)| deck_lines(deck))
         .map(|l| parse_line(l).0)
         .collect();
     let shared: Vec<(i64, String)> =
@@ -153,12 +171,10 @@ mod tests {
         );
         assert_eq!(parse_tagged("[PS] Qui ?"), ("[PS] Qui ?", "pick", vec![]));
         // Every built-in line parses to a non-empty question.
-        for line in DECK
-            .lines()
-            .map(str::trim)
-            .filter(|l| !l.is_empty() && !l.starts_with('#'))
-        {
-            assert!(parse_tagged(line).0.len() > 8, "{line}");
+        for (_, deck) in DECKS {
+            for line in deck_lines(deck) {
+                assert!(parse_tagged(line).0.len() > 8, "{line}");
+            }
         }
     }
 }

@@ -60,13 +60,14 @@ pub async fn round(db: &SqlitePool, group_id: i64, round_id: i64) -> AppResult<R
         .ok_or(AppError::NotFound)
 }
 
-/// Built-in deck questions this room can still get, with their vibe tags.
+/// Built-in deck questions this room can still get (the deck of its language), with their vibe tags.
 async fn deck_candidates<'e, E: sqlx::SqliteExecutor<'e>>(
     db: E,
     group_id: i64,
 ) -> AppResult<Vec<(i64, Option<String>)>> {
     Ok(sqlx::query_as(concat!(
-        "SELECT q.id, q.vibes FROM questions q WHERE q.group_id IS NULL AND ",
+        "SELECT q.id, q.vibes FROM questions q WHERE q.group_id IS NULL \
+         AND q.lang = (SELECT language FROM groups WHERE id = ?1) AND ",
         unused!()
     ))
     .bind(group_id)
@@ -85,7 +86,7 @@ async fn room_vibe<'e, E: sqlx::SqliteExecutor<'e>>(
         .flatten())
 }
 
-/// Deck questions left for this room, given its vibe.
+/// Deck questions left for this room, given its vibe and language.
 pub async fn deck_left(db: &SqlitePool, group_id: i64) -> AppResult<i64> {
     let draws = crate::vibes::draws(room_vibe(db, group_id).await?.as_deref());
     Ok(deck_candidates(db, group_id)
@@ -100,7 +101,7 @@ pub async fn deck_left(db: &SqlitePool, group_id: i64) -> AppResult<i64> {
 }
 
 /// Group questions first (queue order: oldest first unless shuffled), then a random deck question
-/// the group has not seen, from the room's vibe (its favourite tag first).
+/// the group has not seen, in the room's language, from its vibe (its favourite tag first).
 async fn next_question(tx: &mut Transaction<'_, Sqlite>, group_id: i64) -> AppResult<Option<i64>> {
     use rand::seq::IndexedRandom;
     let custom: Option<i64> = sqlx::query_scalar(concat!(
