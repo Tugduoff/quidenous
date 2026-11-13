@@ -5,16 +5,18 @@ import { ActivityIndicator, Platform, Pressable, Share, Text, TextInput, type Te
 
 import { Screen } from '@/components/screen';
 import { Card, Display } from '@/components/ui';
+import { useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 
 export type InputRef = ComponentRef<typeof TextInput>;
 
 export function BackButton({ onPress }: { onPress?: () => void }) {
   const t = useTheme();
+  const tr = useT();
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel="Retour"
+      accessibilityLabel={tr('common.back')}
       onPress={onPress ?? (() => (router.canGoBack() ? router.back() : router.replace('/')))}
       style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card }}>
       <ChevronLeft size={22} color={t.txt} />
@@ -78,10 +80,11 @@ export function Field({ ref, style, right, inset, ...props }: TextInputProps & {
 /** Password with a show/hide eye. `fresh` = a new password (the phone may offer a strong one). */
 export function PasswordField({ fresh, ...props }: TextInputProps & { ref?: Ref<InputRef>; fresh?: boolean; inset?: boolean }) {
   const t = useTheme();
+  const tr = useT();
   const [shown, setShown] = useState(false);
   return (
     <Field
-      placeholder="Mot de passe"
+      placeholder={tr('auth.password')}
       secureTextEntry={!shown}
       autoCapitalize="none"
       autoCorrect={false}
@@ -91,7 +94,7 @@ export function PasswordField({ fresh, ...props }: TextInputProps & { ref?: Ref<
       right={
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={shown ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+          accessibilityLabel={shown ? tr('auth.field.hide') : tr('auth.field.show')}
           onPress={() => setShown((s) => !s)}
           hitSlop={8}
           style={{ paddingHorizontal: 16, alignSelf: 'stretch', justifyContent: 'center' }}>
@@ -119,6 +122,7 @@ export function CodeField({
   inset?: boolean;
 }) {
   const t = useTheme();
+  const tr = useT();
   const input = useRef<InputRef>(null);
   const [focused, setFocused] = useState(autoFocus);
   return (
@@ -139,7 +143,7 @@ export function CodeField({
       })}
       <TextInput
         ref={input}
-        accessibilityLabel="Code à 6 chiffres"
+        accessibilityLabel={tr('auth.field.code')}
         value={value}
         onChangeText={(v) => {
           const digits = v.replace(/\D/g, '').slice(0, CODE_LENGTH);
@@ -165,10 +169,11 @@ export function CodeField({
 
 /** Recovery code field (`xxxxx-xxxxx`), spaced out like the code boxes. */
 export function RecoveryField({ value, onChange, onDone }: { value: string; onChange: (v: string) => void; onDone: () => void }) {
+  const tr = useT();
   return (
     <Field
       placeholder="xxxxx-xxxxx"
-      accessibilityLabel="Code de secours"
+      accessibilityLabel={tr('auth.field.recovery')}
       value={value}
       onChangeText={(v) => onChange(v.toLowerCase().replace(/\s/g, ''))}
       autoCapitalize="none"

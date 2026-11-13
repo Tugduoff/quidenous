@@ -3,9 +3,10 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { Card } from '@/components/ui';
 import type { Stats } from '@/lib/api';
+import { useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 
-import { duration, int, plural } from './common';
+import { duration, int } from './common';
 
 function Tile({ Icon, value, label }: { Icon: LucideIcon; value: string; label: string }) {
   const t = useTheme();
@@ -55,20 +56,21 @@ function Facts({ facts }: { facts: Fact[] }) {
 
 /** The period in four big numbers, and a few smaller facts as a list (only those that happened). */
 export function KeyNumbers({ s }: { s: Stats }) {
+  const tr = useT();
   const facts = [
-    s.unanimous > 0 && { Icon: Handshake, value: int(s.unanimous), label: plural(s.unanimous, 'Unanime', 'Unanimes') },
-    s.ties > 0 && { Icon: Scale, value: int(s.ties), label: plural(s.ties, 'Égalité', 'Égalités') },
-    s.nudges > 0 && { Icon: BellRing, value: int(s.nudges), label: plural(s.nudges, 'Relance', 'Relances') },
-    s.seconds_waiting_last > 0 && { Icon: Hourglass, value: duration(s.seconds_waiting_last), label: 'À attendre' },
-    s.median_round_seconds != null && { Icon: Timer, value: duration(s.median_round_seconds), label: 'Par question' },
+    s.unanimous > 0 && { Icon: Handshake, value: int(s.unanimous), label: tr('stats.key.unanimous', { count: s.unanimous }) },
+    s.ties > 0 && { Icon: Scale, value: int(s.ties), label: tr('stats.key.ties', { count: s.ties }) },
+    s.nudges > 0 && { Icon: BellRing, value: int(s.nudges), label: tr('stats.key.nudges', { count: s.nudges }) },
+    s.seconds_waiting_last > 0 && { Icon: Hourglass, value: duration(s.seconds_waiting_last), label: tr('stats.key.waiting') },
+    s.median_round_seconds != null && { Icon: Timer, value: duration(s.median_round_seconds), label: tr('stats.key.perQuestion') },
   ].filter((f): f is Fact => !!f);
   return (
     <View style={{ gap: 10 }}>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
-        <Tile Icon={MessageCircleQuestion} value={int(s.questions)} label={plural(s.questions, 'question', 'questions')} />
-        <Tile Icon={Vote} value={int(s.votes)} label={plural(s.votes, 'vote', 'votes')} />
-        {s.messages != null && <Tile Icon={MessageCircle} value={int(s.messages)} label={plural(s.messages, 'message', 'messages')} />}
-        {s.seconds_voting > 0 && <Tile Icon={Timer} value={duration(s.seconds_voting)} label="à voter" />}
+        <Tile Icon={MessageCircleQuestion} value={int(s.questions)} label={tr('stats.unit.questions', { count: s.questions })} />
+        <Tile Icon={Vote} value={int(s.votes)} label={tr('stats.unit.votes', { count: s.votes })} />
+        {s.messages != null && <Tile Icon={MessageCircle} value={int(s.messages)} label={tr('stats.unit.messages', { count: s.messages })} />}
+        {s.seconds_voting > 0 && <Tile Icon={Timer} value={duration(s.seconds_voting)} label={tr('stats.key.voting')} />}
       </View>
       {facts.length > 0 && <Facts facts={facts} />}
     </View>

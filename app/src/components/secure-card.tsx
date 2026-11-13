@@ -4,6 +4,7 @@ import { useSyncExternalStore } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
 import { useAccount } from '@/lib/auth';
+import { useT } from '@/lib/i18n';
 import { storage } from '@/lib/storage';
 import { useTheme } from '@/lib/theme';
 
@@ -22,6 +23,7 @@ storage
 /** Home screen, legacy account (token only): a nudge to add an email or link Google / Discord. Dismissible for good. */
 export function SecureCard() {
   const t = useTheme();
+  const tr = useT();
   const hidden = useSyncExternalStore(
     (l) => {
       listeners.add(l);
@@ -38,12 +40,12 @@ export function SecureCard() {
         onPress={() => router.push('/security')}
         style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 14, paddingLeft: 16 }}>
         <ShieldAlert size={20} color={t.accInk} />
-        <Text style={{ flex: 1, fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>Sécurise ton compte</Text>
+        <Text style={{ flex: 1, fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>{tr('security.card.title')}</Text>
         <ChevronRight size={18} color={t.accInk} />
       </Pressable>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Masquer"
+        accessibilityLabel={tr('security.card.hide')}
         onPress={() => {
           set(true);
           storage.set(KEY, '1').catch(() => {});

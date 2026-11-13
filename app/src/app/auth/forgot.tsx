@@ -4,9 +4,11 @@ import { useState } from 'react';
 import { AuthScreen, ErrorText, Field } from '@/components/auth-ui';
 import { Button } from '@/components/ui';
 import { auth, authError, flow, looksLikeEmail } from '@/lib/auth';
+import { useT } from '@/lib/i18n';
 
 /** Forgot password: a code by email (the answer never says whether the account exists). */
 export default function ForgotStep() {
+  const tr = useT();
   const [email, setEmail] = useState(flow.email);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -30,15 +32,15 @@ export default function ForgotStep() {
 
   return (
     <AuthScreen
-      title="Mot de passe oublié"
+      title={tr('auth.forgot.title')}
       footer={
         <Button onPress={submit} loading={busy} disabled={!ok}>
-          Recevoir un code
+          {tr('auth.forgot.submit')}
         </Button>
       }>
       <Field
-        placeholder="toi@exemple.fr"
-        accessibilityLabel="E-mail"
+        placeholder={tr('auth.emailPlaceholder')}
+        accessibilityLabel={tr('auth.emailLabel')}
         value={email}
         onChangeText={setEmail}
         keyboardType="email-address"

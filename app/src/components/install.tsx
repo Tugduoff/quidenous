@@ -6,6 +6,7 @@ import QRCode from 'react-native-qrcode-svg';
 import { Screen } from '@/components/screen';
 import { Button, Card, CodeText, Display, Logo } from '@/components/ui';
 import { presetFriendCode, presetJoinCode } from '@/lib/api';
+import { useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 
 type InstallPrompt = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }> };
@@ -41,6 +42,7 @@ export function installMode(): 'none' | 'banner' | 'block' {
 /** Top of the app in a phone browser: opens the install steps. */
 export function InstallBanner({ onOpen, onClose }: { onOpen: () => void; onClose: () => void }) {
   const t = useTheme();
+  const tr = useT();
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingLeft: 16, paddingRight: 6, backgroundColor: t.acc }}>
       <Pressable
@@ -49,13 +51,13 @@ export function InstallBanner({ onOpen, onClose }: { onOpen: () => void; onClose
         style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10 }}>
         <Smartphone size={18} color={t.accTxt} />
         <Text numberOfLines={1} style={{ flex: 1, fontFamily: t.font.semibold, fontSize: 14, color: t.accTxt }}>
-          Installe l&apos;app
+          {tr('install.banner')}
         </Text>
         <ChevronRight size={18} color={t.accTxt} />
       </Pressable>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Masquer"
+        accessibilityLabel={tr('install.hide')}
         onPress={onClose}
         hitSlop={8}
         style={{ width: 36, height: 36, alignItems: 'center', justifyContent: 'center' }}>
@@ -75,6 +77,7 @@ function device(): 'ios' | 'android' | 'desktop' {
 
 export function InstallScreen({ onClose }: { onClose?: () => void }) {
   const t = useTheme();
+  const tr = useT();
   const [kind] = useState(device);
   const [prompt, setPrompt] = useState(deferred);
   const [installed, setInstalled] = useState(false);
@@ -106,7 +109,7 @@ export function InstallScreen({ onClose }: { onClose?: () => void }) {
       {onClose && (
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Fermer"
+          accessibilityLabel={tr('common.close')}
           onPress={onClose}
           style={{ alignSelf: 'flex-end', width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card }}>
           <X size={20} color={t.txt} />
@@ -114,11 +117,9 @@ export function InstallScreen({ onClose }: { onClose?: () => void }) {
       )}
       <View style={{ marginTop: onClose ? 0 : 32, gap: 14 }}>
         <Logo size={40} />
-        <Display size={30}>{kind === 'desktop' ? 'Ça se joue sur téléphone' : "Installe l'app"}</Display>
+        <Display size={30}>{kind === 'desktop' ? tr('install.desktopTitle') : tr('install.title')}</Display>
         <Text style={text}>
-          {kind === 'desktop'
-            ? 'Scanne ce QR code avec ton téléphone.'
-            : 'Pour les notifications et le plein écran.'}
+          {kind === 'desktop' ? tr('install.desktopSub') : tr('install.sub')}
         </Text>
       </View>
 
@@ -132,34 +133,34 @@ export function InstallScreen({ onClose }: { onClose?: () => void }) {
 
       {kind === 'ios' && (
         <Card style={{ padding: 18, gap: 18 }}>
-          <Step n={1} Icon={Share} label="Touche Partager" />
-          <Step n={2} Icon={SquarePlus} label="« Sur l'écran d'accueil »" />
-          <Step n={3} Icon={Smartphone} label="Ouvre l'app installée" />
+          <Step n={1} Icon={Share} label={tr('install.ios.share')} />
+          <Step n={2} Icon={SquarePlus} label={tr('install.ios.addToHome')} />
+          <Step n={3} Icon={Smartphone} label={tr('install.open')} />
         </Card>
       )}
 
       {kind === 'android' &&
         (installed ? (
           <Card style={{ padding: 18 }}>
-            <Step n={1} Icon={Smartphone} label="Installée : ouvre-la" />
+            <Step n={1} Icon={Smartphone} label={tr('install.android.installed')} />
           </Card>
         ) : prompt ? (
           <Button onPress={install}>
             <Download size={20} color={t.accTxt} />
-            <Text style={{ fontFamily: t.font.bold, fontSize: 17, color: t.accTxt }}>Installer</Text>
+            <Text style={{ fontFamily: t.font.bold, fontSize: 17, color: t.accTxt }}>{tr('install.android.install')}</Text>
           </Button>
         ) : (
           <Card style={{ padding: 18, gap: 18 }}>
-            <Step n={1} Icon={Download} label="Ouvre le menu ⋮" />
-            <Step n={2} Icon={SquarePlus} label="Touche « Installer »" />
-            <Step n={3} Icon={Smartphone} label="Ouvre l'app installée" />
+            <Step n={1} Icon={Download} label={tr('install.android.menu')} />
+            <Step n={2} Icon={SquarePlus} label={tr('install.android.tapInstall')} />
+            <Step n={3} Icon={Smartphone} label={tr('install.open')} />
           </Card>
         ))}
 
       {kind !== 'desktop' && (code || friend) && (
         <Card style={{ padding: 18, gap: 6 }}>
           <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut }}>
-            {code ? "Code d'invitation à entrer dans l'app" : "Code ami à entrer dans l'app"}
+            {code ? tr('install.inviteCode') : tr('install.friendCode')}
           </Text>
           <CodeText code={(code ?? friend)!} size={32} />
         </Card>

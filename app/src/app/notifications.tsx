@@ -21,18 +21,19 @@ import { BackButton, ErrorText, Section } from '@/components/auth-ui';
 import { Screen } from '@/components/screen';
 import { Card, Dialog, DialogTitle, Display, PressableScale, Toggle } from '@/components/ui';
 import { useFeatures } from '@/lib/auth';
+import { type TKey, useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
 import { notifKey, type NotifKind, type NotifPrefs, useDevicePush, useNotifPrefs, useSaveNotifPrefs } from '@/lib/notifications';
 import { useTheme } from '@/lib/theme';
 
-const KINDS: { kind: NotifKind; label: string; Icon: LucideIcon }[] = [
-  { kind: 'question', label: 'Nouvelle question', Icon: Sparkles },
-  { kind: 'result', label: 'Résultat', Icon: Crown },
-  { kind: 'chat', label: 'Messages', Icon: MessageCircle },
-  { kind: 'mention', label: 'Mentions', Icon: AtSign },
-  { kind: 'nudge', label: 'Relances', Icon: BellRing },
-  { kind: 'added', label: 'Ajout à un salon', Icon: UserPlus },
-  { kind: 'ask', label: 'Demandes de questions', Icon: MessageCircleQuestion },
+const KINDS: { kind: NotifKind; label: TKey; Icon: LucideIcon }[] = [
+  { kind: 'question', label: 'notifications.kinds.question', Icon: Sparkles },
+  { kind: 'result', label: 'notifications.kinds.result', Icon: Crown },
+  { kind: 'chat', label: 'notifications.kinds.chat', Icon: MessageCircle },
+  { kind: 'mention', label: 'notifications.kinds.mention', Icon: AtSign },
+  { kind: 'nudge', label: 'notifications.kinds.nudge', Icon: BellRing },
+  { kind: 'added', label: 'notifications.kinds.added', Icon: UserPlus },
+  { kind: 'ask', label: 'notifications.kinds.ask', Icon: MessageCircleQuestion },
 ];
 
 const QUIET_START = 22 * 60;
@@ -84,6 +85,7 @@ function Dim({ off, children }: { off: boolean; children: ReactNode }) {
 /** Profile > Notifications: on/off (this device and the account), what to be told about, quiet hours. Pushes only: the inbox keeps everything. */
 export default function NotificationsScreen() {
   const t = useTheme();
+  const tr = useT();
   const qc = useQueryClient();
   const features = useFeatures();
   const { data: prefs, isError } = useNotifPrefs(features.notificationSettings);
@@ -105,7 +107,7 @@ export default function NotificationsScreen() {
 
   const body = () => {
     if (!prefs) {
-      if (isError || (features.loaded && !features.notificationSettings)) return <ErrorText>Réglages indisponibles</ErrorText>;
+      if (isError || (features.loaded && !features.notificationSettings)) return <ErrorText>{tr('notifications.unavailable')}</ErrorText>;
       return <ActivityIndicator color={t.mut} style={{ marginTop: 24 }} />;
     }
     const state = device.state;
@@ -114,12 +116,12 @@ export default function NotificationsScreen() {
     const master = prefs.enabled && state !== 'off' && !blocked;
     const sub = blocked
       ? Platform.OS === 'web'
-        ? 'Bloquées par le navigateur'
-        : 'Bloquées dans les réglages'
+        ? tr('notifications.blockedBrowser')
+        : tr('notifications.blockedSettings')
       : needsDevice
-        ? 'À activer sur cet appareil'
+        ? tr('notifications.enableHere')
         : state === 'unsupported'
-          ? 'Indisponibles ici'
+          ? tr('notifications.unsupported')
           : undefined;
 
     const setMaster = (on: boolean) => {
@@ -147,16 +149,22 @@ export default function NotificationsScreen() {
           <Line
             Icon={master ? Bell : BellOff}
             on={master}
-            title="Notifications"
+            title={tr('notifications.title')}
             sub={sub}
             warn={needsDevice || blocked}
-            right={enabling ? <ActivityIndicator color={t.mut} /> : <Toggle label="" a11y="Notifications" value={master} onChange={setMaster} />}
+            right={
+              enabling ? (
+                <ActivityIndicator color={t.mut} />
+              ) : (
+                <Toggle label="" a11y={tr('notifications.title')} value={master} onChange={setMaster} />
+              )
+            }
           />
         </Card>
-        <ErrorText>{enableFailed ? 'Activation impossible sur cet appareil' : save.isError ? 'Réglage non enregistré' : null}</ErrorText>
+        <ErrorText>{enableFailed ? tr('notifications.enableFailed') : save.isError ? tr('notifications.notSaved') : null}</ErrorText>
 
         <Dim off={!prefs.enabled}>
-          <Section title="Me prévenir pour">
+          <Section title={tr('notifications.tellMe')}>
             {KINDS.map(({ kind, label, Icon }) => {
               const on = !prefs.off.includes(kind);
               return (
@@ -164,11 +172,11 @@ export default function NotificationsScreen() {
                   key={kind}
                   Icon={Icon}
                   on={on}
-                  title={label}
+                  title={tr(label)}
                   right={
                     <Toggle
                       label=""
-                      a11y={label}
+                      a11y={tr(label)}
                       value={on}
                       onChange={(v) => set({ off: v ? prefs.off.filter((k) => k !== kind) : [...prefs.off, kind] })}
                     />
@@ -184,11 +192,11 @@ export default function NotificationsScreen() {
             <Line
               Icon={Moon}
               on={quiet}
-              title="Heures calmes"
+              title={tr('notifications.quiet')}
               right={
                 <Toggle
                   label=""
-                  a11y="Heures calmes"
+                  a11y={tr('notifications.quiet')}
                   value={quiet}
                   onChange={(v) => set(v ? { quiet_start: QUIET_START, quiet_end: QUIET_END } : { quiet_start: null, quiet_end: null })}
                 />
@@ -196,16 +204,16 @@ export default function NotificationsScreen() {
             />
             {quiet && (
               <Animated.View entering={motion.enter} exiting={motion.exit} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                <TimeChip label="Début" value={prefs.quiet_start!} onPress={() => setPicking('start')} />
+                <TimeChip label={tr('notifications.start')} value={prefs.quiet_start!} onPress={() => setPicking('start')} />
                 <ArrowRight size={16} color={t.mut} />
-                <TimeChip label="Fin" value={prefs.quiet_end!} onPress={() => setPicking('end')} />
+                <TimeChip label={tr('notifications.end')} value={prefs.quiet_end!} onPress={() => setPicking('end')} />
               </Animated.View>
             )}
           </Card>
         </Dim>
 
         <Dialog visible={picking != null} onClose={() => setPicking(null)}>
-          <DialogTitle title={which === 'end' ? 'Fin' : 'Début'} />
+          <DialogTitle title={which === 'end' ? tr('notifications.end') : tr('notifications.start')} />
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
             {HOURS.map((m) => {
               const on = m === pickedValue;
@@ -244,7 +252,7 @@ export default function NotificationsScreen() {
   return (
     <Screen tabs={false}>
       <BackButton />
-      <Display size={30}>Notifications</Display>
+      <Display size={30}>{tr('notifications.title')}</Display>
       {body()}
     </Screen>
   );
@@ -252,11 +260,12 @@ export default function NotificationsScreen() {
 
 function TimeChip({ label, value, onPress }: { label: string; value: number; onPress: () => void }) {
   const t = useTheme();
+  const tr = useT();
   return (
     <PressableScale
       scale={0.97}
       accessibilityRole="button"
-      accessibilityLabel={`${label} : ${hhmm(value)}. Changer`}
+      accessibilityLabel={tr('notifications.timeA11y', { label, time: hhmm(value) })}
       onPress={onPress}
       style={{ flex: 1, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card2 }}>
       <Text style={{ fontFamily: t.font.semibold, fontSize: 16, color: t.txt }}>{hhmm(value)}</Text>

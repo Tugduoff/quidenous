@@ -1,1 +1,24 @@
-export const notifications = {};
+export const notifications = {
+  title: 'Notifications',
+  unavailable: 'Réglages indisponibles',
+  blockedBrowser: 'Bloquées par le navigateur',
+  blockedSettings: 'Bloquées dans les réglages',
+  enableHere: 'À activer sur cet appareil',
+  unsupported: 'Indisponibles ici',
+  enableFailed: 'Activation impossible sur cet appareil',
+  notSaved: 'Réglage non enregistré',
+  tellMe: 'Me prévenir pour',
+  kinds: {
+    question: 'Nouvelle question',
+    result: 'Résultat',
+    chat: 'Messages',
+    mention: 'Mentions',
+    nudge: 'Relances',
+    added: 'Ajout à un salon',
+    ask: 'Demandes de questions',
+  },
+  quiet: 'Heures calmes',
+  start: 'Début',
+  end: 'Fin',
+  timeA11y: '{label} : {time}. Changer',
+};

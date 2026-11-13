@@ -1,3 +1,6 @@
 import type { Messages } from '../fr';
 
-export const legal: Messages['legal'] = {};
+export const legal: Messages['legal'] = {
+  privacy: 'Privacy',
+  terms: 'Terms',
+};

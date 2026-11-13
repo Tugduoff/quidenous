@@ -6,16 +6,18 @@ import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Dialog, PressableScale } from '@/components/ui';
+import { formatNumber, t as translate, useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
 import { restart, useOtaReady } from '@/lib/ota';
 import { appVersion, checkForUpdate, clearCheck, install, later, openInstallSettings, UPDATES, useUpdate } from '@/lib/update';
 import { useTheme } from '@/lib/theme';
 
-const megabytes = (bytes: number) => `${Math.round(bytes / 1_000_000)} Mo`;
+const megabytes = (bytes: number) => translate('update.megabytes', { size: formatNumber(Math.round(bytes / 1_000_000)) });
 
 /** A newer APK is out: its notes, Installer (download, then Android's installer) or Plus tard. Mounted once, in the root layout. */
 export function UpdateDialog() {
   const t = useTheme();
+  const tr = useT();
   const { release, open, status, progress } = useUpdate();
   if (!UPDATES || !release) return null;
   const downloading = status === 'download';
@@ -26,7 +28,7 @@ export function UpdateDialog() {
           <Download size={20} color={t.accInk} />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={{ fontFamily: t.font.bold, fontSize: 18, color: t.txt }}>Mise à jour</Text>
+          <Text style={{ fontFamily: t.font.bold, fontSize: 18, color: t.txt }}>{tr('update.title')}</Text>
           <Text style={{ fontFamily: t.font.regular, fontSize: 14, color: t.mut }}>
             {release.version} · {megabytes(release.size)}
           </Text>
@@ -44,7 +46,7 @@ export function UpdateDialog() {
       {status === 'blocked' && (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
           <Text style={{ flex: 1, fontFamily: t.font.regular, fontSize: 14, lineHeight: 19, color: t.mut }}>
-            Bloquée ? Autorise l’app à installer des mises à jour.
+            {tr('update.blocked')}
           </Text>
           <PressableScale
             accessibilityRole="button"
@@ -59,19 +61,19 @@ export function UpdateDialog() {
               backgroundColor: t.card2,
             }}>
             <Settings size={16} color={t.txt} />
-            <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.txt }}>Réglages</Text>
+            <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.txt }}>{tr('update.settings')}</Text>
           </PressableScale>
         </View>
       )}
 
-      {status === 'error' && <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.tag }}>Téléchargement impossible</Text>}
+      {status === 'error' && <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.tag }}>{tr('update.downloadFailed')}</Text>}
 
       <View style={{ flexDirection: 'row', gap: 10, marginTop: 6 }}>
         <PressableScale
           accessibilityRole="button"
           onPress={later}
           style={{ flex: 1, height: 46, borderRadius: t.radius.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card2 }}>
-          <Text style={{ fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>Plus tard</Text>
+          <Text style={{ fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>{tr('update.later')}</Text>
         </PressableScale>
         <PressableScale
           accessibilityRole="button"
@@ -90,12 +92,12 @@ export function UpdateDialog() {
           }}>
           {downloading ? (
             <Text style={{ fontFamily: t.font.bold, fontSize: 15, color: t.accTxt, fontVariant: ['tabular-nums'] }}>
-              {Math.round(progress * 100)} %
+              {tr('update.percent', { percent: Math.round(progress * 100) })}
             </Text>
           ) : (
             <>
               <Download size={18} color={t.accTxt} />
-              <Text style={{ fontFamily: t.font.bold, fontSize: 15, color: t.accTxt }}>Installer</Text>
+              <Text style={{ fontFamily: t.font.bold, fontSize: 15, color: t.accTxt }}>{tr('update.install')}</Text>
             </>
           )}
         </PressableScale>
@@ -131,6 +133,7 @@ function Notes({ text }: { text: string }) {
 /** Bottom of the profile: the installed version and, on the APK, a manual check. */
 export function VersionLine() {
   const t = useTheme();
+  const tr = useT();
   const { status, release } = useUpdate();
   // A manual check's answer stays a few seconds.
   useEffect(() => {
@@ -142,17 +145,17 @@ export function VersionLine() {
   const Icon = status === 'latest' ? Check : release ? Download : RefreshCw;
   const label =
     status === 'checking'
-      ? 'Vérification…'
+      ? tr('update.checking')
       : status === 'latest'
-        ? 'À jour'
+        ? tr('update.latest')
         : status === 'failed'
-          ? 'Vérification impossible'
+          ? tr('update.checkFailed')
           : release
-            ? `Mise à jour ${release.version}`
-            : 'Vérifier les mises à jour';
+            ? tr('update.available', { version: release.version })
+            : tr('update.check');
   return (
     <View style={{ alignItems: 'center', gap: 2 }}>
-      <Text style={small}>Version {appVersion()}</Text>
+      <Text style={small}>{tr('update.version', { version: appVersion() })}</Text>
       {UPDATES && (
         <Pressable
           accessibilityRole="button"
@@ -173,6 +176,7 @@ const TABS = ['/', '/history', '/stats', '/questions'];
 /** An over-the-air update is downloaded: it applies on the next start, or now with Relancer. Floats above the tab bar (tabs only). */
 export function OtaToast() {
   const t = useTheme();
+  const tr = useT();
   const insets = useSafeAreaInsets();
   const pathname = usePathname();
   const { ready, dismiss } = useOtaReady();
@@ -200,17 +204,17 @@ export function OtaToast() {
       }}>
       <Sparkles size={18} color={t.accInk} />
       <Text numberOfLines={1} style={{ flex: 1, fontFamily: t.font.semibold, fontSize: 14, color: t.txt }}>
-        Nouvelle version prête
+        {tr('update.ready')}
       </Text>
       <PressableScale
         accessibilityRole="button"
         onPress={restart}
         style={{ height: 34, paddingHorizontal: 14, borderRadius: t.radius.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: t.acc }}>
-        <Text style={{ fontFamily: t.font.bold, fontSize: 14, color: t.accTxt }}>Relancer</Text>
+        <Text style={{ fontFamily: t.font.bold, fontSize: 14, color: t.accTxt }}>{tr('update.restart')}</Text>
       </PressableScale>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Masquer"
+        accessibilityLabel={tr('update.hide')}
         onPress={dismiss}
         hitSlop={6}
         style={{ width: 34, height: 34, alignItems: 'center', justifyContent: 'center' }}>

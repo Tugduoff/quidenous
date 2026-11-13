@@ -5,19 +5,21 @@ import { Pressable, Text, TextInput, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 
 import { ScanButton } from '@/components/qr-scanner';
-import { Button, Card, Display } from '@/components/ui';
+import { Button, Card, Display, Segmented } from '@/components/ui';
 import { VibeCards } from '@/components/vibes';
 import { api, ApiError } from '@/lib/api';
 import { authError, useFeatures } from '@/lib/auth';
+import { getLang, type Lang, type TKey, useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
 import { useVibes } from '@/lib/queries';
 import { useTheme } from '@/lib/theme';
 
-const ERRORS: Record<string, string> = {
-  bad_code: 'Code inconnu',
-  removed: 'Tu as été retiré de ce salon',
-  bad_room_name: 'Donne-lui un nom (40 caractères max)',
-  bad_vibe: 'Ambiance inconnue',
+const ERRORS: Record<string, TKey> = {
+  bad_code: 'room.errors.badCode',
+  removed: 'room.errors.removed',
+  bad_room_name: 'room.errors.badName',
+  bad_vibe: 'room.errors.badVibe',
+  bad_language: 'room.errors.badLanguage',
 };
 
 /**
@@ -36,14 +38,17 @@ export function RoomForms({
   onVibeStep?: (on: boolean) => void;
 }) {
   const t = useTheme();
+  const tr = useT();
   const [name, setName] = useState('');
   const [code, setCode] = useState(initialCode ?? '');
   const [error, setError] = useState<string | null>(null);
-  const fail = (e: unknown) => setError(e instanceof ApiError && ERRORS[e.code] ? ERRORS[e.code] : authError(e));
+  const fail = (e: unknown) => setError(e instanceof ApiError && ERRORS[e.code] ? tr(ERRORS[e.code]) : authError(e));
   const features = useFeatures();
   const { data: vibes } = useVibes(features.vibes);
   const [picking, setPicking] = useState(false);
   const [vibe, setVibe] = useState<string | null>(null);
+  // The language of the room's built-in questions: the one I use the app in, unless I pick the other.
+  const [language, setLanguage] = useState<Lang>(getLang);
   const showVibes = (on: boolean) => {
     setPicking(on);
     setError(null);
@@ -52,7 +57,10 @@ export function RoomForms({
 
   const create = useMutation({
     mutationFn: (withVibe: string | null) =>
-      api<{ id: number }>('/rooms', { method: 'POST', json: withVibe ? { name: name.trim(), vibe: withVibe } : { name: name.trim() } }),
+      api<{ id: number }>('/rooms', {
+        method: 'POST',
+        json: { name: name.trim(), ...(withVibe ? { vibe: withVibe } : {}), ...(features.languages ? { language } : {}) },
+      }),
     onSuccess: (r) => onEntered(r.id),
     onError: fail,
   });
@@ -79,11 +87,11 @@ export function RoomForms({
 
   const createForm = (
     <>
-      <Text style={[label, { marginTop: 8 }]}>Nouveau salon</Text>
+      <Text style={[label, { marginTop: 8 }]}>{tr('room.create.title')}</Text>
       <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 8, padding: 6, paddingLeft: 16 }}>
         <TextInput
-          accessibilityLabel="Nom du salon"
-          placeholder="Les cousins, Le boulot…"
+          accessibilityLabel={tr('room.create.name')}
+          placeholder={tr('room.create.placeholder')}
           placeholderTextColor={t.mut}
           value={name}
           onChangeText={setName}
@@ -94,7 +102,7 @@ export function RoomForms({
         />
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Créer le salon"
+          accessibilityLabel={tr('room.create.a11y')}
           disabled={!name.trim() || create.isPending}
           onPress={next}
           style={round(!!name.trim())}>
@@ -105,10 +113,10 @@ export function RoomForms({
   );
   const joinForm = (
     <>
-      <Text style={[label, joinFirst ? undefined : { marginTop: 8 }]}>Rejoindre avec un code</Text>
+      <Text style={[label, joinFirst ? undefined : { marginTop: 8 }]}>{tr('room.join.title')}</Text>
       <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 8, padding: 6, paddingLeft: 16 }}>
         <TextInput
-          accessibilityLabel="Code d'invitation"
+          accessibilityLabel={tr('room.invite.code')}
           placeholder="ABC234"
           placeholderTextColor={t.mut}
           value={code}
@@ -122,14 +130,14 @@ export function RoomForms({
         />
         <ScanButton
           onScan={(s) => {
-            if (!s.code) return setError("Ce QR code n'est pas celui d'un salon");
+            if (!s.code) return setError(tr('room.join.notRoomQr'));
             setCode(s.code);
             join.mutate(s.code);
           }}
         />
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Rejoindre"
+          accessibilityLabel={tr('common.join')}
           disabled={!code.trim() || join.isPending}
           onPress={() => join.mutate(code)}
           style={round(!!code.trim())}>
@@ -146,7 +154,7 @@ export function RoomForms({
       <Animated.View entering={motion.enter} style={{ gap: 16 }}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Retour au nom du salon"
+          accessibilityLabel={tr('room.create.backToName')}
           onPress={() => showVibes(false)}
           hitSlop={8}
           style={{ flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start' }}>
@@ -155,19 +163,35 @@ export function RoomForms({
             {name.trim()}
           </Text>
         </Pressable>
-        <Display size={28}>Quelle ambiance ?</Display>
+        <Display size={28}>{tr('room.create.vibeTitle')}</Display>
         <VibeCards vibes={vibes} value={vibe} onChange={setVibe} />
+        {features.languages && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+            <Text numberOfLines={1} style={[label, { flexShrink: 1 }]}>
+              {tr('room.language.label')}
+            </Text>
+            <Segmented
+              label={tr('room.language.label')}
+              value={language}
+              onChange={setLanguage}
+              options={[
+                { id: 'fr', name: tr('profile.language.fr') },
+                { id: 'en', name: tr('profile.language.en') },
+              ]}
+            />
+          </View>
+        )}
         {errorLine}
         <View style={{ gap: 6 }}>
           <Button disabled={!vibe} loading={create.isPending && create.variables != null} onPress={() => vibe && create.mutate(vibe)}>
-            Créer
+            {tr('room.create.create')}
           </Button>
           <Pressable
             accessibilityRole="button"
             disabled={create.isPending}
             onPress={() => create.mutate(null)}
             style={{ height: 44, alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={{ fontFamily: t.font.semibold, fontSize: 15, color: t.mut }}>Passer</Text>
+            <Text style={{ fontFamily: t.font.semibold, fontSize: 15, color: t.mut }}>{tr('room.create.skip')}</Text>
           </Pressable>
         </View>
       </Animated.View>

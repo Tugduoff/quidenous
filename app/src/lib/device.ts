@@ -1,6 +1,9 @@
 import * as Device from 'expo-device';
 import { Platform } from 'react-native';
 
+/** A generic word of the name, in the current language. Required at call time: api → device → i18n → api would be a require cycle. */
+const word = (k: 'browser' | 'phone'): string => (require('./i18n') as typeof import('./i18n')).t(`security.devices.${k}`);
+
 function browser(ua: string) {
   if (/EdgA?\//.test(ua)) return 'Edge';
   if (/OPR\//.test(ua)) return 'Opera';
@@ -8,7 +11,7 @@ function browser(ua: string) {
   if (/Firefox\/|FxiOS\//.test(ua)) return 'Firefox';
   if (/Chrome\/|CriOS\//.test(ua)) return 'Chrome';
   if (/Safari\//.test(ua)) return 'Safari';
-  return 'Navigateur';
+  return word('browser');
 }
 
 function system(ua: string) {
@@ -21,7 +24,7 @@ function system(ua: string) {
   return null;
 }
 
-/** What this device is called in the sessions list: "iPhone 15 · iOS 18", "Android · Pixel 8", "Web · Safari (iPhone)". */
+/** What this device is called in the sessions list (generic words in the language of the moment): "iPhone 15 · iOS 18", "Android · Pixel 8", "Web · Safari (iPhone)". */
 export function deviceLabel(): string {
   if (Platform.OS === 'web') {
     const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
@@ -30,7 +33,7 @@ export function deviceLabel(): string {
   }
   const major = Device.osVersion?.split('.')[0];
   if (Platform.OS === 'ios') return `${Device.modelName ?? 'iPhone'} · iOS${major ? ` ${major}` : ''}`;
-  return `Android${major ? ` ${major}` : ''} · ${Device.modelName ?? Device.brand ?? 'téléphone'}`;
+  return `Android${major ? ` ${major}` : ''} · ${Device.modelName ?? Device.brand ?? word('phone')}`;
 }
 
 /**

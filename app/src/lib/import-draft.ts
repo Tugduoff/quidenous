@@ -4,12 +4,15 @@ import * as DocumentPicker from 'expo-document-picker';
 const MIN = 8;
 const MAX = 200;
 
+/** What's wrong with a line (shown as `questions.problem.*`). */
+export type DraftProblem = 'short' | 'long' | 'duplicate';
+
 /** `line` is what gets sent (tag included); `text` is the question as people will see it. */
-export type DraftLine = { line: string; text: string; rank: boolean; selected: boolean; problem: string | null };
+export type DraftLine = { line: string; text: string; rank: boolean; selected: boolean; problem: DraftProblem | null };
 
 const TAGS = ['[classement]', '[rank]'];
 
-/** Same rule as the server: a `[classement]` line is a ranking question, the tag isn't part of it. */
+/** Same rule as the server: a `[classement]` (or `[rank]`) line is a ranking question, the tag isn't part of it. */
 export function splitTag(line: string) {
   const tag = TAGS.find((t) => line.toLowerCase().startsWith(t));
   return tag ? { text: line.slice(tag.length).trim(), rank: true } : { text: line, rank: false };
@@ -26,7 +29,7 @@ export function parseQuestions(content: string): DraftLine[] {
       const { text, rank } = splitTag(line);
       const len = [...text].length;
       const key = text.toLowerCase();
-      const problem = len < MIN ? 'trop courte' : len > MAX ? 'trop longue' : seen.has(key) ? 'en double' : null;
+      const problem: DraftProblem | null = len < MIN ? 'short' : len > MAX ? 'long' : seen.has(key) ? 'duplicate' : null;
       seen.add(key);
       return { line, text, rank, selected: !problem, problem };
     });

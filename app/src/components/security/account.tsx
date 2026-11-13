@@ -5,12 +5,14 @@ import { Pressable, Text } from 'react-native';
 import { ErrorText, Field, PasswordField, Pill, Row, Section, TextLink } from '@/components/auth-ui';
 import { Avatar, ConfirmModal } from '@/components/ui';
 import { auth, authError, type Account } from '@/lib/auth';
+import { useT } from '@/lib/i18n';
 import { blockedAsMember, useBlockActions, useBlocks } from '@/lib/moderation';
 import { useSession } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
 
 /** People I blocked, each with "Débloquer"; nothing when there is nobody. */
 export function BlockedSection() {
+  const tr = useT();
   const { list } = useBlocks();
   const { unblock } = useBlockActions();
   const [busy, setBusy] = useState<number | null>(null);
@@ -23,7 +25,7 @@ export function BlockedSection() {
     setBusy(null);
   };
   return (
-    <Section title="Bloqués">
+    <Section title={tr('security.blocked.title')}>
       {list.map((b) => (
         <Row
           key={b.user_id}
@@ -31,7 +33,7 @@ export function BlockedSection() {
           title={b.name}
           right={
             <Pill onPress={() => run(b.user_id)} loading={busy === b.user_id} disabled={busy != null}>
-              Débloquer
+              {tr('security.blocked.unblock')}
             </Pill>
           }
         />
@@ -44,6 +46,7 @@ export function BlockedSection() {
 /** "Supprimer mon compte": confirmed with the password, or a 2FA / recovery code, when the account has one. */
 export function DeleteAccount({ account }: { account: Account }) {
   const t = useTheme();
+  const tr = useT();
   const { leave } = useSession();
   const [open, setOpen] = useState(false);
   const [withCode, setWithCode] = useState(false);
@@ -80,13 +83,13 @@ export function DeleteAccount({ account }: { account: Account }) {
         onPress={() => setOpen(true)}
         style={{ alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12 }}>
         <Trash2 size={18} color="#FF3B5C" />
-        <Text style={{ fontFamily: t.font.semibold, fontSize: 15, color: '#FF3B5C' }}>Supprimer mon compte</Text>
+        <Text style={{ fontFamily: t.font.semibold, fontSize: 15, color: '#FF3B5C' }}>{tr('security.deleteAccount.button')}</Text>
       </Pressable>
       <ConfirmModal
         visible={open}
-        title="Supprimer ton compte ?"
-        message="Ton profil et tes messages sont effacés pour de bon."
-        confirmLabel="Supprimer"
+        title={tr('security.deleteAccount.title')}
+        message={tr('security.deleteAccount.message')}
+        confirmLabel={tr('common.delete')}
         busy={busy}
         confirmDisabled={!!field && !value.trim()}
         onCancel={close}
@@ -95,7 +98,7 @@ export function DeleteAccount({ account }: { account: Account }) {
           <PasswordField
             inset
             autoFocus
-            placeholder="Mot de passe"
+            placeholder={tr('security.signIn.password')}
             value={value}
             onChangeText={setValue}
             returnKeyType="go"
@@ -106,7 +109,7 @@ export function DeleteAccount({ account }: { account: Account }) {
           <Field
             inset
             autoFocus
-            placeholder="Code de l'app ou de secours"
+            placeholder={tr('security.appOrRecoveryCode')}
             value={value}
             onChangeText={setValue}
             autoCapitalize="none"
@@ -125,7 +128,7 @@ export function DeleteAccount({ account }: { account: Account }) {
               setError(null);
             }}
             style={{ alignSelf: 'flex-start', paddingHorizontal: 4 }}>
-            {withCode ? 'Utiliser le mot de passe' : 'Utiliser un code'}
+            {withCode ? tr('security.deleteAccount.usePassword') : tr('security.deleteAccount.useCode')}
           </TextLink>
         )}
         <ErrorText>{error}</ErrorText>

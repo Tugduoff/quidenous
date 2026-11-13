@@ -4,10 +4,9 @@ import Animated from 'react-native-reanimated';
 
 import { Avatar, PressableScale } from '@/components/ui';
 import type { Member, MemberStats } from '@/lib/api';
+import { useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
 import { useTheme } from '@/lib/theme';
-
-import { plural } from './common';
 
 const STEP = [104, 78, 60];
 const FACE = [60, 48, 44];
@@ -20,6 +19,7 @@ export function podiumOf(profiles: MemberStats[]) {
 
 export function Podium({ top, byId, onOpen }: { top: MemberStats[]; byId: Map<number, Member>; onOpen: (id: number) => void }) {
   const t = useTheme();
+  const tr = useT();
   // Places on screen: 2nd on the left, 1st in the middle, 3rd on the right.
   const order = top.length === 3 ? [1, 0, 2] : [1, 0];
   return (
@@ -32,7 +32,7 @@ export function Podium({ top, byId, onOpen }: { top: MemberStats[]; byId: Map<nu
           <Animated.View key={p.member_id} entering={motion.stagger(place)} style={{ flex: 1 }}>
             <PressableScale
               accessibilityRole="button"
-              accessibilityLabel={`${place + 1}, ${m?.name ?? '?'}, ${p.received} ${plural(p.received, 'vote', 'votes')}`}
+              accessibilityLabel={`${place + 1}, ${m?.name ?? '?'}, ${tr('stats.podiumVotes', { count: p.received })}`}
               onPress={() => onOpen(p.member_id)}
               style={{ alignItems: 'center', gap: 8 }}>
               {place === 0 && <Crown size={20} color={color} />}
@@ -51,7 +51,7 @@ export function Podium({ top, byId, onOpen }: { top: MemberStats[]; byId: Map<nu
                   justifyContent: 'center',
                 }}>
                 <Text style={{ fontFamily: t.font.display, fontSize: place === 0 ? 30 : 24, color: '#121216' }}>{p.received}</Text>
-                <Text style={{ fontFamily: t.font.semibold, fontSize: 11, color: '#121216B3' }}>{plural(p.received, 'vote', 'votes')}</Text>
+                <Text style={{ fontFamily: t.font.semibold, fontSize: 11, color: '#121216B3' }}>{tr('stats.unit.votes', { count: p.received })}</Text>
               </View>
             </PressableScale>
           </Animated.View>

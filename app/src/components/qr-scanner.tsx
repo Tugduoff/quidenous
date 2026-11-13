@@ -4,6 +4,7 @@ import { useRef, useState } from 'react';
 import { Modal, Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 
 export type Scanned = { code?: string; friend?: string };
@@ -21,14 +22,15 @@ function read(data: string): Scanned | null {
 }
 
 /** Round button next to a code field: opens the camera and hands back the code of the QR. */
-export function ScanButton({ onScan, label = 'Scanner un QR code' }: { onScan: (s: Scanned) => void; label?: string }) {
+export function ScanButton({ onScan, label }: { onScan: (s: Scanned) => void; label?: string }) {
   const t = useTheme();
+  const tr = useT();
   const [open, setOpen] = useState(false);
   return (
     <>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={label}
+        accessibilityLabel={label ?? tr('auth.qr.scan')}
         onPress={() => setOpen(true)}
         style={{ width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card2 }}>
         <ScanLine size={20} color={t.txt} />
@@ -48,6 +50,7 @@ export function ScanButton({ onScan, label = 'Scanner un QR code' }: { onScan: (
 
 function QrScanner({ onScan, onClose }: { onScan: (s: Scanned) => void; onClose: () => void }) {
   const t = useTheme();
+  const tr = useT();
   const [permission, requestPermission] = useCameraPermissions();
   const [wrong, setWrong] = useState(false);
   // The camera reports the same code many times a second: only the first one counts.
@@ -69,26 +72,26 @@ function QrScanner({ onScan, onClose }: { onScan: (s: Scanned) => void; onClose:
         <SafeAreaView style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, padding: 20, justifyContent: 'space-between' }}>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Fermer"
+            accessibilityLabel={tr('common.close')}
             onPress={onClose}
             style={{ alignSelf: 'flex-end', width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: '#0008' }}>
             <X size={22} color="#fff" />
           </Pressable>
           {permission && !permission.granted ? (
             <View style={{ gap: 14, alignItems: 'center' }}>
-              {!permission.canAskAgain && <Text style={text}>Caméra bloquée : autorise-la dans les réglages</Text>}
+              {!permission.canAskAgain && <Text style={text}>{tr('auth.qr.blocked')}</Text>}
               {permission.canAskAgain && (
                 <Pressable
                   accessibilityRole="button"
                   onPress={requestPermission}
                   style={{ height: 46, paddingHorizontal: 22, borderRadius: t.radius.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: t.acc }}>
-                  <Text style={{ fontFamily: t.font.bold, fontSize: 15, color: t.accTxt }}>Autoriser la caméra</Text>
+                  <Text style={{ fontFamily: t.font.bold, fontSize: 15, color: t.accTxt }}>{tr('auth.qr.allow')}</Text>
                 </Pressable>
               )}
             </View>
           ) : (
             <View style={{ alignSelf: 'center', paddingHorizontal: 16, paddingVertical: 10, borderRadius: t.radius.pill, backgroundColor: '#0008' }}>
-              <Text style={text}>{wrong ? 'QR code non reconnu' : 'Vise le QR code'}</Text>
+              <Text style={text}>{wrong ? tr('auth.qr.wrong') : tr('auth.qr.aim')}</Text>
             </View>
           )}
         </SafeAreaView>

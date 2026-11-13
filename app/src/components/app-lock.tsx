@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { AppState, StyleSheet, View } from 'react-native';
 
 import { Button, Logo } from '@/components/ui';
+import { useT } from '@/lib/i18n';
 import { unlock, useLock } from '@/lib/lock';
 import { useTheme } from '@/lib/theme';
 
@@ -11,6 +12,7 @@ const AWAY_MS = 5 * 60_000;
 /** When the app lock is on: covers everything at a cold start and after 5 min away, until Face ID / fingerprint / passcode. */
 export function AppLock({ active }: { active: boolean }) {
   const t = useTheme();
+  const tr = useT();
   const { enabled } = useLock();
   const on = enabled && active;
   // Rendered once the saved choice is known: a cold start with the lock on starts locked.
@@ -53,7 +55,7 @@ export function AppLock({ active }: { active: boolean }) {
         <Lock size={30} color={t.accInk} />
       </View>
       <Button onPress={ask} style={{ alignSelf: 'stretch', maxWidth: 360, width: '100%' }}>
-        Déverrouiller
+        {tr('lock.unlock')}
       </Button>
     </View>
   );

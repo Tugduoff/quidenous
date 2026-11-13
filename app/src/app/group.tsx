@@ -11,6 +11,7 @@ import { Screen } from '@/components/screen';
 import { askConfirm, Avatar, Card, Display, PressableScale } from '@/components/ui';
 import { api, type RoomSummary } from '@/lib/api';
 import { useFeatures } from '@/lib/auth';
+import { useT } from '@/lib/i18n';
 import { usePop } from '@/lib/motion';
 import { keys, useGroup, useRooms } from '@/lib/queries';
 import { useRoomGone } from '@/lib/rooms';
@@ -80,6 +81,7 @@ function RowButton({
 /** The other members, each with a vote to remove them. A majority of the others removes someone (never the owner, and only from 3 people). */
 function Members() {
   const t = useTheme();
+  const tr = useT();
   const qc = useQueryClient();
   const { me } = useSession();
   const { data: group } = useGroup();
@@ -100,7 +102,7 @@ function Members() {
   const others = group.members.filter((m) => m.id !== me?.id);
   return (
     <View style={{ gap: 10 }}>
-      <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut, marginLeft: 4 }}>Membres</Text>
+      <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut, marginLeft: 4 }}>{tr('room.group.members')}</Text>
       {me && (
         <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12 }}>
           <Avatar member={me} size={36} />
@@ -108,14 +110,22 @@ function Members() {
             {me.name}
           </Text>
           {owner && <Crown size={16} color={t.accInk} />}
-          <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut }}>toi</Text>
+          <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut }}>{tr('room.group.you')}</Text>
         </Card>
       )}
       {others.map((m) => {
         const state = group.kicks.find((k) => k.target_id === m.id);
         const mine = !!state?.mine;
         const onPress = async () => {
-          if (!mine && !(await confirm(`${m.name} sort du salon à ${group.kick_needed} votes.`, `Exclure ${m.name} ?`, 'Voter'))) return;
+          if (
+            !mine &&
+            !(await confirm(
+              tr('room.group.kickMessage', { name: m.name, count: group.kick_needed }),
+              tr('room.group.kickAsk', { name: m.name }),
+              tr('room.group.vote'),
+            ))
+          )
+            return;
           kick.mutate({ id: m.id, undo: mine });
         };
         return (
@@ -127,18 +137,19 @@ function Members() {
             {m.role === 'owner' && <Crown size={16} color={t.accInk} />}
             {owner ? (
               <RowButton
-                label={`Retirer ${m.name} du salon`}
+                label={tr('room.group.removeA11y', { name: m.name })}
                 tone="danger"
                 onPress={async () => {
-                  if (await confirm(`${m.name} sort du salon tout de suite.`, 'Retirer du salon ?', 'Retirer')) forceRemove.mutate(m.id);
+                  if (await confirm(tr('room.group.removeMessage', { name: m.name }), tr('room.group.removeAsk'), tr('room.group.remove')))
+                    forceRemove.mutate(m.id);
                 }}>
                 <UserX size={16} color={t.tag} />
               </RowButton>
             ) : voteOn && m.role !== 'owner' ? (
               <RowButton
                 label={
-                  (mine ? `Retirer mon vote contre ${m.name}` : `Voter pour exclure ${m.name}`) +
-                  (state ? `, ${state.count} vote${state.count > 1 ? 's' : ''} sur ${group.kick_needed}` : '')
+                  tr(mine ? 'room.group.unvoteA11y' : 'room.group.voteA11y', { name: m.name }) +
+                  (state ? tr('room.group.votesOf', { count: state.count, total: group.kick_needed }) : '')
                 }
                 tone={mine ? 'danger' : 'plain'}
                 disabled={kick.isPending}
@@ -148,7 +159,7 @@ function Members() {
               </RowButton>
             ) : null}
             <RowButton
-              label={`Plus d'actions pour ${m.name}`}
+              label={tr('room.group.moreA11y', { name: m.name })}
               onPress={() =>
                 setTarget({ kind: 'member', id: m.id, person: { user_id: m.user_id, name: m.name, color: m.color, photo: m.photo_url, avatar: m.avatar } })
               }>
@@ -165,19 +176,15 @@ function Members() {
 /** Leave the room (anyone; deleting it is in the owner's settings). */
 function Leave() {
   const t = useTheme();
+  const tr = useT();
   const roomGone = useRoomGone();
   const { data: group } = useGroup();
   if (!group) return null;
   const owner = group.my_role === 'owner';
   const leave = async () => {
     // Leaving isn't final: the invite code brings me back, with my history.
-    const msg =
-      owner && group.members.length <= 1
-        ? 'Tu es seul : le salon sera supprimé.'
-        : owner
-          ? "Le membre le plus ancien devient propriétaire. Tu pourras revenir avec le code d'invitation."
-          : "Tu pourras revenir avec le code d'invitation.";
-    if (!(await confirm(msg, 'Quitter le salon ?', 'Quitter'))) return;
+    const msg = owner && group.members.length <= 1 ? tr('room.group.leaveAlone') : owner ? tr('room.group.leaveOwner') : tr('room.group.leaveMember');
+    if (!(await confirm(msg, tr('room.group.leaveAsk'), tr('common.leave')))) return;
     await api(`/rooms/${group.id}/leave`, { method: 'POST' });
     await roomGone();
   };
@@ -196,7 +203,7 @@ function Leave() {
         backgroundColor: '#FF4FA318',
       }}>
       <LogOut size={18} color={t.tag} />
-      <Text style={{ fontFamily: t.font.bold, fontSize: 15, color: t.tag }}>Quitter le salon</Text>
+      <Text style={{ fontFamily: t.font.bold, fontSize: 15, color: t.tag }}>{tr('room.group.leave')}</Text>
     </Pressable>
   );
 }
@@ -212,6 +219,7 @@ function useMuted(id: number | undefined) {
 /** Bell in the header: mute this room's pushes for me (the inbox still gets everything). */
 function MuteButton({ id, muted }: { id: number; muted: boolean }) {
   const t = useTheme();
+  const tr = useT();
   const qc = useQueryClient();
   const pop = usePop(muted);
   const toggle = useMutation({
@@ -231,7 +239,7 @@ function MuteButton({ id, muted }: { id: number; muted: boolean }) {
   return (
     <PressableScale
       accessibilityRole="switch"
-      accessibilityLabel="Notifications du salon"
+      accessibilityLabel={tr('room.group.notifications')}
       accessibilityState={{ checked: !muted }}
       onPress={() => toggle.mutate(!muted)}
       hitSlop={6}
@@ -246,6 +254,7 @@ function MuteButton({ id, muted }: { id: number; muted: boolean }) {
 /** The group's own page: its name, invite and members (my profile stays about me); the owner's settings are behind the gear. */
 export default function GroupScreen() {
   const t = useTheme();
+  const tr = useT();
   const { data: group } = useGroup();
   const muted = useMuted(group?.id);
   return (
@@ -253,7 +262,7 @@ export default function GroupScreen() {
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Retour"
+          accessibilityLabel={tr('common.back')}
           onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
           style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card }}>
           <ChevronLeft size={22} color={t.txt} />
@@ -263,7 +272,7 @@ export default function GroupScreen() {
           {group?.my_role === 'owner' && (
             <PressableScale
               accessibilityRole="button"
-              accessibilityLabel="Paramètres du salon"
+              accessibilityLabel={tr('room.settings.title')}
               onPress={() => router.push('/room-settings')}
               hitSlop={6}
               style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card }}>
@@ -273,9 +282,9 @@ export default function GroupScreen() {
         </View>
       </View>
       <View style={{ gap: 4 }}>
-        <Display size={30}>{group?.name ?? 'Salon'}</Display>
+        <Display size={30}>{group?.name ?? tr('room.group.fallbackName')}</Display>
         <Text style={{ fontFamily: t.font.regular, fontSize: 14, color: t.mut }}>
-          {group ? `${group.members.length} membre${group.members.length > 1 ? 's' : ''}${muted ? ' · en sourdine' : ''}` : ''}
+          {group ? tr('common.members', { count: group.members.length }) + (muted ? ` · ${tr('room.group.muted')}` : '') : ''}
         </Text>
       </View>
       <InviteCard rotate={false} />

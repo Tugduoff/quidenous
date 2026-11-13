@@ -18,20 +18,26 @@ import { ActivityIndicator, Pressable, Text, TextInput, View } from 'react-nativ
 
 import { BackButton, ErrorText } from '@/components/auth-ui';
 import { Screen } from '@/components/screen';
-import { askConfirm, Avatar, Button, Card, Dialog, DialogActions, DialogTitle, Display, PressableScale, Toggle } from '@/components/ui';
-import { VibeCards, vibeIcon } from '@/components/vibes';
+import { askConfirm, Avatar, Button, Card, Dialog, DialogActions, DialogTitle, Display, PressableScale, Segmented, Toggle } from '@/components/ui';
+import { VibeCards, vibeIcon, vibeName } from '@/components/vibes';
 import { api, type Group, type Member } from '@/lib/api';
 import { useFeatures } from '@/lib/auth';
+import { type Lang, t as tr, useT } from '@/lib/i18n';
 import { keys, useGroup, useVibes } from '@/lib/queries';
 import { useRoomGone } from '@/lib/rooms';
 import { useSession } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
 
-type Patch = Partial<Group['settings']> & { name?: string };
+type Patch = Partial<Group['settings']> & { name?: string; language?: Lang };
 
 /** The waits the server accepts between two questions, in seconds. */
 const DELAYS = [0, 900, 3600, 10800, 43200, 86400];
-const delayLabel = (s: number) => (!s ? 'Aucun' : s < 3600 ? `${Math.round(s / 60)} min` : `${Math.round(s / 3600)} h`);
+const delayLabel = (s: number) =>
+  !s
+    ? tr('room.settings.delayNone')
+    : s < 3600
+      ? tr('common.time.minutes', { count: Math.round(s / 60) })
+      : tr('room.settings.hours', { count: Math.round(s / 3600) });
 
 /** A small titled block: grey header with its icon (red for the danger zone), the rows in a card. */
 function Section({ title, Icon, danger, children }: { title: string; Icon: LucideIcon; danger?: boolean; children: ReactNode }) {
@@ -89,52 +95,10 @@ function Row({
   );
 }
 
-/** A compact two-or-more way choice (pills in a track). */
-function Choice<T extends string>({
-  label,
-  options,
-  value,
-  onChange,
-}: {
-  label: string;
-  options: { id: T; name: string }[];
-  value: T;
-  onChange: (v: T) => void;
-}) {
-  const t = useTheme();
-  return (
-    <View
-      accessibilityRole="radiogroup"
-      accessibilityLabel={label}
-      style={{ flexDirection: 'row', padding: 3, gap: 2, borderRadius: t.radius.pill, backgroundColor: t.card2 }}>
-      {options.map((o) => {
-        const on = o.id === value;
-        return (
-          <Pressable
-            key={o.id}
-            accessibilityRole="radio"
-            accessibilityState={{ selected: on }}
-            accessibilityLabel={o.name}
-            onPress={() => !on && onChange(o.id)}
-            style={{
-              height: 30,
-              paddingHorizontal: 12,
-              borderRadius: t.radius.pill,
-              alignItems: 'center',
-              justifyContent: 'center',
-              backgroundColor: on ? t.acc : 'transparent',
-            }}>
-            <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: on ? t.accTxt : t.mut }}>{o.name}</Text>
-          </Pressable>
-        );
-      })}
-    </View>
-  );
-}
-
 /** Rename in a dialog. */
 function NameDialog({ visible, name, onClose, onSave }: { visible: boolean; name: string; onClose: () => void; onSave: (name: string) => void }) {
   const t = useTheme();
+  const tr = useT();
   const [draft, setDraft] = useState(name);
   // Each opening starts from the current name.
   useEffect(() => {
@@ -144,9 +108,9 @@ function NameDialog({ visible, name, onClose, onSave }: { visible: boolean; name
   const submit = () => ok && onSave(draft.trim());
   return (
     <Dialog visible={visible} onClose={onClose}>
-      <DialogTitle title="Nom du salon" />
+      <DialogTitle title={tr('room.settings.nameTitle')} />
       <TextInput
-        accessibilityLabel="Nom du salon"
+        accessibilityLabel={tr('room.settings.nameTitle')}
         value={draft}
         onChangeText={setDraft}
         maxLength={40}
@@ -164,7 +128,7 @@ function NameDialog({ visible, name, onClose, onSave }: { visible: boolean; name
         }}
       />
       <Button disabled={!ok} onPress={submit} style={{ height: 48 }}>
-        Renommer
+        {tr('room.settings.rename')}
       </Button>
     </Dialog>
   );
@@ -173,6 +137,7 @@ function NameDialog({ visible, name, onClose, onSave }: { visible: boolean; name
 /** The tone of the room's built-in questions (a server that has vibes). */
 function VibeRow({ value, onChange }: { value: string | null; onChange: (vibe: string | null) => void }) {
   const t = useTheme();
+  const tr = useT();
   const features = useFeatures();
   const { data: vibes } = useVibes(features.vibes);
   const [open, setOpen] = useState(false);
@@ -186,21 +151,21 @@ function VibeRow({ value, onChange }: { value: string | null; onChange: (vibe: s
   return (
     <>
       <Row
-        label="Ambiance"
-        a11y={`Ambiance : ${current?.name ?? 'aucune'}. Changer`}
+        label={tr('room.settings.vibe')}
+        a11y={tr('room.settings.vibeA11y', { name: current ? vibeName(current) : tr('room.settings.vibeNoneLower') })}
         onPress={() => setOpen(true)}
         right={
           <>
             {current && <Icon size={16} color={t.accInk} />}
             <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: t.font.semibold, fontSize: 14, color: current ? t.txt : t.mut }}>
-              {current?.name ?? 'Aucune'}
+              {current ? vibeName(current) : tr('room.settings.vibeNone')}
             </Text>
             <ChevronRight size={18} color={t.mut} />
           </>
         }
       />
       <Dialog visible={open} onClose={() => setOpen(false)}>
-        <DialogTitle title="Ambiance" />
+        <DialogTitle title={tr('room.settings.vibe')} />
         <VibeCards vibes={vibes} value={value} onChange={pick} />
         <Pressable
           accessibilityRole="radio"
@@ -208,7 +173,7 @@ function VibeRow({ value, onChange }: { value: string | null; onChange: (vibe: s
           onPress={() => pick(null)}
           style={{ height: 44, flexDirection: 'row', gap: 6, alignItems: 'center', justifyContent: 'center' }}>
           {!current && <Check size={16} color={t.accInk} />}
-          <Text style={{ fontFamily: t.font.semibold, fontSize: 15, color: current ? t.mut : t.accInk }}>Aucune</Text>
+          <Text style={{ fontFamily: t.font.semibold, fontSize: 15, color: current ? t.mut : t.accInk }}>{tr('room.settings.vibeNone')}</Text>
         </Pressable>
       </Dialog>
     </>
@@ -218,9 +183,10 @@ function VibeRow({ value, onChange }: { value: string | null; onChange: (vibe: s
 /** Pick the wait before the next question. */
 function DelayDialog({ visible, value, onClose, onPick }: { visible: boolean; value: number; onClose: () => void; onPick: (s: number) => void }) {
   const t = useTheme();
+  const tr = useT();
   return (
     <Dialog visible={visible} onClose={onClose}>
-      <DialogTitle title="Délai avant la suivante" />
+      <DialogTitle title={tr('room.settings.delay')} />
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
         {DELAYS.map((s) => {
           const on = s === value;
@@ -263,6 +229,7 @@ function HandOverDialog({
   onConfirm: (id: number) => void;
 }) {
   const t = useTheme();
+  const tr = useT();
   const [heir, setHeir] = useState<Member | null>(null);
   useEffect(() => {
     if (visible) setHeir(null);
@@ -271,19 +238,19 @@ function HandOverDialog({
     <Dialog visible={visible} onClose={onClose}>
       {heir ? (
         <>
-          <DialogTitle title="Passer la main ?" message={`${heir.name} devient propriétaire du salon, et toi simple membre.`} />
-          <DialogActions confirmLabel="Confirmer" busy={busy} onConfirm={() => onConfirm(heir.id)} onCancel={() => setHeir(null)} />
+          <DialogTitle title={tr('room.settings.handOverAsk')} message={tr('room.settings.handOverMessage', { name: heir.name })} />
+          <DialogActions confirmLabel={tr('common.confirm')} busy={busy} onConfirm={() => onConfirm(heir.id)} onCancel={() => setHeir(null)} />
         </>
       ) : (
         <>
-          <DialogTitle title="Passer la main" />
+          <DialogTitle title={tr('room.settings.handOver')} />
           <View style={{ gap: 6 }}>
             {members.map((m) => (
               <PressableScale
                 key={m.id}
                 scale={0.98}
                 accessibilityRole="button"
-                accessibilityLabel={`Rendre ${m.name} propriétaire`}
+                accessibilityLabel={tr('room.settings.makeOwner', { name: m.name })}
                 onPress={() => setHeir(m)}
                 style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 10, borderRadius: 16, backgroundColor: t.card2 }}>
                 <Avatar member={m} size={32} />
@@ -302,6 +269,8 @@ function HandOverDialog({
 
 function Settings({ group }: { group: Group }) {
   const t = useTheme();
+  const tr = useT();
+  const features = useFeatures();
   const qc = useQueryClient();
   const { me } = useSession();
   const roomGone = useRoomGone();
@@ -315,8 +284,13 @@ function Settings({ group }: { group: Group }) {
       await qc.cancelQueries({ queryKey: keys.group });
       const before = qc.getQueryData<Group>(keys.group);
       if (before) {
-        const { name, ...settings } = body;
-        qc.setQueryData<Group>(keys.group, { ...before, name: name ?? before.name, settings: { ...before.settings, ...settings } });
+        const { name, language, ...settings } = body;
+        qc.setQueryData<Group>(keys.group, {
+          ...before,
+          name: name ?? before.name,
+          language: language ?? before.language,
+          settings: { ...before.settings, ...settings },
+        });
       }
       return { before };
     },
@@ -346,77 +320,98 @@ function Settings({ group }: { group: Group }) {
   const others = group.members.filter((m) => m.id !== me?.id);
 
   const rotate = async () => {
-    if (await askConfirm('Nouveau code ?', "L'ancien code et les liens déjà envoyés ne marcheront plus.", 'Changer')) renew.mutate();
+    if (await askConfirm(tr('room.invite.newCodeAsk'), tr('room.invite.newCodeMessage'), tr('room.invite.change'))) renew.mutate();
   };
   const remove = async () => {
-    if (!(await askConfirm(`Supprimer « ${group.name} » ?`, 'Le salon disparaît pour tout le monde.', 'Supprimer'))) return;
+    if (!(await askConfirm(tr('room.settings.deleteAsk', { name: group.name }), tr('room.settings.deleteMessage'), tr('common.delete')))) return;
     await api(`/rooms/${group.id}`, { method: 'DELETE' });
     await roomGone();
   };
 
   return (
     <>
-      <ErrorText>{save.isError ? 'Réglage non enregistré' : renew.isError || transfer.isError ? 'Action impossible' : null}</ErrorText>
+      <ErrorText>{save.isError ? tr('room.settings.notSaved') : renew.isError || transfer.isError ? tr('room.settings.failed') : null}</ErrorText>
 
-      <Section title="Général" Icon={Settings2}>
-        <Row label="Nom" value={group.name} a11y={`Nom du salon : ${group.name}. Changer`} onPress={() => setDialog('name')} />
+      <Section title={tr('room.settings.general')} Icon={Settings2}>
+        <Row
+          label={tr('room.settings.name')}
+          value={group.name}
+          a11y={tr('room.settings.nameA11y', { name: group.name })}
+          onPress={() => setDialog('name')}
+        />
         <VibeRow value={s.vibe ?? null} onChange={(v) => save.mutate({ vibe: v ?? '' })} />
       </Section>
 
       {pacing && (
-        <Section title="Rythme" Icon={Hourglass}>
+        <Section title={tr('room.settings.pace')} Icon={Hourglass}>
           <Row
-            label="Toi seul lances la suivante"
-            right={<Toggle label="" a11y="Toi seul lances la suivante" value={!!s.owner_next} onChange={(v) => save.mutate({ owner_next: v })} />}
+            label={tr('room.settings.ownerNext')}
+            right={<Toggle label="" a11y={tr('room.settings.ownerNext')} value={!!s.owner_next} onChange={(v) => save.mutate({ owner_next: v })} />}
           />
           <Row
-            label="Délai avant la suivante"
+            label={tr('room.settings.delay')}
             value={delayLabel(delay)}
-            a11y={`Délai avant la suivante : ${delayLabel(delay)}. Changer`}
+            a11y={tr('room.settings.delayA11y', { value: delayLabel(delay) })}
             onPress={() => setDialog('delay')}
           />
         </Section>
       )}
 
-      <Section title="Votes" Icon={Vote}>
+      <Section title={tr('room.settings.votes')} Icon={Vote}>
         <Row
-          label="Passer à la majorité"
-          right={<Toggle label="" a11y="Passer à la majorité" value={s.skip_vote} onChange={(v) => save.mutate({ skip_vote: v })} />}
+          label={tr('room.settings.skipVote')}
+          right={<Toggle label="" a11y={tr('room.settings.skipVote')} value={s.skip_vote} onChange={(v) => save.mutate({ skip_vote: v })} />}
         />
         <Row
-          label="Exclure à la majorité"
-          right={<Toggle label="" a11y="Exclure à la majorité" value={s.kick_vote} onChange={(v) => save.mutate({ kick_vote: v })} />}
+          label={tr('room.settings.kickVote')}
+          right={<Toggle label="" a11y={tr('room.settings.kickVote')} value={s.kick_vote} onChange={(v) => save.mutate({ kick_vote: v })} />}
         />
       </Section>
 
-      <Section title="Questions" Icon={MessageCircleQuestion}>
+      <Section title={tr('room.settings.questions')} Icon={MessageCircleQuestion}>
         <Row
-          label="Qui peut en ajouter"
+          label={tr('room.settings.whoAdds')}
           right={
-            <Choice
-              label="Qui peut ajouter des questions"
+            <Segmented
+              label={tr('room.settings.whoAddsA11y')}
               value={s.questions_by}
               onChange={(v) => save.mutate({ questions_by: v })}
               options={[
-                { id: 'everyone', name: 'Tous' },
-                { id: 'owner', name: 'Toi' },
+                { id: 'everyone', name: tr('room.settings.everyone') },
+                { id: 'owner', name: tr('room.settings.you') },
               ]}
             />
           }
         />
+        {features.languages && (
+          <Row
+            label={tr('room.settings.language')}
+            right={
+              <Segmented
+                label={tr('room.language.label')}
+                value={group.language ?? 'fr'}
+                onChange={(v) => save.mutate({ language: v })}
+                options={[
+                  { id: 'fr', name: tr('profile.language.fr') },
+                  { id: 'en', name: tr('profile.language.en') },
+                ]}
+              />
+            }
+          />
+        )}
       </Section>
 
-      <Section title="Invitations" Icon={Ticket}>
+      <Section title={tr('room.settings.invites')} Icon={Ticket}>
         <Row
-          label="Nouveau code d'invitation"
+          label={tr('room.settings.newCode')}
           onPress={rotate}
           right={renew.isPending ? <ActivityIndicator size="small" color={t.mut} /> : <RefreshCw size={18} color={t.mut} />}
         />
       </Section>
 
-      <Section title="Zone sensible" Icon={TriangleAlert} danger>
-        {others.length > 0 && <Row label="Passer la main" danger onPress={() => setDialog('owner')} />}
-        <Row label="Supprimer le salon" danger onPress={remove} right={<Trash2 size={18} color={t.tag} />} />
+      <Section title={tr('room.settings.danger')} Icon={TriangleAlert} danger>
+        {others.length > 0 && <Row label={tr('room.settings.handOver')} danger onPress={() => setDialog('owner')} />}
+        <Row label={tr('room.settings.delete')} danger onPress={remove} right={<Trash2 size={18} color={t.tag} />} />
       </Section>
 
       <NameDialog
@@ -451,6 +446,7 @@ function Settings({ group }: { group: Group }) {
 /** Group > gear (owner only): the room's name, tone, pacing, votes, who adds questions, the invite code, and the danger zone. */
 export default function RoomSettings() {
   const t = useTheme();
+  const tr = useT();
   const { data: group } = useGroup();
   const owner = group?.my_role === 'owner';
   // Not (or no longer) the owner: nothing to see here.
@@ -464,7 +460,7 @@ export default function RoomSettings() {
     <Screen tabs={false}>
       <BackButton />
       <View style={{ gap: 4 }}>
-        <Display size={30}>Paramètres du salon</Display>
+        <Display size={30}>{tr('room.settings.title')}</Display>
         {owner && (
           <Text numberOfLines={1} style={{ fontFamily: t.font.regular, fontSize: 14, color: t.mut }}>
             {group.name}

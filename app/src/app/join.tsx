@@ -9,6 +9,7 @@ import { LegacyJoin } from '@/components/legacy-join';
 import { Screen } from '@/components/screen';
 import { Button, Logo } from '@/components/ui';
 import { authError, isLinked, pendingJoinCode, PROVIDER_NAMES, setPendingCode, useFeatures, type Provider } from '@/lib/auth';
+import { useT } from '@/lib/i18n';
 import { oauth, useFinishSignIn } from '@/lib/sign-in';
 import { useTheme } from '@/lib/theme';
 
@@ -30,6 +31,7 @@ export default function Entry() {
 
 function Welcome({ providers }: { providers: Provider[] }) {
   const t = useTheme();
+  const tr = useT();
   const finish = useFinishSignIn();
   const [busy, setBusy] = useState<Provider | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -56,20 +58,18 @@ function Welcome({ providers }: { providers: Provider[] }) {
           <ErrorText>{error}</ErrorText>
           {providers.map((p) => (
             <SoftButton key={p} icon={<BrandIcon provider={p} />} loading={busy === p} disabled={!!busy} onPress={() => withProvider(p)}>
-              {`Continuer avec ${PROVIDER_NAMES[p]}`}
+              {tr('auth.welcome.continueWith', { provider: PROVIDER_NAMES[p] })}
             </SoftButton>
           ))}
           <Button onPress={() => router.push('/auth/email')} disabled={!!busy}>
             <Mail size={20} color={t.accTxt} />
-            <Text style={{ fontFamily: t.font.bold, fontSize: 17, color: t.accTxt }}>Continuer avec un e-mail</Text>
+            <Text style={{ fontFamily: t.font.bold, fontSize: 17, color: t.accTxt }}>{tr('auth.welcome.continueEmail')}</Text>
           </Button>
         </>
       }>
       <View style={{ marginTop: 48, gap: 14 }}>
         <Logo size={44} />
-        <Text style={{ fontFamily: t.font.regular, fontSize: 16, lineHeight: 22, color: t.mut }}>
-          Une question. Tout le monde vote.{'\n'}Personne n&apos;est à l&apos;abri.
-        </Text>
+        <Text style={{ fontFamily: t.font.regular, fontSize: 16, lineHeight: 22, color: t.mut }}>{tr('auth.tagline')}</Text>
       </View>
       {invite && (
         <View

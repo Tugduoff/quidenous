@@ -1,1 +1,68 @@
-export const auth = {};
+/** Signing in and up (app/join, app/auth/*, app/oauth, app/setup), the old join screen and the QR scanner. */
+export const auth = {
+  tagline: "Une question. Tout le monde vote.\nPersonne n'est à l'abri.",
+  emailPlaceholder: 'toi@exemple.fr',
+  emailLabel: 'E-mail',
+  name: 'Prénom',
+  password: 'Mot de passe',
+  /** A new password: "Mot de passe (8 min.)". */
+  newPassword: 'Mot de passe ({min} min.)',
+  validate: 'Valider',
+  resend: 'Renvoyer',
+  resendIn: 'Renvoyer ({count} s)',
+  codeSentTo: 'Code envoyé à {email}',
+  welcome: {
+    continueWith: 'Continuer avec {provider}',
+    continueEmail: 'Continuer avec un e-mail',
+  },
+  email: { title: 'Ton e-mail' },
+  forgot: { title: 'Mot de passe oublié', submit: 'Recevoir un code' },
+  signIn: {
+    welcomeBack: 'Bon retour',
+    welcome: 'Bienvenue',
+    signIn: 'Se connecter',
+    signUp: 'Créer mon compte',
+    forgot: 'Mot de passe oublié ?',
+  },
+  reset: { title: 'Nouveau mot de passe', placeholder: '{min} caractères min.', resendCode: 'Renvoyer le code' },
+  twoFactor: {
+    title: 'Vérification',
+    recoverySub: 'Un de tes codes de secours',
+    appSub: "Le code de ton app d'authentification",
+    useApp: "Utiliser l'app d'authentification",
+    useRecovery: 'Utiliser un code de secours',
+    tooLate: 'Trop tard, reconnecte-toi',
+  },
+  verify: { title: 'Vérifie ton e-mail', later: 'Plus tard' },
+  oauthFailed: 'Connexion impossible',
+  setup: { title: 'Ton salon', signOut: 'Se déconnecter' },
+  field: {
+    show: 'Afficher le mot de passe',
+    hide: 'Masquer le mot de passe',
+    code: 'Code à 6 chiffres',
+    recovery: 'Code de secours',
+  },
+  /** The join screen of a server without accounts. */
+  legacy: {
+    create: 'Créer mon salon',
+    roomName: 'Nom du salon',
+    groupCode: 'Code du groupe',
+    codePlaceholder: 'CODE',
+    haveCode: "J'ai un code d'invitation",
+    noCode: 'Pas de code ? Crée ton salon',
+    server: 'Serveur',
+    errors: {
+      bad_code: 'Code inconnu',
+      bad_name: 'Prénom invalide',
+      bad_room_name: 'Donne un nom à ton salon',
+      removed: 'Tu as été retiré de ce salon',
+    },
+  },
+  qr: {
+    scan: 'Scanner un QR code',
+    blocked: 'Caméra bloquée : autorise-la dans les réglages',
+    allow: 'Autoriser la caméra',
+    wrong: 'QR code non reconnu',
+    aim: 'Vise le QR code',
+  },
+};

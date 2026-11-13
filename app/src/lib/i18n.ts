@@ -1,5 +1,6 @@
 import { getLocales } from 'expo-localization';
 import { useSyncExternalStore } from 'react';
+import { Platform } from 'react-native';
 
 import { en } from '@/locales/en';
 import { fr, type Messages } from '@/locales/fr';
@@ -42,6 +43,7 @@ function apply(next: LangPref) {
   pref = next;
   lang = next === 'auto' ? deviceLang() : next;
   formatters.clear();
+  if (Platform.OS === 'web' && typeof document !== 'undefined') document.documentElement.lang = lang;
   listeners.forEach((l) => l());
 }
 

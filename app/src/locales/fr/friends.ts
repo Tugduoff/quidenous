@@ -1,1 +1,21 @@
-export const friends = {};
+export const friends = {
+  title: 'Amis',
+  myCode: 'Mon code ami',
+  shareCode: 'Partager mon code',
+  linkCopied: 'Lien copié',
+  addWithCode: 'Ajouter avec un code',
+  code: 'Code ami',
+  addA11y: 'Ajouter en ami',
+  notFriendQr: "Ce QR code n'est pas un code ami",
+  added: '{name} est ton ami',
+  errors: {
+    badCode: 'Code ami inconnu',
+    self: "C'est ton propre code",
+  },
+  count: { one: '{count} ami', other: '{count} amis' },
+  friend: 'Ami',
+  addedAsFriend: 'Ajouté en ami',
+  roomsInCommon: { one: '{count} salon en commun', other: '{count} salons en commun' },
+  addNameA11y: 'Ajouter {name} en ami',
+  removeA11y: 'Retirer {name} de mes amis',
+};

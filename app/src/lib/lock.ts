@@ -2,6 +2,7 @@ import { requireOptionalNativeModule } from 'expo';
 import { useSyncExternalStore } from 'react';
 import { Platform } from 'react-native';
 
+import { t } from './i18n';
 import { storage } from './storage';
 
 type LocalAuth = typeof import('expo-local-authentication');
@@ -62,7 +63,7 @@ export function useLock() {
 /** Face ID / fingerprint, or the device passcode. */
 export async function unlock(): Promise<boolean> {
   if (!LA) return true;
-  const r = await LA.authenticateAsync({ promptMessage: 'Déverrouiller qui de nous ?', cancelLabel: 'Annuler' });
+  const r = await LA.authenticateAsync({ promptMessage: t('lock.prompt'), cancelLabel: t('common.cancel') });
   return r.success;
 }
 

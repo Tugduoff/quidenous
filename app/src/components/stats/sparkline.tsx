@@ -4,13 +4,13 @@ import Svg, { Circle, Defs, LinearGradient, Path, Stop } from 'react-native-svg'
 
 import { Card } from '@/components/ui';
 import type { Activity } from '@/lib/api';
+import { dateFormat, useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 
-import { dec, int, plural } from './common';
+import { dec, int } from './common';
 
 const HEIGHT = 72;
 const PAD = 4;
-const SHORT = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short' });
 
 const parseDay = (s: string) => {
   const [y, m, d] = s.split('-').map(Number);
@@ -20,6 +20,7 @@ const parseDay = (s: string) => {
 /** Questions per day (or week): the total, the average, and the curve under it. */
 export function Sparkline({ activity }: { activity: Activity }) {
   const t = useTheme();
+  const tr = useT();
   const [width, setWidth] = useState(0);
   const values = activity.questions;
   const total = values.reduce((a, b) => a + b, 0);
@@ -35,10 +36,10 @@ export function Sparkline({ activity }: { activity: Activity }) {
       <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 }}>
         <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
           <Text style={{ fontFamily: t.font.display, fontSize: 32, letterSpacing: -1, color: t.txt }}>{int(total)}</Text>
-          <Text style={{ fontFamily: t.font.regular, fontSize: 13, color: t.mut }}>{plural(total, 'question', 'questions')}</Text>
+          <Text style={{ fontFamily: t.font.regular, fontSize: 13, color: t.mut }}>{tr('stats.unit.questions', { count: total })}</Text>
         </View>
         <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.accInk, paddingBottom: 6 }}>
-          {dec(total / values.length)} {week ? 'par semaine' : 'par jour'}
+          {tr(week ? 'stats.rhythm.perWeek' : 'stats.rhythm.perDay', { n: dec(total / values.length) })}
         </Text>
       </View>
       <View onLayout={(e) => setWidth(e.nativeEvent.layout.width)} style={{ height: HEIGHT }}>
@@ -57,8 +58,10 @@ export function Sparkline({ activity }: { activity: Activity }) {
         )}
       </View>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-        <Text style={{ fontFamily: t.font.regular, fontSize: 11, color: t.mut }}>{SHORT.format(parseDay(activity.start))}</Text>
-        <Text style={{ fontFamily: t.font.regular, fontSize: 11, color: t.mut }}>{week ? 'cette semaine' : "aujourd'hui"}</Text>
+        <Text style={{ fontFamily: t.font.regular, fontSize: 11, color: t.mut }}>
+          {dateFormat({ day: 'numeric', month: 'short' }).format(parseDay(activity.start))}
+        </Text>
+        <Text style={{ fontFamily: t.font.regular, fontSize: 11, color: t.mut }}>{tr(week ? 'stats.rhythm.thisWeek' : 'stats.rhythm.today')}</Text>
       </View>
     </Card>
   );

@@ -8,6 +8,7 @@ import QRCode from 'react-native-qrcode-svg';
 import { copyText } from '@/components/auth-ui';
 import { askConfirm, Avatar, Card, CodeText, PressableScale } from '@/components/ui';
 import { api } from '@/lib/api';
+import { useT } from '@/lib/i18n';
 import { keys, useFriends, useGroup } from '@/lib/queries';
 import { inviteLink, inviteMessage, shareText } from '@/lib/share';
 import { useTheme } from '@/lib/theme';
@@ -28,6 +29,7 @@ function useFlash(): [boolean, (ok: boolean) => void] {
 /** The room's invite: QR code, code, share the link, copy the code, and (owner, `rotate`) a new code. */
 export function InviteCard({ qrSize = 168, rotate = true }: { qrSize?: number; rotate?: boolean }) {
   const t = useTheme();
+  const tr = useT();
   const qc = useQueryClient();
   const { data: group } = useGroup();
   const [shared, flashShared] = useFlash();
@@ -47,7 +49,7 @@ export function InviteCard({ qrSize = 168, rotate = true }: { qrSize?: number; r
         <QRCode value={inviteLink(group.code)} size={qrSize} color="#121216" backgroundColor="#fff" />
       </View>
       <View style={{ gap: 2 }}>
-        <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut }}>Code d'invitation</Text>
+        <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut }}>{tr('room.invite.code')}</Text>
         <CodeText code={group.code} />
       </View>
       <View style={{ flexDirection: 'row', gap: 10 }}>
@@ -66,18 +68,22 @@ export function InviteCard({ qrSize = 168, rotate = true }: { qrSize?: number; r
           }}>
           <Share2 size={18} color={t.accTxt} />
           <Text numberOfLines={1} style={{ fontFamily: t.font.bold, fontSize: 15, color: t.accTxt }}>
-            {shared ? 'Lien copié' : 'Partager'}
+            {shared ? tr('room.invite.linkCopied') : tr('common.share')}
           </Text>
         </PressableScale>
-        <PressableScale accessibilityRole="button" accessibilityLabel={copied ? 'Code copié' : 'Copier le code'} onPress={copy} style={round}>
+        <PressableScale
+          accessibilityRole="button"
+          accessibilityLabel={copied ? tr('room.invite.codeCopied') : tr('room.invite.copyCode')}
+          onPress={copy}
+          style={round}>
           {copied ? <Check size={18} color={t.accInk} /> : <Copy size={18} color={t.txt} />}
         </PressableScale>
         {rotate && group.my_role === 'owner' && (
           <PressableScale
             accessibilityRole="button"
-            accessibilityLabel="Nouveau code"
+            accessibilityLabel={tr('room.invite.newCode')}
             onPress={async () => {
-              if (await askConfirm('Nouveau code ?', "L'ancien code et les liens déjà envoyés ne marcheront plus.", 'Changer')) renew.mutate();
+              if (await askConfirm(tr('room.invite.newCodeAsk'), tr('room.invite.newCodeMessage'), tr('room.invite.change'))) renew.mutate();
             }}
             style={round}>
             <RefreshCw size={18} color={t.txt} />
@@ -94,6 +100,7 @@ export function InviteCard({ qrSize = 168, rotate = true }: { qrSize?: number; r
  */
 export function AddFriends({ onlyIfAny }: { onlyIfAny?: boolean }) {
   const t = useTheme();
+  const tr = useT();
   const qc = useQueryClient();
   const { data: group } = useGroup();
   const { data: friends } = useFriends();
@@ -114,10 +121,10 @@ export function AddFriends({ onlyIfAny }: { onlyIfAny?: boolean }) {
   return (
     <View style={{ gap: 10 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginHorizontal: 4 }}>
-        <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut }}>Ajouter des amis</Text>
+        <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut }}>{tr('room.invite.addFriends')}</Text>
         {!none && (
           <Pressable accessibilityRole="button" onPress={() => router.push('/friends')} hitSlop={8}>
-            <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.accInk }}>Mes amis</Text>
+            <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.accInk }}>{tr('room.invite.myFriends')}</Text>
           </Pressable>
         )}
       </View>
@@ -125,7 +132,7 @@ export function AddFriends({ onlyIfAny }: { onlyIfAny?: boolean }) {
         <PressableScale scale={0.98} accessibilityRole="button" onPress={() => router.push('/friends')}>
           <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 }}>
             <UserPlus size={18} color={t.accInk} />
-            <Text style={{ flex: 1, fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>Pas encore d'amis</Text>
+            <Text style={{ flex: 1, fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>{tr('room.invite.noFriends')}</Text>
             <ChevronRight size={18} color={t.mut} />
           </Card>
         </PressableScale>
@@ -138,7 +145,7 @@ export function AddFriends({ onlyIfAny }: { onlyIfAny?: boolean }) {
           </Text>
           <PressableScale
             accessibilityRole="button"
-            accessibilityLabel={`Ajouter ${f.name} au salon`}
+            accessibilityLabel={tr('room.invite.addToRoom', { name: f.name })}
             disabled={add.isPending}
             onPress={() => add.mutate(f.user_id)}
             hitSlop={6}

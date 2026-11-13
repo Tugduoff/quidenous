@@ -4,6 +4,7 @@ import { Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from
 import Animated, { FadeIn, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import { Dialog, DialogTitle } from '@/components/ui';
+import { useLang, useT } from '@/lib/i18n';
 import { milestone as describe, PREVIEW_AT, playPreview, SPECIAL_NUMBERS, tier, usePreview } from '@/lib/milestones';
 import { useTheme } from '@/lib/theme';
 
@@ -18,8 +19,12 @@ import { sceneFor } from './scenes';
 export function Celebration({ count, onDone, frozen }: { count: number; onDone: () => void; frozen?: number | null }) {
   const reduced = useReducedMotion();
   const t = useTheme();
+  const tr = useT();
+  const { lang } = useLang();
   const { width: w, height: h } = useWindowDimensions();
-  const m = useMemo(() => describe(count), [count]);
+  // The punchline is read in the app's language.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const m = useMemo(() => describe(count), [count, lang]);
   const scene = useMemo(() => sceneFor(m, t), [m, t]);
   const rand = useMemo(() => makeRand(count * 7919 + 17), [count]);
   const clock = useClock(scene.duration, reduced ? scene.duration : frozen);
@@ -61,16 +66,12 @@ export function Celebration({ count, onDone, frozen }: { count: number; onDone: 
   return (
     <Animated.View entering={FadeIn.duration(160)} style={[StyleSheet.absoluteFill, { zIndex: 100 }]}>
       <Animated.View style={[StyleSheet.absoluteFill, fade]}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`${count} questions ! Toucher pour fermer`}
-          onPress={close}
-          style={StyleSheet.absoluteFill}>
+        <Pressable accessibilityRole="button" accessibilityLabel={tr('celebration.close', { count })} onPress={close} style={StyleSheet.absoluteFill}>
           <View style={[StyleSheet.absoluteFill, { backgroundColor: reduced ? t.bg : scene.bg, opacity: reduced ? 0.96 : (scene.dim ?? 0.96) }]} />
           {reduced ? (
             <View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center', padding: 32, gap: 8 }]}>
               <BigNumber value={count} size={numberSize(count)} color={t.accInk} font={t.font.display} />
-              <Text style={{ fontFamily: t.font.display, fontSize: 28, letterSpacing: -0.5, color: t.txt }}>questions !</Text>
+              <Text style={{ fontFamily: t.font.display, fontSize: 28, letterSpacing: -0.5, color: t.txt }}>{tr('celebration.questions')}</Text>
               <Text style={{ fontFamily: t.font.semibold, fontSize: 16, lineHeight: 22, color: t.mut, textAlign: 'center', maxWidth: 290 }}>
                 {tidy(m.line)}
               </Text>
@@ -99,9 +100,10 @@ const ALL = [...new Set([...SPECIAL_NUMBERS, ...Array.from({ length: 40 }, (_, i
 /** Hidden picker (the room name long-pressed five times): plays any party without touching what this device has seen. */
 export function MilestonePicker({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const t = useTheme();
+  const tr = useT();
   return (
     <Dialog visible={visible} onClose={onClose}>
-      <DialogTitle title="Paliers" />
+      <DialogTitle title={tr('celebration.picker')} />
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
         {ALL.map((n) => {
           const k = tier(n);
@@ -109,7 +111,7 @@ export function MilestonePicker({ visible, onClose }: { visible: boolean; onClos
             <Pressable
               key={n}
               accessibilityRole="button"
-              accessibilityLabel={`Fête ${n}`}
+              accessibilityLabel={tr('celebration.pick', { n })}
               onPress={() => {
                 onClose();
                 playPreview(n);

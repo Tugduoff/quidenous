@@ -1,3 +1,67 @@
 import type { Messages } from '../fr';
 
-export const auth: Messages['auth'] = {};
+export const auth: Messages['auth'] = {
+  tagline: 'One question. Everyone votes.\nNo one is safe.',
+  emailPlaceholder: 'you@example.com',
+  emailLabel: 'Email',
+  name: 'First name',
+  password: 'Password',
+  newPassword: 'Password ({min} min.)',
+  validate: 'Confirm',
+  resend: 'Resend',
+  resendIn: 'Resend ({count}s)',
+  codeSentTo: 'Code sent to {email}',
+  welcome: {
+    continueWith: 'Continue with {provider}',
+    continueEmail: 'Continue with email',
+  },
+  email: { title: 'Your email' },
+  forgot: { title: 'Forgot password', submit: 'Get a code' },
+  signIn: {
+    welcomeBack: 'Welcome back',
+    welcome: 'Welcome',
+    signIn: 'Sign in',
+    signUp: 'Create my account',
+    forgot: 'Forgot password?',
+  },
+  reset: { title: 'New password', placeholder: '{min} characters min.', resendCode: 'Resend the code' },
+  twoFactor: {
+    title: 'Verification',
+    recoverySub: 'One of your recovery codes',
+    appSub: 'The code from your authenticator app',
+    useApp: 'Use the authenticator app',
+    useRecovery: 'Use a recovery code',
+    tooLate: 'Too late, sign in again',
+  },
+  verify: { title: 'Check your email', later: 'Later' },
+  oauthFailed: "Couldn't sign in",
+  setup: { title: 'Your room', signOut: 'Sign out' },
+  field: {
+    show: 'Show password',
+    hide: 'Hide password',
+    code: '6-digit code',
+    recovery: 'Recovery code',
+  },
+  legacy: {
+    create: 'Create my room',
+    roomName: 'Room name',
+    groupCode: 'Group code',
+    codePlaceholder: 'CODE',
+    haveCode: 'I have an invite code',
+    noCode: 'No code? Create your room',
+    server: 'Server',
+    errors: {
+      bad_code: 'Unknown code',
+      bad_name: 'Invalid first name',
+      bad_room_name: 'Give your room a name',
+      removed: 'You were removed from this room',
+    },
+  },
+  qr: {
+    scan: 'Scan a QR code',
+    blocked: 'Camera blocked: allow it in Settings',
+    allow: 'Allow the camera',
+    wrong: 'QR code not recognized',
+    aim: 'Point at the QR code',
+  },
+};

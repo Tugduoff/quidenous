@@ -4,10 +4,11 @@ import { Text, View } from 'react-native';
 import Svg, { Rect } from 'react-native-svg';
 
 import { Card } from '@/components/ui';
+import { useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 
-const DAYS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
-const DAY_NAMES = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
+/** Monday first (`stats.heatmap.days.*`, `stats.heatmap.dayNames.*`). */
+const DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
 const LABEL = 32;
 const GAP = 2;
 const ROW = 14;
@@ -15,6 +16,7 @@ const ROW = 14;
 /** Votes by weekday (Monday first) and local hour: the busier, the stronger the accent. */
 export function Heatmap({ data }: { data: number[][] }) {
   const t = useTheme();
+  const tr = useT();
   const [width, setWidth] = useState(0);
   let max = 0;
   let peak = { day: 0, hour: 0 };
@@ -34,7 +36,7 @@ export function Heatmap({ data }: { data: number[][] }) {
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
         <Flame size={14} color={t.accInk} />
         <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.txt }}>
-          Pic : le {DAY_NAMES[peak.day]} vers {peak.hour} h
+          {tr('stats.heatmap.peak', { day: tr(`stats.heatmap.dayNames.${DAYS[peak.day]}`), hour: peak.hour })}
         </Text>
       </View>
       <View onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
@@ -44,7 +46,7 @@ export function Heatmap({ data }: { data: number[][] }) {
               <View style={{ width: LABEL, gap: GAP }}>
                 {DAYS.map((d) => (
                   <Text key={d} style={{ height: ROW, lineHeight: ROW, fontFamily: t.font.regular, fontSize: 10, color: t.mut }}>
-                    {d}
+                    {tr(`stats.heatmap.days.${d}`)}
                   </Text>
                 ))}
               </View>
@@ -68,7 +70,7 @@ export function Heatmap({ data }: { data: number[][] }) {
             <View style={{ height: 14, marginLeft: LABEL, marginTop: 4 }}>
               {[0, 6, 12, 18].map((h) => (
                 <Text key={h} style={{ position: 'absolute', left: x(h), fontFamily: t.font.regular, fontSize: 10, color: t.mut }}>
-                  {h} h
+                  {tr('stats.heatmap.hour', { h })}
                 </Text>
               ))}
             </View>

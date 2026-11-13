@@ -4,6 +4,8 @@ import { Platform, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import Animated, { Extrapolation, interpolate, useAnimatedStyle } from 'react-native-reanimated';
 import Svg, { Circle, Defs, G, LinearGradient, Path, Pattern, Polygon, RadialGradient, Rect, Stop } from 'react-native-svg';
 
+import { useT } from '@/lib/i18n';
+
 import {
   BigNumber,
   burst,
@@ -423,6 +425,7 @@ const jackpot: SceneFactory = (m, t) => {
       { at: win + 120, amp: 4 },
     ],
     Render: function Jackpot({ clock, w, h, rand, cx, cy }: SceneProps) {
+      const tr = useT();
       const strips = useMemo(() => {
         const others: Sym[] = ['cherry', 'bell', 'bar', 'diamond', 'cherry', 'bell', 'bar', 'seven'];
         return lands.map((_, i) => [...Array.from({ length: 12 + i * 5 }, () => rand.pick(others)), 'seven' as Sym, rand.pick(others)]);
@@ -497,7 +500,7 @@ const jackpot: SceneFactory = (m, t) => {
                   includeFontPadding: false,
                   ...glowText('#FFB300', 18),
                 }}>
-                JACKPOT
+                {tr('celebration.jackpot')}
               </Text>
             </Slam>
             <Pop clock={clock} at={0}>
@@ -579,6 +582,8 @@ const gold: SceneFactory = (m, t) => {
       { at: slam + 650, amp: 3 },
     ],
     Render: function Mille({ clock, w, h, rand, cx, cy }: SceneProps) {
+      const tr = useT();
+      const thousand = tr('celebration.thousand');
       const fw = useMemo(
         () =>
           [
@@ -596,7 +601,8 @@ const gold: SceneFactory = (m, t) => {
         ],
         [fw, rand, w, h, cx, cy],
       );
-      const word = Math.min(98, Math.floor(w / 4));
+      // Sized for the five letters of "MILLE"; a longer word ("THOUSAND") gets smaller to fit the width.
+      const word = Math.min(98, Math.floor((w / 4) * Math.min(1, 5 / thousand.length)));
       const small = 54;
       const box = (two ? word * 0.62 : 0) + word * 1.04 + small * 1.05 + 10;
       const goldText = { color: '#FFD54A', ...glowText('#FFB300', 28) };
@@ -623,7 +629,7 @@ const gold: SceneFactory = (m, t) => {
                     includeFontPadding: false,
                     ...goldText,
                   }}>
-                  DEUX
+                  {tr('celebration.two')}
                 </Text>
               )}
               <Text
@@ -635,7 +641,7 @@ const gold: SceneFactory = (m, t) => {
                   includeFontPadding: false,
                   ...goldText,
                 }}>
-                MILLE
+                {thousand}
               </Text>
             </Slam>
             <Reveal clock={clock} at={slam + 450} rise={-10} style={{ marginTop: 10 }}>
@@ -765,6 +771,7 @@ const matrix: SceneFactory = (m, t) => {
     dim: 0.98,
     impacts: [...lands.slice(0, 3).map((at) => ({ at, amp: 1.5 })), { at: done, amp: 6 }],
     Render: function Matrix({ clock, w, h, rand, cx, cy }: SceneProps) {
+      const tr = useT();
       const glyph = 15;
       const cols = useMemo(() => {
         const step = 19;
@@ -839,7 +846,7 @@ const matrix: SceneFactory = (m, t) => {
                   marginBottom: 10,
                   ...glowText('#3DFF6E', 8),
                 }}>
-                ACCÈS AUTORISÉ
+                {tr('celebration.access')}
               </Text>
             </Reveal>
             <View style={{ flexDirection: 'row' }}>

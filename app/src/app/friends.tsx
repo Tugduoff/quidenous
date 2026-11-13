@@ -9,17 +9,19 @@ import { ScanButton } from '@/components/qr-scanner';
 import { Screen } from '@/components/screen';
 import { Avatar, Card, CodeText, Display } from '@/components/ui';
 import { api, ApiError, presetFriendCode, type Member } from '@/lib/api';
+import { t as tr, type TKey, useT } from '@/lib/i18n';
 import { keys, useFriends } from '@/lib/queries';
 import { friendLink, friendMessage, shareText } from '@/lib/share';
 import { useTheme } from '@/lib/theme';
 
-const ERRORS: Record<string, string> = { bad_code: 'Code ami inconnu', self_friend: "C'est ton propre code" };
+const ERRORS: Record<string, TKey> = { bad_code: 'friends.errors.badCode', self_friend: 'friends.errors.self' };
 
-const roomsText = (n: number) => `${n} salon${n > 1 ? 's' : ''} en commun`;
+const roomsText = (n: number) => tr('friends.roomsInCommon', { count: n });
 
 /** My friend code (and QR), add someone by code, my friends. */
 export default function FriendsScreen() {
   const t = useTheme();
+  const tr = useT();
   const qc = useQueryClient();
   const { data } = useFriends();
   const [code, setCode] = useState(presetFriendCode() ?? '');
@@ -29,10 +31,10 @@ export default function FriendsScreen() {
     mutationFn: (value: string) => api<{ name: string }>('/friends', { method: 'POST', json: { code: value.trim() } }),
     onSuccess: (r) => {
       setCode('');
-      setNote(`${r.name} est ton ami`);
+      setNote(tr('friends.added', { name: r.name }));
       qc.invalidateQueries({ queryKey: keys.friends });
     },
-    onError: (e) => setNote(e instanceof ApiError ? (ERRORS[e.code] ?? 'Raté, réessaie') : 'Raté, réessaie'),
+    onError: (e) => setNote(e instanceof ApiError && ERRORS[e.code] ? tr(ERRORS[e.code]) : tr('common.failed')),
   });
   // A room-mate is a friend only while we share a room: this keeps them for good.
   const keep = useMutation({
@@ -54,12 +56,12 @@ export default function FriendsScreen() {
     <Screen tabs={false}>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Retour"
+        accessibilityLabel={tr('common.back')}
         onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
         style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card }}>
         <ChevronLeft size={22} color={t.txt} />
       </Pressable>
-      <Display size={30}>Amis</Display>
+      <Display size={30}>{tr('friends.title')}</Display>
 
       {data && (
         <Card style={{ padding: 20, gap: 14, alignItems: 'center' }}>
@@ -67,7 +69,7 @@ export default function FriendsScreen() {
             <QRCode value={friendLink(data.code)} size={168} color="#121216" backgroundColor="#fff" />
           </View>
           <View style={{ alignSelf: 'stretch', alignItems: 'center', gap: 2 }}>
-            <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut }}>Mon code ami</Text>
+            <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut }}>{tr('friends.myCode')}</Text>
             <CodeText code={data.code} size={32} center />
           </View>
           <Pressable
@@ -84,16 +86,18 @@ export default function FriendsScreen() {
               backgroundColor: t.acc,
             }}>
             <Share2 size={18} color={t.accTxt} />
-            <Text style={{ fontFamily: t.font.bold, fontSize: 15, color: t.accTxt }}>{copied ? 'Lien copié' : 'Partager mon code'}</Text>
+            <Text style={{ fontFamily: t.font.bold, fontSize: 15, color: t.accTxt }}>
+              {copied ? tr('friends.linkCopied') : tr('friends.shareCode')}
+            </Text>
           </Pressable>
         </Card>
       )}
 
-      <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut, marginLeft: 4 }}>Ajouter avec un code</Text>
+      <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut, marginLeft: 4 }}>{tr('friends.addWithCode')}</Text>
       <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 8, padding: 6, paddingLeft: 16 }}>
         <TextInput
-          accessibilityLabel="Code ami"
-          placeholder="Code ami"
+          accessibilityLabel={tr('friends.code')}
+          placeholder={tr('friends.code')}
           placeholderTextColor={t.mut}
           value={code}
           onChangeText={(v) => setCode(v.toUpperCase())}
@@ -105,14 +109,14 @@ export default function FriendsScreen() {
         />
         <ScanButton
           onScan={(s) => {
-            if (!s.friend) return setNote("Ce QR code n'est pas un code ami");
+            if (!s.friend) return setNote(tr('friends.notFriendQr'));
             setCode(s.friend);
             add.mutate(s.friend);
           }}
         />
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Ajouter en ami"
+          accessibilityLabel={tr('friends.addA11y')}
           disabled={!code.trim() || add.isPending}
           onPress={() => add.mutate(code)}
           style={{
@@ -130,7 +134,7 @@ export default function FriendsScreen() {
 
       {!!data?.friends.length && (
         <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut, marginLeft: 4 }}>
-          {`${data.friends.length} ami${data.friends.length > 1 ? 's' : ''}`}
+          {tr('friends.count', { count: data.friends.length })}
         </Text>
       )}
       {data?.friends.map((f) => (
@@ -143,15 +147,15 @@ export default function FriendsScreen() {
             <Text numberOfLines={1} style={{ fontFamily: t.font.regular, fontSize: 12, color: t.mut }}>
               {f.rooms_in_common
                 ? f.added
-                  ? `Ami · ${roomsText(f.rooms_in_common)}`
+                  ? `${tr('friends.friend')} · ${roomsText(f.rooms_in_common)}`
                   : roomsText(f.rooms_in_common)
-                : 'Ajouté en ami'}
+                : tr('friends.addedAsFriend')}
             </Text>
           </View>
           {!f.added && (
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={`Ajouter ${f.name} en ami`}
+              accessibilityLabel={tr('friends.addNameA11y', { name: f.name })}
               disabled={keep.isPending}
               onPress={() => keep.mutate(f.user_id)}
               hitSlop={8}
@@ -166,14 +170,14 @@ export default function FriendsScreen() {
                 backgroundColor: t.acc,
               }}>
               <UserPlus size={16} color={t.accTxt} />
-              <Text style={{ fontFamily: t.font.bold, fontSize: 13, color: t.accTxt }}>Ajouter</Text>
+              <Text style={{ fontFamily: t.font.bold, fontSize: 13, color: t.accTxt }}>{tr('common.add')}</Text>
             </Pressable>
           )}
           {f.added && !!f.rooms_in_common && <Check size={18} color={t.accInk} />}
           {f.added && !f.rooms_in_common && (
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={`Retirer ${f.name} de mes amis`}
+              accessibilityLabel={tr('friends.removeA11y', { name: f.name })}
               onPress={() => remove.mutate(f.user_id)}
               hitSlop={8}
               style={{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card2 }}>

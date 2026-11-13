@@ -15,17 +15,19 @@ import { StoryCarousel } from '@/components/stats/story-carousel';
 import { VoteMatrix } from '@/components/stats/vote-matrix';
 import { Display } from '@/components/ui';
 import type { StatsPeriod, Story } from '@/lib/api';
+import { type TKey, useT } from '@/lib/i18n';
 import { useMembers, useStats } from '@/lib/queries';
 import { useTheme } from '@/lib/theme';
 
-const EMPTY: Record<StatsPeriod, string> = {
-  '7d': 'Rien cette semaine. Le calme avant la tempête.',
-  '30d': 'Rien ce mois-ci. Le calme avant la tempête.',
-  all: "Rien à compter pour l'instant. Le calme avant la tempête.",
+const EMPTY: Record<StatsPeriod, TKey> = {
+  '7d': 'stats.empty.week',
+  '30d': 'stats.empty.month',
+  all: 'stats.empty.all',
 };
 
 export default function StatsScreen() {
   const t = useTheme();
+  const tr = useT();
   const [period, setPeriod] = useState<StatsPeriod>('30d');
   const { data: s, isLoading, isPlaceholderData } = useStats(period);
   const { byId } = useMembers();
@@ -33,7 +35,7 @@ export default function StatsScreen() {
 
   const header = (
     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-      <Display size={30}>Stats</Display>
+      <Display size={30}>{tr('stats.title')}</Display>
       <PeriodSwitch value={period} onChange={setPeriod} />
     </View>
   );
@@ -51,7 +53,7 @@ export default function StatsScreen() {
       <Screen>
         {header}
         <Text style={{ marginTop: 40, textAlign: 'center', fontFamily: t.font.semibold, fontSize: 16, lineHeight: 22, color: t.mut }}>
-          {EMPTY[period]}
+          {tr(EMPTY[period])}
         </Text>
       </Screen>
     );
@@ -82,23 +84,23 @@ export default function StatsScreen() {
         {s.stories.length > 0 && <StoryCarousel key={period} stories={s.stories} period={period} byId={byId} onOpen={openStory} />}
         <KeyNumbers s={s} />
         {podium.length > 0 && (
-          <Section title="Le podium">
+          <Section title={tr('stats.section.podium')}>
             <Podium top={podium} byId={byId} onOpen={open} />
           </Section>
         )}
         <Awards s={s} byId={byId} name={name} onOpen={open} />
         {ids.length >= 2 && edges.length > 0 && (
-          <Section title="Qui vote pour qui">
+          <Section title={tr('stats.section.matrix')}>
             <VoteMatrix ids={ids} edges={edges} byId={byId} onOpen={open} />
           </Section>
         )}
         {heat && (
-          <Section title="Quand on vote">
+          <Section title={tr('stats.section.heatmap')}>
             <Heatmap data={s.heatmap} />
           </Section>
         )}
         {activity && (
-          <Section title="Le rythme">
+          <Section title={tr('stats.section.rhythm')}>
             <Sparkline activity={activity} />
           </Section>
         )}

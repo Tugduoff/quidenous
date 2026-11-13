@@ -21,23 +21,24 @@ import {
   randomAvatar,
   startingAvatar,
 } from '@/lib/avatar';
+import { type TKey, useT } from '@/lib/i18n';
 import { usePop } from '@/lib/motion';
 import { keys } from '@/lib/queries';
 import { useSession } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
 
-type Tab = { label: string; field?: Field; colors?: PaletteField; zoom?: boolean };
+type Tab = { label: TKey; field?: Field; colors?: PaletteField; zoom?: boolean };
 const TABS: Tab[] = [
-  { label: 'Modèles' },
-  { label: 'Visage', field: 'face', colors: 'skin' },
-  { label: 'Cheveux', field: 'hair', colors: 'hairColor' },
-  { label: 'Yeux', field: 'eyes', zoom: true },
-  { label: 'Sourcils', field: 'brows', zoom: true },
-  { label: 'Bouche', field: 'mouth', zoom: true },
-  { label: 'Lunettes', field: 'glasses', zoom: true },
-  { label: 'Barbe', field: 'beard', colors: 'hairColor', zoom: true },
-  { label: 'Accessoires', field: 'extra' },
-  { label: 'Fond', colors: 'bg' },
+  { label: 'avatar.tabs.presets' },
+  { label: 'avatar.tabs.face', field: 'face', colors: 'skin' },
+  { label: 'avatar.tabs.hair', field: 'hair', colors: 'hairColor' },
+  { label: 'avatar.tabs.eyes', field: 'eyes', zoom: true },
+  { label: 'avatar.tabs.brows', field: 'brows', zoom: true },
+  { label: 'avatar.tabs.mouth', field: 'mouth', zoom: true },
+  { label: 'avatar.tabs.glasses', field: 'glasses', zoom: true },
+  { label: 'avatar.tabs.beard', field: 'beard', colors: 'hairColor', zoom: true },
+  { label: 'avatar.tabs.extra', field: 'extra' },
+  { label: 'avatar.tabs.background', colors: 'bg' },
 ];
 /** Close-up on the face, for the small features. */
 const ZOOM = '20 24 60 60';
@@ -84,6 +85,7 @@ function Choice({
 
 function Swatches({ field, value, onPick }: { field: PaletteField; value: number; onPick: (i: number) => void }) {
   const t = useTheme();
+  const tr = useT();
   const big = field === 'bg';
   const outer = big ? 52 : 44;
   return (
@@ -94,7 +96,7 @@ function Swatches({ field, value, onPick }: { field: PaletteField; value: number
           <Pressable
             key={c}
             accessibilityRole="radio"
-            accessibilityLabel={`Couleur ${i + 1}`}
+            accessibilityLabel={tr('avatar.color', { n: i + 1 })}
             accessibilityState={{ selected: on }}
             onPress={() => onPick(i)}
             style={{
@@ -117,6 +119,7 @@ function Swatches({ field, value, onPick }: { field: PaletteField; value: number
 /** The avatar builder: presets, every part, a dice; saving replaces the photo. */
 export default function AvatarBuilder() {
   const t = useTheme();
+  const tr = useT();
   const qc = useQueryClient();
   const { me, setMe } = useSession();
   const { width: screen } = useWindowDimensions();
@@ -151,23 +154,23 @@ export default function AvatarBuilder() {
       tabs={false}
       footer={
         <>
-          {error && <Text style={{ fontFamily: t.font.semibold, color: t.tag, textAlign: 'center' }}>Avatar non enregistré</Text>}
+          {error && <Text style={{ fontFamily: t.font.semibold, color: t.tag, textAlign: 'center' }}>{tr('avatar.notSaved')}</Text>}
           <Button onPress={save} loading={busy} disabled={spec === me?.avatar && !me?.photo_url}>
-            Enregistrer
+            {tr('common.save')}
           </Button>
         </>
       }>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Retour"
+          accessibilityLabel={tr('common.back')}
           onPress={() => router.back()}
           style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card }}>
           <ChevronLeft size={22} color={t.txt} />
         </Pressable>
         <PressableScale
           accessibilityRole="button"
-          accessibilityLabel="Aléatoire"
+          accessibilityLabel={tr('avatar.random')}
           onPress={() => setAvatar(randomAvatar())}
           style={{
             flexDirection: 'row',
@@ -179,7 +182,7 @@ export default function AvatarBuilder() {
             backgroundColor: t.card,
           }}>
           <Dices size={18} color={t.txt} />
-          <Text style={{ fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>Aléatoire</Text>
+          <Text style={{ fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>{tr('avatar.random')}</Text>
         </PressableScale>
       </View>
 
@@ -203,7 +206,7 @@ export default function AvatarBuilder() {
               accessibilityState={{ selected: on }}
               onPress={() => setTab(i)}
               style={{ height: 38, paddingHorizontal: 16, borderRadius: 19, justifyContent: 'center', backgroundColor: on ? t.acc : t.card }}>
-              <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: on ? t.accTxt : t.txt }}>{tb.label}</Text>
+              <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: on ? t.accTxt : t.txt }}>{tr(tb.label)}</Text>
             </Pressable>
           );
         })}
@@ -215,7 +218,9 @@ export default function AvatarBuilder() {
         {!field && !colors
           ? PRESETS.map((p, i) => {
               const a = parseAvatar(p)!;
-              return <Choice key={p} avatar={a} on={p === spec} onPress={() => setAvatar(a)} width={cell} label={`Modèle ${i + 1}`} />;
+              return (
+                <Choice key={p} avatar={a} on={p === spec} onPress={() => setAvatar(a)} width={cell} label={tr('avatar.preset', { n: i + 1 })} />
+              );
             })
           : field &&
             Array.from({ length: optionCount(field) }, (_, i) => (
@@ -226,7 +231,7 @@ export default function AvatarBuilder() {
                 onPress={() => set(field, i)}
                 width={cell}
                 zoom={zoom}
-                label={`${TABS[tab].label} ${i + 1}`}
+                label={`${tr(TABS[tab].label)} ${i + 1}`}
               />
             ))}
       </View>

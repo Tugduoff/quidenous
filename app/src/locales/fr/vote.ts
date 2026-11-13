@@ -1,1 +1,68 @@
-export const vote = {};
+/** The Vote tab: ballots, waiting for votes, the paced room's gate, the empty room. */
+export const vote = {
+  /** Tab bar (accessibility labels). */
+  tabs: { vote: 'Vote', history: 'Historique', stats: 'Stats', questions: 'Questions' },
+  header: {
+    enablePush: 'Activer les notifications',
+    room: 'Salon {name}, changer de salon',
+    inbox: 'Notifications',
+    inboxUnread: 'Notifications, {count} non lues',
+    group: 'Groupe',
+    profile: 'Profil',
+  },
+  /** The tag over the question. */
+  kind: { result: 'Résultat', rank: 'Classement', custom: 'De nous', pick: 'Dilemme' },
+  linkCopied: 'Lien copié',
+  shareResult: 'Partager le résultat',
+  shareQuestion: 'Partager la question',
+  tip: 'Résultat dès que tous ont voté.',
+  tipClose: "Fermer l'astuce",
+  /** "1er", "2e": a place in a ranking. */
+  ordinal: { st: '{n}er', nd: '{n}e', rd: '{n}e', th: '{n}e' },
+  rank: {
+    submit: 'Valider mon classement',
+    whoIs: 'Qui est {place} ?',
+    restart: 'Recommencer',
+    ranked: '{name}, {place}e. Retirer',
+    add: 'Classer {name}',
+  },
+  voteFor: 'Voter pour {name}',
+  nudge: 'Relancer {name}',
+  skip: {
+    title: 'Passer {name} ?',
+    message: "Si la majorité est d'accord, on n'attend plus son vote.",
+    confirm: 'Passer',
+    label: 'Passer {name}',
+    undo: 'Ne plus passer {name}',
+  },
+  waiting: {
+    yourFirst: 'TON 1ER',
+    yourVote: 'TON VOTE',
+    hidden: 'Caché',
+    show: 'Montrer mon vote',
+    hide: 'Cacher mon vote',
+    voted: '{done} sur {total} ont voté',
+    pending: 'EN ATTENTE',
+    skipped: 'passé',
+    skippedLabel: '{name}, passé',
+  },
+  pin: 'Épingler',
+  unpin: 'Désépingler',
+  next: 'Suivante',
+  gate: {
+    nextIn: 'Prochaine question dans {time}',
+    waitingOwner: 'En attente du propriétaire',
+    launch: 'Lancer la suivante',
+  },
+  solo: { title: 'Invite tes amis', body: "On joue dès que quelqu'un te rejoint." },
+  empty: {
+    title: 'Plus de questions',
+    ownerOnly: 'Seul le propriétaire en ajoute.',
+    asked: 'Demande envoyée',
+    ask: 'Demander au propriétaire',
+    write: 'Écrire une question',
+    pack: 'Installer un pack',
+    import: 'Importer un fichier',
+    emptyFile: 'Fichier vide',
+  },
+};

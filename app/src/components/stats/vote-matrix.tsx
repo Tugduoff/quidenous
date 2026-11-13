@@ -4,6 +4,7 @@ import { Pressable, ScrollView, Text, View } from 'react-native';
 
 import { Avatar, Card } from '@/components/ui';
 import type { Member, Stats } from '@/lib/api';
+import { useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 
 const GAP = 2;
@@ -27,6 +28,7 @@ export function VoteMatrix({
   onOpen: (id: number) => void;
 }) {
   const t = useTheme();
+  const tr = useT();
   const [width, setWidth] = useState(0);
   const count = new Map(edges.map((e) => [`${e.voter_id}:${e.target_id}`, e.value]));
   const max = Math.max(1, ...edges.filter((e) => ids.includes(e.voter_id) && ids.includes(e.target_id)).map((e) => e.value));
@@ -72,7 +74,9 @@ export function VoteMatrix({
             return (
               <View
                 key={target}
-                accessibilityLabel={c ? `${byId.get(voter)?.name} pour ${byId.get(target)?.name} : ${c}` : undefined}
+                accessibilityLabel={
+                  c ? tr('stats.matrix.cell', { a: byId.get(voter)?.name ?? '?', b: byId.get(target)?.name ?? '?', count: c }) : undefined
+                }
                 style={{
                   width: cell,
                   height: cell,
@@ -102,11 +106,11 @@ export function VoteMatrix({
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
           <ArrowDown size={13} color={t.mut} />
-          <Text style={{ fontFamily: t.font.semibold, fontSize: 12, color: t.mut }}>qui vote</Text>
+          <Text style={{ fontFamily: t.font.semibold, fontSize: 12, color: t.mut }}>{tr('stats.matrix.voter')}</Text>
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
           <ArrowRight size={13} color={t.mut} />
-          <Text style={{ fontFamily: t.font.semibold, fontSize: 12, color: t.mut }}>pour qui</Text>
+          <Text style={{ fontFamily: t.font.semibold, fontSize: 12, color: t.mut }}>{tr('stats.matrix.target')}</Text>
         </View>
       </View>
       <View onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>

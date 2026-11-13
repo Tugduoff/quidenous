@@ -8,7 +8,8 @@ import { ModerationDialog, type ModTarget } from '@/components/moderation';
 import { ProfileSheet } from '@/components/stats/profile-sheet';
 import { Avatar, Card, PressableScale } from '@/components/ui';
 import { api, type Member, type Message } from '@/lib/api';
-import { activeMention, EVERYONE, matches, outgoing, segments } from '@/lib/mentions';
+import { dateFormat, useT } from '@/lib/i18n';
+import { activeMention, everyone, matches, outgoing, segments } from '@/lib/mentions';
 import { useBlocks } from '@/lib/moderation';
 import { motion, useArrivals } from '@/lib/motion';
 import { keys, useMembers, useMessages, useStats } from '@/lib/queries';
@@ -16,7 +17,6 @@ import { sendOnEnter } from '@/lib/submit';
 import { useSession } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
 
-const TIME = new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit' });
 const MAX = 500;
 /** One suggestion row; the list shows about five and a half, so a longer one visibly scrolls. */
 const ROW = 40;
@@ -27,6 +27,7 @@ const soft = (color: string) => (/^#[0-9a-f]{6}$/i.test(color) ? `${color}33` : 
 /** The conversation under a result, oldest first. Part of the page's own scroll (no box of its own: one scroll at a time). */
 export function ChatMessages({ roundId }: { roundId: number }) {
   const t = useTheme();
+  const tr = useT();
   const { me } = useSession();
   const { byId } = useMembers();
   const { data } = useMessages(roundId);
@@ -57,9 +58,7 @@ export function ChatMessages({ roundId }: { roundId: number }) {
   if (!messages?.length) return null;
   return (
     <View style={{ gap: 10 }}>
-      <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut, marginLeft: 4 }}>
-        {`${messages.length} message${messages.length > 1 ? 's' : ''}`}
-      </Text>
+      <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut, marginLeft: 4 }}>{tr('chat.count', { count: messages.length })}</Text>
       <View style={{ gap: 10 }}>
         {messages.map((m) => {
           const author = byId.get(m.member_id);
@@ -82,7 +81,7 @@ export function ChatMessages({ roundId }: { roundId: number }) {
               <Pressable
                 onLongPress={onLongPress}
                 delayLongPress={400}
-                accessibilityHint={mine ? undefined : 'Appui long : signaler ou bloquer'}
+                accessibilityHint={mine ? undefined : tr('chat.longPressHint')}
                 style={{
                   maxWidth: '78%',
                   paddingHorizontal: 14,
@@ -109,7 +108,7 @@ export function ChatMessages({ roundId }: { roundId: number }) {
                       <Text
                         key={i}
                         accessibilityRole="link"
-                        accessibilityHint="Voir son profil"
+                        accessibilityHint={tr('chat.seeProfile')}
                         onPress={() => setProfileId(p.member!.id)}
                         onLongPress={onLongPress}
                         style={mentionStyle(mine, p.member.color)}>
@@ -125,7 +124,7 @@ export function ChatMessages({ roundId }: { roundId: number }) {
                   )}
                 </Text>
                 <Text style={{ fontFamily: t.font.regular, fontSize: 10, color: mine ? '#121216' : t.mut, opacity: 0.7, alignSelf: 'flex-end' }}>
-                  {TIME.format(new Date(m.created_at))}
+                  {dateFormat({ hour: '2-digit', minute: '2-digit' }).format(new Date(m.created_at))}
                 </Text>
               </Pressable>
             </Animated.View>
@@ -151,6 +150,7 @@ type Suggestion = { key: string; insert: string; member?: Member };
  */
 export function ChatInput({ roundId, onFocus, onSent }: { roundId: number; onFocus?: () => void; onSent?: () => void }) {
   const t = useTheme();
+  const tr = useT();
   const qc = useQueryClient();
   const { me } = useSession();
   const { members } = useMembers();
@@ -171,7 +171,7 @@ export function ChatInput({ roundId, onFocus, onSent }: { roundId: number; onFoc
     !typing || typing.at === closed || !others.length
       ? []
       : [
-          ...(matches(EVERYONE, typing.query) ? [{ key: 'all', insert: `@${EVERYONE}` }] : []),
+          ...(matches(everyone(), typing.query) ? [{ key: 'all', insert: `@${everyone()}` }] : []),
           ...others.filter((m) => matches(m.name, typing.query)).map((m) => ({ key: `m${m.id}`, insert: `@${m.name}`, member: m })),
         ];
   const open = rows.length > 0;
@@ -251,7 +251,7 @@ export function ChatInput({ roundId, onFocus, onSent }: { roundId: number; onFoc
               <Pressable
                 key={r.key}
                 accessibilityRole="button"
-                accessibilityLabel={r.member ? `Mentionner ${r.member.name}` : 'Mentionner tout le salon'}
+                accessibilityLabel={r.member ? tr('chat.mention', { name: r.member.name }) : tr('chat.mentionAll')}
                 onPress={() => pick(r)}
                 onHoverIn={() => setHighlight({ key: listKey, i })}
                 style={{
@@ -272,9 +272,9 @@ export function ChatInput({ roundId, onFocus, onSent }: { roundId: number; onFoc
                   </View>
                 )}
                 <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>
-                  {r.member ? r.member.name : EVERYONE}
+                  {r.member ? r.member.name : everyone()}
                 </Text>
-                {!r.member && <Text style={{ fontFamily: t.font.regular, fontSize: 13, color: t.mut }}>Tout le salon</Text>}
+                {!r.member && <Text style={{ fontFamily: t.font.regular, fontSize: 13, color: t.mut }}>{tr('chat.everyoneRow')}</Text>}
               </Pressable>
             ))}
           </ScrollView>
@@ -283,8 +283,8 @@ export function ChatInput({ roundId, onFocus, onSent }: { roundId: number; onFoc
       <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 8, paddingLeft: 10 }}>
         <TextInput
           ref={input}
-          accessibilityLabel="Écrire un message"
-          placeholder="Un avis sur ce résultat ?"
+          accessibilityLabel={tr('chat.inputLabel')}
+          placeholder={tr('chat.placeholder')}
           placeholderTextColor={t.mut}
           value={text}
           onChangeText={(v) => {
@@ -303,7 +303,7 @@ export function ChatInput({ roundId, onFocus, onSent }: { roundId: number; onFoc
         />
         <PressableScale
           accessibilityRole="button"
-          accessibilityLabel="Envoyer"
+          accessibilityLabel={tr('common.send')}
           disabled={!ok}
           onPress={submit}
           style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: ok ? t.acc : t.card2 }}>

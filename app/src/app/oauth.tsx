@@ -5,6 +5,7 @@ import { ActivityIndicator, Platform, View } from 'react-native';
 import { AuthScreen } from '@/components/auth-ui';
 import { Button } from '@/components/ui';
 import { authError, isChallenge, isLinked } from '@/lib/auth';
+import { useT } from '@/lib/i18n';
 import { redeem, takeWebOAuthKey, useFinishSignIn } from '@/lib/sign-in';
 import { useTheme } from '@/lib/theme';
 
@@ -16,6 +17,7 @@ const home = () => router.replace('/');
  */
 export default function OAuthReturn() {
   const t = useTheme();
+  const tr = useT();
   const { code, error } = useLocalSearchParams<{ code?: string; error?: string }>();
   const finish = useFinishSignIn();
   const [failed, setFailed] = useState<string | null>(null);
@@ -40,7 +42,8 @@ export default function OAuthReturn() {
     })();
   }, [code, error, finish]);
 
-  if (failed) return <AuthScreen back={false} title="Connexion impossible" sub={failed} footer={<Button onPress={home}>Retour</Button>} />;
+  if (failed)
+    return <AuthScreen back={false} title={tr('auth.oauthFailed')} sub={failed} footer={<Button onPress={home}>{tr('common.back')}</Button>} />;
   return (
     <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: t.bg }}>
       <ActivityIndicator color={t.mut} />

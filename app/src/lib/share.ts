@@ -1,6 +1,7 @@
 import { Linking, Platform, Share } from 'react-native';
 
 import { api, API_URL, historyExportUrl, type Member, type Round, type StatsPeriod, type Story } from './api';
+import { t } from './i18n';
 
 /** Where friends can open the app (web app served by the API server). */
 const appUrl = () => API_URL || (typeof location !== 'undefined' ? location.origin : '');
@@ -9,14 +10,14 @@ const appUrl = () => API_URL || (typeof location !== 'undefined' ? location.orig
 export const friendLink = (code: string) => `${appUrl()}/?friend=${code}`;
 
 export function friendMessage(code: string) {
-  return `Ajoute-moi en ami sur qui de nous ? 👉 ${friendLink(code)}\n(code ami : ${code})`;
+  return t('share.friend', { link: friendLink(code), code });
 }
 
 /** Invite to a room: the link carries the code, so it opens the join screen ready to go. */
 export const inviteLink = (code: string) => `${appUrl()}/?code=${code}`;
 
 export function inviteMessage(roomName: string, code: string) {
-  return `Rejoins « ${roomName} » sur qui de nous ? 👉 ${inviteLink(code)}\n(code : ${code})`;
+  return t('share.invite', { room: roomName, link: inviteLink(code), code });
 }
 
 /** Public link to a card of this question (with its podium when `result`), previewed as an image in chats. */
@@ -31,21 +32,23 @@ export async function publicLink(roundId: number, result: boolean): Promise<stri
 
 /** The open question, as a message inviting people to vote. */
 export function questionMessage(round: Round) {
-  return `qui de nous ? · question #${round.number}\n« ${round.question} »\nViens voter 👉 ${appUrl()}`;
+  return t('share.question', { number: round.number, question: round.question, url: appUrl() });
 }
 
 /** A finished question with its podium. */
 export function resultMessage(round: Round, byId: Map<number, Member>) {
   if (round.ranking) {
     const medals = ['🥇', '🥈', '🥉'];
-    const lines = round.ranking.slice(0, 3).map((r, i) => `${medals[i]} ${byId.get(r.member_id)?.name ?? '?'} · ${r.points} pts`);
-    return `qui de nous ? · classement #${round.number}\n« ${round.question} »\n${lines.join('\n')}\n${appUrl()}`;
+    const lines = round.ranking
+      .slice(0, 3)
+      .map((r, i) => `${medals[i]} ${byId.get(r.member_id)?.name ?? '?'} · ${t('share.points', { points: r.points })}`);
+    return t('share.ranking', { number: round.number, question: round.question, lines: lines.join('\n'), url: appUrl() });
   }
   const tallies = round.result ?? [];
-  const total = tallies.reduce((n, t) => n + t.count, 0);
+  const total = tallies.reduce((n, x) => n + x.count, 0);
   const medals = ['👑', '🥈', '🥉'];
-  const lines = tallies.slice(0, 3).map((t, i) => `${medals[i]} ${byId.get(t.target_id)?.name ?? '?'} · ${t.count}/${total}`);
-  return `qui de nous ? · résultat #${round.number}\n« ${round.question} »\n${lines.join('\n')}\n${appUrl()}`;
+  const lines = tallies.slice(0, 3).map((x, i) => `${medals[i]} ${byId.get(x.target_id)?.name ?? '?'} · ${x.count}/${total}`);
+  return t('share.result', { number: round.number, question: round.question, lines: lines.join('\n'), url: appUrl() });
 }
 
 /** Native share sheet; on the web, the browser's share or the clipboard. Returns 'copied' when it fell back to the clipboard. */
@@ -79,7 +82,7 @@ export async function shareStory(period: StatsPeriod, story: Story): Promise<'sh
     });
     link = `${appUrl()}${r.path}`;
   } catch {}
-  const text = `qui de nous ? · ${story.title}\n${story.line}`;
+  const text = t('share.story', { title: story.title, line: story.line });
   if (link && Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.canShare && typeof File !== 'undefined') {
     try {
       const blob = await (await fetch(`${link}/card.png`)).blob();
@@ -102,7 +105,7 @@ export function downloadHistory() {
   if (Platform.OS === 'web' && typeof document !== 'undefined') {
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'qui-de-nous-historique.csv';
+    a.download = t('share.historyFile');
     a.click();
     return;
   }

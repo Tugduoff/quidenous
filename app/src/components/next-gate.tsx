@@ -6,6 +6,7 @@ import Animated from 'react-native-reanimated';
 
 import { Button } from '@/components/ui';
 import { launchNext, type Group } from '@/lib/api';
+import { useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
 import { useSession } from '@/lib/session';
 import { until } from '@/lib/time';
@@ -29,6 +30,7 @@ function useNow(on: boolean) {
  */
 export function NextGate({ group, onLaunched }: { group: Group; onLaunched?: () => void }) {
   const t = useTheme();
+  const tr = useT();
   const qc = useQueryClient();
   const { me } = useSession();
   const deadline = group.pace?.next_open_at ?? null;
@@ -39,7 +41,7 @@ export function NextGate({ group, onLaunched }: { group: Group; onLaunched?: () 
     onSuccess: () => onLaunched?.(),
     onSettled: () => qc.invalidateQueries(),
   });
-  const line = deadline ? `Prochaine question dans ${until(deadline, now)}` : 'En attente du propriétaire';
+  const line = deadline ? tr('vote.gate.nextIn', { time: until(deadline, now) }) : tr('vote.gate.waitingOwner');
   const status = (
     <View accessibilityRole="text" style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 6 }}>
       <Hourglass size={16} color={t.mut} />
@@ -51,7 +53,7 @@ export function NextGate({ group, onLaunched }: { group: Group; onLaunched?: () 
       <Animated.View entering={motion.enter} style={{ gap: 4 }}>
         {deadline && status}
         <Button loading={launch.isPending} onPress={() => launch.mutate()}>
-          <Text style={{ fontFamily: t.font.bold, fontSize: 17, color: t.accTxt }}>Lancer la suivante</Text>
+          <Text style={{ fontFamily: t.font.bold, fontSize: 17, color: t.accTxt }}>{tr('vote.gate.launch')}</Text>
           <Play size={18} color={t.accTxt} fill={t.accTxt} />
         </Button>
       </Animated.View>

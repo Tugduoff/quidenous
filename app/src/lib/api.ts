@@ -71,6 +71,8 @@ export type Group = {
   name: string;
   code: string;
   my_role: Role;
+  /** The language of the room's built-in questions (absent from an older server: French). */
+  language?: 'fr' | 'en';
   /**
    * `vibe`: the built-in deck's tone (null = none). `owner_next`: only the owner launches the next question.
    * `next_delay`: seconds to wait before the next one (0 = none). All three absent from an older server.
@@ -103,10 +105,21 @@ export type Friend = {
   rooms_in_common: number;
   added: boolean;
 };
-export type PackSummary = { id: number; name: string; description: string; author: string; installs: number; count: number; mine: boolean; sample: string[] };
+/** `language`: the language of its questions (absent from an older server). */
+export type PackSummary = {
+  id: number;
+  name: string;
+  description: string;
+  author: string;
+  installs: number;
+  count: number;
+  mine: boolean;
+  sample: string[];
+  language?: 'fr' | 'en';
+};
 export type Pack = Omit<PackSummary, 'count' | 'sample'> & { questions: { text: string; kind: 'pick' | 'rank' }[] };
 /** `muted`: no pushes from this room for me (absent from an older server). */
-export type RoomSummary = { id: number; name: string; role: Role; members: number; open_number: number | null; voted: boolean; unread: number; muted?: boolean };
+export type RoomSummary = { id: number; name: string; role: Role; members: number; open_number: number | null; voted: boolean; unread: number; muted?: boolean; language?: 'fr' | 'en' };
 export type HistoryItem = {
   id: number;
   number: number;

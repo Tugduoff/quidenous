@@ -32,32 +32,34 @@ import {
 import type { ReactNode } from 'react';
 import { Text, View } from 'react-native';
 
+import { formatNumber, t, type TKey } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 
-/** "45 s", "12 min", "3 h 20", "2 j 4 h". */
+/** "45 s", "12 min", "3 h 20", "2 j 4 h" (in the current language). */
 export function duration(seconds: number) {
   const s = Math.max(0, Math.round(seconds));
-  if (s < 60) return `${s} s`;
+  if (s < 60) return t('stats.duration.seconds', { count: s });
   const min = Math.round(s / 60);
-  if (min < 60) return `${min} min`;
+  if (min < 60) return t('common.time.minutes', { count: min });
   const h = Math.floor(s / 3600);
   if (h < 24) {
     const m = Math.round((s % 3600) / 60);
-    return m ? `${h} h ${String(m).padStart(2, '0')}` : `${h} h`;
+    return m ? t('common.time.hoursMinutes', { h, mm: String(m).padStart(2, '0') }) : t('stats.duration.hours', { h });
   }
   const d = Math.floor(h / 24);
-  return h % 24 ? `${d} j ${h % 24} h` : `${d} j`;
+  return h % 24 ? t('stats.duration.daysHours', { d, h: h % 24 }) : t('stats.duration.days', { d });
 }
 
-export const plural = (n: number, one: string, many: string) => (n > 1 ? many : one);
+/** One decimal at most, in the current language: 2.3 → "2,3" / "2.3". */
+export const dec = (n: number) => formatNumber(Math.round(n * 10) / 10);
 
-/** French decimals: 2.3 → "2,3". */
-export const dec = (n: number) => (Math.round(n * 10) / 10).toLocaleString('fr-FR');
+/** Thousands separated the local way ("1 234" / "1,234"). */
+export const int = (n: number) => formatNumber(Math.round(n));
 
-/** Thousands with a thin space ("1 234"). */
-export const int = (n: number) => Math.round(n).toLocaleString('fr-FR');
+export const pct = (value: number, total: number | undefined) => t('stats.percent', { n: total ? Math.round((value / total) * 100) : 0 });
 
-export const pct = (value: number, total: number | undefined) => `${total ? Math.round((value / total) * 100) : 0} %`;
+/** An average place: "2,3e" / "#2.3". */
+export const place = (n: number) => t('stats.place', { n: dec(n) });
 
 /** The server names icons in lucide's kebab-case; one this version doesn't know gets sparkles. */
 const ICONS: Record<string, LucideIcon> = {
@@ -92,37 +94,40 @@ const ICONS: Record<string, LucideIcon> = {
 
 export const iconFor = (name: string | undefined): LucideIcon => (name && ICONS[name]) || Sparkles;
 
-/** Every award key with its title and icon (docs/STATS.md). */
-export const AWARD_META: Record<string, { title: string; icon: string }> = {
-  most_chosen: { title: 'La star', icon: 'star' },
-  most_crowned: { title: 'Collection de couronnes', icon: 'crown' },
-  narcissist: { title: 'Narcisse', icon: 'flower-2' },
-  fastest: { title: 'Gâchette facile', icon: 'zap' },
-  slowest: { title: 'Prend son temps', icon: 'snail' },
-  last_voter: { title: 'Tout le monde attend', icon: 'hourglass' },
-  nudger: { title: 'Relou officiel', icon: 'bell-ring' },
-  most_nudged: { title: 'Toujours relancé', icon: 'alarm-clock' },
-  author: { title: 'La plume', icon: 'feather' },
-  duo: { title: 'Le crush', icon: 'heart' },
-  never_chosen: { title: 'Les invisibles', icon: 'ghost' },
-  contrarian: { title: 'Le contrarian', icon: 'shuffle' },
-  sheep: { title: 'Le mouton', icon: 'users' },
-  loyal: { title: 'Le fidèle', icon: 'anchor' },
-  twins: { title: 'Les jumeaux de vote', icon: 'copy' },
-  kingmaker: { title: 'Le faiseur de rois', icon: 'gavel' },
-  streak: { title: 'Série en cours', icon: 'flame' },
-  longest_streak: { title: 'Record de série', icon: 'trophy' },
-  comeback: { title: 'Le revenant', icon: 'rotate-ccw' },
-  night_owl: { title: 'Couche-tard', icon: 'moon' },
-  early_bird: { title: 'Lève-tôt', icon: 'sunrise' },
-  chatterbox: { title: 'Le bavard', icon: 'message-circle' },
-  silent: { title: 'Le roi du silence', icon: 'volume-x' },
-  best_rank: { title: 'Toujours sur le podium', icon: 'medal' },
-  worst_rank: { title: 'Lanterne rouge', icon: 'turtle' },
-  most_split: { title: 'La plus clivante', icon: 'split' },
-  most_unanimous: { title: 'La plus unanime', icon: 'handshake' },
-  hottest: { title: 'Le moment le plus chaud', icon: 'flame' },
+/** Every award key with its icon (docs/STATS.md); titles are `stats.award.<key>`. */
+export const AWARD_ICONS: Record<string, string> = {
+  most_chosen: 'star',
+  most_crowned: 'crown',
+  narcissist: 'flower-2',
+  fastest: 'zap',
+  slowest: 'snail',
+  last_voter: 'hourglass',
+  nudger: 'bell-ring',
+  most_nudged: 'alarm-clock',
+  author: 'feather',
+  duo: 'heart',
+  never_chosen: 'ghost',
+  contrarian: 'shuffle',
+  sheep: 'users',
+  loyal: 'anchor',
+  twins: 'copy',
+  kingmaker: 'gavel',
+  streak: 'flame',
+  longest_streak: 'trophy',
+  comeback: 'rotate-ccw',
+  night_owl: 'moon',
+  early_bird: 'sunrise',
+  chatterbox: 'message-circle',
+  silent: 'volume-x',
+  best_rank: 'medal',
+  worst_rank: 'turtle',
+  most_split: 'split',
+  most_unanimous: 'handshake',
+  hottest: 'flame',
 };
+
+/** An award's title in the current language. */
+export const awardTitle = (key: string) => t(`stats.award.${key}` as TKey);
 
 /** A small-caps label: section headers, card titles. */
 export function Caps({ children, color, size = 12 }: { children: ReactNode; color?: string; size?: number }) {

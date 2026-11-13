@@ -33,6 +33,7 @@ import { NextGate } from '@/components/next-gate';
 import { NoQuestions, SoloInvite } from '@/components/vote-empty';
 import { Avatar, AvatarStack, Button, Card, ConfirmModal, Dialog, Display, Logo, PressableScale, Tag } from '@/components/ui';
 import { api, type Member, type Round } from '@/lib/api';
+import { getLang, t as translate, useT } from '@/lib/i18n';
 import { EASE, motion, usePop } from '@/lib/motion';
 import { keys, useCurrentRound, useGroup, useInbox, useMembers, useRound, useUnseenRound } from '@/lib/queries';
 import { useSession } from '@/lib/session';
@@ -42,6 +43,7 @@ import { useTheme } from '@/lib/theme';
 
 function PushBell() {
   const t = useTheme();
+  const tr = useT();
   const [state, setState] = useState<PushState>(pushState);
   useEffect(() => {
     refreshPush().catch(() => {});
@@ -52,7 +54,7 @@ function PushBell() {
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel="Activer les notifications"
+      accessibilityLabel={tr('vote.header.enablePush')}
       disabled={denied}
       onPress={() =>
         enablePush()
@@ -68,6 +70,7 @@ function PushBell() {
 /** Which room I'm in; tap to switch, create or join one. */
 function RoomPill() {
   const t = useTheme();
+  const tr = useT();
   const { data: group } = useGroup();
   const secret = useSecretPicker();
   if (!group) return null;
@@ -75,7 +78,7 @@ function RoomPill() {
     <>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`Salon ${group.name}, changer de salon`}
+        accessibilityLabel={tr('vote.header.room', { name: group.name })}
         onPress={() => router.push('/rooms')}
         onLongPress={secret.onLongPress}
         hitSlop={6}
@@ -93,12 +96,13 @@ function RoomPill() {
 /** The in-app notifications, with a badge for what I have not seen. */
 function InboxButton() {
   const t = useTheme();
+  const tr = useT();
   const { data } = useInbox();
   const unread = data?.unread ?? 0;
   return (
     <PressableScale
       accessibilityRole="button"
-      accessibilityLabel={unread ? `Notifications, ${unread} non lues` : 'Notifications'}
+      accessibilityLabel={unread ? tr('vote.header.inboxUnread', { count: unread }) : tr('vote.header.inbox')}
       onPress={() => router.push('/inbox')}
       style={[{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card }, t.shadow]}>
       <Inbox size={18} color={t.txt} />
@@ -126,10 +130,11 @@ function InboxButton() {
 /** Opens the group page (members, and later invites and settings). */
 function GroupButton() {
   const t = useTheme();
+  const tr = useT();
   return (
     <PressableScale
       accessibilityRole="button"
-      accessibilityLabel="Groupe"
+      accessibilityLabel={tr('vote.header.group')}
       onPress={() => router.push('/group')}
       style={[{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card }, t.shadow]}>
       <Users size={18} color={t.txt} />
@@ -147,6 +152,7 @@ function Header() {
 }
 
 function HeaderBar() {
+  const tr = useT();
   const { me } = useSession();
   return (
     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -158,7 +164,7 @@ function HeaderBar() {
         <GroupButton />
         <InboxButton />
         <PushBell />
-        <Pressable accessibilityRole="button" accessibilityLabel="Profil" onPress={() => router.push('/profile')}>
+        <Pressable accessibilityRole="button" accessibilityLabel={tr('vote.header.profile')} onPress={() => router.push('/profile')}>
           <Avatar member={me ?? undefined} size={36} />
         </Pressable>
       </View>
@@ -213,6 +219,7 @@ let lastQuestion: number | null = null;
 
 function Question({ round, result }: { round: Round; result?: boolean }) {
   const t = useTheme();
+  const tr = useT();
   const [fresh] = useState(() => !result && round.id !== lastQuestion);
   useEffect(() => {
     if (!result) lastQuestion = round.id;
@@ -233,12 +240,12 @@ function Question({ round, result }: { round: Round; result?: boolean }) {
     <Animated.View entering={fresh ? motion.question : undefined} style={{ gap: 14 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <Tag
-          label={`${result ? 'Résultat' : round.kind === 'rank' ? 'Classement' : round.custom ? 'De nous' : 'Dilemme'} · #${round.number}`}
+          label={`${tr(result ? 'vote.kind.result' : round.kind === 'rank' ? 'vote.kind.rank' : round.custom ? 'vote.kind.custom' : 'vote.kind.pick')} · #${round.number}`}
           tone={result ? 'acc' : 'tag'}
         />
         <PressableScale
           accessibilityRole="button"
-          accessibilityLabel={copied ? 'Lien copié' : result ? 'Partager le résultat' : 'Partager la question'}
+          accessibilityLabel={tr(copied ? 'vote.linkCopied' : result ? 'vote.shareResult' : 'vote.shareQuestion')}
           onPress={share}
           hitSlop={8}
           style={{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card }}>
@@ -251,7 +258,18 @@ function Question({ round, result }: { round: Round; result?: boolean }) {
 }
 
 /** First-run hint on the ballot: how a question ends. */
-const VoteTip = () => <Tip id="vote" text="Résultat dès que tous ont voté." />;
+function VoteTip() {
+  const tr = useT();
+  return <Tip id="vote" text={tr('vote.tip')} />;
+}
+
+/** "1er", "2e" / "1st", "2nd", "3rd", "11th": a place in a ranking. */
+function ordinal(n: number) {
+  const a = n % 10;
+  const b = n % 100;
+  const en = a === 1 && b !== 11 ? 'st' : a === 2 && b !== 12 ? 'nd' : a === 3 && b !== 13 ? 'rd' : 'th';
+  return translate(`vote.ordinal.${getLang() === 'fr' ? (n === 1 ? 'st' : 'th') : en}`, { n });
+}
 
 /** The vote button bumps when it becomes usable (and each time the pick changes), so the next step is obvious. */
 function Springy({ trigger, when, children }: { trigger: unknown; when: boolean; children: ReactNode }) {
@@ -266,6 +284,7 @@ function Pop({ on, to = 1.15, children }: { on: boolean; to?: number; children: 
 /** Ranking question: tap everyone in order, first to last. Tap a ranked person again to take them out. */
 function RankBallot({ round, members, byId, onVoted }: { round: Round; members: Member[]; byId: Map<number, Member>; onVoted: () => void }) {
   const t = useTheme();
+  const tr = useT();
   const qc = useQueryClient();
   const [order, setOrder] = useState<number[]>([]);
   const vote = useMutation({
@@ -284,7 +303,7 @@ function RankBallot({ round, members, byId, onVoted }: { round: Round; members: 
       footer={
         <Springy trigger={done} when={done}>
           <Button disabled={!done} loading={vote.isPending} onPress={() => done && vote.mutate(order)}>
-            {done ? 'Valider mon classement' : `Qui est ${next === 1 ? '1er' : `${next}e`} ?`}
+            {done ? tr('vote.rank.submit') : tr('vote.rank.whoIs', { place: ordinal(next) })}
           </Button>
         </Springy>
       }>
@@ -298,7 +317,7 @@ function RankBallot({ round, members, byId, onVoted }: { round: Round; members: 
         {order.length > 0 && (
           <PressableScale
             accessibilityRole="button"
-            accessibilityLabel="Recommencer"
+            accessibilityLabel={tr('vote.rank.restart')}
             onPress={() => setOrder([])}
             hitSlop={8}
             style={{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card2 }}>
@@ -319,7 +338,7 @@ function RankBallot({ round, members, byId, onVoted }: { round: Round; members: 
                 cols={gridColumns(members.length)}
                 selected={place > 0}
                 badge={place || undefined}
-                label={place ? `${m.name}, ${place}e. Retirer` : `Classer ${m.name}`}
+                label={place ? tr('vote.rank.ranked', { name: m.name, place }) : tr('vote.rank.add', { name: m.name })}
                 onPress={() => toggle(m.id)}
               />
             );
@@ -334,7 +353,7 @@ function RankBallot({ round, members, byId, onVoted }: { round: Round; members: 
                 <PressableScale
                   scale={0.98}
                   accessibilityRole="button"
-                  accessibilityLabel={place ? `${m.name}, ${place}e. Retirer` : `Classer ${m.name}`}
+                  accessibilityLabel={place ? tr('vote.rank.ranked', { name: m.name, place }) : tr('vote.rank.add', { name: m.name })}
                   onPress={() => toggle(m.id)}
                   style={[
                     {
@@ -384,6 +403,7 @@ function Ballot({ round, members, byId, onVoted }: { round: Round; members: Memb
 
 function PickBallot({ round, members, byId, onVoted }: { round: Round; members: Member[]; byId: Map<number, Member>; onVoted: () => void }) {
   const t = useTheme();
+  const tr = useT();
   const qc = useQueryClient();
   const [pick, setPick] = useState<number | null>(null);
   const vote = useMutation({
@@ -401,7 +421,7 @@ function PickBallot({ round, members, byId, onVoted }: { round: Round; members: 
           <Button disabled={!picked} loading={vote.isPending} onPress={() => pick != null && vote.mutate(pick)}>
             {picked ? (
               <Text numberOfLines={1} style={{ flexShrink: 1, paddingHorizontal: 20, fontFamily: t.font.bold, fontSize: 17, color: t.accTxt }}>
-                Voter pour {picked.name}
+                {tr('vote.voteFor', { name: picked.name })}
               </Text>
             ) : (
               `${round.voter_ids.length}/${round.member_count}`
@@ -477,6 +497,7 @@ function PickBallot({ round, members, byId, onVoted }: { round: Round; members: 
 /** Sends a "hurry up" push to someone who has not voted yet. Once per question. */
 function NudgeButton({ member, roundId }: { member: Member; roundId: number }) {
   const t = useTheme();
+  const tr = useT();
   const [sent, setSent] = useState(false);
   useEffect(() => setSent(false), [roundId]);
   const nudge = useMutation({
@@ -486,7 +507,7 @@ function NudgeButton({ member, roundId }: { member: Member; roundId: number }) {
   return (
     <PressableScale
       accessibilityRole="button"
-      accessibilityLabel={`Relancer ${member.name}`}
+      accessibilityLabel={tr('vote.nudge', { name: member.name })}
       disabled={sent || nudge.isPending}
       onPress={() => nudge.mutate()}
       style={{
@@ -505,6 +526,7 @@ function NudgeButton({ member, roundId }: { member: Member; roundId: number }) {
 /** "Let's not wait": agree to close the question without them. Shows how many already agree. */
 function SkipButton({ member, round }: { member: Member; round: Round }) {
   const t = useTheme();
+  const tr = useT();
   const qc = useQueryClient();
   const state = round.skips.find((s) => s.target_id === member.id);
   const mine = !!state?.mine;
@@ -521,16 +543,16 @@ function SkipButton({ member, round }: { member: Member; round: Round }) {
     <>
       <ConfirmModal
         visible={asking}
-        title={`Passer ${member.name} ?`}
-        message="Si la majorité est d'accord, on n'attend plus son vote."
-        confirmLabel="Passer"
+        title={tr('vote.skip.title', { name: member.name })}
+        message={tr('vote.skip.message')}
+        confirmLabel={tr('vote.skip.confirm')}
         busy={skip.isPending}
         onConfirm={() => skip.mutate()}
         onCancel={() => setAsking(false)}
       />
       <PressableScale
         accessibilityRole="button"
-        accessibilityLabel={mine ? `Ne plus passer ${member.name}` : `Passer ${member.name}`}
+        accessibilityLabel={tr(mine ? 'vote.skip.undo' : 'vote.skip.label', { name: member.name })}
         disabled={skip.isPending}
         onPress={() => (mine ? skip.mutate() : setAsking(true))}
         hitSlop={6}
@@ -558,6 +580,7 @@ function SkipButton({ member, round }: { member: Member; round: Round }) {
 
 function Waiting({ round, byId, members }: { round: Round; byId: Map<number, Member>; members: Member[] }) {
   const t = useTheme();
+  const tr = useT();
   const target = round.my_vote != null ? byId.get(round.my_vote) : undefined;
   const hidden = useHideVote();
   const pending = members.filter((m) => !round.voter_ids.includes(m.id));
@@ -582,14 +605,14 @@ function Waiting({ round, byId, members }: { round: Round; byId: Map<number, Mem
           <Avatar member={target} size={44} />
         )}
         <View style={{ flex: 1, gap: 2 }}>
-          <Text style={label}>{round.kind === 'rank' ? 'TON 1ER' : 'TON VOTE'}</Text>
+          <Text style={label}>{tr(round.kind === 'rank' ? 'vote.waiting.yourFirst' : 'vote.waiting.yourVote')}</Text>
           <Text numberOfLines={1} style={{ fontFamily: t.font.bold, fontSize: 17, color: hidden ? t.mut : t.txt }}>
-            {hidden ? 'Caché' : (target?.name ?? '?')}
+            {hidden ? tr('vote.waiting.hidden') : (target?.name ?? '?')}
           </Text>
         </View>
         <PressableScale
           accessibilityRole="button"
-          accessibilityLabel={hidden ? 'Montrer mon vote' : 'Cacher mon vote'}
+          accessibilityLabel={tr(hidden ? 'vote.waiting.show' : 'vote.waiting.hide')}
           onPress={() => setHideVote(!hidden)}
           hitSlop={8}
           style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: t.card2, alignItems: 'center', justifyContent: 'center' }}>
@@ -600,12 +623,12 @@ function Waiting({ round, byId, members }: { round: Round; byId: Map<number, Mem
       <Animated.View layout={motion.layout} style={[{ backgroundColor: t.card, borderRadius: t.radius.card, padding: 16, gap: 14 }, t.shadow]}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
           <Text style={{ flex: 1, fontFamily: t.font.bold, fontSize: 15, color: t.txt }}>
-            {done} sur {round.member_count} ont voté
+            {tr('vote.waiting.voted', { done, total: round.member_count })}
           </Text>
           <AvatarStack members={round.voter_ids.map((id) => byId.get(id))} size={26} ring={t.card} max={6} />
         </View>
         <Progress value={done / Math.max(round.member_count, 1)} />
-        {pending.length > 0 && <Text style={label}>EN ATTENTE</Text>}
+        {pending.length > 0 && <Text style={label}>{tr('vote.waiting.pending')}</Text>}
         {/* Many still to vote: a grid of faces; tap one for the bell and the skip. */}
         {pending.length > BIG_WAIT ? (
           <MemberGrid>
@@ -620,7 +643,7 @@ function Waiting({ round, byId, members }: { round: Round; byId: Map<number, Mem
                     plain
                     dim={skipped}
                     badge={skipped || asked ? <SkipForward size={12} color={t.mut} /> : undefined}
-                    label={skipped ? `${m.name}, passé` : m.name}
+                    label={skipped ? tr('vote.waiting.skippedLabel', { name: m.name }) : m.name}
                     onPress={() => setOpen(m.id)}
                   />
                 </Animated.View>
@@ -645,6 +668,7 @@ const BIG_WAIT = 5;
 /** Someone we're waiting for: name, "passé" once skipped, the skip and the bell. */
 function PendingRow({ member: m, round, canSkip, big }: { member: Member; round: Round; canSkip: boolean; big?: boolean }) {
   const t = useTheme();
+  const tr = useT();
   const { me } = useSession();
   const skipped = round.skipped_ids.includes(m.id);
   return (
@@ -653,7 +677,7 @@ function PendingRow({ member: m, round, canSkip, big }: { member: Member; round:
       <Text numberOfLines={1} style={{ flex: 1, fontFamily: big ? t.font.bold : t.font.semibold, fontSize: big ? 17 : 15, color: t.txt }}>
         {m.name}
       </Text>
-      {skipped && <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut }}>passé</Text>}
+      {skipped && <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut }}>{tr('vote.waiting.skipped')}</Text>}
       {canSkip && m.id !== me?.id && !skipped && <SkipButton member={m} round={round} />}
       {m.id !== me?.id && <NudgeButton member={m} roundId={round.id} />}
     </Animated.View>
@@ -678,6 +702,7 @@ function Progress({ value }: { value: number }) {
 /** Back arrow (and pin) that replace the header when a result is opened from the history. */
 function BackHeader({ onBack, round }: { onBack: () => void; round?: Round }) {
   const t = useTheme();
+  const tr = useT();
   const qc = useQueryClient();
   const pin = useMutation({
     mutationFn: (pinned: boolean) => api(`/rounds/${round!.id}/pin`, { method: pinned ? 'PUT' : 'DELETE' }),
@@ -692,7 +717,7 @@ function BackHeader({ onBack, round }: { onBack: () => void; round?: Round }) {
     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Retour"
+        accessibilityLabel={tr('common.back')}
         onPress={onBack}
         hitSlop={8}
         style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card }}>
@@ -701,7 +726,7 @@ function BackHeader({ onBack, round }: { onBack: () => void; round?: Round }) {
       {round && (
         <PressableScale
           accessibilityRole="button"
-          accessibilityLabel={pinned ? 'Désépingler' : 'Épingler'}
+          accessibilityLabel={tr(pinned ? 'vote.unpin' : 'vote.pin')}
           onPress={() => pin.mutate(!pinned)}
           disabled={pin.isPending}
           hitSlop={8}
@@ -735,6 +760,7 @@ export function Result({
   gate?: ReactNode;
 }) {
   const t = useTheme();
+  const tr = useT();
   const { data: round } = useRound(roundId);
   const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
   // One scroll for the whole page (no box inside a box). Where the full result ends, and whether
@@ -781,7 +807,7 @@ export function Result({
           {gate ??
             (onNext && (
               <Button onPress={onNext}>
-                <Text style={{ fontFamily: t.font.bold, fontSize: 17, color: t.accTxt }}>Suivante</Text>
+                <Text style={{ fontFamily: t.font.bold, fontSize: 17, color: t.accTxt }}>{tr('vote.next')}</Text>
                 <ArrowRight size={20} color={t.accTxt} />
               </Button>
             ))}
