@@ -90,6 +90,8 @@ pub struct RoundView {
     pub ranking: Option<Vec<RankEntry>>,
     /// Ranking questions: my order, first to last.
     pub my_ranking: Option<Vec<i64>>,
+    /// A deck question that came from an approved suggestion: its author's name.
+    pub suggested_by: Option<String>,
 }
 
 /// Borda count: last place 1 point, first place N points; ties broken by number of firsts.

@@ -33,6 +33,8 @@ pub struct Config {
     /// `UPDATES_PUBLISH_TOKEN`: bearer token CI uses to publish OTA updates (`/api/updates/publish`).
     /// Absent: publishing and the update admin endpoints answer 404.
     pub updates_publish_token: Option<String>,
+    /// `ADMIN_USER_IDS`: accounts that moderate community packs and suggestions (comma-separated ids).
+    pub admin_user_ids: Vec<i64>,
 }
 
 pub const DEFAULT_REPORT_EMAIL: &str = "contact@coflop.fr";
@@ -144,6 +146,9 @@ impl Config {
                 .unwrap_or_default(),
             report_email: var("REPORT_EMAIL"),
             updates_publish_token: var("UPDATES_PUBLISH_TOKEN"),
+            admin_user_ids: var("ADMIN_USER_IDS")
+                .map(|v| v.split(',').filter_map(|s| s.trim().parse().ok()).collect())
+                .unwrap_or_default(),
         }
     }
 }

@@ -371,6 +371,42 @@ pub fn share_expired(lang: Lang) -> &'static str {
     lang.pick("Lien expiré", "Link expired")
 }
 
+/// Primary button of a shared question's page (`/play?share=`).
+pub fn share_play(lang: Lang) -> &'static str {
+    lang.pick(
+        "Jouer cette question avec tes potes",
+        "Play this question with your friends",
+    )
+}
+
+// ---------- pack pages (`/p/{id}`) ----------
+
+pub fn card_tag_pack(lang: Lang, count: i64) -> String {
+    format!("PACK · {count} {}", lang.pick("QUESTIONS", "QUESTIONS"))
+}
+
+pub fn pack_by(lang: Lang, author: &str) -> String {
+    match lang {
+        Lang::Fr => format!("par {author}"),
+        Lang::En => format!("by {author}"),
+    }
+}
+
+pub fn pack_desc(lang: Lang, count: i64, author: &str) -> String {
+    match lang {
+        Lang::Fr => format!("{count} questions par {author}"),
+        Lang::En => format!("{count} questions by {author}"),
+    }
+}
+
+pub fn pack_install(lang: Lang) -> &'static str {
+    lang.pick("Installer dans un salon", "Install in a room")
+}
+
+pub fn pack_missing(lang: Lang) -> &'static str {
+    lang.pick("Pack introuvable", "Pack not found")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

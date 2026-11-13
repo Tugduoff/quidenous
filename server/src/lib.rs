@@ -14,11 +14,13 @@ pub mod moderation;
 pub mod notifications;
 pub mod pacing;
 pub mod packs;
+pub mod play;
 pub mod push;
 pub mod rooms;
 pub mod routes;
 pub mod share;
 pub mod stats;
+pub mod suggestions;
 pub mod updates;
 pub mod vibes;
 
@@ -122,6 +124,8 @@ pub fn app(state: AppState) -> Router {
         .nest("/api", routes::router())
         .route("/s/{token}", axum::routing::get(share::page))
         .route("/s/{token}/card.png", axum::routing::get(share::card_png))
+        .route("/p/{id}", axum::routing::get(share::pack_page))
+        .route("/p/{id}/card.png", axum::routing::get(share::pack_card_png))
         // Public legal pages (linked from the Google sign-in consent screen and the app).
         .route(
             "/privacy",

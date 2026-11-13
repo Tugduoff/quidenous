@@ -97,17 +97,19 @@ pub fn parse_tagged(line: &str) -> (&str, &'static str, Vec<String>) {
 
 /// Before 0.10.1, importing a file put its questions in the shared deck. Those questions belong
 /// to the first room (the only one back then): move every shared question that is not in the
-/// built-in deck there. Idempotent: afterwards only the built-in deck is shared.
+/// built-in deck there. Idempotent: afterwards only the built-in deck (and approved suggestions,
+/// `suggested_by`) is shared.
 pub async fn adopt_imports(db: &SqlitePool, first_group: i64) -> sqlx::Result<u64> {
     let builtin: std::collections::HashSet<&str> = DECKS
         .iter()
         .flat_map(|(_, deck)| deck_lines(deck))
         .map(|l| parse_line(l).0)
         .collect();
-    let shared: Vec<(i64, String)> =
-        sqlx::query_as("SELECT id, text FROM questions WHERE group_id IS NULL")
-            .fetch_all(db)
-            .await?;
+    let shared: Vec<(i64, String)> = sqlx::query_as(
+        "SELECT id, text FROM questions WHERE group_id IS NULL AND suggested_by IS NULL",
+    )
+    .fetch_all(db)
+    .await?;
     let mut moved = 0;
     for (id, text) in shared {
         if !builtin.contains(text.as_str()) {

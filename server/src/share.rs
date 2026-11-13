@@ -4,6 +4,7 @@
 //! A token can also be a shared stat story: a frozen snapshot of its title, figure, punchline and the
 //! first names, colours and drawn avatars of the people in it.
 //! Cards and pages speak the sharer's language at share time (`shares.lang`, `stat_shares.lang`).
+//! `/p/{id}` (and `/p/{id}/card.png`) is the same kind of page for a public community pack, in its language.
 
 use std::sync::{Arc, OnceLock};
 
@@ -491,12 +492,17 @@ fn fonts() -> Arc<resvg::usvg::fontdb::Database> {
     .clone()
 }
 
+#[cfg(test)]
 fn render(card: &Card) -> Option<Vec<u8>> {
+    render_svg(&svg(card))
+}
+
+fn render_svg(svg: &str) -> Option<Vec<u8>> {
     let opt = resvg::usvg::Options {
         fontdb: fonts(),
         ..Default::default()
     };
-    let tree = resvg::usvg::Tree::from_str(&svg(card), &opt).ok()?;
+    let tree = resvg::usvg::Tree::from_str(svg, &opt).ok()?;
     let mut pixmap = resvg::tiny_skia::Pixmap::new(W, H)?;
     resvg::render(
         &tree,
@@ -510,7 +516,12 @@ pub async fn card_png(State(state): State<AppState>, Path(token): Path<String>) 
     let Ok(card) = load(&state, &token).await else {
         return StatusCode::NOT_FOUND.into_response();
     };
-    match tokio::task::spawn_blocking(move || render(&card))
+    png_response(svg(&card)).await
+}
+
+/// Renders a card off the async threads and answers it as a PNG.
+async fn png_response(svg: String) -> Response {
+    match tokio::task::spawn_blocking(move || render_svg(&svg))
         .await
         .ok()
         .flatten()
@@ -545,6 +556,53 @@ pub async fn page(
         )
             .into_response();
     };
+    let base = base_url(&headers);
+    let (title, desc) = match &card {
+        Card::Question(c) => (c.question.clone(), question_desc(c)),
+        Card::Stat(c) => (format!("{} · {}", c.title, c.big), c.line.clone()),
+    };
+    let lang = card.lang();
+    // A question can be played in one of my rooms; a stat story just opens the app.
+    let links = match &card {
+        Card::Question(_) => format!(
+            r#"<a class="go" href="/play?share={token}">{play}</a>
+<a class="alt" href="/">{open}</a>"#,
+            token = esc(&token),
+            play = esc(i18n::share_play(lang)),
+            open = esc(i18n::share_open(lang)),
+        ),
+        Card::Stat(_) => format!(
+            r#"<a class="go" href="/">{open}</a>
+<a class="alt" href="/">{create}</a>"#,
+            open = esc(i18n::share_open(lang)),
+            create = esc(i18n::share_create(lang)),
+        ),
+    };
+    let html = format!(
+        r##"<!doctype html><html lang="{lang}"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{q} · qui de nous ?</title>
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="qui de nous ?">
+<meta property="og:title" content="{q}">
+<meta property="og:description" content="{d}">
+<meta property="og:image" content="{base}/s/{token}/card.png">
+<meta property="og:image:width" content="{W}"><meta property="og:image:height" content="{H}">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#0E0E12">
+<style>{PAGE_STYLE}</style></head><body>
+<img src="/s/{token}/card.png" alt="{q}">
+{links}
+</body></html>"##,
+        lang = lang.as_str(),
+        q = esc(&title),
+        d = esc(&desc),
+    );
+    Html(html).into_response()
+}
+
+/// `https://host` of the request (behind the proxy: its forwarded scheme).
+fn base_url(headers: &HeaderMap) -> String {
     let host = headers
         .get(header::HOST)
         .and_then(|h| h.to_str().ok())
@@ -559,40 +617,163 @@ pub async fn page(
                 "https"
             },
         );
-    let base = format!("{scheme}://{host}");
-    let (title, desc) = match &card {
-        Card::Question(c) => (c.question.clone(), question_desc(c)),
-        Card::Stat(c) => (format!("{} · {}", c.title, c.big), c.line.clone()),
+    format!("{scheme}://{host}")
+}
+
+/// Shared page style (dark, lime button).
+const PAGE_STYLE: &str = "body{margin:0;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;\
+background:#0E0E12;color:#F5F5F7;font-family:system-ui,-apple-system,sans-serif;padding:24px;box-sizing:border-box}\
+img{width:100%;max-width:720px;border-radius:24px;border:1px solid #2E2E38}\
+a{display:block;width:100%;max-width:420px;text-align:center;padding:16px;border-radius:999px;font-weight:700;text-decoration:none}\
+.go{background:#C8FF3D;color:#121216} .alt{color:#8D8D99}";
+
+/// A public pack, as its page and card show it.
+struct PackCard {
+    lang: Lang,
+    name: String,
+    description: String,
+    author: String,
+    count: i64,
+    samples: Vec<String>,
+}
+
+async fn load_pack(state: &AppState, id: i64) -> AppResult<PackCard> {
+    let (name, description, author, language, count): (String, String, String, String, i64) =
+        sqlx::query_as(
+            "SELECT p.name, p.description, u.name, p.language, \
+                    (SELECT COUNT(*) FROM pack_questions x WHERE x.pack_id = p.id) \
+             FROM packs p JOIN users u ON u.id = p.author_id WHERE p.id = ? AND p.status = 'public'",
+        )
+        .bind(id)
+        .fetch_optional(&state.db)
+        .await?
+        .ok_or(AppError::NotFound)?;
+    let samples: Vec<String> = sqlx::query_scalar(
+        "SELECT text FROM pack_questions WHERE pack_id = ? ORDER BY position LIMIT 3",
+    )
+    .bind(id)
+    .fetch_all(&state.db)
+    .await?;
+    Ok(PackCard {
+        lang: Lang::from_db(Some(&language)),
+        name,
+        description,
+        author,
+        count,
+        samples,
+    })
+}
+
+/// The first wrapped line of a text, with an ellipsis when it goes on.
+fn one_line(text: &str, size: f32, width: f32) -> String {
+    let lines = wrap(text, size, width);
+    match lines.len() {
+        0 => String::new(),
+        1 => lines[0].clone(),
+        _ => format!("{}…", lines[0]),
+    }
+}
+
+/// A pack: its name big, its description, three sample questions.
+fn pack_svg(card: &PackCard) -> String {
+    let mut out = frame(
+        &i18n::pack_by(card.lang, &card.author),
+        &i18n::card_tag_pack(card.lang, card.count),
+        LIME,
+    );
+    let mut size: f32 = 72.0;
+    let mut lines = wrap(&card.name, size, 1060.0);
+    while lines.len() > 2 && size > 40.0 {
+        size -= 4.0;
+        lines = wrap(&card.name, size, 1060.0);
+    }
+    let top = 262.0;
+    for (i, l) in lines.iter().take(2).enumerate() {
+        out.push_str(&format!(
+            r##"<text x="70" y="{y}" font-family="Bricolage Grotesque" font-weight="800" font-size="{size}" fill="{TXT}" letter-spacing="-1">{l}</text>
+"##,
+            y = top + i as f32 * size * 1.08,
+            l = esc(l),
+        ));
+    }
+    let mut y = top + (lines.len().clamp(1, 2) - 1) as f32 * size * 1.08 + 52.0;
+    if !card.description.is_empty() {
+        out.push_str(&format!(
+            r##"<text x="70" y="{y}" font-family="Inter" font-size="28" fill="{MUTED}">{d}</text>
+"##,
+            d = esc(&one_line(&card.description, 28.0 * 0.92, 1060.0)),
+        ));
+        y += 30.0;
+    }
+    y += 34.0;
+    for sample in &card.samples {
+        y += 42.0;
+        out.push_str(&format!(
+            r##"<circle cx="80" cy="{cy}" r="5" fill="{LIME}"/>
+<text x="100" y="{y}" font-family="Inter" font-weight="700" font-size="26" fill="{TXT}">{q}</text>
+"##,
+            cy = y - 9.0,
+            q = esc(&one_line(sample, 26.0 * 0.92, 1030.0)),
+        ));
+    }
+    out.push_str(&footer(card.lang));
+    out
+}
+
+pub async fn pack_card_png(State(state): State<AppState>, Path(id): Path<i64>) -> Response {
+    let Ok(card) = load_pack(&state, id).await else {
+        return StatusCode::NOT_FOUND.into_response();
     };
-    let lang = card.lang();
+    png_response(pack_svg(&card)).await
+}
+
+/// `/p/{id}`: a public pack's page (preview tags, card), and "install in a room" in the web app.
+pub async fn pack_page(
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+    headers: HeaderMap,
+) -> Response {
+    let Ok(card) = load_pack(&state, id).await else {
+        return (
+            StatusCode::NOT_FOUND,
+            Html(format!(
+                "<!doctype html><html lang=\"fr\"><head><meta charset=\"utf-8\"></head><body><h1>{}</h1><p lang=\"en\">{}</p></body></html>",
+                i18n::pack_missing(Lang::Fr),
+                i18n::pack_missing(Lang::En)
+            )),
+        )
+            .into_response();
+    };
+    let base = base_url(&headers);
+    let lang = card.lang;
+    let meta = i18n::pack_desc(lang, card.count, &card.author);
+    let desc = if card.description.is_empty() {
+        meta.clone()
+    } else {
+        format!("{} · {meta}", card.description)
+    };
     let html = format!(
         r##"<!doctype html><html lang="{lang}"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{q} · qui de nous ?</title>
+<title>{name} · qui de nous ?</title>
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="qui de nous ?">
-<meta property="og:title" content="{q}">
+<meta property="og:title" content="{name}">
 <meta property="og:description" content="{d}">
-<meta property="og:image" content="{base}/s/{token}/card.png">
+<meta property="og:image" content="{base}/p/{id}/card.png">
 <meta property="og:image:width" content="{W}"><meta property="og:image:height" content="{H}">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="theme-color" content="#0E0E12">
-<style>
-body{{margin:0;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;
-background:#0E0E12;color:#F5F5F7;font-family:system-ui,-apple-system,sans-serif;padding:24px;box-sizing:border-box}}
-img{{width:100%;max-width:720px;border-radius:24px;border:1px solid #2E2E38}}
-a{{display:block;width:100%;max-width:420px;text-align:center;padding:16px;border-radius:999px;font-weight:700;text-decoration:none}}
-.go{{background:#C8FF3D;color:#121216}} .alt{{color:#8D8D99}}
-</style></head><body>
-<img src="/s/{token}/card.png" alt="{q}">
-<a class="go" href="/">{open}</a>
-<a class="alt" href="/">{create}</a>
+<style>{PAGE_STYLE}</style></head><body>
+<img src="/p/{id}/card.png" alt="{name}">
+<a class="go" href="/pack/{id}">{install}</a>
+<a class="alt" href="/">{open}</a>
 </body></html>"##,
         lang = lang.as_str(),
-        q = esc(&title),
+        name = esc(&card.name),
         d = esc(&desc),
+        install = esc(i18n::pack_install(lang)),
         open = esc(i18n::share_open(lang)),
-        create = esc(i18n::share_create(lang)),
     );
     Html(html).into_response()
 }
