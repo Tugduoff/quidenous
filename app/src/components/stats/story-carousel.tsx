@@ -35,6 +35,8 @@ function StoryCard({
   const ink = people.length ? INK : t.accTxt;
   const Icon = iconFor(story.icon);
   const [state, setState] = useState<'idle' | 'busy' | 'copied'>('idle');
+  // Measured: on Android a percentage-sized Svg resolves against the padded box and leaves a band uncovered.
+  const [box, setBox] = useState({ w: 0, h: 0 });
   const share = async () => {
     setState('busy');
     const outcome = await shareStory(period, story);
@@ -47,17 +49,18 @@ function StoryCard({
       accessibilityRole="button"
       accessibilityLabel={`${story.title}. ${story.big}. ${story.line}`}
       onPress={() => onOpen(story)}
+      onLayout={(e) => setBox({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}
       style={{ height: HEIGHT, borderRadius: 28, overflow: 'hidden', padding: 22, backgroundColor: a }}>
       {/* Two people: their colours blend across the card. */}
-      {a !== b && (
-        <Svg style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} width="100%" height="100%">
+      {a !== b && box.w > 0 && (
+        <Svg style={{ position: 'absolute', top: 0, left: 0 }} width={box.w} height={box.h}>
           <Defs>
             <LinearGradient id={`g-${story.key}`} x1="0" y1="0" x2="1" y2="1">
               <Stop offset="0" stopColor={a} />
               <Stop offset="1" stopColor={b} />
             </LinearGradient>
           </Defs>
-          <Rect x="0" y="0" width="100%" height="100%" fill={`url(#g-${story.key})`} />
+          <Rect x="0" y="0" width={box.w} height={box.h} fill={`url(#g-${story.key})`} />
         </Svg>
       )}
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
