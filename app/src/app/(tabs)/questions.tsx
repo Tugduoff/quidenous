@@ -2,14 +2,15 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Cable, Check, FileUp, Lightbulb, Lock, MessageCircleQuestion, Package, Plus, Shuffle, Trash2, Trophy, X } from 'lucide-react-native';
 import { type ComponentRef, useEffect, useRef, useState } from 'react';
-import { Pressable, Text, TextInput, View } from 'react-native';
+import { Platform, Pressable, type ScrollView, Text, TextInput, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 
 import { ModerationDialog, type ModTarget } from '@/components/moderation';
+import { ReorderList, useScrollTracker } from '@/components/reorder-list';
 import { Screen } from '@/components/screen';
 import { Tip } from '@/components/tip';
 import { Avatar, Card, ConfirmModal, Display, PressableScale, QuestionText, Toggle } from '@/components/ui';
-import { api, ApiError, type QuestionKind } from '@/lib/api';
+import { api, ApiError, type Queue, type QuestionKind } from '@/lib/api';
 import { useFeatures } from '@/lib/auth';
 import { useT } from '@/lib/i18n';
 import { ITEM_MAX, ITEMS_MAX, ITEMS_MIN, itemsOk, pickQuestionFile, splitTag, takeHandedDraft, type DraftLine } from '@/lib/import-draft';
@@ -37,7 +38,7 @@ export default function QuestionsScreen() {
   const [items, setItems] = useState<string[]>(['', '']);
   const [addError, setAddError] = useState<string | null>(null);
   const { me } = useSession();
-  const { community } = useFeatures();
+  const { community, reorder: canReorder } = useFeatures();
   const [toDelete, setToDelete] = useState<{ id: number; text: string } | null>(null);
   // Long-press on someone else's question: report it.
   const [toReport, setToReport] = useState<ModTarget | null>(null);
@@ -127,14 +128,82 @@ export default function QuestionsScreen() {
     },
     onError: () => setImported(tr('questions.shuffleFailed')),
   });
+  // Hold a question and drag it: the new order shows at once, and comes back if the server says no.
+  const scroller = useRef<ComponentRef<typeof ScrollView>>(null);
+  const tracker = useScrollTracker();
+  const [dragging, setDragging] = useState(false);
+  const reorder = useMutation({
+    mutationFn: (ids: number[]) => api('/questions/order', { method: 'POST', json: { ids } }),
+    onError: () => setImported(tr('questions.reorderFailed')),
+    onSettled: () => qc.invalidateQueries({ queryKey: keys.queue }),
+  });
+  const reordered = (ids: number[]) => {
+    const before = qc.getQueryData<Queue>(keys.queue);
+    qc.cancelQueries({ queryKey: keys.queue });
+    if (before) {
+      const at = new Map(ids.map((id, i) => [id, i]));
+      const custom = [...before.custom].sort((a, b) => (at.get(a.id) ?? Infinity) - (at.get(b.id) ?? Infinity));
+      qc.setQueryData<Queue>(keys.queue, { ...before, custom });
+    }
+    reorder.mutate(ids, { onError: () => before && qc.setQueryData(keys.queue, before) });
+  };
   const toggle = (i: number) => setDraft((d) => d && d.map((l, j) => (j === i && !l.problem ? { ...l, selected: !l.selected } : l)));
   const allOn = !!draft && draft.every((l) => l.selected || l.problem);
   const toggleAll = () => setDraft((d) => d && d.map((l) => (l.problem ? l : { ...l, selected: !allOn })));
 
   // The owner can keep questions to themselves (room setting).
   const locked = group?.settings.questions_by === 'owner' && group.my_role !== 'owner';
+  const sortable = canReorder && !locked && (data?.custom.length ?? 0) > 1;
+  const othersQuestion = (q: Queue['custom'][number]) => q.author_id != null && q.author_id !== me?.id;
+  const row = (q: Queue['custom'][number]) => (
+    <Card
+      style={{
+        flexDirection: 'row',
+        gap: 12,
+        alignItems: 'center',
+        padding: 14,
+      }}>
+      {q.author_id != null ? <Avatar member={byId.get(q.author_id)} size={32} /> : <MessageCircleQuestion size={20} color={t.mut} />}
+      <View style={{ flex: 1, gap: 2 }}>
+        <QuestionText
+          text={q.text}
+          rank={q.kind === 'rank'}
+          choose={q.kind === 'choose'}
+          style={{ fontFamily: t.font.semibold, fontSize: 15, lineHeight: 20, color: t.txt }}
+        />
+        {/* A choose question's items, in one line. */}
+        {!!q.items?.length && (
+          <Text numberOfLines={1} style={{ fontFamily: t.font.regular, fontSize: 13, lineHeight: 18, color: t.mut }}>
+            {q.items.join(' · ')}
+          </Text>
+        )}
+      </View>
+      {/* Its author or the room owner can take it out before it's asked. */}
+      {(q.author_id === me?.id || group?.my_role === 'owner') && (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={tr('questions.deleteQuestion')}
+          onPress={() => setToDelete(q)}
+          hitSlop={8}
+          style={{
+            width: 34,
+            height: 34,
+            borderRadius: 17,
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: t.card2,
+          }}>
+          <Trash2 size={16} color={t.mut} />
+        </Pressable>
+      )}
+    </Card>
+  );
   return (
-    <Screen>
+    <Screen
+      scroller={scroller}
+      onScroll={tracker.onScroll}
+      onContentSizeChange={tracker.onContentSizeChange}
+      scrollEnabled={Platform.OS === 'web' || !dragging}>
       <Display size={30}>{tr('questions.title')}</Display>
       {locked ? (
         <Card
@@ -456,56 +525,31 @@ export default function QuestionsScreen() {
           </PressableScale>
         )}
       </View>
-      {/* Deleting one closes the gap and shuffling slides every card to its new place. */}
-      {data?.custom.map((q) => (
-        <Animated.View key={q.id} entering={isNew(q.id) ? motion.enter : undefined} exiting={motion.exit} layout={motion.layout}>
-        <Pressable
-          delayLongPress={400}
-          onLongPress={q.author_id != null && q.author_id !== me?.id ? () => setToReport({ kind: 'question', id: q.id }) : undefined}>
-          <Card
-            style={{
-              flexDirection: 'row',
-              gap: 12,
-              alignItems: 'center',
-              padding: 14,
-            }}>
-            {q.author_id != null ? <Avatar member={byId.get(q.author_id)} size={32} /> : <MessageCircleQuestion size={20} color={t.mut} />}
-            <View style={{ flex: 1, gap: 2 }}>
-              <QuestionText
-                text={q.text}
-                rank={q.kind === 'rank'}
-                choose={q.kind === 'choose'}
-                style={{ fontFamily: t.font.semibold, fontSize: 15, lineHeight: 20, color: t.txt }}
-              />
-              {/* A choose question's items, in one line. */}
-              {!!q.items?.length && (
-                <Text numberOfLines={1} style={{ fontFamily: t.font.regular, fontSize: 13, lineHeight: 18, color: t.mut }}>
-                  {q.items.join(' · ')}
-                </Text>
-              )}
-            </View>
-            {/* Its author or the room owner can take it out before it's asked. */}
-            {(q.author_id === me?.id || group?.my_role === 'owner') && (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={tr('questions.deleteQuestion')}
-                onPress={() => setToDelete(q)}
-                hitSlop={8}
-                style={{
-                  width: 34,
-                  height: 34,
-                  borderRadius: 17,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  backgroundColor: t.card2,
-                }}>
-                <Trash2 size={16} color={t.mut} />
-              </Pressable>
-            )}
-          </Card>
-        </Pressable>
-        </Animated.View>
-      ))}
+      {/* Hold a question to drag it elsewhere; held and let go on someone else's: report it. */}
+      {sortable && data ? (
+        <ReorderList
+          items={data.custom}
+          render={row}
+          isNew={isNew}
+          scroller={scroller}
+          tracker={tracker}
+          onDragChange={setDragging}
+          onReorder={reordered}
+          onStill={(id) => {
+            const q = data.custom.find((x) => x.id === id);
+            if (q && othersQuestion(q)) setToReport({ kind: 'question', id });
+          }}
+        />
+      ) : (
+        // Deleting one closes the gap and shuffling slides every card to its new place.
+        data?.custom.map((q) => (
+          <Animated.View key={q.id} entering={isNew(q.id) ? motion.enter : undefined} exiting={motion.exit} layout={motion.layout}>
+            <Pressable delayLongPress={400} onLongPress={othersQuestion(q) ? () => setToReport({ kind: 'question', id: q.id }) : undefined}>
+              {row(q)}
+            </Pressable>
+          </Animated.View>
+        ))
+      )}
       <ModerationDialog target={toReport} onClose={() => setToReport(null)} />
       <ConfirmModal
         visible={!!toDelete}

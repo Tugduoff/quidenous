@@ -36,6 +36,7 @@ export const questions = {
   importFailed: 'Import raté',
   shuffled: 'Mélangé',
   shuffleFailed: 'Mélange raté',
+  reorderFailed: 'Ordre non enregistré',
   upcoming: 'À venir',
   shuffleUpcoming: 'Mélanger les questions à venir',
   deleteQuestion: 'Supprimer la question',

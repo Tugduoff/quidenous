@@ -72,6 +72,7 @@ pub fn router() -> Router<AppState> {
         .route("/questions", post(add_question))
         .route("/questions/queue", get(queue))
         .route("/questions/shuffle", post(shuffle_questions))
+        .route("/questions/order", post(order_questions))
         .route("/questions/ask", post(ask_questions))
         .route("/questions/{id}", axum::routing::delete(delete_question))
         .route(
@@ -196,6 +197,7 @@ async fn features(State(state): State<AppState>) -> Json<Value> {
         "community",
         "party",
         "choose",
+        "reorder",
     ];
     f.extend(crate::accounts::features(&state));
     Json(json!(f))
@@ -1318,6 +1320,57 @@ async fn shuffle_questions(State(state): State<AppState>, Me(me): Me) -> AppResu
         .live
         .send(me.group_id, Event::QuestionAdded { question_id: 0 });
     Ok(Json(json!({ "shuffled": rows.len() })))
+}
+
+#[derive(Deserialize)]
+struct OrderBody {
+    ids: Vec<i64>,
+}
+
+/// Put the room's upcoming questions in the given order: their existing order keys are dealt
+/// out again in that order, so questions added later still go to the end. `ids` must be exactly
+/// the upcoming questions (`409 stale_queue` otherwise: the app refetches). Same permission as adding questions.
+async fn order_questions(
+    State(state): State<AppState>,
+    Me(me): Me,
+    Json(body): Json<OrderBody>,
+) -> AppResult<Json<Value>> {
+    may_add_questions(&state, &me).await?;
+    let mut tx = state.db.begin().await?;
+    let rows: Vec<(i64, i64)> = sqlx::query_as(concat!(
+        "SELECT q.id, COALESCE(q.sort_key, q.id) FROM questions q WHERE q.group_id = ?1 AND ",
+        game::unused!(),
+        " ORDER BY 2, 1"
+    ))
+    .bind(me.group_id)
+    .fetch_all(&mut *tx)
+    .await?;
+    let mut current: Vec<i64> = rows.iter().map(|r| r.0).collect();
+    let mut wanted = body.ids.clone();
+    current.sort_unstable();
+    wanted.sort_unstable();
+    if current != wanted {
+        return Err(AppError::Conflict("stale_queue"));
+    }
+    let mut keys: Vec<i64> = rows.iter().map(|r| r.1).collect();
+    // Equal keys would let the id break the tie: make them strictly increasing.
+    for i in 1..keys.len() {
+        if keys[i] <= keys[i - 1] {
+            keys[i] = keys[i - 1] + 1;
+        }
+    }
+    for (id, key) in body.ids.iter().zip(&keys) {
+        sqlx::query("UPDATE questions SET sort_key = ? WHERE id = ?")
+            .bind(key)
+            .bind(id)
+            .execute(&mut *tx)
+            .await?;
+    }
+    tx.commit().await?;
+    state
+        .live
+        .send(me.group_id, Event::QuestionAdded { question_id: 0 });
+    Ok(Json(json!({ "ordered": body.ids.len() })))
 }
 
 /// Remove a question that hasn't been asked yet: its author or the room owner.
