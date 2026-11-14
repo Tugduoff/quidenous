@@ -1707,27 +1707,6 @@ async fn upcoming_questions_can_be_reordered() {
     }
     let (_, queue) = call(&app, "GET", "/questions/queue", Some(&ana), None).await;
     assert_eq!(ids(&queue), full);
-    // Another room's questions can't be ordered from here.
-    let (_, room) = call(
-        &app,
-        "POST",
-        "/rooms",
-        Some(&bob),
-        Some(json!({ "name": "Ailleurs" })),
-    )
-    .await;
-    let (s, _) = call_room(
-        &app,
-        "POST",
-        "/questions/order",
-        &bob,
-        room["id"].as_i64().unwrap(),
-        Some(json!({ "ids": full })),
-    )
-    .await;
-    assert_eq!(s, StatusCode::CONFLICT);
-    let (_, queue) = call(&app, "GET", "/questions/queue", Some(&ana), None).await;
-    assert_eq!(ids(&queue), full);
     // Owner-only questions: members can't reorder either.
     let (_, g) = call(&app, "GET", "/group", Some(&ana), None).await;
     call(
@@ -1757,6 +1736,27 @@ async fn upcoming_questions_can_be_reordered() {
     )
     .await;
     assert_eq!(s, StatusCode::OK);
+    let (_, queue) = call(&app, "GET", "/questions/queue", Some(&ana), None).await;
+    assert_eq!(ids(&queue), reversed);
+    // Another room's questions can't be ordered from here.
+    let (_, room) = call(
+        &app,
+        "POST",
+        "/rooms",
+        Some(&bob),
+        Some(json!({ "name": "Ailleurs" })),
+    )
+    .await;
+    let (s, _) = call_room(
+        &app,
+        "POST",
+        "/questions/order",
+        &bob,
+        room["id"].as_i64().unwrap(),
+        Some(json!({ "ids": reversed })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::CONFLICT);
     let (_, queue) = call(&app, "GET", "/questions/queue", Some(&ana), None).await;
     assert_eq!(ids(&queue), reversed);
 }
