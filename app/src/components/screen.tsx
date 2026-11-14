@@ -16,6 +16,7 @@ export function Screen({
   onScroll,
   onContentSizeChange,
   overlay,
+  scrollEnabled = true,
 }: {
   children: ReactNode;
   footer?: ReactNode;
@@ -29,6 +30,8 @@ export function Screen({
   onContentSizeChange?: ScrollViewProps['onContentSizeChange'];
   /** Floats over the top of the content (a pinned summary), outside the scroll. */
   overlay?: ReactNode;
+  /** Off while something on the page is being dragged. */
+  scrollEnabled?: boolean;
 }) {
   const t = useTheme();
   // The web's ScrollView keeps the ref it was mounted with: one of our own, handed out after each render.
@@ -45,6 +48,7 @@ export function Screen({
       <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
         <ScrollView
           ref={inner}
+          scrollEnabled={scrollEnabled}
           contentContainerStyle={{ padding: 20, gap: 16, flexGrow: 1 }}
           scrollEventThrottle={onScroll ? 32 : 200}
           onContentSizeChange={onContentSizeChange}

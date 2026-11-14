@@ -97,6 +97,8 @@ export function useFeatures() {
     community: on.has('community'),
     /** Party mode: one question at a time for people in the same place (docs/PARTY.md). */
     party: on.has('party'),
+    /** The room's upcoming questions can be put in any order (`POST /questions/order`). */
+    reorder: on.has('reorder'),
   };
 }
 

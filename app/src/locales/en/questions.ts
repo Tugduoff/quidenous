@@ -34,6 +34,7 @@ export const questions: Messages['questions'] = {
   importFailed: 'Import failed',
   shuffled: 'Shuffled',
   shuffleFailed: 'Shuffle failed',
+  reorderFailed: "Couldn't save the order",
   upcoming: 'Up next',
   shuffleUpcoming: 'Shuffle upcoming questions',
   deleteQuestion: 'Delete question',

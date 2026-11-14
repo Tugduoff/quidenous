@@ -1629,6 +1629,139 @@ async fn upcoming_questions_can_be_shuffled() {
 }
 
 #[tokio::test]
+async fn upcoming_questions_can_be_reordered() {
+    let app = test_app().await;
+    let (ana, _) = join(&app, "Ana").await; // owner
+    let (bob, _) = join(&app, "Bob").await;
+    let text = (1..=5)
+        .map(|i| format!("Qui gagnerait le concours numéro {i} ?"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let (s, _) = call(
+        &app,
+        "POST",
+        "/questions/import",
+        Some(&bob),
+        Some(json!({ "text": text })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK);
+    let ids = |q: &Value| -> Vec<i64> {
+        q["custom"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|x| x["id"].as_i64().unwrap())
+            .collect()
+    };
+    let (_, features) = call(&app, "GET", "/features", None, None).await;
+    assert!(features.as_array().unwrap().contains(&json!("reorder")));
+    let (_, before) = call(&app, "GET", "/questions/queue", Some(&ana), None).await;
+    let before = ids(&before);
+    assert_eq!(before.len(), 5);
+    // Move the last question to the top, swap the next two.
+    let wanted = vec![before[4], before[0], before[2], before[1], before[3]];
+    let (s, res) = call(
+        &app,
+        "POST",
+        "/questions/order",
+        Some(&bob),
+        Some(json!({ "ids": wanted })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(res["ordered"], 5);
+    let (_, after) = call(&app, "GET", "/questions/queue", Some(&ana), None).await;
+    assert_eq!(ids(&after), wanted);
+    // A question added afterwards still goes to the end.
+    let (_, q) = call(
+        &app,
+        "POST",
+        "/questions",
+        Some(&ana),
+        Some(json!({ "text": "Qui arrive toujours en dernier ?" })),
+    )
+    .await;
+    let new_id = q["id"].as_i64().unwrap();
+    let (_, queue) = call(&app, "GET", "/questions/queue", Some(&ana), None).await;
+    assert_eq!(ids(&queue)[..5], wanted[..]);
+    assert_eq!(*ids(&queue).last().unwrap(), new_id);
+    // A stale list (missing the new question), duplicates or unknown ids: 409, nothing changes.
+    let mut full = wanted.clone();
+    full.push(new_id);
+    for bad in [
+        wanted.clone(),
+        vec![full[0], full[0], full[1], full[2], full[3], full[4]],
+        [full.clone(), vec![999_999]].concat(),
+    ] {
+        let (s, res) = call(
+            &app,
+            "POST",
+            "/questions/order",
+            Some(&ana),
+            Some(json!({ "ids": bad })),
+        )
+        .await;
+        assert_eq!(s, StatusCode::CONFLICT);
+        assert_eq!(res["error"], "stale_queue");
+    }
+    let (_, queue) = call(&app, "GET", "/questions/queue", Some(&ana), None).await;
+    assert_eq!(ids(&queue), full);
+    // Owner-only questions: members can't reorder either.
+    let (_, g) = call(&app, "GET", "/group", Some(&ana), None).await;
+    call(
+        &app,
+        "PATCH",
+        &format!("/rooms/{}", g["id"]),
+        Some(&ana),
+        Some(json!({ "questions_by": "owner" })),
+    )
+    .await;
+    let reversed: Vec<i64> = full.iter().rev().copied().collect();
+    let (s, _) = call(
+        &app,
+        "POST",
+        "/questions/order",
+        Some(&bob),
+        Some(json!({ "ids": reversed })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+    let (s, _) = call(
+        &app,
+        "POST",
+        "/questions/order",
+        Some(&ana),
+        Some(json!({ "ids": reversed })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK);
+    let (_, queue) = call(&app, "GET", "/questions/queue", Some(&ana), None).await;
+    assert_eq!(ids(&queue), reversed);
+    // Another room's questions can't be ordered from here.
+    let (_, room) = call(
+        &app,
+        "POST",
+        "/rooms",
+        Some(&bob),
+        Some(json!({ "name": "Ailleurs" })),
+    )
+    .await;
+    let (s, _) = call_room(
+        &app,
+        "POST",
+        "/questions/order",
+        &bob,
+        room["id"].as_i64().unwrap(),
+        Some(json!({ "ids": reversed })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::CONFLICT);
+    let (_, queue) = call(&app, "GET", "/questions/queue", Some(&ana), None).await;
+    assert_eq!(ids(&queue), reversed);
+}
+
+#[tokio::test]
 async fn blocking_hides_messages_and_friend_requests() {
     let app = test_app().await;
     let (ana, ana_id) = join(&app, "Ana").await;
