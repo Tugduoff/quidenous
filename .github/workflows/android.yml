@@ -24,6 +24,9 @@ jobs:
       # GitHub's Ubuntu image ships the Android SDK; the Mac runner gets it here.
       - uses: android-actions/setup-android@v3
         if: runner.os == 'macOS'
+        with:
+          # The default also asks for the long-gone 'tools' package; Gradle fetches platforms/build-tools itself.
+          packages: platform-tools
       - uses: actions/setup-node@v4
         with:
           node-version: 24
