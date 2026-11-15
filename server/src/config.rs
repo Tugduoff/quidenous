@@ -34,6 +34,11 @@ pub struct Config {
     /// `UPDATES_PUBLISH_TOKEN`: bearer token CI uses to publish OTA updates (`/api/updates/publish`).
     /// Absent: publishing and the update admin endpoints answer 404.
     pub updates_publish_token: Option<String>,
+    /// `UPDATES_CERTIFICATE`: path to the OTA code signing certificate (PEM, the one the apps
+    /// embed). Set: publishing refuses unsigned updates and signatures it doesn't verify.
+    pub updates_certificate: Option<PathBuf>,
+    /// `CLIENT_ERRORS_WEBHOOK`: Discord webhook URL that app crash reports are forwarded to.
+    pub client_errors_webhook: Option<String>,
     /// `ADMIN_USER_IDS`: accounts that moderate community packs and suggestions (comma-separated ids).
     pub admin_user_ids: Vec<i64>,
 }
@@ -177,6 +182,8 @@ impl Config {
                 .unwrap_or_default(),
             report_email: var("REPORT_EMAIL"),
             updates_publish_token: var("UPDATES_PUBLISH_TOKEN"),
+            updates_certificate: var("UPDATES_CERTIFICATE").map(PathBuf::from),
+            client_errors_webhook: var("CLIENT_ERRORS_WEBHOOK"),
             admin_user_ids: var("ADMIN_USER_IDS")
                 .map(|v| v.split(',').filter_map(|s| s.trim().parse().ok()).collect())
                 .unwrap_or_default(),

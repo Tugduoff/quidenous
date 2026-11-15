@@ -1,15 +1,16 @@
 #!/usr/bin/env node
 // Over-the-air updates (expo-updates protocol v1) on our own server. See docs/OTA.md.
 //
-//   node scripts/ota-publish.mjs --runtime <rv> [--dist dist] [--platform android] [--created-at <ISO>] [--out update.tar.gz]
-//       publishes `npx expo export` output (dist/) for the builds whose runtime is <rv>
+//   node scripts/ota-publish.mjs --runtime <rv> [--dist dist] [--platform android] [--created-at <ISO>] [--expo-config <file>] [--out update.tar.gz]
+//       publishes `npx expo export` output (dist/) for the builds whose runtime is <rv>; --expo-config: the output of
+//       `npx expo config --json --type public` saved with the export (then this script needs no node_modules)
 //   node scripts/ota-publish.mjs --rollback-embedded [--runtime <rv>]
 //       phones go back to the bundle inside their APK (every runtime the server serves, unless --runtime)
 //   --url https://qdn.coflop.fr (default)
 //
 // The manifest is built and signed here (CI): the private key never reaches the server, which stores and serves the
-// signed bytes as they are. Env: UPDATES_PUBLISH_TOKEN (required unless --out), UPDATES_PRIVATE_KEY (PEM; without it
-// the update is unsigned, and phones, which hold the code signing certificate, refuse it).
+// signed bytes as they are. Env: UPDATES_PUBLISH_TOKEN (required unless --out), UPDATES_PRIVATE_KEY (PEM; required
+// unless --out: phones hold the code signing certificate and refuse anything unsigned).
 import { execFileSync } from 'node:child_process';
 import { createHash, randomUUID, sign } from 'node:crypto';
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -26,6 +27,7 @@ const { values: args } = parseArgs({
     out: { type: 'string' },
     // The build's embedded bundle time: a phone running that very build doesn't download the same JS again.
     'created-at': { type: 'string' },
+    'expo-config': { type: 'string' },
     'rollback-embedded': { type: 'boolean', default: false },
   },
 });
@@ -78,7 +80,11 @@ function manifest(work, runtime) {
     return { hash: sha256(bytes), key, contentType, fileExtension: `.${ext}`, url: `${base}/api/updates/assets/${runtime}/${id}/${name}` };
   };
   // Constants.expoConfig inside the update (version, extra…): the public app config, resolved with the same env as the build.
-  const expoClient = JSON.parse(execFileSync('npx', ['expo', 'config', '--json', '--type', 'public'], { encoding: 'utf8' }));
+  const expoClient = JSON.parse(
+    args['expo-config']
+      ? readFileSync(args['expo-config'], 'utf8')
+      : execFileSync('npx', ['expo', 'config', '--json', '--type', 'public'], { encoding: 'utf8' }),
+  );
   return {
     id,
     createdAt: new Date(args['created-at'] ?? Date.now()).toISOString(),
@@ -97,6 +103,7 @@ async function publish(kind, runtime, platform, build) {
   try {
     const body = Buffer.from(JSON.stringify(build(work)));
     const sig = signature(body);
+    if (!sig && !args.out) throw new Error('UPDATES_PRIVATE_KEY is not set: phones refuse unsigned updates');
     if (!sig) console.warn('UPDATES_PRIVATE_KEY not set: unsigned, phones will refuse it');
     writeFileSync(join(work, 'body.json'), body);
     writeFileSync(join(work, 'update.json'), JSON.stringify({ kind, platform, runtimeVersion: runtime, ...(sig && { signature: sig }) }));

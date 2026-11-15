@@ -5,6 +5,10 @@
 //! `expo-signature` value, and serves them verbatim (the signing key never reaches it).
 //!
 //! Layout: `DATA_DIR/updates/<runtime>/<id>/{body.json, meta.json, assets/<name>}`.
+//!
+//! With `UPDATES_CERTIFICATE` (the code signing certificate the apps embed) the server also
+//! refuses unsigned uploads and signatures that don't match it: a leaked publish token alone
+//! can't make OTA stall on an update every phone rejects.
 
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
@@ -398,6 +402,26 @@ async fn serve_manifest(
 
 // ---------- GET /updates/assets/{runtime}/{id}/{name} ----------
 
+/// The Content-Type an asset is served with, from its extension (never the publisher's own
+/// value: an HTML or SVG "asset" would otherwise run as a page on our domain). Phones don't
+/// read it (they use the manifest's `contentType`), so anything unexpected is a plain download.
+fn asset_content_type(name: &str) -> &'static str {
+    let ext = name.rsplit_once('.').map(|(_, e)| e.to_ascii_lowercase());
+    match ext.as_deref() {
+        Some("bundle" | "hbc" | "js") => "application/javascript",
+        Some("json") => "application/json",
+        Some("png") => "image/png",
+        Some("jpg" | "jpeg") => "image/jpeg",
+        Some("gif") => "image/gif",
+        Some("webp") => "image/webp",
+        Some("ttf") => "font/ttf",
+        Some("otf") => "font/otf",
+        Some("mp3") => "audio/mpeg",
+        Some("mp4") => "video/mp4",
+        _ => "application/octet-stream",
+    }
+}
+
 async fn asset(
     State(state): State<AppState>,
     UrlPath((runtime, id, name)): UrlPath<(String, String, String)>,
@@ -410,20 +434,25 @@ async fn asset(
         Ok(bytes) => serde_json::from_slice(&bytes).map_err(|_| AppError::NotFound)?,
         Err(_) => return Err(AppError::NotFound),
     };
+    if !meta.assets.contains_key(&name) {
+        return Err(AppError::NotFound);
+    }
     let bytes = tokio::fs::read(dir.join("assets").join(&name))
         .await
         .map_err(|_| AppError::NotFound)?;
-    let content_type = meta
-        .assets
-        .get(&name)
-        .and_then(|t| HeaderValue::from_str(t).ok())
-        .unwrap_or(HeaderValue::from_static("application/octet-stream"));
     Ok((
         [
-            (header::CONTENT_TYPE, content_type),
+            (
+                header::CONTENT_TYPE,
+                HeaderValue::from_static(asset_content_type(&name)),
+            ),
             (
                 header::CACHE_CONTROL,
                 HeaderValue::from_static("public, max-age=31536000, immutable"),
+            ),
+            (
+                header::X_CONTENT_TYPE_OPTIONS,
+                HeaderValue::from_static("nosniff"),
             ),
         ],
         bytes,
@@ -446,10 +475,16 @@ async fn publish(State(state): State<AppState>, req: Request) -> AppResult<Respo
                 .into_response());
         }
     };
+    let certificate = match &state.config.updates_certificate {
+        Some(path) => Some(tokio::fs::read(path).await.map_err(|e| {
+            AppError::Internal(format!("UPDATES_CERTIFICATE {}: {e}", path.display()))
+        })?),
+        None => None,
+    };
     let updates = updates_dir(&state);
     let _guard = PUBLISH.lock().await;
     let job = updates.clone();
-    let meta = tokio::task::spawn_blocking(move || store(&job, archive))
+    let meta = tokio::task::spawn_blocking(move || store(&job, archive, certificate.as_deref()))
         .await
         .map_err(|e| AppError::Internal(format!("publish task: {e}")))??;
     retain(&updates.join(&meta.runtime_version), &meta.platform).await?;
@@ -604,9 +639,89 @@ fn check_asset(
     Ok(name.to_owned())
 }
 
+/// The base64 signature of an `expo-signature` value (`sig="…", keyid="main"`).
+fn signature_value(header: &str) -> Option<&str> {
+    header.split(',').find_map(|part| {
+        part.trim()
+            .strip_prefix("sig=\"")
+            .and_then(|v| v.strip_suffix('"'))
+    })
+}
+
+/// Checks an `expo-signature` (RSA PKCS#1 v1.5 over SHA-256 of the exact body bytes, as
+/// ota-publish.mjs signs and expo-updates verifies) against the configured certificate.
+fn verify_signature(certificate: &[u8], signature: &str, body: &[u8]) -> AppResult<()> {
+    let key = jsonwebtoken::DecodingKey::from_rsa_pem(certificate)
+        .map_err(|e| AppError::Internal(format!("UPDATES_CERTIFICATE unreadable: {e}")))?;
+    let raw = signature_value(signature)
+        .and_then(|s| base64::engine::general_purpose::STANDARD.decode(s).ok())
+        .ok_or(AppError::BadRequest("bad_signature"))?;
+    let ok = jsonwebtoken::crypto::verify(
+        &URL_SAFE_NO_PAD.encode(raw),
+        body,
+        &key,
+        jsonwebtoken::Algorithm::RS256,
+    )
+    .unwrap_or(false);
+    if ok {
+        Ok(())
+    } else {
+        Err(AppError::BadRequest("bad_signature"))
+    }
+}
+
+/// Unix millis of an ISO 8601 UTC date (`2026-01-31T12:34:56.789Z`, fraction optional).
+fn parse_iso_millis(s: &str) -> Option<u64> {
+    let s = s.strip_suffix('Z').or_else(|| s.strip_suffix("+00:00"))?;
+    let (date, time) = s.split_once('T')?;
+    let mut d = date.splitn(3, '-').map(|p| p.parse::<i64>().ok());
+    let (y, m, day) = (d.next()??, d.next()??, d.next()??);
+    let (hms, frac) = time.split_once('.').unwrap_or((time, ""));
+    let mut t = hms.splitn(3, ':').map(|p| p.parse::<u64>().ok());
+    let (hh, mm, ss) = (t.next()??, t.next()??, t.next()??);
+    if !(1..=12).contains(&m) || !(1..=31).contains(&day) || hh > 23 || mm > 59 || ss > 60 {
+        return None;
+    }
+    if !frac.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    let ms = format!("{frac:0<3}")[..3].parse::<u64>().ok()?;
+    // Howard Hinnant's days_from_civil.
+    let y = if m <= 2 { y - 1 } else { y };
+    let era = y.div_euclid(400);
+    let yoe = y.rem_euclid(400);
+    let mp = (m + 9) % 12;
+    let doy = (153 * mp + 2) / 5 + day - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    let days = u64::try_from(era * 146_097 + doe - 719_468).ok()?;
+    Some(((days * 86_400 + hh * 3600 + mm * 60 + ss) * 1000) + ms)
+}
+
+/// `createdAt` of the newest stored update (directives aside) of a runtime and platform.
+fn newest_update_time(runtime_dir: &Path, platform: &str) -> std::io::Result<Option<u64>> {
+    let dir = match std::fs::read_dir(runtime_dir) {
+        Ok(d) => d,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(e) => return Err(e),
+    };
+    let mut newest = None;
+    for entry in dir.flatten() {
+        let Ok(bytes) = std::fs::read(entry.path().join("meta.json")) else {
+            continue;
+        };
+        let Ok(meta) = serde_json::from_slice::<Meta>(&bytes) else {
+            continue;
+        };
+        if meta.kind == Kind::Update && meta.platform == platform {
+            newest = newest.max(parse_iso_millis(&meta.created_at));
+        }
+    }
+    Ok(newest)
+}
+
 /// Unpacks, validates and moves the archive into place. Runs on a blocking thread, under
-/// the publish lock.
-fn store(updates: &Path, archive: Bytes) -> AppResult<Meta> {
+/// the publish lock. `certificate`: signatures are required and checked against it.
+fn store(updates: &Path, archive: Bytes, certificate: Option<&[u8]>) -> AppResult<Meta> {
     std::fs::create_dir_all(updates)?;
     let tmp_path = updates.join(format!("{TMP_PREFIX}{}", random_hex(8)));
     let mut tmp = TmpDir(Some(tmp_path.clone()));
@@ -637,6 +752,13 @@ fn store(updates: &Path, archive: Bytes) -> AppResult<Meta> {
     {
         return Err(AppError::BadRequest("bad_signature"));
     }
+    if let Some(cert) = certificate {
+        let sig = descriptor
+            .signature
+            .as_deref()
+            .ok_or(AppError::BadRequest("unsigned_update"))?;
+        verify_signature(cert, sig, &body)?;
+    }
 
     let published_at = next_published_at();
     let (id, created_at, assets) = match descriptor.kind {
@@ -648,6 +770,15 @@ fn store(updates: &Path, archive: Bytes) -> AppResult<Meta> {
             }
             if m.runtime_version != runtime {
                 return Err(AppError::BadRequest("runtime_version_mismatch"));
+            }
+            // Two CI runs finishing out of order must not serve the older JS as the newest:
+            // phones that already run the newer one would get nothing more until the next
+            // publish, and the others would get the older code. Same time: a re-run, fine.
+            let created =
+                parse_iso_millis(&m.created_at).ok_or(AppError::BadRequest("bad_created_at"))?;
+            let newest = newest_update_time(&updates.join(&runtime), &descriptor.platform)?;
+            if newest.is_some_and(|n| created < n) {
+                return Err(AppError::Conflict("older_than_current"));
             }
             if [&m.metadata, &m.extra]
                 .iter()
@@ -838,6 +969,35 @@ mod tests {
     fn iso_dates() {
         assert_eq!(iso_millis(0), "1970-01-01T00:00:00.000Z");
         assert_eq!(iso_millis(1_709_210_096_789), "2024-02-29T12:34:56.789Z");
+        for ms in [0, 1_709_210_096_789, 1_763_200_000_123, 951_782_400_000] {
+            assert_eq!(parse_iso_millis(&iso_millis(ms)), Some(ms));
+        }
+        assert_eq!(
+            parse_iso_millis("2024-02-29T12:34:56Z"),
+            Some(1_709_210_096_000)
+        );
+        assert_eq!(
+            parse_iso_millis("2024-02-29T12:34:56.7+00:00"),
+            Some(1_709_210_096_700)
+        );
+        for bad in [
+            "",
+            "2024-02-29",
+            "2024-02-29T12:34:56",
+            "2024-13-01T00:00:00Z",
+            "x",
+        ] {
+            assert_eq!(parse_iso_millis(bad), None, "{bad}");
+        }
+    }
+
+    #[test]
+    fn content_types_come_from_the_extension() {
+        assert_eq!(asset_content_type("a.hbc"), "application/javascript");
+        assert_eq!(asset_content_type("a.PNG"), "image/png");
+        for name in ["a.html", "a.svg", "a.xml", "noext"] {
+            assert_eq!(asset_content_type(name), "application/octet-stream");
+        }
     }
 
     #[test]
