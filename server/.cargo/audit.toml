@@ -1,0 +1,9 @@
+# cargo audit (CI job `audit` in .github/workflows/server.yml)
+[advisories]
+ignore = [
+    # rsa (via jsonwebtoken): Marvin attack, a timing side channel on operations with an RSA *private* key. Here RSA
+    # verifies signatures with public keys (Google ID tokens, OTA certificates), and the only private-key use is
+    # signing the FCM OAuth assertion, server-initiated, about once an hour: no attacker-triggered private-key
+    # operation to time. No fixed rsa release yet; re-check when there is one.
+    "RUSTSEC-2023-0071",
+]

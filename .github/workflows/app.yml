@@ -1,0 +1,43 @@
+name: app
+# Type-checks the app (also catches a French string missing in English, docs/I18N.md). A required check on main.
+on:
+  pull_request:
+  push:
+    branches: [main]
+    tags: ["v*"]
+permissions:
+  contents: read
+concurrency:
+  group: app-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+jobs:
+  app:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          # Tag builds compare app.json with the previous tag.
+          fetch-depth: ${{ startsWith(github.ref, 'refs/tags/') && '0' || '1' }}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - run: npm ci --no-audit --no-fund --ignore-scripts
+      - run: npx tsc --noEmit
+      - name: Version matches the tag, versionCode goes up
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          field() { node -e 'const a=JSON.parse(require("fs").readFileSync(0,"utf8")).expo; console.log(process.argv[1]==="code" ? a.android.versionCode : a.version)' "$1"; }
+          tag="${GITHUB_REF_NAME}"
+          version=$(field version < app.json)
+          code=$(field code < app.json)
+          [ "v$version" = "$tag" ] || { echo "::error file=app/app.json::version $version does not match tag $tag"; exit 1; }
+          prev=$(git describe --tags --abbrev=0 --match 'v*' "${GITHUB_SHA}^" 2>/dev/null || true)
+          if [ -z "$prev" ]; then echo "no previous tag"; exit 0; fi
+          prev_code=$(git show "$prev:app/app.json" | field code)
+          echo "versionCode $code (previous tag $prev: $prev_code)"
+          [ "$code" -gt "$prev_code" ] || { echo "::error file=app/app.json::versionCode $code must be greater than $prev_code ($prev)"; exit 1; }

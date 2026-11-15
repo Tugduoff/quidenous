@@ -1,9 +1,18 @@
 name: server
 on:
+  # Pushes to main and tags only: a branch with a PR is already checked by pull_request (no double run).
   push:
+    branches: [main]
+    tags: ["v*"]
     paths: ["server/**", "app/**", "Dockerfile", ".github/workflows/server.yml"]
   pull_request:
     paths: ["server/**", "app/**", "Dockerfile", ".github/workflows/server.yml"]
+permissions:
+  contents: read
+concurrency:
+  group: server-${{ github.event.pull_request.number || github.ref }}
+  # A newer push supersedes a running check; tag runs always finish (deploys wait for them, deploy/wait-green.sh).
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
 jobs:
   check:
     # Tug's Mac only for pushes and PRs from this repo: the repo is public, and a PR from a fork must never run
@@ -13,11 +22,14 @@ jobs:
       run:
         working-directory: server
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      # Pinned (same as the Dockerfile's rust image): a new stable with new clippy lints can't turn this red by itself.
+      # Bump both together.
+      - uses: dtolnay/rust-toolchain@df2a88e9fe4098bad09cb42c3dec7187f15861fc # master 2026-11-15
         with:
+          toolchain: 1.99.1
           components: clippy, rustfmt
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: server
       - run: cargo fmt --check
@@ -26,3 +38,21 @@ jobs:
       # Docker only on GitHub's Ubuntu (the Mac runner has no Docker).
       - run: docker build -t quidenous ..
         if: runner.os == 'Linux'
+  # Known vulnerabilities in the dependencies (RustSec). Not a required check: a new advisory shows up here without
+  # blocking unrelated PRs. Ignored advisories, with the reason: server/.cargo/audit.toml.
+  audit:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: dtolnay/rust-toolchain@df2a88e9fe4098bad09cb42c3dec7187f15861fc # master 2026-11-15
+        with:
+          toolchain: 1.99.1
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.cargo/bin/cargo-audit
+          key: cargo-audit-0.23-${{ runner.os }}
+      - run: command -v cargo-audit || cargo install cargo-audit --locked --version ^0.23
+      - run: cargo audit
