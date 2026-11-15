@@ -47,6 +47,11 @@ const JSON_MAX: u64 = 8 * 1024 * 1024;
 const KEEP: usize = 5;
 const TMP_PREFIX: &str = ".tmp-";
 const STALE_TMP: Duration = Duration::from_secs(3600);
+/// A runtime (native build) with nothing published for this long is removed, unless it is
+/// one of the [`KEEP_RUNTIMES`] most recently published: phones still on that build keep the
+/// JS they already downloaded, and need an APK update anyway.
+const RUNTIME_IDLE: Duration = Duration::from_secs(120 * 86_400);
+const KEEP_RUNTIMES: usize = 4;
 const JSON_UTF8: &str = "application/json; charset=utf-8";
 
 /// One publish (or delete) at a time: retention and duplicate checks stay simple.
@@ -488,6 +493,7 @@ async fn publish(State(state): State<AppState>, req: Request) -> AppResult<Respo
         .await
         .map_err(|e| AppError::Internal(format!("publish task: {e}")))??;
     retain(&updates.join(&meta.runtime_version), &meta.platform).await?;
+    prune_runtimes(&updates).await?;
     sweep_tmp(&updates).await;
     tracing::info!(
         id = %meta.id,
@@ -873,6 +879,34 @@ async fn retain(runtime_dir: &Path, platform: &str) -> std::io::Result<()> {
     for (dir, meta) in list.into_iter().skip(KEEP) {
         tracing::info!(id = %meta.id, runtime = %meta.runtime_version, platform, "old update removed");
         tokio::fs::remove_dir_all(dir).await?;
+    }
+    Ok(())
+}
+
+/// Removes the runtime dirs of old native builds (see [`RUNTIME_IDLE`]).
+async fn prune_runtimes(updates: &Path) -> std::io::Result<()> {
+    let mut runtimes = Vec::new();
+    let mut dir = tokio::fs::read_dir(updates).await?;
+    while let Some(entry) = dir.next_entry().await? {
+        let name = entry.file_name().to_string_lossy().into_owned();
+        if !valid_runtime(&name) || !entry.file_type().await?.is_dir() {
+            continue;
+        }
+        let last = entries(&entry.path())
+            .await?
+            .iter()
+            .map(|(_, m)| m.published_at)
+            .max()
+            .unwrap_or(0);
+        runtimes.push((last, entry.path()));
+    }
+    runtimes.sort_by_key(|(last, _)| std::cmp::Reverse(*last));
+    let cutoff = now_millis().saturating_sub(RUNTIME_IDLE.as_millis() as u64);
+    for (last, path) in runtimes.into_iter().skip(KEEP_RUNTIMES) {
+        if last < cutoff {
+            tracing::info!(runtime = %path.display(), "old runtime removed");
+            tokio::fs::remove_dir_all(path).await?;
+        }
     }
     Ok(())
 }

@@ -1003,3 +1003,48 @@ fn the_app_certificate_can_verify_signatures() {
     let pem = include_bytes!("../../app/certs/certificate.pem");
     assert!(jsonwebtoken::DecodingKey::from_rsa_pem(pem).is_ok());
 }
+
+#[tokio::test]
+async fn runtimes_idle_for_months_are_removed_but_the_latest_four_stay() {
+    let (app, dir) = test_app(Some(TOKEN)).await;
+    let updates = dir.join("updates");
+    // Six old runtimes, last published 200 days ago (one a day apart), as an older server left them.
+    let day = 86_400_000u64;
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as u64;
+    for n in 0..6u64 {
+        let entry = updates.join(format!("old-{n}")).join(uuid(n as u32));
+        std::fs::create_dir_all(&entry).unwrap();
+        let meta = json!({
+            "id": uuid(n as u32), "kind": "update", "platform": "android", "runtimeVersion": format!("old-{n}"),
+            "createdAt": "2026-01-01T00:00:00.000Z", "publishedAt": now - (200 + n) * day, "assets": {},
+        });
+        std::fs::write(entry.join("meta.json"), meta.to_string()).unwrap();
+    }
+    // A runtime still in use (published 10 days ago) stays whatever its rank.
+    let recent = updates.join("recent").join(uuid(99));
+    std::fs::create_dir_all(&recent).unwrap();
+    let meta = json!({
+        "id": uuid(99), "kind": "update", "platform": "android", "runtimeVersion": "recent",
+        "createdAt": "2026-01-01T00:00:00.000Z", "publishedAt": now - 10 * day, "assets": {},
+    });
+    std::fs::write(recent.join("meta.json"), meta.to_string()).unwrap();
+
+    let (archive, _) = update_archive(RV, "android", &manifest_body(RV, &uuid(1000)));
+    assert_eq!(
+        publish(&app, Some(TOKEN), archive).await.0,
+        StatusCode::CREATED
+    );
+    // Kept: the new one, "recent", and the two most recent old ones (4 in all); the rest is gone.
+    let mut left: Vec<String> = std::fs::read_dir(&updates)
+        .unwrap()
+        .flatten()
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .filter(|n| !n.starts_with('.'))
+        .collect();
+    left.sort();
+    assert_eq!(left, [RV, "old-0", "old-1", "recent"]);
+    assert_eq!(served(&app, RV, "android").await, Some(uuid(1000)));
+}
