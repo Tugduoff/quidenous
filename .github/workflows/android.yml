@@ -9,7 +9,9 @@ on:
     paths: ["app/**", ".github/workflows/android.yml"]
 jobs:
   apk:
-    runs-on: ubuntu-latest
+    # Tug's Mac (self-hosted, label tug-mac) when it's online, else GitHub's Ubuntu: the Pi flips the
+    # QDN_RUNNER repo variable (pivot-bot/mac-runner-watch). Unset = ubuntu-latest.
+    runs-on: ${{ fromJSON(vars.QDN_RUNNER || '"ubuntu-latest"') }}
     defaults:
       run:
         working-directory: app
@@ -19,6 +21,12 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
+      # GitHub's Ubuntu image ships the Android SDK; the Mac runner gets it here.
+      - uses: android-actions/setup-android@v3
+        if: runner.os == 'macOS'
+        with:
+          # The default also asks for the long-gone 'tools' package; Gradle fetches platforms/build-tools itself.
+          packages: platform-tools
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -44,7 +52,7 @@ jobs:
         env:
           EXPO_PUBLIC_DISTRIBUTION: sideload
       - name: APK can update itself
-        run: unzip -p app/build/outputs/apk/release/app-release.apk AndroidManifest.xml | tr -d '\0' | grep -c REQUEST_INSTALL_PACKAGES >/dev/null
+        run: unzip -p app/build/outputs/apk/release/app-release.apk AndroidManifest.xml | LC_ALL=C tr -d '\0' | LC_ALL=C grep -c REQUEST_INSTALL_PACKAGES >/dev/null
         working-directory: app/android
       - uses: actions/upload-artifact@v4
         with:
@@ -86,11 +94,11 @@ jobs:
           [ -f "$UPLOAD_STORE_FILE" ] || { echo "no upload key, skipping"; exit 0; }
           # No self-update on Google Play: drop the install permission and rebuild the JS without the sideload flag
           # (fresh Metro cache, JS bundle task forced to run again).
-          sed -i '/android.permission.REQUEST_INSTALL_PACKAGES/d' app/src/main/AndroidManifest.xml
+          sed -i.bak '/android.permission.REQUEST_INSTALL_PACKAGES/d' app/src/main/AndroidManifest.xml && rm app/src/main/AndroidManifest.xml.bak
           rm -rf "${TMPDIR:-/tmp}"/metro-* "${TMPDIR:-/tmp}"/haste-map-*
           # expo-updates' resources (runtime fingerprint, embedded manifest) depend on the app config too: redo them.
           ./gradlew createReleaseUpdatesResources --rerun createBundleReleaseJsAndAssets --rerun bundleRelease -PplayUpload -PreactNativeArchitectures=arm64-v8a,armeabi-v7a,x86_64 --no-daemon
-          if unzip -p app/build/outputs/bundle/release/app-release.aab base/manifest/AndroidManifest.xml | tr -d '\0' | grep -c REQUEST_INSTALL_PACKAGES >/dev/null; then
+          if unzip -p app/build/outputs/bundle/release/app-release.aab base/manifest/AndroidManifest.xml | LC_ALL=C tr -d '\0' | LC_ALL=C grep -c REQUEST_INSTALL_PACKAGES >/dev/null; then
             echo "::error::REQUEST_INSTALL_PACKAGES must not be in the Play bundle"; exit 1
           fi
           # Permissions the app never uses (blockedPermissions in app.json): they would show on the Play listing.
@@ -143,3 +151,8 @@ jobs:
         run: |
           npx expo export --platform android --clear --output-dir dist-ota-play
           node scripts/ota-publish.mjs --dist dist-ota-play --runtime "$OTA_AAB_RUNTIME" --created-at "$OTA_AAB_TIME"
+      # Self-hosted runners keep their workspace between jobs: don't leave secrets behind on Tug's Mac.
+      - name: Clean up secrets (self-hosted)
+        if: always() && runner.environment == 'self-hosted'
+        run: rm -f app/google-services.json app/android/app/google-services.json "$RUNNER_TEMP"/upload.p12
+        working-directory: ${{ github.workspace }}
