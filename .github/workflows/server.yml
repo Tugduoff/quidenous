@@ -6,7 +6,9 @@ on:
     paths: ["server/**", "app/**", "Dockerfile", ".github/workflows/server.yml"]
 jobs:
   check:
-    runs-on: ${{ fromJSON(vars.QDN_RUNNER || '"ubuntu-latest"') }}
+    # Tug's Mac only for pushes and PRs from this repo: the repo is public, and a PR from a fork must never run
+    # code (build scripts, tests) on a self-hosted machine. Forks always build on GitHub's Ubuntu.
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON(vars.QDN_RUNNER || '"ubuntu-latest"') || 'ubuntu-latest' }}
     defaults:
       run:
         working-directory: server

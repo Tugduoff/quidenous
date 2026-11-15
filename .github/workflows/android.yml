@@ -145,3 +145,8 @@ jobs:
         run: |
           npx expo export --platform android --clear --output-dir dist-ota-play
           node scripts/ota-publish.mjs --dist dist-ota-play --runtime "$OTA_AAB_RUNTIME" --created-at "$OTA_AAB_TIME"
+      # Self-hosted runners keep their workspace between jobs: don't leave secrets behind on Tug's Mac.
+      - name: Clean up secrets (self-hosted)
+        if: always() && runner.environment == 'self-hosted'
+        run: rm -f app/google-services.json app/android/app/google-services.json "$RUNNER_TEMP"/upload.p12
+        working-directory: ${{ github.workspace }}
