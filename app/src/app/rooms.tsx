@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
 import { RoomForms } from '@/components/room-forms';
+import { QueryState } from '@/components/query-state';
 import { Screen } from '@/components/screen';
 import { Card, Display } from '@/components/ui';
 import { presetJoinCode, type RoomSummary } from '@/lib/api';
@@ -19,7 +20,8 @@ export default function RoomsScreen() {
   const t = useTheme();
   const tr = useT();
   const { room } = useSession();
-  const { data: rooms } = useRooms();
+  const roomsQuery = useRooms();
+  const { data: rooms } = roomsQuery;
   const switchRoom = useSwitchRoom();
   const features = useFeatures();
   const open = (r: RoomSummary, on: boolean) => {
@@ -42,6 +44,7 @@ export default function RoomsScreen() {
       </Pressable>
       {!creating && <Display size={30}>{tr('room.list.title')}</Display>}
 
+      {!creating && <QueryState query={roomsQuery} />}
       {!creating && rooms?.map((r) => {
         const on = r.id === current;
         const party = r.kind === 'party';

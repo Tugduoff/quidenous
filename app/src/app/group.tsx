@@ -7,10 +7,12 @@ import Animated from 'react-native-reanimated';
 
 import { AddFriends, InviteCard } from '@/components/invite';
 import { ModerationDialog, type ModTarget } from '@/components/moderation';
+import { QueryState } from '@/components/query-state';
 import { Screen } from '@/components/screen';
+import { showToast } from '@/components/toast';
 import { askConfirm, Avatar, Card, Display, PressableScale } from '@/components/ui';
 import { api, type RoomSummary } from '@/lib/api';
-import { useFeatures } from '@/lib/auth';
+import { authError, useFeatures } from '@/lib/auth';
 import { useT } from '@/lib/i18n';
 import { usePop } from '@/lib/motion';
 import { keys, useGroup, useRooms } from '@/lib/queries';
@@ -185,7 +187,11 @@ function Leave() {
     // Leaving isn't final: the invite code brings me back, with my history.
     const msg = owner && group.members.length <= 1 ? tr('room.group.leaveAlone') : owner ? tr('room.group.leaveOwner') : tr('room.group.leaveMember');
     if (!(await confirm(msg, tr('room.group.leaveAsk'), tr('common.leave')))) return;
-    await api(`/rooms/${group.id}/leave`, { method: 'POST' });
+    try {
+      await api(`/rooms/${group.id}/leave`, { method: 'POST' });
+    } catch (e) {
+      return showToast(authError(e));
+    }
     await roomGone();
   };
   return (
@@ -255,7 +261,8 @@ function MuteButton({ id, muted }: { id: number; muted: boolean }) {
 export default function GroupScreen() {
   const t = useTheme();
   const tr = useT();
-  const { data: group } = useGroup();
+  const groupQuery = useGroup();
+  const { data: group } = groupQuery;
   const muted = useMuted(group?.id);
   return (
     <Screen tabs={false}>
@@ -287,6 +294,7 @@ export default function GroupScreen() {
           {group ? tr('common.members', { count: group.members.length }) + (muted ? ` · ${tr('room.group.muted')}` : '') : ''}
         </Text>
       </View>
+      <QueryState query={groupQuery} />
       <InviteCard rotate={false} />
       <Members />
       <AddFriends />

@@ -88,6 +88,7 @@ export default function PackEditScreen() {
   const toggleTag = (tag: PackTag) => setTags((l) => (l.includes(tag) ? l.filter((x) => x !== tag) : l.length < MAX_TAGS ? [...l, tag] : l));
 
   const save = useMutation({
+    meta: { quiet: true },
     mutationFn: () => {
       const body = { name: name.trim(), description: desc.trim(), language, tags, spicy, questions };
       return id != null

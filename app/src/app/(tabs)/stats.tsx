@@ -1,7 +1,8 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 
+import { QueryState } from '@/components/query-state';
 import { Screen } from '@/components/screen';
 import { Awards } from '@/components/stats/awards';
 import { Section } from '@/components/stats/common';
@@ -29,7 +30,8 @@ export default function StatsScreen() {
   const t = useTheme();
   const tr = useT();
   const [period, setPeriod] = useState<StatsPeriod>('30d');
-  const { data: s, isLoading, isPlaceholderData } = useStats(period);
+  const stats = useStats(period);
+  const { data: s, isPlaceholderData } = stats;
   const { byId } = useMembers();
   const [profileId, setProfileId] = useState<number | null>(null);
 
@@ -44,7 +46,7 @@ export default function StatsScreen() {
     return (
       <Screen>
         {header}
-        {isLoading && <ActivityIndicator color={t.mut} style={{ marginTop: 40 }} />}
+        <QueryState query={stats} style={{ marginTop: 16 }} />
       </Screen>
     );
   }

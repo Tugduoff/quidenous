@@ -55,6 +55,7 @@ export default function PlayScreen() {
   };
   // An existing room: the question goes in first, then the app moves there.
   const play = useMutation({
+    meta: { quiet: true },
     mutationFn: (id: number) => playInto(token!, id),
     onMutate: () => setError(null),
     onSuccess: (_, id) => enter(id),

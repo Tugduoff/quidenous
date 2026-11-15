@@ -59,6 +59,7 @@ export function RoomForms({
   };
 
   const create = useMutation({
+    meta: { quiet: true },
     mutationFn: (withVibe: string | null) =>
       api<{ id: number }>('/rooms', {
         method: 'POST',
@@ -74,6 +75,7 @@ export function RoomForms({
     else create.mutate(null);
   };
   const join = useMutation({
+    meta: { quiet: true },
     mutationFn: (value: string) => api<{ id: number }>('/rooms/join', { method: 'POST', json: { code: value.trim() } }),
     onSuccess: (r) => onEntered(r.id),
     onError: fail,

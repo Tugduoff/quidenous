@@ -44,6 +44,7 @@ export default function JoinParty() {
   }, [target, token, room]);
 
   const join = useMutation({
+    meta: { quiet: true },
     mutationFn: () => partyApi.join(token ? { code } : { code, name: name.trim(), color }),
     onMutate: () => setError(null),
     onSuccess: async (r) => {

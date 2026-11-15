@@ -65,6 +65,7 @@ export function NoQuestions() {
     setDone(true);
   };
   const ask = useMutation({
+    meta: { quiet: true },
     mutationFn: () => api('/questions/ask', { method: 'POST' }),
     onSuccess: () => markAsked(),
     onError: (e) => {

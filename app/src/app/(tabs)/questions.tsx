@@ -7,6 +7,7 @@ import Animated from 'react-native-reanimated';
 
 import { ModerationDialog, type ModTarget } from '@/components/moderation';
 import { ReorderList, useScrollTracker } from '@/components/reorder-list';
+import { QueryState } from '@/components/query-state';
 import { Screen } from '@/components/screen';
 import { Tip } from '@/components/tip';
 import { Avatar, Card, ConfirmModal, Display, PressableScale, QuestionText, Toggle } from '@/components/ui';
@@ -26,7 +27,8 @@ export default function QuestionsScreen() {
   const t = useTheme();
   const tr = useT();
   const qc = useQueryClient();
-  const { data } = useQueue();
+  const queue = useQueue();
+  const { data } = queue;
   // The queue as it first loads just shows; questions added afterwards fade in.
   const isNew = useArrivals(data?.custom.map((q) => q.id));
   const { data: group } = useGroup();
@@ -55,6 +57,8 @@ export default function QuestionsScreen() {
   const chosenItems = choose ? items.map((i) => i.trim()) : (typed.items ?? []);
   const sameItems = new Set(chosenItems.filter(Boolean).map((i) => i.toLowerCase())).size < chosenItems.filter(Boolean).length;
   const add = useMutation({
+    // A bad list of answers shows under it; any other failure in a toast.
+    meta: { quiet: (e) => e instanceof ApiError && e.code === 'bad_items' },
     mutationFn: () =>
       api('/questions', {
         method: 'POST',
@@ -103,6 +107,7 @@ export default function QuestionsScreen() {
     return () => clearTimeout(focus);
   }, [params.compose, params.import]);
   const importFile = useMutation({
+    meta: { quiet: true },
     mutationFn: (lines: string[]) =>
       api<{ added: number; skipped: number }>('/questions/import', {
         method: 'POST',
@@ -121,6 +126,7 @@ export default function QuestionsScreen() {
   const chosen = draft?.filter((l) => l.selected).map((l) => l.line) ?? [];
   // Shuffle the whole upcoming queue (questions added later still go last).
   const shuffle = useMutation({
+    meta: { quiet: true },
     mutationFn: () => api<{ shuffled: number }>('/questions/shuffle', { method: 'POST' }),
     onSuccess: () => {
       setImported(tr('questions.shuffled'));
@@ -133,6 +139,7 @@ export default function QuestionsScreen() {
   const tracker = useScrollTracker();
   const [dragging, setDragging] = useState(false);
   const reorder = useMutation({
+    meta: { quiet: true },
     mutationFn: (ids: number[]) => api('/questions/order', { method: 'POST', json: { ids } }),
     onError: () => setImported(tr('questions.reorderFailed')),
     onSettled: () => qc.invalidateQueries({ queryKey: keys.queue }),
@@ -525,6 +532,7 @@ export default function QuestionsScreen() {
           </PressableScale>
         )}
       </View>
+      <QueryState query={queue} />
       {/* Hold a question to drag it elsewhere; held and let go on someone else's: report it. */}
       {sortable && data ? (
         <ReorderList

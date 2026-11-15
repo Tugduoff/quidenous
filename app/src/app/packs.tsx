@@ -6,6 +6,7 @@ import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 
 import { Chip, IconButton, PackCard, PageHeader } from '@/components/pack-card';
+import { QueryState } from '@/components/query-state';
 import { Screen } from '@/components/screen';
 import { Card, Display } from '@/components/ui';
 import { api } from '@/lib/api';
@@ -25,7 +26,8 @@ export default function PacksScreen() {
   const [q, setQ] = useState('');
   const [sort, setSort] = useState<PackSort>('trending');
   const [tag, setTag] = useState<PackTag | null>(null);
-  const { data: packs } = usePackList(sort, tag, q.trim());
+  const list = usePackList(sort, tag, q.trim());
+  const { data: packs } = list;
   const { data: group } = useGroup();
   const { data: me } = useCommunityMe();
   const roomSpicy = group?.settings.vibe === 'pimente';
@@ -82,6 +84,7 @@ export default function PacksScreen() {
         {!roomSpicy && me && <Chip icon={Flame} label={tr('packs.spicy')} on={me.show_spicy} hot onPress={() => spicy.mutate(!me.show_spicy)} />}
       </ScrollView>
 
+      <QueryState query={list} />
       {packs?.length === 0 && (
         <Text style={{ fontFamily: t.font.regular, fontSize: 15, color: t.mut, textAlign: 'center', marginTop: 24 }}>{tr('packs.none')}</Text>
       )}
