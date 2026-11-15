@@ -121,7 +121,7 @@ async fn client_error(
         %platform,
         %version,
         %route,
-        %message,
+        error = %message,
         %stack,
         %component_stack,
         "app error"
