@@ -1,10 +1,9 @@
 //! Audit fixes (2026-11): choose questions keep their items across rooms, `/api/join` with a
 //! bearer mints no token, deleted rooms take nobody, startup never rewrites user data.
 
-use std::{
-    path::{Path, PathBuf},
-    sync::atomic::{AtomicU64, Ordering},
-};
+mod common;
+
+use std::path::{Path, PathBuf};
 
 use axum::{
     Router,
@@ -18,21 +17,6 @@ use tower::ServiceExt;
 
 const ITEMS: [&str; 3] = ["Pizza", "Sushi", "Burger"];
 const RESTO: &str = "Qui prendrait quoi au resto du coin ?";
-
-fn temp_dir() -> PathBuf {
-    static N: AtomicU64 = AtomicU64::new(0);
-    let nanos = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_nanos();
-    let dir = std::env::temp_dir().join(format!(
-        "qdn-hardening-{}-{}-{nanos}",
-        std::process::id(),
-        N.fetch_add(1, Ordering::Relaxed)
-    ));
-    std::fs::create_dir_all(&dir).unwrap();
-    dir
-}
 
 fn config(dir: &Path, group_name: &str, join_code: &str) -> Config {
     Config {
@@ -53,7 +37,7 @@ async fn boot(dir: &Path) -> (Router, AppState) {
 
 /// A fresh server whose deck only has pick questions (automatic rounds are plain picks).
 async fn fresh() -> (Router, AppState, PathBuf) {
-    let dir = temp_dir();
+    let dir = common::temp_dir("qdn-hardening");
     let (app, state) = boot(&dir).await;
     sqlx::query("DELETE FROM questions WHERE group_id IS NULL AND kind <> 'pick'")
         .execute(&state.db)
