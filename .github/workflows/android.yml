@@ -52,7 +52,7 @@ jobs:
         env:
           EXPO_PUBLIC_DISTRIBUTION: sideload
       - name: APK can update itself
-        run: unzip -p app/build/outputs/apk/release/app-release.apk AndroidManifest.xml | tr -d '\0' | grep -c REQUEST_INSTALL_PACKAGES >/dev/null
+        run: unzip -p app/build/outputs/apk/release/app-release.apk AndroidManifest.xml | LC_ALL=C tr -d '\0' | LC_ALL=C grep -c REQUEST_INSTALL_PACKAGES >/dev/null
         working-directory: app/android
       - uses: actions/upload-artifact@v4
         with:
@@ -98,7 +98,7 @@ jobs:
           rm -rf "${TMPDIR:-/tmp}"/metro-* "${TMPDIR:-/tmp}"/haste-map-*
           # expo-updates' resources (runtime fingerprint, embedded manifest) depend on the app config too: redo them.
           ./gradlew createReleaseUpdatesResources --rerun createBundleReleaseJsAndAssets --rerun bundleRelease -PplayUpload -PreactNativeArchitectures=arm64-v8a,armeabi-v7a,x86_64 --no-daemon
-          if unzip -p app/build/outputs/bundle/release/app-release.aab base/manifest/AndroidManifest.xml | tr -d '\0' | grep -c REQUEST_INSTALL_PACKAGES >/dev/null; then
+          if unzip -p app/build/outputs/bundle/release/app-release.aab base/manifest/AndroidManifest.xml | LC_ALL=C tr -d '\0' | LC_ALL=C grep -c REQUEST_INSTALL_PACKAGES >/dev/null; then
             echo "::error::REQUEST_INSTALL_PACKAGES must not be in the Play bundle"; exit 1
           fi
         working-directory: app/android
