@@ -196,6 +196,7 @@ const ERRORS: Record<string, TKey> = {
   not_found: 'party.errors.notFound',
   need_two: 'party.errors.needTwo',
   joined_late: 'party.vote.late',
+  time_up: 'party.vote.timeUp',
   bad_name: 'party.errors.badName',
   bad_color: 'party.errors.badColor',
   not_party: 'party.errors.notParty',
