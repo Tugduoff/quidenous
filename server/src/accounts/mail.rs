@@ -33,9 +33,22 @@ impl Mailer for LogMailer {
 
     fn send(&self, email: Email) -> BoxFuture<'_, Result<(), String>> {
         Box::pin(async move {
-            tracing::info!(to = %email.to, subject = %email.subject, body = %email.text, "email (not sent: Mailgun not configured)");
+            // The body holds sign-in codes: only at DEBUG (`RUST_LOG=debug`), with the full address.
+            tracing::info!(to = %mask_email(&email.to), subject = %email.subject, "email (not sent: Mailgun not configured)");
+            tracing::debug!(to = %email.to, body = %email.text, "email body (not sent)");
             Ok(())
         })
+    }
+}
+
+/// `ana@example.com` → `a***@example.com`, for logs.
+pub(crate) fn mask_email(email: &str) -> String {
+    match email.split_once('@') {
+        Some((user, domain)) => {
+            let first: String = user.chars().take(1).collect();
+            format!("{first}***@{domain}")
+        }
+        None => "***".to_owned(),
     }
 }
 
@@ -206,5 +219,14 @@ pub fn report(to: &str, subject: &str, lines: &[(&str, String)]) -> Email {
         subject: subject.to_owned(),
         text,
         html,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn logged_addresses_are_masked() {
+        assert_eq!(super::mask_email("ana@example.com"), "a***@example.com");
+        assert_eq!(super::mask_email("nope"), "***");
     }
 }

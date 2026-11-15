@@ -21,6 +21,13 @@ macro_rules! round_select {
     };
 }
 
+/// A choose question nobody can vote on (no items): never opened (older servers made such copies).
+macro_rules! votable {
+    () => {
+        "NOT (q.kind = 'choose' AND q.items IS NULL)"
+    };
+}
+
 macro_rules! unused {
     () => {
         "NOT EXISTS (SELECT 1 FROM rounds r WHERE r.group_id = ?1 AND r.question_id = q.id)"
@@ -89,6 +96,8 @@ async fn deck_candidates<'e, E: sqlx::SqliteExecutor<'e>>(
         "SELECT q.id, q.vibes FROM questions q WHERE q.group_id IS NULL \
          AND q.lang = (SELECT language FROM groups WHERE id = ?1) \
          AND (q.kind = 'pick' OR (SELECT kind FROM groups WHERE id = ?1) = 'room') AND ",
+        votable!(),
+        " AND ",
         unused!()
     ))
     .bind(group_id)
@@ -153,6 +162,8 @@ async fn next_question(tx: &mut Transaction<'_, Sqlite>, group_id: i64) -> AppRe
     let custom: Option<i64> = sqlx::query_scalar(concat!(
         "SELECT q.id FROM questions q WHERE q.group_id = ?1 \
          AND (q.kind = 'pick' OR (SELECT kind FROM groups WHERE id = ?1) = 'room') AND ",
+        votable!(),
+        " AND ",
         unused!(),
         " ORDER BY COALESCE(q.sort_key, q.id), q.id LIMIT 1"
     ))
@@ -416,6 +427,29 @@ pub async fn repair_owners(db: &SqlitePool) -> AppResult<u64> {
     .execute(db)
     .await?;
     Ok(done.rows_affected())
+}
+
+/// Startup repair: a choose question copied into a room without its items (a share or a
+/// challenge, before they copied them) gets the items of the question it was copied from (same
+/// text). Its open round, which nobody could vote on, becomes playable again. Idempotent.
+/// Returns (repaired, left without items).
+pub async fn repair_choose_items(db: &SqlitePool) -> AppResult<(u64, i64)> {
+    let done = sqlx::query(
+        "UPDATE questions SET items = \
+           (SELECT s.items FROM questions s WHERE s.kind = 'choose' AND s.items IS NOT NULL \
+            AND lower(s.text) = lower(questions.text) ORDER BY s.group_id IS NOT NULL, s.id LIMIT 1) \
+         WHERE kind = 'choose' AND items IS NULL AND EXISTS \
+           (SELECT 1 FROM questions s WHERE s.kind = 'choose' AND s.items IS NOT NULL \
+            AND lower(s.text) = lower(questions.text))",
+    )
+    .execute(db)
+    .await?;
+    let left: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM questions WHERE kind = 'choose' AND items IS NULL",
+    )
+    .fetch_one(db)
+    .await?;
+    Ok((done.rows_affected(), left))
 }
 
 pub async fn active_count(tx: &mut Transaction<'_, Sqlite>, group_id: i64) -> AppResult<i64> {

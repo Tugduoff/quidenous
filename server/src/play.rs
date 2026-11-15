@@ -25,6 +25,8 @@ struct Shared {
     group_id: i64,
     text: String,
     kind: String,
+    /// A choose question's items (JSON array), copied with it.
+    items: Option<String>,
     lang: String,
     room: String,
     closed: bool,
@@ -32,8 +34,9 @@ struct Shared {
 
 async fn shared(state: &AppState, token: &str) -> AppResult<Shared> {
     // A deck question has a language; a room's own question speaks the sharer's.
-    let row: (i64, i64, String, String, String, String, bool) = sqlx::query_as(
-        "SELECT s.round_id, r.group_id, q.text, q.kind, \
+    #[allow(clippy::type_complexity)]
+    let row: (i64, i64, String, String, Option<String>, String, String, bool) = sqlx::query_as(
+        "SELECT s.round_id, r.group_id, q.text, q.kind, q.items, \
                 CASE WHEN q.group_id IS NULL THEN q.lang ELSE s.lang END, g.name, r.closed_at IS NOT NULL \
          FROM shares s JOIN rounds r ON r.id = s.round_id JOIN questions q ON q.id = r.question_id \
          JOIN groups g ON g.id = r.group_id AND g.deleted_at IS NULL WHERE s.token = ?",
@@ -47,9 +50,10 @@ async fn shared(state: &AppState, token: &str) -> AppResult<Shared> {
         group_id: row.1,
         text: row.2,
         kind: row.3,
-        lang: row.4,
-        room: row.5,
-        closed: row.6,
+        items: row.4,
+        lang: row.5,
+        room: row.6,
+        closed: row.7,
     })
 }
 
@@ -85,17 +89,33 @@ async fn record_challenge(
     .await?)
 }
 
+/// The question a share or a challenge copies into another room.
+struct Copied<'a> {
+    text: &'a str,
+    kind: &'a str,
+    /// A choose question's items: without them nobody could vote on the copy.
+    items: Option<&'a str>,
+    lang: &'a str,
+}
+
 /// Puts a question first in `target`'s queue (reusing an unused copy with the same text) and,
 /// with `challenge_from`, records the challenge. `409 already_asked` when the room already
 /// played it (the challenge then links to that round).
 async fn send(
     state: &AppState,
     target: &MemberRow,
-    text: &str,
-    kind: &str,
-    lang: &str,
+    q: Copied<'_>,
     challenge_from: Option<i64>,
 ) -> AppResult<(i64, Option<i64>)> {
+    let Copied {
+        text,
+        kind,
+        items,
+        lang,
+    } = q;
+    if kind == "choose" && items.is_none() {
+        return Err(AppError::BadRequest("bad_items"));
+    }
     crate::routes::may_add_questions(state, target).await?;
     let room = target.group_id;
     let mut tx = crate::db::write_tx(&state.db).await?;
@@ -122,31 +142,31 @@ async fn send(
     .bind(room)
     .fetch_one(&mut *tx)
     .await?;
-    let copy: Option<i64> = sqlx::query_scalar(
-        "SELECT id FROM questions WHERE group_id = ? AND lower(text) = lower(?) ORDER BY id LIMIT 1",
-    )
-    .bind(room)
-    .bind(text)
-    .fetch_optional(&mut *tx)
-    .await?;
+    let copy = game::same_question(&mut tx, room, text).await?;
     let question: i64 =
         match copy {
             Some(id) => {
-                sqlx::query("UPDATE questions SET sort_key = ? WHERE id = ?")
-                    .bind(front)
-                    .bind(id)
+                // A choose copy left without its items (by older servers) gets them back.
+                sqlx::query(
+                    "UPDATE questions SET sort_key = ?, \
+                     items = CASE WHEN kind = 'choose' THEN COALESCE(items, ?) ELSE items END WHERE id = ?",
+                )
+                .bind(front)
+                .bind(items)
+                .bind(id)
                     .execute(&mut *tx)
                     .await?;
                 id
             }
             None => sqlx::query_scalar(
-                "INSERT INTO questions (group_id, text, author_id, kind, origin, lang, sort_key) \
-                 VALUES (?, ?, ?, ?, 'import', ?, ?) RETURNING id",
+                "INSERT INTO questions (group_id, text, author_id, kind, items, origin, lang, sort_key) \
+                 VALUES (?, ?, ?, ?, ?, 'import', ?, ?) RETURNING id",
             )
             .bind(room)
             .bind(text)
             .bind(target.id)
             .bind(kind)
+            .bind(items)
             .bind(lang)
             .bind(front)
             .fetch_one(&mut *tx)
@@ -180,7 +200,13 @@ pub async fn play(
 ) -> AppResult<Json<Value>> {
     let s = shared(&state, &token).await?;
     let from = (s.closed && s.group_id != me.group_id).then_some(s.round_id);
-    let (question_id, challenge_id) = send(&state, &me, &s.text, &s.kind, &s.lang, from).await?;
+    let copy = Copied {
+        text: &s.text,
+        kind: &s.kind,
+        items: s.items.as_deref(),
+        lang: &s.lang,
+    };
+    let (question_id, challenge_id) = send(&state, &me, copy, from).await?;
     Ok(Json(
         json!({ "question_id": question_id, "challenge_id": challenge_id }),
     ))
@@ -215,15 +241,13 @@ pub async fn challenge(
     .bind(me.group_id)
     .fetch_one(&state.db)
     .await?;
-    let (_, challenge) = send(
-        &state,
-        &target,
-        &round.text,
-        &round.kind,
-        &lang,
-        Some(round.id),
-    )
-    .await?;
+    let copy = Copied {
+        text: &round.text,
+        kind: &round.kind,
+        items: round.items.as_deref(),
+        lang: &lang,
+    };
+    let (_, challenge) = send(&state, &target, copy, Some(round.id)).await?;
     Ok(Json(json!({ "challenge_id": challenge })))
 }
 

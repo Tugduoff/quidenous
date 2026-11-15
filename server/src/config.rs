@@ -16,7 +16,8 @@ pub struct Config {
     pub auth_secret: Option<String>,
     /// `PUBLIC_URL`: `https://host` (no trailing slash). Needed for OAuth callbacks.
     pub public_url: Option<String>,
-    /// `TRUST_PROXY=1`: the client IP is the first hop of `X-Forwarded-For` (behind the reverse proxy only).
+    /// `TRUST_PROXY=1`: the client IP is the last `X-Forwarded-For` entry, the one our single
+    /// reverse proxy appended (behind that proxy only).
     pub trust_proxy: bool,
     /// `AUTH_REQUIRED=1`: the anonymous `/api/join` and `/api/start` answer `410 sign_in_required`.
     pub auth_required: bool,
@@ -38,11 +39,41 @@ pub struct Config {
 }
 
 pub const DEFAULT_REPORT_EMAIL: &str = "contact@coflop.fr";
+/// `JOIN_CODE` when unset: public (in the repo and in old APKs).
+pub const DEFAULT_JOIN_CODE: &str = "BANDE-42";
+/// `VAPID_SUBJECT` when unset: a placeholder push services can't reach.
+pub const DEFAULT_VAPID_SUBJECT: &str = "mailto:admin@example.com";
 
 impl Config {
     /// Where content reports are emailed.
     pub fn report_email(&self) -> &str {
         self.report_email.as_deref().unwrap_or(DEFAULT_REPORT_EMAIL)
+    }
+
+    /// Unsafe or missing production settings, logged as warnings at startup.
+    pub fn warnings(&self) -> Vec<&'static str> {
+        let mut out = Vec::new();
+        if !self.auth_required {
+            out.push(
+                "AUTH_REQUIRED is off: anyone with a room code can join by first name (/api/join, /api/start); set AUTH_REQUIRED=1 once every phone runs an app with sign-in",
+            );
+        }
+        if self.admin_user_ids.is_empty() {
+            out.push(
+                "ADMIN_USER_IDS is not set: nobody can approve suggestions or review reported packs",
+            );
+        }
+        if self.vapid_private_key.is_some() && self.vapid_subject == DEFAULT_VAPID_SUBJECT {
+            out.push(
+                "VAPID_SUBJECT is the placeholder mailto:admin@example.com: set a contact address (mailto:you@your.domain)",
+            );
+        }
+        if self.join_code.eq_ignore_ascii_case(DEFAULT_JOIN_CODE) {
+            out.push(
+                "JOIN_CODE is the public default BANDE-42: a fresh database's first room would get it; set JOIN_CODE",
+            );
+        }
+        out
     }
 }
 
@@ -123,10 +154,10 @@ impl Config {
             }),
             web_dir: env::var("WEB_DIR").ok().map(PathBuf::from),
             group_name: env::var("GROUP_NAME").unwrap_or_else(|_| "La bande".into()),
-            join_code: env::var("JOIN_CODE").unwrap_or_else(|_| "BANDE-42".into()),
+            join_code: env::var("JOIN_CODE").unwrap_or_else(|_| DEFAULT_JOIN_CODE.into()),
             vapid_private_key: env::var("VAPID_PRIVATE_KEY").ok().filter(|v| !v.is_empty()),
             vapid_subject: env::var("VAPID_SUBJECT")
-                .unwrap_or_else(|_| "mailto:admin@example.com".into()),
+                .unwrap_or_else(|_| DEFAULT_VAPID_SUBJECT.into()),
             fcm_service_account: env::var("FCM_SERVICE_ACCOUNT_FILE").ok().map(PathBuf::from),
             data_dir,
             auth_secret: var("AUTH_SECRET"),

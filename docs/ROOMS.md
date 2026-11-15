@@ -21,7 +21,7 @@ Status: design, 2026-11-11. Built in phases so the live group never breaks and o
 
 - Every current member becomes a user (same name, color, photo); `member_tokens` become `user_tokens` with the same hashes, so nobody is signed out.
 - Owner of the main group: its earliest member. Ownership can be handed over.
-- `JOIN_CODE` stays the invite code of the main group.
+- `JOIN_CODE` (and `GROUP_NAME`) only name the first room when the database is empty; afterwards the owner changes them in the app (a new code from the room settings), restarts don't touch them.
 
 ## Rooms and permissions
 

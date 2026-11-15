@@ -21,7 +21,7 @@ Admins: `ADMIN_USER_IDS` env (comma-separated user ids). Admin-only endpoints an
 - `suggestions (id, user_id, text, kind 'pick'|'rank', lang, status 'voting'|'queued'|'approved'|'rejected', up, down, created_at, decided_at, question_id)`.
 - `suggestion_votes (suggestion_id, user_id, value -1|0|1, created_at)`, PK `(suggestion_id, user_id)`; 0 = skipped.
 - `questions.suggested_by INTEGER REFERENCES users(id)`: a shared-deck question that came from a suggestion.
-  `deck::adopt_imports` must never move these out of the shared deck.
+  Nothing moves shared questions out of the shared deck (the old start-up `adopt_imports` is gone).
 - `challenges (id, from_round_id, to_group_id, question_id, created_by, created_at)`: the round `from_round_id` was
   sent to room `to_group_id` as its question `question_id` (the target round is the round of that question in that room).
 

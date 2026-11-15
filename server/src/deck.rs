@@ -45,13 +45,7 @@ pub async fn seed(db: &SqlitePool) -> sqlx::Result<u64> {
     Ok(added)
 }
 
-/// Adds questions from a text file (one per line, `#` comments) to the French deck, skipping ones
-/// already known. Asked questions never come back: a round is only opened on a question the group has not seen.
-pub async fn import(db: &SqlitePool, text: &str) -> sqlx::Result<u64> {
-    import_lang(db, text, Lang::Fr).await
-}
-
-/// Same, into the deck of `lang`.
+/// Adds a deck file's questions to the shared deck of `lang`, skipping ones already known.
 pub async fn import_lang(db: &SqlitePool, text: &str, lang: Lang) -> sqlx::Result<u64> {
     let mut tx = crate::db::write_tx(db).await?;
     let added = insert_lines(&mut tx, text, lang).await?;
@@ -158,50 +152,15 @@ pub fn items_json(line: &str) -> Option<String> {
     choose_items(line).map(|i| serde_json::to_string(&i).unwrap_or_default())
 }
 
-/// Before 0.10.1, importing a file put its questions in the shared deck. Those questions belong
-/// to the first room (the only one back then): move every shared question that is not in the
-/// built-in deck there. Idempotent: afterwards only the built-in deck (and approved suggestions,
-/// `suggested_by`) is shared.
-pub async fn adopt_imports(db: &SqlitePool, first_group: i64) -> sqlx::Result<u64> {
-    let builtin: std::collections::HashSet<&str> = DECKS
-        .iter()
-        .flat_map(|(_, deck)| deck_lines(deck))
-        .map(|l| parse_line(l).0)
-        .collect();
-    let shared: Vec<(i64, String)> = sqlx::query_as(
-        "SELECT id, text FROM questions WHERE group_id IS NULL AND suggested_by IS NULL",
-    )
-    .fetch_all(db)
-    .await?;
-    let mut moved = 0;
-    for (id, text) in shared {
-        if !builtin.contains(text.as_str()) {
-            moved += sqlx::query("UPDATE questions SET group_id = ? WHERE id = ?")
-                .bind(first_group)
-                .bind(id)
-                .execute(db)
-                .await?
-                .rows_affected();
-        }
-    }
-    Ok(moved)
-}
-
-/// Creates the configured group on first start; keeps its code in sync afterwards.
+/// Creates the configured group (`GROUP_NAME`, `JOIN_CODE`) on first start, when there is no
+/// group at all. Afterwards it never touches it: its name and code belong to its owner (a code
+/// rotated in the app stays rotated). Returns the first group's id.
 pub async fn ensure_group(db: &SqlitePool, name: &str, code: &str) -> sqlx::Result<i64> {
     let existing: Option<i64> = sqlx::query_scalar("SELECT id FROM groups ORDER BY id LIMIT 1")
         .fetch_optional(db)
         .await?;
     match existing {
-        Some(id) => {
-            sqlx::query("UPDATE groups SET name = ?, join_code = ? WHERE id = ?")
-                .bind(name)
-                .bind(code.to_uppercase())
-                .bind(id)
-                .execute(db)
-                .await?;
-            Ok(id)
-        }
+        Some(id) => Ok(id),
         None => {
             sqlx::query_scalar("INSERT INTO groups (name, join_code) VALUES (?, ?) RETURNING id")
                 .bind(name)
@@ -210,6 +169,51 @@ pub async fn ensure_group(db: &SqlitePool, name: &str, code: &str) -> sqlx::Resu
                 .await
         }
     }
+}
+
+/// `server --import <file> --room <id>`: adds a file's questions (one per line, `#` comments,
+/// `[classement]` / `[choix] … | A | B` like the in-app import) to a room's own queue, skipping
+/// ones it already has. `None` when the room does not exist (or was deleted).
+pub async fn import_room(db: &SqlitePool, room: i64, text: &str) -> sqlx::Result<Option<u64>> {
+    let mut tx = crate::db::write_tx(db).await?;
+    let live: Option<i64> =
+        sqlx::query_scalar("SELECT id FROM groups WHERE id = ? AND deleted_at IS NULL")
+            .bind(room)
+            .fetch_optional(&mut *tx)
+            .await?;
+    if live.is_none() {
+        return Ok(None);
+    }
+    let mut added = 0;
+    for line in deck_lines(text) {
+        let (text, kind) = parse_line(line);
+        let items = items_json(line);
+        if kind == "choose" && items.is_none() {
+            continue;
+        }
+        let known: Option<i64> = sqlx::query_scalar(
+            "SELECT id FROM questions WHERE group_id = ? AND lower(text) = lower(?)",
+        )
+        .bind(room)
+        .bind(text)
+        .fetch_optional(&mut *tx)
+        .await?;
+        if known.is_some() {
+            continue;
+        }
+        sqlx::query(
+            "INSERT INTO questions (group_id, text, kind, origin, items) VALUES (?, ?, ?, 'import', ?)",
+        )
+        .bind(room)
+        .bind(text)
+        .bind(kind)
+        .bind(items)
+        .execute(&mut *tx)
+        .await?;
+        added += 1;
+    }
+    tx.commit().await?;
+    Ok(Some(added))
 }
 
 #[cfg(test)]

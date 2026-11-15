@@ -19,13 +19,13 @@ JOIN_CODE=BANDE-42 cargo run        # http://localhost:8080/api/health
 cargo test
 ```
 
-Config (env): `PORT` (8080), `DATA_DIR` (`data`), `DATABASE_URL`, `GROUP_NAME`, `JOIN_CODE`, `WEB_DIR` (serves the web build).
+Config (env): `PORT` (8080), `DATA_DIR` (`data`), `DATABASE_URL`, `GROUP_NAME` and `JOIN_CODE` (the first room, created on an empty database only), `WEB_DIR` (serves the web build). Production settings: [deploy/README.md](deploy/README.md#config-deployenv).
 
 ### API (`/api`, `Authorization: Bearer <token>`)
 
 | Method | Path | |
 | --- | --- | --- |
-| POST | `/join` `{code, name}` | → `{token, member}` |
+| POST | `/join` `{code, name}` | → `{token, member, room_id}` (with a bearer: the same token back) |
 | GET / PUT | `/me` `{name}` | profile |
 | PUT | `/me/photo` (multipart `photo`) | resized to 256 px |
 | GET | `/group` | members |
