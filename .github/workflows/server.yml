@@ -6,7 +6,7 @@ on:
     paths: ["server/**", "app/**", "Dockerfile", ".github/workflows/server.yml"]
 jobs:
   check:
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.QDN_RUNNER || '"ubuntu-latest"') }}
     defaults:
       run:
         working-directory: server
@@ -21,4 +21,6 @@ jobs:
       - run: cargo fmt --check
       - run: cargo clippy --all-targets --locked -- -D warnings
       - run: cargo test --locked
+      # Docker only on GitHub's Ubuntu (the Mac runner has no Docker).
       - run: docker build -t quidenous ..
+        if: runner.os == 'Linux'

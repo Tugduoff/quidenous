@@ -9,7 +9,9 @@ on:
     paths: ["app/**", ".github/workflows/android.yml"]
 jobs:
   apk:
-    runs-on: ubuntu-latest
+    # Tug's Mac (self-hosted, label tug-mac) when it's online, else GitHub's Ubuntu: the Pi flips the
+    # QDN_RUNNER repo variable (pivot-bot/mac-runner-watch). Unset = ubuntu-latest.
+    runs-on: ${{ fromJSON(vars.QDN_RUNNER || '"ubuntu-latest"') }}
     defaults:
       run:
         working-directory: app
@@ -19,6 +21,9 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
+      # GitHub's Ubuntu image ships the Android SDK; the Mac runner gets it here.
+      - uses: android-actions/setup-android@v3
+        if: runner.os == 'macOS'
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -86,7 +91,7 @@ jobs:
           [ -f "$UPLOAD_STORE_FILE" ] || { echo "no upload key, skipping"; exit 0; }
           # No self-update on Google Play: drop the install permission and rebuild the JS without the sideload flag
           # (fresh Metro cache, JS bundle task forced to run again).
-          sed -i '/android.permission.REQUEST_INSTALL_PACKAGES/d' app/src/main/AndroidManifest.xml
+          sed -i.bak '/android.permission.REQUEST_INSTALL_PACKAGES/d' app/src/main/AndroidManifest.xml && rm app/src/main/AndroidManifest.xml.bak
           rm -rf "${TMPDIR:-/tmp}"/metro-* "${TMPDIR:-/tmp}"/haste-map-*
           # expo-updates' resources (runtime fingerprint, embedded manifest) depend on the app config too: redo them.
           ./gradlew createReleaseUpdatesResources --rerun createBundleReleaseJsAndAssets --rerun bundleRelease -PplayUpload -PreactNativeArchitectures=arm64-v8a,armeabi-v7a,x86_64 --no-daemon
