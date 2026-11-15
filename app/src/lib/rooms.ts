@@ -5,20 +5,24 @@ import { useEffect, useRef } from 'react';
 import { api, setApiRoom, type RoomSummary } from './api';
 import { useSession } from './session';
 
-/** After leaving or deleting the current room: on to another room I'm in, else the room list. */
+/**
+ * After leaving or deleting the current room: on to another room I'm in. None left: join or create one (/setup).
+ * The list unknown (offline): the room list, which refetches.
+ */
 export function useRoomGone() {
   const qc = useQueryClient();
-  const { setRoom } = useSession();
+  const { setRoom, noRoomLeft } = useSession();
   return async () => {
     await setRoom(null);
     qc.clear();
-    const rooms = await api<{ id: number }[]>('/rooms').catch(() => []);
+    const rooms = await api<{ id: number }[]>('/rooms').catch(() => null);
     // From a page deep in the stack (the room's settings): back to the bottom first.
     if (router.canDismiss()) router.dismissAll();
-    if (rooms.length) {
+    if (rooms?.length) {
       await setRoom(rooms[0].id);
       router.replace('/');
-    } else router.replace('/rooms');
+    } else if (rooms) await noRoomLeft();
+    else router.replace('/rooms');
   };
 }
 

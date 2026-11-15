@@ -1,6 +1,6 @@
 import { BricolageGrotesque_800ExtraBold } from '@expo-google-fonts/bricolage-grotesque';
 import { Inter_400Regular, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { useFonts } from 'expo-font';
 import { DarkTheme, DefaultTheme, router, Stack, ThemeProvider, useGlobalSearchParams, usePathname } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -13,12 +13,14 @@ import { useReducedMotion } from 'react-native-reanimated';
 import { AppLock } from '@/components/app-lock';
 import { CelebrationPreview } from '@/components/celebration';
 import { InstallBanner, InstallScreen, installMode } from '@/components/install';
+import { ToastHost } from '@/components/toast';
 import { ConfirmHost } from '@/components/ui';
 import { OtaToast, UpdateDialog } from '@/components/update';
 import { pendingPlayToken } from '@/lib/auth';
 import { useLive } from '@/lib/live';
 import { useLock } from '@/lib/lock';
 import { useOtaCheck } from '@/lib/ota';
+import { queryClient } from '@/lib/query-client';
 import { registerNativePush, useNotificationTaps } from '@/lib/native-push';
 import { useNotifTzSync } from '@/lib/notifications';
 import { useRoomParam } from '@/lib/rooms';
@@ -27,7 +29,6 @@ import { useScheme, useTheme, useThemeLoaded } from '@/lib/theme';
 import { useUpdateCheck } from '@/lib/update';
 
 SplashScreen.preventAutoHideAsync();
-const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: 10_000 } } });
 
 function Root() {
   const { ready, token, room, roomless, verifying } = useSession();
@@ -139,6 +140,7 @@ function Root() {
       <ConfirmHost />
       <UpdateDialog />
       {stage === 'in' && <OtaToast />}
+      <ToastHost />
     </ThemeProvider>
   );
 }
@@ -163,7 +165,7 @@ const SIGNED_OUT = ['/join', '/auth/email', '/auth/password', '/auth/two-factor'
  */
 function useStageRoute(stage: Stage, mounted: boolean) {
   const pathname = usePathname();
-  const { code, error } = useGlobalSearchParams<{ code?: string; error?: string }>();
+  const { code, error, share } = useGlobalSearchParams<{ code?: string; error?: string; share?: string }>();
   // Seen signed out (or verifying): a shared question opened meanwhile is resumed once in.
   const wasOut = useRef(false);
   useEffect(() => {
@@ -177,8 +179,10 @@ function useStageRoute(stage: Stage, mounted: boolean) {
     }
     // A party's join link and big screen work at every stage (a guest has no account yet).
     const open = pathname.startsWith('/party/join/') || pathname.startsWith('/party/screen/');
+    // /play only with a shared question to show: the router also falls back to it when the guarded screens swap.
+    const play = pathname === '/play' && stage !== 'verify' && !!(share || pendingPlayToken());
     const ok =
-      open || (pathname === '/play' && stage !== 'verify')
+      open || play
         ? true
         : stage === 'out'
           ? SIGNED_OUT.includes(pathname)
@@ -188,5 +192,5 @@ function useStageRoute(stage: Stage, mounted: boolean) {
               ? pathname === '/setup'
               : pathname !== '/oauth' && pathname !== '/setup' && pathname !== '/join' && !pathname.startsWith('/auth');
     if (!ok) router.replace(STAGE_HOME[stage] as never);
-  }, [stage, pathname, mounted, code, error]);
+  }, [stage, pathname, mounted, code, error, share]);
 }
