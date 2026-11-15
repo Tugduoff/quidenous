@@ -1,6 +1,11 @@
 services:
   quidenous:
-    build: ..
+    build:
+      context: ..
+      # Shown by /api/version (deploy.sh sets them; a plain `docker compose build` says "dev").
+      args:
+        VERSION: ${QD_VERSION:-dev}
+        GIT_SHA: ${QD_GIT_SHA:-dev}
     image: quidenous:latest
     container_name: quidenous
     restart: unless-stopped

@@ -16,3 +16,9 @@ mockups/*
 mockups/fonts/*
 !mockups/fonts/Inter_wght_*.ttf
 !mockups/fonts/Bricolage_Grotesque_wght_800.ttf
+# deploy/deploy.sh and deploy/backup.sh state and settings on the server
+deploy/.deployed
+deploy/.deploy.lock
+deploy/backups/
+deploy/*.env
+!deploy/.env.example
