@@ -16,6 +16,7 @@ export const common: Messages['common'] = {
   save: 'Save',
   continue: 'Continue',
   retry: 'Try again',
+  crashed: 'Something went wrong',
   offline: 'No connection',
   failed: "That didn't work, try again",
   loadFailed: "Couldn't load this",
