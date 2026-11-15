@@ -21,6 +21,15 @@ pub async fn member_in_room(
     token: &str,
     room: Option<i64>,
 ) -> Result<MemberRow, AppError> {
+    member_in_room_by_hash(state, &hash_token(token), room).await
+}
+
+/// `member_in_room` from the token's hash (a ticket only knows the hash).
+pub async fn member_in_room_by_hash(
+    state: &AppState,
+    hash: &str,
+    room: Option<i64>,
+) -> Result<MemberRow, AppError> {
     let member = sqlx::query_as::<_, MemberRow>(
         "SELECT m.* FROM user_tokens t JOIN users u ON u.id = t.user_id \
          JOIN members m ON m.user_id = u.id AND m.removed_at IS NULL \
@@ -28,16 +37,16 @@ pub async fn member_in_room(
          WHERE t.token_hash = ?1 AND (?2 IS NULL OR m.group_id = ?2) \
          ORDER BY (m.group_id = u.last_group_id) DESC, m.id DESC LIMIT 1",
     )
-    .bind(hash_token(token))
+    .bind(hash)
     .bind(room)
     .fetch_optional(&state.db)
     .await?;
     match member {
         Some(m) => {
-            crate::accounts::touch(state, &hash_token(token)).await;
+            crate::accounts::touch(state, hash).await;
             Ok(m)
         }
-        None => match user_for_token(state, token).await {
+        None => match user_for_hash(state, hash).await {
             // A valid account asking for a room it is not in.
             Ok(_) if room.is_some() => Err(AppError::Forbidden("not_in_room")),
             // A signed-in account with no room yet: "join or create one", not "signed out".
@@ -52,13 +61,16 @@ pub async fn member_in_room(
 
 /// The account behind a token, whatever room.
 pub async fn user_for_token(state: &AppState, token: &str) -> Result<i64, AppError> {
-    let hash = hash_token(token);
+    user_for_hash(state, &hash_token(token)).await
+}
+
+async fn user_for_hash(state: &AppState, hash: &str) -> Result<i64, AppError> {
     let user = sqlx::query_scalar("SELECT user_id FROM user_tokens WHERE token_hash = ?")
-        .bind(&hash)
+        .bind(hash)
         .fetch_optional(&state.db)
         .await?
         .ok_or(AppError::Unauthorized)?;
-    crate::accounts::touch(state, &hash).await;
+    crate::accounts::touch(state, hash).await;
     Ok(user)
 }
 

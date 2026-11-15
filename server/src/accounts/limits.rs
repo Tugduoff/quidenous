@@ -1,4 +1,5 @@
-//! In-memory token buckets, per IP and per account. Restarting the server resets them (fine).
+//! In-memory token buckets, per IP and per account. Restarting the server resets them (the
+//! six-digit code failures that must survive a restart are counted in SQLite, see `codes`).
 
 use std::{
     collections::HashMap,
@@ -28,8 +29,11 @@ const fn rule(name: &'static str, capacity: u32, minutes: u64) -> Rule {
 pub const EMAIL_IP: Rule = rule("email_ip", 20, 10);
 pub const SIGNUP_IP: Rule = rule("signup_ip", 5, 60);
 pub const LOGIN_IP: Rule = rule("login_ip", 10, 10);
-/// Failures only (a success gives its token back); refills one every 3 min.
-pub const LOGIN_ACCOUNT: Rule = rule("login_account", 5, 15);
+/// Wrong passwords for one e-mail from one IP (a success gives its token back); refills one every 3 min.
+pub const LOGIN_ACCOUNT_IP: Rule = rule("login_ip_account", 5, 15);
+/// Wrong passwords for one e-mail from anywhere: looser, so one IP (at most 20 an hour through the
+/// rule above) can't lock the owner out, but guesses spread over many IPs still stop.
+pub const LOGIN_ACCOUNT: Rule = rule("login_account", 40, 60);
 pub const MFA_IP: Rule = rule("mfa_ip", 10, 10);
 /// Failures only (a success gives its token back).
 pub const MFA_ACCOUNT: Rule = rule("mfa_account", 5, 15);
@@ -68,9 +72,16 @@ struct Buckets {
     pruned: Option<Instant>,
 }
 
-#[derive(Default)]
 pub struct Limiter {
     buckets: Mutex<Buckets>,
+    /// Most buckets kept; beyond it the least useful ones are dropped (see `evict`).
+    cap: usize,
+}
+
+impl Default for Limiter {
+    fn default() -> Self {
+        Self::with_cap(HARD_CAP)
+    }
 }
 
 fn refill(b: &mut Bucket, rule: &Rule, now: Instant) {
@@ -96,24 +107,62 @@ pub fn ip_key(ip: IpAddr) -> String {
     }
 }
 
+/// Per-IP rules (named `*_ip`) lose their buckets first when memory runs out: an attacker filling
+/// the map with fresh IPs must not wipe the per-account failure budgets (sign-in, 2FA, codes).
+fn per_ip(name: &str) -> bool {
+    name.ends_with("_ip")
+}
+
+/// Over the cap even after dropping the full buckets: drop per-IP buckets before per-account ones,
+/// the least recently used first, down to 90 % of the cap (so this doesn't run on every call).
+fn evict(map: &mut HashMap<(&'static str, String), Bucket>, cap: usize) {
+    let keep = cap / 10 * 9;
+    if map.len() <= keep {
+        return;
+    }
+    let mut order: Vec<(bool, Instant, (&'static str, String))> = map
+        .iter()
+        .map(|(k, b)| (!per_ip(k.0), b.at, k.clone()))
+        .collect();
+    // Per-IP (false) first, then oldest first.
+    order.sort_unstable_by_key(|o| (o.0, o.1));
+    let drop = map.len() - keep;
+    for (_, _, k) in order.into_iter().take(drop) {
+        map.remove(&k);
+    }
+}
+
 impl Limiter {
+    pub fn with_cap(cap: usize) -> Self {
+        Self {
+            buckets: Mutex::default(),
+            cap,
+        }
+    }
+
     fn with<T>(&self, rule: &Rule, key: &str, f: impl FnOnce(&mut Bucket) -> T) -> T {
         let now = Instant::now();
         let mut guard = self.buckets.lock().unwrap_or_else(|e| e.into_inner());
         let Buckets { map, pruned } = &mut *guard;
         let due = pruned.is_none_or(|t| now.duration_since(t) > Duration::from_secs(10));
-        if map.len() > HARD_CAP || (map.len() > PRUNE_ABOVE && due) {
+        let prune_above = PRUNE_ABOVE.min(self.cap / 2);
+        if map.len() >= self.cap || (map.len() > prune_above && due) {
             *pruned = Some(now);
             // Drop the buckets that are full again: they hold no information.
+            // (On a copy: `at` stays the last use, which `evict` goes by.)
             map.retain(|(name, _), b| {
                 let Some(r) = rule_by_name(name) else {
                     return false;
                 };
-                refill(b, &r, now);
+                let mut b = Bucket {
+                    tokens: b.tokens,
+                    at: b.at,
+                };
+                refill(&mut b, &r, now);
                 b.tokens < f64::from(r.capacity)
             });
-            if map.len() > HARD_CAP {
-                map.clear();
+            if map.len() >= self.cap {
+                evict(map, self.cap);
             }
         }
         let b = map.entry((rule.name, key.to_owned())).or_insert(Bucket {
@@ -158,6 +207,7 @@ fn rule_by_name(name: &str) -> Option<Rule> {
         EMAIL_IP,
         SIGNUP_IP,
         LOGIN_IP,
+        LOGIN_ACCOUNT_IP,
         LOGIN_ACCOUNT,
         MFA_IP,
         MFA_ACCOUNT,
@@ -199,13 +249,13 @@ mod tests {
         l.hit(&SIGNUP_IP, "5.6.7.8").unwrap();
         // Successes give their token back, failures don't.
         for _ in 0..10 {
-            l.hit(&LOGIN_ACCOUNT, "a@b.c").unwrap();
-            l.refund(&LOGIN_ACCOUNT, "a@b.c");
+            l.hit(&LOGIN_ACCOUNT_IP, "a@b.c").unwrap();
+            l.refund(&LOGIN_ACCOUNT_IP, "a@b.c");
         }
         for _ in 0..5 {
-            l.hit(&LOGIN_ACCOUNT, "a@b.c").unwrap();
+            l.hit(&LOGIN_ACCOUNT_IP, "a@b.c").unwrap();
         }
-        assert!(l.hit(&LOGIN_ACCOUNT, "a@b.c").is_err());
+        assert!(l.hit(&LOGIN_ACCOUNT_IP, "a@b.c").is_err());
     }
 
     #[test]
@@ -217,5 +267,27 @@ mod tests {
         l.hit(&EMAIL_IP, "last").unwrap();
         // Nothing is full again yet, so the map is still large but capped.
         assert!(l.buckets.lock().unwrap().map.len() <= HARD_CAP);
+    }
+
+    #[test]
+    fn a_flood_of_ips_does_not_wipe_account_budgets() {
+        let l = Limiter::with_cap(1_000);
+        // The victim's account has used up its sign-in failures.
+        for _ in 0..5 {
+            l.hit(&LOGIN_ACCOUNT_IP, "ana@example.com|1.2.3.4").unwrap();
+        }
+        assert!(l.hit(&LOGIN_ACCOUNT_IP, "ana@example.com|1.2.3.4").is_err());
+        // An attacker fills the map with half-used per-IP buckets from many addresses.
+        for i in 0..5_000 {
+            l.hit(&LOGIN_IP, &format!("10.0.{}.{}", i / 256, i % 256))
+                .unwrap();
+        }
+        let len = l.buckets.lock().unwrap().map.len();
+        assert!(len <= 1_000, "{len}");
+        // The account budget is still spent; the newest IP buckets are still there.
+        assert!(l.hit(&LOGIN_ACCOUNT_IP, "ana@example.com|1.2.3.4").is_err());
+        let map = &l.buckets.lock().unwrap().map;
+        assert!(map.contains_key(&("login_ip", "10.0.19.135".to_owned())));
+        assert!(!map.contains_key(&("login_ip", "10.0.0.0".to_owned())));
     }
 }

@@ -8,7 +8,7 @@ use serde_json::{Value, json};
 
 use super::{
     ClientIp, Session, account, account_by_email, clean_email, codes, crypto::six_digits, limits,
-    mail, mfa::second_factor, not_claimed,
+    mail, not_claimed, reauth::prove, require_reauth,
 };
 use crate::{
     AppState,
@@ -25,50 +25,28 @@ pub struct DeleteBody {
     code: Option<String>,
 }
 
-fn given(v: &Option<String>) -> Option<&str> {
-    v.as_deref().map(str::trim).filter(|v| !v.is_empty())
-}
-
-/// Passwords are checked exactly as typed (spaces included), like sign-in.
-fn given_password(v: &Option<String>) -> Option<&str> {
-    v.as_deref().filter(|v| !v.is_empty())
-}
-
-/// From the app. With a password: that password, or a 2FA code if 2FA is on. 2FA without a
-/// password: a code. Nothing else (legacy or provider-only): nothing more to prove.
+/// From the app. The password, a 2FA (or recovery) code, or a recent re-authentication of this
+/// session (`POST /auth/reauth`, or an OAuth round for provider-only accounts). Legacy accounts
+/// have nothing to prove. `403 reauth_required` otherwise.
 pub async fn delete_account(
     State(state): State<AppState>,
+    ClientIp(ip): ClientIp,
     session: Session,
     body: Option<Json<DeleteBody>>,
 ) -> AppResult<Json<Value>> {
     let body = body.map(|b| b.0).unwrap_or_default();
     let acct = account(&state, session.user_id).await?;
     not_claimed(&state, acct.id, &session.token_hash).await?;
-    let limits = &state.auth.limits;
-    let password = given_password(&body.password);
-    let code = given(&body.code);
-    if acct.password_hash.is_some() && password.is_some() {
-        // Same failure budget as signing in.
-        let key = acct.email.clone().unwrap_or_else(|| acct.id.to_string());
-        limits.hit(&limits::LOGIN_ACCOUNT, &key)?;
-        let ok = state
-            .auth
-            .hasher
-            .verify(password.unwrap_or(""), acct.password_hash.as_deref())
-            .await?;
-        if !ok {
-            return Err(AppError::BadRequest("bad_credentials"));
-        }
-        limits.refund(&limits::LOGIN_ACCOUNT, &key);
-    } else if acct.totp_secret.is_some() && code.is_some() {
-        let key = acct.id.to_string();
-        limits.hit(&limits::MFA_ACCOUNT, &key)?;
-        if !second_factor(&state, &acct, code.unwrap_or(""), true).await? {
-            return Err(AppError::BadRequest("bad_code"));
-        }
-        limits.refund(&limits::MFA_ACCOUNT, &key);
-    } else if acct.password_hash.is_some() || acct.totp_secret.is_some() {
-        return Err(AppError::BadRequest("reauth_required"));
+    let proven = prove(
+        &state,
+        &acct,
+        body.password.as_deref(),
+        body.code.as_deref(),
+        ip,
+    )
+    .await?;
+    if !proven {
+        require_reauth(&state, &acct, &session.token_hash).await?;
     }
     erase(&state, acct.id).await?;
     Ok(Json(json!({ "ok": true })))
@@ -219,6 +197,10 @@ pub(crate) async fn erase(state: &AppState, user_id: i64) -> AppResult<()> {
     }
     if let Some(email) = &email {
         sqlx::query("DELETE FROM auth_codes WHERE email = ?")
+            .bind(email)
+            .execute(&mut *tx)
+            .await?;
+        sqlx::query("DELETE FROM code_failures WHERE email = ?")
             .bind(email)
             .execute(&mut *tx)
             .await?;

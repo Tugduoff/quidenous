@@ -7,7 +7,7 @@ use serde_json::{Value, json};
 use super::{
     Account, ClientIp, Device, Session, account, codes,
     crypto::{self, normalize_recovery, now_unix, otpauth_url, totp_match},
-    is_secured, issue_token, limits, not_claimed, revoke_sessions,
+    is_secured, issue_token, limits, not_claimed, require_reauth, revoke_sessions,
 };
 use crate::{
     AppState,
@@ -136,6 +136,8 @@ pub async fn login_2fa(
 }
 
 /// A new secret to scan; nothing changes until `enable` gets a valid code from it.
+/// Both steps need a recent re-authentication: a stolen session turning 2FA on would lock the
+/// owner out for good (a password reset keeps 2FA once the e-mail is verified).
 pub async fn setup(State(state): State<AppState>, session: Session) -> AppResult<Json<Value>> {
     let acct = account(&state, session.user_id).await?;
     if acct.totp_secret.is_some() {
@@ -145,6 +147,7 @@ pub async fn setup(State(state): State<AppState>, session: Session) -> AppResult
     if !is_secured(&state.db, acct.id).await? {
         return Err(AppError::BadRequest("not_secured"));
     }
+    require_reauth(&state, &acct, &session.token_hash).await?;
     let secret = crypto::new_totp_secret();
     sqlx::query("UPDATE users SET totp_pending = ? WHERE id = ?")
         .bind(state.auth.keys.seal(secret.as_bytes()))
@@ -174,6 +177,7 @@ pub async fn enable(
         return Err(AppError::Conflict("totp_enabled"));
     }
     not_claimed(&state, acct.id, &session.token_hash).await?;
+    require_reauth(&state, &acct, &session.token_hash).await?;
     let pending = acct
         .totp_pending
         .as_deref()
