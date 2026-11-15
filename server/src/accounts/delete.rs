@@ -185,7 +185,7 @@ pub(crate) async fn erase(state: &AppState, user_id: i64) -> AppResult<()> {
         .fetch_optional(&state.db)
         .await?
         .flatten();
-    let mut tx = state.db.begin().await?;
+    let mut tx = crate::db::write_tx(&state.db).await?;
     for sql in [
         "DELETE FROM messages WHERE member_id IN (SELECT id FROM members WHERE user_id = ?1)",
         // Inbox entries carry message text and names: theirs and the ones they caused.

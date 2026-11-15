@@ -52,18 +52,12 @@ async fn release(tx: &mut Transaction<'_, Sqlite>, group_id: i64) -> AppResult<O
 }
 
 /// Tells the room the pause is over, and pushes "Nouvelle question" when one opened.
-async fn announce(
-    state: &AppState,
-    group_id: i64,
-    actor: Option<i64>,
-    opened: Option<i64>,
-) -> AppResult<()> {
+async fn announce(state: &AppState, group_id: i64, actor: Option<i64>, opened: Option<i64>) {
     state.live.send(group_id, Event::RoomUpdated);
     if let Some(round_id) = opened {
         state.live.send(group_id, Event::RoundOpened { round_id });
-        notify_round(state, group_id, actor, Some(round_id), false).await?;
+        notify_round(state, group_id, actor, Some(round_id), false).await;
     }
-    Ok(())
 }
 
 /// Where the room stands: `waiting` = a closed question (`round_id`, the latest) waits for the next one;
@@ -90,7 +84,7 @@ pub async fn view(state: &AppState, group_id: i64) -> AppResult<Value> {
 /// After the owner changed `owner_next` / `next_delay`: a waiting room follows the new rules
 /// (new deadline counted from the close; released if nothing holds it any more or the deadline has passed).
 pub async fn settings_changed(state: &AppState, group_id: i64) -> AppResult<()> {
-    let mut tx = state.db.begin().await?;
+    let mut tx = crate::db::write_tx(&state.db).await?;
     sqlx::query(
         "UPDATE groups SET next_open_at = CASE WHEN next_delay > 0 \
            THEN strftime('%Y-%m-%dT%H:%M:%fZ', paused_at, '+' || next_delay || ' seconds') END \
@@ -113,7 +107,7 @@ pub async fn settings_changed(state: &AppState, group_id: i64) -> AppResult<()> 
     };
     tx.commit().await?;
     if free {
-        announce(state, group_id, None, opened).await?;
+        announce(state, group_id, None, opened).await;
     }
     Ok(())
 }
@@ -129,7 +123,7 @@ pub async fn launch(
     if me.role != "owner" {
         return Err(AppError::Forbidden("owner_only"));
     }
-    let mut tx = state.db.begin().await?;
+    let mut tx = crate::db::write_tx(&state.db).await?;
     let (owner_next, paused): (bool, bool) =
         sqlx::query_as("SELECT owner_next, paused_at IS NOT NULL FROM groups WHERE id = ?")
             .bind(room)
@@ -146,12 +140,13 @@ pub async fn launch(
     }
     let opened = release(&mut tx, room).await?;
     tx.commit().await?;
-    announce(&state, room, Some(me.id), opened).await?;
+    announce(&state, room, Some(me.id), opened).await;
     Ok(Json(json!({ "round_id": opened })))
 }
 
 /// Opens the next question of every waiting room whose deadline is at or before `now`
 /// (`YYYY-MM-DDTHH:MM:SS.sssZ`, the format of the database). Returns how many rooms were released.
+/// A room that fails is logged and skipped: the others still open (it is retried next tick).
 pub async fn open_due_at(state: &AppState, now: &str) -> AppResult<usize> {
     let due: Vec<i64> = sqlx::query_scalar(
         "SELECT id FROM groups WHERE next_open_at IS NOT NULL AND next_open_at <= ? AND deleted_at IS NULL",
@@ -161,24 +156,32 @@ pub async fn open_due_at(state: &AppState, now: &str) -> AppResult<usize> {
     .await?;
     let mut released = 0;
     for room in due {
-        let mut tx = state.db.begin().await?;
-        // Still due? (the owner may have launched it meanwhile)
-        let still: Option<i64> = sqlx::query_scalar(
-            "SELECT id FROM groups WHERE id = ? AND next_open_at IS NOT NULL AND next_open_at <= ?",
-        )
-        .bind(room)
-        .bind(now)
-        .fetch_optional(&mut *tx)
-        .await?;
-        if still.is_none() {
-            continue;
+        match open_due_room(state, room, now).await {
+            Ok(true) => released += 1,
+            Ok(false) => {}
+            Err(e) => tracing::warn!(room, error = ?e, "pacing: room not released"),
         }
-        let opened = release(&mut tx, room).await?;
-        tx.commit().await?;
-        announce(state, room, None, opened).await?;
-        released += 1;
     }
     Ok(released)
+}
+
+/// Releases one due room. `false` when it no longer is due (the owner launched it meanwhile).
+async fn open_due_room(state: &AppState, room: i64, now: &str) -> AppResult<bool> {
+    let mut tx = crate::db::write_tx(&state.db).await?;
+    let still: Option<i64> = sqlx::query_scalar(
+        "SELECT id FROM groups WHERE id = ? AND next_open_at IS NOT NULL AND next_open_at <= ?",
+    )
+    .bind(room)
+    .bind(now)
+    .fetch_optional(&mut *tx)
+    .await?;
+    if still.is_none() {
+        return Ok(false);
+    }
+    let opened = release(&mut tx, room).await?;
+    tx.commit().await?;
+    announce(state, room, None, opened).await;
+    Ok(true)
 }
 
 /// [`open_due_at`] with the database clock.

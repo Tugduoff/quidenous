@@ -192,7 +192,7 @@ pub async fn add_to_room(
         .bind(room)
         .fetch_one(&state.db)
         .await?;
-    let mut tx = state.db.begin().await?;
+    let mut tx = crate::db::write_tx(&state.db).await?;
     let member_id = match existing {
         Some((_, None, _)) => return Err(AppError::Conflict("already_in_room")),
         // Removed before: the owner (or a vote) took them out; adding them back is the owner's call.
@@ -251,7 +251,7 @@ pub async fn add_to_room(
     // They already get "Nouveau salon"; the others hear about the new question.
     if let Some(round_id) = opened {
         state.live.send(room, Event::RoundOpened { round_id });
-        crate::routes::notify_round(&state, room, Some(member_id), Some(round_id), false).await?;
+        crate::routes::notify_round(&state, room, Some(member_id), Some(round_id), false).await;
     }
     Ok(Json(json!({ "member_id": member_id })))
 }

@@ -172,7 +172,7 @@ pub async fn create(
         Some(l) => clean_language(l)?,
         None => Lang::Fr,
     };
-    let mut tx = state.db.begin().await?;
+    let mut tx = crate::db::write_tx(&state.db).await?;
     let mut room_id = None;
     // Codes are unique: retry on the (rare) clash.
     for _ in 0..5 {
@@ -247,7 +247,7 @@ pub async fn join(
     if kind == "party" {
         crate::party::may_take_seat(&state, room_id, existing.as_ref()).await?;
     }
-    let mut tx = state.db.begin().await?;
+    let mut tx = crate::db::write_tx(&state.db).await?;
     let joined = match existing {
         // Removed by the owner or a vote: only the owner can add them back.
         Some(m) if m.removed_at.is_some() && !m.left_by_self => {
@@ -295,7 +295,7 @@ pub async fn join(
         state.live.send(room_id, Event::MemberJoined { member_id });
         if let Some(round_id) = opened {
             state.live.send(room_id, Event::RoundOpened { round_id });
-            notify_round(&state, room_id, Some(member_id), Some(round_id), false).await?;
+            notify_round(&state, room_id, Some(member_id), Some(round_id), false).await;
         }
     }
     Ok(Json(json!({ "id": room_id, "kind": kind })))
@@ -440,7 +440,10 @@ pub async fn force_remove(
     .fetch_optional(&state.db)
     .await?;
     target.ok_or(AppError::NotFound)?;
-    remove_member(&state, room, member_id, me.id, false).await?;
+    // Gone in between (a vote or their own leave got there first): nothing left to remove.
+    if !remove_member(&state, room, member_id, me.id, false).await? {
+        return Err(AppError::NotFound);
+    }
     Ok(Json(json!({ "ok": true })))
 }
 
@@ -457,7 +460,7 @@ pub async fn transfer(
     Json(body): Json<OwnerBody>,
 ) -> AppResult<Json<Value>> {
     let me = owner_seat(&state, user, room).await?;
-    let mut tx = state.db.begin().await?;
+    let mut tx = crate::db::write_tx(&state.db).await?;
     let moved = sqlx::query("UPDATE members SET role = 'owner' WHERE id = ? AND group_id = ? AND removed_at IS NULL AND id != ?")
         .bind(body.member_id)
         .bind(room)
@@ -504,8 +507,10 @@ pub(crate) async fn leave_seat(state: &AppState, me: &MemberRow) -> AppResult<bo
             return Ok(true);
         }
     }
-    remove_member(state, room, me.id, me.id, true).await?;
-    state.live.send(room, Event::RoomUpdated);
+    // Already removed (a vote landed first): that removal stands.
+    if remove_member(state, room, me.id, me.id, true).await? {
+        state.live.send(room, Event::RoomUpdated);
+    }
     Ok(false)
 }
 
@@ -562,7 +567,7 @@ pub async fn start(
     let room = clean_room_name(&body.room)?;
     clean_vibe(body.vibe.as_deref())?;
     let token = crate::auth::new_token();
-    let mut tx = state.db.begin().await?;
+    let mut tx = crate::db::write_tx(&state.db).await?;
     let user: i64 = sqlx::query_scalar(
         "INSERT INTO users (name, color, friend_code) VALUES (?, ?, upper(hex(randomblob(4)))) RETURNING id",
     )

@@ -1,4 +1,4 @@
-use sqlx::SqlitePool;
+use sqlx::{Sqlite, SqlitePool, Transaction};
 
 use crate::i18n::Lang;
 
@@ -16,10 +16,12 @@ fn deck_lines(deck: &str) -> impl Iterator<Item = &str> {
 }
 
 /// Inserts deck questions that are not in the database yet, and keeps their vibe tags in sync.
+/// One transaction: hundreds of autocommit writes would each sync to disk.
 pub async fn seed(db: &SqlitePool) -> sqlx::Result<u64> {
+    let mut tx = crate::db::write_tx(db).await?;
     let mut added = 0;
     for (lang, deck) in DECKS {
-        added += import_lang(db, deck, lang).await?;
+        added += insert_lines(&mut tx, deck, lang).await?;
         for line in deck_lines(deck) {
             let (text, _, tags) = parse_tagged(line);
             let tags = if tags.is_empty() {
@@ -35,10 +37,11 @@ pub async fn seed(db: &SqlitePool) -> sqlx::Result<u64> {
             .bind(text)
             .bind(lang.as_str())
             .bind(items_json(line))
-            .execute(db)
+            .execute(&mut *tx)
             .await?;
         }
     }
+    tx.commit().await?;
     Ok(added)
 }
 
@@ -50,6 +53,17 @@ pub async fn import(db: &SqlitePool, text: &str) -> sqlx::Result<u64> {
 
 /// Same, into the deck of `lang`.
 pub async fn import_lang(db: &SqlitePool, text: &str, lang: Lang) -> sqlx::Result<u64> {
+    let mut tx = crate::db::write_tx(db).await?;
+    let added = insert_lines(&mut tx, text, lang).await?;
+    tx.commit().await?;
+    Ok(added)
+}
+
+async fn insert_lines(
+    tx: &mut Transaction<'_, Sqlite>,
+    text: &str,
+    lang: Lang,
+) -> sqlx::Result<u64> {
     let mut added = 0;
     for line in deck_lines(text) {
         let (text, kind) = parse_line(line);
@@ -64,7 +78,7 @@ pub async fn import_lang(db: &SqlitePool, text: &str, lang: Lang) -> sqlx::Resul
         .bind(kind)
         .bind(lang.as_str())
         .bind(items)
-        .execute(db)
+        .execute(&mut **tx)
         .await?
         .rows_affected();
     }

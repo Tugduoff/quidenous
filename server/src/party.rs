@@ -390,7 +390,7 @@ async fn answer(state: &AppState, id: i64, me: &MemberRow) -> AppResult<Json<Val
 /// question; `None` = the lobby). Concurrent taps open it once. A party with no question left stays
 /// paused. Returns the new round.
 async fn open_next(state: &AppState, id: i64, after: Option<i64>) -> AppResult<Option<i64>> {
-    let mut tx = state.db.begin().await?;
+    let mut tx = crate::db::write_tx(&state.db).await?;
     // Write first: the transaction holds the lock for the checks below.
     let released = sqlx::query(
         "UPDATE groups SET paused_at = NULL, next_open_at = NULL WHERE id = ? AND paused_at IS NOT NULL",
@@ -462,7 +462,7 @@ pub async fn after_leave(state: &AppState, id: i64) -> AppResult<()> {
 
 /// Closes the open question of a party that is over and pauses it for good, once. `true` = it just ended.
 async fn end_party(state: &AppState, id: i64, now: &str) -> AppResult<bool> {
-    let mut tx = state.db.begin().await?;
+    let mut tx = crate::db::write_tx(&state.db).await?;
     let done = sqlx::query(
         "UPDATE groups SET party_ended_at = ?1, paused_at = COALESCE(paused_at, ?1), next_open_at = NULL \
          WHERE id = ?2 AND kind = 'party' AND party_ended_at IS NULL",
@@ -512,9 +512,12 @@ pub async fn sweep_at(state: &AppState, now: &str) -> AppResult<Swept> {
     .bind(now)
     .fetch_all(&state.db)
     .await?;
+    // One party failing is logged and retried next sweep; the others still go ahead.
     for id in ending {
-        if end_party(state, id, now).await? {
-            swept.ended += 1;
+        match end_party(state, id, now).await {
+            Ok(true) => swept.ended += 1,
+            Ok(false) => {}
+            Err(e) => tracing::warn!(party = id, error = ?e, "sweep: party not ended"),
         }
     }
     let due: Vec<(i64, i64)> = sqlx::query_as(
@@ -525,17 +528,27 @@ pub async fn sweep_at(state: &AppState, now: &str) -> AppResult<Swept> {
     .fetch_all(&state.db)
     .await?;
     for (round_id, id) in due {
-        let mut tx = state.db.begin().await?;
-        let events = game::close_party_round(&mut tx, id, round_id, Some(now)).await?;
-        tx.commit().await?;
-        if !events.is_empty() {
-            swept.closed += 1;
-        }
-        for e in events {
-            state.live.send(id, e);
+        match close_due(state, id, round_id, now).await {
+            Ok(true) => swept.closed += 1,
+            Ok(false) => {}
+            Err(e) => {
+                tracing::warn!(party = id, round_id, error = ?e, "sweep: question not closed")
+            }
         }
     }
     Ok(swept)
+}
+
+/// Closes one party question past its deadline. `false` when it was already closed.
+async fn close_due(state: &AppState, id: i64, round_id: i64, now: &str) -> AppResult<bool> {
+    let mut tx = crate::db::write_tx(&state.db).await?;
+    let events = game::close_party_round(&mut tx, id, round_id, Some(now)).await?;
+    tx.commit().await?;
+    let closed = !events.is_empty();
+    for e in events {
+        state.live.send(id, e);
+    }
+    Ok(closed)
 }
 
 /// [`sweep_at`] with the database clock.
@@ -648,7 +661,7 @@ async fn create(
         None => my_lang,
     };
     let name = clean_party_name(body.name.as_deref(), my_lang, &host)?;
-    let mut tx = state.db.begin().await?;
+    let mut tx = crate::db::write_tx(&state.db).await?;
     let mut created: Option<(i64, String)> = None;
     for _ in 0..8 {
         let code = crate::rooms::code_of_len(CODE_LEN);
@@ -754,7 +767,7 @@ async fn join(
             return Err(AppError::Conflict("name_taken"));
         }
     }
-    let mut tx = state.db.begin().await?;
+    let mut tx = crate::db::write_tx(&state.db).await?;
     let mut token = None;
     let (member_id, joined) = match (signed_in, existing) {
         (Some(_), Some(m)) if m.removed_at.is_some() && !m.left_by_self => {
@@ -1053,7 +1066,7 @@ async fn keep(
     Path(id): Path<i64>,
 ) -> AppResult<Json<Value>> {
     let (me, _) = owner_seat(&state, user, id).await?;
-    let mut tx = state.db.begin().await?;
+    let mut tx = crate::db::write_tx(&state.db).await?;
     sqlx::query(
         "UPDATE groups SET kind = 'room', party_ends_at = NULL, party_ended_at = NULL, party_timer = ?, \
          paused_at = NULL, next_open_at = NULL, owner_next = 0, next_delay = 0 WHERE id = ?",
@@ -1072,7 +1085,7 @@ async fn keep(
     state.live.send(id, Event::RoomUpdated);
     if let Some(round_id) = opened {
         state.live.send(id, Event::RoundOpened { round_id });
-        crate::routes::notify_round(&state, id, Some(me.id), Some(round_id), false).await?;
+        crate::routes::notify_round(&state, id, Some(me.id), Some(round_id), false).await;
     }
     Ok(Json(json!({ "id": id })))
 }

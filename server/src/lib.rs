@@ -2,6 +2,7 @@ pub mod accounts;
 pub mod auth;
 pub mod avatar;
 pub mod config;
+pub mod db;
 pub mod deck;
 pub mod error;
 pub mod friends;
@@ -25,13 +26,10 @@ pub mod suggestions;
 pub mod updates;
 pub mod vibes;
 
-use std::{str::FromStr, sync::Arc};
+use std::sync::Arc;
 
 use axum::Router;
-use sqlx::{
-    SqlitePool,
-    sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions},
-};
+use sqlx::SqlitePool;
 use tower_http::{
     cors::CorsLayer,
     services::{ServeDir, ServeFile},
@@ -49,17 +47,9 @@ pub struct AppState {
     pub auth: Arc<accounts::Auth>,
 }
 
+/// Opens the database and migrates it (see [`db::connect`]).
 pub async fn connect(url: &str) -> anyhow_free::Result<SqlitePool> {
-    let options = SqliteConnectOptions::from_str(url)?
-        .create_if_missing(true)
-        .foreign_keys(true)
-        .journal_mode(SqliteJournalMode::Wal);
-    let db = SqlitePoolOptions::new()
-        .max_connections(8)
-        .connect_with(options)
-        .await?;
-    sqlx::migrate!("./migrations").run(&db).await?;
-    Ok(db)
+    db::connect(url).await
 }
 
 pub async fn state(config: Config) -> anyhow_free::Result<AppState> {

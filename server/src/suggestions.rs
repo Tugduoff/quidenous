@@ -181,7 +181,7 @@ pub async fn vote(
     if !(-1..=1).contains(&body.value) {
         return Err(AppError::BadRequest("bad_vote"));
     }
-    let mut tx = state.db.begin().await?;
+    let mut tx = crate::db::write_tx(&state.db).await?;
     let (author, status): (i64, String) =
         sqlx::query_as("SELECT user_id, status FROM suggestions WHERE id = ?")
             .bind(id)
@@ -284,7 +284,7 @@ pub async fn approve(
     if tags.is_empty() {
         tags.push(crate::vibes::DEFAULT_TAG.to_owned());
     }
-    let mut tx = state.db.begin().await?;
+    let mut tx = crate::db::write_tx(&state.db).await?;
     let (author, text, kind, lang, status): (i64, String, String, String, String) =
         sqlx::query_as("SELECT user_id, text, kind, lang, status FROM suggestions WHERE id = ?")
             .bind(id)
