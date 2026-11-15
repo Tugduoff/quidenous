@@ -1,6 +1,8 @@
 //! Party mode (docs/PARTY.md): lobby, guests, one question for everyone with a deadline, reveal,
 //! "Suivante" taps (75 %), the end, keeping it as a room, the big screen.
 
+mod common;
+
 use axum::{
     Router,
     body::Body,
@@ -12,13 +14,7 @@ use serde_json::{Value, json};
 use tower::ServiceExt;
 
 async fn setup() -> (Router, AppState) {
-    let dir = std::env::temp_dir().join(format!(
-        "qdn-party-{}",
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos()
-    ));
+    let dir = std::env::temp_dir().join(format!("qdn-party-{}", common::unique()));
     std::fs::create_dir_all(&dir).unwrap();
     let config = Config {
         database_url: format!("sqlite://{}?mode=rwc", dir.join("test.db").display()),
@@ -817,7 +813,12 @@ async fn a_guest_who_secures_the_account_keeps_everything() {
 
 #[tokio::test]
 async fn deleted_accounts_read_in_the_readers_language() {
-    let (app, _) = setup().await;
+    let (app, state) = setup().await;
+    // Two single picks must close the first question: no rank or choose question from the deck.
+    sqlx::query("DELETE FROM questions WHERE group_id IS NULL AND kind <> 'pick'")
+        .execute(&state.db)
+        .await
+        .unwrap();
     let tug = account(&app, "Tug").await;
     let gone = account(&app, "Louis").await;
     let (_, me) = call(&app, "GET", "/me", Some(&gone), None).await;
@@ -924,5 +925,26 @@ async fn party_updates_are_coalesced() {
     assert_eq!(
         serde_json::to_value(&e.event).unwrap(),
         json!({ "type": "party_updated", "round_id": 11 })
+    );
+}
+
+#[tokio::test]
+async fn votes_after_the_countdown_are_refused() {
+    let (app, state) = setup().await;
+    let (id, _, host, _, players) = started(&app, &["Léa", "Max"]).await;
+    let (_, lea_id) = &players[0];
+    // The countdown is over but the sweep hasn't closed it yet (a lost deadline task, a restart).
+    sqlx::query(
+        "UPDATE rounds SET deadline_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-1 seconds') \
+         WHERE group_id = ? AND closed_at IS NULL",
+    )
+    .bind(id)
+    .execute(&state.db)
+    .await
+    .unwrap();
+    let (status, body) = vote(&app, id, &host, *lea_id).await;
+    assert_eq!(
+        (status, body["error"].as_str()),
+        (StatusCode::CONFLICT, Some("time_up"))
     );
 }

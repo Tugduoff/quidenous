@@ -1,5 +1,7 @@
 //! Community v1 (docs/COMMUNITY.md): packs 2.0, admin review, suggestions, share → play, challenges.
 
+mod common;
+
 use std::{sync::Arc, time::Duration};
 
 use axum::{
@@ -20,13 +22,7 @@ struct T {
 
 /// A fresh server; the first account to join (user 1) is the admin.
 async fn setup() -> T {
-    let dir = std::env::temp_dir().join(format!(
-        "qdn-community-{}",
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos()
-    ));
+    let dir = std::env::temp_dir().join(format!("qdn-community-{}", common::unique()));
     std::fs::create_dir_all(&dir).unwrap();
     let config = Config {
         database_url: format!("sqlite://{}?mode=rwc", dir.join("test.db").display()),
@@ -1116,7 +1112,28 @@ async fn shared_questions_play_in_other_rooms_and_challenge_them() {
     let (_, g) = call(app, "GET", "/group", Some(&ana), None).await;
     let test_room = g["id"].as_i64().unwrap();
     let (cyd, _) = join(app, "Cyd").await;
-    let cousins = room_with(app, &ana, "Cousins", &[&cyd], None).await;
+    // Cousins opens on a written question: a random deck draw could be Test's question.
+    let cousins = room_with(app, &ana, "Cousins", &[], None).await;
+    let (s, b) = call_room(
+        app,
+        "POST",
+        "/questions",
+        &ana,
+        cousins,
+        Some(json!({ "text": "Qui ouvre le bal chez les cousins ?" })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{b}");
+    let (_, g) = call_room(app, "GET", "/group", &ana, cousins, None).await;
+    let (s, b) = call(
+        app,
+        "POST",
+        "/rooms/join",
+        Some(&cyd),
+        Some(json!({ "code": g["code"] })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{b}");
     let ana_c = seat(app, &ana, cousins).await;
     let cyd_c = seat(app, &cyd, cousins).await;
     // Cyd is also in Test: three there. Close Test's question with everyone.

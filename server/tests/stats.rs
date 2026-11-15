@@ -1,5 +1,7 @@
 //! Stats v2 (docs/STATS.md): periods, time zones, awards, profiles, stories and shared stat cards.
 
+mod common;
+
 use std::collections::{HashMap, HashSet};
 
 use axum::{
@@ -14,13 +16,7 @@ use sqlx::SqlitePool;
 use tower::ServiceExt;
 
 async fn test_app_with_state() -> (Router, AppState) {
-    let dir = std::env::temp_dir().join(format!(
-        "qdn-stats-{}",
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos()
-    ));
+    let dir = std::env::temp_dir().join(format!("qdn-stats-{}", common::unique()));
     let config = Config {
         port: 0,
         database_url: format!("sqlite://{}?mode=rwc", dir.join("test.db").display()),

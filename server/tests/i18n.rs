@@ -1,6 +1,8 @@
 //! Languages: the account's locale, push / inbox / e-mails in each person's language, room
 //! languages drawing their own deck, pack languages, share pages, English legal pages.
 
+mod common;
+
 use std::{sync::Arc, time::Duration};
 
 use axum::{
@@ -23,10 +25,7 @@ async fn setup() -> T {
     let dir = std::env::temp_dir().join(format!(
         "qdn-i18n-test-{}-{}",
         std::process::id(),
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos()
+        common::unique()
     ));
     std::fs::create_dir_all(&dir).unwrap();
     let config = Config {

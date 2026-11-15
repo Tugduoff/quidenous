@@ -1,5 +1,7 @@
 //! Accounts: email + password, codes, 2FA, sessions, rate limits, legacy accounts, OAuth (mock providers).
 
+mod common;
+
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
@@ -33,10 +35,7 @@ fn base_config() -> Config {
     let dir = std::env::temp_dir().join(format!(
         "qdn-auth-test-{}-{}",
         std::process::id(),
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos()
+        common::unique()
     ));
     std::fs::create_dir_all(&dir).unwrap();
     Config {
@@ -1177,11 +1176,8 @@ async fn oauth_round(
     (location, key)
 }
 
-fn rand_code() -> u128 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_nanos()
+fn rand_code() -> String {
+    common::unique()
 }
 
 fn discord(id: &str, email: &str, verified: bool) -> impl FnOnce(&str) -> Value {

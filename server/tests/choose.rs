@@ -1,5 +1,7 @@
 //! "Qui choisirait quoi ?" questions (docs/CHOOSE.md).
 
+mod common;
+
 use axum::{
     Router,
     body::Body,
@@ -13,10 +15,7 @@ use tower::ServiceExt;
 /// A fresh server; `keep_deck: false` leaves only the deck's pick questions (so the first,
 /// automatic, round is a plain pick).
 async fn test_app(keep_deck: bool) -> (Router, AppState) {
-    let suffix = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_nanos();
+    let suffix = common::unique();
     let dir = std::env::temp_dir().join(format!("qdn-choose-{suffix}"));
     let config = Config {
         port: 0,
