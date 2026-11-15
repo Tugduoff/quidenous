@@ -396,23 +396,26 @@ export function DialogTitle({ title, message }: { title: string; message?: strin
   );
 }
 
-/** Cancel and a red action, side by side, at the bottom of a Dialog. */
+/** Cancel and a red action (or `tone="acc"`: the accent colour), side by side, at the bottom of a Dialog. */
 export function DialogActions({
   confirmLabel,
   onConfirm,
   onCancel,
   busy,
   disabled,
+  tone = 'danger',
 }: {
   confirmLabel: string;
   onConfirm: () => void;
   onCancel: () => void;
   busy?: boolean;
   disabled?: boolean;
+  tone?: 'danger' | 'acc';
 }) {
   const t = useTheme();
   const tr = useT();
   const off = busy || disabled;
+  const ink = tone === 'acc' ? t.accTxt : '#fff';
   return (
     <View style={{ flexDirection: 'row', gap: 10, marginTop: 6 }}>
       <PressableScale
@@ -439,10 +442,10 @@ export function DialogActions({
           borderRadius: t.radius.pill,
           alignItems: 'center',
           justifyContent: 'center',
-          backgroundColor: '#FF3B5C',
+          backgroundColor: tone === 'acc' ? t.acc : '#FF3B5C',
           opacity: disabled ? 0.45 : 1,
         }}>
-        {busy ? <ActivityIndicator color="#fff" /> : <Text style={{ fontFamily: t.font.bold, fontSize: 15, color: '#fff' }}>{confirmLabel}</Text>}
+        {busy ? <ActivityIndicator color={ink} /> : <Text style={{ fontFamily: t.font.bold, fontSize: 15, color: ink }}>{confirmLabel}</Text>}
       </PressableScale>
     </View>
   );

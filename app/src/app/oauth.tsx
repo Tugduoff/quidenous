@@ -3,8 +3,9 @@ import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Platform, View } from 'react-native';
 
 import { AuthScreen } from '@/components/auth-ui';
+import { showToast } from '@/components/toast';
 import { Button } from '@/components/ui';
-import { authError, isChallenge, isLinked } from '@/lib/auth';
+import { authError, isChallenge, isLinked, isReauth } from '@/lib/auth';
 import { useT } from '@/lib/i18n';
 import { redeem, takeWebOAuthKey, useFinishSignIn } from '@/lib/sign-in';
 import { useTheme } from '@/lib/theme';
@@ -34,13 +35,18 @@ export default function OAuthReturn() {
         const r = await redeem(code, error, key);
         if (!r) return home();
         if (isLinked(r)) return router.replace('/security');
+        // Proved it is me before a sensitive change: back to it, to be tapped again.
+        if (isReauth(r)) {
+          showToast(tr('security.reauth.done'));
+          return router.replace('/security');
+        }
         await finish(r, true);
         if (!isChallenge(r)) home();
       } catch (e) {
         setFailed(authError(e));
       }
     })();
-  }, [code, error, finish]);
+  }, [code, error, finish, tr]);
 
   if (failed)
     return <AuthScreen back={false} title={tr('auth.oauthFailed')} sub={failed} footer={<Button onPress={home}>{tr('common.back')}</Button>} />;

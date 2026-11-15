@@ -8,7 +8,7 @@ import { BrandIcon } from '@/components/brand-icons';
 import { LegacyJoin } from '@/components/legacy-join';
 import { Screen } from '@/components/screen';
 import { Button, Logo } from '@/components/ui';
-import { authError, isLinked, pendingJoinCode, PROVIDER_NAMES, setPendingCode, useFeatures, type Provider } from '@/lib/auth';
+import { authError, isLinked, isReauth, pendingJoinCode, PROVIDER_NAMES, setPendingCode, useFeatures, type Provider } from '@/lib/auth';
 import { useT } from '@/lib/i18n';
 import { oauth, useFinishSignIn } from '@/lib/sign-in';
 import { useTheme } from '@/lib/theme';
@@ -42,7 +42,7 @@ function Welcome({ providers }: { providers: Provider[] }) {
     setError(null);
     try {
       const r = await oauth(p);
-      if (r && !isLinked(r)) await finish(r);
+      if (r && !isLinked(r) && !isReauth(r)) await finish(r);
     } catch (e) {
       setError(authError(e));
     } finally {

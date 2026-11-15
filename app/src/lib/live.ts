@@ -81,8 +81,16 @@ export function useLive(token: string | null, room: number | null) {
     };
     const heartbeat = setInterval(presence, HERE_MS);
     const appState = AppState.addEventListener('change', presence);
-    const connect = () => {
-      ws = new WebSocket(liveUrl(token));
+    const connect = async () => {
+      // A short-lived ticket instead of the token in the URL, when the server has them.
+      const tickets = !!qc.getQueryData<string[]>(['features'])?.includes('tickets');
+      const url = await liveUrl(token, tickets).catch(() => null);
+      if (stopped) return;
+      if (!url) {
+        retry = setTimeout(connect, RETRY_MS);
+        return;
+      }
+      ws = new WebSocket(url);
       ws.onopen = () => {
         presence();
         qc.invalidateQueries();

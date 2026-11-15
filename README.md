@@ -35,7 +35,7 @@ Config (env): `PORT` (8080), `DATA_DIR` (`data`), `DATABASE_URL`, `GROUP_NAME` a
 | POST | `/rounds/{id}/rating` `{value: 1 \| -1}` | thumbs up / down |
 | GET | `/history?before=` | closed rounds, newest first |
 | POST | `/questions` `{text}` · GET `/questions/queue` | our own questions, asked before the deck |
-| WS | `/live?token=` | `vote_cast`, `round_closed`, `round_opened`, `member_joined`, … |
+| WS | `/live?ticket=` (60 s ticket from `POST /auth/ticket`; older apps `?token=`) | `vote_cast`, `round_closed`, `round_opened`, `member_joined`, … |
 | GET | `/version` | `{version, sha}` of the running build (`dev` outside the Docker image) |
 | POST | `/client-errors` `{message, stack?, componentStack?, platform?, version?, route?}` | app crash report (16 KB max, rate-limited per IP and account): logged at WARN, sent to `CLIENT_ERRORS_WEBHOOK` → `204` |
 

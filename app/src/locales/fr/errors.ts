@@ -21,6 +21,7 @@ export const errors = {
   claimed_session: 'Fais-le depuis ton premier appareil.',
   sign_in_required: 'Connecte-toi pour continuer',
   reauth_required: "Confirme que c'est bien toi",
+  wrong_account: "Ce n'est pas le compte lié ici",
   bad_target: 'Impossible sur toi-même',
   not_found: 'Introuvable',
   bad_report: 'Signalement invalide',

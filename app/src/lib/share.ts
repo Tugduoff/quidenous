@@ -1,7 +1,10 @@
 import { Linking, Platform, Share } from 'react-native';
 
+import { showToast } from '@/components/toast';
+
 import { api, API_URL, historyExportUrl, type Member, type Round, type StatsPeriod, type Story } from './api';
 import { t } from './i18n';
+import { queryClient } from './query-client';
 
 /** Where friends can open the app (web app served by the API server). */
 export const appUrl = () => API_URL || (typeof location !== 'undefined' ? location.origin : '');
@@ -109,8 +112,10 @@ export async function shareStory(period: StatsPeriod, story: Story): Promise<'sh
 }
 
 /** Download the history CSV: a link click on the web, the browser elsewhere. */
-export function downloadHistory() {
-  const url = historyExportUrl();
+export async function downloadHistory() {
+  const tickets = !!queryClient.getQueryData<string[]>(['features'])?.includes('tickets');
+  const url = await historyExportUrl(tickets).catch(() => null);
+  if (!url) return showToast(t('common.failed'));
   if (Platform.OS === 'web' && typeof document !== 'undefined') {
     const a = document.createElement('a');
     a.href = url;

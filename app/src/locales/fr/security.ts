@@ -57,6 +57,17 @@ export const security = {
     usePassword: 'Utiliser le mot de passe',
     useCode: 'Utiliser un code',
   },
+  reauth: {
+    title: "Confirme que c'est toi",
+    password: 'Entre ton mot de passe pour continuer.',
+    code: "Entre un code de ton app d'authentification ou un code de secours.",
+    provider: 'Reconnecte-toi pour continuer.',
+    confirm: 'Confirmer',
+    useCode: 'Utiliser un code',
+    usePassword: 'Utiliser le mot de passe',
+    /** Toast on the web, back from Google / Discord: the action can be tapped again. */
+    done: "C'est bien toi : tu peux continuer.",
+  },
   twoFactor: {
     title: 'Double authentification',
     copyKey: 'Copier la clé',

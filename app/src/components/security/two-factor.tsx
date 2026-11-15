@@ -5,6 +5,7 @@ import { Linking, Platform, Text, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 
 import { CODE_LENGTH, CodeField, copyText, ErrorText, Field, Pill, Row, Section } from '@/components/auth-ui';
+import { withReauth } from '@/components/security/reauth';
 import { PressableScale, Toggle } from '@/components/ui';
 import { accountKey, auth, authError, type Account } from '@/lib/auth';
 import { useT } from '@/lib/i18n';
@@ -53,12 +54,20 @@ export function TwoFactorSection({ account }: { account: Account }) {
     refresh();
   };
 
+  // Turning 2FA on needs proof that it is me first (asked when the server says so).
   const start = () =>
     run(async () => {
-      setSetup(await auth.setup2fa());
+      const next = await withReauth(account, auth.setup2fa);
+      if (!next) return;
+      setSetup(next);
       go('setup');
     });
-  const enable = (value = code) => value.length === CODE_LENGTH && run(async () => showCodes((await auth.enable2fa(value, revoke)).recovery_codes));
+  const enable = (value = code) =>
+    value.length === CODE_LENGTH &&
+    run(async () => {
+      const r = await withReauth(account, () => auth.enable2fa(value, revoke));
+      if (r) showCodes(r.recovery_codes);
+    });
   const regen = (value = code) => value.length === CODE_LENGTH && run(async () => showCodes((await auth.recovery(value)).recovery_codes));
   const disable = () =>
     code.trim() &&
