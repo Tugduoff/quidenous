@@ -98,7 +98,7 @@ async fn send(
 ) -> AppResult<(i64, Option<i64>)> {
     crate::routes::may_add_questions(state, target).await?;
     let room = target.group_id;
-    let mut tx = state.db.begin().await?;
+    let mut tx = crate::db::write_tx(&state.db).await?;
     let played: Option<i64> = sqlx::query_scalar(
         "SELECT r.question_id FROM rounds r JOIN questions q ON q.id = r.question_id \
          WHERE r.group_id = ? AND lower(q.text) = lower(?) ORDER BY r.id DESC LIMIT 1",
@@ -166,7 +166,7 @@ async fn send(
     );
     if let Some(round_id) = opened {
         state.live.send(room, Event::RoundOpened { round_id });
-        crate::routes::notify_round(state, room, Some(target.id), Some(round_id), false).await?;
+        crate::routes::notify_round(state, room, Some(target.id), Some(round_id), false).await;
     }
     Ok((question, challenge))
 }

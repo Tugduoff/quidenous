@@ -93,7 +93,7 @@ docker compose run --rm quidenous server --import /data/my-questions.txt
 cd quidenous && git pull && cd deploy && docker compose up -d --build
 ```
 
-Migrations run automatically at start-up.
+Migrations run automatically at start-up, after a copy of the database (`data/pre-migrate-<version>.db`, the last 3 kept; how to roll back: `docs/DATABASE.md`).
 
 ## Backup
 

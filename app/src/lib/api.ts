@@ -350,7 +350,8 @@ export const apiRoom = () => room;
 const roomQuery = () => (room != null ? `&room=${room}` : '');
 
 /** Plain link to the CSV of the whole history (the token rides in the query so a browser can download it). */
-export const historyExportUrl = () => `${API_URL}/api/history/export?token=${token ?? ''}${roomQuery()}`;
+export const historyExportUrl = () =>
+  `${API_URL}/api/history/export?token=${token ?? ''}${roomQuery()}&tz=${-new Date().getTimezoneOffset()}`;
 
 /** `room`: this call is about another room than the current one (`X-Room` for it alone). */
 export async function api<T>(path: string, init: RequestInit & { json?: unknown; room?: number } = {}): Promise<T> {

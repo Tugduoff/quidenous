@@ -457,25 +457,6 @@ impl Push {
         );
     }
 
-    /// Same, for something a person did (a message): skips them and whoever blocked them.
-    pub fn notify_group_from(
-        &self,
-        db: SqlitePool,
-        group_id: i64,
-        from: &crate::models::MemberRow,
-        n: Notification,
-    ) {
-        self.notify(
-            db,
-            Target::Group {
-                group_id,
-                skip_member: Some(from.id),
-                from_user: from.user_id,
-            },
-            n,
-        );
-    }
-
     /// Sends to every device of one member, unless they blocked `from_user`. Runs in the background.
     pub fn notify_member(
         &self,

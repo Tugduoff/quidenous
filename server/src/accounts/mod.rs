@@ -626,7 +626,7 @@ pub(crate) mod codes {
         data: Option<Value>,
     ) -> AppResult<()> {
         let now = now_unix() as i64;
-        let mut tx = state.db.begin().await?;
+        let mut tx = crate::db::write_tx(&state.db).await?;
         // Old rows are of no use a day after they expired.
         sqlx::query("DELETE FROM auth_codes WHERE expires_at < ?")
             .bind(now - 86_400)

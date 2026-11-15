@@ -80,7 +80,7 @@ async fn new_recovery_codes(state: &AppState, user_id: i64) -> AppResult<Vec<Str
     let codes: Vec<String> = (0..RECOVERY_COUNT)
         .map(|_| crypto::recovery_code())
         .collect();
-    let mut tx = state.db.begin().await?;
+    let mut tx = crate::db::write_tx(&state.db).await?;
     sqlx::query("DELETE FROM recovery_codes WHERE user_id = ?")
         .bind(user_id)
         .execute(&mut *tx)

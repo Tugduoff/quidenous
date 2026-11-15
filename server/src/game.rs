@@ -28,6 +28,22 @@ macro_rules! unused {
 }
 pub(crate) use unused;
 
+/// The room's own question with this text (case-insensitive), if it has one: the one rule for
+/// "already in this room" when importing a file, installing a pack or playing a shared question.
+pub(crate) async fn same_question(
+    tx: &mut Transaction<'_, Sqlite>,
+    group_id: i64,
+    text: &str,
+) -> AppResult<Option<i64>> {
+    Ok(sqlx::query_scalar(
+        "SELECT id FROM questions WHERE group_id = ? AND lower(text) = lower(?) ORDER BY id LIMIT 1",
+    )
+    .bind(group_id)
+    .bind(text)
+    .fetch_optional(&mut **tx)
+    .await?)
+}
+
 pub async fn open_round(db: &SqlitePool, group_id: i64) -> AppResult<Option<RoundRow>> {
     Ok(sqlx::query_as::<_, RoundRow>(round_select!(
         "WHERE r.group_id = ? AND r.closed_at IS NULL"
@@ -228,20 +244,26 @@ pub async fn vote(
     ranking: Option<Vec<i64>>,
     choices: Option<Vec<Choice>>,
 ) -> AppResult<Vec<Event>> {
-    let mut tx = db.begin().await?;
+    let mut tx = crate::db::write_tx(db).await?;
     // A party that is over is a read-only memory.
     let party = party(&mut *tx, group_id).await?;
     if party.is_some_and(|p| p.over) {
         return Err(AppError::Gone("party_over"));
     }
-    let (round_id, kind, items): (i64, String, Option<String>) = sqlx::query_as(
-        "SELECT r.id, q.kind, q.items FROM rounds r JOIN questions q ON q.id = r.question_id \
+    let (round_id, kind, items, time_up): (i64, String, Option<String>, bool) = sqlx::query_as(
+        "SELECT r.id, q.kind, q.items, \
+         COALESCE(r.deadline_at <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), 0) \
+         FROM rounds r JOIN questions q ON q.id = r.question_id \
          WHERE r.group_id = ? AND r.closed_at IS NULL",
     )
     .bind(group_id)
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::Conflict("no_open_round"))?;
+    // A party question past its countdown takes no more votes, even before the sweep closes it.
+    if time_up {
+        return Err(AppError::Conflict("time_up"));
+    }
     // Party: only who was there when the question opened votes on it (and can be picked).
     if party.is_some() && !party_player(&mut tx, round_id, voter_id).await? {
         return Err(AppError::Conflict("joined_late"));
@@ -416,6 +438,7 @@ pub async fn skipped(
     let needed = majority(active_count(tx, group_id).await?);
     Ok(sqlx::query_scalar(
         "SELECT s.target_id FROM skips s JOIN members m ON m.id = s.target_id AND m.removed_at IS NULL \
+         JOIN members f ON f.id = s.from_id AND f.removed_at IS NULL \
          WHERE s.round_id = ? AND NOT EXISTS (SELECT 1 FROM votes v WHERE v.round_id = s.round_id AND v.voter_id = s.target_id) \
          GROUP BY s.target_id HAVING COUNT(*) >= ?",
     )
@@ -459,10 +482,14 @@ pub async fn close_if_done(
         active_count(tx, group_id).await? - skipped(tx, group_id, round_id).await?.len() as i64;
     let mut events = Vec::new();
     if votes > 0 && votes >= waiting_for {
-        sqlx::query("UPDATE rounds SET closed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ? AND closed_at IS NULL")
+        let done = sqlx::query("UPDATE rounds SET closed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ? AND closed_at IS NULL")
             .bind(round_id)
             .execute(&mut **tx)
             .await?;
+        // Already closed (by someone else just before): nothing to announce twice.
+        if done.rows_affected() == 0 {
+            return Ok(events);
+        }
         events.push(Event::RoundClosed { round_id });
         if crate::pacing::pause(tx, group_id).await? {
             events.push(Event::RoomUpdated);

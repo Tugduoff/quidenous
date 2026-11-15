@@ -1,3 +1,5 @@
+mod common;
+
 use axum::{
     Router,
     body::Body,
@@ -14,7 +16,7 @@ async fn test_app() -> Router {
 
 /// The app and its state, for tests that need to shape the data directly.
 async fn test_app_with_state() -> (Router, quidenous_server::AppState) {
-    let dir = std::env::temp_dir().join(format!("qdn-test-{}", rand_suffix()));
+    let dir = std::env::temp_dir().join(format!("qdn-test-{}", common::unique()));
     let config = Config {
         port: 0,
         database_url: format!("sqlite://{}?mode=rwc", dir.join("test.db").display()),
@@ -36,13 +38,6 @@ async fn test_app_with_state() -> (Router, quidenous_server::AppState) {
         .await
         .unwrap();
     (app(state.clone()), state)
-}
-
-fn rand_suffix() -> u128 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_nanos()
 }
 
 async fn call(
@@ -2140,7 +2135,7 @@ async fn a_room_never_loses_its_owner() {
 
 #[tokio::test]
 async fn rooms_without_an_owner_are_repaired_at_startup() {
-    let dir = std::env::temp_dir().join(format!("qdn-test-{}", rand_suffix()));
+    let dir = std::env::temp_dir().join(format!("qdn-test-{}", common::unique()));
     std::fs::create_dir_all(&dir).unwrap();
     let config = || Config {
         port: 0,

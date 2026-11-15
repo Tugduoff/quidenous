@@ -14,10 +14,6 @@ pub fn hash_token(token: &str) -> String {
     hex::encode(Sha256::digest(token.as_bytes()))
 }
 
-pub async fn member_for_token(state: &AppState, token: &str) -> Result<MemberRow, AppError> {
-    member_in_room(state, token, None).await
-}
-
 /// The signed-in user's seat in a room: the one asked for, else the room they used last.
 /// A token belongs to a user (one person, any number of rooms).
 pub async fn member_in_room(

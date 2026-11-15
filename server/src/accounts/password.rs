@@ -206,7 +206,7 @@ pub async fn reset(
         .filter(|a| Some(a.id) == row.user_id)
         .ok_or(AppError::BadRequest("bad_code"))?;
     let hash = state.auth.hasher.hash(&body.password).await?;
-    let mut tx = state.db.begin().await?;
+    let mut tx = crate::db::write_tx(&state.db).await?;
     sqlx::query(
         "UPDATE users SET password_hash = ?, \
          email_verified_at = COALESCE(email_verified_at, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) \

@@ -33,6 +33,7 @@ export const party: Messages['party'] = {
     pick: 'Pick someone',
     voted: '{count}/{total} voted',
     late: "You're in from the next one",
+    timeUp: "Time's up",
     myVote: 'Your vote: {name}',
     done: 'Voted',
     secondsLeft: { one: '{count} second', other: '{count} seconds' },

@@ -207,7 +207,7 @@ pub async fn block(
     .fetch_optional(&state.db)
     .await?;
     known.ok_or(AppError::NotFound)?;
-    let mut tx = state.db.begin().await?;
+    let mut tx = crate::db::write_tx(&state.db).await?;
     sqlx::query("INSERT OR IGNORE INTO blocks (user_id, blocked_id) VALUES (?, ?)")
         .bind(me)
         .bind(other)

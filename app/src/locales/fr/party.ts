@@ -34,6 +34,7 @@ export const party = {
     pick: 'Choisis quelqu’un',
     voted: '{count}/{total} ont voté',
     late: 'Tu joues à la prochaine',
+    timeUp: 'Temps écoulé',
     myVote: 'Ton vote : {name}',
     done: 'A voté',
     secondsLeft: { one: '{count} seconde', other: '{count} secondes' },

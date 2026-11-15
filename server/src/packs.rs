@@ -427,7 +427,7 @@ pub async fn publish(
         },
     };
     let questions = clean_questions(raw)?;
-    let mut tx = state.db.begin().await?;
+    let mut tx = crate::db::write_tx(&state.db).await?;
     let id: i64 = sqlx::query_scalar(
         "INSERT INTO packs (name, description, author_id, language, tags, spicy) \
          VALUES (?, ?, ?, ?, ?, ?) RETURNING id",
@@ -488,7 +488,7 @@ pub async fn edit(
         (None, None) => current.clone(),
     };
     let changed = questions != current;
-    let mut tx = state.db.begin().await?;
+    let mut tx = crate::db::write_tx(&state.db).await?;
     sqlx::query(
         "UPDATE packs SET name = ?1, description = ?2, language = ?3, tags = ?4, spicy = ?5, \
          version = version + ?6, \
@@ -559,12 +559,17 @@ pub async fn install(
     if questions.is_empty() {
         return Err(AppError::NotFound);
     }
-    let mut tx = state.db.begin().await?;
+    let mut tx = crate::db::write_tx(&state.db).await?;
     let mut added = 0;
     for (text, kind) in &questions {
-        let inserted = sqlx::query(
-            "INSERT INTO questions (group_id, text, author_id, kind, origin) SELECT ?1, ?2, ?3, ?4, 'pack' \
-             WHERE NOT EXISTS (SELECT 1 FROM questions WHERE group_id = ?1 AND lower(text) = lower(?2))",
+        if game::same_question(&mut tx, me.group_id, text)
+            .await?
+            .is_some()
+        {
+            continue;
+        }
+        sqlx::query(
+            "INSERT INTO questions (group_id, text, author_id, kind, origin) VALUES (?, ?, ?, ?, 'pack')",
         )
         .bind(me.group_id)
         .bind(text)
@@ -572,7 +577,7 @@ pub async fn install(
         .bind(kind)
         .execute(&mut *tx)
         .await?;
-        added += inserted.rows_affected();
+        added += 1;
     }
     sqlx::query(
         "INSERT OR IGNORE INTO pack_installs (pack_id, group_id, user_id) VALUES (?, ?, ?)",
@@ -594,8 +599,7 @@ pub async fn install(
         state
             .live
             .send(me.group_id, Event::RoundOpened { round_id });
-        crate::routes::notify_round(&state, me.group_id, Some(me.id), Some(round_id), false)
-            .await?;
+        crate::routes::notify_round(&state, me.group_id, Some(me.id), Some(round_id), false).await;
     }
     state
         .live
@@ -920,7 +924,7 @@ pub async fn approve(
     Path(id): Path<i64>,
 ) -> AppResult<Json<Value>> {
     require_admin(&state, me)?;
-    let mut tx = state.db.begin().await?;
+    let mut tx = crate::db::write_tx(&state.db).await?;
     let done = sqlx::query(
         "UPDATE packs SET status = 'public', removed_reason = NULL WHERE id = ? AND status != 'deleted'",
     )

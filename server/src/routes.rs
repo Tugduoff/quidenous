@@ -255,7 +255,7 @@ async fn join(
         None => None,
     };
     let token = new_token();
-    let mut tx = state.db.begin().await?;
+    let mut tx = crate::db::write_tx(&state.db).await?;
     let existing = match signed_in {
         Some(user_id) => {
             sqlx::query_as::<_, MemberRow>(
@@ -376,7 +376,7 @@ async fn join(
     }
     if let Some(round_id) = opened {
         state.live.send(group_id, Event::RoundOpened { round_id });
-        notify_round(&state, group_id, Some(member.id), Some(round_id), false).await?;
+        notify_round(&state, group_id, Some(member.id), Some(round_id), false).await;
     }
     Ok(Json(
         json!({ "token": token, "member": Member::from(&member), "room_id": group_id }),
@@ -443,21 +443,24 @@ async fn upload_photo(
     let dir = state.config.data_dir.join("photos");
     tokio::fs::create_dir_all(&dir).await?;
     image.to_rgb8().save(dir.join(&file))?;
-    if let Some(old) = &me.photo {
-        let _ = tokio::fs::remove_file(dir.join(old)).await;
-    }
     // A photo replaces the drawn avatar.
+    let mut tx = crate::db::write_tx(&state.db).await?;
     sqlx::query("UPDATE users SET photo = ?, avatar = NULL WHERE id = ?")
         .bind(&file)
         .bind(me.user_id)
-        .execute(&state.db)
+        .execute(&mut *tx)
         .await?;
     sqlx::query("UPDATE members SET photo = ?1, avatar = NULL WHERE user_id = ?2 OR id = ?3")
         .bind(&file)
         .bind(me.user_id)
         .bind(me.id)
-        .execute(&state.db)
+        .execute(&mut *tx)
         .await?;
+    tx.commit().await?;
+    // The old file goes once nothing points at it any more (a failed update keeps it).
+    if let Some(old) = &me.photo {
+        let _ = tokio::fs::remove_file(dir.join(old)).await;
+    }
     profile_changed(&state, &me).await
 }
 
@@ -684,7 +687,7 @@ async fn vote(
         state.live.send(me.group_id, event);
     }
     if closed {
-        notify_round(&state, me.group_id, Some(me.id), opened, true).await?;
+        notify_round(&state, me.group_id, Some(me.id), opened, true).await;
     }
     Ok(Json(json!({ "ok": true })))
 }
@@ -819,6 +822,8 @@ async fn history_items(
 struct ExportQuery {
     token: String,
     room: Option<i64>,
+    /// Minutes east of UTC, for the dates (default: the account's notification setting, else UTC).
+    tz: Option<String>,
 }
 
 /// The whole history as a CSV file. The token comes in the query so a plain link (browser download) works.
@@ -839,10 +844,24 @@ async fn export_history(
         .map(|(id, name, user_id)| (id, i18n::member_name(lang, &name, user_id)))
         .collect();
     let name = |id: i64| names.get(&id).cloned().unwrap_or_else(|| "?".into());
+    // Dates in the reader's time zone: a question closed at 00:30 in Paris is dated that day.
+    let tz = match q.tz.as_deref() {
+        Some(tz) => crate::stats::parse_tz(Some(tz)),
+        None => {
+            let saved: Option<i64> =
+                sqlx::query_scalar("SELECT tz_offset FROM notification_prefs WHERE user_id = ?")
+                    .bind(me.user_id)
+                    .fetch_optional(&state.db)
+                    .await?;
+            saved.map_or(0, crate::stats::clamp_tz)
+        }
+    };
     let rounds: Vec<(i64, i64, String, String, String)> = sqlx::query_as(
-        "SELECT r.id, r.number, q.text, r.closed_at, q.kind FROM rounds r JOIN questions q ON q.id = r.question_id \
+        "SELECT r.id, r.number, q.text, strftime('%Y-%m-%d', r.closed_at, ? || ' minutes'), q.kind \
+         FROM rounds r JOIN questions q ON q.id = r.question_id \
          WHERE r.group_id = ? AND r.closed_at IS NOT NULL ORDER BY r.number",
     )
+    .bind(tz)
     .bind(me.group_id)
     .fetch_all(&state.db)
     .await?;
@@ -909,7 +928,7 @@ async fn export_history(
         csv.push_str(&format!(
             "{},{},{},{},{},{},{}\n",
             number,
-            &closed_at[..10.min(closed_at.len())],
+            closed_at,
             cell(&question),
             cell(&winners.join(", ")),
             top,
@@ -981,31 +1000,35 @@ async fn skip(
     }
     room_allows(&state, me.group_id, "skip_vote").await?;
     enough_for_votes(&state, me.group_id).await?;
-    let round = game::open_round(&state.db, me.group_id)
-        .await?
-        .ok_or(AppError::Conflict("no_open_round"))?;
+    // Checked in the write transaction: a vote can't close the question in between.
+    let mut tx = crate::db::write_tx(&state.db).await?;
+    let round_id: i64 =
+        sqlx::query_scalar("SELECT id FROM rounds WHERE group_id = ? AND closed_at IS NULL")
+            .bind(me.group_id)
+            .fetch_optional(&mut *tx)
+            .await?
+            .ok_or(AppError::Conflict("no_open_round"))?;
     let waiting: Option<i64> = sqlx::query_scalar(
         "SELECT id FROM members m WHERE m.id = ? AND m.group_id = ? AND m.removed_at IS NULL \
          AND NOT EXISTS (SELECT 1 FROM votes v WHERE v.round_id = ? AND v.voter_id = m.id)",
     )
     .bind(member_id)
     .bind(me.group_id)
-    .bind(round.id)
-    .fetch_optional(&state.db)
+    .bind(round_id)
+    .fetch_optional(&mut *tx)
     .await?;
     if waiting.is_none() {
         return Err(AppError::Conflict("already_voted"));
     }
-    let mut tx = state.db.begin().await?;
     sqlx::query("INSERT OR IGNORE INTO skips (round_id, from_id, target_id) VALUES (?, ?, ?)")
-        .bind(round.id)
+        .bind(round_id)
         .bind(me.id)
         .bind(member_id)
         .execute(&mut *tx)
         .await?;
-    let events = game::close_if_done(&mut tx, me.group_id, round.id).await?;
+    let events = game::close_if_done(&mut tx, me.group_id, round_id).await?;
     tx.commit().await?;
-    after_round_change(&state, me.group_id, me.id, round.id, events).await
+    Ok(after_round_change(&state, me.group_id, me.id, round_id, events).await)
 }
 
 async fn unskip(
@@ -1035,7 +1058,7 @@ async fn after_round_change(
     actor: i64,
     round_id: i64,
     events: Vec<Event>,
-) -> AppResult<Json<Value>> {
+) -> Json<Value> {
     let closed = events
         .iter()
         .any(|e| matches!(e, Event::RoundClosed { .. }));
@@ -1048,9 +1071,9 @@ async fn after_round_change(
         state.live.send(group_id, event);
     }
     if closed {
-        notify_round(state, group_id, Some(actor), opened, true).await?;
+        notify_round(state, group_id, Some(actor), opened, true).await;
     }
-    Ok(Json(json!({ "ok": true, "closed": closed })))
+    Json(json!({ "ok": true, "closed": closed }))
 }
 
 /// Vote to remove someone from the group. With a majority of the others, they are out:
@@ -1065,12 +1088,15 @@ async fn kick(
     }
     room_allows(&state, me.group_id, "kick_vote").await?;
     enough_for_votes(&state, me.group_id).await?;
+    // The vote, the count and the removal in one write transaction: two votes landing together
+    // (or a vote and the target leaving) can't both remove the seat.
+    let mut tx = crate::db::write_tx(&state.db).await?;
     let target: Option<String> = sqlx::query_scalar(
         "SELECT role FROM members WHERE id = ? AND group_id = ? AND removed_at IS NULL",
     )
     .bind(member_id)
     .bind(me.group_id)
-    .fetch_optional(&state.db)
+    .fetch_optional(&mut *tx)
     .await?;
     match target.as_deref() {
         None => return Err(AppError::NotFound),
@@ -1078,7 +1104,6 @@ async fn kick(
         Some("owner") => return Err(AppError::Forbidden("owner")),
         Some(_) => {}
     }
-    let mut tx = state.db.begin().await?;
     sqlx::query("INSERT OR IGNORE INTO kicks (target_id, from_id) VALUES (?, ?)")
         .bind(member_id)
         .bind(me.id)
@@ -1096,47 +1121,86 @@ async fn kick(
         state.live.send(me.group_id, Event::KickVoted { member_id });
         return Ok(Json(json!({ "ok": true, "removed": false })));
     }
+    let removed = take_seat(&mut tx, me.group_id, member_id, false).await?;
     tx.commit().await?;
-    remove_member(&state, me.group_id, member_id, me.id, false).await?;
+    if let Some(removed) = removed {
+        announce_removal(&state, me.id, removed).await;
+    }
     Ok(Json(json!({ "ok": true, "removed": true })))
 }
 
-/// Takes someone's seat in a room away (vote, owner, or leaving: `left`). Their account, devices and other
-/// rooms are untouched; their past votes stay in the history; the open question stops waiting for them.
-/// An owner seat that ends hands the room to the longest-standing member.
-pub(crate) async fn remove_member(
-    state: &AppState,
+/// What taking a seat away changed, to announce once it committed (see [`announce_removal`]).
+pub(crate) struct Removal {
     group_id: i64,
     member_id: i64,
-    actor: i64,
+    /// Someone became the owner.
+    promoted: bool,
+    /// The open question, re-checked without them.
+    open: Option<i64>,
+    events: Vec<Event>,
+}
+
+/// Takes someone's seat in a room away (vote, owner, or leaving: `left`), in the caller's write
+/// transaction. Their account, devices and other rooms are untouched; their past votes stay in the
+/// history; the open question stops waiting for them. An owner seat that ends hands the room to the
+/// longest-standing member. `None` when the seat was already empty (a concurrent removal or leave
+/// got there first: theirs decides whether they may come back).
+pub(crate) async fn take_seat(
+    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    group_id: i64,
+    member_id: i64,
     left: bool,
-) -> AppResult<()> {
-    let mut tx = state.db.begin().await?;
-    sqlx::query("UPDATE members SET removed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), role = 'member', left_by_self = ? WHERE id = ?")
-        .bind(left)
-        .bind(member_id)
-        .execute(&mut *tx)
-        .await?;
-    let promoted = game::ensure_owner(&mut tx, group_id).await?;
+) -> AppResult<Option<Removal>> {
+    let done = sqlx::query(
+        "UPDATE members SET removed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), role = 'member', left_by_self = ? \
+         WHERE id = ? AND group_id = ? AND removed_at IS NULL",
+    )
+    .bind(left)
+    .bind(member_id)
+    .bind(group_id)
+    .execute(&mut **tx)
+    .await?;
+    if done.rows_affected() == 0 {
+        return Ok(None);
+    }
+    let promoted = game::ensure_owner(tx, group_id).await?;
     sqlx::query("DELETE FROM kicks WHERE target_id = ?1 OR from_id = ?1")
         .bind(member_id)
-        .execute(&mut *tx)
+        .execute(&mut **tx)
         .await?;
     let open: Option<i64> =
         sqlx::query_scalar("SELECT id FROM rounds WHERE group_id = ? AND closed_at IS NULL")
             .bind(group_id)
-            .fetch_optional(&mut *tx)
+            .fetch_optional(&mut **tx)
             .await?;
     let mut events = Vec::new();
     if let Some(round_id) = open {
         sqlx::query("DELETE FROM votes WHERE round_id = ? AND voter_id = ?")
             .bind(round_id)
             .bind(member_id)
-            .execute(&mut *tx)
+            .execute(&mut **tx)
             .await?;
-        events = game::close_if_done(&mut tx, group_id, round_id).await?;
+        events = game::close_if_done(tx, group_id, round_id).await?;
     }
-    tx.commit().await?;
+    Ok(Some(Removal {
+        group_id,
+        member_id,
+        promoted,
+        open,
+        events,
+    }))
+}
+
+/// After a removal committed: the room hears it, the question it closed is announced, and a party
+/// re-counts its "Suivante" taps. Failures are logged (the removal itself is done).
+pub(crate) async fn announce_removal(state: &AppState, actor: i64, removal: Removal) {
+    let Removal {
+        group_id,
+        member_id,
+        promoted,
+        open,
+        events,
+    } = removal;
     state
         .live
         .send(group_id, Event::MemberRemoved { member_id });
@@ -1144,11 +1208,33 @@ pub(crate) async fn remove_member(
         state.live.send(group_id, Event::RoomUpdated);
     }
     if let Some(round_id) = open {
-        let _ = after_round_change(state, group_id, actor, round_id, events).await?;
+        let _ = after_round_change(state, group_id, actor, round_id, events).await;
     }
     // A party: 75 % of fewer players may now have tapped "Suivante".
-    crate::party::after_leave(state, group_id).await?;
-    Ok(())
+    if let Err(e) = crate::party::after_leave(state, group_id).await {
+        tracing::warn!(group_id, error = ?e, "party re-check after a removal failed");
+    }
+}
+
+/// [`take_seat`] in its own transaction, then [`announce_removal`]. `false` when the seat was
+/// already empty (nothing changed, nothing announced).
+pub(crate) async fn remove_member(
+    state: &AppState,
+    group_id: i64,
+    member_id: i64,
+    actor: i64,
+    left: bool,
+) -> AppResult<bool> {
+    let mut tx = crate::db::write_tx(&state.db).await?;
+    let removal = take_seat(&mut tx, group_id, member_id, left).await?;
+    tx.commit().await?;
+    match removal {
+        Some(removal) => {
+            announce_removal(state, actor, removal).await;
+            Ok(true)
+        }
+        None => Ok(false),
+    }
 }
 
 async fn unkick(
@@ -1262,7 +1348,7 @@ async fn add_question(
     } else {
         None
     };
-    let mut tx = state.db.begin().await?;
+    let mut tx = crate::db::write_tx(&state.db).await?;
     let question = sqlx::query_as::<_, QueuedQuestion>(
         "INSERT INTO questions (group_id, text, author_id, kind, items) VALUES (?, ?, ?, ?, ?) \
          RETURNING id, text, author_id, kind, items",
@@ -1287,7 +1373,7 @@ async fn add_question(
         state
             .live
             .send(me.group_id, Event::RoundOpened { round_id });
-        notify_round(&state, me.group_id, Some(me.id), Some(round_id), false).await?;
+        notify_round(&state, me.group_id, Some(me.id), Some(round_id), false).await;
     }
     Ok(Json(question))
 }
@@ -1297,7 +1383,7 @@ async fn add_question(
 async fn shuffle_questions(State(state): State<AppState>, Me(me): Me) -> AppResult<Json<Value>> {
     use rand::seq::SliceRandom;
     may_add_questions(&state, &me).await?;
-    let mut tx = state.db.begin().await?;
+    let mut tx = crate::db::write_tx(&state.db).await?;
     let rows: Vec<(i64, i64)> = sqlx::query_as(concat!(
         "SELECT q.id, COALESCE(q.sort_key, q.id) FROM questions q WHERE q.group_id = ?1 AND ",
         game::unused!(),
@@ -1336,7 +1422,7 @@ async fn order_questions(
     Json(body): Json<OrderBody>,
 ) -> AppResult<Json<Value>> {
     may_add_questions(&state, &me).await?;
-    let mut tx = state.db.begin().await?;
+    let mut tx = crate::db::write_tx(&state.db).await?;
     let rows: Vec<(i64, i64)> = sqlx::query_as(concat!(
         "SELECT q.id, COALESCE(q.sort_key, q.id) FROM questions q WHERE q.group_id = ?1 AND ",
         game::unused!(),
@@ -1379,6 +1465,8 @@ async fn delete_question(
     Me(me): Me,
     Path(id): Path<i64>,
 ) -> AppResult<Json<Value>> {
+    // Checked in the write transaction: a vote can't open this very question in between.
+    let mut tx = crate::db::write_tx(&state.db).await?;
     let row: Option<(Option<i64>, bool)> = sqlx::query_as(concat!(
         "SELECT q.author_id, ",
         game::unused!(),
@@ -1386,7 +1474,7 @@ async fn delete_question(
     ))
     .bind(me.group_id)
     .bind(id)
-    .fetch_optional(&state.db)
+    .fetch_optional(&mut *tx)
     .await?;
     let (author, unused) = row.ok_or(AppError::NotFound)?;
     if !unused {
@@ -1396,7 +1484,6 @@ async fn delete_question(
         return Err(AppError::Forbidden("not_author"));
     }
     // A challenge waiting on this question goes with it.
-    let mut tx = state.db.begin().await?;
     sqlx::query("DELETE FROM challenges WHERE question_id = ?")
         .bind(id)
         .execute(&mut *tx)
@@ -1485,7 +1572,21 @@ async fn relay(mut socket: WebSocket, state: AppState, group_id: i64, user_id: O
 }
 
 /// "Result is in" and/or "new question", to every device except the person who triggered it.
+/// Runs after the change committed: a failure here (inbox write, lookup) is logged, never turned
+/// into an error for a request whose write already happened (its retry would only get a 409).
 pub(crate) async fn notify_round(
+    state: &AppState,
+    group_id: i64,
+    skip: Option<i64>,
+    opened: Option<i64>,
+    closed: bool,
+) {
+    if let Err(e) = try_notify_round(state, group_id, skip, opened, closed).await {
+        tracing::warn!(group_id, error = ?e, "round notification failed");
+    }
+}
+
+async fn try_notify_round(
     state: &AppState,
     group_id: i64,
     skip: Option<i64>,
@@ -2002,16 +2103,12 @@ async fn import_questions(
     // never to the deck every room draws from.
     let mut added: u64 = 0;
     {
-        let mut tx = state.db.begin().await?;
+        let mut tx = crate::db::write_tx(&state.db).await?;
         for (text, kind, items) in &valid {
-            let known: Option<i64> = sqlx::query_scalar(
-                "SELECT id FROM questions WHERE group_id = ? AND lower(text) = lower(?)",
-            )
-            .bind(me.group_id)
-            .bind(text)
-            .fetch_optional(&mut *tx)
-            .await?;
-            if known.is_some() {
+            if game::same_question(&mut tx, me.group_id, text)
+                .await?
+                .is_some()
+            {
                 continue;
             }
             sqlx::query(
@@ -2028,14 +2125,14 @@ async fn import_questions(
         }
         tx.commit().await?;
     }
-    let mut tx = state.db.begin().await?;
+    let mut tx = crate::db::write_tx(&state.db).await?;
     let opened = game::ensure_open_round(&mut tx, me.group_id).await?;
     tx.commit().await?;
     if let Some(round_id) = opened {
         state
             .live
             .send(me.group_id, Event::RoundOpened { round_id });
-        notify_round(&state, me.group_id, Some(me.id), Some(round_id), false).await?;
+        notify_round(&state, me.group_id, Some(me.id), Some(round_id), false).await;
     }
     state
         .live
