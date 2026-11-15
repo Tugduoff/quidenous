@@ -38,6 +38,8 @@ pub fn router() -> Router<AppState> {
         // What this server can do, so apps (and release scripts) can tell a deploy has landed.
         .route("/features", get(features))
         .route("/vibes", get(crate::vibes::list))
+        // Build version (`/api/version`) and app crash reports (`/api/client-errors`).
+        .merge(crate::ops::router())
         .nest("/auth", crate::accounts::router())
         .route("/join", post(join))
         .route("/me", get(me).put(update_me))

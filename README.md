@@ -36,6 +36,8 @@ Config (env): `PORT` (8080), `DATA_DIR` (`data`), `DATABASE_URL`, `GROUP_NAME` a
 | GET | `/history?before=` | closed rounds, newest first |
 | POST | `/questions` `{text}` · GET `/questions/queue` | our own questions, asked before the deck |
 | WS | `/live?token=` | `vote_cast`, `round_closed`, `round_opened`, `member_joined`, … |
+| GET | `/version` | `{version, sha}` of the running build (`dev` outside the Docker image) |
+| POST | `/client-errors` `{message, stack?, componentStack?, platform?, version?, route?}` | app crash report (16 KB max, rate-limited per IP and account): logged at WARN, sent to `CLIENT_ERRORS_WEBHOOK` → `204` |
 
 ## Deploy (homelab)
 

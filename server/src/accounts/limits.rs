@@ -48,6 +48,11 @@ pub const DELETE_CONFIRM_ACCOUNT: Rule = rule("delete_confirm_account", 10, 60);
 pub const REPORT_USER: Rule = rule("report_user", 20, 60);
 /// Server-wide (one key): beyond this, reports are stored but not emailed.
 pub const REPORT_MAIL: Rule = rule("report_mail", 30, 60);
+/// App crash reports (`POST /api/client-errors`).
+pub const CLIENT_ERROR_IP: Rule = rule("client_error_ip", 20, 10);
+pub const CLIENT_ERROR_USER: Rule = rule("client_error_user", 10, 10);
+/// Server-wide (one key): beyond this, crash reports are logged but not sent to the webhook.
+pub const CLIENT_ERROR_WEBHOOK: Rule = rule("client_error_webhook", 30, 60);
 
 struct Bucket {
     tokens: f64,
@@ -169,6 +174,9 @@ fn rule_by_name(name: &str) -> Option<Rule> {
         DELETE_CONFIRM_ACCOUNT,
         REPORT_USER,
         REPORT_MAIL,
+        CLIENT_ERROR_IP,
+        CLIENT_ERROR_USER,
+        CLIENT_ERROR_WEBHOOK,
     ]
     .into_iter()
     .find(|r| r.name == name)

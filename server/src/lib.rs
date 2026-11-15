@@ -13,6 +13,7 @@ pub mod live;
 pub mod models;
 pub mod moderation;
 pub mod notifications;
+pub mod ops;
 pub mod pacing;
 pub mod packs;
 pub mod party;
@@ -175,7 +176,8 @@ pub fn app(state: AppState) -> Router {
         app = app
             .fallback_service(ServeDir::new(web).fallback(ServeFile::new(web.join("index.html"))));
     }
-    app.layer(CorsLayer::permissive())
+    app.layer(axum::middleware::from_fn(error::log_server_errors))
+        .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http())
         .with_state(state)
 }
