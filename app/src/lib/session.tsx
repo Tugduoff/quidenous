@@ -31,6 +31,8 @@ type Session = {
   doneVerifying: () => void;
   /** First room of a roomless account (joined or created). */
   enterRoom: (id: number) => Promise<void>;
+  /** Left (or deleted) my last room: back to joining or creating one. */
+  noRoomLeft: () => Promise<void>;
   /** Seated at a party from its link: `guestToken` when that made a new guest account (else my session stays), then into that room. */
   joinParty: (guestToken: string | null, roomId: number) => Promise<void>;
   setMe: (m: Member) => void;
@@ -159,6 +161,13 @@ export function SessionProvider({ children }: PropsWithChildren) {
     setRoomless(false);
   };
 
+  const noRoomLeft = async () => {
+    setApiRoom(null);
+    await storage.remove(ROOM_KEY);
+    setRoomState(null);
+    setRoomless(true);
+  };
+
   const joinParty = async (guestToken: string | null, roomId: number) => {
     if (guestToken) {
       setApiToken(guestToken);
@@ -221,6 +230,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
         signIn,
         doneVerifying: () => setVerifying(false),
         enterRoom,
+        noRoomLeft,
         joinParty,
         setMe,
         leave,

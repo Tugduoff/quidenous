@@ -81,6 +81,7 @@ export function useNextSuggestions(enabled = true) {
 export function useSuggest() {
   const qc = useQueryClient();
   return useMutation({
+    meta: { quiet: true },
     mutationFn: (body: { text: string; kind: 'pick' | 'rank' }) =>
       api<Suggestion>('/suggestions', { method: 'POST', json: { ...body, lang: getLang() } }),
     onSettled: () => qc.invalidateQueries({ queryKey: communityKeys.mine }),
@@ -91,6 +92,7 @@ export const VOTE_KEY = ['suggestion-vote'] as const;
 
 export function useVoteSuggestion() {
   return useMutation({
+    meta: { quiet: true },
     mutationKey: VOTE_KEY,
     mutationFn: ({ id, value }: { id: number; value: SuggestionVote }) =>
       api<{ up: number; down: number; status: SuggestionStatus }>(`/suggestions/${id}/vote`, { method: 'POST', json: { value } }),

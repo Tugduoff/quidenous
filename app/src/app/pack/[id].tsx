@@ -52,6 +52,7 @@ export default function PackScreen() {
   const refreshLists = () => qc.invalidateQueries({ queryKey: packKeys.all, predicate: (q) => q.queryKey[1] !== 'detail' });
 
   const install = useMutation({
+    meta: { quiet: true },
     mutationFn: (roomId: number) => api<{ added: number; skipped: number }>(`/packs/${id}/install`, { method: 'POST', room: roomId }),
     onSuccess: (r, roomId) => {
       const name = rooms?.find((x) => x.id === roomId)?.name ?? group?.name ?? '';
@@ -79,6 +80,7 @@ export default function PackScreen() {
     onSettled: refreshLists,
   });
   const feature = useMutation({
+    meta: { quiet: true },
     mutationFn: (featured: boolean) => api<{ featured: boolean }>(`/admin/packs/${id}/feature`, { method: 'POST', json: { featured } }),
     onSuccess: (r) => {
       patch(r);
@@ -87,6 +89,7 @@ export default function PackScreen() {
     onError: () => setNote(tr('common.failed')),
   });
   const remove = useMutation({
+    meta: { quiet: true },
     mutationFn: () => api(`/packs/${id}`, { method: 'DELETE' }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: packKeys.all });
@@ -329,6 +332,7 @@ function ReportDialog({ visible, onClose, onSent, id }: { visible: boolean; onCl
   const [reason, setReason] = useState<ReportReason | null>(null);
   const [details, setDetails] = useState('');
   const send = useMutation({
+    meta: { quiet: true },
     mutationFn: () => api(`/packs/${id}/report`, { method: 'POST', json: { reason, details: details.trim() || undefined } }),
     onSuccess: onSent,
     // Already reported by me: same answer.

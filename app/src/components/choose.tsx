@@ -107,6 +107,7 @@ export function ChooseBallot({
   const done = people.filter((p) => choices[p.id] != null).length;
   const all = people.length > 0 && done === people.length;
   const vote = useMutation({
+    meta: { quiet: true },
     mutationFn: (c: Choice[]) => api('/round/current/vote', { method: 'POST', json: { choices: c } }),
     onSuccess: onVoted,
     onSettled: () => qc.invalidateQueries({ queryKey: keys.current }),

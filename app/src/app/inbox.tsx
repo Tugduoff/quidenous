@@ -4,6 +4,7 @@ import { AtSign, Bell, BellRing, ChevronLeft, Crown, type LucideIcon, MessageCir
 import { useEffect, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
+import { QueryState } from '@/components/query-state';
 import { Screen } from '@/components/screen';
 import { Avatar, Card, Display } from '@/components/ui';
 import { api, type InboxItem } from '@/lib/api';
@@ -39,7 +40,8 @@ export default function InboxScreen() {
   const t = useTheme();
   const tr = useT();
   const qc = useQueryClient();
-  const { data } = useInbox();
+  const inbox = useInbox();
+  const { data } = inbox;
   const { byId } = useMembers();
   // The room on screen: the session's, or the one the server picked (session still null).
   const { data: group } = useGroup();
@@ -95,6 +97,7 @@ export default function InboxScreen() {
         <ChevronLeft size={22} color={t.txt} />
       </Pressable>
       <Display size={30}>{tr('inbox.title')}</Display>
+      <QueryState query={inbox} />
       {data && data.items.length === 0 && <Text style={{ fontFamily: t.font.regular, fontSize: 15, color: t.mut }}>{tr('inbox.empty')}</Text>}
       {data?.items.map((item) => {
         const Icon = ICON[item.kind] ?? Bell;

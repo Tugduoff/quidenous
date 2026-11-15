@@ -17,6 +17,8 @@ export const common = {
   retry: 'Réessayer',
   offline: 'Pas de connexion',
   failed: 'Raté, réessaie',
+  /** A screen whose data didn't load (the server answered with an error). */
+  loadFailed: 'Chargement impossible',
   /** "plus tard", "dans 30 s", "dans 2 min" after "réessaie". */
   later: 'plus tard',
   inSeconds: 'dans {count} s',

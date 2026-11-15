@@ -8,6 +8,7 @@ import { Button } from '@/components/ui';
 import { launchNext, type Group } from '@/lib/api';
 import { useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
+import { keys } from '@/lib/queries';
 import { useSession } from '@/lib/session';
 import { until } from '@/lib/time';
 import { useTheme } from '@/lib/theme';
@@ -39,7 +40,12 @@ export function NextGate({ group, onLaunched }: { group: Group; onLaunched?: () 
   const launch = useMutation({
     mutationFn: () => launchNext(group.id),
     onSuccess: () => onLaunched?.(),
-    onSettled: () => qc.invalidateQueries(),
+    // The new question, the room's pacing and the queue it came from (not every query).
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ['round'] });
+      qc.invalidateQueries({ queryKey: keys.group });
+      qc.invalidateQueries({ queryKey: keys.queue });
+    },
   });
   const line = deadline ? tr('vote.gate.nextIn', { time: until(deadline, now) }) : tr('vote.gate.waitingOwner');
   const status = (

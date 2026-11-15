@@ -95,7 +95,7 @@ Leaving uses `POST /rooms/{id}/leave`. The memory (list of questions and winners
 
 ### Live
 
-The existing socket (`/api/live?token=`) carries the party's room events: `member_joined`, `vote_cast`, `round_closed`, `round_opened`, `member_removed`, `room_updated` (settings, start, end, keep) and a new `party_updated { round_id }` (taps, reactions). The app refetches the party state on any of them. The big screen subscribes without an account: `/api/live?screen=<code>` (party rooms only, same events).
+The existing socket (`/api/live?token=`) carries the party's room events: `member_joined`, `vote_cast`, `round_closed`, `round_opened`, `member_removed`, `room_updated` (settings, start, end, keep) and a new `party_updated { round_id }` (taps, reactions; at most one per party every 500 ms, the last of a burst sent once the gap has passed, see `server/src/live.rs`). The app refetches the party state on any of them, events in the same 250 ms batched into one refetch. The big screen subscribes without an account: `/api/live?screen=<code>` (party rooms only, same events).
 
 `GET /api/features` lists `party`.
 

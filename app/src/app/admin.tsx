@@ -29,6 +29,7 @@ export default function AdminScreen() {
   const [reason, setReason] = useState('');
 
   const act = useMutation({
+    meta: { quiet: true },
     mutationFn: ({ path, json }: { path: string; json?: unknown; drop: { pack?: number; suggestion?: number } }) =>
       api(`/admin${path}`, { method: 'POST', json: json ?? {} }),
     onSuccess: (_, { drop }) => {

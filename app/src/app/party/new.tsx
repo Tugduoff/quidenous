@@ -33,6 +33,7 @@ export default function NewParty() {
   }, [vibes, vibe]);
 
   const create = useMutation({
+    meta: { quiet: true },
     mutationFn: () =>
       partyApi.create({
         ...(name.trim() ? { name: name.trim() } : {}),

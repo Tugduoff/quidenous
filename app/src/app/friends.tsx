@@ -28,6 +28,7 @@ export default function FriendsScreen() {
   const [note, setNote] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const add = useMutation({
+    meta: { quiet: true },
     mutationFn: (value: string) => api<{ name: string }>('/friends', { method: 'POST', json: { code: value.trim() } }),
     onSuccess: (r) => {
       setCode('');

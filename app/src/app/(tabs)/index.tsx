@@ -28,13 +28,14 @@ import { ChatInput, ChatMessages } from '@/components/chat';
 import { ChooseBallot, ChooseResult, myRealChoice } from '@/components/choose';
 import { BIG_GROUP, gridColumns, MemberGrid, MemberTile } from '@/components/member-grid';
 import { RankResult, ResultBars, ResultSummary } from '@/components/result-bars';
+import { QueryState } from '@/components/query-state';
 import { Screen } from '@/components/screen';
 import { SecureCard } from '@/components/secure-card';
 import { Tip } from '@/components/tip';
 import { NextGate } from '@/components/next-gate';
 import { NoQuestions, SoloInvite } from '@/components/vote-empty';
 import { Avatar, AvatarStack, Button, Card, ConfirmModal, Dialog, Display, Logo, PressableScale, Tag } from '@/components/ui';
-import { api, type Member, type Round } from '@/lib/api';
+import { api, ApiError, type Member, type Round } from '@/lib/api';
 import { getLang, t as translate, useT } from '@/lib/i18n';
 import { EASE, motion, usePop } from '@/lib/motion';
 import { keys, useCurrentRound, useGroup, useInbox, useMembers, useRooms, useRound, useUnseenRound } from '@/lib/queries';
@@ -318,6 +319,8 @@ function RankBallot({ round, members, byId, onVoted }: { round: Round; members: 
   const vote = useMutation({
     mutationFn: (ranking: number[]) => api('/round/current/vote', { method: 'POST', json: { ranking } }),
     onSuccess: onVoted,
+    // Someone joined or left meanwhile: the room refreshed shows who to vote on now (the error is a toast).
+    onError: () => qc.invalidateQueries({ queryKey: keys.group }),
     onSettled: () => qc.invalidateQueries({ queryKey: keys.current }),
   });
   const toggle = (id: number) => setOrder((o) => (o.includes(id) ? o.filter((x) => x !== id) : [...o, id]));
@@ -455,6 +458,8 @@ function PickBallot({ round, members, byId, onVoted }: { round: Round; members: 
     // Remember the round right away: when my vote is the last one, the next question
     // replaces it before the refetch could show my vote, and the result must still show.
     onSuccess: onVoted,
+    // Someone joined or left meanwhile: the room refreshed shows who to vote on now (the error is a toast).
+    onError: () => qc.invalidateQueries({ queryKey: keys.group }),
     onSettled: () => qc.invalidateQueries({ queryKey: keys.current }),
   });
   const picked = pick != null ? byId.get(pick) : undefined;
@@ -546,7 +551,10 @@ function NudgeButton({ member, roundId }: { member: Member; roundId: number }) {
   useEffect(() => setSent(false), [roundId]);
   const nudge = useMutation({
     mutationFn: () => api('/round/current/nudge', { method: 'POST', json: { member_id: member.id } }),
-    onSettled: () => setSent(true),
+    // Nudged already (another phone of mine, a lost answer): same as sent. Any other failure: a toast, the bell stays.
+    meta: { quiet: (e) => e instanceof ApiError && e.code === 'already_nudged' },
+    onSuccess: () => setSent(true),
+    onError: (e) => e instanceof ApiError && e.code === 'already_nudged' && setSent(true),
   });
   return (
     <PressableScale
@@ -810,7 +818,8 @@ export function Result({
 }) {
   const t = useTheme();
   const tr = useT();
-  const { data: round } = useRound(roundId);
+  const roundQuery = useRound(roundId);
+  const { data: round } = roundQuery;
   const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
   // One scroll for the whole page (no box inside a box). Where the full result ends, and whether
   // it has scrolled out of sight: then its one-line summary stays pinned on top.
@@ -824,7 +833,22 @@ export function Result({
     setTimeout(() => scroll.current?.scrollToEnd({ animated: true }), 300);
   };
   const header = onBack ? <BackHeader onBack={onBack} round={round ?? undefined} /> : <Header />;
-  if (!round?.result && !round?.choose) return <Screen tabs={!onBack}>{header}</Screen>;
+  const next =
+    gate ??
+    (onNext && (
+      <Button onPress={onNext}>
+        <Text style={{ fontFamily: t.font.bold, fontSize: 17, color: t.accTxt }}>{tr('vote.next')}</Text>
+        <ArrowRight size={20} color={t.accTxt} />
+      </Button>
+    ));
+  // Not loaded (or failed): "Suivante" stays, so an unseen result never blocks the next question.
+  if (!round?.result && !round?.choose)
+    return (
+      <Screen tabs={!onBack} footer={roundQuery.isLoading ? undefined : next}>
+        {header}
+        <QueryState query={roundQuery} />
+      </Screen>
+    );
   return (
     <Screen
       // Opened from the history, the screen has no tab bar to keep it clear of the iPhone home bar.
@@ -854,13 +878,7 @@ export function Result({
       footer={
         <>
           <ChatInput roundId={round.id} onFocus={toEnd} onSent={toEnd} />
-          {gate ??
-            (onNext && (
-              <Button onPress={onNext}>
-                <Text style={{ fontFamily: t.font.bold, fontSize: 17, color: t.accTxt }}>{tr('vote.next')}</Text>
-                <ArrowRight size={20} color={t.accTxt} />
-              </Button>
-            ))}
+          {next}
         </>
       }>
       {header}

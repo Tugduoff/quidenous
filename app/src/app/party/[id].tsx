@@ -23,6 +23,7 @@ import { BIG_GROUP, gridColumns, MemberGrid, MemberTile } from '@/components/mem
 import { Countdown, JoinQr, NextButton, PlayerChips, Reactions, VotedLine, WinnerReveal } from '@/components/party';
 import { ResultBars } from '@/components/result-bars';
 import { Screen } from '@/components/screen';
+import { showToast } from '@/components/toast';
 import { askConfirm, Avatar, Button, Card, CodeText, Dialog, DialogTitle, Display, PressableScale, Segmented, Tag } from '@/components/ui';
 import { api, ApiError, type HistoryItem, type Member, setApiRoom } from '@/lib/api';
 import { dateFormat, useT } from '@/lib/i18n';
@@ -164,6 +165,7 @@ function Menu({ party, visible, onClose }: { party: Party; visible: boolean; onC
   const owner = isOwner(party);
   const live = party.phase !== 'over';
   const timer = useMutation({
+    meta: { quiet: true },
     mutationFn: (s: number) => partyApi.update(party.id, { timer: s }),
     onMutate: () => setError(null),
     onSuccess: setParty,
@@ -172,7 +174,7 @@ function Menu({ party, visible, onClose }: { party: Party; visible: boolean; onC
   const end = async () => {
     onClose();
     if (!(await askConfirm(tr('party.menu.endAsk'), tr('party.menu.endMessage'), tr('party.menu.endAction')))) return;
-    partyApi.end(party.id).then(setParty, () => {});
+    partyApi.end(party.id).then(setParty, (e) => showToast(partyError(e)));
   };
   const leave = async () => {
     onClose();
@@ -223,6 +225,7 @@ function Lobby({ party }: { party: Party }) {
     setTimeout(() => setCopied(null), 1800);
   };
   const start = useMutation({
+    meta: { quiet: true },
     mutationFn: () => partyApi.start(party.id),
     onMutate: () => setError(null),
     onSuccess: setParty,
@@ -360,6 +363,7 @@ function Voting({ party, round }: { party: Party; round: PartyRound }) {
   const late = me == null || !round.eligible.includes(me);
   const voted = round.my_vote != null || (me != null && round.voted.includes(me));
   const vote = useMutation({
+    meta: { quiet: true },
     mutationFn: (target: number) => partyApi.vote(party.id, target),
     onMutate: () => setError(null),
     onSuccess: setParty,
@@ -472,6 +476,7 @@ function Reveal({ party, round }: { party: Party; round: PartyRound }) {
   const owner = isOwner(party);
   const refetch = () => qc.invalidateQueries({ queryKey: ['party', party.id] });
   const next = useMutation({
+    meta: { quiet: true },
     mutationFn: (undo: boolean) => (undo ? partyApi.unnext(party.id) : partyApi.next(party.id)),
     onMutate: () => setError(null),
     onSuccess: setParty,
@@ -540,6 +545,7 @@ function Memory({ party }: { party: Party }) {
   const byId = usePeople(party);
   const owner = isOwner(party);
   const keep = useMutation({
+    meta: { quiet: true },
     mutationFn: () => partyApi.keep(party.id),
     onMutate: () => setError(null),
     onSuccess: (r) => switchRoom(r?.id ?? party.id),

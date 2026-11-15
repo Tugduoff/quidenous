@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 
+import { QueryState } from '@/components/query-state';
 import { Screen } from '@/components/screen';
 import { Avatar, AvatarStack, avatarStackWidth, Display, PressableScale, QuestionText } from '@/components/ui';
 import type { HistoryItem, Member } from '@/lib/api';
@@ -190,6 +191,7 @@ export default function HistoryScreen() {
           ))}
         </View>
       ))}
+      <QueryState query={history} />
       {data && data.length === 0 && !pinned?.length && <Empty />}
       {history.isFetchingNextPage && <ActivityIndicator color={t.mut} style={{ paddingVertical: 8 }} />}
     </Screen>

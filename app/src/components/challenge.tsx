@@ -49,6 +49,7 @@ function ChallengeDialog({ round, onDone }: { round: Round; onDone: () => void }
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const send = useMutation({
+    meta: { quiet: true },
     mutationFn: (roomId: number) => challengeRoom(round.id, roomId),
     onMutate: () => setError(null),
     onSuccess: (_, roomId) => {
@@ -58,6 +59,7 @@ function ChallengeDialog({ round, onDone }: { round: Round; onDone: () => void }
     onError: (e) => setError(communityError(e)),
   });
   const link = useMutation({
+    meta: { quiet: true },
     mutationFn: async () => {
       const url = await questionShareLink(round.id);
       return shareText(tr('community.challenge.share', { question: round.question, link: url }));

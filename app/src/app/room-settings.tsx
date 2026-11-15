@@ -18,10 +18,11 @@ import { ActivityIndicator, Pressable, Text, TextInput, View } from 'react-nativ
 
 import { BackButton, ErrorText } from '@/components/auth-ui';
 import { Screen } from '@/components/screen';
+import { showToast } from '@/components/toast';
 import { askConfirm, Avatar, Button, Card, Dialog, DialogActions, DialogTitle, Display, PressableScale, Segmented, Toggle } from '@/components/ui';
 import { VibeCards, vibeIcon, vibeName } from '@/components/vibes';
 import { api, type Group, type Member } from '@/lib/api';
-import { useFeatures } from '@/lib/auth';
+import { authError, useFeatures } from '@/lib/auth';
 import { type Lang, t as tr, useT } from '@/lib/i18n';
 import { keys, useGroup, useVibes } from '@/lib/queries';
 import { useRoomGone } from '@/lib/rooms';
@@ -279,6 +280,7 @@ function Settings({ group }: { group: Group }) {
 
   // Optimistic: the switch moves at once, and springs back if the server says no.
   const save = useMutation({
+    meta: { quiet: true },
     mutationFn: (body: Patch) => api(`/rooms/${group.id}`, { method: 'PATCH', json: body }),
     onMutate: async (body) => {
       await qc.cancelQueries({ queryKey: keys.group });
@@ -303,11 +305,13 @@ function Settings({ group }: { group: Group }) {
     },
   });
   const renew = useMutation({
+    meta: { quiet: true },
     mutationFn: () => api(`/rooms/${group.id}/code`, { method: 'POST' }),
     onSettled: () => qc.invalidateQueries({ queryKey: keys.group }),
   });
   // Once done, I'm no longer the owner: the screen steps back by itself.
   const transfer = useMutation({
+    meta: { quiet: true },
     mutationFn: (id: number) => api(`/rooms/${group.id}/owner`, { method: 'POST', json: { member_id: id } }),
     onSuccess: close,
     onSettled: () => qc.invalidateQueries({ queryKey: keys.group }),
@@ -324,7 +328,11 @@ function Settings({ group }: { group: Group }) {
   };
   const remove = async () => {
     if (!(await askConfirm(tr('room.settings.deleteAsk', { name: group.name }), tr('room.settings.deleteMessage'), tr('common.delete')))) return;
-    await api(`/rooms/${group.id}`, { method: 'DELETE' });
+    try {
+      await api(`/rooms/${group.id}`, { method: 'DELETE' });
+    } catch (e) {
+      return showToast(authError(e));
+    }
     await roomGone();
   };
 

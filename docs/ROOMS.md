@@ -34,7 +34,7 @@ Status: design, 2026-11-11. Built in phases so the live group never breaks and o
 | Vote to skip / remove | members, if the owner leaves it on, with 3 members or more; the owner can't be voted out |
 | Remove someone directly, no vote (force kick) | owner |
 | Hand over ownership, delete the room | owner |
-| Leave | anyone; an owner leaving hands over to the oldest member, or deletes the room if alone |
+| Leave | anyone; an owner leaving hands over to the oldest member, or deletes the room if alone. The app then opens another of my rooms, or the join / create screen when none is left |
 | Come back | someone who left: with the invite code, same seat and history. Someone removed: only if the owner adds them back |
 
 A majority is more than half of the other members (the target doesn't count), and never one person alone. Whenever an owner seat ends (leaving, removal, account deletion) the oldest remaining member becomes owner; rooms left without one are repaired at startup. People who left stay in `/group` as `former` (flagged `left`) so the history, awards and chat keep their name and photo.

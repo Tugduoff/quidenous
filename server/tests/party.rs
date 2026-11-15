@@ -879,3 +879,50 @@ async fn deleted_accounts_read_in_the_readers_language() {
     assert!(csv.contains("Deleted account"), "{csv}");
     assert!(!csv.contains("Compte supprimé"), "{csv}");
 }
+
+/// A burst of "Suivante" taps / reactions: one `PartyUpdated` right away, then one trailing (latest round)
+/// after the gap, instead of one per tap to every phone. Other parties and other events are not held back.
+#[tokio::test]
+async fn party_updates_are_coalesced() {
+    use quidenous_server::live::{Event, Live, PARTY_UPDATE_GAP};
+
+    let live = Live::new();
+    let mut rx = live.subscribe();
+    for round_id in 1..=10 {
+        live.send(7, Event::PartyUpdated { round_id });
+    }
+    live.send(8, Event::PartyUpdated { round_id: 99 });
+    live.send(7, Event::RoomUpdated);
+    let mut now = Vec::new();
+    while let Ok(e) = rx.try_recv() {
+        now.push((e.group_id, serde_json::to_value(&e.event).unwrap()));
+    }
+    assert_eq!(
+        now,
+        vec![
+            (7, json!({ "type": "party_updated", "round_id": 1 })),
+            (8, json!({ "type": "party_updated", "round_id": 99 })),
+            (7, json!({ "type": "room_updated" })),
+        ]
+    );
+
+    let trailing = tokio::time::timeout(PARTY_UPDATE_GAP * 2, rx.recv())
+        .await
+        .expect("a trailing update")
+        .unwrap();
+    assert_eq!(trailing.group_id, 7);
+    assert_eq!(
+        serde_json::to_value(&trailing.event).unwrap(),
+        json!({ "type": "party_updated", "round_id": 10 })
+    );
+    tokio::time::sleep(PARTY_UPDATE_GAP).await;
+    assert!(rx.try_recv().is_err(), "only one trailing update");
+
+    // Quiet for a gap: the next one goes out right away again.
+    live.send(7, Event::PartyUpdated { round_id: 11 });
+    let e = rx.try_recv().unwrap();
+    assert_eq!(
+        serde_json::to_value(&e.event).unwrap(),
+        json!({ "type": "party_updated", "round_id": 11 })
+    );
+}
