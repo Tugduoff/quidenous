@@ -93,6 +93,12 @@ jobs:
           if unzip -p app/build/outputs/bundle/release/app-release.aab base/manifest/AndroidManifest.xml | tr -d '\0' | grep -c REQUEST_INSTALL_PACKAGES >/dev/null; then
             echo "::error::REQUEST_INSTALL_PACKAGES must not be in the Play bundle"; exit 1
           fi
+          # Permissions the app never uses (blockedPermissions in app.json): they would show on the Play listing.
+          for p in RECORD_AUDIO SYSTEM_ALERT_WINDOW READ_EXTERNAL_STORAGE WRITE_EXTERNAL_STORAGE; do
+            if unzip -p app/build/outputs/bundle/release/app-release.aab base/manifest/AndroidManifest.xml | tr -d '\0' | grep -c "android.permission.$p" >/dev/null; then
+              echo "::error::$p must not be in the Play bundle"; exit 1
+            fi
+          done
         working-directory: app/android
       - uses: actions/upload-artifact@v4
         if: hashFiles('app/android/app/build/outputs/bundle/release/*.aab') != ''
