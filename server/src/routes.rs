@@ -234,27 +234,24 @@ async fn join(
     headers: axum::http::HeaderMap,
     Json(body): Json<JoinBody>,
 ) -> AppResult<Json<Value>> {
-    if crate::accounts::bearer(&headers).is_none() {
+    let bearer = crate::accounts::bearer(&headers);
+    if bearer.is_none() {
         legacy_gate(&state, ip)?;
     }
     let name = clean_name(&body.name)?;
-    // Parties have their own way in (`POST /parties/join`).
-    let group_id: i64 =
-        sqlx::query_scalar("SELECT id FROM groups WHERE join_code = ? AND kind = 'room'")
-            .bind(body.code.trim().to_uppercase())
-            .fetch_optional(&state.db)
-            .await?
-            .ok_or(AppError::BadRequest("bad_code"))?;
+    // Parties have their own way in (`POST /parties/join`); a deleted room takes nobody.
+    let group_id: i64 = sqlx::query_scalar(
+        "SELECT id FROM groups WHERE join_code = ? AND kind = 'room' AND deleted_at IS NULL",
+    )
+    .bind(body.code.trim().to_uppercase())
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or(AppError::BadRequest("bad_code"))?;
     // Already signed in: the same account joins one more room.
-    let signed_in = match headers
-        .get(axum::http::header::AUTHORIZATION)
-        .and_then(|v| v.to_str().ok())
-        .and_then(|v| v.strip_prefix("Bearer "))
-    {
+    let signed_in = match bearer {
         Some(t) => Some(crate::auth::user_for_token(&state, t).await?),
         None => None,
     };
-    let token = new_token();
     let mut tx = crate::db::write_tx(&state.db).await?;
     let existing = match signed_in {
         Some(user_id) => {
@@ -347,18 +344,26 @@ async fn join(
     .execute(&mut *tx)
     .await?;
     let user_id = member.user_id.ok_or(AppError::Unauthorized)?;
-    // An existing member handed over by first name: that token can't lock the others out.
-    let claimed = signed_in.is_none() && !joined;
-    sqlx::query(
-        "INSERT INTO user_tokens (token_hash, user_id, device, claimed, last_used_at) \
-         VALUES (?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))",
-    )
-    .bind(hash_token(&token))
-    .bind(user_id)
-    .bind(crate::accounts::device_label(&headers))
-    .bind(claimed)
-    .execute(&mut *tx)
-    .await?;
+    // Signed in: the caller keeps its own session (and its limits, see `not_claimed`), no new
+    // token. By first name: a new session; an existing member handed over that way gets a
+    // `claimed` one, which can't lock the others out.
+    let token = match bearer {
+        Some(t) => t.to_owned(),
+        None => {
+            let token = new_token();
+            sqlx::query(
+                "INSERT INTO user_tokens (token_hash, user_id, device, claimed, last_used_at) \
+                 VALUES (?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))",
+            )
+            .bind(hash_token(&token))
+            .bind(user_id)
+            .bind(crate::accounts::device_label(&headers))
+            .bind(!joined)
+            .execute(&mut *tx)
+            .await?;
+            token
+        }
+    };
     sqlx::query("UPDATE users SET last_group_id = ? WHERE id = ?")
         .bind(group_id)
         .bind(user_id)

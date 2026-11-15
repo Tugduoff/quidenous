@@ -1055,14 +1055,7 @@ async fn suggestions_are_voted_then_approved_into_the_deck() {
     .await;
     assert_eq!(s, StatusCode::CONFLICT);
 
-    // The startup clean-up never moves it out of the shared deck.
-    let first_group: i64 = sqlx::query_scalar("SELECT MIN(id) FROM groups")
-        .fetch_one(&t.state.db)
-        .await
-        .unwrap();
-    quidenous_server::deck::adopt_imports(&t.state.db, first_group)
-        .await
-        .unwrap();
+    // It stays in the shared deck.
     let group: Option<i64> = sqlx::query_scalar("SELECT group_id FROM questions WHERE id = ?")
         .bind(question)
         .fetch_one(&t.state.db)

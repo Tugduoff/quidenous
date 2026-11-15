@@ -46,12 +46,20 @@ async fn main() -> quidenous_server::anyhow_free::Result<()> {
     let state = state(config).await?;
     let args: Vec<String> = std::env::args().collect();
     if let Some(i) = args.iter().position(|a| a == "--import") {
-        let path = args
-            .get(i + 1)
-            .ok_or("usage: server --import <questions.txt>")?;
+        // Into one room's own queue: the shared deck is the built-in deck files only.
+        const USAGE: &str = "usage: server --import <questions.txt> --room <room id>";
+        let path = args.get(i + 1).ok_or(USAGE)?;
+        let room: i64 = args
+            .iter()
+            .position(|a| a == "--room")
+            .and_then(|r| args.get(r + 1))
+            .and_then(|r| r.parse().ok())
+            .ok_or(USAGE)?;
         let text = tokio::fs::read_to_string(path).await?;
-        let added = quidenous_server::deck::import(&state.db, &text).await?;
-        println!("{added} new questions imported");
+        let added = quidenous_server::deck::import_room(&state.db, room, &text)
+            .await?
+            .ok_or_else(|| format!("no room {room}"))?;
+        println!("{added} new questions imported into room {room}");
         return Ok(());
     }
     quidenous_server::pacing::spawn_scheduler(state.clone());

@@ -64,19 +64,33 @@ pub async fn state_with_mailer(
 ) -> anyhow_free::Result<AppState> {
     let db = connect(&config.database_url).await?;
     deck::seed(&db).await?;
-    let first_group = deck::ensure_group(&db, &config.group_name, &config.join_code).await?;
-    let moved = deck::adopt_imports(&db, first_group).await?;
-    if moved > 0 {
-        tracing::info!(
-            moved,
-            "imported questions moved from the shared deck to the first room"
-        );
-    }
+    deck::ensure_group(&db, &config.group_name, &config.join_code).await?;
     let owners = game::repair_owners(&db).await?;
     if owners > 0 {
         tracing::info!(
             owners,
             "rooms without an owner handed to their oldest member"
+        );
+    }
+    let (repaired, broken) = game::repair_choose_items(&db).await?;
+    if repaired > 0 {
+        tracing::info!(repaired, "choose questions given back their items");
+    }
+    if broken > 0 {
+        tracing::warn!(broken, "choose questions without items: never drawn");
+    }
+    for warning in config.warnings() {
+        tracing::warn!("{warning}");
+    }
+    let public_code: bool = sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM groups WHERE join_code = ? AND deleted_at IS NULL)",
+    )
+    .bind(config::DEFAULT_JOIN_CODE)
+    .fetch_one(&db)
+    .await?;
+    if public_code {
+        tracing::warn!(
+            "a room still uses the public join code BANDE-42: its owner should get a new code in the app"
         );
     }
     let vapid = match &config.vapid_private_key {
