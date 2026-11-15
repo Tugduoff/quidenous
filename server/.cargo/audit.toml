@@ -6,4 +6,13 @@ ignore = [
     # signing the FCM OAuth assertion, server-initiated, about once an hour: no attacker-triggered private-key
     # operation to time. No fixed rsa release yet; re-check when there is one.
     "RUSTSEC-2023-0071",
+    # libsqlite3-sys 0.37 (bundled SQLite < 3.54): stale memory returned when opening a database together with a
+    # crafted `-wal` file of another page size. The server only opens its own DATA_DIR/app.db (and backup.sh its own
+    # snapshots), never a database file someone else wrote. Fixed in libsqlite3-sys 0.39, which sqlx 0.9.0 (latest)
+    # doesn't allow yet: drop this line when sqlx moves (Dependabot opens the PR).
+    "RUSTSEC-2026-0459",
+    # crypto-bigint 0.5.5: timing variability. Only reached through jsonwebtoken's p256/p384 0.13 (ES256/ES384), which
+    # we never use with a secret (our tokens are RS256; Web Push uses p256 0.14 with a fixed crypto-bigint 0.7). Goes
+    # away when jsonwebtoken moves to the 0.14 curves.
+    "RUSTSEC-2026-0387",
 ]
