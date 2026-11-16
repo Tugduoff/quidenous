@@ -133,4 +133,21 @@ so they don't read like one template but don't change between two loads.
 Sharing: `POST /api/stats/share { period, key, tz }` stores a snapshot of that story and returns `{ token, path }`;
 `/s/{token}` and `/s/{token}/card.png` serve it like a shared question (same 1200×630 card style, first names and
 colours only). `period` defaults to `all`, `tz` to 0; `400 bad_period`, `404` when the stats have no story with
-that key. Each call makes a new link (the snapshot is frozen: table `stat_shares`).
+that key. Sharing the same story again (same figures, people and language) returns the same link; otherwise a new
+snapshot is frozen (table `stat_shares`, with the ids of the people on it in `member_ids`).
+
+Share links (questions and stats, migration `0034_privacy.sql`):
+- New links expire after 90 days (`expires_at`; older links have none and never expire). An expired, revoked or
+  deleted-room link answers 404 everywhere (`/s/…`, `card.png`, `/api/play/{token}`), and a question share is
+  re-created on the next share instead of reused.
+- `GET /api/shares` → `[{ token, path, kind: question|stat, title, room, with_result, created_at, expires_at | null }]`:
+  my live links in every room, newest first (max 100). `DELETE /api/shares/{token}` → `{ok}`: by whoever made it or the
+  room's current owner, else 404. Feature `share_links`; the app lists them in Profile > Mes liens (hidden when empty)
+  and asks once per device before the first public link ("anyone with the link sees this card and the room's name").
+- Question cards and their `og:description` show first names only, like stat cards.
+- No indexing: `<meta name="robots" content="noindex, nofollow">` on the pages and `X-Robots-Tag: noindex, nofollow`
+  on `/s/`, `/p/`, `/play`, `/creator/`, `/pack/`, `/party/`, `/photos/` and `/api/`. `/robots.txt` disallows the
+  private paths but **not** `/s/` and `/p/`: chat apps must read their preview tags, and a search engine has to fetch
+  a page to see its noindex.
+- Erasing an account deletes the links its seats made and every stat card showing it (by `member_ids`, or by first
+  name in that room for cards made before `member_ids`).

@@ -211,6 +211,20 @@ Migration `0033_moderation.sql`: `messages.hidden_at`, `reports` rebuilt (kind `
 
 `/api/features` gains `delete_account`, `reports`, `blocks` (and `moderation` with migration 0033: message deletion, report review, retired questions, locked parties).
 
+Erasing also deletes the share links the account's seats made and the stat cards that show it, and replaces its name
+in `member` reports' snapshots with `Compte supprimé` (docs/STATS.md, Share links).
+
+## Terms and age (16+)
+
+`users.terms_version` / `terms_at` (migration `0034_privacy.sql`) record the version of `/terms` + `/privacy` an
+account accepted, which includes saying they are 16 or older. `GET /auth/account` adds `terms: bool` (accepted the
+current `TERMS_VERSION`, `accounts/password.rs`); `POST /auth/terms` (any session, guests included) records it. Feature
+`terms`. The app ticks a box ("J'ai 16 ans ou plus et j'accepte les conditions et la politique de confidentialité",
+both links) on sign-up, the first-name join / new room screen and the party guest join, and records it as soon as the
+account exists; any other account without it (older accounts, Google / Discord sign-ups) gets a one-time sheet with the
+same box. The server doesn't refuse content from accounts that haven't accepted: older apps can't ask. Bump
+`TERMS_VERSION` when the terms change in a way users must accept again: everyone gets the sheet once more.
+
 ## Not in this round
 
 Passkeys (WebAuthn), Sign in with Apple (left out for now; adding it = one more provider entry + an ES256 client-secret JWT, plus `expo-apple-authentication` for the native sheet), email links (codes only).

@@ -10,6 +10,12 @@ services:
     container_name: quidenous
     restart: unless-stopped
     env_file: .env
+    # Size-capped logs, as the privacy policy says: 3 files of 10 MB, the oldest dropped.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     volumes:
       - ./data:/data
     ports:
