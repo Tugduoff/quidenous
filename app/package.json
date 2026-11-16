@@ -33,7 +33,7 @@
     "expo-system-ui": "~58.0.7",
     "expo-updates": "~58.0.22",
     "expo-web-browser": "~58.0.7",
-    "lucide-react-native": "^1.70.0",
+    "lucide-react-native": "^1.72.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "react-native": "0.88.1",
