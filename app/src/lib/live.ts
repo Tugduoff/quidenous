@@ -7,6 +7,8 @@ import { PARTY_EVENTS, partyKeys } from './party';
 import { keys } from './queries';
 
 const RETRY_MS = 3000;
+/** The server hung up on purpose (seat or session gone, unexpected message): no hurry to come back. */
+const POLICY_RETRY_MS = 60_000;
 /** While on the screen, the app tells the server every so often, so it sends no push for this room. */
 const HERE_MS = 20_000;
 /** Events in a burst (a round closing, guests joining a party) refetch each query once. */
@@ -101,8 +103,9 @@ export function useLive(token: string | null, room: number | null) {
         if (PARTY_EVENTS.has(event.type)) invalidate([partyKeys.all]);
         invalidate(touched(event));
       };
-      ws.onclose = () => {
-        if (!stopped) retry = setTimeout(connect, RETRY_MS);
+      ws.onclose = (e) => {
+        const policy = e.code === 1008 && e.reason !== 'idle';
+        if (!stopped) retry = setTimeout(connect, policy ? POLICY_RETRY_MS : RETRY_MS);
       };
     };
     connect();

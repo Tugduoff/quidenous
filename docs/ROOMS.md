@@ -50,6 +50,25 @@ Two owner settings, both off by default (= the next question opens as soon as on
 
 A paced room that closes a question is *paused* (`groups.paused_at`, `next_open_at` = close + delay, null with no delay): nothing opens it (joins, new questions included) until the owner launches it, the deadline passes, or the owner switches pacing off. Both on: the owner can launch early, else it opens at the deadline. A scheduler task (every 20 s, first run at startup, so restarts lose nothing) opens due rooms and pushes "Nouvelle question". Changing the delay while waiting counts from the close. `GET /group` carries `pace: {waiting, next_open_at, round_id}`; the vote tab keeps that result up with "En attente du propriétaire", a countdown, or the owner's "Lancer la suivante". Older apps just see no open question until it opens.
 
+## Abuse limits
+
+In-memory token buckets (same limiter as the auth limits in `docs/AUTH.md`, rules in `server/src/quotas.rs`), `429 {"error":"rate_limited","retry_after":s}` with `Retry-After`. The app shows "Trop d'essais, réessaie dans …".
+
+| What | Limit |
+| --- | --- |
+| Wrong codes: `POST /rooms/join`, signed-in `/join` and `/parties/join`, `POST /friends`, the big screen (`/parties/screen/{code}`, `/live?screen=`) | 10 / hour per account, 20 / 10 min per IP. Only codes that don't exist count (a right code gives its token back), so a party joining from one Wi-Fi is not slowed down |
+| Chat messages | 15 / minute and 300 / hour per account |
+| @mentions | more than 5 people in one message counts as `@tous` and shares its 10-minute cooldown (during it, a plain message for everyone) |
+| New rooms and parties | 20 / day per account |
+| `POST /rooms/{id}/add` | 30 / hour per account |
+| `POST /questions` | 60 / hour per account |
+| `POST /questions/import` | 10 / hour per account, 500 questions per import (`400 too_many_questions`), 1 MB body |
+| `PUT /me/photo` | 10 / hour per account, 12 MB, 8000 px a side at most (decoded off the async threads); stored under a 128-bit random name |
+| `POST /push/subscribe` | 30 / hour per account, 10 devices per account (the least recently registered go), Web Push endpoints on a known push service only (below) |
+| Live sockets | 8 per account, 64 per IP, 2000 in all (`429 too_many_sockets`); 256-byte messages, only `here` / `away` (anything else closes the socket); a ping every 30 s, closed after 75 s without an answer; every minute the socket checks that its session and seat still exist (closed after a sign-out, a removal or a room deletion; also right after `member_removed` for its own seat and `room_deleted`) |
+
+Push devices belong to the session that registered them (`push_subscriptions.token_hash`, `0030`): signing out, revoking a session, "sign out the others", a password reset or deleting the account removes them (a trigger on `user_tokens`). Devices registered before `0030` stay with the account's only session, or, when it had several, go as soon as any of its sessions ends (the app registers again at its next start). `POST /push/unsubscribe` removes the endpoint from any of my rooms. Web Push endpoints must be https on `fcm.googleapis.com`, `*.push.services.mozilla.com`, `*.push.apple.com` or `*.notify.windows.com` (1 KB at most); stored ones elsewhere are dropped at the next push. Push requests time out after 10 s. FCM tokens are dropped on `UNREGISTERED` / 404, and on `INVALID_ARGUMENT` only when FCM says the token itself is invalid.
+
 ## Parties
 
 A party (`groups.kind = 'party'`) is a room for an evening in the same place: one question at a time with a countdown, guests without an account, "Suivante" taps. See `docs/PARTY.md`.

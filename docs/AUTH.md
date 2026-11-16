@@ -91,7 +91,7 @@ Everything under `/api/auth`. Bodies are JSON. Errors: `{"error": code}`, status
 | `GET /auth/sessions` | yes | | `[{id, device, created_at, last_used_at, current}]` |
 | `DELETE /auth/sessions/{id}` | yes | | `{ok}` · `404 not_found` |
 | `POST /auth/sessions/revoke-others` | yes | | `{revoked}` |
-| `POST /auth/logout` | yes | | `{ok}` (deletes this token) |
+| `POST /auth/logout` | yes | | `{ok}` (deletes this token, and the push devices registered with it: see `docs/ROOMS.md`, Abuse limits) |
 | `GET /auth/providers` | | | `["google", "discord"]` (the configured ones) |
 | `POST /auth/oauth/{provider}/start` | optional (`link` / `reauth` need it) | `app_redirect, link?, reauth?` | `{url, key}`: open `url` in the browser, keep `key` for `redeem` · `unknown_provider`, `bad_redirect`, `403 reauth_required` (link) |
 | `GET /auth/oauth/{provider}/callback` | | provider redirect | 302 to `app_redirect?code=…` or `?error=…` (see below); an unknown or already used `state` gets a plain-text `400` page (no redirect target is known) |

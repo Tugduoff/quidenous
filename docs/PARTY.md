@@ -41,7 +41,7 @@ Parties don't count for the "people I share a room with are friends" rule, send 
 - Unknown code or deleted party: `404 not_found`; an over party: `410 party_over`.
 - Answer: `{ party_id, member_id, token? }` (`token` only when a guest was created). The app stores it like any session and sets the room to `party_id`.
 
-Party codes: 5 characters from `ABCDEFGHJKLMNPQRSTUVWXYZ23456789`, unique among live rooms, stored in `groups.join_code` (the room invite code column). `POST /rooms/join` with a party code works too (signed-in people) and returns `kind` (same `410 party_over` / `409 party_full`). The old anonymous `POST /join` refuses party codes (`400 bad_code`).
+Party codes: 8 characters from `ABCDEFGHJKLMNPQRSTUVWXYZ23456789` (40 bits: the code alone opens the big screen; parties made before had 5 and keep them), unique among live rooms, stored in `groups.join_code` (the room invite code column). `POST /rooms/join` with a party code works too (signed-in people) and returns `kind` (same `410 party_over` / `409 party_full`). The old anonymous `POST /join` refuses party codes (`400 bad_code`).
 
 ## API
 
@@ -60,7 +60,7 @@ All under `/api`, JSON, errors `{"error": code}`. `{id}` = the party's room id; 
 | `PATCH /parties/{id}` | owner | `name?, timer?` | state · `400 bad_timer` |
 | `POST /parties/{id}/end` | owner | | state (over now) |
 | `POST /parties/{id}/keep` | owner | | `{ id }` (now a normal room) |
-| `GET /parties/screen/{code}` | anyone with the code | | party state without `me` (big-screen view) |
+| `GET /parties/screen/{code}` | anyone with the code | | party state without `me` (big-screen view); `404` 15 min after the party ended; wrong codes rate-limited per IP (`docs/ROOMS.md`, Abuse limits) |
 
 Leaving uses `POST /rooms/{id}/leave`. The memory (list of questions and winners) uses the room endpoints with `X-Room: {id}` (`GET /history`, `GET /rounds/{rid}`).
 
@@ -95,7 +95,7 @@ Leaving uses `POST /rooms/{id}/leave`. The memory (list of questions and winners
 
 ### Live
 
-The existing socket (`/api/live?ticket=`, or `?token=` from older apps) carries the party's room events: `member_joined`, `vote_cast`, `round_closed`, `round_opened`, `member_removed`, `room_updated` (settings, start, end, keep) and a new `party_updated { round_id }` (taps, reactions; at most one per party every 500 ms, the last of a burst sent once the gap has passed, see `server/src/live.rs`). The app refetches the party state on any of them, events in the same 250 ms batched into one refetch. The big screen subscribes without an account: `/api/live?screen=<code>` (party rooms only, same events).
+The existing socket (`/api/live?ticket=`, or `?token=` from older apps) carries the party's room events: `member_joined`, `vote_cast`, `round_closed`, `round_opened`, `member_removed`, `room_updated` (settings, start, end, keep) and a new `party_updated { round_id }` (taps, reactions; at most one per party every 500 ms, the last of a burst sent once the gap has passed, see `server/src/live.rs`). The app refetches the party state on any of them, events in the same 250 ms batched into one refetch. The big screen subscribes without an account: `/api/live?screen=<code>` (party rooms only, same events, same rules as the screen route: closed and refused 15 min after the end).
 
 `GET /api/features` lists `party`.
 

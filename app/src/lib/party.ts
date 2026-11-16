@@ -175,8 +175,9 @@ export function useScreenLive(code: string, onEvent: () => void) {
           if (PARTY_EVENTS.has(event.type)) onEvent();
         } catch {}
       };
-      ws.onclose = () => {
-        if (!stopped) retry = setTimeout(connect, 3000);
+      // 1008: the server closed it on purpose (the party is long over): no hurry to come back.
+      ws.onclose = (e) => {
+        if (!stopped) retry = setTimeout(connect, e.code === 1008 && e.reason !== 'idle' ? 60_000 : 3000);
       };
     };
     connect();

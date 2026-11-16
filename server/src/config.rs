@@ -42,6 +42,10 @@ pub struct Config {
     pub client_errors_webhook: Option<String>,
     /// `ADMIN_USER_IDS`: accounts that moderate community packs and suggestions (comma-separated ids).
     pub admin_user_ids: Vec<i64>,
+    /// `CORS_ORIGINS`: web origins besides `PUBLIC_URL` allowed to call the API (comma-separated).
+    pub cors_origins: Vec<String>,
+    /// How often open live sockets re-check their session and seat (tests shorten it; 60 s when unset).
+    pub live_recheck: Option<std::time::Duration>,
 }
 
 pub const DEFAULT_REPORT_EMAIL: &str = "contact@coflop.fr";
@@ -188,6 +192,15 @@ impl Config {
             admin_user_ids: var("ADMIN_USER_IDS")
                 .map(|v| v.split(',').filter_map(|s| s.trim().parse().ok()).collect())
                 .unwrap_or_default(),
+            cors_origins: var("CORS_ORIGINS")
+                .map(|v| {
+                    v.split(',')
+                        .map(|s| s.trim().to_owned())
+                        .filter(|s| !s.is_empty())
+                        .collect()
+                })
+                .unwrap_or_default(),
+            live_recheck: None,
         }
     }
 }

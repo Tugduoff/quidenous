@@ -175,7 +175,7 @@ async fn create_and_join_as_guest_or_account() {
     let (app, _) = setup().await;
     let host = account(&app, "Tug").await;
     let (id, code) = create(&app, &host).await;
-    assert_eq!(code.len(), 5);
+    assert_eq!(code.len(), 8);
 
     let s = get(&app, id, &host).await;
     assert_eq!(s["kind"], "party");

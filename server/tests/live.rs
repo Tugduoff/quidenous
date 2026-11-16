@@ -116,8 +116,8 @@ async fn devices_can_unsubscribe_from_push() {
     let web =
         |endpoint: &str| json!({ "kind": "web", "endpoint": endpoint, "p256dh": "x", "auth": "y" });
     for (t, e) in [
-        (&a, "https://push.example/ana"),
-        (&b, "https://push.example/bob"),
+        (&a, "https://fcm.googleapis.com/fcm/send/ana"),
+        (&b, "https://fcm.googleapis.com/fcm/send/bob"),
     ] {
         let (s, _) = call(&app, "POST", "/push/subscribe", Some(t), None, Some(web(e))).await;
         assert_eq!(s, StatusCode::OK);
@@ -141,11 +141,11 @@ async fn devices_can_unsubscribe_from_push() {
         "/push/unsubscribe",
         Some(&a),
         None,
-        Some(json!({ "endpoint": "https://push.example/bob" })),
+        Some(json!({ "endpoint": "https://fcm.googleapis.com/fcm/send/bob" })),
     )
     .await;
     assert_eq!(s, StatusCode::OK);
-    assert_eq!(count("https://push.example/bob").await, 1);
+    assert_eq!(count("https://fcm.googleapis.com/fcm/send/bob").await, 1);
     // Mine goes; doing it again is harmless.
     for _ in 0..2 {
         let (s, _) = call(
@@ -154,19 +154,19 @@ async fn devices_can_unsubscribe_from_push() {
             "/push/unsubscribe",
             Some(&a),
             None,
-            Some(json!({ "endpoint": "https://push.example/ana" })),
+            Some(json!({ "endpoint": "https://fcm.googleapis.com/fcm/send/ana" })),
         )
         .await;
         assert_eq!(s, StatusCode::OK);
     }
-    assert_eq!(count("https://push.example/ana").await, 0);
+    assert_eq!(count("https://fcm.googleapis.com/fcm/send/ana").await, 0);
     let (s, _) = call(
         &app,
         "POST",
         "/push/unsubscribe",
         None,
         None,
-        Some(json!({ "endpoint": "https://push.example/bob" })),
+        Some(json!({ "endpoint": "https://fcm.googleapis.com/fcm/send/bob" })),
     )
     .await;
     assert_eq!(s, StatusCode::UNAUTHORIZED);

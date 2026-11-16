@@ -64,7 +64,8 @@ Traefik: point a router at the service on port 8080; WebSockets work out of the 
 | `VAPID_SUBJECT` | `mailto:admin@example.com` | Contact sent to push services, e.g. `mailto:you@domain`. Set it: the default is a placeholder (warned about at start-up) |
 | `FCM_SERVICE_ACCOUNT_FILE` | — | Android app notifications: path **inside the container** to the Firebase service account JSON, e.g. `/data/firebase.json` (put the file in `deploy/data/`) |
 | `AUTH_SECRET` | generated into `data/auth.key` | 32+ random bytes (`openssl rand -hex 32`): encrypts 2FA secrets, keys code hashes. Set it, keep it out of backups, never change it (2FA secrets and recovery codes depend on it) |
-| `PUBLIC_URL` | — | `https://your.domain` (no trailing slash). Needed for Google / Discord sign-in |
+| `PUBLIC_URL` | — | `https://your.domain` (no trailing slash). Needed for Google / Discord sign-in. Also the only web origin allowed to call the API cross-origin (CORS; without it any origin is, for local development), and an `https://` one turns on HSTS |
+| `CORS_ORIGINS` | — | Other web origins allowed to call the API, comma-separated (e.g. `http://localhost:8081` to point a dev web app at this server). The phone apps need none |
 | `TRUST_PROXY` | off | `1` behind the reverse proxy (required there): client IP from the right-most `X-Forwarded-For` entry, last header line (rate limits). Without it every client shares the proxy's IP and the anonymous `/join`, `/start` limits throttle everyone. Never set it when the port is exposed directly |
 | `MAILGUN_API_KEY`, `MAILGUN_DOMAIN` | — | Email (verification and reset codes) through Mailgun. Without them nothing is sent, "forgot password" is off, and the e-mails are only logged (the body with its code at `RUST_LOG=debug`) |
 | `MAILGUN_FROM` | `Qui de nous ? <no-reply@MAILGUN_DOMAIN>` | |
@@ -81,6 +82,8 @@ Traefik: point a router at the service on port 8080; WebSockets work out of the 
 | `CLIENT_ERRORS_WEBHOOK` | — | Discord webhook URL (channel → Integrations → Webhooks): app crashes caught by the app's error screen are posted there (30 an hour at most). Without it they are only logged (`app error`, level WARN) |
 
 Accounts, 2FA and sign-in details: [docs/AUTH.md](../docs/AUTH.md).
+
+Every response carries `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer` and `Content-Security-Policy: frame-ancestors 'none'; base-uri 'self'; object-src 'none'`; the web app's pages get a full policy (scripts from the server only, plus the inline ones of its `index.html`, by hash, computed at start-up), and HSTS is sent when `PUBLIC_URL` is https. A reverse proxy adding the same headers is harmless. Rate limits on codes and writes: [docs/ROOMS.md](../docs/ROOMS.md#abuse-limits).
 
 ## Add questions
 
