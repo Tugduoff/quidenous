@@ -24,6 +24,11 @@ export const packs: Messages['packs'] = {
     absurde: 'Absurd',
   },
   spicy: '16+',
+  spicyAge: {
+    title: '16+ content',
+    message: 'Daring questions, for people 16 and over only.',
+    action: "I'm 16 or older",
+  },
   featured: 'Coflop pick',
   byline: { one: '{count} question · {author}', other: '{count} questions · {author}' },
   likes: { one: '{count} like', other: '{count} likes' },

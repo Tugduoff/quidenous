@@ -44,7 +44,7 @@ import { keys, useCurrentRound, useGroup, useInbox, useMembers, useRooms, useRou
 import { ordinal, tidy } from '@/lib/text';
 import { useSession } from '@/lib/session';
 import { setHideVote, useHideVote } from '@/lib/prefs';
-import { publicLink, questionMessage, resultMessage, shareText } from '@/lib/share';
+import { confirmPublic, publicLink, questionMessage, resultMessage, shareText } from '@/lib/share';
 import { useTheme } from '@/lib/theme';
 
 function PushBell() {
@@ -253,6 +253,7 @@ function Question({ round, result }: { round: Round; result?: boolean }) {
   const [copied, setCopied] = useState(false);
   const share = async () => {
     // The link opens a page whose preview is a picture of the card (the result's podium too, once out).
+    if (!(await confirmPublic())) return;
     const link = await publicLink(round.id, !!result);
     const text = result ? resultMessage(round, byId) : questionMessage(round);
     const outcome = await shareText(link ? `${text.split('\n').slice(0, -1).join('\n')}\n${link}` : text);

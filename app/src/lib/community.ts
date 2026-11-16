@@ -27,7 +27,15 @@ export type PlayInfo = { question: string; kind: 'pick' | 'rank' | 'choose'; lan
 /** Someone on a podium of another room (or of this one): no member id, only what the avatar needs. */
 export type PodiumEntry = { name: string; color: string; avatar?: string | null; photo_url: string | null; score: number };
 /** A room this round was sent to or came from; podiums only once both rounds are closed. */
-export type Challenge = { room: string; round_id: number | null; closed: boolean; podium: PodiumEntry[] | null; mine_podium: PodiumEntry[] | null };
+/** `private`: it came from a link without the result, so only the room's name is shown (absent from an older server). */
+export type Challenge = {
+  room: string;
+  round_id: number | null;
+  closed: boolean;
+  podium: PodiumEntry[] | null;
+  mine_podium: PodiumEntry[] | null;
+  private?: boolean;
+};
 
 /** How many suggestions a day (the server's rolling 24 h limit). */
 export const SUGGESTIONS_PER_DAY = 5;

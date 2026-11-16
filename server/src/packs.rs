@@ -201,6 +201,18 @@ pub struct ListQuery {
     lang: Option<String>,
 }
 
+/// 16+ packs are for those who opted in (and confirmed their age), or in a `pimente` room.
+async fn sees_spicy(state: &AppState, me: i64, room: Option<i64>) -> AppResult<bool> {
+    Ok(sqlx::query_scalar(
+        "SELECT COALESCE((SELECT show_spicy FROM users WHERE id = ?1), 0) \
+             OR COALESCE((SELECT vibe IS 'pimente' FROM groups WHERE id = ?2), 0)",
+    )
+    .bind(me)
+    .bind(room)
+    .fetch_one(&state.db)
+    .await?)
+}
+
 /// Public packs, sorted and filtered. 16+ packs only for those who opted in, or in a `pimente` room.
 pub async fn list(
     State(state): State<AppState>,
@@ -209,19 +221,7 @@ pub async fn list(
     Query(q): Query<ListQuery>,
 ) -> AppResult<Json<Value>> {
     let room = current_room(&state, me, &headers).await?;
-    let show_spicy: bool = sqlx::query_scalar("SELECT show_spicy FROM users WHERE id = ?")
-        .bind(me)
-        .fetch_optional(&state.db)
-        .await?
-        .unwrap_or(false);
-    let pimente_room: bool = match room {
-        Some(r) => sqlx::query_scalar("SELECT vibe IS 'pimente' FROM groups WHERE id = ?")
-            .bind(r)
-            .fetch_optional(&state.db)
-            .await?
-            .unwrap_or(false),
-        None => false,
-    };
+    let spicy_ok = sees_spicy(&state, me, room).await?;
     let tag = q
         .tag
         .as_deref()
@@ -259,14 +259,15 @@ pub async fn list(
     .bind(room)
     .bind(tag)
     .bind(lang.map(Lang::as_str))
-    .bind(show_spicy || pimente_room)
+    .bind(spicy_ok)
     .bind(&like)
     .fetch_all(&state.db)
     .await?;
     Ok(Json(json!(items(&state, rows, me).await?)))
 }
 
-/// One pack with all its questions: public ones, or its author's (not deleted), or for an admin.
+/// One pack with all its questions: public ones (16+ ones as in the list), or its author's (not
+/// deleted), or for an admin.
 pub async fn get(
     State(state): State<AppState>,
     UserId(me): UserId,
@@ -275,8 +276,9 @@ pub async fn get(
 ) -> AppResult<Json<Value>> {
     let room = current_room(&state, me, &headers).await?;
     let row = one(&state, id, me, room).await?;
-    let visible = row.status == "public"
-        || (row.author_id == me && row.status != "deleted")
+    let mine = row.author_id == me && row.status != "deleted";
+    let visible = (row.status == "public" && (!row.spicy || sees_spicy(&state, me, room).await?))
+        || mine
         || is_admin(&state, me);
     if !visible {
         return Err(AppError::NotFound);
@@ -959,12 +961,16 @@ pub async fn creator(
         .await?
         .ok_or(AppError::NotFound)?;
     let room = current_room(&state, me, &headers).await?;
+    // My own page shows all my public packs; someone else's, the 16+ ones only as in the list.
+    let spicy_ok = user_id == me || sees_spicy(&state, me, room).await?;
     let rows: Vec<PackRow> = sqlx::query_as(select(
-        "WHERE p.author_id = ?3 AND p.status = 'public' ORDER BY p.installs DESC, p.id DESC",
+        "WHERE p.author_id = ?3 AND p.status = 'public' AND (?4 OR p.spicy = 0) \
+         ORDER BY p.installs DESC, p.id DESC",
     ))
     .bind(me)
     .bind(room)
     .bind(user_id)
+    .bind(spicy_ok)
     .fetch_all(&state.db)
     .await?;
     if rows.is_empty() && user_id != me {

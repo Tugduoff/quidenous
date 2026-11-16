@@ -13,6 +13,7 @@ import { useReducedMotion } from 'react-native-reanimated';
 import { AppLock } from '@/components/app-lock';
 import { CelebrationPreview } from '@/components/celebration';
 import { InstallBanner, InstallScreen, installMode } from '@/components/install';
+import { TermsGate } from '@/components/terms';
 import { ToastHost } from '@/components/toast';
 import { ConfirmHost } from '@/components/ui';
 import { OtaToast, UpdateDialog } from '@/components/update';
@@ -148,6 +149,7 @@ function Root() {
       )}
       <CelebrationPreview />
       <AppLock active={!!token} />
+      {(stage === 'in' || stage === 'room') && <TermsGate />}
       <ConfirmHost />
       <UpdateDialog />
       {stage === 'in' && <OtaToast />}

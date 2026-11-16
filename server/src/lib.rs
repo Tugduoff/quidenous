@@ -132,6 +132,18 @@ pub fn app(state: AppState) -> Router {
         .route("/s/{token}/card.png", axum::routing::get(share::card_png))
         .route("/p/{id}", axum::routing::get(share::pack_page))
         .route("/p/{id}/card.png", axum::routing::get(share::pack_card_png))
+        .route(
+            "/robots.txt",
+            axum::routing::get(|| async {
+                (
+                    [(
+                        axum::http::header::CONTENT_TYPE,
+                        "text/plain; charset=utf-8",
+                    )],
+                    web::ROBOTS,
+                )
+            }),
+        )
         // Public legal pages (linked from the Google sign-in consent screen and the app).
         .route(
             "/privacy",

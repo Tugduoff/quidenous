@@ -45,7 +45,10 @@ Pack item (lists, creator page, mine):
   `liked`: most likes; `featured`: `featured = 1` only, newest first. `lang` absent = all languages.
   Spicy packs are listed only when the user opted in (`show_spicy`) or the `X-Room` room's vibe is `pimente`
   (or the `tag=pimente` filter is asked explicitly while opted in).
-- `GET /packs/{id}` → item + `questions: [{ text, kind, items }]` (`items`: a choose question's answers, docs/PACK_FILES.md). Visible if `public`, or to its author, or to an admin; else 404.
+- `GET /packs/{id}` → item + `questions: [{ text, kind, items }]` (`items`: a choose question's answers, docs/PACK_FILES.md). Visible if `public`
+  (a spicy one only for those the list would show it to), or to its author, or to an admin; else 404. `GET /creators/{id}` hides spicy
+  packs the same way (except on my own page). The public `/p/{id}` page and its card never show a spicy pack (404). The app's 16+ chip
+  and the Pimenté vibe ask for an age confirmation first.
 - `POST /packs { name?, description?, language?, tags?: [id], spicy?: bool, featured?: bool, text?: string, questions?: [{text, kind, items?}] }`
   → `{ id, count, status, featured }`. Source: `questions`, else `text` (a pack file, docs/PACK_FILES.md: its header fills the fields left out), else the room's own questions.
   `featured` is for admins only (ignored otherwise); admins have no pack limit and never publish into review.
@@ -112,9 +115,11 @@ Suggestion: `{ id, text, kind, lang, status, up, down, author, mine }`.
   (the challenge still links to that round). `403 owner_only` per `questions_by`.
 - `POST /rounds/{id}/challenge { room_id }` (auth, `X-Room` = source room, round closed) → `{ challenge_id }`: same, to one
   of my other rooms (`403 not_in_room` if I am not in it, `400 same_room`).
-- `GET /rounds/{id}/challenges` → `[{ room, round_id | null, closed, podium | null, mine_podium }]`: every room this round
-  was sent to or came from. `podium` (top 3 of the other room: `[{ name, color, avatar, photo_url, score }]`, score = votes
-  or ranking points) only once both rounds are closed; `mine_podium` same shape for this room.
+- `GET /rounds/{id}/challenges` → `[{ room, round_id | null, closed, podium | null, mine_podium, private }]`: every room this round
+  was sent to or came from. `podium` (top 3 of the other room: `[{ name, color, avatar, photo_url: null, score }]`, first
+  names and drawn avatars only, never photos; score = votes or ranking points) only once both rounds are closed;
+  `mine_podium` same shape for this room. `private`: the challenge came from a share link without the result, played by
+  someone who isn't in the source room (`challenges.with_result = 0`): room names only, `podium` stays null both ways.
 
 ## App
 

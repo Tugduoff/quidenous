@@ -36,6 +36,7 @@ impl Headers {
     }
 
     pub async fn apply(self, req: Request, next: Next) -> Response {
+        let noindex = noindex(req.uri().path());
         let mut res = next.run(req).await;
         let h = res.headers_mut();
         let mut set = |name: HeaderName, value: &'static str| {
@@ -50,9 +51,36 @@ impl Headers {
         if self.hsts {
             set(header::STRICT_TRANSPORT_SECURITY, "max-age=31536000");
         }
+        if noindex {
+            set(HeaderName::from_static("x-robots-tag"), "noindex, nofollow");
+        }
         res
     }
 }
+
+/// Pages and files that name people or rooms (share and pack cards, shared questions, creators,
+/// parties, photos, the API): kept out of search engines. The welcome page and the legal pages
+/// stay indexable.
+fn noindex(path: &str) -> bool {
+    [
+        "/s/",
+        "/p/",
+        "/play",
+        "/creator/",
+        "/pack/",
+        "/party/",
+        "/photos/",
+        "/api/",
+    ]
+    .iter()
+    .any(|p| path.starts_with(p))
+}
+
+/// `/robots.txt`. Share and pack links (`/s/`, `/p/`) stay fetchable on purpose: chat apps read their
+/// preview tags, and search engines must see their `noindex` to drop them (a disallowed page can
+/// still be listed from links, without its noindex ever being read).
+pub const ROBOTS: &str = "User-agent: *\nDisallow: /api/\nDisallow: /photos/\nDisallow: /play\n\
+Disallow: /creator/\nDisallow: /pack/\nDisallow: /party/\n";
 
 /// The web app's policy: its own scripts (plus the inline ones of its `index.html`, by hash),
 /// styles inline too (react-native-web writes them at run time), images and fonts from here or

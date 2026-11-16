@@ -177,9 +177,25 @@ pub(crate) async fn erase(state: &AppState, user_id: i64) -> AppResult<()> {
          OR member_id IN (SELECT id FROM members WHERE user_id = ?1)",
         "DELETE FROM kicks WHERE target_id IN (SELECT id FROM members WHERE user_id = ?1) \
          OR from_id IN (SELECT id FROM members WHERE user_id = ?1)",
+        // Public links: the ones they made, and stat cards showing them (frozen names). Older cards
+        // don't list their people: matched by first name in that room.
+        "DELETE FROM shares WHERE member_id IN (SELECT id FROM members WHERE user_id = ?1)",
+        "DELETE FROM stat_shares WHERE member_id IN (SELECT id FROM members WHERE user_id = ?1) \
+         OR EXISTS (SELECT 1 FROM members m, json_each(stat_shares.member_ids) j \
+                    WHERE m.user_id = ?1 AND j.value = m.id) \
+         OR (stat_shares.member_ids IS NULL AND EXISTS (SELECT 1 FROM members m, json_each(stat_shares.people) j \
+                    WHERE m.user_id = ?1 AND m.group_id = stat_shares.group_id \
+                      AND json_extract(j.value, '$[0]') = CASE WHEN instr(trim(m.name), ' ') > 0 \
+                          THEN substr(trim(m.name), 1, instr(trim(m.name), ' ') - 1) ELSE trim(m.name) END))",
     ] {
         sqlx::query(sql).bind(user_id).execute(&mut *tx).await?;
     }
+    // A report about them as a member keeps their name as its snapshot: not any more.
+    sqlx::query("UPDATE reports SET content = ?1 WHERE kind = 'member' AND reported_user_id = ?2")
+        .bind(DELETED_NAME)
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await?;
     sqlx::query(
         "UPDATE members SET name = ?1, photo = NULL, avatar = NULL, user_id = NULL, role = 'member', \
          removed_at = COALESCE(removed_at, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) WHERE user_id = ?2",

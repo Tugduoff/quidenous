@@ -3,6 +3,7 @@ import { type ComponentRef, useRef, useState } from 'react';
 import { TextInput } from 'react-native';
 
 import { AuthScreen, ErrorText, Field, PasswordField, TextLink } from '@/components/auth-ui';
+import { TermsCheck } from '@/components/terms';
 import { Button } from '@/components/ui';
 import { auth, authError, flow, PASSWORD_MIN, useFeatures } from '@/lib/auth';
 import { useT } from '@/lib/i18n';
@@ -17,13 +18,14 @@ export default function PasswordStep() {
   const { email: canEmail } = useFeatures();
   const [name, setName] = useState('');
   const [password, setPassword] = useState('');
+  const [terms, setTerms] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const passwordRef = useRef<ComponentRef<typeof TextInput>>(null);
   const existing = flow.account;
   if (!flow.email) return <Redirect href="/join" />;
 
-  const ok = existing ? !!password : !!name.trim() && password.length >= PASSWORD_MIN;
+  const ok = existing ? !!password : !!name.trim() && password.length >= PASSWORD_MIN && terms;
   const submit = async () => {
     if (!ok || busy) return;
     setBusy(true);
@@ -72,6 +74,7 @@ export default function PasswordStep() {
         returnKeyType="go"
         onSubmitEditing={submit}
       />
+      {!existing && <TermsCheck value={terms} onChange={setTerms} />}
       <ErrorText>{error}</ErrorText>
       {existing && canEmail && <TextLink onPress={() => router.push('/auth/forgot')}>{tr('auth.signIn.forgot')}</TextLink>}
     </AuthScreen>

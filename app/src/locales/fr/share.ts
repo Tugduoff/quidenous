@@ -8,4 +8,19 @@ export const share = {
   points: '{points} pts',
   story: 'qui de nous ? · {title}\n{line}',
   historyFile: 'qui-de-nous-historique.csv',
+  // The first public link on this device, and Profile > My links.
+  public: {
+    title: 'Lien public',
+    message: 'Toute personne qui a le lien voit cette carte et le nom du salon, pendant 90 jours. Tu peux le supprimer dans Profil > Mes liens.',
+    action: 'Partager',
+  },
+  links: {
+    title: 'Mes liens',
+    question: 'Question',
+    result: 'Résultat',
+    stat: 'Stat',
+    until: "jusqu'au {date}",
+    revoke: 'Supprimer le lien',
+    revoked: 'Lien supprimé',
+  },
 };

@@ -89,37 +89,7 @@ The privacy page says **16 ans et plus** (changed from 15 in this branch).
 
 ## Data safety
 
-Based on `server/migrations/*.sql`, `server/assets/legal/privacy.html` and the account deletion / reports / blocks contract. No analytics, no ads SDK, no crash reporting SDK.
-
-### Overview
-
-| Question | Answer |
-| --- | --- |
-| Does your app collect or share any of the required user data types? | **Yes** |
-| Is all user data encrypted in transit? | **Yes** (HTTPS only: `https://qdn.coflop.fr`) |
-| Do you provide a way for users to request that their data is deleted? | **Yes**: in the app (Profil > Sécurité > Supprimer mon compte) and on the web at https://qdn.coflop.fr/delete-account |
-| Data shared with third parties | **None** |
-
-Not "sharing" under Play's definition (transfer to a service provider that processes data on our behalf): Mailgun (sends verification / reset / deletion codes to the e-mail address), Google and Discord sign-in (they send us an ID, name and verified e-mail; we send them nothing), Firebase Cloud Messaging and browser push services (deliver notifications, receive the push token and the notification text). None of them get data for their own use, and there is no advertising.
-
-### Data types
-
-Answer "Not collected" for everything not listed (location, financial, health, contacts, calendar, audio, files, web browsing, search history, installed apps, crash logs, diagnostics, other performance data, etc.).
-
-| Play data type | Collected | Shared | Processed ephemerally | Required or optional | Purposes | What it is |
-| --- | --- | --- | --- | --- | --- | --- |
-| Personal info > **Name** | Yes | No | No | Required | App functionality, Account management | First name / display name shown to room members (also from Google/Discord when used). |
-| Personal info > **Email address** | Yes | No | No | Required | Account management, Fraud prevention, security and compliance | Sign-in, verification codes, password reset, account deletion code. (Old accounts created before sign-in existed may have none.) |
-| Personal info > **User IDs** | Yes | No | No | Required | App functionality, Account management | Internal account ID, friend code, Google/Discord account ID when linked. |
-| Photos and videos > **Photos** | Yes | No | No | Optional | App functionality | Profile photo if the user adds one (resized to 256 px). The camera is only used to scan QR codes, on the device, nothing is uploaded. |
-| Messages > **Other in-app messages** | Yes | No | No | Optional | App functionality | Chat messages under results (room members only). Deleted with the account. |
-| App activity > **App interactions** | Yes | No | No | Required | App functionality | Votes, rankings, reminders sent, skips, pins, reactions, with timestamps (used for results, history and room stats). |
-| App activity > **Other user-generated content** | Yes | No | No | Optional | App functionality | Questions added to a room (typed or imported from a text file), published question packs, reports (reason, details, snapshot of the reported content). |
-| Device or other IDs | Yes | No | No | Optional | App functionality, Account management | Push notification token (FCM) when notifications are allowed; device label ("Android · Pixel 8") in the sessions list. |
-
-Security sessions (login tokens, stored hashed), passwords (hashed), 2FA secrets (encrypted) are account data covered by the rows above. Short-lived server logs and in-memory rate limiting by IP are not a declared data type.
-
-What deletion does (to describe if asked): profile, e-mail, password, 2FA, sessions, linked providers, push tokens, friends, blocks and chat messages are deleted; the user's seat is anonymised in rooms; votes, questions and packs they created stay, anonymised, so other members' history still adds up. Privacy policy states this ("l'historique des salons garde tes votes, anonymisés").
+The answers live in [docs/PLAY_DATA_SAFETY.md](../../docs/PLAY_DATA_SAFETY.md) (kept up to date with the code and the privacy policy).
 
 ## App access (for reviewers)
 

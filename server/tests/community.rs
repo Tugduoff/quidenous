@@ -240,7 +240,10 @@ async fn packs_have_categories_spicy_opt_in_likes_and_sorts() {
         json!({ "name": "Soirée", "questions": questions("c", 5), "tags": ["soiree"], "spicy": true }),
     )
     .await;
-    let (_, d) = call(app, "GET", &format!("/packs/{p2}"), Some(&bob), None).await;
+    // 16+: hidden from someone who didn't opt in, even by id.
+    let (s, _) = call(app, "GET", &format!("/packs/{p2}"), Some(&bob), None).await;
+    assert_eq!(s, StatusCode::NOT_FOUND);
+    let (_, d) = call(app, "GET", &format!("/packs/{p2}"), Some(&ana), None).await;
     assert_eq!(
         (d["spicy"].clone(), d["tags"].clone()),
         (json!(true), json!(["pimente"]))

@@ -8,7 +8,7 @@ import Animated from 'react-native-reanimated';
 import { Chip, IconButton, PackCard, PageHeader } from '@/components/pack-card';
 import { QueryState } from '@/components/query-state';
 import { Screen } from '@/components/screen';
-import { Card, Display } from '@/components/ui';
+import { askConfirm, Card, Display } from '@/components/ui';
 import { api } from '@/lib/api';
 import { useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
@@ -43,6 +43,11 @@ export default function PacksScreen() {
     onSettled: () => qc.invalidateQueries({ queryKey: ['packs', 'list'] }),
   });
   // The Pimenté category only lists something once 16+ packs are shown.
+  // Turning 16+ on asks for the age once more (Play: mature content behind an age confirmation).
+  const toggleSpicy = async (on: boolean) => {
+    if (on && !(await askConfirm(tr('packs.spicyAge.title'), tr('packs.spicyAge.message'), tr('packs.spicyAge.action'), 'acc'))) return;
+    spicy.mutate(on);
+  };
   const tags = PACK_TAGS.filter((id) => id !== 'pimente' || spicyOn);
 
   return (
@@ -81,7 +86,7 @@ export default function PacksScreen() {
         {tags.map((id) => (
           <Chip key={id} icon={TAG_ICONS[id]} label={tr(`packs.tags.${id}`)} on={tag === id} onPress={() => setTag(tag === id ? null : id)} />
         ))}
-        {!roomSpicy && me && <Chip icon={Flame} label={tr('packs.spicy')} on={me.show_spicy} hot onPress={() => spicy.mutate(!me.show_spicy)} />}
+        {!roomSpicy && me && <Chip icon={Flame} label={tr('packs.spicy')} on={me.show_spicy} hot onPress={() => toggleSpicy(!me.show_spicy)} />}
       </ScrollView>
 
       <QueryState query={list} />

@@ -4,6 +4,7 @@ import { Pressable, Text, TextInput, View } from 'react-native';
 
 import { ScanButton } from '@/components/qr-scanner';
 import { Screen } from '@/components/screen';
+import { TermsCheck } from '@/components/terms';
 import { Button, Card, Logo } from '@/components/ui';
 import { ApiError, SERVER_FIELD } from '@/lib/api';
 import { authError, pendingJoinCode } from '@/lib/auth';
@@ -34,6 +35,7 @@ export function LegacyJoin() {
   const [busy, setBusy] = useState(false);
   const next = useRef<ComponentRef<typeof TextInput>>(null);
   const [error, setError] = useState<string | null>(null);
+  const [terms, setTerms] = useState(false);
 
   const submit = async () => {
     setBusy(true);
@@ -49,14 +51,14 @@ export function LegacyJoin() {
     }
   };
 
-  const ready = !!name.trim() && !!(creating ? room.trim() : code.trim()) && !busy;
+  const ready = !!name.trim() && !!(creating ? room.trim() : code.trim()) && terms && !busy;
   const go = () => ready && submit();
   const input = { fontFamily: t.font.semibold, fontSize: 16, color: t.txt, padding: 16 };
   return (
     <Screen
       tabs={false}
       footer={
-        <Button onPress={submit} loading={busy} disabled={!name.trim() || !(creating ? room.trim() : code.trim())}>
+        <Button onPress={submit} loading={busy} disabled={!name.trim() || !(creating ? room.trim() : code.trim()) || !terms}>
           <Text style={{ fontFamily: t.font.bold, fontSize: 17, color: t.accTxt }}>{creating ? tr('auth.legacy.create') : tr('common.join')}</Text>
           <ArrowRight size={20} color={t.accTxt} />
         </Button>
@@ -142,6 +144,7 @@ export function LegacyJoin() {
           />
         </Card>
       )}
+      <TermsCheck value={terms} onChange={setTerms} />
       {error && <Text style={{ fontFamily: t.font.semibold, color: t.tag }}>{error}</Text>}
     </Screen>
   );

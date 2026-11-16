@@ -1,7 +1,7 @@
 import { Beer, Briefcase, Coffee, Flame, Heart, House, type LucideIcon, PartyPopper, Sparkles, Users, Wine } from 'lucide-react-native';
 import { Text, View } from 'react-native';
 
-import { PressableScale } from '@/components/ui';
+import { askConfirm, PressableScale } from '@/components/ui';
 import type { Vibe } from '@/lib/api';
 import { t as tr, useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
@@ -29,10 +29,14 @@ const known = (id: string): id is (typeof KNOWN)[number] => (KNOWN as readonly s
 export const vibeName = (v: Vibe) => (known(v.id) ? tr(`room.vibes.${v.id}.name`) : v.name);
 export const vibeDescription = (v: Vibe) => (known(v.id) ? tr(`room.vibes.${v.id}.description`) : v.description);
 
-/** The tones as selectable cards (icon, name, one line). */
+/** The tones as selectable cards (icon, name, one line). Picking "Pimenté" (16+ questions) asks for the age first. */
 export function VibeCards({ vibes, value, onChange }: { vibes: Vibe[]; value: string | null; onChange: (id: string) => void }) {
   const t = useTheme();
   useT();
+  const pick = async (id: string) => {
+    if (id === 'pimente' && id !== value && !(await askConfirm(tr('packs.spicyAge.title'), tr('packs.spicyAge.message'), tr('packs.spicyAge.action'), 'acc'))) return;
+    onChange(id);
+  };
   return (
     <View style={{ gap: 10 }}>
       {vibes.map((v) => {
@@ -45,7 +49,7 @@ export function VibeCards({ vibes, value, onChange }: { vibes: Vibe[]; value: st
             accessibilityRole="radio"
             accessibilityState={{ selected: on }}
             accessibilityLabel={vibeName(v)}
-            onPress={() => onChange(v.id)}
+            onPress={() => pick(v.id)}
             style={[
               {
                 flexDirection: 'row',

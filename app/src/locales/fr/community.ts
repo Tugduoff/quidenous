@@ -47,6 +47,7 @@ export const community = {
     vs: '{a} vs {b}',
     waiting: 'En attente de {room}',
     share: 'On a joué « {question} ». À vous : {link}',
+    played: "{room} l'a jouée aussi",
   },
   errors: {
     tooMany: "Plus de propositions pour aujourd'hui",

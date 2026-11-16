@@ -1,11 +1,13 @@
 import { Linking, Platform, Share } from 'react-native';
 
 import { showToast } from '@/components/toast';
+import { askConfirm } from '@/components/ui';
 
 import { api, API_URL, historyExportUrl, type Member, type Round, type StatsPeriod, type Story } from './api';
 import { featuresQuery } from './auth';
 import { getLang, t } from './i18n';
 import { queryClient } from './query-client';
+import { storage } from './storage';
 
 /** Where friends can open the app (web app served by the API server). */
 export const appUrl = () => API_URL || (typeof location !== 'undefined' ? location.origin : '');
@@ -24,10 +26,36 @@ export function inviteMessage(roomName: string, code: string) {
   return t('share.invite', { room: roomName, link: inviteLink(code), code });
 }
 
+/** The first public link on this device asks first: anyone with it sees the card and the room's name. */
+const PUBLIC_OK = 'qdn.publicShareOk';
+export async function confirmPublic(): Promise<boolean> {
+  if ((await storage.get(PUBLIC_OK).catch(() => null)) === '1') return true;
+  const ok = await askConfirm(t('share.public.title'), t('share.public.message'), t('share.public.action'), 'acc');
+  if (ok) storage.set(PUBLIC_OK, '1').catch(() => {});
+  return ok;
+}
+
+/** One of my public links (`GET /shares`): a question (with its result or not) or a stats story. */
+export type MyLink = {
+  token: string;
+  path: string;
+  kind: 'question' | 'stat';
+  title: string;
+  room: string;
+  with_result: boolean;
+  created_at: string;
+  /** Null for links made before links expired. */
+  expires_at: string | null;
+};
+export const myLinksKey = ['shares'] as const;
+export const myLinks = () => api<MyLink[]>('/shares');
+export const revokeLink = (token: string) => api(`/shares/${token}`, { method: 'DELETE' });
+
 /** Public link to a card of this question (with its podium when `result`), previewed as an image in chats. */
 export async function publicLink(roundId: number, result: boolean): Promise<string | null> {
   try {
     const r = await api<{ path: string }>(`/rounds/${roundId}/share`, { method: 'POST', json: { result } });
+    queryClient.invalidateQueries({ queryKey: myLinksKey });
     return `${appUrl()}${r.path}`;
   } catch {
     return null;
@@ -87,6 +115,7 @@ export async function shareText(message: string): Promise<'shared' | 'copied' | 
  * On the web, when the browser can share files, the card itself goes out as a picture (with the link in the text).
  */
 export async function shareStory(period: StatsPeriod, story: Story): Promise<'shared' | 'copied' | 'failed'> {
+  if (!(await confirmPublic())) return 'failed';
   let link: string | null = null;
   try {
     const r = await api<{ token: string; path: string }>('/stats/share', {
@@ -94,6 +123,7 @@ export async function shareStory(period: StatsPeriod, story: Story): Promise<'sh
       json: { period, key: story.key, tz: -new Date().getTimezoneOffset() },
     });
     link = `${appUrl()}${r.path}`;
+    queryClient.invalidateQueries({ queryKey: myLinksKey });
   } catch {}
   const text = t('share.story', { title: story.title, line: story.line });
   if (link && Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.canShare && typeof File !== 'undefined') {
