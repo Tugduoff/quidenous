@@ -1,0 +1,35 @@
+# title: The Friends' Holiday
+# description: Packing, budgets, a dodgy rental and fighting over beds: who survives the trip?
+# category: potes
+# lang: en
+# 16+: no
+Who would bring a 23-kilo suitcase for a two-night weekend?
+Who would make a holiday spreadsheet with a tab for each day?
+Who would book the rental without reading a single review?
+Who claims the best bed on arrival, no discussion?
+Who would confirm they're coming the night before we leave?
+Who moans about the plan but never suggests anything?
+Who would nap through the day trip they suggested themselves?
+Who forgets their charger and borrows everyone else's?
+Who gets sunburnt on day one?
+Who quietly does the washing-up while everyone's at the beach?
+Who gets up at 7am "to make the most of the day" and wakes the whole house?
+Who would vanish for a whole day without telling anyone?
+Who would bring back the ugliest souvenir in the shop?
+Who orders food in a made-up local accent?
+Who loses the rental keys on the very first night?
+Who would be the first to want to go home early?
+Who would leave the rental in a state that loses us the deposit?
+Who is never ready on time on departure day?
+Who turns every meal into a 40-minute debate about where to eat?
+Who posts the holiday pics before the group has approved them?
+Who ends up on the sofa because they booked last?
+[classement] Rank us from heaviest packer to lightest.
+[classement] Rank us from dream travel buddy to travel nightmare.
+[classement] Rank us from most adventurous to "sunlounger and a book".
+[classement] Rank us from biggest holiday spender to comes home with savings.
+[classement] Rank us from fluent in the local language to completely lost.
+[classement] Rank us from loudest suspected snorer to silent sleeper.
+[choix] Your role in planning the trip? | I book everything | I go with the flow | I complain | I pay up at the end
+[choix] What's your luggage like? | Cabin bag only | 23 kilos exactly | Two suitcases | A carrier bag
+[choix] First thing you do on arrival? | Supermarket run | Straight in the pool | Nap | Inspect the bathroom

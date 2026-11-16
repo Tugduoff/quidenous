@@ -82,12 +82,18 @@ export function parseQuestions(content: string): DraftLine[] {
     });
 }
 
-/** Pick a question file and read it: its lines, 'empty' when there's nothing in it, null when cancelled. */
-export async function pickQuestionFile(): Promise<DraftLine[] | 'empty' | null> {
+/** Pick a text file and read it whole (a pack file's header too): null when cancelled. */
+export async function pickTextFile(): Promise<string | null> {
   const picked = await DocumentPicker.getDocumentAsync({ type: ['text/plain', 'text/*'], copyToCacheDirectory: true });
   if (picked.canceled || !picked.assets[0]) return null;
   const asset = picked.assets[0];
-  const content = asset.file ? await asset.file.text() : await (await fetch(asset.uri)).text();
+  return asset.file ? await asset.file.text() : await (await fetch(asset.uri)).text();
+}
+
+/** Pick a question file and read it: its lines, 'empty' when there's nothing in it, null when cancelled. */
+export async function pickQuestionFile(): Promise<DraftLine[] | 'empty' | null> {
+  const content = await pickTextFile();
+  if (content == null) return null;
   const lines = parseQuestions(content);
   return lines.length ? lines : 'empty';
 }

@@ -1,0 +1,33 @@
+# titre: La grande réunion de famille
+# description: Cousins, mariages et recettes de mamie : qui fait quoi quand toute la famille débarque ?
+# catégorie: famille
+# langue: fr
+# 16+: non
+Qui confond les prénoms de tous les cousins ?
+Qui pose LA question qui gêne toute la table ?
+Qui fait la bise à toutes les tantes et met une heure à s'asseoir ?
+Qui connaît l'arbre généalogique jusqu'aux arrière-grands-oncles ?
+Qui garde jalousement la recette secrète de la famille ?
+Qui a hérité du talent de mamie en cuisine ?
+Qui se fait resservir par mamie même en disant non ?
+Qui organise la photo de groupe et met 20 minutes à placer tout le monde ?
+Qui a toujours les yeux fermés sur la photo de famille ?
+Qui se retrouve encore à la table des enfants à 30 ans passés ?
+Qui ressort les albums photo à chaque réunion de famille ?
+Qui a apporté un plat que personne n'a touché ?
+Qui repart avec assez de restes pour toute la semaine ?
+Qui serait capable de lancer une nouvelle tradition familiale ridicule ?
+Qui cuisine « à l'œil » et ne refait jamais deux fois le même plat ?
+Qui se fait battre aux cartes par les grands-parents chaque année ?
+Qui garde un souvenir de chaque mariage (dragée, menu, fleur) ?
+Qui finit toujours par garder les petits cousins pendant le repas ?
+Qui disparaît pour une sieste en pleine fête de famille ?
+[classement] Classe-nous de celui qui connaît le mieux l'histoire de la famille au plus perdu.
+[classement] Classe-nous de celui qui donne le plus de nouvelles aux grands-parents au plus rare.
+[classement] Du plus fort aux cartes en famille au plus facile à battre : classe-nous.
+[classement] Classe-nous de celui qui part le premier de la fête à celui qu'on doit mettre dehors.
+[classement] Classe-nous de celui qui a le plus le caractère de mamie ou papi au moins.
+[classement] Classe-nous du meilleur organisateur de réunion de famille au pire.
+[choix] À table en famille, tu t'assois où ? | Près des grands-parents | Avec les enfants | Près de la cuisine | Au bout, discret
+[choix] Le plat de famille que tu réclames ? | Le gratin | Le rôti | La tarte de mamie | Les crêpes
+[choix] En réunion de famille, tu es plutôt ? | Le conteur | L'oreille attentive | Aux fourneaux | Avec les petits

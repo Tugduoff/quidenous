@@ -270,12 +270,20 @@ export default function PackScreen() {
 
       <Card style={{ padding: 16, gap: 10 }}>
         {pack.questions.map((q, i) => (
-          <QuestionText
-            key={i}
-            text={q.text}
-            rank={q.kind === 'rank'}
-            style={{ fontFamily: t.font.regular, fontSize: 14, lineHeight: 20, color: t.txt }}
-          />
+          <View key={i} style={{ gap: 2 }}>
+            <QuestionText
+              text={q.text}
+              rank={q.kind === 'rank'}
+              choose={q.kind === 'choose'}
+              style={{ fontFamily: t.font.regular, fontSize: 14, lineHeight: 20, color: t.txt }}
+            />
+            {/* A choose question's items, in one line under it. */}
+            {q.kind === 'choose' && !!q.items?.length && (
+              <Text numberOfLines={1} style={{ marginLeft: 19, fontFamily: t.font.regular, fontSize: 12, lineHeight: 17, color: t.mut }}>
+                {q.items.join(' · ')}
+              </Text>
+            )}
+          </View>
         ))}
       </Card>
 

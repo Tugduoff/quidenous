@@ -1,0 +1,19 @@
+# titre: Qui a déjà… (version osée)
+# description: Les aveux coquins qu'on ne fait qu'entre potes, et seulement ce soir.
+# catégorie: pimente, soiree
+# langue: fr
+# 16+: oui
+Qui a déjà embrassé quelqu'un dans un endroit franchement pas prévu pour ça ?
+Qui a déjà fait le walk of shame en tenue de soirée un dimanche matin ?
+Qui s'est déjà fait surprendre en plein bisou par ses parents ?
+Qui a déjà dragué le serveur pour avoir le dessert offert ?
+Qui a déjà glissé son numéro sur une serviette en papier ?
+Qui a déjà fait une sieste « crapuleuse » en pleine semaine ?
+Qui a déjà pris 40 selfies pour en envoyer un seul « naturel » à son crush ?
+Qui a déjà raté son dernier train exprès pour prolonger la soirée ?
+Qui a déjà flirté pour échapper à une amende ou doubler une file d'attente ?
+Qui a déjà eu un gros crush sur son médecin ou son kiné ?
+Qui a déjà posé un jour de congé juste pour un rendez-vous galant ?
+[classement] Classe-nous de celui qui a les anecdotes les plus croustillantes au plus sage.
+[classement] Classe-nous du pire menteur après une nuit dehors au plus convaincant.
+[choix] Ta confession de ce soir porterait sur… | Un bisou | Un message | Une soirée | Je n'avoue rien

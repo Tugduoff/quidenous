@@ -1,0 +1,35 @@
+# title: Who Was the Worst Teen?
+# description: Childhood mischief, teen tantrums and school photos: the memories come out.
+# category: famille, potes
+# lang: en
+# 16+: no
+Who got up to the most mischief as a little kid?
+Who slammed doors the hardest as a teenager?
+Who had the most regrettable haircut in their school photos?
+Who once ran away from home… to the bottom of the garden?
+Who has forged a parent's signature on a school note?
+Who hid their vegetables under a napkin?
+Who broke something and blamed the dog (or a sibling)?
+Who hogged the phone for hours as a teenager?
+Who had the most embarrassing poster on their bedroom wall?
+Who answered "nothing" to "what did you do today?"
+Who got brought home by a neighbour after some mischief?
+Who had an imaginary friend?
+Who has faked being sick to skip school?
+Who had the messiest bedroom in family history?
+Who throws the biggest tantrums in the old home videos?
+Who has secretly cut someone's hair (or their own)?
+Who asked strangers embarrassing questions as a kid?
+Who was the favourite and still denies it?
+Who took the longest to learn to ride a bike?
+Who got the most notes sent home from school?
+[classement] Rank us from worst teenager to easiest to live with.
+[classement] Rank us from proudest of their report card to best at hiding it.
+[classement] Rank us from most changed since childhood to "exactly the same".
+[classement] Rank us from most nostalgic to least.
+[classement] Rank us from best childhood storyteller to total amnesia.
+[classement] Rank us from most daredevil kid to most careful.
+[choix] At 10, you were…? | Teacher's pet | Class clown | Daydreamer | Playground terror
+[choix] Your worst punishment? | No TV | No dessert | Grounded | Clean your room
+[choix] Your after-school snack? | Cookies | PB&J | Toast and jam | A piece of fruit
+[choix] Your childhood dream job? | Astronaut | Vet | Pop star | Firefighter

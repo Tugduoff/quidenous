@@ -1,0 +1,33 @@
+# title: Micro-Crimes Tribunal
+# description: Pen theft, spoilers, double-dipping: the court of ridiculous crimes is in session.
+# category: absurde, potes
+# lang: en
+# 16+: no
+Who would be arrested first if stealing pens became a prison offence?
+Who would get life if putting ketchup on everything became illegal?
+Who would be wanted in three countries for never returning a shopping trolley?
+Who would get a ticket for walking too slowly on the pavement?
+Who would end up in court for singing the same chorus 400 times?
+Who would break out of prison just to go and get a snack?
+Who would plead not guilty with jam still on their fingers?
+Whose criminal record would be nothing but overdue library books?
+Who would be the most ruthless judge in the odd-socks court?
+Who would go on hunger strike against the clocks going forward?
+Who would be the witness who remembers nothing except the suspect's shoes?
+Who would be convicted of excessive voice notes?
+Who would pass a law banning alarms before 10am?
+Who would confess to a crime they didn't commit, just for the drama?
+Who ran a sweet-smuggling operation in the school playground?
+Who would get fined for clapping when the plane lands?
+Who would write a 40-page penal code for this group?
+Who'd get community service for leaving one square of loo roll?
+Who would hide from the police behind a bush that's far too small?
+Who would insist on being their own lawyer, and lose?
+[classement] Rank us from longest micro-crime record to squeaky clean.
+[classement] Rank us from harshest to softest judge in a chip-theft trial.
+[classement] Rank us by how long we'd last on the run before posting a story.
+[classement] Rank us from most to least likely to be arrested for giggling in public.
+[classement] Rank us from prime suspect to totally innocent when the last biscuit vanishes.
+[choix] Your favourite micro-crime? | Pen theft | The last biscuit | Double-dipping | Abandoned trolley
+[choix] The sentence for double-dipping? | Prison | Exile from the chat | A month of chores | Fine paid in doughnuts
+[choix] Your role in court? | Judge | Lawyer | Defendant | Lying witness

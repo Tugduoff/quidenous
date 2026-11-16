@@ -1,0 +1,20 @@
+# titre: Si les objets parlaient
+# description: Ton frigo témoigne, ton réveil balance : les objets se vengent.
+# catégorie: absurde, potes
+# langue: fr
+# 16+: non
+Qui serait balancé en premier si son frigo pouvait parler ?
+Qui se ferait engueuler par son aspirateur robot ?
+Qui a le canapé qui se mettrait en grève le premier ?
+Qui se disputerait avec son GPS jusqu'à ce qu'il démissionne ?
+Qui se ferait snober par sa propre machine à café ?
+Qui a des chaussettes qui porteraient plainte ?
+Qui a une plante verte qui appellerait au secours ?
+Qui a une brosse à dents qui réclame sa retraite ?
+Qui se ferait larguer par son grille-pain ?
+Qui aurait un réveil prêt à témoigner sur ses 14 snoozes ?
+[classement] Classe-nous du plus poli avec les objets au plus violent avec l'imprimante.
+[classement] Classe-nous de celui que ses objets adorent à celui qu'ils complotent d'éliminer.
+[classement] Classe-nous selon le nombre d'objets qui témoigneraient contre nous au tribunal.
+[choix] Quel objet connaît tes pires secrets ? | Le frigo | Le panier à linge | Le téléphone | Le tiroir à bazar
+[choix] Ton allié pendant la révolte des machines ? | Le grille-pain | L'aspirateur robot | La bouilloire | Le micro-ondes

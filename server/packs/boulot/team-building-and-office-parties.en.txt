@@ -1,0 +1,34 @@
+# title: Away days and office parties
+# description: Escape rooms, team karaoke and dodgy gifts: who shines outside the office?
+# category: boulot, soiree
+# lang: en
+# 16+: no
+Who takes team building far too seriously?
+Who would end up hogging the mic at the away-day karaoke?
+Who would guess their Secret Santa within two seconds?
+Who would give the weirdest Secret Santa present?
+Who would get lost during the away-day treasure hunt?
+Who would crack the escape room while everyone else is still looking for the first key?
+Who slips out of the leaving drinks just before the speeches?
+Who would shed a tear during a colleague's leaving speech?
+Who never forgets anyone's birthday on the team?
+Who runs the leaving-gift collection like a proper treasurer?
+Who would end the office party dancing with the whole management team?
+Who would turn the "spaghetti tower" workshop into a ruthless competition?
+Who would find a watertight excuse to skip the high ropes course?
+Who would take 300 photos of the away day for the team chat?
+Who would turn up to the office party with their own playlist?
+Who would win the team pub quiz?
+Who would have the most ambitious costume at the themed party?
+Who keeps a souvenir from every away day (T-shirt, water bottle, bucket hat)?
+Who would be first into the hotel pool on the away day?
+Who would miss the coach home on the last morning of the away day?
+[classement] Rank us from most hyped for team building to "I'm here for the buffet".
+[classement] Rank us from best Secret Santa gift to most "grabbed at the petrol station".
+[classement] Rank us from most competitive on a treasure hunt to most peaceful.
+[classement] Rank us from first to arrive at leaving drinks to last to leave.
+[classement] Rank us from most in tune at karaoke to most brave.
+[choix] The ideal team-building day? | Escape room | Cooking class | High ropes | An actual day off
+[choix] You and Secret Santa? | The perfect gift | Last minute | Handmade | I forget
+[choix] Your spot at the office party? | Dance floor | Buffet | Photographer | Gone by 9pm
+[choix] The ideal away day? | Seaside | Mountains | A castle hotel | Online, thanks

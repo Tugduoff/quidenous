@@ -1,0 +1,35 @@
+# title: Just One More Episode
+# description: Spoilers, the same sitcom on loop and "one more" at 3am: who's hooked?
+# category: culture, potes
+# lang: en
+# 16+: no
+Who has watched an entire season in a single night?
+Who puts subtitles on even for shows in their own language?
+Who has rewatched the same sitcom start to finish at least ten times?
+Who puts on an episode "to fall asleep" and finishes it wide awake?
+Who starts a show from the latest season?
+Who watches everything at 1.5x speed?
+Who reads the season recap online instead of actually watching it?
+Who gives up on a show one episode before the finale?
+Who's using the streaming login of someone they've never met?
+Who cries at every series finale, even the terrible ones?
+Who shushes everyone the second anyone talks during an episode?
+Who spends longer picking something to watch than watching it?
+Who has fan theories about a show that nobody asked for?
+Who recommends a show with "the first three seasons are slow, but then…"?
+Who watches reality TV "ironically" but never misses an episode?
+Who can recite entire scenes from a cult show?
+Who has taken a day off work for a new season drop?
+Who never skips the intro, on principle?
+Who still talks about a show that ended ten years ago like it was yesterday?
+Who would go off all social media to dodge a spoiler?
+Who starts a new show every week and never finishes any of them?
+[classement] Rank us from biggest binge-watcher to most reasonable.
+[classement] Rank us from worst spoiler to most tight-lipped.
+[classement] Rank us from most loyal to one show to most fickle.
+[classement] Rank us from best taste in TV to worst.
+[classement] Rank us from who'd last longest without streaming to first to crack.
+[classement] Rank us from chattiest during an episode to most focused.
+[choix] Your Sunday night show? | Crime drama | Classic sitcom | Reality TV | True-crime doc
+[choix] Your ideal pace? | One a week | Whole season at once | Depends on my mood
+[choix] Where do you watch? | Sofa | In bed | On the commute | While cooking

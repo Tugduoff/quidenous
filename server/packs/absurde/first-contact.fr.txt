@@ -1,0 +1,20 @@
+# titre: Premier contact
+# description: Les extraterrestres débarquent. Qui les accueille ? Qui leur vend un forfait ?
+# catégorie: absurde, potes
+# langue: fr
+# 16+: non
+Qui serait choisi par erreur comme représentant de l'humanité ?
+Qui essaierait de vendre un forfait mobile aux extraterrestres ?
+Qui se ferait enlever par des aliens et serait rendu le lendemain avec un mot d'excuse ?
+Qui demanderait un selfie avant de demander s'ils viennent en paix ?
+Qui ferait goûter une raclette aux aliens pour prouver que la Terre mérite d'être sauvée ?
+Qui serait vexé que les aliens aient enlevé quelqu'un d'autre ?
+Qui apprendrait la langue alien juste pour y faire des blagues nulles ?
+Qui passerait trois heures à expliquer les règles de la belote aux extraterrestres ?
+Qui prendrait une soucoupe volante pour son VTC et monterait dedans ?
+Qui ferait visiter le supermarché aux aliens comme si c'était le Louvre ?
+[classement] Classe-nous du meilleur au pire ambassadeur de la Terre.
+[classement] Classe-nous du plus probable d'être un extraterrestre déguisé au plus humain.
+[classement] Classe-nous selon la vitesse à laquelle les aliens nous renverraient sur Terre.
+[choix] Une soucoupe atterrit devant toi. Tu… ? | Filmes | Cours | Dis bonjour | Montes dedans
+[choix] Ton cadeau de bienvenue aux aliens ? | Une baguette | Un fromage qui pue | Une playlist | Un câlin

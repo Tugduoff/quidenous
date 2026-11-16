@@ -1,0 +1,19 @@
+# titre: Festivals et concerts
+# description: Tente sous la pluie, pogo au premier rang, téléphone en l'air : qui survit au festival ?
+# catégorie: soiree, potes
+# langue: fr
+# 16+: non
+Qui filme tout le concert sans jamais le regarder ?
+Qui plante sa tente dans une flaque dès la première nuit ?
+Qui perd le groupe dans la foule en dix minutes ?
+Qui fait la queue des heures pour être au premier rang ?
+Qui découvre la tête d'affiche le jour même ?
+Qui finit sur les épaules de quelqu'un ?
+Qui garde son bracelet de festival au poignet pendant six mois ?
+Qui plonge dans le pogo et en ressort avec une seule chaussure ?
+Qui est debout à 9 h avec le programme des concerts surligné ?
+Qui se fait des amis pour la vie dans la queue des toilettes ?
+[classement] Classe-nous du plus à l'aise au camping au plus perdu loin d'une douche.
+[classement] Du plus déchaîné au premier rang au plus tranquille au fond.
+[classement] Classe-nous de celui qui tient les trois jours au premier à rentrer dormir chez lui.
+[choix] Ton festival idéal ? | Rock sous la pluie | Électro au soleil | Petit festival local | Concert assis

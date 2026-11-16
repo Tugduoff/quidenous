@@ -1,0 +1,35 @@
+# title: Once Upon a Group
+# description: First meetings, old photos and the stories we keep retelling: our group legend.
+# category: potes
+# lang: en
+# 16+: no
+Who made the worst first impression on the group?
+Who has changed the most since we met?
+Who hasn't changed one bit since day one?
+Who remembers the exact date we all met?
+Who still has the most embarrassing photos from the early days?
+Who was the most annoying at the start?
+Who almost never became part of the group?
+Who has brought the most new people into the group?
+Who had the most embarrassing music taste back then?
+Who would cry first at a slideshow of our 10 years of friendship?
+Who started as "a friend of a friend" and became essential?
+Who will organise our reunion in 20 years?
+Who has kept every ticket, wristband and souvenir since the start?
+Who tells the story of how we met completely differently from everyone else?
+Who started the group's first big falling-out?
+Who is the glue, the one without whom we'd never meet up?
+Who will still be going for drinks with us at 80?
+Who has the oldest nickname in the group?
+Who went through the most cringe phase of our shared history?
+Who rereads old chats just to laugh on their own?
+Who would narrate the documentary about our group?
+[classement] Rank us from longest-standing member to newest arrival.
+[classement] Rank us from most nostalgic to most forward-looking.
+[classement] Rank us from best memory for group stories to worst.
+[classement] Rank us from organises the most reunions to most passive.
+[classement] Rank us from most sentimental to least demonstrative.
+[classement] Rank us from best teller of group legends to never tells any.
+[choix] How did you join the group? | At school | Through work | Friend of a friend | Can't remember
+[choix] The group in 20 years? | Still tight | Drinks once a year | Just the group chat | Scattered
+[choix] Your favourite kind of group memory? | A trip | A night out | A fit of giggles | Something stupid

@@ -1,0 +1,35 @@
+# title: House Party
+# description: Who hosts like a pro, who raids the fridge, who's still there at 5am: the flat remembers.
+# category: soiree, potes
+# lang: en
+# 16+: no
+Who says "just a quiet one" and ends up with 40 people?
+Who arrives bang on time while the host is still in the shower?
+Who turns up empty-handed but leaves with the leftovers?
+Who hijacks the speaker and won't give up the playlist?
+Who opens the host's fridge like it's their own?
+Who does the washing-up while the party's in full swing?
+Who doesn't notice that everyone else has gone home?
+Who falls asleep on the host's sofa without asking?
+Who brings people the host has never met?
+Who breaks a glass and hides it behind a plant?
+Who gives themselves a tour of the place, reviewing the décor?
+Who turns the music down every ten minutes, terrified of the neighbours?
+Who says "I'll stay an hour" and leaves at sunrise?
+Who has ruined a surprise party by letting it slip?
+Who would sniff out their own surprise party three weeks early?
+Who would fake being surprised really, really badly?
+Who cooks for 30 when there are 8 of us?
+Who brings a bag of crisps and calls it cooking?
+Who vanishes onto the balcony for a two-hour heart-to-heart?
+Who starts a heated debate at 3am?
+Who leaves something behind at the host's every single time?
+Who sends "thanks for last night!" at 9am sharp?
+[classement] Rank us from most attentive host to the one who greets you in pyjamas.
+[classement] Rank us from most helpful guest to "I'm a guest, I don't lift a finger".
+[classement] Rank us by the state of our place after a party, from spotless to war zone.
+[classement] Rank us from punctual to "on my way" texted at midnight.
+[classement] Rank us from best to worst at getting a party going.
+[choix] Which do you prefer? | Hosting | Being a guest | Staying in
+[choix] What do you bring to a party? | Homemade dish | Crisps | A bottle | Just myself
+[choix] Your ideal birthday? | Big party | Dinner for six | A surprise | Nobody mentions it

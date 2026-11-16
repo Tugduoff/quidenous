@@ -94,7 +94,11 @@ cp my-questions.txt deploy/data/
 docker compose run --rm quidenous server --import /data/my-questions.txt --room 1
 ```
 
-`--room` is the room id (`groups.id`). The shared deck every room draws from is the built-in `server/deck/*.txt` only (changed through the repo); editing those files never moves questions between rooms.
+`--room` is the room id (`groups.id`).
+
+Community packs: `server seed-packs <dir> --author-id <id> [--featured] [--dry-run]` publishes a folder of pack files (the image ships the first ones in `/packs`, see [docs/PACK_FILES.md](../docs/PACK_FILES.md)). Safe to run again: packs already there are skipped.
+
+The shared deck every room draws from is the built-in `server/deck/*.txt` only (changed through the repo); editing those files never moves questions between rooms.
 
 ## Update (deploy a release)
 

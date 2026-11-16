@@ -1,0 +1,34 @@
+# title: Animal Kingdom
+# description: Who'd lose a fight to a goose? The group versus nature.
+# category: absurde, potes
+# lang: en
+# 16+: no
+Who would lose a fight to a goose?
+Who would get their sandwich nicked by a seagull and never see it coming?
+Who would befriend a pigeon and give it a name?
+Who would get adopted by a pack of wolves?
+Who would try to negotiate with a wasp instead of running?
+Who would ask their goldfish for advice before a big decision?
+Who would get spat on by a llama and take it personally?
+Who would make the best queen of an ant colony?
+Who would get banned from a petting zoo?
+Who would write an apology letter to a spider they squashed?
+Who would do the best impression of a screaming goat?
+Who would be the gazelle lagging at the back of the herd?
+Who would get their car keys stolen by a monkey on holiday?
+Who would win an animal noises contest?
+If dogs could talk, who would they grass up first?
+Who would follow a duck for an hour just to see where it's going?
+Who could blend into a herd of cows without anyone noticing?
+Who has a personal feud with a squirrel in the park?
+Who would spend an hour fighting a fly, and lose?
+Who would be happiest reincarnated as a house cat?
+[classement] Rank us from who'd beat an angry swan to who'd end up in the lake.
+[classement] Rank us from most cat to most dog.
+[classement] Rank us from most to least likely to become king of the city pigeons.
+[classement] Rank us from apex predator to light snack.
+[classement] Rank us from horse whisperer to the person horses can't stand.
+[classement] Rank us by how long we'd last undercover in a penguin colony.
+[choix] What do you come back as? | Sloth | Thieving seagull | Angry goose | Sofa cat
+[choix] Which do you fight? | One horse-sized duck | 100 duck-sized horses
+[choix] Your emotional support animal? | A pigeon | A goat | A lobster | A chicken

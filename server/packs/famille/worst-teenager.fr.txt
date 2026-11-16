@@ -1,0 +1,35 @@
+# titre: Qui était le pire ado ?
+# description: Bêtises d'enfance, crises d'ado et photos de classe : les souvenirs ressortent.
+# catégorie: famille, potes
+# langue: fr
+# 16+: non
+Qui a fait le plus de bêtises quand il était petit ?
+Qui claquait les portes le plus fort à l'adolescence ?
+Qui a eu la coupe de cheveux la plus regrettable sur les photos de classe ?
+Qui a déjà fugué… jusqu'au fond du jardin ?
+Qui a déjà imité la signature d'un parent sur un mot de l'école ?
+Qui cachait ses légumes sous la serviette ?
+Qui a cassé quelque chose et accusé le chien (ou un frère) ?
+Qui monopolisait le téléphone pendant des heures à l'adolescence ?
+Qui avait le poster le plus gênant au mur de sa chambre ?
+Qui répondait « rien » à « qu'est-ce que t'as fait aujourd'hui ? » ?
+Qui s'est déjà fait ramener à la maison par un voisin après une bêtise ?
+Qui avait un ami imaginaire ?
+Qui a déjà fait semblant d'être malade pour éviter l'école ?
+Qui a eu la chambre la plus en désordre de l'histoire de la famille ?
+Qui fait les plus gros caprices sur les vieilles vidéos de famille ?
+Qui a déjà coupé les cheveux de quelqu'un (ou les siens) en cachette ?
+Qui posait des questions gênantes aux inconnus quand il était petit ?
+Qui était le chouchou et le nie encore aujourd'hui ?
+Qui a mis le plus longtemps à savoir faire du vélo ?
+Qui a eu le plus de mots dans le carnet de correspondance ?
+[classement] Classe-nous du pire ado au plus facile à vivre.
+[classement] Classe-nous du plus fier de son bulletin au plus doué pour le cacher.
+[classement] Classe-nous de celui qui a le plus changé depuis l'enfance à celui qui n'a pas bougé.
+[classement] Du plus nostalgique au moins nostalgique : classe-nous.
+[classement] Classe-nous du meilleur conteur de souvenirs d'enfance au plus amnésique.
+[classement] Classe-nous de l'enfant le plus casse-cou au plus prudent.
+[choix] Toi à 10 ans, tu étais plutôt ? | Premier de la classe | Clown de la classe | Rêveur | Terreur de la cour
+[choix] Ta pire punition ? | Privé de télé | Privé de dessert | Au coin | Ranger ta chambre
+[choix] Ton goûter d'enfance ? | Pain au chocolat | Tartine de confiture | Biscuits | Un fruit
+[choix] Ton métier de rêve quand tu étais petit ? | Astronaute | Vétérinaire | Star | Pompier

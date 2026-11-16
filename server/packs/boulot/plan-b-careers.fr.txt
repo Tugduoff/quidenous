@@ -1,0 +1,19 @@
+# titre: Le plan B de carrière
+# description: Boulanger, gardien de phare ou animateur de colo : et si on changeait tous de métier ?
+# catégorie: boulot, potes
+# langue: fr
+# 16+: non
+Qui plaquerait tout pour ouvrir une chambre d'hôtes à la campagne ?
+Qui ferait un excellent gardien de phare ?
+Qui avait le métier de rêve d'enfant le plus improbable ?
+Qui serait le meilleur guide de musée, anecdotes comprises ?
+Qui se reconvertirait en ébéniste après dix ans d'open space ?
+Qui ferait un carton comme animateur de colo ?
+Qui serait le plus crédible en présentateur météo ?
+Qui aurait pu être avocat, vu comme il gagne tous les débats ?
+Qui ouvrirait un food truck avec une seule recette ?
+Qui ferait un commentateur sportif passionné pour n'importe quel sport ?
+[classement] Classe-nous du plus susceptible de changer de métier cette année au plus fidèle à son poste.
+[classement] Du plus fait pour un métier manuel au plus fait pour un bureau.
+[classement] Classe-nous du plus fait pour la scène au plus fait pour les coulisses.
+[choix] Ton plan B ? | Boulanger | Moniteur de ski | Libraire | Éleveur de chèvres

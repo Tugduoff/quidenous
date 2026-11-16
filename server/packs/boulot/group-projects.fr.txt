@@ -1,0 +1,19 @@
+# titre: Le projet de groupe
+# description: Celui qui fait tout, celui qui disparaît, celui qui imprime à 7 h 58 : on vote.
+# catégorie: boulot, potes
+# langue: fr
+# 16+: non
+Qui crée le groupe de discussion du projet et le renomme toutes les heures ?
+Qui se propose pour « faire la mise en page » pour échapper au reste ?
+Qui envoie sa partie à 3 h du matin la veille du rendu ?
+Qui découvre le sujet le matin de l'oral ?
+Qui fait toutes les diapos sans que personne ne lui ait rien demandé ?
+Qui imprime le dossier à 7 h 58 pour un rendu à 8 h ?
+Qui disparaît deux semaines puis revient avec la meilleure idée du groupe ?
+Qui dit « je m'occupe de la conclusion » ?
+Qui a un document nommé « final_v3_vraiment_final » ?
+Qui parle le plus à l'oral sur la partie qu'il n'a pas écrite ?
+[classement] Classe-nous du plus chef de projet au plus passager clandestin.
+[classement] Du plus stressé avant un oral au plus zen.
+[classement] Classe-nous du premier à rendre sa partie au dernier.
+[choix] Ton rôle dans un projet de groupe ? | Le chef | Les diapos | Le moral des troupes | Le fantôme

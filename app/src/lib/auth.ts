@@ -128,6 +128,10 @@ export function useFeatures() {
     accountRecovery: on.has('account_recovery'),
     /** Deleting chat messages, removing asked questions, reports an admin reviews, locking a party. */
     moderation: on.has('moderation'),
+    /** Packs carry choose questions (with their items). */
+    packChoose: on.has('pack_choose'),
+    /** The pack file template for AI agents (`/pack-template.md`, `/en/pack-template.md`). */
+    packTemplate: on.has('pack_template'),
   };
 }
 

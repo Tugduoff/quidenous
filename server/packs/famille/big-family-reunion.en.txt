@@ -1,0 +1,33 @@
+# title: The Big Family Reunion
+# description: Cousins, weddings and Grandma's recipes: who does what when the whole family shows up?
+# category: famille
+# lang: en
+# 16+: no
+Who mixes up all the cousins' names?
+Who asks THE question that makes the whole table cringe?
+Who does the rounds hugging every aunt and takes an hour to sit down?
+Who knows the family tree right back to the great-great-uncles?
+Who jealously guards the secret family recipe?
+Who inherited Grandma's talent in the kitchen?
+Who gets another helping from Grandma even after saying no?
+Who sets up the group photo and spends 20 minutes arranging everyone?
+Who always has their eyes closed in the family photo?
+Who still ends up at the kids' table past 30?
+Who gets the old photo albums out at every family reunion?
+Who brought a dish nobody touched?
+Who leaves with enough leftovers for the whole week?
+Who'd start a ridiculous new family tradition?
+Who cooks "by eye" and can never make the same dish twice?
+Who gets beaten at cards by the grandparents every year?
+Who keeps a souvenir from every wedding (menu, favour, flower)?
+Who always ends up minding the little cousins during the meal?
+Who disappears for a nap in the middle of the family party?
+[classement] Rank us from family history expert to completely lost.
+[classement] Rank us from calls the grandparents most to rarely calls.
+[classement] Rank us from family card shark to easiest to beat.
+[classement] Rank us from first to leave the party to the one we have to kick out.
+[classement] Rank us from most like Grandma or Grandpa in character to least.
+[classement] Rank us from best reunion organiser to worst.
+[choix] At the family table, you sit…? | By the grandparents | With the kids | Near the kitchen | At the end, quietly
+[choix] The family dish you always ask for? | Mac and cheese | Sunday roast | Grandma's pie | Pancakes
+[choix] At family gatherings, you're…? | The storyteller | The listener | In the kitchen | With the little ones

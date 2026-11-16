@@ -47,6 +47,9 @@ async fn main() -> quidenous_server::anyhow_free::Result<()> {
         println!("database copied to {dest}");
         return Ok(());
     }
+    if args.get(1).map(String::as_str) == Some("seed-packs") {
+        return seed_packs(&args[2..]).await;
+    }
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()))
         .init();
@@ -81,5 +84,88 @@ async fn main() -> quidenous_server::anyhow_free::Result<()> {
         app(state).into_make_service_with_connect_info::<std::net::SocketAddr>(),
     )
     .await?;
+    Ok(())
+}
+
+/// `server seed-packs <dir> --author-id <id> [--featured] [--dry-run]`: publishes the pack files of a
+/// folder (docs/PACK_FILES.md). Safe to run again: packs the author already has are skipped.
+async fn seed_packs(args: &[String]) -> quidenous_server::anyhow_free::Result<()> {
+    use quidenous_server::packs::SeedAction;
+    const USAGE: &str =
+        "usage: server seed-packs <dir> --author-id <user id> [--featured] [--dry-run]";
+    let dir = args.first().filter(|a| !a.starts_with("--")).ok_or(USAGE)?;
+    let author: i64 = args
+        .iter()
+        .position(|a| a == "--author-id")
+        .and_then(|i| args.get(i + 1))
+        .and_then(|a| a.parse().ok())
+        .ok_or(USAGE)?;
+    let featured = args.iter().any(|a| a == "--featured");
+    let dry_run = args.iter().any(|a| a == "--dry-run");
+    if let Some(unknown) = args[1..].iter().find(|a| {
+        a.starts_with("--") && !["--author-id", "--featured", "--dry-run"].contains(&a.as_str())
+    }) {
+        return Err(format!("unknown option {unknown}\n{USAGE}").into());
+    }
+    let config = Config::from_env();
+    let db = quidenous_server::connect(&config.database_url).await?;
+    // Whose packs these become, said first (a wrong id is easy to spot in the dry run).
+    let name: Option<String> =
+        sqlx::query_scalar("SELECT name FROM users WHERE id = ? AND deleted_at IS NULL")
+            .bind(author)
+            .fetch_optional(&db)
+            .await?;
+    println!(
+        "author: {} (account {author})",
+        name.as_deref().unwrap_or("?")
+    );
+    let outcomes = quidenous_server::packs::seed_dir(
+        &db,
+        std::path::Path::new(dir),
+        author,
+        featured,
+        dry_run,
+    )
+    .await?;
+    let (mut created, mut existing, mut invalid) = (0, 0, 0);
+    for o in &outcomes {
+        let path = o.path.strip_prefix(dir).unwrap_or(&o.path).display();
+        match &o.action {
+            SeedAction::Created { id, count, dropped } => {
+                created += 1;
+                let id = id.map_or("dry run".to_owned(), |id| format!("pack {id}"));
+                let dropped = if *dropped > 0 {
+                    format!(", {dropped} lines left out")
+                } else {
+                    String::new()
+                };
+                println!(
+                    "+ {path}: \"{}\", {count} questions ({id}{dropped})",
+                    o.name
+                );
+            }
+            SeedAction::Exists { id } => {
+                existing += 1;
+                println!("= {path}: \"{}\" already there (pack {id})", o.name);
+            }
+            SeedAction::Invalid(why) => {
+                invalid += 1;
+                println!("! {path}: {why}");
+            }
+        }
+    }
+    let verb = if dry_run { "to publish" } else { "published" };
+    println!(
+        "{created} {verb}, {existing} already there, {invalid} invalid{}{}",
+        if featured { " (Sélection Coflop)" } else { "" },
+        if dry_run {
+            " · dry run, nothing written"
+        } else {
+            ""
+        }
+    );
+    if invalid > 0 {
+        std::process::exit(2);
+    }
     Ok(())
 }

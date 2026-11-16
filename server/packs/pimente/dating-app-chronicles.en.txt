@@ -1,0 +1,33 @@
+# title: Dating app chronicles
+# description: Swiping in bed, fibbing bios and first drinks: time to spill everything.
+# category: pimente, potes
+# lang: en
+# 16+: yes
+Who has a profile pic that's at least five years old?
+Who swipes right on everyone while watching a show?
+Who has spotted a colleague on an app and acted like nothing happened?
+Who writes a three-paragraph bio that nobody reads?
+Who has taken two different dates to the same bar in the same week?
+Who opens with "so what do you do?" in the very first message?
+Who has had a mate turn up "by chance" in the middle of a first date?
+Who dresses up like it's a gala for a quick coffee date?
+Who has matched with someone's ex from this group?
+Who sends a two-minute voice note to someone they've never met?
+Who preps a list of conversation topics before a date?
+Who has asked for the bill twenty minutes in?
+Who always ends up talking about their ex on a first date?
+Who deletes the app on Monday and reinstalls it on Friday night?
+Who has had a first date that finished at breakfast?
+Who would get the group to proofread their flirty texts before sending?
+Who has done a full background check on a match before the first drink?
+Who poses on their profile with a dog that isn't theirs?
+Who suggests a second date before dessert has even arrived?
+[classement] Rank us from pickiest on the apps to least fussy.
+[classement] Rank us from best dating profile bio to most cringe.
+[classement] Rank us from most dates under their belt to fewest.
+[classement] Rank us from king of the opening line to worst at starting a chat.
+[classement] Rank us from kisses on the first night to waits until date three.
+[classement] Rank us from most romantic on a first date to most blunt.
+[choix] Your ideal first date? | Drinks outside | Fancy dinner | A long walk | Sofa and a film
+[choix] Your opening message on an app? | "Hey, how are you?" | A joke | A GIF | I wait for them
+[choix] The date's going badly, what now? | Stay polite | Fake emergency call | Slip away | Order dessert anyway

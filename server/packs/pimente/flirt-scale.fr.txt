@@ -1,0 +1,19 @@
+# titre: L'échelle de la drague
+# description: Du charmeur en série au maladroit chronique : tout le monde est classé.
+# catégorie: pimente, soiree
+# langue: fr
+# 16+: oui
+[classement] Classe-nous du regard le plus ravageur au plus perdu dans le vide.
+[classement] Classe-nous de celui qui voit tout de suite qu'on le drague au plus à côté de la plaque.
+[classement] Classe-nous de la meilleure phrase d'accroche à la plus catastrophique.
+[classement] Du plus doué en compliments au plus maladroit, classe-nous.
+[classement] Classe-nous de celui qui aborde un inconnu au bar à celui qui attend qu'on vienne le chercher.
+[classement] Classe-nous du meilleur danseur de slow au plus raide.
+[classement] Classe-nous de celui qui repart de soirée avec le plus de numéros à celui qui n'en a aucun.
+[classement] Classe-nous du clin d'œil le plus réussi au plus inquiétant.
+[classement] Du meilleur flirt par texto à celui qui répond « ok », classe-nous.
+[classement] Classe-nous de celui qui rougit le plus vite au plus impassible.
+[classement] Classe-nous du roi des sous-entendus au plus littéral.
+[classement] Classe-nous de celui qui encaisse le mieux un râteau au plus traumatisé.
+[classement] Classe-nous du meilleur complice de drague en soirée au pire saboteur.
+[classement] Du plus doué pour jouer l'indifférent au plus transparent, classe-nous.

@@ -1,0 +1,19 @@
+# titre: Soirée ciné
+# description: Pop-corn, sous-titres et fins devinées : qui gâche la séance ?
+# catégorie: culture, potes
+# langue: fr
+# 16+: non
+Qui devine la fin du film au bout de dix minutes et l'annonce à voix haute ?
+Qui passe 45 minutes à choisir un film pour finalement revoir le même que d'habitude ?
+Qui finit son pop-corn avant la fin des bandes-annonces ?
+Qui reste jusqu'à la toute fin du générique, au cas où il y aurait une scène cachée ?
+Qui ne supporte pas la VF et le rappelle à chaque séance ?
+Qui sort son téléphone en pleine séance, luminosité au maximum ?
+Qui n'a jamais vu les grands classiques et l'assume complètement ?
+Qui demande « c'est qui, lui ? » toutes les cinq minutes ?
+Qui refuse les films d'horreur mais lit le résumé complet le lendemain ?
+Qui fait entrer un vrai repas en douce dans la salle de cinéma ?
+[classement] Classe-nous du plus cinéphile au plus « c'est quoi déjà, ce film ? ».
+[classement] Classe-nous du plus trouillard devant un film d'horreur au plus impassible.
+[classement] Classe-nous de celui à qui on confierait le choix du film en premier au dernier.
+[choix] Ta place au cinéma ? | Premier rang | Pile au milieu | Tout au fond | Près de la sortie

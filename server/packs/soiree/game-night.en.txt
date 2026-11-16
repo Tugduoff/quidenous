@@ -1,0 +1,35 @@
+# title: Game Night: Sore Losers
+# description: Made-up rules, flipped boards, eternal grudges: who just can't handle losing?
+# category: soiree, potes
+# lang: en
+# 16+: no
+Who invents a rule "we've always played it like that"?
+Who reads the rules for 40 minutes before anyone's allowed to play?
+Who would flip the board after a humiliating loss?
+Who demands a rematch, then another, then another?
+Who makes alliances and betrays them the very next turn?
+Who "accidentally" sees everyone else's cards?
+Who takes ten minutes to play a single turn?
+Who wins their very first game and becomes unbearable?
+Who doesn't listen to the rules and still wins?
+Who still brings up a game they lost five years ago?
+Who plays banker and quietly helps themselves?
+Who loses on purpose so the night can finally end?
+Who acts out charades nobody ever manages to guess?
+Who shouts an answer in the music quiz before the first note?
+Who disputes every quiz answer with "well, technically…"?
+Who brings a 4-hour game with an 80-page rulebook?
+Who's on their phone when it's their turn?
+Who accuses everyone of cheating the moment they lose?
+Who lies best at Werewolf… a little too well?
+Who packs the game away without checking for missing pieces?
+Who appoints themselves referee while also playing?
+Who does a victory dance after winning Snakes and Ladders?
+[classement] Rank us from best sport to sorest loser.
+[classement] Rank us from biggest cheat to most honest (be honest).
+[classement] Rank us from best bluffer to worst poker face.
+[classement] Rank us by grudge level after a loss, from zen to vengeful.
+[classement] Rank us from best to worst teammate in a team game.
+[choix] What kind of player are you? | Strategist | Cheat | Lucky one | Here for snacks
+[choix] How do you take a loss? | Laugh it off | Sulk | Rematch! | Switch games
+[choix] Your dream Werewolf role? | Werewolf | Seer | Villager | First to die

@@ -1,0 +1,19 @@
+# titre: Petites trahisons entre amis
+# description: Spoilers, séries regardées en douce, faux malades : qui nous trahit pour trois fois rien ?
+# catégorie: potes
+# langue: fr
+# 16+: non
+Qui regarderait l'épisode suivant de « notre » série sans nous attendre ?
+Qui te spoilerait la fin d'un film « sans faire exprès » ?
+Qui emmènerait d'autres potes dans « notre » resto ?
+Qui se rangerait du côté de ton ex après la rupture ?
+Qui s'est déjà dit malade pour finalement poster une story en terrasse ?
+Qui like les photos de ton pire ennemi ?
+Qui raconte TES anecdotes à d'autres comme si c'étaient les siennes ?
+Qui te piquerait ton idée de cadeau pour un ami commun ?
+Qui te dirait « ça te va super bien » sans le penser une seconde ?
+[classement] Classe-nous du plus loyal au plus prêt à changer de camp.
+[classement] Classe-nous du plus rancunier au plus rapide à pardonner.
+[classement] Du plus hypocrite en compliments au plus franc : classe-nous.
+[choix] Un pote te spoile ta série. Tu fais quoi ? | Je pardonne | Je me venge | Je l'ignore une semaine | Je quitte le groupe
+[choix] Ton petit crime préféré ? | Annuler au dernier moment | Spoiler | Emprunter sans rendre | Mentir sur mon retard

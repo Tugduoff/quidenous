@@ -1,0 +1,19 @@
+# title: Petty Betrayals
+# description: Spoilers, secret binge-watching, fake sick days: who'd betray us over nothing?
+# category: potes
+# lang: en
+# 16+: no
+Who would watch the next episode of "our" show without waiting for us?
+Who would spoil the ending of a film "by accident"?
+Who would take other friends to "our" restaurant?
+Who would take your ex's side after the breakup?
+Who has called in "sick", then posted a story from a pub garden?
+Who likes your nemesis's photos?
+Who tells YOUR stories to other people as if they were theirs?
+Who would steal your gift idea for a mutual friend?
+Who'd say "that looks amazing on you" without meaning a word of it?
+[classement] Rank us from most loyal to most likely to switch sides.
+[classement] Rank us from biggest grudge-holder to quickest to forgive.
+[classement] Rank us from most fake with compliments to most brutally honest.
+[choix] A friend spoils your show. You…? | Forgive them | Get revenge | Ignore them for a week | Leave the group
+[choix] Your favourite petty crime? | Last-minute cancelling | Spoilers | Borrowing, never returning | Lying about being late

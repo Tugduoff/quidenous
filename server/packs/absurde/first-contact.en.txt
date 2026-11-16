@@ -1,0 +1,20 @@
+# title: First Contact
+# description: The aliens have landed. Who greets them? Who sells them a phone contract?
+# category: absurde, potes
+# lang: en
+# 16+: no
+Who would be picked to represent humanity, by mistake?
+Who would try to sell the aliens a phone contract?
+Who would get abducted by aliens and returned the next day with a polite note?
+Who would ask for a selfie before asking if they come in peace?
+Who would cook the aliens a Sunday roast to prove Earth is worth saving?
+Who would be offended the aliens abducted someone else?
+Who would learn the alien language just to tell terrible jokes in it?
+Who would spend three hours explaining cricket to the aliens?
+Who would mistake a flying saucer for their taxi and get in?
+Who would give the aliens a tour of the supermarket like it's a museum?
+[classement] Rank us from best to worst ambassador for planet Earth.
+[classement] Rank us from most likely to be an alien in disguise to most human.
+[classement] Rank us by how fast the aliens would send us back to Earth.
+[choix] A UFO lands in front of you. You…? | Film it | Run | Say hi | Climb aboard
+[choix] Your welcome gift for the aliens? | A cup of tea | Smelly cheese | A playlist | A hug

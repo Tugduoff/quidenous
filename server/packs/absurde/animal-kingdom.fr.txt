@@ -1,0 +1,34 @@
+# titre: Le règne animal
+# description: Qui perdrait un duel contre une oie ? Le groupe face à la nature.
+# catégorie: absurde, potes
+# langue: fr
+# 16+: non
+Qui perdrait un combat contre une oie ?
+Qui se ferait voler son sandwich par une mouette sans rien voir venir ?
+Qui deviendrait ami avec un pigeon et lui donnerait un prénom ?
+Qui se ferait adopter par une meute de loups ?
+Qui essaierait de négocier avec une guêpe au lieu de fuir ?
+Qui demanderait conseil à son poisson rouge avant une grosse décision ?
+Qui se ferait cracher dessus par un lama et le prendrait personnellement ?
+Qui ferait la meilleure reine d'une fourmilière ?
+Qui se ferait expulser d'une ferme pédagogique ?
+Qui écrirait une lettre d'excuses à une araignée qu'il a écrasée ?
+Qui imiterait le mieux une chèvre qui hurle ?
+Qui serait la gazelle qui traîne à l'arrière du troupeau ?
+Qui se ferait voler ses clés de voiture par un singe en vacances ?
+Qui gagnerait un concours de cris d'animaux ?
+Si les chiens pouvaient parler, qui serait dénoncé en premier ?
+Qui suivrait un canard pendant une heure juste pour voir où il va ?
+Qui pourrait se fondre dans un troupeau de vaches sans que personne ne remarque ?
+Qui a une rivalité personnelle avec un écureuil du parc ?
+Qui passerait une heure à se battre contre une mouche, et perdrait ?
+Qui serait le plus heureux réincarné en chat d'appartement ?
+[classement] Classe-nous de celui qui battrait un cygne énervé à celui qui finirait dans le lac.
+[classement] Du plus chat au plus chien : classe-nous.
+[classement] Classe-nous du plus probable au moins probable de devenir le roi des pigeons de la ville.
+[classement] Classe-nous du grand prédateur au petit casse-croûte.
+[classement] Classe-nous de celui qui murmure à l'oreille des chevaux à celui que les chevaux méprisent.
+[classement] Classe-nous selon le temps qu'on tiendrait infiltrés dans une colonie de pingouins.
+[choix] Tu te réincarnes en quoi ? | Paresseux | Mouette voleuse | Oie méchante | Chat de canapé
+[choix] Tu affrontes quoi ? | Un canard taille cheval | 100 chevaux taille canard
+[choix] Ton animal de soutien émotionnel ? | Un pigeon | Une chèvre | Un homard | Une poule

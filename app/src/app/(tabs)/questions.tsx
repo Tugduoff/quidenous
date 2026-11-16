@@ -9,6 +9,7 @@ import { ModerationDialog, type ModTarget } from '@/components/moderation';
 import { ReorderList, useScrollTracker } from '@/components/reorder-list';
 import { QueryState } from '@/components/query-state';
 import { Screen } from '@/components/screen';
+import { TemplateLink } from '@/components/template-link';
 import { Tip } from '@/components/tip';
 import { Avatar, Card, ConfirmModal, Display, PressableScale, QuestionText, Segmented, Toggle } from '@/components/ui';
 import { api, ApiError, type Queue, type QuestionKind } from '@/lib/api';
@@ -373,6 +374,8 @@ export default function QuestionsScreen() {
             {/* A question for the official deck, voted on by everyone. */}
             {community && <BulkButton label={tr('community.entry')} icon={<Lightbulb size={16} color={t.txt} />} onPress={() => router.push('/suggest')} />}
           </View>
+          {/* The file format, for an AI to write a question file. */}
+          {features.packTemplate && <TemplateLink style={{ alignSelf: 'center', marginTop: -6 }} />}
         </>
       )}
       {draft && (

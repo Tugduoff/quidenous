@@ -1,0 +1,36 @@
+# title: Christmas Dinner Chaos
+# description: Turkey, family debates and dodgy presents: who does what at Christmas?
+# category: famille, soiree
+# lang: en
+# 16+: no
+Who wraps their presents in the car on the way to Christmas dinner?
+Who grabs a last-minute present at the gas station?
+Who pretends to love a sweater they'll never wear?
+Who starts the debate that derails the whole dinner?
+Who goes back for thirds then swears they "barely ate anything"?
+Who'd still be at the table at 2 a.m. putting the world to rights?
+Who believed in Santa for way too long?
+Who saves the wrapping paper to reuse next year?
+Who offers to do the dishes… once everything's already put away?
+Who vanishes right when it's time to clear the table?
+Who'd make the best Santa for the little ones?
+Who insists on reading every cracker joke out loud?
+Who sends their Christmas list with links and sizes?
+Who knows every line of the Christmas movie that's on every year?
+Who forgets the dessert in the freezer until midnight?
+Who has burnt the main course on Christmas Day?
+Who guesses every present out loud before unwrapping it?
+Who'd skip Christmas to go skiing?
+Who keeps the decorations up until February?
+Who'd cover the whole house in 400 strings of lights?
+Who'd make the whole table cry with a way too sincere toast?
+[classement] Rank us from biggest Christmas fan to total Grinch.
+[classement] Rank us from gift-wrapping pro to sticky-tape disaster.
+[classement] Rank us from best gift-giver to least inspired.
+[classement] Rank us from loudest carol singer to quietest.
+[classement] Rank us from most impatient to open presents to most patient.
+[classement] Rank us from careful tree decorator to "just chuck the baubles on".
+[choix] Your favourite part of Christmas dinner? | The nibbles | The roast | The leftovers | Dessert
+[choix] Your ideal present? | A book | Socks | An experience | Cash
+[choix] When do you open your presents? | Christmas Eve | Christmas morning | Whenever I'm allowed
+[choix] Your role at Christmas? | In the kitchen | On dish duty | Entertainer | On the sofa

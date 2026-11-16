@@ -45,15 +45,16 @@ Pack item (lists, creator page, mine):
   `liked`: most likes; `featured`: `featured = 1` only, newest first. `lang` absent = all languages.
   Spicy packs are listed only when the user opted in (`show_spicy`) or the `X-Room` room's vibe is `pimente`
   (or the `tag=pimente` filter is asked explicitly while opted in).
-- `GET /packs/{id}` → item + `questions: [{ text, kind }]`. Visible if `public`, or to its author, or to an admin; else 404.
-- `POST /packs { name, description?, language?, tags?: [id], spicy?: bool, text?: string, questions?: [{text, kind}] }`
-  → `{ id, count, status }`. Source: `questions`, else `text` (file, `[classement]` lines), else the room's own questions.
+- `GET /packs/{id}` → item + `questions: [{ text, kind, items }]` (`items`: a choose question's answers, docs/PACK_FILES.md). Visible if `public`, or to its author, or to an admin; else 404.
+- `POST /packs { name?, description?, language?, tags?: [id], spicy?: bool, featured?: bool, text?: string, questions?: [{text, kind, items?}] }`
+  → `{ id, count, status, featured }`. Source: `questions`, else `text` (a pack file, docs/PACK_FILES.md: its header fills the fields left out), else the room's own questions.
+  `featured` is for admins only (ignored otherwise); admins have no pack limit and never publish into review.
   `400 bad_pack | pack_size | bad_language | bad_tags`, `409 too_many_packs` (10 packs in `public`/`review`; removed and deleted don't count).
   An author with a `removed` pack, or one they deleted while it was in `review` (`removed_reason = 'deleted_in_review'`),
   publishes into `review` (`status`): deleting and republishing doesn't get round the admins.
 - Publishing, liking and reporting a pack (and reporting a suggestion) need an account whose e-mail is verified (`403 unverified`);
   accounts without an e-mail (made before e-mail sign-in) or with a provider are fine. Guests never (`403 guest_account`).
-- `PUT /packs/{id} { name, description, language, tags, spicy, questions: [{text, kind}] }` → item. Author only (`403 not_author`);
+- `PUT /packs/{id} { name, description, language, tags, spicy, questions: [{text, kind, items?}] }` → item. Author only (`403 not_author`);
   not when `removed`/`deleted` (`403 pack_removed`). Changed questions → `version + 1`, `updated_at`. Same validation as publish.
   A pack an admin approved after reports (`approved_at`, migration 0033) goes back to `review` when its name, description or questions change.
 - `DELETE /packs/{id}` → author: `status = 'deleted'`.

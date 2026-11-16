@@ -1,0 +1,33 @@
+# titre: Le tribunal des micro-crimes
+# description: Vol de stylo, spoiler, double trempage : le procès des crimes ridicules.
+# catégorie: absurde, potes
+# langue: fr
+# 16+: non
+Qui serait arrêté en premier si voler des stylos devenait passible de prison ?
+Qui prendrait perpète si mettre de la crème dans la carbonara devenait illégal ?
+Qui serait recherché dans trois pays pour un caddie jamais rangé ?
+Qui prendrait une amende pour excès de lenteur sur le trottoir ?
+Qui finirait au tribunal pour avoir chanté le même refrain 400 fois ?
+Qui s'évaderait de prison juste pour aller chercher un goûter ?
+Qui plaiderait non coupable avec encore de la confiture sur les doigts ?
+Qui aurait un casier judiciaire rempli uniquement de livres rendus en retard ?
+Qui serait le juge le plus impitoyable du tribunal des chaussettes dépareillées ?
+Qui ferait une grève de la faim contre le passage à l'heure d'été ?
+Qui serait le témoin qui ne se souvient de rien, sauf des chaussures du suspect ?
+Qui serait condamné pour abus de messages vocaux ?
+Qui ferait voter une loi interdisant les réveils avant 10 h ?
+Qui avouerait un crime qu'il n'a pas commis, juste pour l'ambiance ?
+Qui dirigeait un trafic de bonbons à la récré ?
+Qui prendrait une amende pour avoir applaudi à l'atterrissage de l'avion ?
+Qui rédigerait un code pénal du groupe de 40 pages ?
+Qui ferait des travaux d'intérêt général pour avoir laissé une seule feuille de PQ ?
+Qui se cacherait de la police derrière un buisson beaucoup trop petit ?
+Qui insisterait pour être son propre avocat, et perdrait ?
+[classement] Classe-nous du plus gros casier de micro-crimes au plus irréprochable.
+[classement] Classe-nous du juge le plus sévère au plus laxiste dans une affaire de vol de frites.
+[classement] Classe-nous selon le temps qu'on tiendrait en cavale avant de poster une story.
+[classement] Du plus probable au moins probable de se faire arrêter pour fou rire en public : classe-nous.
+[classement] Classe-nous du suspect numéro un au plus innocent quand le dernier biscuit disparaît.
+[choix] Ton micro-crime préféré ? | Vol de stylos | Le dernier biscuit | Double trempage | Caddie abandonné
+[choix] La peine pour un double trempage ? | Prison | Exil du groupe | Un mois de ménage | Amende en croissants
+[choix] Ton rôle au tribunal ? | Juge | Avocat | Accusé | Témoin qui ment

@@ -1,0 +1,35 @@
+# title: Who Gets the Aux?
+# description: Guilty pleasures, karaoke and the party playlist: who deserves the speaker?
+# category: culture, soiree
+# lang: en
+# 16+: no
+Who hogs the speaker all night without asking anyone?
+Who plays the same song three times in a row in the car?
+Who knows every single lyric from a 2000s boy band?
+Who blasts breakup songs on repeat without having broken up with anyone?
+Who has a musical guilty pleasure they'd deny to the grave?
+Who says "I listened to them before they were famous"?
+Who cranks up their own song and demands total silence?
+Who sings completely wrong lyrics with absolute confidence?
+Who has the most embarrassing playlist names?
+Who would be ashamed to share their end-of-year listening stats?
+Who turns every car ride into a private concert with seated choreography?
+Who knows every party remix but none of the original songs?
+Who has seen the same band live more than five times?
+Who has bought a gig ticket for an artist they don't even listen to?
+Who has played "a bit" of an instrument for ten years without improving?
+Who has to identify every song, even the lift music?
+Who would cut a song off mid-chorus to put theirs on?
+Who still listens to vinyl and never misses a chance to mention it?
+Who cries at the same song every single time?
+Who drags everyone onto the dance floor for the cheesiest wedding classic?
+Who secretly dreams of auditioning for a TV singing contest?
+[classement] Rank us from most reliable party DJ to most dangerous.
+[classement] Rank us from true music nerd to "I just put the radio on".
+[classement] Rank us from always discovering new music to stuck on our school-years playlist.
+[classement] Rank us from most niche music taste to most mainstream.
+[classement] Rank us from loudest car singer to silent passenger.
+[classement] Rank us from biggest gig-goer to biggest homebody.
+[choix] Your guilty pleasure? | 2000s boy bands | 80s cheesy pop | Summer hits | Cartoon theme songs
+[choix] How do you listen? | Massive headphones | Earbuds | Speaker, full blast | Vinyl
+[choix] At a party, you're…? | On the decks | On the dance floor | "What's this song?" | By the snacks

@@ -1,0 +1,35 @@
+# titre: La vie à deux, sans filtre
+# description: Couette volée, surnoms gênants et rêves de mariage : on dit tout.
+# catégorie: pimente, potes
+# langue: fr
+# 16+: oui
+Qui vole toute la couette et nie en bloc le lendemain ?
+Qui donne les surnoms les plus gênants à sa moitié ?
+Qui ferait sa demande en mariage sur l'écran géant d'un stade ?
+Qui serait encore collé-serré en public après dix ans de couple ?
+Qui organiserait un week-end en amoureux avec un tableur ?
+Qui ferait semblant d'adorer un cadeau de Saint-Valentin raté ?
+Qui a déjà oublié un anniversaire de couple ?
+Qui sort bougies et playlist sensuelle pour un simple mardi soir ?
+Qui laisse sa moitié choisir la série… puis râle pendant tout l'épisode ?
+Qui garde un pyjama tue-l'amour qu'il refuse de jeter ?
+Qui dirait « je t'aime » en premier au bout d'une semaine ?
+Qui transforme chaque dispute en réconciliation très… réussie ?
+Qui finit les tête-à-tête au resto chacun sur son téléphone ?
+Qui donnerait le code de son téléphone à sa moitié sans hésiter ?
+Qui ferait un mariage à 300 invités sans en connaître la moitié ?
+Qui rêve en secret d'un mariage sur la plage au coucher du soleil ?
+Qui écrirait ses vœux de mariage… en alexandrins ?
+Qui a déjà un tableau Pinterest de mariage, en couple ou pas ?
+Qui serait le chouchou de ses beaux-parents dès le premier dîner ?
+Qui envoie des messages un peu chauds en pleine réunion ?
+Qui a déjà planifié une lune de miel plus chère que le mariage ?
+[classement] Classe-nous du plus fleur bleue au plus allergique au romantisme.
+[classement] Classe-nous du plus câlin au plus « ne me touche pas quand je dors ».
+[classement] Classe-nous de celui qui gâte le plus sa moitié à celui qui offre des chaussettes.
+[classement] Du plus démonstratif en public au plus discret, classe-nous.
+[classement] Classe-nous de celui qui se mariera le plus tôt à celui qui se mariera le plus tard.
+[classement] Classe-nous du plus doué pour faire la paix au plus rancunier.
+[choix] Ta soirée en amoureux idéale ? | Dîner aux chandelles | Plateau télé | Week-end surprise | Bain moussant
+[choix] Ton mariage de rêve ? | Château | Plage | Mairie et pique-nique | Fugue en secret
+[choix] Après une dispute, tu… | Fais le premier pas | Boudes | Fais comme si de rien | Cuisines un bon plat

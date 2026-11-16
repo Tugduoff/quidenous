@@ -1,0 +1,35 @@
+# titre: Qui a la main sur la musique ?
+# description: Plaisirs coupables, karaoké et playlist de soirée : qui mérite l'enceinte ?
+# catégorie: culture, soiree
+# langue: fr
+# 16+: non
+Qui squatte l'enceinte toute la soirée sans demander l'avis de personne ?
+Qui met le même morceau trois fois d'affilée en voiture ?
+Qui connaît par cœur toutes les paroles d'un boys band des années 2000 ?
+Qui écoute des chansons de rupture en boucle sans avoir rompu avec personne ?
+Qui a un plaisir coupable musical qu'il nierait jusqu'à la mort ?
+Qui dit « je les écoutais avant qu'ils soient connus » ?
+Qui monte le son à fond sur son morceau et exige le silence total ?
+Qui chante des paroles complètement fausses avec une confiance absolue ?
+Qui a les noms de playlists les plus gênants ?
+Qui aurait honte de montrer son bilan musical de fin d'année ?
+Qui transforme chaque trajet en concert privé avec chorégraphie assise ?
+Qui connaît tous les remix de soirée mais aucune version originale ?
+Qui a vu le même groupe en concert plus de cinq fois ?
+Qui a déjà acheté un billet de concert pour un artiste qu'il n'écoute pas ?
+Qui joue « un peu » d'un instrument depuis dix ans sans jamais progresser ?
+Qui cherche le titre de toutes les musiques, même celle de l'ascenseur ?
+Qui couperait une chanson en plein refrain pour mettre la sienne ?
+Qui écoute encore des vinyles et ne manque pas une occasion de le dire ?
+Qui pleure à chaque fois sur la même chanson ?
+Qui force tout le monde à danser sur le tube ringard des mariages ?
+Qui rêve secrètement de passer un casting de télé-crochet ?
+[classement] Classe-nous du DJ de soirée le plus fiable au plus dangereux.
+[classement] Classe-nous du plus mélomane au plus « je mets la radio ».
+[classement] Classe-nous du plus curieux de nouveaux sons au plus bloqué sur ses années lycée.
+[classement] Classe-nous du goût musical le plus pointu au plus grand public.
+[classement] Classe-nous de celui qui chante le plus fort en voiture au plus silencieux.
+[classement] Classe-nous du plus gros fan de concerts au plus casanier.
+[choix] Ton plaisir coupable ? | Boys band 2000 | Variété des années 80 | Tube de l'été | Génériques de DA
+[choix] Tu écoutes ta musique comment ? | Casque énorme | Écouteurs | Enceinte à fond | Vinyle
+[choix] En soirée, tu es ? | Aux platines | Sur la piste | « C'est quoi ce son ? » | Près du buffet

@@ -230,6 +230,8 @@ async fn features(State(state): State<AppState>) -> Json<Value> {
         "room_preview",
         "consent",
         "moderation",
+        "pack_choose",
+        "pack_template",
     ];
     f.extend(crate::accounts::features(&state));
     Json(json!(f))

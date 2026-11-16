@@ -16,7 +16,6 @@ use crate::{
     AppState,
     accounts::{limits, mail},
     auth::{Me, UserId},
-    deck::parse_line,
     error::{AppError, AppResult},
     game,
     i18n::Lang,
@@ -38,7 +37,7 @@ const DETAILS_MAX: usize = 500;
 /// `removed_reason` of a pack its author deleted while it was in review.
 const DELETED_IN_REVIEW: &str = "deleted_in_review";
 const REASON_MAX: usize = 500;
-const MAX_TAGS: usize = 3;
+pub const MAX_TAGS: usize = 3;
 const REPORT_REASONS: [&str; 4] = ["offensive", "sexual", "spam", "other"];
 
 /// Pack categories: fixed ids, the app names and draws them.
@@ -282,14 +281,10 @@ pub async fn get(
     if !visible {
         return Err(AppError::NotFound);
     }
-    let questions: Vec<(String, String)> =
-        sqlx::query_as("SELECT text, kind FROM pack_questions WHERE pack_id = ? ORDER BY position")
-            .bind(id)
-            .fetch_all(&state.db)
-            .await?;
-    let questions: Vec<Value> = questions
+    let questions: Vec<Value> = stored_questions(&state.db, id)
+        .await?
         .into_iter()
-        .map(|(text, kind)| json!({ "text": text, "kind": kind }))
+        .map(|q| json!({ "text": q.text, "kind": q.kind, "items": q.items }))
         .collect();
     let mut out = item(&state, row, me).await?;
     out["questions"] = json!(questions);
@@ -301,6 +296,38 @@ pub struct QuestionIn {
     text: String,
     #[serde(default)]
     kind: Option<String>,
+    /// A choose question's answers (2 to 4).
+    #[serde(default)]
+    items: Option<Vec<String>>,
+}
+
+/// A pack question: `pick` | `rank` | `choose` (with its answers).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PackQuestion {
+    pub text: String,
+    pub kind: String,
+    pub items: Option<Vec<String>>,
+}
+
+/// A pack's questions in order.
+async fn stored_questions<'e, E: sqlx::SqliteExecutor<'e>>(
+    db: E,
+    id: i64,
+) -> AppResult<Vec<PackQuestion>> {
+    let rows: Vec<(String, String, Option<String>)> = sqlx::query_as(
+        "SELECT text, kind, items FROM pack_questions WHERE pack_id = ? ORDER BY position",
+    )
+    .bind(id)
+    .fetch_all(db)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|(text, kind, items)| PackQuestion {
+            text,
+            kind,
+            items: items.and_then(|i| serde_json::from_str(&i).ok()),
+        })
+        .collect())
 }
 
 #[derive(Deserialize)]
@@ -314,6 +341,8 @@ pub struct PackBody {
     /// Category ids, 3 at most.
     tags: Option<Vec<String>>,
     spicy: Option<bool>,
+    /// In Coflop's selection from the start: admins only (ignored for others).
+    featured: Option<bool>,
     /// The questions as a list (wins over `text`).
     questions: Option<Vec<QuestionIn>>,
 }
@@ -351,35 +380,60 @@ fn clean_tags(tags: &[String]) -> AppResult<Vec<&'static str>> {
     Ok(out)
 }
 
-fn parse_text(text: &str) -> Vec<(String, String)> {
-    text.lines()
-        .map(str::trim)
-        .filter(|l| !l.is_empty() && !l.starts_with('#'))
-        .map(parse_line)
-        // Packs hold pick and ranking questions only (docs/CHOOSE.md).
-        .filter(|(_, k)| *k != "choose")
-        .map(|(t, k)| (t.to_owned(), k.to_owned()))
-        .collect()
-}
-
-fn from_list(list: Vec<QuestionIn>) -> Vec<(String, String)> {
-    list.into_iter()
-        .map(|q| {
-            let kind = if q.kind.as_deref() == Some("rank") {
-                "rank"
-            } else {
-                "pick"
-            };
-            (q.text.trim().to_owned(), kind.to_owned())
+/// A pack file's questions (`[classement]`, `[choix] … | A | B`; the header is read apart).
+fn from_file(file: &crate::packfile::PackFile) -> Vec<PackQuestion> {
+    file.lines
+        .iter()
+        .map(|l| PackQuestion {
+            text: l.text.clone(),
+            kind: l.kind.to_owned(),
+            items: l.items.clone(),
         })
         .collect()
 }
 
-/// Questions of the right length, each once (case-insensitive), 5 to 300 of them.
-fn clean_questions(mut questions: Vec<(String, String)>) -> AppResult<Vec<(String, String)>> {
-    questions.retain(|(t, _)| (QUESTION_MIN..=QUESTION_MAX).contains(&t.chars().count()));
+/// The app's list. A choose question sent without its answers (an app from before `pack_choose`
+/// editing a pack) keeps the answers it has in `known`; anything unknown is a pick question.
+fn from_list(list: Vec<QuestionIn>, known: &[PackQuestion]) -> Vec<PackQuestion> {
+    list.into_iter()
+        .map(|q| {
+            let text = q.text.trim().to_owned();
+            let kind = match q.kind.as_deref() {
+                Some("rank") => "rank",
+                Some("choose") => "choose",
+                _ => "pick",
+            };
+            let items = match (kind, q.items) {
+                ("choose", Some(items)) => crate::deck::clean_items(items),
+                ("choose", None) => known
+                    .iter()
+                    .find(|k| k.kind == "choose" && k.text.to_lowercase() == text.to_lowercase())
+                    .and_then(|k| k.items.clone()),
+                _ => None,
+            };
+            PackQuestion {
+                text,
+                kind: kind.to_owned(),
+                items,
+            }
+        })
+        .collect()
+}
+
+/// Questions of the right length, each once (case-insensitive), choose ones with valid answers,
+/// 5 to 300 of them.
+pub fn clean_questions(mut questions: Vec<PackQuestion>) -> AppResult<Vec<PackQuestion>> {
+    questions.retain(|q| {
+        (QUESTION_MIN..=QUESTION_MAX).contains(&q.text.chars().count())
+            && (q.kind != "choose" || q.items.clone().and_then(crate::deck::clean_items).is_some())
+    });
+    for q in &mut questions {
+        if q.kind != "choose" {
+            q.items = None;
+        }
+    }
     let mut seen = std::collections::HashSet::new();
-    questions.retain(|(t, _)| seen.insert(t.to_lowercase()));
+    questions.retain(|q| seen.insert(q.text.to_lowercase()));
     if questions.len() < MIN_QUESTIONS || questions.len() > MAX_QUESTIONS {
         return Err(AppError::BadRequest("pack_size"));
     }
@@ -389,60 +443,115 @@ fn clean_questions(mut questions: Vec<(String, String)>) -> AppResult<Vec<(Strin
 async fn insert_questions(
     tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
     id: i64,
-    questions: &[(String, String)],
+    questions: &[PackQuestion],
 ) -> AppResult<()> {
-    for (i, (text, kind)) in questions.iter().enumerate() {
+    for (i, q) in questions.iter().enumerate() {
         sqlx::query(
-            "INSERT INTO pack_questions (pack_id, position, text, kind) VALUES (?, ?, ?, ?)",
+            "INSERT INTO pack_questions (pack_id, position, text, kind, items) VALUES (?, ?, ?, ?, ?)",
         )
         .bind(id)
         .bind(i as i64)
-        .bind(text)
-        .bind(kind)
+        .bind(&q.text)
+        .bind(&q.kind)
+        .bind(q.items.as_ref().map(|i| serde_json::to_string(i).unwrap_or_default()))
         .execute(&mut **tx)
         .await?;
     }
     Ok(())
 }
 
-/// Publish a pack: from `questions`, else a file (`text`), else the questions my room added.
+/// A new pack's fields, checked.
+pub struct NewPack {
+    pub name: String,
+    pub description: String,
+    pub language: Lang,
+    pub tags: Vec<&'static str>,
+    pub spicy: bool,
+    pub featured: bool,
+    pub status: &'static str,
+    pub questions: Vec<PackQuestion>,
+}
+
+/// Inserts a checked pack; returns its id.
+pub async fn create_pack(db: &sqlx::SqlitePool, author: i64, pack: &NewPack) -> AppResult<i64> {
+    let mut tx = crate::db::write_tx(db).await?;
+    let id: i64 = sqlx::query_scalar(
+        "INSERT INTO packs (name, description, author_id, language, tags, spicy, featured, status) \
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id",
+    )
+    .bind(&pack.name)
+    .bind(&pack.description)
+    .bind(author)
+    .bind(pack.language.as_str())
+    .bind(pack.tags.join(","))
+    .bind(pack.spicy)
+    .bind(pack.featured)
+    .bind(pack.status)
+    .fetch_one(&mut *tx)
+    .await?;
+    insert_questions(&mut tx, id, &pack.questions).await?;
+    tx.commit().await?;
+    Ok(id)
+}
+
+/// Publish a pack: from `questions`, else a file (`text`, whose header fills what the body leaves
+/// out), else the questions my room added. Admins have no pack limit and may publish it featured.
 pub async fn publish(
     State(state): State<AppState>,
     crate::auth::Account(user): crate::auth::Account,
     headers: HeaderMap,
     Json(body): Json<PackBody>,
 ) -> AppResult<Json<Value>> {
+    let file = body.text.as_deref().map(crate::packfile::parse);
+    let header = file.as_ref().map(|f| f.header.clone()).unwrap_or_default();
     let language = match body.language.as_deref() {
         Some(l) => clean_language(l)?,
-        None => Lang::Fr,
+        None => header.lang.unwrap_or(Lang::Fr),
     };
     let (name, description) = clean_meta(
-        body.name.as_deref().unwrap_or_default(),
-        body.description.as_deref().unwrap_or_default(),
+        body.name
+            .as_deref()
+            .or(header.title.as_deref())
+            .unwrap_or_default(),
+        body.description
+            .as_deref()
+            .or(header.description.as_deref())
+            .unwrap_or_default(),
     )?;
-    let tags = clean_tags(body.tags.as_deref().unwrap_or_default())?;
-    let spicy = body.spicy.unwrap_or(false) || tags.contains(&SPICY_TAG);
+    let tags = match &body.tags {
+        Some(tags) => clean_tags(tags)?,
+        None => header.categories.clone(),
+    };
+    let spicy = body.spicy.or(header.spicy).unwrap_or(false) || tags.contains(&SPICY_TAG);
     require_verified(&state, user).await?;
+    let admin = is_admin(&state, user);
     let count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM packs WHERE author_id = ? AND status IN ('public', 'review')",
     )
     .bind(user)
     .fetch_one(&state.db)
     .await?;
-    if count >= PACKS_PER_USER {
+    if count >= PACKS_PER_USER && !admin {
         return Err(AppError::Conflict("too_many_packs"));
     }
-    let raw = match (body.questions, &body.text) {
-        (Some(list), _) => from_list(list),
-        (None, Some(text)) => parse_text(text),
+    let raw = match (body.questions, &file) {
+        (Some(list), _) => from_list(list, &[]),
+        (None, Some(file)) => from_file(file),
         (None, None) => match current_room(&state, user, &headers).await? {
             Some(room) => {
-                sqlx::query_as(
-                    "SELECT text, kind FROM questions WHERE group_id = ? AND kind <> 'choose' ORDER BY id",
+                let rows: Vec<(String, String, Option<String>)> = sqlx::query_as(
+                    "SELECT text, kind, items FROM questions WHERE group_id = ? ORDER BY id",
                 )
-                    .bind(room)
-                    .fetch_all(&state.db)
-                    .await?
+                .bind(room)
+                .fetch_all(&state.db)
+                .await?;
+                rows.into_iter()
+                    .map(|(text, kind, items)| PackQuestion {
+                        text,
+                        kind,
+                        items: items.and_then(|i| serde_json::from_str(&i).ok()),
+                    })
+                    .collect()
             }
             None => Vec::new(),
         },
@@ -458,25 +567,24 @@ pub async fn publish(
     .bind(DELETED_IN_REVIEW)
     .fetch_one(&state.db)
     .await?;
-    let status = if probation { "review" } else { "public" };
-    let mut tx = crate::db::write_tx(&state.db).await?;
-    let id: i64 = sqlx::query_scalar(
-        "INSERT INTO packs (name, description, author_id, language, tags, spicy, status) \
-         VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id",
-    )
-    .bind(&name)
-    .bind(&description)
-    .bind(user)
-    .bind(language.as_str())
-    .bind(tags.join(","))
-    .bind(spicy)
-    .bind(status)
-    .fetch_one(&mut *tx)
-    .await?;
-    insert_questions(&mut tx, id, &questions).await?;
-    tx.commit().await?;
+    let status = if probation && !admin {
+        "review"
+    } else {
+        "public"
+    };
+    let pack = NewPack {
+        name,
+        description,
+        language,
+        tags,
+        spicy,
+        featured: admin && body.featured.unwrap_or(false),
+        status,
+        questions,
+    };
+    let id = create_pack(&state.db, user, &pack).await?;
     Ok(Json(
-        json!({ "id": id, "count": questions.len(), "status": status }),
+        json!({ "id": id, "count": pack.questions.len(), "status": status, "featured": pack.featured }),
     ))
 }
 
@@ -513,14 +621,10 @@ pub async fn edit(
     )?;
     let tags = clean_tags(&body.tags.unwrap_or_else(|| stored_tags(&tags)))?;
     let spicy = body.spicy.unwrap_or(spicy) || tags.contains(&SPICY_TAG);
-    let current: Vec<(String, String)> =
-        sqlx::query_as("SELECT text, kind FROM pack_questions WHERE pack_id = ? ORDER BY position")
-            .bind(id)
-            .fetch_all(&state.db)
-            .await?;
+    let current = stored_questions(&state.db, id).await?;
     let questions = match (body.questions, &body.text) {
-        (Some(list), _) => clean_questions(from_list(list))?,
-        (None, Some(text)) => clean_questions(parse_text(text))?,
+        (Some(list), _) => clean_questions(from_list(list, &current))?,
+        (None, Some(text)) => clean_questions(from_file(&crate::packfile::parse(text)))?,
         (None, None) => current.clone(),
     };
     let changed = questions != current;
@@ -591,30 +695,28 @@ pub async fn install(
     .fetch_optional(&state.db)
     .await?;
     available.ok_or(AppError::NotFound)?;
-    let questions: Vec<(String, String)> =
-        sqlx::query_as("SELECT text, kind FROM pack_questions WHERE pack_id = ? ORDER BY position")
-            .bind(id)
-            .fetch_all(&state.db)
-            .await?;
+    let questions = stored_questions(&state.db, id).await?;
     if questions.is_empty() {
         return Err(AppError::NotFound);
     }
     let mut tx = crate::db::write_tx(&state.db).await?;
     let mut added = 0;
-    for (text, kind) in &questions {
-        if game::same_question(&mut tx, me.group_id, text)
+    for q in &questions {
+        if game::same_question(&mut tx, me.group_id, &q.text)
             .await?
             .is_some()
         {
             continue;
         }
+        // Choose questions arrive as real choose questions (with their answers).
         sqlx::query(
-            "INSERT INTO questions (group_id, text, author_id, kind, origin) VALUES (?, ?, ?, ?, 'pack')",
+            "INSERT INTO questions (group_id, text, author_id, kind, origin, items) VALUES (?, ?, ?, ?, 'pack', ?)",
         )
         .bind(me.group_id)
-        .bind(text)
+        .bind(&q.text)
         .bind(me.id)
-        .bind(kind)
+        .bind(&q.kind)
+        .bind(q.items.as_ref().map(|i| serde_json::to_string(i).unwrap_or_default()))
         .execute(&mut *tx)
         .await?;
         added += 1;
@@ -1051,4 +1153,157 @@ pub async fn feature(
         return Err(AppError::NotFound);
     }
     Ok(Json(json!({ "featured": body.featured })))
+}
+
+// ---------- seeding (`server seed-packs`) ----------
+
+/// What `seed-packs` did (or would do) with one file.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SeedAction {
+    /// Published (`id` is `None` in a dry run). `dropped`: question lines left out (too short or
+    /// long, duplicate, choose answers that don't hold).
+    Created {
+        id: Option<i64>,
+        count: usize,
+        dropped: usize,
+    },
+    /// The author already has a pack with this title in this language (not deleted).
+    Exists { id: i64 },
+    /// Not a valid pack (missing title or language, bad category, too few questions…).
+    Invalid(String),
+}
+
+#[derive(Debug, Clone)]
+pub struct SeedOutcome {
+    pub path: std::path::PathBuf,
+    pub name: String,
+    pub action: SeedAction,
+}
+
+/// A pack file read into a pack, with the number of question lines it leaves out.
+pub fn pack_from_file(content: &str, featured: bool) -> Result<(NewPack, usize), String> {
+    let file = crate::packfile::parse(content);
+    let h = &file.header;
+    let title = h.title.as_deref().ok_or("no `# titre:` line")?;
+    let language = h.lang.ok_or("no `# langue:` line (fr or en)")?;
+    let (name, description) = clean_meta(title, h.description.as_deref().unwrap_or_default())
+        .map_err(|_| format!("title over {NAME_MAX} or description over {DESC_MAX} characters"))?;
+    let lines = from_file(&file);
+    let total = lines.len();
+    let questions = clean_questions(lines)
+        .map_err(|_| format!("needs {MIN_QUESTIONS} to {MAX_QUESTIONS} valid questions"))?;
+    let tags = h.categories.clone();
+    Ok((
+        NewPack {
+            name,
+            description,
+            language,
+            spicy: h.spicy.unwrap_or(false) || tags.contains(&SPICY_TAG),
+            tags,
+            featured,
+            status: "public",
+            questions: questions.clone(),
+        },
+        total - questions.len(),
+    ))
+}
+
+fn pack_files(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) -> std::io::Result<()> {
+    let mut entries: Vec<_> = std::fs::read_dir(dir)?.collect::<Result<_, _>>()?;
+    entries.sort_by_key(|e| e.path());
+    for entry in entries {
+        let path = entry.path();
+        if entry.file_type()?.is_dir() {
+            pack_files(&path, out)?;
+        } else if path
+            .extension()
+            .is_some_and(|e| e.eq_ignore_ascii_case("txt"))
+        {
+            out.push(path);
+        }
+    }
+    Ok(())
+}
+
+/// `server seed-packs <dir> --author-id <id> [--featured] [--dry-run]`: publishes every `*.txt`
+/// pack file under `dir` (header included) as `author`'s, public, with no pack limit. Idempotent:
+/// a pack whose title (case-insensitive) and language the author already has (not deleted) is skipped.
+pub async fn seed_dir(
+    db: &sqlx::SqlitePool,
+    dir: &std::path::Path,
+    author: i64,
+    featured: bool,
+    dry_run: bool,
+) -> Result<Vec<SeedOutcome>, String> {
+    let exists: bool = sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM users WHERE id = ? AND deleted_at IS NULL)",
+    )
+    .bind(author)
+    .fetch_one(db)
+    .await
+    .map_err(|e| e.to_string())?;
+    if !exists {
+        return Err(format!("no account {author}"));
+    }
+    let mut files = Vec::new();
+    pack_files(dir, &mut files).map_err(|e| format!("{}: {e}", dir.display()))?;
+    if files.is_empty() {
+        return Err(format!("no .txt pack file under {}", dir.display()));
+    }
+    let mut seen = std::collections::HashSet::new();
+    let mut out = Vec::with_capacity(files.len());
+    for path in files {
+        let content =
+            std::fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+        let (pack, dropped) = match pack_from_file(&content, featured) {
+            Ok(p) => p,
+            Err(e) => {
+                out.push(SeedOutcome {
+                    path,
+                    name: String::new(),
+                    action: SeedAction::Invalid(e),
+                });
+                continue;
+            }
+        };
+        let existing: Option<i64> = sqlx::query_scalar(
+            "SELECT id FROM packs WHERE author_id = ? AND lower(name) = lower(?) AND language = ? \
+             AND status != 'deleted' ORDER BY id LIMIT 1",
+        )
+        .bind(author)
+        .bind(&pack.name)
+        .bind(pack.language.as_str())
+        .fetch_optional(db)
+        .await
+        .map_err(|e| e.to_string())?;
+        let key = (pack.name.to_lowercase(), pack.language);
+        let action = match existing {
+            Some(id) => SeedAction::Exists { id },
+            // Twice the same title in this run (only a dry run gets here: a real run finds the first one).
+            None if !seen.insert(key) => {
+                SeedAction::Invalid("same title and language as another file".into())
+            }
+            None if dry_run => SeedAction::Created {
+                id: None,
+                count: pack.questions.len(),
+                dropped,
+            },
+            None => {
+                let id = create_pack(db, author, &pack)
+                    .await
+                    .map_err(|e| format!("{e:?}"))?;
+                SeedAction::Created {
+                    id: Some(id),
+                    count: pack.questions.len(),
+                    dropped,
+                }
+            }
+        };
+        out.push(SeedOutcome {
+            path,
+            name: pack.name,
+            action,
+        });
+    }
+    Ok(out)
 }

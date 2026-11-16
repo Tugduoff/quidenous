@@ -1,0 +1,34 @@
+# title: If We Were…
+# description: A rock band, a kingdom, a soup: who plays which part?
+# category: absurde, potes
+# lang: en
+# 16+: no
+If we were a rock band, who'd be the drummer who smashes everything?
+If we were a rock band, who'd leave for a disastrous solo career?
+If we were a kingdom, who'd be the monarch who does absolutely nothing?
+If we were a kingdom, who'd be plotting in the castle corridors?
+If we were a soup, who'd be the mystery chunk nobody expected?
+If we were a sitcom, who'd be the neighbour who barges in without knocking?
+If we were a sitcom, who'd get the laugh track on every single line?
+If we planned a heist, who'd do the recon in a full ninja outfit in broad daylight?
+If we planned a heist, who'd be the one who "knows a guy"?
+If we were a pizza, who'd be the pineapple?
+If we were a superhero team, who'd have the most useless power?
+If we were a family of ducks, who'd waddle at the back and get lost?
+If we were a bobsleigh team, who'd sit at the back yelling "faster"?
+If we were a football team, who'd be the sub who celebrates goals harder than anyone?
+If we were a circus, who'd volunteer to be the human cannonball?
+If we were a musical, who'd burst into song at the worst possible moment?
+If we were a summer camp, who'd be the counsellor who lost the kids?
+If we were a cheeseboard, who'd be the stinky one everyone secretly loves?
+If we were a pop group, who'd always be one beat behind on the choreography?
+If we were a spaceship crew, who'd press the big red button "just to see"?
+[classement] If we were a band, rank us from frontman to forgotten roadie.
+[classement] Rank us from monarch to lowliest peasant in our kingdom.
+[classement] If we were a soup, rank us from main ingredient to pinch of salt.
+[classement] Rank us from heist mastermind to the one who sets off the alarm.
+[classement] If we were a sitcom, rank us from main character to background extra.
+[classement] Rank us from most to least likely to get our own spin-off show.
+[choix] Your role in the heist? | Mastermind | Getaway driver | Distraction | Liability
+[choix] If you were a soup? | Posh bisque | Alphabet soup | Gazpacho | Minestrone
+[choix] Your instrument in the band? | Drums | Triangle | Tambourine | Kazoo

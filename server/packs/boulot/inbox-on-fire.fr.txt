@@ -1,0 +1,19 @@
+# titre: Boîte de réception en feu
+# description: « Petite question », « je me permets de relancer » : nos pires réflexes de messagerie.
+# catégorie: boulot
+# langue: fr
+# 16+: non
+Qui a plus de 3 000 mails non lus et vit très bien avec ?
+Qui répond « ok » à un mail de trois paragraphes ?
+Qui écrit « petite question » juste avant une question énorme ?
+Qui écrit « je me permets de revenir vers toi » vingt minutes après le premier message ?
+Qui envoie « Salut » tout seul et attend qu'on réponde avant de poser sa question ?
+Qui oublie la pièce jointe puis renvoie « avec la pièce jointe, cette fois » ?
+Qui laisse son statut sur « en réunion » toute la journée pour être tranquille ?
+Qui répond à tout avec une réaction plutôt qu'avec des mots ?
+Qui écrit le message d'absence le plus créatif de la boîte ?
+Qui met toute la boîte en copie « pour info » ?
+[classement] Classe-nous de la boîte mail la mieux rangée à la plus sauvage.
+[classement] Du plus rapide à répondre au plus « vu à 9 h, répondu à 17 h ».
+[classement] Classe-nous du plus formel dans ses mails au plus « hello la team !! ».
+[choix] Tes mails non lus ? | Zéro, toujours | Une petite dizaine | Des milliers | J'ai abandonné

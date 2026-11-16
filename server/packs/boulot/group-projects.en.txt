@@ -1,0 +1,19 @@
+# title: The group project
+# description: One does everything, one vanishes, one prints it at 7:58: time to vote.
+# category: boulot, potes
+# lang: en
+# 16+: no
+Who creates the project group chat and renames it every hour?
+Who volunteers to "do the formatting" to get out of everything else?
+Who sends their part at 3am the night before the deadline?
+Who discovers the topic on the morning of the presentation?
+Who makes all the slides without anyone asking them to?
+Who prints the report at 7:58 for an 8 o'clock deadline?
+Who vanishes for two weeks, then comes back with the group's best idea?
+Who says "I'll do the conclusion"?
+Who has a file called "final_v3_actually_final"?
+Who talks the most in the presentation about the part they didn't write?
+[classement] Rank us from most project-manager to most stowaway.
+[classement] Rank us from most stressed before a presentation to most zen.
+[classement] Rank us from first to hand in their part to last.
+[choix] Your role in a group project? | The boss | The slides | Team morale | The ghost
