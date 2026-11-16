@@ -93,7 +93,9 @@ export function TermsGate() {
   const { mutate } = accept;
   useEffect(() => {
     if (silent) mutate();
-  }, [silent, mutate]);
+    // An account that had already accepted: a tick left from another screen isn't for a later one.
+    else if (account?.terms) ticked = false;
+  }, [silent, mutate, account?.terms]);
   return (
     <Dialog visible={missing && !silent} onClose={() => {}}>
       <DialogTitle title={tr('legal.gateTitle')} />

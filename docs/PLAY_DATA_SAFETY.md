@@ -53,7 +53,7 @@ declared type).
 | --- | --- | --- |
 | Account, profile, game content | Until the account is deleted | `accounts/delete.rs` `erase()` |
 | Party guest accounts | Erased 30 days after their last party ends, unless secured | `guests.rs` (`GUEST_TTL_DAYS`, hourly purge) |
-| Sessions | Until sign-out, revocation or deletion (no idle expiry) | `user_tokens` |
+| Sessions | Until sign-out, revocation or deletion; unused for 180 days: ended (accounts that can sign in again) | `accounts/mod.rs` (`IDLE_DAYS`) |
 | E-mail codes | 15-30 min, rows purged a day after expiry | `accounts/mod.rs` `codes` |
 | Share links | 90 days for new ones, revocable (`DELETE /api/shares/{token}`) | `share.rs` |
 | Reports | No automatic purge; the reported member's name is scrubbed when they delete their account | `moderation.rs`, `erase()` |
