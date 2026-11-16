@@ -269,7 +269,7 @@ export function RoomInvites({ onJoined }: { onJoined: (room: number) => void }) 
               {i.room_name}
             </Text>
             <Text numberOfLines={1} style={{ fontFamily: t.font.regular, fontSize: 13, color: t.mut }}>
-              {`${tr('room.invites.from', { name: i.from.name })} · ${tr('common.members', { count: i.members })}`}
+              {tr('room.invites.from', { name: i.from.name })}
             </Text>
           </View>
           <PressableScale
