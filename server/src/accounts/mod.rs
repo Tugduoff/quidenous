@@ -613,12 +613,28 @@ pub(crate) async fn notify_address(
     }
 }
 
-/// Days an e-mail nobody verified stays taken: then signing up (or adding it) with it frees it
-/// from the account that typed it, so a typo or a squatter can't block the real owner.
+/// Days an e-mail nobody verified stays reserved for the account that typed it: after that, whoever
+/// proves the address (a code sent to it, or a provider that vouches for it) can take it.
 pub const UNVERIFIED_EMAIL_DAYS: i64 = 7;
 
-/// Frees `email` if an account typed it more than `UNVERIFIED_EMAIL_DAYS` ago without ever
-/// verifying it (that account keeps its sessions and can add another address).
+/// Whether `email` is held by an account that typed it more than `UNVERIFIED_EMAIL_DAYS` ago and
+/// never verified it: a proof of the address may then take it from that account. Read-only.
+pub(crate) async fn stale_email(state: &AppState, email: &str) -> AppResult<bool> {
+    Ok(sqlx::query_scalar::<_, i64>(
+        "SELECT id FROM users WHERE email = ? AND email_verified_at IS NULL \
+         AND email_set_at < strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-' || ? || ' days')",
+    )
+    .bind(email)
+    .bind(UNVERIFIED_EMAIL_DAYS)
+    .fetch_optional(&state.db)
+    .await?
+    .is_some())
+}
+
+/// Frees `email` from an account that typed it more than `UNVERIFIED_EMAIL_DAYS` ago without ever
+/// verifying it (that account keeps its sessions and can add another address). Only call this
+/// once the caller has PROVEN the address (a redeemed code sent to it, or a provider's verified
+/// e-mail): a lookup or a sign-up must never detach an address from its account.
 pub(crate) async fn free_stale_email(state: &AppState, email: &str) -> AppResult<()> {
     let freed: Option<i64> = sqlx::query_scalar(
         "UPDATE users SET email = NULL WHERE email = ? AND email_verified_at IS NULL \

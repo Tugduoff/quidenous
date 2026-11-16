@@ -6,7 +6,7 @@ import { DarkTheme, DefaultTheme, router, Stack, ThemeProvider, useGlobalSearchP
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import * as SystemUI from 'expo-system-ui';
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, type ReactNode, useEffect, useRef, useState } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 import { useReducedMotion } from 'react-native-reanimated';
 
@@ -18,6 +18,7 @@ import { ConfirmHost } from '@/components/ui';
 import { OtaToast, UpdateDialog } from '@/components/update';
 import { pendingJoinCode, pendingPlayToken, setPendingCode } from '@/lib/auth';
 import { presetJoinCode } from '@/lib/api';
+import { useLang } from '@/lib/i18n';
 import { useLive } from '@/lib/live';
 import { useLock } from '@/lib/lock';
 import { useOtaCheck } from '@/lib/ota';
@@ -89,17 +90,17 @@ function Root() {
       {banner && <InstallBanner onOpen={() => setSteps(true)} onClose={() => setBanner(false)} />}
       {/* Pages push in from the right (the iOS slide, on Android too); the inbox rises like a sheet.
           Signing in or out cross-fades. Under reduced motion screens just swap. */}
-      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: t.bg }, animation: reduced ? 'none' : 'ios_from_right' }}>
+      <Stack
+        screenOptions={{ headerShown: false, contentStyle: { backgroundColor: t.bg }, animation: reduced ? 'none' : 'ios_from_right' }}
+        screenLayout={({ children }) => <SameLanguage>{children}</SameLanguage>}>
         <Stack.Protected guard={stage === 'in'}>
           <Stack.Screen name="(tabs)" options={{ animation: reduced ? 'none' : 'fade' }} />
           <Stack.Screen name="round/[id]" />
-          <Stack.Screen name="profile" />
           <Stack.Screen name="avatar" />
           <Stack.Screen name="group" />
           <Stack.Screen name="room-settings" />
           <Stack.Screen name="inbox" options={{ animation: reduced ? 'none' : 'fade_from_bottom' }} />
           <Stack.Screen name="rooms" />
-          <Stack.Screen name="friends" />
           <Stack.Screen name="packs" />
           <Stack.Screen name="pack/[id]" />
           <Stack.Screen name="pack/edit" />
@@ -107,13 +108,18 @@ function Root() {
           <Stack.Screen name="creator/[id]" />
           <Stack.Screen name="admin" />
           <Stack.Screen name="suggest" />
-          <Stack.Screen name="security" />
-          <Stack.Screen name="notifications" />
           <Stack.Screen name="party/new" />
           <Stack.Screen name="party/[id]" />
         </Stack.Protected>
         <Stack.Protected guard={stage === 'room'}>
           <Stack.Screen name="setup" />
+        </Stack.Protected>
+        {/* The account itself (delete it included), with or without a room. */}
+        <Stack.Protected guard={stage === 'in' || stage === 'room'}>
+          <Stack.Screen name="profile" />
+          <Stack.Screen name="friends" />
+          <Stack.Screen name="security" />
+          <Stack.Screen name="notifications" />
         </Stack.Protected>
         <Stack.Protected guard={stage === 'verify'}>
           <Stack.Screen name="auth/verify" />
@@ -160,14 +166,28 @@ export default function Layout() {
   );
 }
 
+/**
+ * Each screen, mounted afresh when the language changes: text that helpers (names, dates, errors) translated
+ * outside `useT` is memoised by the React Compiler and would otherwise stay in the old language until a reload.
+ */
+function SameLanguage({ children }: { children: ReactNode }) {
+  const { lang } = useLang();
+  return <Fragment key={lang}>{children}</Fragment>;
+}
+
 type Stage = 'out' | 'verify' | 'room' | 'in';
 const STAGE_HOME: Record<Stage, string> = { out: '/join', verify: '/auth/verify', room: '/setup', in: '/' };
+/** What a signed-in account without a room can open besides /setup: the account itself (and deleting it). */
+const ROOMLESS = ['/setup', '/profile', '/friends', '/security', '/notifications'];
 const SIGNED_OUT = ['/join', '/auth/email', '/auth/password', '/auth/two-factor', '/auth/forgot', '/auth/reset', '/auth/mfa-reset'];
 
 /**
  * Keep the screen on the current stage: when signing up, in or out changes it, go to that stage's screen.
  * Without this the router falls back to the only unguarded route (/oauth), which bounced to `/` and back forever.
  */
+/** The invite code the page was opened with (read once at load) has been handled. */
+let presetUsed = false;
+
 function useStageRoute(stage: Stage, mounted: boolean) {
   const pathname = usePathname();
   const { code, error, share } = useGlobalSearchParams<{ code?: string; error?: string; share?: string }>();
@@ -188,8 +208,17 @@ function useStageRoute(stage: Stage, mounted: boolean) {
     // /play only with a shared question to show: the router also falls back to it when the guarded screens swap.
     const play = pathname === '/play' && stage !== 'verify' && !!(share || pendingPlayToken());
     // An invite link opened while signed in: the router drops /join and lands on home; from there, on to the join form with the code filled in.
-    if (stage === 'in' && pathname === '/join' && (code || presetJoinCode())) {
+    // Opened signed out (or before any room): signing in or /setup uses that code, not this.
+    if (stage !== 'in') presetUsed = true;
+    if (stage === 'in' && pathname === '/join' && (code || (!presetUsed && presetJoinCode()))) {
       setPendingCode(code ?? presetJoinCode());
+      invited.current = true;
+      presetUsed = true;
+    }
+    // The links shared before 0.32.1 (`/?code=`) land straight on home: once, the same way.
+    if (stage === 'in' && pathname === '/' && !presetUsed && presetJoinCode()) {
+      presetUsed = true;
+      setPendingCode(presetJoinCode());
       invited.current = true;
     }
     if (stage === 'in' && pathname === '/' && invited.current && pendingJoinCode()) {
@@ -204,7 +233,7 @@ function useStageRoute(stage: Stage, mounted: boolean) {
           : stage === 'verify'
             ? pathname === '/auth/verify'
             : stage === 'room'
-              ? pathname === '/setup'
+              ? ROOMLESS.includes(pathname)
               : pathname !== '/oauth' && pathname !== '/setup' && pathname !== '/join' && !pathname.startsWith('/auth');
     if (!ok) router.replace(STAGE_HOME[stage] as never);
   }, [stage, pathname, mounted, code, error, share]);

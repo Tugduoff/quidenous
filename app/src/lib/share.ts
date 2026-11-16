@@ -3,6 +3,7 @@ import { Linking, Platform, Share } from 'react-native';
 import { showToast } from '@/components/toast';
 
 import { api, API_URL, historyExportUrl, type Member, type Round, type StatsPeriod, type Story } from './api';
+import { featuresQuery } from './auth';
 import { t } from './i18n';
 import { queryClient } from './query-client';
 
@@ -16,8 +17,8 @@ export function friendMessage(code: string) {
   return t('share.friend', { link: friendLink(code), code });
 }
 
-/** Invite to a room: the link carries the code, so it opens the join screen ready to go. */
-export const inviteLink = (code: string) => `${appUrl()}/?code=${code}`;
+/** Invite to a room: the link carries the code, so it opens the join screen ready to go (signed in too: see _layout). */
+export const inviteLink = (code: string) => `${appUrl()}/join?code=${code}`;
 
 export function inviteMessage(roomName: string, code: string) {
   return t('share.invite', { room: roomName, link: inviteLink(code), code });
@@ -113,8 +114,11 @@ export async function shareStory(period: StatsPeriod, story: Story): Promise<'sh
 
 /** Download the history CSV: a link click on the web, the browser elsewhere. */
 export async function downloadHistory() {
-  const tickets = !!queryClient.getQueryData<string[]>(['features'])?.includes('tickets');
-  const url = await historyExportUrl(tickets).catch(() => null);
+  // A ticket rather than the token in the URL: features fetched first if not known yet.
+  const url = await queryClient
+    .ensureQueryData(featuresQuery)
+    .then((f) => historyExportUrl(f.includes('tickets')))
+    .catch(() => null);
   if (!url) return showToast(t('common.failed'));
   if (Platform.OS === 'web' && typeof document !== 'undefined') {
     const a = document.createElement('a');

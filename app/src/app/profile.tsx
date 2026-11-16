@@ -174,28 +174,36 @@ export default function Profile() {
   return (
     <Screen tabs={false}>
       <BackButton onPress={() => router.back()} />
-      <View style={{ alignItems: 'center', gap: 12, marginVertical: 8 }}>
-        <Pressable accessibilityRole="button" accessibilityLabel={tr('profile.photo.change')} onPress={() => setChoosing(true)}>
-          <Avatar member={me ?? undefined} size={112} />
-          <View
-            style={{
-              position: 'absolute',
-              right: 0,
-              bottom: 0,
-              width: 36,
-              height: 36,
-              borderRadius: 18,
-              backgroundColor: t.acc,
-              alignItems: 'center',
-              justifyContent: 'center',
-              borderWidth: 3,
-              borderColor: t.bg,
-            }}>
-            {busy === 'photo' ? <ActivityIndicator color={t.accTxt} /> : <Pencil size={16} color={t.accTxt} />}
-          </View>
-        </Pressable>
-        <Display size={(me?.name.length ?? 0) > 14 ? 22 : 28}>{me?.name}</Display>
-      </View>
+      {/* No room yet: the photo and the name live on room seats, so only the account's name shows. */}
+      {!me && account && (
+        <View style={{ alignItems: 'center', marginVertical: 8 }}>
+          <Display size={account.name.length > 14 ? 22 : 28}>{account.name}</Display>
+        </View>
+      )}
+      {me && (
+        <View style={{ alignItems: 'center', gap: 12, marginVertical: 8 }}>
+          <Pressable accessibilityRole="button" accessibilityLabel={tr('profile.photo.change')} onPress={() => setChoosing(true)}>
+            <Avatar member={me} size={112} />
+            <View
+              style={{
+                position: 'absolute',
+                right: 0,
+                bottom: 0,
+                width: 36,
+                height: 36,
+                borderRadius: 18,
+                backgroundColor: t.acc,
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderWidth: 3,
+                borderColor: t.bg,
+              }}>
+              {busy === 'photo' ? <ActivityIndicator color={t.accTxt} /> : <Pencil size={16} color={t.accTxt} />}
+            </View>
+          </Pressable>
+          <Display size={me.name.length > 14 ? 22 : 28}>{me.name}</Display>
+        </View>
+      )}
 
       <Dialog visible={choosing} onClose={() => setChoosing(false)}>
         <DialogTitle title={tr('profile.photo.title')} />
@@ -213,24 +221,26 @@ export default function Profile() {
         <Choice icon={Camera} label={tr('profile.photo.camera')} onPress={() => pickPhoto('camera')} />
       </Dialog>
 
-      <Card style={{ flexDirection: 'row', alignItems: 'center', paddingRight: 8 }}>
-        <TextInput
-          accessibilityLabel={tr('profile.name')}
-          value={name}
-          onChangeText={setName}
-          maxLength={24}
-          returnKeyType="done"
-          onSubmitEditing={() => name.trim() && name.trim() !== me?.name && saveName()}
-          style={{ flex: 1, minWidth: 0, padding: 16, fontFamily: t.font.semibold, fontSize: 16, color: t.txt }}
-        />
-        <Button
-          onPress={saveName}
-          loading={busy === 'name'}
-          disabled={!name.trim() || name.trim() === me?.name}
-          style={{ height: 44, paddingHorizontal: 18 }}>
-          {tr('profile.saveName')}
-        </Button>
-      </Card>
+      {me && (
+        <Card style={{ flexDirection: 'row', alignItems: 'center', paddingRight: 8 }}>
+          <TextInput
+            accessibilityLabel={tr('profile.name')}
+            value={name}
+            onChangeText={setName}
+            maxLength={24}
+            returnKeyType="done"
+            onSubmitEditing={() => name.trim() && name.trim() !== me?.name && saveName()}
+            style={{ flex: 1, minWidth: 0, padding: 16, fontFamily: t.font.semibold, fontSize: 16, color: t.txt }}
+          />
+          <Button
+            onPress={saveName}
+            loading={busy === 'name'}
+            disabled={!name.trim() || name.trim() === me?.name}
+            style={{ height: 44, paddingHorizontal: 18 }}>
+            {tr('profile.saveName')}
+          </Button>
+        </Card>
+      )}
 
       <View style={{ flexDirection: 'row', gap: 10 }}>
         {THEMES.map(({ pref: p, Icon, label }) => {
@@ -298,7 +308,11 @@ export default function Profile() {
             onPress={() => {
               setLangOpen(false);
               // Server texts (stats stories, inbox) follow the account's language: refetch once it knows.
-              if (p !== langPref) setLangPref(p).then(() => qc.invalidateQueries(), () => {});
+              if (p !== langPref)
+                setLangPref(p).then(
+                  () => qc.invalidateQueries(),
+                  () => {},
+                );
             }}
           />
         ))}

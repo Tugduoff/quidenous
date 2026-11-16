@@ -3,6 +3,7 @@ import { router, useGlobalSearchParams } from 'expo-router';
 import { useEffect, useRef } from 'react';
 
 import { api, setApiRoom, type RoomSummary } from './api';
+import { clearRoomData } from './query-client';
 import { useSession } from './session';
 
 /**
@@ -14,7 +15,7 @@ export function useRoomGone() {
   const { setRoom, noRoomLeft } = useSession();
   return async () => {
     await setRoom(null);
-    qc.clear();
+    clearRoomData(qc);
     const rooms = await api<{ id: number }[]>('/rooms').catch(() => null);
     // From a page deep in the stack (the room's settings): back to the bottom first.
     if (router.canDismiss()) router.dismissAll();
@@ -32,7 +33,7 @@ export function useSwitchRoom() {
   const { setRoom } = useSession();
   return async (id: number, kind?: 'room' | 'party') => {
     await setRoom(id);
-    qc.clear();
+    clearRoomData(qc);
     router.replace(kind === 'party' ? `/party/${id}` : '/');
   };
 }
@@ -48,7 +49,7 @@ export function useSwitchRoomHere() {
     const rooms = await api<RoomSummary[]>('/rooms').catch(() => null);
     if (rooms && !rooms.some((r) => r.id === id)) return false;
     setApiRoom(id);
-    qc.clear();
+    clearRoomData(qc);
     await setRoom(id);
     return true;
   };

@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { AppState } from 'react-native';
 
 import { liveUrl } from './api';
+import { featuresQuery } from './auth';
 import { PARTY_EVENTS, partyKeys } from './party';
 import { keys, refreshHistory } from './queries';
 import { openSocket } from './ws';
@@ -89,23 +90,27 @@ export function useLive(token: string | null, room: number | null) {
     };
     const heartbeat = setInterval(presence, HERE_MS);
     const appState = AppState.addEventListener('change', presence);
-    const socket = openSocket<LiveEvent>(async () => {
-      // A short-lived ticket instead of the token in the URL, when the server has them.
-      const tickets = !!qc.getQueryData<string[]>(['features'])?.includes('tickets');
-      return liveUrl(token, tickets);
-    }, {
-      onOpen: () => {
-        presence();
-        // Everything but the history list's pages (one refetch each): only its newest page.
-        qc.invalidateQueries({ predicate: (q) => q.queryKey[0] !== 'history' || q.queryKey[1] !== 'list' });
-        refreshHistory(qc).catch(() => {});
+    const socket = openSocket<LiveEvent>(
+      async () => {
+        // A short-lived ticket instead of the token in the URL, when the server has them. Features not known yet
+        // (cold start): fetched first; unreachable: no socket this time (retried), never the token by default.
+        const features = await qc.ensureQueryData(featuresQuery);
+        return liveUrl(token, features.includes('tickets'));
       },
-      onEvent: (event) => {
-        // A party's screen follows every event of its room (the socket only carries the current room's).
-        if (PARTY_EVENTS.has(event.type)) invalidate([partyKeys.all]);
-        invalidate(touched(event));
+      {
+        onOpen: () => {
+          presence();
+          // Everything but the history list's pages (one refetch each): only its newest page.
+          qc.invalidateQueries({ predicate: (q) => q.queryKey[0] !== 'history' || q.queryKey[1] !== 'list' });
+          refreshHistory(qc).catch(() => {});
+        },
+        onEvent: (event) => {
+          // A party's screen follows every event of its room (the socket only carries the current room's).
+          if (PARTY_EVENTS.has(event.type)) invalidate([partyKeys.all]);
+          invalidate(touched(event));
+        },
       },
-    });
+    );
     return () => {
       if (flushTimer) clearTimeout(flushTimer);
       clearInterval(heartbeat);

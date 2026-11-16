@@ -56,7 +56,8 @@ impl Headers {
 
 /// The web app's policy: its own scripts (plus the inline ones of its `index.html`, by hash),
 /// styles inline too (react-native-web writes them at run time), images and fonts from here or
-/// `data:`/`blob:`, and API calls and the live socket to this origin only.
+/// `data:`/`blob:`, and API calls and the live socket to this origin only (plus `blob:`/`data:`:
+/// the photo upload reads the resized picture back with `fetch(blob:…)`).
 pub fn app_csp(web_dir: &Path, public_url: Option<&str>) -> String {
     let index = std::fs::read_to_string(web_dir.join("index.html")).unwrap_or_default();
     let hashes: String = inline_scripts(&index)
@@ -75,7 +76,7 @@ pub fn app_csp(web_dir: &Path, public_url: Option<&str>) -> String {
     };
     format!(
         "default-src 'self'; script-src 'self'{hashes}; style-src 'self' 'unsafe-inline'; \
-         img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'{socket}; \
+         img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' blob: data:{socket}; \
          worker-src 'self'; manifest-src 'self'; media-src 'self' data: blob:; {BASE_CSP}; \
          form-action 'self'"
     )

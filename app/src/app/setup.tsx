@@ -1,4 +1,5 @@
-import { LogOut } from 'lucide-react-native';
+import { router } from 'expo-router';
+import { CircleUserRound, LogOut } from 'lucide-react-native';
 import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
@@ -21,7 +22,13 @@ export default function Setup() {
   return (
     <Screen tabs={false}>
       <View style={{ marginTop: 32, gap: 10, marginBottom: 8 }}>
-        <Logo />
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Logo />
+          {/* The account (profile, friends, security, deleting it) is reachable before any room too. */}
+          <Pressable accessibilityRole="button" accessibilityLabel={tr('auth.setup.account')} onPress={() => router.push('/profile')} hitSlop={10}>
+            <CircleUserRound size={26} color={t.txt} />
+          </Pressable>
+        </View>
         {!creating && <Display size={32}>{tr('auth.setup.title')}</Display>}
       </View>
       {!creating && <RoomInvites onJoined={enterRoom} />}
