@@ -906,6 +906,16 @@ async fn the_web_app_gets_a_content_security_policy() {
         .to_owned();
     assert!(csp.contains("script-src 'self' 'sha256-"), "{csp}");
     assert!(csp.contains("frame-ancestors 'none'"), "{csp}");
+    // The photo upload reads the resized picture back with fetch(blob:…) (broken by the CSP in
+    // 0.31.0): connect-src must allow blob: and data:.
+    let connect = csp
+        .split(';')
+        .map(str::trim)
+        .find(|d| d.starts_with("connect-src "))
+        .unwrap_or_default();
+    for source in ["'self'", "blob:", "data:"] {
+        assert!(connect.split(' ').any(|s| s == source), "{connect}");
+    }
     // Scripts themselves only get the base policy.
     let r = send(&app, "GET", "/app.js", None, None, &[]).await;
     let csp = r.headers["content-security-policy"].to_str().unwrap();

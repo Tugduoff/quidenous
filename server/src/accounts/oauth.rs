@@ -23,7 +23,7 @@ use sha2::{Digest, Sha256};
 use super::{
     ClientIp, Device, MaybeSession, Session, account, codes,
     crypto::{constant_eq, random_b64url, random_hex},
-    free_stale_email, limits, mark_reauth, not_claimed, notify, require_reauth, sign_in,
+    limits, mark_reauth, not_claimed, notify, require_reauth, sign_in,
 };
 use crate::{
     AppState,
@@ -681,10 +681,6 @@ async fn resolve(
     }
 
     if let Some(email) = verified_email {
-        // An address typed without proof a week ago is free for whoever proves it now.
-        free_stale_email(state, email)
-            .await
-            .map_err(Refusal::Failed)?;
         let existing: Option<(i64, Option<String>)> =
             sqlx::query_as("SELECT id, email_verified_at FROM users WHERE email = ?")
                 .bind(email)
@@ -701,7 +697,9 @@ async fn resolve(
                     linked: false,
                 });
             }
-            // Someone typed this address without proving it: never hand that account over.
+            // Someone typed this address without proving it: never hand that account over, and
+            // never detach it either (it may be this very person's password account, which would
+            // be orphaned). The address's owner signs in with the password or resets it.
             Some((_, None)) => return Err(Refusal::Because("email_taken")),
             None => {}
         }

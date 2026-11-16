@@ -86,14 +86,15 @@ export const auth = {
   unlink: (provider: Provider) => api<{ ok: boolean }>(`/auth/oauth/${provider}`, { method: 'DELETE' }),
 };
 
+/** `/api/features`, server-wide: kept when a room switch or a sign-in clears the cache (lib/query-client.ts). */
+export const featuresQuery = { queryKey: ['features'], queryFn: () => api<string[]>('/features'), staleTime: Infinity };
+
 /** What the server can do (`/api/features`). An older server has no "auth": the app keeps the old join screen. */
 export function useFeatures() {
   // No server known yet (phone build without a baked-in URL): the old screen, which asks for one.
   const known = !!API_URL;
   const { data, isError } = useQuery({
-    queryKey: ['features'],
-    queryFn: () => api<string[]>('/features'),
-    staleTime: Infinity,
+    ...featuresQuery,
     retry: 2,
     enabled: known,
   });

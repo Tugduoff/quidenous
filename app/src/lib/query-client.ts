@@ -29,3 +29,12 @@ export const queryClient = new QueryClient({
     },
   }),
 });
+
+/**
+ * Forget the previous room's (or account's) data on a switch or a sign-in, but not what the server can do
+ * (`features`): the live socket needs it at once to ask for a ticket instead of putting the token in its URL.
+ */
+export function clearRoomData(qc: QueryClient) {
+  qc.getMutationCache().clear();
+  qc.removeQueries({ predicate: (q) => q.queryKey[0] !== 'features' });
+}

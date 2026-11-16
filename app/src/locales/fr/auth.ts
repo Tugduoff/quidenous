@@ -44,7 +44,7 @@ export const auth = {
   },
   verify: { title: 'Vérifie ton e-mail', later: 'Plus tard' },
   oauthFailed: 'Connexion impossible',
-  setup: { title: 'Ton salon', signOut: 'Se déconnecter' },
+  setup: { title: 'Ton salon', signOut: 'Se déconnecter', account: 'Mon compte' },
   field: {
     show: 'Afficher le mot de passe',
     hide: 'Masquer le mot de passe',

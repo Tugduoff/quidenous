@@ -8,7 +8,7 @@ use serde_json::{Value, json};
 use super::{
     ClientIp, Device, Session, account_by_email, check_password, clean_email, codes,
     crypto::six_digits, free_stale_email, limits, mail, not_claimed, notify, notify_address,
-    reauth::PasswordBudget, require_reauth, revoke_sessions, sign_in,
+    reauth::PasswordBudget, require_reauth, revoke_sessions, sign_in, stale_email,
 };
 use crate::{
     AppState,
@@ -75,7 +75,8 @@ pub async fn email_exists(
 ) -> AppResult<Json<Value>> {
     let email = clean_email(&body.email)?;
     state.auth.limits.hit_ip(&limits::EMAIL_IP, ip)?;
-    free_stale_email(&state, &email).await?;
+    // Read-only: an unverified address stays its account's (that account can still sign in with
+    // it); someone else who owns the address proves it through forgot → reset.
     let exists = account_by_email(&state, &email).await?.is_some();
     Ok(Json(json!({ "account": exists })))
 }
@@ -100,7 +101,6 @@ pub async fn signup(
     let name = clean_name(&body.name)?;
     check_password(&body.password, Some(&email))?;
     state.auth.limits.hit_ip(&limits::SIGNUP_IP, ip)?;
-    free_stale_email(&state, &email).await?;
     if account_by_email(&state, &email).await?.is_some() {
         return Err(AppError::Conflict("email_taken"));
     }
@@ -337,7 +337,6 @@ pub async fn credentials(
     require_reauth(&state, &acct, &session.token_hash).await?;
     let email = clean_email(&body.email)?;
     check_password(&body.password, Some(&email))?;
-    free_stale_email(&state, &email).await?;
     if account_by_email(&state, &email).await?.is_some() {
         return Err(AppError::Conflict("email_taken"));
     }
@@ -500,8 +499,9 @@ pub async fn change_email(
         .auth
         .limits
         .hit(&limits::VERIFY_SEND_ACCOUNT, &acct.id.to_string())?;
-    free_stale_email(&state, &email).await?;
-    if account_by_email(&state, &email).await?.is_some() {
+    // An address someone typed a week ago and never verified doesn't block the code: it is only
+    // taken from that account once the code comes back (`confirm_email`).
+    if account_by_email(&state, &email).await?.is_some() && !stale_email(&state, &email).await? {
         return Err(AppError::Conflict("email_taken"));
     }
     let code = six_digits();
@@ -552,6 +552,7 @@ pub async fn confirm_email(
     if row.user_id != Some(acct.id) {
         return Err(AppError::BadRequest("bad_code"));
     }
+    // The code proves the address: an account that typed it without proof a week ago lets go.
     free_stale_email(&state, &email).await?;
     sqlx::query(
         "UPDATE users SET email = ?, email_verified_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') \

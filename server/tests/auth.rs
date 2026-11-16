@@ -3536,7 +3536,7 @@ async fn changing_the_email_needs_a_code_from_the_new_address() {
 }
 
 #[tokio::test]
-async fn an_unverified_email_is_freed_after_a_week() {
+async fn an_unverified_email_is_only_freed_by_a_proof() {
     let t = setup().await;
     let (typo, typo_id) = signup(&t, "real@example.com", "Typo").await;
     let set: Option<String> = sqlx::query_scalar("SELECT email_set_at FROM users WHERE id = ?")
@@ -3562,28 +3562,93 @@ async fn an_unverified_email_is_freed_after_a_week() {
     .execute(&t.state.db)
     .await
     .unwrap();
+    let email_of = |id: i64| {
+        let db = t.state.db.clone();
+        async move {
+            sqlx::query_scalar::<_, Option<String>>("SELECT email FROM users WHERE id = ?")
+                .bind(id)
+                .fetch_one(&db)
+                .await
+                .unwrap()
+        }
+    };
+
+    // A week later, its owner comes back on a new phone: the lookup changes nothing, and the
+    // password still signs in (it used to detach the address and orphan the account).
+    for _ in 0..3 {
+        let (s, b) = call(
+            &t.app,
+            "POST",
+            "/auth/email",
+            None,
+            Some(json!({ "email": "real@example.com" })),
+        )
+        .await;
+        assert_eq!((s, &b["account"]), (StatusCode::OK, &json!(true)));
+    }
+    assert_eq!(email_of(typo_id).await.as_deref(), Some("real@example.com"));
+    let (s, b) = login(&t, "real@example.com", PASSWORD).await;
+    assert_eq!(
+        (s, b["user_id"].as_i64()),
+        (StatusCode::OK, Some(typo_id)),
+        "{b}"
+    );
+    // A sign-up proves nothing either.
+    assert_eq!(again().await.1["error"], "email_taken");
+    assert_eq!(email_of(typo_id).await.as_deref(), Some("real@example.com"));
+
+    // Someone who proves the address (a code sent to it) takes it: the account that typed it
+    // keeps its sessions and can add another address.
+    let (real, real_id) = signup(&t, "real-other@example.com", "Real").await;
+    reauth(&t, &real).await;
     let (s, b) = call(
         &t.app,
         "POST",
-        "/auth/email",
-        None,
+        "/auth/email/change",
+        Some(&real),
         Some(json!({ "email": "real@example.com" })),
     )
     .await;
-    assert_eq!((s, &b["account"]), (StatusCode::OK, &json!(false)));
-    let (s, b) = again().await;
     assert_eq!(s, StatusCode::OK, "{b}");
-    // The account that typed it keeps its sessions and can add another address.
+    // Asking for the code is not a proof.
+    assert_eq!(email_of(typo_id).await.as_deref(), Some("real@example.com"));
+    let code = t.mail.last_code("real@example.com").unwrap();
+    let (s, b) = call(
+        &t.app,
+        "POST",
+        "/auth/email/confirm",
+        Some(&real),
+        Some(json!({ "email": "real@example.com", "code": code })),
+    )
+    .await;
+    assert_eq!(
+        (s, &b["email_verified"]),
+        (StatusCode::OK, &json!(true)),
+        "{b}"
+    );
+    assert_eq!(email_of(typo_id).await, None);
+    assert_eq!(email_of(real_id).await.as_deref(), Some("real@example.com"));
     let (s, acct) = call(&t.app, "GET", "/auth/account", Some(&typo), None).await;
     assert_eq!((s, &acct["email"]), (StatusCode::OK, &Value::Null));
+
     // A verified address is never freed.
-    let real = b["token"].as_str().unwrap().to_owned();
-    verify_email(&t, &real, "real@example.com").await;
-    sqlx::query("UPDATE users SET email_set_at = '2020-01-01T00:00:00.000Z' WHERE email = 'real@example.com'")
+    sqlx::query("UPDATE users SET email_set_at = '2020-01-01T00:00:00.000Z' WHERE id = ?")
+        .bind(real_id)
         .execute(&t.state.db)
         .await
         .unwrap();
     assert_eq!(again().await.1["error"], "email_taken");
+    let (other, _) = signup(&t, "other@example.com", "Other").await;
+    reauth(&t, &other).await;
+    let (_, b) = call(
+        &t.app,
+        "POST",
+        "/auth/email/change",
+        Some(&other),
+        Some(json!({ "email": "real@example.com" })),
+    )
+    .await;
+    assert_eq!(b["error"], "email_taken");
 }
 
 #[tokio::test]
@@ -3632,7 +3697,13 @@ async fn lost_2fa_without_codes_is_reset_by_email_a_day_later() {
     assert_eq!(s, StatusCode::OK, "{b}");
     let at = b["reset_at"].as_i64().unwrap();
     assert!((at - now() as i64 - 24 * 3600).abs() < 60, "{at}");
-    assert!(wait_notices(&t.mail, "ana@example.com", 2).await[1].contains("retrait demandé"));
+    // The notices are sent from spawned tasks: their order isn't fixed.
+    assert!(
+        wait_notices(&t.mail, "ana@example.com", 2)
+            .await
+            .iter()
+            .any(|n| n.contains("retrait demandé"))
+    );
     let (_, acct) = call(&t.app, "GET", "/auth/account", Some(&ana), None).await;
     assert_eq!(acct["mfa_reset_at"], at);
     // Before the day is over, 2FA still applies.

@@ -122,10 +122,13 @@ export function t(key: TKey, params?: Params): string {
   return key;
 }
 
+/** One `t` per language: a new function when the language changes, so memoised (React Compiler) text is recomputed. */
+const translators: Partial<Record<Lang, typeof t>> = {};
+
 /** `t`, re-rendering the component when the language changes. Use it in every component that shows text. */
-export function useT() {
-  useSyncExternalStore(subscribe, () => lang);
-  return t;
+export function useT(): typeof t {
+  const l = useSyncExternalStore(subscribe, () => lang);
+  return (translators[l] ??= (key, params) => t(key, params));
 }
 
 export function useLang(): { lang: Lang; pref: LangPref } {

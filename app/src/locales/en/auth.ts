@@ -44,7 +44,7 @@ export const auth: Messages['auth'] = {
   },
   verify: { title: 'Check your email', later: 'Later' },
   oauthFailed: "Couldn't sign in",
-  setup: { title: 'Your room', signOut: 'Sign out' },
+  setup: { title: 'Your room', signOut: 'Sign out', account: 'My account' },
   field: {
     show: 'Show password',
     hide: 'Hide password',

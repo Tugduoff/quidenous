@@ -5,6 +5,7 @@ import { API_URL, api, ApiError, apiRoom, presetRoom, setApiRoom, setApiToken, s
 import { auth, flow, pendingJoinCode, setPendingCode, type SessionResult } from './auth';
 import { deviceHeader } from './device';
 import { adoptAccountLang, loadLang, syncLang } from './i18n';
+import { clearRoomData } from './query-client';
 import { storage } from './storage';
 
 const TOKEN_KEY = 'qdn.token';
@@ -128,7 +129,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
   };
 
   const signIn = async (res: SessionResult) => {
-    qc.clear();
+    clearRoomData(qc);
     setApiToken(res.token);
     setApiRoom(null);
     await storage.remove(ROOM_KEY);
@@ -158,7 +159,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
 
   const enterRoom = async (id: number) => {
     await setRoom(id);
-    qc.clear();
+    clearRoomData(qc);
     setPendingCode(null);
     setRoomless(false);
   };
@@ -178,7 +179,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
     }
     setApiRoom(roomId);
     await storage.set(ROOM_KEY, String(roomId));
-    qc.clear();
+    clearRoomData(qc);
     const found = await loadMe();
     if (found === 'out') throw new ApiError(401, 'unauthorized');
     // Set together: the screens switch once (a guest goes from signed out to in).
