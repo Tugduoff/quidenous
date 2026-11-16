@@ -18,4 +18,7 @@ export const update: Messages['update'] = {
   ready: 'New version ready',
   restart: 'Restart',
   hide: 'Hide',
+  requiredTitle: 'Update required',
+  requiredBody: 'This version of the app is no longer supported.',
+  requiredAction: 'Update',
 };

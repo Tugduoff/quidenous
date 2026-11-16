@@ -124,7 +124,8 @@ export default function QuestionsScreen() {
       qc.invalidateQueries({ queryKey: keys.queue });
       qc.invalidateQueries({ queryKey: keys.current });
     },
-    onError: () => setImported(tr('questions.importFailed')),
+    onError: (e) =>
+      setImported(tr(e instanceof ApiError && e.code === 'too_many_questions' ? 'questions.importTooMany' : 'questions.importFailed')),
   });
   const chosen = draft?.filter((l) => l.selected).map((l) => l.line) ?? [];
   // Shuffle the whole upcoming queue (questions added later still go last).

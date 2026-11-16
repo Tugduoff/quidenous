@@ -33,6 +33,7 @@ export const questions: Messages['questions'] = {
   imported: '+{added}',
   importedSkipped: '+{added} · {skipped} already there',
   importFailed: 'Import failed',
+  importTooMany: '500 questions max per import',
   shuffled: 'Shuffled',
   shuffleFailed: 'Shuffle failed',
   moveUp: 'Move up',

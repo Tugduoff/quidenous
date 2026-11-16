@@ -48,4 +48,9 @@ export const errors: Messages['errors'] = {
   alone: 'Nobody else is in the room yet',
   disabled: 'The owner turned this off',
   time_up: "Too late, time's up",
+  // Limits
+  room_full: 'Room is full (50 people max)',
+  too_many_rooms: 'You already have 20 rooms',
+  question_exists: 'Already in this room',
+  update_required: 'Update the app',
 };
