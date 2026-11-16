@@ -27,6 +27,10 @@ Timers: when a party round opens, the server spawns a task that sleeps until `de
 
 Leaving (`POST /rooms/{id}/leave`, or the owner removing someone) re-checks the open round (everyone left voted → close) and the taps (75 % of fewer players may now be reached). Closing the app is not leaving: the timer covers absent people.
 
+**Guests play in their party only.** A guest (`users.guest` and not secured) gets `403 guest_account` from everything that isn't playing in the party it joined (or that party once kept as a room): creating rooms or parties, joining rooms by code (`/rooms/join` with a room code, signed-in `/join`), friends (`/friends…`, nobody can invite a guest), accepting invitations, publishing / editing / liking / reporting packs, suggestions, reports. It can join other parties with its token. `GET /auth/account` says `guest: true`. Securing the account (e-mail + password or a provider) lifts all of it.
+
+**Purge.** Guest accounts are erased like a deleted account (seats anonymised, sessions and push gone) 30 days after their last party ended, unless secured or still seated in a party kept as a room (`server/src/guests.rs`, hourly, first run at startup).
+
 Parties don't count for the "people I share a room with are friends" rule, send no push/inbox for rounds, and are skipped by stats if mixing them in would skew a room's stats (they are separate rooms anyway).
 
 ## Join without an account
