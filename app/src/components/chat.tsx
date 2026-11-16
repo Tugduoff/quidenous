@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
 import { Send, Users } from 'lucide-react-native';
 import { type ComponentRef, useEffect, useRef, useState } from 'react';
-import { Platform, Pressable, ScrollView, Text, TextInput, type TextInputProps, type TextStyle, View } from 'react-native';
+import { Platform, Pressable, ScrollView, Text, TextInput, type TextInputProps, type TextStyle, View, type ViewStyle } from 'react-native';
 import Animated from 'react-native-reanimated';
 
 import { HeartBurst, ReactionBar, ReactionChips, WhoReacted } from '@/components/chat-reactions';
@@ -29,6 +29,9 @@ const ROW = 40;
 const soft = (color: string) => (/^#[0-9a-f]{6}$/i.test(color) ? `${color}33` : 'rgba(127,127,127,0.18)');
 /** Two taps closer than this on a message: ❤️. */
 const DOUBLE_TAP_MS = 280;
+
+/** Web: a double tap (❤️) doesn't select a word, a long press doesn't open the iOS text callout over the menu. */
+const NO_SELECT = Platform.OS === 'web' ? ({ userSelect: 'none', WebkitTouchCallout: 'none' } as unknown as ViewStyle) : null;
 
 const haptic = () => {
   if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
@@ -129,17 +132,20 @@ function Bubble({
           accessibilityHint={hint}
           accessibilityActions={onReact ? [{ name: 'heart', label: tr('chat.reactions.react', { emoji: HEART }) }] : undefined}
           onAccessibilityAction={onReact ? (e) => e.nativeEvent.actionName === 'heart' && heart() : undefined}
-          style={{
-            maxWidth: '78%',
-            paddingHorizontal: 14,
-            paddingVertical: 9,
-            borderRadius: 18,
-            borderBottomLeftRadius: mine ? 18 : 6,
-            borderBottomRightRadius: mine ? 6 : 18,
-            // My own bubbles in my colour: lime is for actions (Suivante, Envoyer).
-            backgroundColor: mine ? (me?.color ?? t.card2) : t.card,
-            gap: 2,
-          }}>
+          style={[
+            NO_SELECT,
+            {
+              maxWidth: '78%',
+              paddingHorizontal: 14,
+              paddingVertical: 9,
+              borderRadius: 18,
+              borderBottomLeftRadius: mine ? 18 : 6,
+              borderBottomRightRadius: mine ? 6 : 18,
+              // My own bubbles in my colour: lime is for actions (Suivante, Envoyer).
+              backgroundColor: mine ? (me?.color ?? t.card2) : t.card,
+              gap: 2,
+            },
+          ]}>
           {!mine && (
             <Text numberOfLines={1} style={{ fontFamily: t.font.bold, fontSize: 12, color: author?.color ?? t.mut }}>
               {author?.name ?? '?'}

@@ -150,9 +150,10 @@ export function HeartBurst({ trigger }: { trigger: number }) {
     opacity.set(withSequence(withTiming(1, { duration: 0 }), withDelay(380, withTiming(0, { duration: 180, easing: EASE }))));
   }, [trigger, reduced, scale, opacity]);
   const style = useAnimatedStyle(() => ({ opacity: opacity.value, transform: [{ scale: scale.value }] }));
-  if (reduced) return null;
+  // Not there before the first double tap; never read out (the chip says it).
+  if (reduced || !trigger) return null;
   return (
-    <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center' }, style]}>
+    <Animated.View aria-hidden pointerEvents="none" style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center' }, style]}>
       <Text style={{ fontSize: 34 }}>{HEART}</Text>
     </Animated.View>
   );
