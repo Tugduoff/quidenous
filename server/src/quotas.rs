@@ -1,6 +1,6 @@
 //! Rate limits on the app's own endpoints: code lookups (rooms, parties, friend codes, the big
-//! screen) and writes (chat, rooms, questions, photos, push devices). Same in-memory buckets as the
-//! auth limits ([`crate::accounts::limits::Limiter`]); a hit answers `429 rate_limited`.
+//! screen) and writes (chat, reactions, rooms, questions, photos, push devices). Same in-memory
+//! buckets as the auth limits ([`crate::accounts::limits::Limiter`]); a hit answers `429 rate_limited`.
 //! Per-IP rules end in `_ip`, per-account ones in `_user`.
 
 use std::{net::IpAddr, time::Duration};
@@ -31,6 +31,10 @@ pub const CODE_MISS_IP: Rule = per("code_miss_ip", 20, 10 * MINUTE);
 pub const CHAT_USER: Rule = per("chat_user", 15, MINUTE);
 /// ...and not more than this in an hour.
 pub const CHAT_HOUR_USER: Rule = per("chat_hour_user", 300, HOUR);
+/// Chat reactions, added or taken back: a burst, then about one a second...
+pub const REACT_USER: Rule = per("react_user", 60, MINUTE);
+/// ...and not more than this in an hour.
+pub const REACT_HOUR_USER: Rule = per("react_hour_user", 600, HOUR);
 /// New rooms and parties per account.
 pub const ROOM_CREATE_USER: Rule = per("room_create_user", 20, DAY);
 /// Friends invited into one of my rooms.
@@ -50,11 +54,13 @@ pub const PUSH_USER: Rule = per("push_user", 30, HOUR);
 pub const IMPORT_LINES: usize = 500;
 
 /// Every rule above, so the limiter can prune their buckets.
-pub const RULES: [Rule; 11] = [
+pub const RULES: [Rule; 13] = [
     CODE_MISS_USER,
     CODE_MISS_IP,
     CHAT_USER,
     CHAT_HOUR_USER,
+    REACT_USER,
+    REACT_HOUR_USER,
     ROOM_CREATE_USER,
     ROOM_ADD_USER,
     FRIEND_REQUEST_USER,

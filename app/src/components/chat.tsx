@@ -1,9 +1,11 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import * as Haptics from 'expo-haptics';
 import { Send, Users } from 'lucide-react-native';
 import { type ComponentRef, useEffect, useRef, useState } from 'react';
 import { Platform, Pressable, ScrollView, Text, TextInput, type TextInputProps, type TextStyle, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 
+import { HeartBurst, ReactionBar, ReactionChips, WhoReacted } from '@/components/chat-reactions';
 import { ModerationDialog, type ModTarget } from '@/components/moderation';
 import { ProfileSheet } from '@/components/stats/profile-sheet';
 import { Avatar, Card, PressableScale } from '@/components/ui';
@@ -14,6 +16,7 @@ import { activeMention, everyone, matches, outgoing, segments } from '@/lib/ment
 import { useBlocks } from '@/lib/moderation';
 import { motion, useArrivals } from '@/lib/motion';
 import { keys, useGroup, useMembers, useMessages, useStats } from '@/lib/queries';
+import { HEART, useReact } from '@/lib/reactions';
 import { sendOnEnter } from '@/lib/submit';
 import { useSession } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
@@ -24,6 +27,12 @@ const ROW = 40;
 
 /** `#rrggbb` → the same colour, faint (a mention's background). */
 const soft = (color: string) => (/^#[0-9a-f]{6}$/i.test(color) ? `${color}33` : 'rgba(127,127,127,0.18)');
+/** Two taps closer than this on a message: ❤️. */
+const DOUBLE_TAP_MS = 280;
+
+const haptic = () => {
+  if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+};
 
 /** One message. A component of its own, so a new message does not redraw the others. */
 function Bubble({
@@ -34,6 +43,8 @@ function Bubble({
   onReport,
   onProfile,
   onDelete,
+  onReact,
+  onWho,
 }: {
   m: Message;
   author?: Member;
@@ -43,6 +54,9 @@ function Bubble({
   onProfile: (id: number) => void;
   /** I may delete it (mine, or I own the room): offered on long-press. */
   onDelete?: () => Promise<unknown>;
+  /** The server has reactions: toggles mine (true: added). The long-press menu then opens on every message, mine too. */
+  onReact?: (emoji: string) => boolean;
+  onWho: (emoji: string) => void;
 }) {
   const t = useTheme();
   const tr = useT();
@@ -54,70 +68,118 @@ function Bubble({
     mine
       ? { fontFamily: t.font.bold, color: '#121216', backgroundColor: 'rgba(0,0,0,0.12)', borderRadius: 5, paddingHorizontal: 3 }
       : { fontFamily: t.font.bold, color, backgroundColor: soft(color), borderRadius: 5, paddingHorizontal: 3 };
-  const onLongPress = mine
-    ? onDelete && (() => onReport({ kind: 'message', id: m.id, own: true, onDelete }))
-    : () =>
-        onReport({
+  const target = (): ModTarget =>
+    mine
+      ? { kind: 'message', id: m.id, own: true, onDelete }
+      : {
           kind: 'message',
           id: m.id,
-          person: author && userId != null ? { user_id: userId, name: author.name, color: author.color, photo: author.photo_url, avatar: author.avatar } : undefined,
+          person:
+            author && userId != null
+              ? { user_id: userId, name: author.name, color: author.color, photo: author.photo_url, avatar: author.avatar }
+              : undefined,
           onDelete,
-        });
+        };
+  const bubble = useRef<ComponentRef<typeof View>>(null);
+  // Double tap: the time of the last tap, and of the last tap on a mention (that one opens a profile, nothing else).
+  const lastTap = useRef(0);
+  const mentionTap = useRef(0);
+  const [burst, setBurst] = useState(0);
+  const heart = () => {
+    if (onReact?.(HEART)) setBurst((b) => b + 1);
+  };
+  const onPress = onReact
+    ? () => {
+        const now = Date.now();
+        if (now - mentionTap.current < 300) return;
+        if (now - lastTap.current < DOUBLE_TAP_MS) {
+          lastTap.current = 0;
+          heart();
+        } else lastTap.current = now;
+      }
+    : undefined;
+  // With reactions: a menu floating by the message (reactions on top, then delete / report / block).
+  const menu = () => {
+    lastTap.current = 0;
+    haptic();
+    const at = target();
+    if (!bubble.current) return onReport(at);
+    bubble.current.measureInWindow((_x, y, _w, height) =>
+      onReport(Number.isFinite(y) && height > 0 ? { ...at, anchor: { y, height, side: mine ? 'right' : 'left' } } : at),
+    );
+  };
+  const onLongPress = onReact ? menu : mine ? onDelete && (() => onReport(target())) : () => onReport(target());
+  const hint = onReact
+    ? tr(mine ? (onDelete ? 'chat.reactions.ownHint' : 'chat.reactions.ownOnlyHint') : 'chat.reactions.hint')
+    : mine
+      ? onDelete
+        ? tr('chat.longPressOwnHint')
+        : undefined
+      : tr('chat.longPressHint');
+  const reactions = m.reactions?.filter((r) => r.count > 0) ?? [];
   return (
-    <Animated.View
-      key={m.id}
-      entering={fresh ? motion.rise : undefined}
-      style={{ flexDirection: mine ? 'row-reverse' : 'row', gap: 8, alignItems: 'flex-end' }}>
-      {!mine && <Avatar member={author} size={28} />}
-      <Pressable
-        onLongPress={onLongPress}
-        delayLongPress={400}
-        accessibilityHint={mine ? (onDelete ? tr('chat.longPressOwnHint') : undefined) : tr('chat.longPressHint')}
-        style={{
-          maxWidth: '78%',
-          paddingHorizontal: 14,
-          paddingVertical: 9,
-          borderRadius: 18,
-          borderBottomLeftRadius: mine ? 18 : 6,
-          borderBottomRightRadius: mine ? 6 : 18,
-          // My own bubbles in my colour: lime is for actions (Suivante, Envoyer).
-          backgroundColor: mine ? (me?.color ?? t.card2) : t.card,
-          gap: 2,
-        }}>
-        {!mine && (
-          <Text numberOfLines={1} style={{ fontFamily: t.font.bold, fontSize: 12, color: author?.color ?? t.mut }}>
-            {author?.name ?? '?'}
-          </Text>
-        )}
-        <Text style={{ fontFamily: t.font.regular, fontSize: 15, lineHeight: 20, color: mine ? '#121216' : t.txt }}>
-          {segments(
-            m.text,
-            (m.mentions ?? []).map((id) => byId.get(id)).filter((x): x is Member => !!x),
-            !!m.everyone,
-          ).map((p, i) =>
-            p.member ? (
-              <Text
-                key={i}
-                accessibilityRole="link"
-                accessibilityHint={tr('chat.seeProfile')}
-                onPress={() => onProfile(p.member!.id)}
-                onLongPress={onLongPress}
-                style={mentionStyle(mine, p.member.color)}>
-                {p.text}
-              </Text>
-            ) : p.everyone ? (
-              <Text key={i} style={mine ? mentionStyle(true, '') : { ...mentionStyle(false, t.accInk), backgroundColor: t.accSoft }}>
-                {p.text}
-              </Text>
-            ) : (
-              p.text
-            ),
+    <Animated.View key={m.id} entering={fresh ? motion.rise : undefined} style={{ gap: 4 }}>
+      <View style={{ flexDirection: mine ? 'row-reverse' : 'row', gap: 8, alignItems: 'flex-end' }}>
+        {!mine && <Avatar member={author} size={28} />}
+        <Pressable
+          ref={bubble}
+          onPress={onPress}
+          onLongPress={onLongPress}
+          delayLongPress={400}
+          accessibilityHint={hint}
+          accessibilityActions={onReact ? [{ name: 'heart', label: tr('chat.reactions.react', { emoji: HEART }) }] : undefined}
+          onAccessibilityAction={onReact ? (e) => e.nativeEvent.actionName === 'heart' && heart() : undefined}
+          style={{
+            maxWidth: '78%',
+            paddingHorizontal: 14,
+            paddingVertical: 9,
+            borderRadius: 18,
+            borderBottomLeftRadius: mine ? 18 : 6,
+            borderBottomRightRadius: mine ? 6 : 18,
+            // My own bubbles in my colour: lime is for actions (Suivante, Envoyer).
+            backgroundColor: mine ? (me?.color ?? t.card2) : t.card,
+            gap: 2,
+          }}>
+          {!mine && (
+            <Text numberOfLines={1} style={{ fontFamily: t.font.bold, fontSize: 12, color: author?.color ?? t.mut }}>
+              {author?.name ?? '?'}
+            </Text>
           )}
-        </Text>
-        <Text style={{ fontFamily: t.font.regular, fontSize: 10, color: mine ? '#121216' : t.mut, opacity: 0.7, alignSelf: 'flex-end' }}>
-          {dateFormat({ hour: '2-digit', minute: '2-digit' }).format(new Date(m.created_at))}
-        </Text>
-      </Pressable>
+          <Text style={{ fontFamily: t.font.regular, fontSize: 15, lineHeight: 20, color: mine ? '#121216' : t.txt }}>
+            {segments(
+              m.text,
+              (m.mentions ?? []).map((id) => byId.get(id)).filter((x): x is Member => !!x),
+              !!m.everyone,
+            ).map((p, i) =>
+              p.member ? (
+                <Text
+                  key={i}
+                  accessibilityRole="link"
+                  accessibilityHint={tr('chat.seeProfile')}
+                  onPress={() => {
+                    mentionTap.current = Date.now();
+                    onProfile(p.member!.id);
+                  }}
+                  onLongPress={onLongPress}
+                  style={mentionStyle(mine, p.member.color)}>
+                  {p.text}
+                </Text>
+              ) : p.everyone ? (
+                <Text key={i} style={mine ? mentionStyle(true, '') : { ...mentionStyle(false, t.accInk), backgroundColor: t.accSoft }}>
+                  {p.text}
+                </Text>
+              ) : (
+                p.text
+              ),
+            )}
+          </Text>
+          <Text style={{ fontFamily: t.font.regular, fontSize: 10, color: mine ? '#121216' : t.mut, opacity: 0.7, alignSelf: 'flex-end' }}>
+            {dateFormat({ hour: '2-digit', minute: '2-digit' }).format(new Date(m.created_at))}
+          </Text>
+          {!!onReact && <HeartBurst trigger={burst} />}
+        </Pressable>
+      </View>
+      {reactions.length > 0 && <ReactionChips reactions={reactions} mine={mine} onToggle={onReact && ((e) => void onReact(e))} onWho={onWho} />}
     </Animated.View>
   );
 }
@@ -131,8 +193,12 @@ export function ChatMessages({ roundId }: { roundId: number }) {
   const { byId } = useMembers();
   const { data } = useMessages(roundId);
   const { data: group } = useGroup();
-  const { moderation } = useFeatures();
+  const { moderation, chatReactions } = useFeatures();
   const { ids: blocked } = useBlocks();
+  const react = useReact(roundId);
+  // Long-press on a reaction: who reacted with it (kept fresh by the live updates).
+  const [who, setWho] = useState<{ id: number; emoji: string } | null>(null);
+  const whoReaction = (who && data?.find((m) => m.id === who.id)?.reactions?.find((r) => r.emoji === who.emoji && r.count > 0)) || null;
   // My own messages, or anyone's in a room I own (a server that can delete them).
   const owner = group?.my_role === 'owner';
   const remove = (id: number) => async () => {
@@ -172,10 +238,30 @@ export function ChatMessages({ roundId }: { roundId: number }) {
             onReport={setTarget}
             onProfile={setProfileId}
             onDelete={moderation && (owner || m.member_id === me?.id) ? remove(m.id) : undefined}
+            onReact={chatReactions ? (emoji) => react(m, emoji) : undefined}
+            onWho={(emoji) => setWho({ id: m.id, emoji })}
           />
         ))}
       </View>
-      <ModerationDialog target={target} onClose={() => setTarget(null)} />
+      <ModerationDialog
+        target={target}
+        onClose={() => setTarget(null)}
+        header={
+          chatReactions
+            ? (at) => (
+                <ReactionBar
+                  reactions={data?.find((m) => m.id === at.id)?.reactions}
+                  onPick={(emoji) => {
+                    const m = data?.find((x) => x.id === at.id);
+                    if (m) react(m, emoji);
+                    setTarget(null);
+                  }}
+                />
+              )
+            : undefined
+        }
+      />
+      <WhoReacted reaction={whoReaction} onClose={() => setWho(null)} />
       <ProfileSheet
         profile={profileId != null ? (profiles.get(profileId) ?? null) : null}
         byId={byId}

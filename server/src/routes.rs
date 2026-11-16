@@ -75,6 +75,10 @@ pub fn router() -> Router<AppState> {
         .route("/rounds/{id}/share", post(crate::share::create))
         .route("/rounds/{id}/messages", get(messages).post(post_message))
         .route(
+            "/messages/{id}/reactions",
+            post(crate::reactions::add).delete(crate::reactions::remove),
+        )
+        .route(
             "/rounds/{id}/messages/{message_id}",
             axum::routing::delete(crate::moderation::delete_message),
         )
@@ -91,7 +95,7 @@ pub fn router() -> Router<AppState> {
             axum::routing::delete(crate::share::revoke),
         )
         .route("/questions", post(add_question))
-        .route("/questions/queue", get(queue))
+        .route("/questions/queue", get(queue).delete(clear_queue))
         .route("/questions/shuffle", post(shuffle_questions))
         .route("/questions/order", post(order_questions))
         .route("/questions/ask", post(ask_questions))
@@ -240,6 +244,8 @@ async fn features(State(state): State<AppState>) -> Json<Value> {
         // Privacy: share links can be listed and revoked (`/shares`); `/auth/terms` records acceptance.
         "share_links",
         "terms",
+        "chat_reactions",
+        "clear_queue",
     ];
     f.extend(crate::accounts::features(&state));
     Json(json!(f))
@@ -1657,6 +1663,38 @@ async fn delete_question(
     Ok(Json(json!({ "ok": true })))
 }
 
+/// Owner only: deletes every upcoming question of the room (the ones `GET /questions/queue` lists:
+/// never the deck, nor one asked or open), like `DELETE /questions/{id}` does one. `{deleted}`.
+async fn clear_queue(State(state): State<AppState>, Me(me): Me) -> AppResult<Json<Value>> {
+    if me.role != "owner" {
+        return Err(AppError::Forbidden("owner_only"));
+    }
+    // One write transaction: a vote can't open one of them in between.
+    let mut tx = crate::db::write_tx(&state.db).await?;
+    let ids: Vec<i64> = sqlx::query_scalar(concat!(
+        "SELECT q.id FROM questions q WHERE q.group_id = ?1 AND ",
+        game::unused!()
+    ))
+    .bind(me.group_id)
+    .fetch_all(&mut *tx)
+    .await?;
+    let ids_json = serde_json::to_string(&ids).unwrap_or_else(|_| "[]".into());
+    // Challenges waiting on them go with them.
+    for sql in [
+        "DELETE FROM challenges WHERE question_id IN (SELECT value FROM json_each(?))",
+        "DELETE FROM questions WHERE id IN (SELECT value FROM json_each(?))",
+    ] {
+        sqlx::query(sql).bind(&ids_json).execute(&mut *tx).await?;
+    }
+    tx.commit().await?;
+    if !ids.is_empty() {
+        state
+            .live
+            .send(me.group_id, Event::QuestionAdded { question_id: 0 });
+    }
+    Ok(Json(json!({ "deleted": ids.len() })))
+}
+
 async fn queue(State(state): State<AppState>, Me(me): Me) -> AppResult<Json<Value>> {
     let custom: Vec<QueuedQuestion> = sqlx::query_as(concat!(
         "SELECT q.id, q.text, q.author_id, q.kind, q.items FROM questions q WHERE q.group_id = ?1 AND ",
@@ -2003,6 +2041,8 @@ struct MessageRow {
     mentions: Vec<i64>,
     /// `@tous`: the whole room.
     everyone: bool,
+    /// Emojis on it, as the reader sees them (`crate::reactions::for_messages`).
+    reactions: Vec<crate::reactions::Reaction>,
 }
 
 impl From<MessageDb> for MessageRow {
@@ -2015,6 +2055,7 @@ impl From<MessageDb> for MessageRow {
             created_at: m.created_at,
             mentions: serde_json::from_str(&m.mentions).unwrap_or_default(),
             everyone: m.everyone,
+            reactions: Vec::new(),
         }
     }
 }
@@ -2043,7 +2084,18 @@ async fn messages(
     .bind(MESSAGES_SHOWN)
     .fetch_all(&state.db)
     .await?;
-    Ok(Json(rows.into_iter().rev().map(MessageRow::from).collect()))
+    let ids: Vec<i64> = rows.iter().map(|m| m.id).collect();
+    let mut reactions = crate::reactions::for_messages(&state.db, &me, &ids).await?;
+    Ok(Json(
+        rows.into_iter()
+            .rev()
+            .map(|m| {
+                let mut row = MessageRow::from(m);
+                row.reactions = reactions.remove(&row.id).unwrap_or_default();
+                row
+            })
+            .collect(),
+    ))
 }
 
 #[derive(Deserialize)]
