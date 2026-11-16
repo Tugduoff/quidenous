@@ -65,7 +65,7 @@ Normal rooms have no question timer, so three rules keep them moving when people
 - **Late quorum**: a question open for 24 h closes as soon as at least half of the people it waits for voted (2 people: one vote). Checked on each vote and by the scheduler every 5 minutes. This is what gets a 2-person room past a holiday: one question a day, then, after 3, the absent person is away and the room runs at its normal pace.
 - **Gone owner**: each seat records when it last used its room (`members.active_at`: any request or live socket for that room, written at most every 10 minutes). An owner unseen for 7 days hands the room to the longest-standing member seen in that time, who gets an inbox entry (`owner`); nobody seen, nothing changes. With `owner_next`, a room waiting for an owner unseen for 24 h (and waiting at least that long) opens its next question by itself.
 
-Also: changing the vibe or the language of an idle room opens a question right away, and a room that runs out of questions (2 people or more, not paced, nothing left to open) tells its owner in the inbox (`ask`: a tap opens the Questions tab).
+Also: changing the vibe or the language of an idle room opens a question right away, and the owner hears in the inbox (`ask`: a tap opens the Questions tab) when a question opening leaves only 3 to ask (its own plus the deck's), then when the room runs out (2 people or more, not paced, nothing left to open).
 
 Ballots: a rank or choose ballot leaves with its voter (leaving, removal, account deletion during the question), like the vote. A new ballot from the same seat replaces any older one. Chat messages can carry a `client_key` (up to 64 chars): posting again with the same key returns the message already posted.
 

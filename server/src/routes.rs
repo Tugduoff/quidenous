@@ -1882,7 +1882,9 @@ pub(crate) async fn notify_round(
     if let Err(e) = try_notify_round(state, group_id, skip, opened, closed).await {
         tracing::warn!(group_id, error = ?e, "round notification failed");
     }
-    if closed && opened.is_none() {
+    if opened.is_some() {
+        crate::flow::deck_low(state, group_id).await;
+    } else if closed {
         crate::flow::deck_empty(state, group_id).await;
     }
 }

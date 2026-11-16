@@ -498,6 +498,11 @@ async fn open_next(state: &AppState, id: i64, after: Option<i64>) -> AppResult<O
     if let Some(round_id) = opened {
         state.live.send(id, Event::RoundOpened { round_id });
         spawn_deadline(state.clone(), round_id);
+    } else if after.is_some() {
+        // Nothing left to ask: the party ends (everyone gets its recap) instead of a result
+        // nobody can move on from.
+        finish(state, id).await?;
+        return Ok(None);
     }
     state.live.send(id, Event::RoomUpdated);
     Ok(opened)
@@ -1172,7 +1177,13 @@ async fn end(
     Path(id): Path<i64>,
 ) -> AppResult<Json<Value>> {
     let (me, _) = owner_seat(&state, user, id).await?;
-    let now = db_now(&state).await?;
+    finish(&state, id).await?;
+    answer(&state, id, &me).await
+}
+
+/// Ends the party now (the owner's "Terminer", or no question left).
+async fn finish(state: &AppState, id: i64) -> AppResult<bool> {
+    let now = db_now(state).await?;
     sqlx::query(
         "UPDATE groups SET party_ends_at = ?1 WHERE id = ?2 AND (party_ends_at IS NULL OR party_ends_at > ?1)",
     )
@@ -1180,8 +1191,7 @@ async fn end(
     .bind(id)
     .execute(&state.db)
     .await?;
-    end_party(&state, id, &now).await?;
-    answer(&state, id, &me).await
+    end_party(state, id, &now).await
 }
 
 /// Owner: the party becomes a normal room (end and timer cleared, room pacing defaults); its next

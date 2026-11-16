@@ -155,6 +155,20 @@ pub async fn deck_left(db: &SqlitePool, group_id: i64) -> AppResult<i64> {
         .count() as i64)
 }
 
+/// Questions a room can still open: its own unasked ones plus what's left in its deck.
+pub async fn questions_left(db: &SqlitePool, group_id: i64) -> AppResult<i64> {
+    let custom: i64 = sqlx::query_scalar(concat!(
+        "SELECT COUNT(*) FROM questions q WHERE q.group_id = ?1 AND ",
+        votable!(),
+        " AND ",
+        unused!()
+    ))
+    .bind(group_id)
+    .fetch_one(db)
+    .await?;
+    Ok(custom + deck_left(db, group_id).await?)
+}
+
 /// Group questions first (queue order: oldest first unless shuffled), then a random deck question
 /// the group has not seen, in the room's language, from its vibe (its favourite tag first).
 async fn next_question(tx: &mut Transaction<'_, Sqlite>, group_id: i64) -> AppResult<Option<i64>> {

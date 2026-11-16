@@ -7,7 +7,8 @@
 //! - A gone owner: not seen in the room for [`OWNER_GONE_DAYS`] days, the longest-standing member
 //!   seen since takes over (and hears it in the inbox); "only the owner launches the next one" stops
 //!   waiting for an owner unseen for [`OWNER_NEXT_HOURS`] hours (`pacing`).
-//! - An empty deck: the owner hears it in the inbox when the room has nothing left to open.
+//! - A low or empty deck: the owner hears it in the inbox when [`DECK_LOW`] questions are left, and
+//!   when the room has nothing left to open.
 
 use std::time::Duration;
 
@@ -165,6 +166,41 @@ async fn hand_room(
     state.live.send(room, Event::RoomUpdated);
     state.live.send(room, Event::InboxChanged);
     Ok(true)
+}
+
+/// Questions left at which the owner hears the room is running out (once, as it reaches it).
+pub const DECK_LOW: i64 = 3;
+
+/// After a question opened in a room: when that leaves exactly [`DECK_LOW`] questions to ask, its
+/// owner hears it in the inbox (`ask`, a tap opens the Questions tab). Errors are logged.
+pub async fn deck_low(state: &AppState, group_id: i64) {
+    if let Err(e) = try_deck_low(state, group_id).await {
+        tracing::warn!(group_id, error = ?e, "low deck notice failed");
+    }
+}
+
+async fn try_deck_low(state: &AppState, group_id: i64) -> AppResult<()> {
+    let row: Option<(String, i64)> = sqlx::query_as(
+        "SELECT g.name, o.id FROM groups g \
+         JOIN members o ON o.group_id = g.id AND o.removed_at IS NULL AND o.role = 'owner' \
+         WHERE g.id = ? AND g.kind = 'room' AND g.deleted_at IS NULL",
+    )
+    .bind(group_id)
+    .fetch_optional(&state.db)
+    .await?;
+    let Some((name, owner)) = row else {
+        return Ok(());
+    };
+    if game::questions_left(&state.db, group_id).await? != DECK_LOW {
+        return Ok(());
+    }
+    let text = Text::new(
+        format!("Plus que {DECK_LOW} questions dans « {name} » : ajoutes-en ou change d'ambiance."),
+        format!("Only {DECK_LOW} questions left in “{name}”: add some or change its vibe."),
+    );
+    crate::inbox::to_members(&state.db, &[owner], "ask", None, None, &text).await?;
+    state.live.send(group_id, Event::InboxChanged);
+    Ok(())
 }
 
 /// After a question closed (or a pause ended) without opening the next one: when the room is out of

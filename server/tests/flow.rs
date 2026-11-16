@@ -48,6 +48,15 @@ async fn set_active(state: &AppState, member: i64, offset: &str) {
     .unwrap();
 }
 
+/// How many "questions" notices (low or empty deck) this person has.
+async fn asks(app: &Router, token: &str) -> usize {
+    inbox_kinds(app, token)
+        .await
+        .iter()
+        .filter(|k| *k == "ask")
+        .count()
+}
+
 async fn inbox_kinds(app: &Router, token: &str) -> Vec<String> {
     let (_, body) = call(app, "GET", "/inbox", Some(token), None, None).await;
     body["items"]
@@ -436,4 +445,120 @@ async fn a_party_result_moves_on_with_one_tap_after_the_grace() {
         (s["phase"].as_str(), s["round"]["number"].as_i64()),
         (Some("voting"), Some(2))
     );
+}
+
+#[tokio::test]
+async fn a_low_deck_tells_the_owner_once() {
+    let (app, state) = setup().await;
+    let (ana, ana_id) = join(&app, "Ana").await;
+    let (bob, bob_id) = join(&app, "Bob").await;
+    let room = room_id(&app, &ana).await;
+    // Nothing left in the deck: only the room's own 4 questions after this one.
+    let question: i64 =
+        sqlx::query_scalar("SELECT question_id FROM rounds WHERE closed_at IS NULL")
+            .fetch_one(&state.db)
+            .await
+            .unwrap();
+    sqlx::query("DELETE FROM questions WHERE group_id IS NULL AND lang = 'fr' AND id != ?")
+        .bind(question)
+        .execute(&state.db)
+        .await
+        .unwrap();
+    for text in [
+        "Qui part en vacances le plus ?",
+        "Qui cuisine le mieux ?",
+        "Qui chante faux ?",
+        "Qui dort le plus ?",
+    ] {
+        let (s, b) = call(
+            &app,
+            "POST",
+            "/questions",
+            Some(&bob),
+            None,
+            Some(json!({ "text": text })),
+        )
+        .await;
+        assert_eq!(s, StatusCode::OK, "{b}");
+    }
+    assert_eq!(game::questions_left(&state.db, room).await.unwrap(), 4);
+    assert_eq!(asks(&app, &ana).await, 0);
+    // Question 2 opens: 3 left, the owner hears it (and only the owner).
+    vote(&app, &ana, bob_id).await;
+    vote(&app, &bob, ana_id).await;
+    assert_eq!(current(&app, &ana).await["number"], 2);
+    assert_eq!(asks(&app, &ana).await, 1);
+    assert_eq!(asks(&app, &bob).await, 0);
+    // Question 3 opens: 2 left, nothing new.
+    vote(&app, &ana, bob_id).await;
+    vote(&app, &bob, ana_id).await;
+    assert_eq!(current(&app, &ana).await["number"], 3);
+    assert_eq!(asks(&app, &ana).await, 1);
+}
+
+/// A party whose deck runs out ends (its recap shows) instead of sitting on its last result.
+#[tokio::test]
+async fn a_party_out_of_questions_ends() {
+    let (app, state) = setup().await;
+    let (host, _) = join(&app, "Hôte").await;
+    let (status, body) = call(&app, "POST", "/parties", Some(&host), None, Some(json!({}))).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let id = body["id"].as_i64().unwrap();
+    let code = body["code"].as_str().unwrap().to_owned();
+    let (s, g) = call(
+        &app,
+        "POST",
+        "/parties/join",
+        None,
+        None,
+        Some(json!({ "code": code, "name": "A", "color": "#5BC8FF" })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{g}");
+    let (s, b) = call(
+        &app,
+        "POST",
+        &format!("/parties/{id}/start"),
+        Some(&host),
+        None,
+        None,
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{b}");
+    // Only the open question was left.
+    sqlx::query(
+        "DELETE FROM questions WHERE group_id IS NULL \
+         AND id NOT IN (SELECT question_id FROM rounds)",
+    )
+    .execute(&state.db)
+    .await
+    .unwrap();
+    let later: String =
+        sqlx::query_scalar("SELECT strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '+31 seconds')")
+            .fetch_one(&state.db)
+            .await
+            .unwrap();
+    party::sweep_at(&state, &later).await.unwrap();
+    let (_, s) = call(
+        &app,
+        "GET",
+        &format!("/parties/{id}"),
+        Some(&host),
+        None,
+        None,
+    )
+    .await;
+    assert_eq!(s["phase"], "reveal");
+    let (st, s) = call(
+        &app,
+        "POST",
+        &format!("/parties/{id}/next"),
+        Some(&host),
+        None,
+        None,
+    )
+    .await;
+    assert_eq!(st, StatusCode::OK, "{s}");
+    assert_eq!(s["phase"], "over");
+    assert_eq!(s["played"], 1);
 }
