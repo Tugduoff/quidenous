@@ -18,6 +18,8 @@ export const common = {
   /** Full-screen fallback when a screen crashes (ErrorBoundary). */
   crashed: 'Oups, quelque chose a planté',
   offline: 'Pas de connexion',
+  /** Thin banner at the top of every screen while the live connection to the server keeps failing. */
+  unreachable: 'Serveur injoignable',
   failed: 'Raté, réessaie',
   /** A screen whose data didn't load (the server answered with an error). */
   loadFailed: 'Chargement impossible',

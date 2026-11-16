@@ -9,22 +9,31 @@ const jitter = (ms: number) => ms / 2 + Math.random() * (ms / 2);
 
 /**
  * A WebSocket that reconnects by itself after it drops, until `close()`: 1 s, 2 s, 4 s… up to a minute, with jitter
- * (back to 1 s once a connection opens). Messages that aren't JSON are ignored.
+ * (back to 1 s once a connection opens), or right away on `wake()`. Messages that aren't JSON are ignored.
+ * `onClose(policy)`: it dropped (`policy`: the server hung up on purpose, it isn't down).
  */
-export function openSocket<T>(url: string | (() => Promise<string>), handlers: { onOpen?: () => void; onEvent: (event: T) => void }) {
+export function openSocket<T>(
+  url: string | (() => Promise<string>),
+  handlers: { onOpen?: () => void; onClose?: (policy: boolean) => void; onEvent: (event: T) => void },
+) {
   let ws: WebSocket | null = null;
   let stopped = false;
   let retry: ReturnType<typeof setTimeout>;
   let delay = RETRY_MS;
+  // Waiting for the URL (a ticket): a `wake()` then would open a second socket.
+  let fetching = false;
   const later = (ms = delay) => {
     retry = setTimeout(connect, jitter(ms));
     delay = Math.min(delay * 2, MAX_RETRY_MS);
   };
   const connect = async () => {
     // A URL that can't be had yet (a ticket from the server) is asked again at the next try.
+    fetching = true;
     const href = typeof url === 'string' ? url : await url().catch(() => null);
+    fetching = false;
     if (stopped) return;
     if (!href) {
+      handlers.onClose?.(false);
       later();
       return;
     }
@@ -44,13 +53,22 @@ export function openSocket<T>(url: string | (() => Promise<string>), handlers: {
     };
     ws.onclose = (e) => {
       const policy = e.code === 1008 && e.reason !== 'idle';
-      if (!stopped) later(policy ? Math.max(POLICY_RETRY_MS, delay) : delay);
+      if (stopped) return;
+      handlers.onClose?.(policy);
+      later(policy ? Math.max(POLICY_RETRY_MS, delay) : delay);
     };
   };
   connect();
   return {
     send: (text: string) => {
       if (ws?.readyState === WebSocket.OPEN) ws.send(text);
+    },
+    /** Back on screen: a dropped connection retries now instead of at the end of its backoff. */
+    wake: () => {
+      if (stopped || fetching || ws?.readyState === WebSocket.OPEN || ws?.readyState === WebSocket.CONNECTING) return;
+      clearTimeout(retry);
+      delay = RETRY_MS;
+      connect();
     },
     close: () => {
       stopped = true;
