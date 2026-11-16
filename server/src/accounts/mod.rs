@@ -395,10 +395,15 @@ pub async fn sign_in(
     device: Option<&str>,
 ) -> AppResult<Value> {
     mfa::finish_due_reset(state, user_id).await?;
-    let totp: Option<String> = sqlx::query_scalar("SELECT totp_secret FROM users WHERE id = ?")
-        .bind(user_id)
-        .fetch_one(&state.db)
-        .await?;
+    let (totp, suspended): (Option<String>, bool) =
+        sqlx::query_as("SELECT totp_secret, suspended_at IS NOT NULL FROM users WHERE id = ?")
+            .bind(user_id)
+            .fetch_one(&state.db)
+            .await?;
+    // An admin suspended it (reports): no new session.
+    if suspended {
+        return Err(AppError::Forbidden("suspended"));
+    }
     if totp.is_some() {
         let challenge = crypto::random_hex(32);
         codes::create(

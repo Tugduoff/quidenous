@@ -32,7 +32,10 @@ Status: design, 2026-11-11. Built in phases so the live group never breaks and o
 | Rotate the invite code | owner |
 | Rename, settings | owner |
 | Vote to skip / remove | members, if the owner leaves it on, with 3 members or more; the owner can't be voted out |
-| Remove someone directly, no vote (force kick) | owner |
+| Remove someone directly, no vote (force kick) | owner; a removal (vote or owner, not a leave) also deletes the questions they queued that were never asked |
+| Delete a chat message | its author; the owner deletes any message of the room (`DELETE /rounds/{id}/messages/{message_id}`) |
+| Remove a question already asked | owner (`DELETE /questions/{id}` → `{ok, retired: true}`, or `DELETE /rounds/{id}/question` from its result): the text becomes "Question retirée" / "Question removed" everywhere (history, stats, shares); built-in deck questions can't (`409 deck_question`). Not asked yet: its author or the owner, deleted as before |
+| Unpin a result | whoever pinned it, or the owner (`403 not_pinner`); 100 pins per room at most (`409 too_many_pins`) |
 | Hand over ownership, delete the room | owner |
 | Leave | anyone; an owner leaving hands over to the oldest member, or deletes the room if alone. The app then opens another of my rooms, or the join / create screen when none is left |
 | Come back | someone who left: with the invite code (or an invitation), same seat and history. Someone removed: only with an invitation from the owner |

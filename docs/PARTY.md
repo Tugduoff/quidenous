@@ -61,10 +61,12 @@ All under `/api`, JSON, errors `{"error": code}`. `{id}` = the party's room id; 
 | `POST /parties/{id}/next` | player | | state · owner: opens next; others: tap · `409 not_reveal` |
 | `DELETE /parties/{id}/next` | player | | state |
 | `POST /parties/{id}/react` | player | `round_id, emoji` | state · `400 bad_emoji` |
-| `PATCH /parties/{id}` | owner | `name?, timer?` | state · `400 bad_timer` |
+| `PATCH /parties/{id}` | owner | `name?, timer?, locked?` | state (`locked`: nobody new can join, `403 party_locked`; seats already taken stay) · `400 bad_timer` |
 | `POST /parties/{id}/end` | owner | | state (over now) |
 | `POST /parties/{id}/keep` | owner | | `{ id }` (now a normal room) |
-| `GET /parties/screen/{code}` | anyone with the code | | party state without `me` (big-screen view); `404` 15 min after the party ended; wrong codes rate-limited per IP (`docs/ROOMS.md`, Abuse limits) |
+| `GET /parties/screen/{code}` | anyone with the code | | party state without `me` (big-screen view): results carry vote counts, `voters` is always empty there; `404` 15 min after the party ended; wrong codes rate-limited per IP (`docs/ROOMS.md`, Abuse limits) |
+
+The owner removes a player with `DELETE /rooms/{id}/members/{member_id}` (app: tap a chip in the lobby, or "Retirer un joueur" in the menu). A removed guest's name stays taken in that party (`403 removed`), so rescanning the QR code doesn't give a fresh seat under the same name; the menu's "Fermer la soirée" (`locked`) stops new joins altogether.
 
 Leaving uses `POST /rooms/{id}/leave`. The memory (list of questions and winners) uses the room endpoints with `X-Room: {id}` (`GET /history`, `GET /rounds/{rid}`).
 

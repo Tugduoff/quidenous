@@ -25,6 +25,10 @@ pub const PER_DAY: i64 = 5;
 pub const SCORE_MIN: i64 = 10;
 /// ...with at least this share of up votes.
 pub const RATIO_MIN: f64 = 0.7;
+/// `down - up` that rejects it for good (no admin needed).
+pub const SCORE_REJECT: i64 = 5;
+/// Suggestions still being voted on that the admins see too, best first.
+const VOTING_SHOWN: i64 = 30;
 const TEXT_MIN: usize = 8;
 const TEXT_MAX: usize = 200;
 const NEXT_MAX: i64 = 20;
@@ -213,16 +217,21 @@ pub async fn vote(
     .await?;
     let status = if qualifies(up, down) {
         "queued"
+    } else if down - up >= SCORE_REJECT {
+        "rejected"
     } else {
         "voting"
     };
-    sqlx::query("UPDATE suggestions SET up = ?, down = ?, status = ? WHERE id = ?")
-        .bind(up)
-        .bind(down)
-        .bind(status)
-        .bind(id)
-        .execute(&mut *tx)
-        .await?;
+    sqlx::query(
+        "UPDATE suggestions SET up = ?1, down = ?2, status = ?3, \
+         decided_at = CASE WHEN ?3 = 'rejected' THEN strftime('%Y-%m-%dT%H:%M:%fZ', 'now') END WHERE id = ?4",
+    )
+    .bind(up)
+    .bind(down)
+    .bind(status)
+    .bind(id)
+    .execute(&mut *tx)
+    .await?;
     tx.commit().await?;
     Ok(Json(json!({ "up": up, "down": down, "status": status })))
 }
@@ -240,13 +249,22 @@ pub async fn mine(State(state): State<AppState>, UserId(me): UserId) -> AppResul
     })))
 }
 
-/// Suggestions waiting for an admin, oldest first (with their author's account id).
+/// Suggestions waiting for an admin, oldest first, then the best-scored ones still being voted
+/// on (a small community never reaches the threshold), with their author's account id.
 pub async fn queued(db: &SqlitePool, me: i64) -> AppResult<Vec<Value>> {
-    let rows: Vec<Row> = sqlx::query_as(suggestion_select!(
+    let mut rows: Vec<Row> = sqlx::query_as(suggestion_select!(
         "WHERE s.status = 'queued' ORDER BY s.id"
     ))
     .fetch_all(db)
     .await?;
+    rows.extend(
+        sqlx::query_as::<_, Row>(suggestion_select!(
+            "WHERE s.status = 'voting' AND s.up > s.down ORDER BY s.up - s.down DESC, s.id LIMIT ?"
+        ))
+        .bind(VOTING_SHOWN)
+        .fetch_all(db)
+        .await?,
+    );
     Ok(rows
         .iter()
         .map(|r| {

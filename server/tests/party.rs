@@ -976,3 +976,126 @@ async fn votes_after_the_countdown_are_refused() {
         (StatusCode::CONFLICT, Some("time_up"))
     );
 }
+
+/// The owner removes a player (the big screen and every phone see it), the same guest can't take
+/// a fresh seat under that name, and a locked party takes nobody new.
+#[tokio::test]
+async fn the_owner_removes_players_and_locks_the_party() {
+    let (app, _) = setup().await;
+    let (id, code, host, _, players) = started(&app, &["Léa", "Troll", "Max"]).await;
+    let troll = players[1].1;
+    let (status, b) = call(
+        &app,
+        "DELETE",
+        &format!("/rooms/{id}/members/{troll}"),
+        Some(&players[0].0),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "{b}");
+    let (status, b) = call(
+        &app,
+        "DELETE",
+        &format!("/rooms/{id}/members/{troll}"),
+        Some(&host),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{b}");
+    assert!(
+        !ids(&json!(
+            get(&app, id, &host).await["players"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|p| p["id"].clone())
+                .collect::<Vec<_>>()
+        ))
+        .contains(&troll)
+    );
+    // Rescanning the QR code with the same name: no.
+    let (status, b) = call(
+        &app,
+        "POST",
+        "/parties/join",
+        None,
+        Some(json!({ "code": code, "name": "troll", "color": "#5BC8FF" })),
+    )
+    .await;
+    assert_eq!(
+        (status, b["error"].as_str()),
+        (StatusCode::FORBIDDEN, Some("removed"))
+    );
+
+    // Locked: nobody new, guest or account; the players stay.
+    let (status, p) = call(
+        &app,
+        "PATCH",
+        &format!("/parties/{id}"),
+        Some(&host),
+        Some(json!({ "locked": true })),
+    )
+    .await;
+    assert_eq!(
+        (status, p["locked"].as_bool()),
+        (StatusCode::OK, Some(true)),
+        "{p}"
+    );
+    let (status, b) = call(
+        &app,
+        "POST",
+        "/parties/join",
+        None,
+        Some(json!({ "code": code, "name": "Zoé", "color": "#5BC8FF" })),
+    )
+    .await;
+    assert_eq!(
+        (status, b["error"].as_str()),
+        (StatusCode::FORBIDDEN, Some("party_locked"))
+    );
+    let other = account(&app, "Paul").await;
+    let (status, _) = call(
+        &app,
+        "POST",
+        "/parties/join",
+        Some(&other),
+        Some(json!({ "code": code })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert_eq!(get(&app, id, &players[0].0).await["locked"], true);
+    // Open again.
+    call(
+        &app,
+        "PATCH",
+        &format!("/parties/{id}"),
+        Some(&host),
+        Some(json!({ "locked": false })),
+    )
+    .await;
+    guest(&app, &code, "Zoé").await;
+}
+
+/// The big screen shows how many votes each player got, not who voted for whom.
+#[tokio::test]
+async fn the_big_screen_shows_counts_not_voters() {
+    let (app, _) = setup().await;
+    let (id, code, host, host_id, players) = started(&app, &["Léa"]).await;
+    for t in [&host, &players[0].0] {
+        let (status, b) = vote(&app, id, t, host_id).await;
+        assert_eq!(status, StatusCode::OK, "{b}");
+    }
+    let phone = get(&app, id, &host).await;
+    assert_eq!(
+        phone["round"]["results"][0]["voters"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2,
+        "{phone}"
+    );
+    let (_, screen) = call(&app, "GET", &format!("/parties/screen/{code}"), None, None).await;
+    let top = &screen["round"]["results"][0];
+    assert_eq!(top["votes"], 2, "{screen}");
+    assert!(top["voters"].as_array().unwrap().is_empty());
+}
