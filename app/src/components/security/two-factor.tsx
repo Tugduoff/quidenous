@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { Copy, LifeBuoy, Share, ShieldCheck, ShieldOff } from 'lucide-react-native';
+import { Clock, Copy, LifeBuoy, Share, ShieldCheck, ShieldOff } from 'lucide-react-native';
 import { useState } from 'react';
 import { Linking, Platform, Text, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
@@ -8,7 +8,7 @@ import { CODE_LENGTH, CodeField, copyText, ErrorText, Field, Pill, Row, Section 
 import { withReauth } from '@/components/security/reauth';
 import { PressableScale, Toggle } from '@/components/ui';
 import { accountKey, auth, authError, type Account } from '@/lib/auth';
-import { useT } from '@/lib/i18n';
+import { dateFormat, useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 
 const MONO = Platform.select({ ios: 'Menlo', android: 'monospace', default: 'ui-monospace, Menlo, monospace' });
@@ -134,8 +134,24 @@ export function TwoFactorSection({ account }: { account: Account }) {
     );
 
   const left = account.recovery_codes_left;
+  const resetAt = account.mfa_reset_at;
   return (
     <Section title={tr('security.twoFactor.title')}>
+      {resetAt != null && (
+        // Asked by e-mail at sign-in (2FA lost): if that wasn't me, this is where it stops.
+        <Row
+          icon={<Clock size={20} color={t.tag} />}
+          title={tr('security.twoFactor.resetPending')}
+          sub={tr('security.twoFactor.resetOn', {
+            when: dateFormat({ weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(resetAt * 1000)),
+          })}
+          right={
+            <Pill tone="danger" onPress={() => run(async () => void (await auth.mfaResetCancel(), refresh()))} loading={busy}>
+              {tr('common.cancel')}
+            </Pill>
+          }
+        />
+      )}
       <Row
         icon={<ShieldCheck size={20} color={t.accInk} />}
         title={tr('security.twoFactor.on')}

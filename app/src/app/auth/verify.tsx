@@ -12,7 +12,8 @@ export default function VerifyStep() {
   const { doneVerifying } = useSession();
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // The sign-up's e-mail couldn't be sent: said right away (resend below).
+  const [error, setError] = useState<string | null>(() => (flow.mailFailed ? tr('errors.email_failed') : null));
   const [wait, startWait] = useCooldown();
 
   const submit = async (value = code) => {

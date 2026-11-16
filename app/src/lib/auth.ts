@@ -11,8 +11,8 @@ export type Provider = 'google' | 'discord';
 export const PROVIDERS: Provider[] = ['google', 'discord'];
 export const PROVIDER_NAMES: Record<Provider, string> = { google: 'Google', discord: 'Discord' };
 
-/** A new session (`email_sent` only on sign-up). */
-export type SessionResult = { token: string; user_id: number; new: boolean; email_sent?: boolean };
+/** A new session (`email_sent` / `email_failed` only on sign-up: `email_failed` = Mailgun refused it or is down). */
+export type SessionResult = { token: string; user_id: number; new: boolean; email_sent?: boolean; email_failed?: boolean };
 /** 2FA is on: trade the challenge and a code for the session. */
 export type Challenge = { mfa: 'totp'; challenge: string };
 export type AuthResult = SessionResult | Challenge;
@@ -38,6 +38,8 @@ export type Account = {
   secured: boolean;
   /** A party guest: plays in its party only (no friends, rooms, packs…) until secured. Absent from an older server. */
   guest?: boolean;
+  /** A 2FA reset by e-mail is pending: 2FA goes at this time (unix seconds) unless cancelled. */
+  mfa_reset_at?: number | null;
 };
 
 export type DeviceSession = { id: string; device: string | null; created_at: string; last_used_at: string | null; current: boolean };
@@ -54,7 +56,14 @@ export const auth = {
   forgot: (email: string) => post<{ sent: boolean }>('/forgot', { email }),
   reset: (email: string, code: string, password: string) => post<AuthResult>('/reset', { email, code, password }, true),
   account: () => api<Account>('/auth/account'),
-  credentials: (email: string, password: string) => post<{ email_sent?: boolean }>('/credentials', { email, password }),
+  credentials: (email: string, password: string) => post<{ email_sent?: boolean; email_failed?: boolean }>('/credentials', { email, password }),
+  /** A code to the new address; nothing changes until `confirmEmail`. */
+  changeEmail: (email: string) => post<{ sent: boolean }>('/email/change', { email }),
+  confirmEmail: (email: string, code: string) => post<{ email: string }>('/email/confirm', { email, code }),
+  /** 2FA lost without recovery codes, at the sign-in's second step: a code by e-mail, then 2FA goes 24 h later. */
+  mfaResetSend: (challenge: string) => post<{ sent: boolean; email: string }>('/2fa/reset/send', { challenge }),
+  mfaResetConfirm: (challenge: string, code: string) => post<{ reset_at: number }>('/2fa/reset/confirm', { challenge, code }),
+  mfaResetCancel: () => post<{ ok: boolean }>('/2fa/reset/cancel'),
   sendVerify: () => post<{ email_sent: boolean }>('/verify/send'),
   verify: (code: string) => post<{ email_verified: boolean }>('/verify', { code }),
   password: (body: { current?: string; password: string; revoke_others: boolean }) => post<{ ok: boolean; revoked: number }>('/password', body),
@@ -114,6 +123,8 @@ export function useFeatures() {
     reorder: on.has('reorder'),
     /** Choose questions (wire people to items). */
     choose: on.has('choose'),
+    /** Change e-mail, 2FA reset by e-mail, `email_failed` (docs/AUTH.md). */
+    accountRecovery: on.has('account_recovery'),
   };
 }
 
@@ -126,7 +137,7 @@ export function useAccount(enabled = true) {
 }
 
 /** Between the sign-in screens (not in the URL): the email typed, the 2FA challenge. */
-export const flow = { email: '', account: false, challenge: '' };
+export const flow = { email: '', account: false, challenge: '', mailFailed: false };
 
 /** An invite code (link or deep link) opened before signing in: joined right after. */
 let pendingCode: string | null = presetJoinCode();

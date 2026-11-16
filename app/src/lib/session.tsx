@@ -2,7 +2,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { createContext, type PropsWithChildren, useContext, useEffect, useState } from 'react';
 
 import { API_URL, api, ApiError, apiRoom, presetRoom, setApiRoom, setApiToken, setApiUrl, setOnSignedOut, type Member } from './api';
-import { auth, pendingJoinCode, setPendingCode, type SessionResult } from './auth';
+import { auth, flow, pendingJoinCode, setPendingCode, type SessionResult } from './auth';
 import { deviceHeader } from './device';
 import { adoptAccountLang, loadLang, syncLang } from './i18n';
 import { storage } from './storage';
@@ -150,7 +150,9 @@ export function SessionProvider({ children }: PropsWithChildren) {
     setMe(typeof found === 'object' ? found : null);
     setRoomless(found === 'no_room');
     setRoomState(apiRoom());
-    setVerifying(!!res.email_sent);
+    // The code e-mail failed: the code screen still opens, saying so (resend from there).
+    flow.mailFailed = !!res.email_failed;
+    setVerifying(!!res.email_sent || !!res.email_failed);
     setToken(res.token);
   };
 

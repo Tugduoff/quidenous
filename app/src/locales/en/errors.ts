@@ -32,4 +32,6 @@ export const errors: Messages['errors'] = {
   invite_gone: 'This invite is no longer valid',
   not_friends: "You're not friends yet",
   already_in_room: 'Already in the room',
+  email_failed: "The email couldn't be sent. Try again later.",
+  same_email: "That's already your email",
 };

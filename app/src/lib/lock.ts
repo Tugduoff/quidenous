@@ -61,10 +61,30 @@ export function useLock() {
   };
 }
 
-/** Face ID / fingerprint, or the device passcode. */
+/** The phone has no passcode or biometrics any more (removed after the lock was turned on). */
+async function noCredentials(la: LocalAuth): Promise<boolean> {
+  try {
+    return (await la.getEnrolledLevelAsync()) === la.SecurityLevel.NONE;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Face ID / fingerprint, or the device passcode. With nothing left to unlock with, the lock turns
+ * itself off instead of locking the app for good (the phone itself is then open anyway).
+ */
 export async function unlock(): Promise<boolean> {
   if (!LA) return true;
+  if (await noCredentials(LA)) {
+    await setLock(false);
+    return true;
+  }
   const r = await LA.authenticateAsync({ promptMessage: t('lock.prompt'), cancelLabel: t('common.cancel') });
+  if (!r.success && (r.error === 'not_enrolled' || r.error === 'passcode_not_set')) {
+    await setLock(false);
+    return true;
+  }
   return r.success;
 }
 

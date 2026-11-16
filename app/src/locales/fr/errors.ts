@@ -31,4 +31,6 @@ export const errors = {
   invite_gone: "Cette invitation n'est plus valable",
   not_friends: "Vous n'êtes pas encore amis",
   already_in_room: 'Déjà dans le salon',
+  email_failed: "L'e-mail n'a pas pu être envoyé. Réessaie plus tard.",
+  same_email: "C'est déjà ton adresse",
 };
