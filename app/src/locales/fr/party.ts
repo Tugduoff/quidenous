@@ -32,7 +32,7 @@ export const party = {
   vote: {
     voteFor: 'Voter pour {name}',
     pick: 'Choisis quelqu’un',
-    voted: '{count}/{total} ont voté',
+    voted: { one: '{count}/{total} a voté', other: '{count}/{total} ont voté' },
     late: 'Tu joues à la prochaine',
     timeUp: 'Temps écoulé',
     myVote: 'Ton vote : {name}',

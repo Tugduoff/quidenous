@@ -12,6 +12,7 @@ import { type TKey, useT } from '@/lib/i18n';
 import { keys, useGroup, useInbox, useMembers } from '@/lib/queries';
 import { useSwitchRoom, useSwitchRoomHere } from '@/lib/rooms';
 import { useSession } from '@/lib/session';
+import { tidy } from '@/lib/text';
 import { useTheme } from '@/lib/theme';
 import { ago } from '@/lib/time';
 
@@ -126,7 +127,7 @@ export default function InboxScreen() {
                   {head} · {ago(item.created_at)}
                 </Text>
                 <Text numberOfLines={2} style={{ fontFamily: isNew ? t.font.semibold : t.font.regular, fontSize: 15, lineHeight: 20, color: t.txt }}>
-                  {item.text}
+                  {tidy(item.text)}
                 </Text>
               </View>
               {isNew && <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: t.tag }} />}

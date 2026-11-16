@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 
+import { InvitePreview } from '@/components/invite-preview';
 import { ScanButton } from '@/components/qr-scanner';
 import { Button, Card, Display, Segmented } from '@/components/ui';
 import { VibeCards } from '@/components/vibes';
@@ -118,6 +119,7 @@ export function RoomForms({
   );
   const joinForm = (
     <>
+      {!!initialCode && <InvitePreview code={initialCode} />}
       <Text style={[label, joinFirst ? undefined : { marginTop: 8 }]}>{tr('room.join.title')}</Text>
       <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 8, padding: 6, paddingLeft: 16 }}>
         <TextInput

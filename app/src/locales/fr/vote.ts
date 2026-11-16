@@ -28,7 +28,7 @@ export const vote = {
   },
   /** Choose question: wire everyone to an item (mine: my real choice, the others: my guesses). */
   choose: {
-    tip: "Relie chacun à ce qu'il prendrait.",
+    tip: "Relie chacun à son choix.",
     me: 'Toi',
     real: 'ton vrai choix',
     wired: '{done}/{total} reliés',
@@ -54,7 +54,7 @@ export const vote = {
     hidden: 'Caché',
     show: 'Montrer mon vote',
     hide: 'Cacher mon vote',
-    voted: '{done} sur {total} ont voté',
+    voted: { one: '{done} sur {total} a voté', other: '{done} sur {total} ont voté' },
     pending: 'EN ATTENTE',
     skipped: 'passé',
     skippedLabel: '{name}, passé',

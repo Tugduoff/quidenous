@@ -1,10 +1,11 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { Mail, Ticket } from 'lucide-react-native';
+import { Mail } from 'lucide-react-native';
 import { useState } from 'react';
 import { ActivityIndicator, Text, View } from 'react-native';
 
 import { ErrorText, SoftButton } from '@/components/auth-ui';
 import { BrandIcon } from '@/components/brand-icons';
+import { InvitePreview } from '@/components/invite-preview';
 import { LegacyJoin } from '@/components/legacy-join';
 import { Screen } from '@/components/screen';
 import { Button, Logo } from '@/components/ui';
@@ -71,24 +72,7 @@ function Welcome({ providers }: { providers: Provider[] }) {
         <Logo size={44} />
         <Text style={{ fontFamily: t.font.regular, fontSize: 16, lineHeight: 22, color: t.mut }}>{tr('auth.tagline')}</Text>
       </View>
-      {invite && (
-        <View
-          style={{
-            alignSelf: 'flex-start',
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 8,
-            paddingHorizontal: 14,
-            paddingVertical: 8,
-            borderRadius: t.radius.pill,
-            backgroundColor: t.accSoft,
-          }}>
-          <Ticket size={16} color={t.accInk} />
-          <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: t.font.bold, fontSize: 14, letterSpacing: 1, color: t.accInk }}>
-            {invite}
-          </Text>
-        </View>
-      )}
+      {invite && <InvitePreview code={invite} />}
     </Screen>
   );
 }

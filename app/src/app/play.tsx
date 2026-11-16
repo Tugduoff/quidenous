@@ -16,6 +16,7 @@ import { motion } from '@/lib/motion';
 import { keys } from '@/lib/queries';
 import { useSwitchRoom } from '@/lib/rooms';
 import { useSession } from '@/lib/session';
+import { tidy } from '@/lib/text';
 import { useTheme } from '@/lib/theme';
 
 /**
@@ -111,7 +112,7 @@ export default function PlayScreen() {
       {!creating && (
         <Animated.View entering={motion.question} style={{ gap: 12 }}>
           <Tag label={tr(q.kind === 'rank' ? 'vote.kind.rank' : q.kind === 'choose' ? 'vote.kind.choose' : 'vote.kind.pick')} />
-          <Display size={30}>{q.question}</Display>
+          <Display size={30}>{tidy(q.question)}</Display>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
             {q.closed && <Swords size={14} color={t.mut} />}
             <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: t.font.regular, fontSize: 14, color: t.mut }}>

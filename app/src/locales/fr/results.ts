@@ -3,7 +3,7 @@ export const results = {
   seeAll: 'Voir tout ({count})',
   less: 'Réduire',
   /** My own place, under a name in a ranking result. */
-  you: 'toi : {place}e',
+  you: 'toi : {place}',
   /** After a number of points, in a smaller font. */
   pts: 'pts',
   points: '{count} pts',

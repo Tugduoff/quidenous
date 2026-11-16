@@ -66,6 +66,7 @@ export const packs: Messages['packs'] = {
   name: 'Pack name',
   description: 'Description (optional)',
   language: 'Language',
+  minHint: 'At least {min} questions needed ({count}/{min})',
   questions: { one: '{count} question', other: '{count} questions' },
   addQuestion: 'Add a question',
   fromFile: '.txt file',

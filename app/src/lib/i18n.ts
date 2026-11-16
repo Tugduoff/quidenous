@@ -66,6 +66,9 @@ export async function setLangPref(next: LangPref, sync = true) {
   if (sync) await syncLang();
 }
 
+/** Shows the app in `next` without saving it (the party's big screen speaks the party's language, not the TV's). */
+export const showLang = (next: Lang) => next !== lang && apply(next);
+
 /** Sends my language to the server when it changed since the last time (account-wide: push, e-mails, share cards). */
 export async function syncLang() {
   const state = `${lang}:${pref}`;

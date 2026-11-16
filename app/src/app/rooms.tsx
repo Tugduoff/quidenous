@@ -8,8 +8,8 @@ import { RoomForms } from '@/components/room-forms';
 import { QueryState } from '@/components/query-state';
 import { Screen } from '@/components/screen';
 import { Card, Display } from '@/components/ui';
-import { presetJoinCode, type RoomSummary } from '@/lib/api';
-import { useFeatures } from '@/lib/auth';
+import { type RoomSummary } from '@/lib/api';
+import { pendingJoinCode, setPendingCode, useFeatures } from '@/lib/auth';
 import { useT } from '@/lib/i18n';
 import { useRooms } from '@/lib/queries';
 import { useSwitchRoom } from '@/lib/rooms';
@@ -25,6 +25,7 @@ export default function RoomsScreen() {
   const { data: rooms } = roomsQuery;
   const switchRoom = useSwitchRoom();
   const features = useFeatures();
+  const invite = pendingJoinCode() ?? '';
   const open = (r: RoomSummary, on: boolean) => {
     if (r.kind === 'party') return on ? router.replace(`/party/${r.id}`) : switchRoom(r.id, 'party');
     if (on) router.back();
@@ -102,7 +103,15 @@ export default function RoomsScreen() {
         </Pressable>
       )}
 
-      <RoomForms initialCode={presetJoinCode() ?? ''} onEntered={switchRoom} onVibeStep={setCreating} />
+      <RoomForms
+        joinFirst={!!invite}
+        initialCode={invite}
+        onEntered={(id) => {
+          setPendingCode(null);
+          switchRoom(id);
+        }}
+        onVibeStep={setCreating}
+      />
     </Screen>
   );
 }

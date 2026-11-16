@@ -6,10 +6,11 @@ import Animated, { FadeIn, useAnimatedStyle, useReducedMotion, useSharedValue, w
 import { Dialog, DialogTitle } from '@/components/ui';
 import { useLang, useT } from '@/lib/i18n';
 import { milestone as describe, PREVIEW_AT, playPreview, SPECIAL_NUMBERS, tier, usePreview } from '@/lib/milestones';
+import { tidy } from '@/lib/text';
 import { useTheme } from '@/lib/theme';
 
 import { BigNumber, makeRand, useClock, useShake } from './engine';
-import { numberSize, tidy } from './scene';
+import { numberSize } from './scene';
 import { sceneFor } from './scenes';
 
 /**

@@ -7,6 +7,7 @@ export const questions: Messages['questions'] = {
   newQuestion: 'New question',
   placeholder: 'Which of us…',
   placeholderRank: 'Rank us from most… to least…',
+  kind: 'Question type',
   ranking: 'Ranking',
   choosing: 'Picks',
   choosingLabel: 'Who picks what',

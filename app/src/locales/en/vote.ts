@@ -25,7 +25,7 @@ export const vote: Messages['vote'] = {
     add: 'Rank {name}',
   },
   choose: {
-    tip: "Wire everyone to what they'd pick.",
+    tip: "Wire everyone to their pick.",
     me: 'You',
     real: 'your real pick',
     wired: '{done}/{total} wired',
@@ -51,7 +51,7 @@ export const vote: Messages['vote'] = {
     hidden: 'Hidden',
     show: 'Show my vote',
     hide: 'Hide my vote',
-    voted: '{done} of {total} voted',
+    voted: { one: '{done} of {total} voted', other: '{done} of {total} voted' },
     pending: 'WAITING FOR',
     skipped: 'skipped',
     skippedLabel: '{name}, skipped',

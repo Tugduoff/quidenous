@@ -230,7 +230,10 @@ export function ReorderList<T extends { id: number }>({
     if (loop.current != null) cancelAnimationFrame(loop.current);
     tracker.state.current.locked = false;
     onDragChange?.(false);
-    if (order.join(',') !== latest.current.join(',')) onReorder(order);
+    // Rows added or removed while the row was in hand: the dropped order, minus the gone ones, then the new ones.
+    const now = latest.current;
+    const merged = [...order.filter((x) => now.includes(x)), ...now.filter((x) => !order.includes(x))];
+    if (merged.join(',') !== now.join(',')) onReorder(merged);
     else {
       sync();
       if (!moved) onStill?.(id);

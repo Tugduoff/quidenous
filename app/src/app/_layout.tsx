@@ -16,7 +16,8 @@ import { InstallBanner, InstallScreen, installMode } from '@/components/install'
 import { ToastHost } from '@/components/toast';
 import { ConfirmHost } from '@/components/ui';
 import { OtaToast, UpdateDialog } from '@/components/update';
-import { pendingPlayToken } from '@/lib/auth';
+import { pendingJoinCode, pendingPlayToken, setPendingCode } from '@/lib/auth';
+import { presetJoinCode } from '@/lib/api';
 import { useLive } from '@/lib/live';
 import { useLock } from '@/lib/lock';
 import { useOtaCheck } from '@/lib/ota';
@@ -171,6 +172,7 @@ function useStageRoute(stage: Stage, mounted: boolean) {
   const { code, error, share } = useGlobalSearchParams<{ code?: string; error?: string; share?: string }>();
   // Seen signed out (or verifying): a shared question opened meanwhile is resumed once in.
   const wasOut = useRef(false);
+  const invited = useRef(false);
   useEffect(() => {
     if (!mounted) return;
     if (stage === 'out' || stage === 'verify') wasOut.current = true;
@@ -184,6 +186,15 @@ function useStageRoute(stage: Stage, mounted: boolean) {
     const open = pathname.startsWith('/party/join/') || pathname.startsWith('/party/screen/');
     // /play only with a shared question to show: the router also falls back to it when the guarded screens swap.
     const play = pathname === '/play' && stage !== 'verify' && !!(share || pendingPlayToken());
+    // An invite link opened while signed in: the router drops /join and lands on home; from there, on to the join form with the code filled in.
+    if (stage === 'in' && pathname === '/join' && (code || presetJoinCode())) {
+      setPendingCode(code ?? presetJoinCode());
+      invited.current = true;
+    }
+    if (stage === 'in' && pathname === '/' && invited.current && pendingJoinCode()) {
+      invited.current = false;
+      return void router.push('/rooms');
+    }
     const ok =
       open || play
         ? true

@@ -37,13 +37,13 @@ import {
   partyScreenLink,
   type PartyRound,
   tallies,
-  tidy,
   TIMERS,
   useCountdown,
   useParty,
   useRefetchAtZero,
   useSetParty,
 } from '@/lib/party';
+import { tidy } from '@/lib/text';
 import { useRoomGone, useSwitchRoom } from '@/lib/rooms';
 import { useSession } from '@/lib/session';
 import { shareText } from '@/lib/share';
@@ -245,6 +245,9 @@ function Lobby({ party }: { party: Party }) {
       footer={
         <>
           <ErrorText>{error}</ErrorText>
+          {owner && !enough && (
+            <Text style={{ textAlign: 'center', fontFamily: t.font.semibold, fontSize: 14, color: t.mut }}>{tr('party.errors.needTwo')}</Text>
+          )}
           {owner ? (
             <Button disabled={!enough} loading={start.isPending} onPress={() => start.mutate()}>
               {tr('party.lobby.start')}
