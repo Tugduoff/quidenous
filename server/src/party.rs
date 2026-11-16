@@ -78,6 +78,32 @@ pub fn needed(players: i64) -> i64 {
     (3 * players + 3) / 4
 }
 
+/// Seconds a result stays up before a single "Suivante" tap is enough (an owner or players who
+/// left without leaving can't hold the party).
+pub const REVEAL_GRACE_SECS: i64 = 60;
+
+/// Taps needed on this revealed question at `now` (database clock when `None`): 75 %, or one once
+/// the result has been up for [`REVEAL_GRACE_SECS`].
+async fn needed_now(
+    state: &AppState,
+    round_id: i64,
+    players: i64,
+    now: Option<&str>,
+) -> AppResult<i64> {
+    let long: bool = sqlx::query_scalar(concat!(
+        "SELECT COALESCE(closed_at <= strftime('%Y-%m-%dT%H:%M:%fZ', COALESCE(?, ",
+        now!(),
+        "), ?), 0) FROM rounds WHERE id = ?"
+    ))
+    .bind(now)
+    .bind(format!("-{REVEAL_GRACE_SECS} seconds"))
+    .bind(round_id)
+    .fetch_optional(&state.db)
+    .await?
+    .unwrap_or(false);
+    Ok(if long { 1 } else { needed(players) })
+}
+
 async fn db_now(state: &AppState) -> AppResult<String> {
     Ok(sqlx::query_scalar(concat!("SELECT ", now!()))
         .fetch_one(&state.db)
@@ -357,7 +383,8 @@ async fn round_view(
         } else {
             let taps = taps(state, round_id).await?;
             let mine = me.is_some_and(|m| taps.contains(&m.id));
-            json!({ "taps": taps, "needed": needed(players), "players": players, "mine": mine })
+            let needed = needed_now(state, round_id, players, None).await?;
+            json!({ "taps": taps, "needed": needed, "players": players, "mine": mine })
         };
         let rows: Vec<(String, i64, bool)> = sqlx::query_as(
             "SELECT emoji, COUNT(*), MAX(member_id = ?) FROM party_reactions WHERE round_id = ? GROUP BY emoji",
@@ -477,8 +504,12 @@ async fn open_next(state: &AppState, id: i64, after: Option<i64>) -> AppResult<O
 }
 
 /// Opens the next question when the revealed one has enough "Suivante" taps (75 % of the players
-/// still there). After a tap, a leave or a removal.
+/// still there, or one once the result has been up a while). After a tap, a leave or a removal.
 async fn check_taps(state: &AppState, id: i64) -> AppResult<Option<i64>> {
+    check_taps_at(state, id, None).await
+}
+
+async fn check_taps_at(state: &AppState, id: i64, now: Option<&str>) -> AppResult<Option<i64>> {
     let p = load(state, id).await?;
     if p.kind != "party" || p.over {
         return Ok(None);
@@ -487,7 +518,9 @@ async fn check_taps(state: &AppState, id: i64) -> AppResult<Option<i64>> {
         return Ok(None);
     };
     let players = active_players(state, id).await?;
-    if (taps(state, round_id).await?.len() as i64) < needed(players) {
+    if (taps(state, round_id).await?.len() as i64)
+        < needed_now(state, round_id, players, now).await?
+    {
         return Ok(None);
     }
     open_next(state, id, Some(round_id)).await
@@ -539,6 +572,8 @@ pub struct Swept {
     pub closed: usize,
     /// Parties that just ended.
     pub ended: usize,
+    /// Results that had a tap and stayed up past the grace: next question opened.
+    pub moved_on: usize,
 }
 
 /// At `now` (`YYYY-MM-DDTHH:MM:SS.sssZ`, the database format): ends every party past its end
@@ -575,6 +610,27 @@ pub async fn sweep_at(state: &AppState, now: &str) -> AppResult<Swept> {
             Err(e) => {
                 tracing::warn!(party = id, round_id, error = ?e, "sweep: question not closed")
             }
+        }
+    }
+    // A result up for the grace with a "Suivante" tap waiting (tapped before the grace, nobody else came).
+    let waiting: Vec<i64> = sqlx::query_scalar(
+        "SELECT g.id FROM groups g JOIN rounds r ON r.group_id = g.id \
+         AND r.number = (SELECT MAX(number) FROM rounds WHERE group_id = g.id) \
+         WHERE g.kind = 'party' AND g.party_ended_at IS NULL AND g.deleted_at IS NULL AND g.paused_at IS NOT NULL \
+         AND r.closed_at IS NOT NULL AND r.closed_at <= strftime('%Y-%m-%dT%H:%M:%fZ', ?1, ?2) \
+         AND g.paused_at <= strftime('%Y-%m-%dT%H:%M:%fZ', r.closed_at, '+5 seconds') \
+         AND EXISTS (SELECT 1 FROM party_taps t JOIN members m ON m.id = t.member_id AND m.removed_at IS NULL \
+                     WHERE t.round_id = r.id)",
+    )
+    .bind(now)
+    .bind(format!("-{REVEAL_GRACE_SECS} seconds"))
+    .fetch_all(&state.db)
+    .await?;
+    for id in waiting {
+        match check_taps_at(state, id, Some(now)).await {
+            Ok(Some(_)) => swept.moved_on += 1,
+            Ok(None) => {}
+            Err(e) => tracing::warn!(party = id, error = ?e, "sweep: next question not opened"),
         }
     }
     Ok(swept)

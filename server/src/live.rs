@@ -91,6 +91,8 @@ pub struct Live {
     tx: broadcast::Sender<GroupEvent>,
     party: Arc<Mutex<HashMap<i64, PartyThrottle>>>,
     sockets: Arc<Mutex<SocketCounts>>,
+    /// When each seat's `active_at` was last written (see `flow::touch`), to spare the SD card.
+    active: Arc<Mutex<HashMap<i64, Instant>>>,
 }
 
 #[derive(Default)]
@@ -137,7 +139,21 @@ impl Live {
             tx,
             party: Arc::default(),
             sockets: Arc::default(),
+            active: Arc::default(),
         }
+    }
+
+    /// `true` when this seat's activity should be written now (at most once per `every`).
+    pub fn mark_active(&self, member_id: i64, every: std::time::Duration) -> bool {
+        let mut active = self.active.lock().unwrap_or_else(|e| e.into_inner());
+        if active.get(&member_id).is_some_and(|t| t.elapsed() < every) {
+            return false;
+        }
+        if active.len() > 10_000 {
+            active.clear();
+        }
+        active.insert(member_id, Instant::now());
+        true
     }
 
     /// A place for one more live socket, or `None` when this account, this IP or the server

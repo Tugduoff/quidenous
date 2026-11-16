@@ -1309,6 +1309,8 @@ pub(crate) async fn take_seat(
             .bind(member_id)
             .execute(&mut **tx)
             .await?;
+        // Their rank / choose ballot goes too: it no longer counts, like their vote.
+        game::clear_ballot(tx, round_id, member_id).await?;
         events = game::close_if_done(tx, group_id, round_id).await?;
     }
     Ok(Some(Removal {
@@ -1880,6 +1882,9 @@ pub(crate) async fn notify_round(
     if let Err(e) = try_notify_round(state, group_id, skip, opened, closed).await {
         tracing::warn!(group_id, error = ?e, "round notification failed");
     }
+    if closed && opened.is_none() {
+        crate::flow::deck_empty(state, group_id).await;
+    }
 }
 
 async fn try_notify_round(
@@ -2047,6 +2052,27 @@ struct MessageBody {
     mentions: Vec<i64>,
     #[serde(default)]
     everyone: bool,
+    /// The app's own id for this message (up to 64 chars): a retry with the same key gets the
+    /// message already posted instead of a second one.
+    #[serde(default)]
+    client_key: Option<String>,
+}
+
+/// The message this seat already posted with this client key, if any.
+async fn posted_message(
+    state: &AppState,
+    member_id: i64,
+    key: &str,
+) -> AppResult<Option<MessageRow>> {
+    Ok(sqlx::query_as::<_, MessageDb>(
+        "SELECT m.id, m.member_id, s.user_id, m.text, m.created_at, m.mentions, m.everyone \
+         FROM messages m JOIN members s ON s.id = m.member_id WHERE m.member_id = ? AND m.client_key = ?",
+    )
+    .bind(member_id)
+    .bind(key)
+    .fetch_optional(&state.db)
+    .await?
+    .map(Into::into))
 }
 
 async fn post_message(
@@ -2063,6 +2089,16 @@ async fn post_message(
     let text = body.text.trim();
     if text.is_empty() || text.chars().count() > MESSAGE_MAX {
         return Err(AppError::BadRequest("bad_message"));
+    }
+    let key = body.client_key.as_deref().filter(|k| !k.is_empty());
+    if key.is_some_and(|k| k.len() > 64) {
+        return Err(AppError::BadRequest("bad_message"));
+    }
+    // A retry of a send whose answer was lost: the same message, posted once.
+    if let Some(key) = key
+        && let Some(posted) = posted_message(&state, me.id, key).await?
+    {
+        return Ok(Json(posted));
     }
     if let Some(user) = me.user_id {
         crate::quotas::hit_user(&state, &crate::quotas::CHAT_USER, user)?;
@@ -2102,8 +2138,9 @@ async fn post_message(
     if crowd && !rings {
         mentions.clear();
     }
-    let message: MessageRow = sqlx::query_as::<_, MessageDb>(
-        "INSERT INTO messages (round_id, member_id, text, mentions, everyone) VALUES (?, ?, ?, ?, ?) \
+    let inserted = sqlx::query_as::<_, MessageDb>(
+        "INSERT INTO messages (round_id, member_id, text, mentions, everyone, client_key) VALUES (?, ?, ?, ?, ?, ?) \
+         ON CONFLICT DO NOTHING \
          RETURNING id, member_id, ? AS user_id, text, created_at, mentions, everyone",
     )
     .bind(id)
@@ -2111,10 +2148,20 @@ async fn post_message(
     .bind(text)
     .bind(serde_json::to_string(&mentions).unwrap_or_else(|_| "[]".into()))
     .bind(body.everyone)
+    .bind(key)
     .bind(me.user_id)
-    .fetch_one(&state.db)
-    .await?
-    .into();
+    .fetch_optional(&state.db)
+    .await?;
+    let message: MessageRow = match inserted {
+        Some(m) => m.into(),
+        // The same key landed twice at once: the first one is the message.
+        None => {
+            return posted_message(&state, me.id, key.unwrap_or_default())
+                .await?
+                .map(Json)
+                .ok_or(AppError::Conflict("bad_message"));
+        }
+    };
     // Mentioned people get a mention (inbox and push) instead of the plain message.
     let pinged: Vec<i64> = if ring_everyone {
         others.clone()

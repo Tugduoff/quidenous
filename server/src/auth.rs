@@ -44,6 +44,7 @@ pub async fn member_in_room_by_hash(
     match member {
         Some(m) => {
             crate::accounts::touch(state, hash).await;
+            crate::flow::touch(state, m.id).await;
             Ok(m)
         }
         None => match user_for_hash(state, hash).await {

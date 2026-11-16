@@ -5,6 +5,7 @@ pub mod config;
 pub mod db;
 pub mod deck;
 pub mod error;
+pub mod flow;
 pub mod friends;
 pub mod game;
 pub mod guests;

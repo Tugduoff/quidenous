@@ -380,7 +380,7 @@ pub async fn update(
     Path(room): Path<i64>,
     Json(body): Json<SettingsBody>,
 ) -> AppResult<Json<Value>> {
-    owner_seat(&state, user, room).await?;
+    let me = owner_seat(&state, user, room).await?;
     let language = body.language.as_deref().map(clean_language).transpose()?;
     if let Some(name) = &body.name {
         let name = clean_room_name(name)?;
@@ -452,6 +452,10 @@ pub async fn update(
         crate::pacing::settings_changed(&state, room).await?;
     }
     state.live.send(room, Event::RoomUpdated);
+    // A room that ran out of questions has a whole new deck after a vibe or language change.
+    if body.vibe.is_some() || language.is_some() {
+        crate::pacing::open_if_idle(&state, room, Some(me.id)).await?;
+    }
     Ok(Json(json!({ "ok": true })))
 }
 
