@@ -190,6 +190,8 @@ pub(crate) async fn erase(state: &AppState, user_id: i64) -> AppResult<()> {
         "DELETE FROM oauth_identities WHERE user_id = ?",
         "DELETE FROM auth_codes WHERE user_id = ?",
         "DELETE FROM friends WHERE user_id = ?1 OR friend_id = ?1",
+        "DELETE FROM friend_requests WHERE from_id = ?1 OR to_id = ?1",
+        "DELETE FROM room_invites WHERE user_id = ?1 OR from_id = ?1",
         "DELETE FROM blocks WHERE user_id = ?1 OR blocked_id = ?1",
         "DELETE FROM notification_prefs WHERE user_id = ?",
     ] {

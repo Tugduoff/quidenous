@@ -1034,6 +1034,20 @@ async fn keep_a_room_mate_as_a_friend() {
     .await;
     assert_eq!(s, StatusCode::OK, "{kept}");
     assert_eq!(kept["name"], "Bob");
+    // A request first: Bob sees it and accepts by keeping Ana back.
+    assert_eq!(kept["status"], "requested");
+    let (_, bf) = call(&app, "GET", "/friends", Some(&bob), None).await;
+    assert_eq!(bf["incoming"][0]["name"], "Ana");
+    let ana_id = bf["incoming"][0]["user_id"].as_i64().unwrap();
+    let (s, kept) = call(
+        &app,
+        "POST",
+        &format!("/friends/{ana_id}"),
+        Some(&bob),
+        None,
+    )
+    .await;
+    assert_eq!((s, &kept["status"]), (StatusCode::OK, &json!("friends")));
     // Both ways, and still friends once Bob leaves the room.
     let (_, rooms) = call(&app, "GET", "/rooms", Some(&bob), None).await;
     let room = rooms[0]["id"].as_i64().unwrap();
@@ -1137,8 +1151,34 @@ async fn friends_by_code_and_into_a_room() {
         )
         .await;
         assert_eq!(s, StatusCode::OK, "{added}");
+        assert_eq!(added["status"], "requested");
         added["user_id"].as_i64().unwrap()
     };
+    // Not friends until Eve accepts: Ana can't invite her yet.
+    let (s, _) = call(
+        &app,
+        "POST",
+        &format!("/rooms/{main}/add"),
+        Some(&ana),
+        Some(json!({ "user_id": eve_id })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+    let (_, ef) = call(&app, "GET", "/friends", Some(&eve), None).await;
+    let ana_id = ef["incoming"][0]["user_id"].as_i64().unwrap();
+    let (s, ok) = call(
+        &app,
+        "POST",
+        &format!("/friends/{ana_id}"),
+        Some(&eve),
+        None,
+    )
+    .await;
+    assert_eq!(
+        (s, &ok["status"]),
+        (StatusCode::OK, &json!("friends")),
+        "{ok}"
+    );
     let (_, af) = call(&app, "GET", "/friends", Some(&ana), None).await;
     assert!(
         af["friends"]
@@ -1156,16 +1196,44 @@ async fn friends_by_code_and_into_a_room() {
     )
     .await;
     assert_eq!(s, StatusCode::BAD_REQUEST, "can't befriend yourself");
-    // Now Ana puts Eve in the main room; Eve gets told.
-    let (s, _) = call(
+    // Now Ana invites Eve into the main room (twice is fine); Eve gets told and accepts.
+    for _ in 0..2 {
+        let (s, b) = call(
+            &app,
+            "POST",
+            &format!("/rooms/{main}/add"),
+            Some(&ana),
+            Some(json!({ "user_id": eve_id })),
+        )
+        .await;
+        assert_eq!((s, &b["invited"]), (StatusCode::OK, &json!(true)), "{b}");
+    }
+    let (_, rooms) = call(&app, "GET", "/rooms", Some(&eve), None).await;
+    assert!(!rooms.as_array().unwrap().iter().any(|r| r["id"] == main));
+    let (_, inbox) = call(&app, "GET", "/inbox", Some(&eve), None).await;
+    assert_eq!(inbox["items"][0]["kind"], "invite");
+    let invites = inbox["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|i| i["kind"] == "invite")
+        .count();
+    assert_eq!(invites, 1, "one entry for two invites: {inbox}");
+    let (_, inv) = call(&app, "GET", "/invites", Some(&eve), None).await;
+    assert_eq!(inv["invites"][0]["room_id"], main);
+    let (s, acc) = call(
         &app,
         "POST",
-        &format!("/rooms/{main}/add"),
-        Some(&ana),
-        Some(json!({ "user_id": eve_id })),
+        &format!("/invites/{}/accept", inv["invites"][0]["id"]),
+        Some(&eve),
+        None,
     )
     .await;
-    assert_eq!(s, StatusCode::OK);
+    assert_eq!(
+        (s, &acc["room_id"]),
+        (StatusCode::OK, &json!(main)),
+        "{acc}"
+    );
     let (s, _) = call(
         &app,
         "POST",
@@ -1177,9 +1245,6 @@ async fn friends_by_code_and_into_a_room() {
     assert_eq!(s, StatusCode::CONFLICT);
     let (_, rooms) = call(&app, "GET", "/rooms", Some(&eve), None).await;
     assert!(rooms.as_array().unwrap().iter().any(|r| r["id"] == main));
-    let (_, inbox) = call_room(&app, "GET", "/inbox", &eve, main, None).await;
-    assert_eq!(inbox["items"][0]["kind"], "added");
-    assert_eq!(inbox["items"][0]["room_id"], main);
     // A stranger can't be added.
     let (_, stranger) = call(
         &app,
@@ -2087,6 +2152,16 @@ async fn leaving_is_not_being_removed() {
         &format!("/rooms/{room}/add"),
         Some(&ana),
         Some(json!({ "user_id": cyd_user })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK);
+    let (_, inv) = call(&app, "GET", "/invites", Some(&cyd), None).await;
+    let (s, _) = call(
+        &app,
+        "POST",
+        &format!("/invites/{}/accept", inv["invites"][0]["id"]),
+        Some(&cyd),
+        None,
     )
     .await;
     assert_eq!(s, StatusCode::OK);

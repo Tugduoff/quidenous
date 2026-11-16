@@ -93,7 +93,7 @@ pub struct CreateBody {
 
 pub async fn create(
     State(state): State<AppState>,
-    UserId(me): UserId,
+    crate::auth::Account(me): crate::auth::Account,
     Json(body): Json<CreateBody>,
 ) -> AppResult<Json<Value>> {
     let text = body.text.trim();
@@ -174,7 +174,7 @@ pub struct VoteBody {
 /// Vote up (1), down (-1) or skip (0); changing my vote is allowed while it is open.
 pub async fn vote(
     State(state): State<AppState>,
-    UserId(me): UserId,
+    crate::auth::Account(me): crate::auth::Account,
     Path(id): Path<i64>,
     Json(body): Json<VoteBody>,
 ) -> AppResult<Json<Value>> {

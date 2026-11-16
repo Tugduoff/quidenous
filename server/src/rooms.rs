@@ -163,7 +163,7 @@ fn clean_vibe(vibe: Option<&str>) -> AppResult<Option<&'static str>> {
 /// A new room, me as its owner.
 pub async fn create(
     State(state): State<AppState>,
-    UserId(user): UserId,
+    crate::auth::Account(user): crate::auth::Account,
     Json(body): Json<CreateBody>,
 ) -> AppResult<Json<Value>> {
     let name = clean_room_name(&body.name)?;
@@ -241,6 +241,10 @@ pub async fn join(
             .await?
             .ok_or(AppError::BadRequest("bad_code"))?;
     attempt.found();
+    // A party guest plays in parties only.
+    if kind != "party" && crate::auth::is_guest(&state.db, user).await? {
+        return Err(AppError::Forbidden("guest_account"));
+    }
     let existing =
         sqlx::query_as::<_, MemberRow>("SELECT * FROM members WHERE group_id = ? AND user_id = ?")
             .bind(room_id)
@@ -638,7 +642,7 @@ pub async fn start(
     tx.commit().await?;
     let created = create(
         State(state.clone()),
-        UserId(user),
+        crate::auth::Account(user),
         Json(CreateBody {
             name: room,
             vibe: body.vibe,

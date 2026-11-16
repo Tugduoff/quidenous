@@ -220,14 +220,25 @@ pub fn out_of_questions(lang: Lang, room: &str) -> String {
     }
 }
 
-pub fn new_room(lang: Lang) -> &'static str {
-    lang.pick("Nouveau salon", "New room")
+pub fn friend_request_title(lang: Lang) -> &'static str {
+    lang.pick("Demande d'ami", "Friend request")
 }
 
-pub fn added_to_room(lang: Lang, name: &str, room: &str) -> String {
+pub fn friend_request(lang: Lang, name: &str) -> String {
     match lang {
-        Lang::Fr => format!("{name} t'a ajouté à « {room} »"),
-        Lang::En => format!("{name} added you to “{room}”"),
+        Lang::Fr => format!("{name} veut t'ajouter en ami"),
+        Lang::En => format!("{name} wants to be friends"),
+    }
+}
+
+pub fn room_invite_title(lang: Lang) -> &'static str {
+    lang.pick("Invitation", "Room invite")
+}
+
+pub fn room_invite(lang: Lang, name: &str, room: &str) -> String {
+    match lang {
+        Lang::Fr => format!("{name} t'invite dans « {room} »"),
+        Lang::En => format!("{name} invited you to “{room}”"),
     }
 }
 

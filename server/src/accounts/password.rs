@@ -272,6 +272,8 @@ pub async fn account_info(state: &AppState, user_id: i64) -> AppResult<Value> {
         "recovery_codes_left": codes_left,
         "providers": providers,
         "secured": secured,
+        // A party guest: plays in its party only (no rooms, friends, packs…) until secured.
+        "guest": crate::auth::is_guest(&state.db, user_id).await?,
     }))
 }
 

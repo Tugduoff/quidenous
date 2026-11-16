@@ -666,7 +666,7 @@ pub struct CreateBody {
 /// A new party, me as its owner, in the lobby (paused until "Commencer").
 async fn create(
     State(state): State<AppState>,
-    UserId(user): UserId,
+    crate::auth::Account(user): crate::auth::Account,
     Json(body): Json<CreateBody>,
 ) -> AppResult<Json<Value>> {
     let hours = body.hours.unwrap_or(DEFAULT_HOURS);

@@ -120,3 +120,52 @@ impl FromRequestParts<AppState> for UserId {
         Ok(UserId(user))
     }
 }
+
+/// SQL: the account `$u` (a `users` alias) is a party guest: made by a party join without an
+/// account, and not secured since (an e-mail + password or a linked provider ends that).
+macro_rules! guest_sql {
+    ($u:literal) => {
+        concat!(
+            "(", $u, ".guest AND NOT ((", $u, ".email IS NOT NULL AND ", $u,
+            ".password_hash IS NOT NULL) OR EXISTS (SELECT 1 FROM oauth_identities o WHERE o.user_id = ",
+            $u, ".id)))"
+        )
+    };
+}
+pub(crate) use guest_sql;
+
+/// Is this account a party guest (see [`guest_sql`])?
+pub async fn is_guest<'e, E>(db: E, user: i64) -> Result<bool, AppError>
+where
+    E: sqlx::Executor<'e, Database = sqlx::Sqlite>,
+{
+    Ok(sqlx::query_scalar(concat!(
+        "SELECT ",
+        guest_sql!("u"),
+        " FROM users u WHERE u.id = ?"
+    ))
+    .bind(user)
+    .fetch_optional(db)
+    .await?
+    .unwrap_or(false))
+}
+
+/// The signed-in account, refused for a party guest (`403 guest_account`): a guest only plays in
+/// the party it joined (and that party once kept as a room). Creating rooms or parties, joining
+/// rooms, friends, invitations, packs, suggestions and reports need a real account.
+pub struct Account(pub i64);
+
+impl FromRequestParts<AppState> for Account {
+    type Rejection = AppError;
+
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
+        let UserId(user) = UserId::from_request_parts(parts, state).await?;
+        if is_guest(&state.db, user).await? {
+            return Err(AppError::Forbidden("guest_account"));
+        }
+        Ok(Account(user))
+    }
+}
