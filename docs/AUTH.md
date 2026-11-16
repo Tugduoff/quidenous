@@ -216,7 +216,7 @@ in `member` reports' snapshots with `Compte supprimé` (docs/STATS.md, Share lin
 
 ## Terms and age (16+)
 
-`users.terms_version` / `terms_at` (migration `0034_privacy.sql`) record the version of `/terms` + `/privacy` an
+`users.terms_version` / `terms_at` (migration `0037_privacy.sql`) record the version of `/terms` + `/privacy` an
 account accepted, which includes saying they are 16 or older. `GET /auth/account` adds `terms: bool` (accepted the
 current `TERMS_VERSION`, `accounts/password.rs`); `POST /auth/terms` (any session, guests included) records it. Feature
 `terms`. The app ticks a box ("J'ai 16 ans ou plus et j'accepte les conditions et la politique de confidentialité",

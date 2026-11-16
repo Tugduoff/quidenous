@@ -136,7 +136,7 @@ colours only). `period` defaults to `all`, `tz` to 0; `400 bad_period`, `404` wh
 that key. Sharing the same story again (same figures, people and language) returns the same link; otherwise a new
 snapshot is frozen (table `stat_shares`, with the ids of the people on it in `member_ids`).
 
-Share links (questions and stats, migration `0034_privacy.sql`):
+Share links (questions and stats, migration `0037_privacy.sql`):
 - New links expire after 90 days (`expires_at`; older links have none and never expire). An expired, revoked or
   deleted-room link answers 404 everywhere (`/s/…`, `card.png`, `/api/play/{token}`), and a question share is
   re-created on the next share instead of reused.

@@ -1,6 +1,6 @@
 # Play Console: Data safety form (draft)
 
-What to answer in Play Console > App content > Data safety, from the code as of migration `0034_privacy.sql` and
+What to answer in Play Console > App content > Data safety, from the code as of migration `0037_privacy.sql` and
 `server/assets/legal/privacy.html`. Re-check it whenever a migration adds personal data, a
 processor is added, or the privacy policy changes. The Play build has no self-update (no GitHub calls, no
 `REQUEST_INSTALL_PACKAGES`, `app.config.ts`), no analytics, ads or crash SDK.
