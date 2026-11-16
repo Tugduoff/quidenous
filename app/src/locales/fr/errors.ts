@@ -41,4 +41,10 @@ export const errors = {
   removed: 'Tu as été retiré de ce salon',
   unverified: 'Vérifie ton e-mail d’abord',
   deck_question: 'Question du jeu de base : impossible',
+  // Game flow
+  already_voted: 'Ton vote est déjà compté',
+  no_open_round: 'Cette question est déjà close',
+  alone: "Personne d'autre dans le salon pour l'instant",
+  disabled: 'Le propriétaire a désactivé cette option',
+  time_up: 'Trop tard, le temps est écoulé',
 };

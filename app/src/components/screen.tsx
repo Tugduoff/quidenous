@@ -1,7 +1,10 @@
+import { CloudOff } from 'lucide-react-native';
 import { type ComponentRef, type ReactNode, type RefObject, useEffect, useRef } from 'react';
-import { KeyboardAvoidingView, type NativeScrollEvent, Platform, ScrollView, type ScrollViewProps, View, type ViewStyle } from 'react-native';
+import { KeyboardAvoidingView, type NativeScrollEvent, Platform, ScrollView, type ScrollViewProps, Text, View, type ViewStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useT } from '@/lib/i18n';
+import { useUnreachable } from '@/lib/live';
 import { useTheme } from '@/lib/theme';
 
 // Home screen web app on iPhone: the safe-area inset is only known to CSS (same as the tab bar).
@@ -43,6 +46,7 @@ export function Screen({
     <SafeAreaView
       edges={tabs || Platform.OS === 'web' ? ['top'] : ['top', 'bottom']}
       style={[{ flex: 1, backgroundColor: t.bg }, !tabs && Platform.OS === 'web' && WEB_BOTTOM]}>
+      <Unreachable />
       {/* Lift the footer (message box, buttons) above the keyboard. Android too: the app is edge-to-edge,
           so the system no longer shrinks the window when the keyboard opens. */}
       <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
@@ -65,6 +69,21 @@ export function Screen({
         {footer && <View style={{ paddingHorizontal: 20, paddingBottom: 12, gap: 10 }}>{footer}</View>}
       </KeyboardAvoidingView>
     </SafeAreaView>
+  );
+}
+
+/** A thin line while the server can't be reached: what's on screen may be out of date. */
+function Unreachable() {
+  const t = useTheme();
+  const tr = useT();
+  if (!useUnreachable()) return null;
+  return (
+    <View
+      accessibilityRole="alert"
+      style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 6, backgroundColor: t.card }}>
+      <CloudOff size={14} color={t.mut} />
+      <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut }}>{tr('common.unreachable')}</Text>
+    </View>
   );
 }
 

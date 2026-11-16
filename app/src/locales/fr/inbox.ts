@@ -14,6 +14,7 @@ export const inbox = {
     ask: 'Questions',
     friendRequest: "Demande d'ami",
     invite: 'Invitation',
+    owner: 'Propriétaire',
     other: 'Notification',
   },
 };

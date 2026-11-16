@@ -115,18 +115,21 @@ export function RankResult({ ranking, byId, mine }: { ranking: RankEntry[]; byId
         const m = byId.get(r.member_id);
         const color = m?.color ?? t.mut;
         const myPlace = mine ? mine.indexOf(r.member_id) + 1 : 0;
+        // Same points, same place (1, 1, 3): a tie for first crowns everyone in it.
+        const place = 1 + ranking.filter((x) => x.points > r.points).length;
+        const top = place === 1;
         // Past the top 5 (a big group, opened with "Voir tout"), slimmer rows.
         const slim = i >= TOP;
         return (
           <Land
             key={r.member_id}
-            on={i === 0}
+            on={top}
             style={[
               { height: slim ? 52 : 60, borderRadius: slim ? 14 : 18, overflow: 'hidden', backgroundColor: t.card, justifyContent: 'center' },
               t.shadow,
-              i === 0 && { borderWidth: 2, borderColor: color },
+              top && { borderWidth: 2, borderColor: color },
             ]}>
-            <Fill index={i} width={Math.round((r.points / best) * 100)} color={color} opacity={i === 0 ? 0.5 : 0.25} />
+            <Fill index={i} width={Math.round((r.points / best) * 100)} color={color} opacity={top ? 0.5 : 0.25} />
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12 }}>
               <View
                 style={{
@@ -135,9 +138,9 @@ export function RankResult({ ranking, byId, mine }: { ranking: RankEntry[]; byId
                   borderRadius: 15,
                   alignItems: 'center',
                   justifyContent: 'center',
-                  backgroundColor: podium[i] ?? 'transparent',
+                  backgroundColor: podium[place - 1] ?? 'transparent',
                 }}>
-                <Text style={{ fontFamily: t.font.display, fontSize: i < 3 ? 15 : 18, color: i < 3 ? '#1A1A1A' : t.txt }}>{i + 1}</Text>
+                <Text style={{ fontFamily: t.font.display, fontSize: place <= 3 ? 15 : 18, color: place <= 3 ? '#1A1A1A' : t.txt }}>{place}</Text>
               </View>
               <Avatar member={m} size={slim ? 28 : 36} />
               <View style={{ flex: 1 }}>
@@ -145,7 +148,7 @@ export function RankResult({ ranking, byId, mine }: { ranking: RankEntry[]; byId
                   {m?.name}
                 </Text>
                 {/* Only where my ranking differs from the group's. */}
-                {myPlace > 0 && myPlace !== i + 1 && (
+                {myPlace > 0 && myPlace !== place && (
                   <Text style={{ fontFamily: t.font.regular, fontSize: 12, color: t.mut }}>{tr('results.you', { place: ordinal(myPlace) })}</Text>
                 )}
               </View>
@@ -185,7 +188,9 @@ export function ResultSummary({
   const tr = useT();
   const total = result.reduce((n, r) => n + r.count, 0) || 1;
   const guesser = choose?.scores[0];
-  const winnerId = choose ? guesser?.member_id : ranking ? ranking[0]?.member_id : result[0]?.target_id;
+  // A choose question nobody guessed right crowns nobody.
+  const nobody = !!choose && !guesser?.hits;
+  const winnerId = choose ? (nobody ? undefined : guesser?.member_id) : ranking ? ranking[0]?.member_id : result[0]?.target_id;
   const m = winnerId != null ? byId.get(winnerId) : undefined;
   const score = choose
     ? `${guesser?.hits ?? 0}/${guesser?.total ?? 0}`
@@ -194,14 +199,17 @@ export function ResultSummary({
       : `${Math.round(((result[0]?.count ?? 0) / total) * 100)}%`;
   // Several people sharing first place: "+1" after the name.
   const tied = choose
-    ? choose.scores.filter((s) => s.hits === guesser?.hits && s.total === guesser?.total).length - 1
-    : ranking
+    ? nobody
       ? 0
+      : choose.scores.filter((s) => s.hits === guesser?.hits && s.total === guesser?.total).length - 1
+    : ranking
+      ? ranking.filter((r) => r.points === ranking[0]?.points).length - 1
       : result.filter((r) => r.count === result[0]?.count).length - 1;
+  const name = nobody ? tr('history.nobodyGuessed') : (m?.name ?? '?');
   return (
     <PressableScale
       accessibilityRole="button"
-      accessibilityLabel={tr('results.summary', { name: m?.name ?? '?', score })}
+      accessibilityLabel={tr('results.summary', { name, score })}
       onPress={onPress}
       style={[
         {
@@ -216,10 +224,10 @@ export function ResultSummary({
         },
         t.shadow,
       ]}>
-      <Avatar member={m} size={32} />
-      <Crown size={16} color={m?.color ?? t.mut} />
-      <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: t.font.bold, fontSize: 16, color: t.txt }}>
-        {m?.name ?? '?'}
+      {!nobody && <Avatar member={m} size={32} />}
+      {!nobody && <Crown size={16} color={m?.color ?? t.mut} />}
+      <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: t.font.bold, fontSize: 16, color: nobody ? t.mut : t.txt, paddingLeft: nobody ? 6 : 0 }}>
+        {name}
       </Text>
       {tied > 0 && <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut }}>+{tied}</Text>}
       <Text style={{ marginLeft: 'auto', fontFamily: t.font.display, fontSize: 18, color: t.txt }}>{score}</Text>

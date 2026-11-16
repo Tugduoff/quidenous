@@ -57,6 +57,18 @@ Two owner settings, both off by default (= the next question opens as soon as on
 
 A paced room that closes a question is *paused* (`groups.paused_at`, `next_open_at` = close + delay, null with no delay): nothing opens it (joins, new questions included) until the owner launches it, the deadline passes, or the owner switches pacing off. Both on: the owner can launch early, else it opens at the deadline. A scheduler task (every 20 s, first run at startup, so restarts lose nothing) opens due rooms and pushes "Nouvelle question". Changing the delay while waiting counts from the close. `GET /group` carries `pace: {waiting, next_open_at, round_id}`; the vote tab keeps that result up with "En attente du propriétaire", a countdown, or the owner's "Lancer la suivante". Older apps just see no open question until it opens.
 
+## When someone is away
+
+Normal rooms have no question timer, so three rules keep them moving when people go quiet (`server/src/flow.rs`, migration `0038_game_flow.sql`; parties have their own, see `docs/PARTY.md`):
+
+- **Away**: someone whose last 3 questions in the room closed without their vote (counting questions that closed since they joined) is *away*: the open question no longer waits for them, like a skip. Voting again makes them present again. The round view lists them in `away_ids` (and leaves them out of `member_count`); the app shows them dimmed with "absent", without a skip button.
+- **Late quorum**: a question open for 24 h closes as soon as at least half of the people it waits for voted (2 people: one vote). Checked on each vote and by the scheduler every 5 minutes. This is what gets a 2-person room past a holiday: one question a day, then, after 3, the absent person is away and the room runs at its normal pace.
+- **Gone owner**: each seat records when it last used its room (`members.active_at`: any request or live socket for that room, written at most every 10 minutes). An owner unseen for 7 days hands the room to the longest-standing member seen in that time, who gets an inbox entry (`owner`); nobody seen, nothing changes. With `owner_next`, a room waiting for an owner unseen for 24 h (and waiting at least that long) opens its next question by itself.
+
+Also: changing the vibe or the language of an idle room opens a question right away, and the owner hears in the inbox (`ask`: a tap opens the Questions tab) when a question opening leaves only 3 to ask (its own plus the deck's), then when the room runs out (2 people or more, not paced, nothing left to open).
+
+Ballots: a rank or choose ballot leaves with its voter (leaving, removal, account deletion during the question), like the vote. A new ballot from the same seat replaces any older one. Chat messages can carry a `client_key` (up to 64 chars): posting again with the same key returns the message already posted.
+
 ## Abuse limits
 
 In-memory token buckets (same limiter as the auth limits in `docs/AUTH.md`, rules in `server/src/quotas.rs`), `429 {"error":"rate_limited","retry_after":s}` with `Retry-After`. The app shows "Trop d'essais, réessaie dans …".

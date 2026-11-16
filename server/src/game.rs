@@ -155,6 +155,20 @@ pub async fn deck_left(db: &SqlitePool, group_id: i64) -> AppResult<i64> {
         .count() as i64)
 }
 
+/// Questions a room can still open: its own unasked ones plus what's left in its deck.
+pub async fn questions_left(db: &SqlitePool, group_id: i64) -> AppResult<i64> {
+    let custom: i64 = sqlx::query_scalar(concat!(
+        "SELECT COUNT(*) FROM questions q WHERE q.group_id = ?1 AND ",
+        votable!(),
+        " AND ",
+        unused!()
+    ))
+    .bind(group_id)
+    .fetch_one(db)
+    .await?;
+    Ok(custom + deck_left(db, group_id).await?)
+}
+
 /// Group questions first (queue order: oldest first unless shuffled), then a random deck question
 /// the group has not seen, in the room's language, from its vibe (its favourite tag first).
 async fn next_question(tx: &mut Transaction<'_, Sqlite>, group_id: i64) -> AppResult<Option<i64>> {
@@ -306,9 +320,12 @@ pub async fn vote(
         if given != active || choices.iter().any(|c| !(0..count).contains(&c.item)) {
             return Err(AppError::BadRequest("bad_choices"));
         }
+        // A ballot left from an earlier seat (left and came back): this one replaces it (a second
+        // vote on the same seat still fails below, rolling this back).
+        clear_ballot(&mut tx, round_id, voter_id).await?;
         for c in &choices {
             sqlx::query(
-                "INSERT OR IGNORE INTO choices (round_id, voter_id, member_id, item) VALUES (?, ?, ?, ?)",
+                "INSERT INTO choices (round_id, voter_id, member_id, item) VALUES (?, ?, ?, ?)",
             )
             .bind(round_id)
             .bind(voter_id)
@@ -332,9 +349,10 @@ pub async fn vote(
         if given != active {
             return Err(AppError::BadRequest("bad_ranking"));
         }
+        clear_ballot(&mut tx, round_id, voter_id).await?;
         for (i, member_id) in ranking.iter().enumerate() {
             sqlx::query(
-                "INSERT OR IGNORE INTO rankings (round_id, voter_id, member_id, position) VALUES (?, ?, ?, ?)",
+                "INSERT INTO rankings (round_id, voter_id, member_id, position) VALUES (?, ?, ?, ?)",
             )
             .bind(round_id)
             .bind(voter_id)
@@ -375,6 +393,25 @@ pub async fn vote(
     events.extend(close_if_done(&mut tx, group_id, round_id).await?);
     tx.commit().await?;
     Ok(events)
+}
+
+/// Drops a member's rank / choose ballot on a question (their seat ended, or a new ballot replaces it).
+pub async fn clear_ballot(
+    tx: &mut Transaction<'_, Sqlite>,
+    round_id: i64,
+    voter_id: i64,
+) -> AppResult<()> {
+    for sql in [
+        "DELETE FROM rankings WHERE round_id = ? AND voter_id = ?",
+        "DELETE FROM choices WHERE round_id = ? AND voter_id = ?",
+    ] {
+        sqlx::query(sql)
+            .bind(round_id)
+            .bind(voter_id)
+            .execute(&mut **tx)
+            .await?;
+    }
+    Ok(())
 }
 
 /// Was this member in the party when the question opened?
@@ -482,6 +519,48 @@ pub async fn skipped(
     .await?)
 }
 
+/// Questions in a row someone can miss before the room stops waiting for them ("away").
+pub const AWAY_AFTER: i64 = 3;
+
+/// Hours after which an open question closes once at least half of the people it waits for voted.
+pub const QUORUM_HOURS: i64 = 24;
+
+/// Members who are away: the last [`AWAY_AFTER`] questions of the room closed without their vote
+/// (closed since they joined). The room stops waiting for them until they vote again. Rooms only.
+pub async fn away(tx: &mut Transaction<'_, Sqlite>, group_id: i64) -> AppResult<Vec<i64>> {
+    Ok(sqlx::query_scalar(
+        "SELECT m.id FROM members m WHERE m.group_id = ?1 AND m.removed_at IS NULL \
+         AND (SELECT kind FROM groups WHERE id = ?1) = 'room' \
+         AND (SELECT COUNT(*) FROM rounds r WHERE r.group_id = ?1 AND r.closed_at IS NOT NULL \
+              AND r.closed_at >= m.created_at \
+              AND r.number > COALESCE((SELECT MAX(r2.number) FROM votes v JOIN rounds r2 ON r2.id = v.round_id \
+                                       WHERE v.voter_id = m.id AND r2.group_id = ?1), 0)) >= ?2 \
+         ORDER BY m.id",
+    )
+    .bind(group_id)
+    .bind(AWAY_AFTER)
+    .fetch_all(&mut **tx)
+    .await?)
+}
+
+/// Who an open question no longer waits for: skipped by the room, or away. Sorted, no duplicates.
+pub async fn not_waited(
+    tx: &mut Transaction<'_, Sqlite>,
+    group_id: i64,
+    round_id: i64,
+) -> AppResult<(Vec<i64>, Vec<i64>)> {
+    let skipped = skipped(tx, group_id, round_id).await?;
+    let away = away(tx, group_id).await?;
+    Ok((skipped, away))
+}
+
+fn union(a: &[i64], b: &[i64]) -> usize {
+    let mut all: Vec<i64> = a.iter().chain(b).copied().collect();
+    all.sort_unstable();
+    all.dedup();
+    all.len()
+}
+
 /// Closes the round once every active member has voted or been skipped, and opens the next one
 /// (unless the room is paced: then it waits for the owner or the delay, see `pacing`).
 /// A party question closes once everyone it was opened for and still there has voted, and never
@@ -512,10 +591,18 @@ pub async fn close_if_done(
     .bind(round_id)
     .fetch_one(&mut **tx)
     .await?;
-    let waiting_for =
-        active_count(tx, group_id).await? - skipped(tx, group_id, round_id).await?.len() as i64;
+    let (skipped, away) = not_waited(tx, group_id, round_id).await?;
+    let waiting_for = active_count(tx, group_id).await? - union(&skipped, &away) as i64;
+    // Open for a day: half of the people it waits for is enough (a holiday doesn't stop the room).
+    let late: bool = sqlx::query_scalar(
+        "SELECT opened_at <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now', ?) FROM rounds WHERE id = ?",
+    )
+    .bind(format!("-{QUORUM_HOURS} hours"))
+    .bind(round_id)
+    .fetch_one(&mut **tx)
+    .await?;
     let mut events = Vec::new();
-    if votes > 0 && votes >= waiting_for {
+    if votes > 0 && (votes >= waiting_for || late && 2 * votes >= waiting_for) {
         let done = sqlx::query("UPDATE rounds SET closed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ? AND closed_at IS NULL")
             .bind(round_id)
             .execute(&mut **tx)
@@ -604,7 +691,7 @@ pub async fn view(db: &SqlitePool, round: RoundRow, me: i64) -> AppResult<RoundV
             .await?;
     let mut tx = db.begin().await?;
     let active = active_count(&mut tx, round.group_id).await?;
-    let (skips, skipped_ids) = if round.closed_at.is_none() {
+    let (skips, skipped_ids, away_ids) = if round.closed_at.is_none() {
         let rows: Vec<(i64, i64, bool)> = sqlx::query_as(
             "SELECT target_id, COUNT(*), MAX(from_id = ?) FROM skips WHERE round_id = ? GROUP BY target_id",
         )
@@ -620,13 +707,15 @@ pub async fn view(db: &SqlitePool, round: RoundRow, me: i64) -> AppResult<RoundV
                 mine,
             })
             .collect();
-        (skips, skipped(&mut tx, round.group_id, round.id).await?)
+        let (skipped, away) = not_waited(&mut tx, round.group_id, round.id).await?;
+        (skips, skipped, away)
     } else {
-        (Vec::new(), Vec::new())
+        (Vec::new(), Vec::new(), Vec::new())
     };
     tx.commit().await?;
-    // Votes needed to close: everyone still in the group, minus those the group decided not to wait for.
-    let member_count = active - skipped_ids.len() as i64;
+    // Votes needed to close: everyone still in the group, minus those the group decided not to
+    // wait for and those who are away.
+    let member_count = active - union(&skipped_ids, &away_ids) as i64;
     let result = match round.closed_at {
         Some(_) => Some(tallies(db, round.id).await?),
         None => None,
@@ -694,6 +783,7 @@ pub async fn view(db: &SqlitePool, round: RoundRow, me: i64) -> AppResult<RoundV
         skips,
         skip_needed: majority(active),
         skipped_ids,
+        away_ids,
         ranking,
         my_ranking,
         suggested_by,
@@ -768,9 +858,11 @@ pub fn compute_choose(rows: &[(i64, i64, i64)]) -> ChooseResult {
     }
     let mut scores: Vec<ChooseScore> = scores.into_values().collect();
     // Best first: most hits, then the better ratio (fewer misses), then member order.
+    // Nothing checkable (0/0) goes after any real score, 0/3 included.
     scores.sort_by(|a, b| {
         b.hits
             .cmp(&a.hits)
+            .then((b.total > 0).cmp(&(a.total > 0)))
             .then((a.total - a.hits).cmp(&(b.total - b.hits)))
             .then(a.member_id.cmp(&b.member_id))
     });

@@ -93,6 +93,8 @@ pub struct RoundView {
     pub skip_needed: i64,
     /// Members the group decided not to wait for on this question.
     pub skipped_ids: Vec<i64>,
+    /// Members away (missed the last few questions in a row): not waited for until they vote again.
+    pub away_ids: Vec<i64>,
     /// Ranking questions, once closed: everyone ordered by points.
     pub ranking: Option<Vec<RankEntry>>,
     /// Ranking questions: my order, first to last.

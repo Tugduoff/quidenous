@@ -1,5 +1,5 @@
 import { type QueryKey, useQueryClient } from '@tanstack/react-query';
-import { useEffect } from 'react';
+import { useEffect, useSyncExternalStore } from 'react';
 import { AppState } from 'react-native';
 
 import { liveUrl } from './api';
@@ -12,6 +12,23 @@ import { openSocket } from './ws';
 const HERE_MS = 20_000;
 /** Events in a burst (a round closing, guests joining a party) refetch each query once. */
 const BATCH_MS = 250;
+/** The live connection has been down this long (not on purpose): the server counts as unreachable. */
+const DOWN_MS = 10_000;
+
+let unreachable = false;
+const listeners = new Set<() => void>();
+function setUnreachable(value: boolean) {
+  if (value === unreachable) return;
+  unreachable = value;
+  for (const l of listeners) l();
+}
+const subscribe = (l: () => void) => {
+  listeners.add(l);
+  return () => void listeners.delete(l);
+};
+
+/** Signed in and the server can't be reached (the live connection keeps failing): the screens say so. */
+export const useUnreachable = () => useSyncExternalStore(subscribe, () => unreachable, () => false);
 
 type LiveEvent = { type: string; round_id?: number };
 
@@ -85,11 +102,31 @@ export function useLive(token: string | null, room: number | null) {
       else for (const k of queryKeys) batch.set(JSON.stringify(k), k);
       if (!flushTimer && (batchAll || batch.size)) flushTimer = setTimeout(flush, BATCH_MS);
     };
+    // Dropped (not on purpose) and still down after DOWN_MS: unreachable, until it opens again.
+    let down: ReturnType<typeof setTimeout> | null = null;
+    const dropped = (policy: boolean) => {
+      if (!policy && !down) down = setTimeout(() => setUnreachable(true), DOWN_MS);
+    };
+    const reached = () => {
+      if (down) clearTimeout(down);
+      down = null;
+      setUnreachable(false);
+    };
     const presence = () => {
       socket.send(AppState.currentState === 'active' ? 'here' : 'away');
     };
     const heartbeat = setInterval(presence, HERE_MS);
-    const appState = AppState.addEventListener('change', presence);
+    const appState = AppState.addEventListener('change', (state) => {
+      presence();
+      // Back in the app: reconnect now (not at the end of a backoff), and give it DOWN_MS before saying anything.
+      if (state === 'active') {
+        if (down || unreachable) {
+          reached();
+          dropped(false);
+        }
+        socket.wake();
+      }
+    });
     const socket = openSocket<LiveEvent>(
       async () => {
         // A short-lived ticket instead of the token in the URL, when the server has them. Features not known yet
@@ -99,11 +136,13 @@ export function useLive(token: string | null, room: number | null) {
       },
       {
         onOpen: () => {
+          reached();
           presence();
           // Everything but the history list's pages (one refetch each): only its newest page.
           qc.invalidateQueries({ predicate: (q) => q.queryKey[0] !== 'history' || q.queryKey[1] !== 'list' });
           refreshHistory(qc).catch(() => {});
         },
+        onClose: dropped,
         onEvent: (event) => {
           // A party's screen follows every event of its room (the socket only carries the current room's).
           if (PARTY_EVENTS.has(event.type)) invalidate([partyKeys.all]);
@@ -113,6 +152,8 @@ export function useLive(token: string | null, room: number | null) {
     );
     return () => {
       if (flushTimer) clearTimeout(flushTimer);
+      if (down) clearTimeout(down);
+      setUnreachable(false);
       clearInterval(heartbeat);
       appState.remove();
       socket.close();

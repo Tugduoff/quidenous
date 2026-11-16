@@ -18,6 +18,7 @@ export const common: Messages['common'] = {
   retry: 'Try again',
   crashed: 'Something went wrong',
   offline: 'No connection',
+  unreachable: "Can't reach the server",
   failed: "That didn't work, try again",
   loadFailed: "Couldn't load this",
   later: 'later',

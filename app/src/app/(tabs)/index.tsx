@@ -9,6 +9,7 @@ import {
   EyeOff,
   ChevronDown,
   Inbox,
+  Moon,
   Pin,
   RotateCcw,
   Share2,
@@ -218,7 +219,12 @@ export default function VoteScreen() {
     return (
       <Screen>
         <Header />
-        {!current.isLoading && !group.isLoading && <NoQuestions />}
+        {/* Can't reach the server: say so (and retry), never "no questions". */}
+        {current.isError || group.isError ? (
+          <QueryState query={current.isError ? current : group} />
+        ) : (
+          !current.isLoading && !group.isLoading && <NoQuestions />
+        )}
       </Screen>
     );
   }
@@ -656,8 +662,9 @@ function Waiting({ round, byId, members }: { round: Round; byId: Map<number, Mem
   // The face tapped in the grid; closes by itself once they've voted.
   const [open, setOpen] = useState<number | null>(null);
   const opened = pending.find((m) => m.id === open);
-  // With two people a majority is one person deciding alone: no skip vote then.
-  const canSkip = members.length >= 3;
+  // With two people a majority is one person deciding alone: no skip vote then (nor when the owner turned it off).
+  const group = useGroup();
+  const canSkip = members.length >= 3 && group.data?.settings.skip_vote !== false;
   const done = round.voter_ids.length;
   const label = { fontFamily: t.font.bold, fontSize: 11, letterSpacing: 0.6, color: t.mut } as const;
   return (
@@ -705,6 +712,7 @@ function Waiting({ round, byId, members }: { round: Round; byId: Map<number, Mem
           <MemberGrid>
             {pending.map((m) => {
               const skipped = round.skipped_ids.includes(m.id);
+              const away = !!round.away_ids?.includes(m.id);
               const asked = round.skips.some((s) => s.target_id === m.id);
               return (
                 <Animated.View key={m.id} exiting={motion.exit} layout={motion.layout} style={{ width: '20%' }}>
@@ -712,9 +720,11 @@ function Waiting({ round, byId, members }: { round: Round; byId: Map<number, Mem
                     member={m}
                     cols={1}
                     plain
-                    dim={skipped}
-                    badge={skipped || asked ? <SkipForward size={12} color={t.mut} /> : undefined}
-                    label={skipped ? tr('vote.waiting.skippedLabel', { name: m.name }) : m.name}
+                    dim={skipped || away}
+                    badge={skipped || asked ? <SkipForward size={12} color={t.mut} /> : away ? <Moon size={12} color={t.mut} /> : undefined}
+                    label={
+                      skipped ? tr('vote.waiting.skippedLabel', { name: m.name }) : away ? tr('vote.waiting.awayLabel', { name: m.name }) : m.name
+                    }
                     onPress={() => setOpen(m.id)}
                   />
                 </Animated.View>
@@ -742,14 +752,18 @@ function PendingRow({ member: m, round, canSkip, big }: { member: Member; round:
   const tr = useT();
   const { me } = useSession();
   const skipped = round.skipped_ids.includes(m.id);
+  // Away (missed the last questions in a row): not waited for, no skip needed.
+  const away = !skipped && !!round.away_ids?.includes(m.id);
   return (
     <Animated.View exiting={motion.exit} layout={motion.layout} style={{ flexDirection: 'row', alignItems: 'center', gap: big ? 12 : 10 }}>
       <Avatar member={m} size={big ? 44 : 32} />
       <Text numberOfLines={1} style={{ flex: 1, fontFamily: big ? t.font.bold : t.font.semibold, fontSize: big ? 17 : 15, color: t.txt }}>
         {m.name}
       </Text>
-      {skipped && <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut }}>{tr('vote.waiting.skipped')}</Text>}
-      {canSkip && m.id !== me?.id && !skipped && <SkipButton member={m} round={round} />}
+      {(skipped || away) && (
+        <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut }}>{tr(skipped ? 'vote.waiting.skipped' : 'vote.waiting.away')}</Text>
+      )}
+      {canSkip && m.id !== me?.id && !skipped && !away && <SkipButton member={m} round={round} />}
       {m.id !== me?.id && <NudgeButton member={m} roundId={round.id} />}
     </Animated.View>
   );

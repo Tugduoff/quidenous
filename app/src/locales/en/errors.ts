@@ -42,4 +42,10 @@ export const errors: Messages['errors'] = {
   removed: 'You were removed from this room',
   unverified: 'Verify your e-mail first',
   deck_question: "Built-in question: can't be removed",
+  // Game flow
+  already_voted: 'Your vote is already in',
+  no_open_round: 'This question has already closed',
+  alone: 'Nobody else is in the room yet',
+  disabled: 'The owner turned this off',
+  time_up: "Too late, time's up",
 };

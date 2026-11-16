@@ -1,4 +1,5 @@
-import { MutationCache, QueryClient } from '@tanstack/react-query';
+import { focusManager, MutationCache, QueryClient } from '@tanstack/react-query';
+import { AppState, Platform } from 'react-native';
 
 import { showToast } from '@/components/toast';
 
@@ -38,3 +39,10 @@ export function clearRoomData(qc: QueryClient) {
   qc.getMutationCache().clear();
   qc.removeQueries({ predicate: (q) => q.queryKey[0] !== 'features' });
 }
+
+// On a phone, coming back to the app counts as focus: what's on screen refreshes (the web does this by itself).
+if (Platform.OS !== 'web')
+  focusManager.setEventListener((onFocus) => {
+    const sub = AppState.addEventListener('change', (state) => onFocus(state === 'active'));
+    return () => sub.remove();
+  });
