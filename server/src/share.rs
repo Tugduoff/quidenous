@@ -153,7 +153,7 @@ pub async fn create_stat(
     ))
     .bind(me.group_id)
     .bind(me.id)
-    .bind(&story.key)
+    .bind(story.key)
     .bind(&story.big)
     .bind(&story.line)
     .bind(&people)
