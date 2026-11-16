@@ -58,6 +58,8 @@ export const vote = {
     pending: 'EN ATTENTE',
     skipped: 'passé',
     skippedLabel: '{name}, passé',
+    away: 'absent',
+    awayLabel: '{name}, absent',
   },
   pin: 'Épingler',
   unpin: 'Désépingler',

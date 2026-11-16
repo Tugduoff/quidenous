@@ -60,6 +60,8 @@ export type Round = {
   skips: VoteCount[];
   skip_needed: number;
   skipped_ids: number[];
+  /** Missed the last few questions in a row: not waited for until they vote again (absent from an older server). */
+  away_ids?: number[];
   ranking: RankEntry[] | null;
   my_ranking: number[] | null;
   /** Choose question: its items (null otherwise; absent from an older server). */
@@ -358,6 +360,27 @@ async function urlAuth(purpose: 'export' | 'live', tickets: boolean, own = token
 export const historyExportUrl = async (tickets: boolean) =>
   `${API_URL}/api/history/export?${await urlAuth('export', tickets)}${roomQuery()}&tz=${-new Date().getTimezoneOffset()}`;
 
+/** A request with no answer after this long fails (a captive Wi-Fi or a tunnel would otherwise hang forever). */
+const TIMEOUT_MS = 15_000;
+/** Uploads (a photo on a slow network) get longer. */
+const UPLOAD_TIMEOUT_MS = 60_000;
+
+/** `fetch` that gives up after `ms` (a network error for the caller, like being offline). */
+async function fetchWithin(url: string, init: RequestInit, ms: number): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  const outer = init.signal;
+  if (outer) {
+    if (outer.aborted) controller.abort();
+    else outer.addEventListener('abort', () => controller.abort());
+  }
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /** `room`: this call is about another room than the current one (`X-Room` for it alone). */
 export async function api<T>(path: string, init: RequestInit & { json?: unknown; room?: number } = {}): Promise<T> {
   // `x-kinds`: this app answers choose questions (an older one gets them as a plain pick).
@@ -370,7 +393,7 @@ export async function api<T>(path: string, init: RequestInit & { json?: unknown;
     headers['content-type'] = 'application/json';
     body = JSON.stringify(init.json);
   }
-  const res = await fetch(`${API_URL}/api${path}`, { ...init, headers, body });
+  const res = await fetchWithin(`${API_URL}/api${path}`, { ...init, headers, body }, TIMEOUT_MS);
   if (!res.ok) return fail(res, !!token);
   return (await res.json().catch(() => null)) as T;
 }
@@ -385,14 +408,14 @@ export const liveUrl = async (t: string, tickets: boolean) =>
 
 /** Multipart upload (photo). Content type is set by fetch with the boundary. */
 export async function apiUpload<T>(path: string, form: FormData, method = 'PUT'): Promise<T> {
-  const res = await fetch(`${API_URL}/api${path}`, {
+  const res = await fetchWithin(`${API_URL}/api${path}`, {
     method,
     headers: {
       'x-kinds': 'choose',
       ...(token ? { authorization: `Bearer ${token}`, ...(room != null ? { 'x-room': String(room) } : {}) } : {}),
     },
     body: form,
-  });
+  }, UPLOAD_TIMEOUT_MS);
   if (!res.ok) return fail(res, !!token);
   return (await res.json().catch(() => null)) as T;
 }

@@ -55,6 +55,8 @@ export const vote: Messages['vote'] = {
     pending: 'WAITING FOR',
     skipped: 'skipped',
     skippedLabel: '{name}, skipped',
+    away: 'away',
+    awayLabel: '{name}, away',
   },
   pin: 'Pin',
   unpin: 'Unpin',

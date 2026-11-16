@@ -6,6 +6,7 @@ import { ActivityIndicator, Text, View } from 'react-native';
 import { ErrorText, SoftButton } from '@/components/auth-ui';
 import { BrandIcon } from '@/components/brand-icons';
 import { InvitePreview } from '@/components/invite-preview';
+import { QueryState } from '@/components/query-state';
 import { LegacyJoin } from '@/components/legacy-join';
 import { Screen } from '@/components/screen';
 import { Button, Logo } from '@/components/ui';
@@ -24,6 +25,13 @@ export default function Entry() {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: t.bg }}>
         <ActivityIndicator color={t.mut} />
+      </View>
+    );
+  // Offline or server down: a retry, not the old join screen (that is for a server too old to have accounts).
+  if (features.unreachable)
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: t.bg, padding: 24 }}>
+        <QueryState query={features.query} />
       </View>
     );
   if (!features.auth) return <LegacyJoin />;

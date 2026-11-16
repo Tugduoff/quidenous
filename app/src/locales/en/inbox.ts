@@ -14,6 +14,7 @@ export const inbox: Messages['inbox'] = {
     ask: 'Questions',
     friendRequest: 'Friend request',
     invite: 'Room invite',
+    owner: 'Owner',
     other: 'Notification',
   },
 };

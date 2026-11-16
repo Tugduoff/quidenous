@@ -91,18 +91,25 @@ export const auth = {
 /** `/api/features`, server-wide: kept when a room switch or a sign-in clears the cache (lib/query-client.ts). */
 export const featuresQuery = { queryKey: ['features'], queryFn: () => api<string[]>('/features'), staleTime: Infinity };
 
-/** What the server can do (`/api/features`). An older server has no "auth": the app keeps the old join screen. */
+/**
+ * What the server can do (`/api/features`). An older server has no "auth": the app keeps the old join screen.
+ * `query` failed for another reason than "no such route" (offline, server down): `unreachable`, never "old server".
+ */
 export function useFeatures() {
   // No server known yet (phone build without a baked-in URL): the old screen, which asks for one.
   const known = !!API_URL;
-  const { data, isError } = useQuery({
+  const query = useQuery({
     ...featuresQuery,
     retry: 2,
     enabled: known,
   });
+  const { data, isError, error } = query;
   const on = new Set(data ?? []);
   return {
     loaded: !known || !!data || isError,
+    /** The server couldn't be reached (an older server answers 404 instead): show a retry, not the old screen. */
+    unreachable: known && !data && isError && !(error instanceof ApiError && error.status === 404),
+    query,
     auth: on.has('auth'),
     email: on.has('email'),
     providers: PROVIDERS.filter((p) => on.has(`oauth_${p}`)),

@@ -245,10 +245,17 @@ export function ChatInput({ roundId, onFocus, onSent }: { roundId: number; onFoc
     });
   };
 
+  // One id per message being sent: a retry of the same text (its answer lost) is posted once.
+  const draft = useRef<{ text: string; key: string } | null>(null);
+  const keyFor = (body: string) => {
+    if (draft.current?.text !== body) draft.current = { text: body, key: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}` };
+    return draft.current.key;
+  };
   const send = useMutation({
-    mutationFn: (body: { text: string; mentions?: number[]; everyone?: boolean }) =>
+    mutationFn: (body: { text: string; mentions?: number[]; everyone?: boolean; client_key: string }) =>
       api<Message>(`/rounds/${roundId}/messages`, { method: 'POST', json: body }),
     onSuccess: (m) => {
+      draft.current = null;
       setText('');
       setSel(null);
       setPicked([]);
@@ -262,8 +269,8 @@ export function ChatInput({ roundId, onFocus, onSent }: { roundId: number; onFoc
     if (!ok) return;
     const body = text.trim();
     const { mentions, everyone } = outgoing(body, picked, others);
-    // Only what's there: an older server gets the same body as before.
-    send.mutate({ text: body, ...(mentions.length ? { mentions } : {}), ...(everyone ? { everyone } : {}) });
+    // Only what's there (an older server ignores the key): an older server gets the same body as before.
+    send.mutate({ text: body, ...(mentions.length ? { mentions } : {}), ...(everyone ? { everyone } : {}), client_key: keyFor(body) });
   };
   // While the list is open, the keys drive it: Enter / Tab / the keyboard's send key pick, arrows move, Escape closes.
   const enter = sendOnEnter(() => (open ? pick(rows[active]) : submit()));
