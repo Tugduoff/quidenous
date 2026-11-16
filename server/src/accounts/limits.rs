@@ -246,11 +246,13 @@ mod tests {
     #[test]
     fn buckets_empty_then_say_when_to_retry() {
         let l = Limiter::default();
-        for _ in 0..5 {
+        // Drain the bucket whatever its size, then the wait is about one token's refill time.
+        for _ in 0..SIGNUP_IP.capacity {
             l.hit(&SIGNUP_IP, "1.2.3.4").unwrap();
         }
+        let one_token = SIGNUP_IP.period.as_secs() / u64::from(SIGNUP_IP.capacity);
         match l.hit(&SIGNUP_IP, "1.2.3.4") {
-            Err(AppError::RateLimited(s)) => assert!((1..=720).contains(&s), "{s}"),
+            Err(AppError::RateLimited(s)) => assert!((1..=one_token).contains(&s), "{s}"),
             other => panic!("{other:?}"),
         }
         l.hit(&SIGNUP_IP, "5.6.7.8").unwrap();
@@ -259,7 +261,7 @@ mod tests {
             l.hit(&LOGIN_ACCOUNT_IP, "a@b.c").unwrap();
             l.refund(&LOGIN_ACCOUNT_IP, "a@b.c");
         }
-        for _ in 0..5 {
+        for _ in 0..LOGIN_ACCOUNT_IP.capacity {
             l.hit(&LOGIN_ACCOUNT_IP, "a@b.c").unwrap();
         }
         assert!(l.hit(&LOGIN_ACCOUNT_IP, "a@b.c").is_err());
