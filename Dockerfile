@@ -9,7 +9,7 @@ COPY app ./
 ENV CI=1
 RUN npx expo export --platform web --output-dir /web
 
-FROM rust:1.99.1-slim AS server
+FROM rust:1.100.0-slim AS server
 WORKDIR /src
 COPY server/Cargo.toml server/Cargo.lock ./
 COPY server/src src
