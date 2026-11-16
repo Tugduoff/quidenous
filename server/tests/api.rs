@@ -3481,8 +3481,9 @@ async fn owner_and_delay_together() {
     let (_, g) = call(&app, "GET", "/group", Some(&bob), None).await;
     assert_eq!(g["pace"]["waiting"], true);
     assert!(g["pace"]["next_open_at"].is_null());
+    // (Past 24 h with the owner unseen it would open anyway: see flow.rs and tests/flow.rs.)
     assert_eq!(
-        quidenous_server::pacing::open_due_at(&state, &db_now_plus(&state, "+2 days").await)
+        quidenous_server::pacing::open_due_at(&state, &db_now_plus(&state, "+20 hours").await)
             .await
             .unwrap(),
         0
