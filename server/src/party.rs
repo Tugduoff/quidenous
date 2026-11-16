@@ -11,6 +11,8 @@
 //! sweeper every 5 s (first run at startup) closes overdue questions and ends parties past their end,
 //! so a restart loses nothing. Both go through [`sweep_at`], which tests drive with an explicit time.
 
+use std::net::IpAddr;
+
 use axum::{
     Json, Router,
     extract::{Path, State},
@@ -41,7 +43,11 @@ pub const DEFAULT_HOURS: i64 = 4;
 pub const MAX_PLAYERS: i64 = 40;
 /// Quick reactions on a result.
 pub const EMOJIS: [&str; 6] = ["😂", "🔥", "😱", "👀", "💀", "❤️"];
-const CODE_LEN: usize = 5;
+/// 8 symbols of 32 = 40 bits: the code alone opens the big screen, with names and votes.
+/// (Parties made before this had 5; their codes still work.)
+const CODE_LEN: usize = 8;
+/// The big screen (and its socket) keeps showing the end this long, then the code stops working.
+pub const SCREEN_GRACE_MINUTES: i64 = 15;
 const NAME_MAX: usize = 40;
 /// How often the sweeper looks for overdue questions and finished parties.
 const SWEEP: std::time::Duration = std::time::Duration::from_secs(5);
@@ -87,6 +93,33 @@ pub async fn by_code(state: &AppState, code: &str) -> AppResult<i64> {
     .fetch_optional(&state.db)
     .await?
     .ok_or(AppError::NotFound)
+}
+
+/// The party a big screen shows, by its code, for anyone (no account): rate-limited per IP on
+/// wrong codes, and `404` once the party has been over for [`SCREEN_GRACE_MINUTES`].
+pub async fn screen_by_code(state: &AppState, code: &str, ip: Option<IpAddr>) -> AppResult<i64> {
+    let attempt = crate::quotas::code_attempt(state, None, ip)?;
+    let id = by_code(state, code).await?;
+    attempt.found();
+    if screen_alive(state, id).await? {
+        Ok(id)
+    } else {
+        Err(AppError::NotFound)
+    }
+}
+
+/// Still a party, not deleted, and not over for longer than the grace.
+pub async fn screen_alive(state: &AppState, id: i64) -> AppResult<bool> {
+    Ok(sqlx::query_scalar(concat!(
+        "SELECT EXISTS (SELECT 1 FROM groups WHERE id = ? AND kind = 'party' AND deleted_at IS NULL \
+         AND COALESCE(party_ended_at, party_ends_at, ",
+        now!(),
+        ") > strftime('%Y-%m-%dT%H:%M:%fZ', 'now', ?))"
+    ))
+    .bind(id)
+    .bind(format!("-{SCREEN_GRACE_MINUTES} minutes"))
+    .fetch_one(&state.db)
+    .await?)
 }
 
 fn clean_timer(timer: i64) -> AppResult<i64> {
@@ -661,6 +694,7 @@ async fn create(
         None => my_lang,
     };
     let name = clean_party_name(body.name.as_deref(), my_lang, &host)?;
+    crate::quotas::hit_user(&state, &crate::quotas::ROOM_CREATE_USER, user)?;
     let mut tx = crate::db::write_tx(&state.db).await?;
     let mut created: Option<(i64, String)> = None;
     for _ in 0..8 {
@@ -740,7 +774,11 @@ async fn join(
             Some((name, color))
         }
     };
+    // Guests already paid for the attempt above; accounts and IPs pay for wrong codes.
+    let attempt =
+        crate::quotas::code_attempt(&state, signed_in, guest.is_none().then_some(ip).flatten())?;
     let id = by_code(&state, &body.code).await?;
+    attempt.found();
     let existing = match signed_in {
         Some(user) => {
             sqlx::query_as::<_, MemberRow>(
@@ -868,9 +906,13 @@ async fn get_state(
     Ok(Json(view(&state, id, Some(&me)).await?))
 }
 
-/// The big screen: anyone with the code, no `me`.
-async fn screen(State(state): State<AppState>, Path(code): Path<String>) -> AppResult<Json<Value>> {
-    let id = by_code(&state, &code).await?;
+/// The big screen: anyone with the code, no `me` (`404` a little while after the end).
+async fn screen(
+    State(state): State<AppState>,
+    crate::accounts::ClientIp(ip): crate::accounts::ClientIp,
+    Path(code): Path<String>,
+) -> AppResult<Json<Value>> {
+    let id = screen_by_code(&state, &code, ip).await?;
     Ok(Json(view(&state, id, None).await?))
 }
 

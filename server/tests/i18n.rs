@@ -207,7 +207,7 @@ async fn push_and_inbox_speak_each_recipients_language() {
     let (bob, bob_id) = join(&t.app, "Bob").await;
     set_locale(&t.app, &bob, "en").await;
     for (i, token) in [&ana, &bob].into_iter().enumerate() {
-        let device = json!({ "kind": "web", "endpoint": format!("https://push.example/{i}"), "p256dh": "x", "auth": "y" });
+        let device = json!({ "kind": "web", "endpoint": format!("https://fcm.googleapis.com/fcm/send/{i}"), "p256dh": "x", "auth": "y" });
         let (s, _) = call(&t.app, "POST", "/push/subscribe", Some(token), Some(device)).await;
         assert_eq!(s, StatusCode::OK);
     }

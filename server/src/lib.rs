@@ -19,6 +19,7 @@ pub mod packs;
 pub mod party;
 pub mod play;
 pub mod push;
+pub mod quotas;
 pub mod rooms;
 pub mod routes;
 pub mod share;
@@ -26,16 +27,13 @@ pub mod stats;
 pub mod suggestions;
 pub mod updates;
 pub mod vibes;
+pub mod web;
 
 use std::sync::Arc;
 
 use axum::Router;
 use sqlx::SqlitePool;
-use tower_http::{
-    cors::CorsLayer,
-    services::{ServeDir, ServeFile},
-    trace::TraceLayer,
-};
+use tower_http::{services::ServeDir, trace::TraceLayer};
 
 use crate::{config::Config, live::Live, push::Push};
 
@@ -173,11 +171,17 @@ pub fn app(state: AppState) -> Router {
         )
         .nest_service("/photos", photos);
     if let Some(web) = &state.config.web_dir {
-        app = app
-            .fallback_service(ServeDir::new(web).fallback(ServeFile::new(web.join("index.html"))));
+        let csp = web::app_csp(web, state.config.public_url.as_deref());
+        let csp = axum::http::HeaderValue::from_str(&csp)
+            .unwrap_or(axum::http::HeaderValue::from_static(web::BASE_CSP));
+        app = app.fallback_service(web::app_files(web, csp));
     }
+    let headers = web::Headers::new(&state.config);
     app.layer(axum::middleware::from_fn(error::log_server_errors))
-        .layer(CorsLayer::permissive())
+        .layer(web::cors(&state.config))
+        .layer(axum::middleware::from_fn(move |req, next| {
+            headers.clone().apply(req, next)
+        }))
         .layer(TraceLayer::new_for_http())
         .with_state(state)
 }

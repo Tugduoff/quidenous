@@ -229,6 +229,7 @@ fn rule_by_name(name: &str) -> Option<Rule> {
         CLIENT_ERROR_WEBHOOK,
     ]
     .into_iter()
+    .chain(crate::quotas::RULES)
     .find(|r| r.name == name)
 }
 

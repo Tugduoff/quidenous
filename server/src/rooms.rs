@@ -168,6 +168,7 @@ pub async fn create(
 ) -> AppResult<Json<Value>> {
     let name = clean_room_name(&body.name)?;
     let vibe = clean_vibe(body.vibe.as_deref())?;
+    crate::quotas::hit_user(&state, &crate::quotas::ROOM_CREATE_USER, user)?;
     let language = match body.language.as_deref() {
         Some(l) => clean_language(l)?,
         None => Lang::Fr,
@@ -229,14 +230,17 @@ pub struct JoinBody {
 pub async fn join(
     State(state): State<AppState>,
     UserId(user): UserId,
+    crate::accounts::ClientIp(ip): crate::accounts::ClientIp,
     Json(body): Json<JoinBody>,
 ) -> AppResult<Json<Value>> {
+    let attempt = crate::quotas::code_attempt(&state, Some(user), ip)?;
     let (room_id, kind): (i64, String) =
         sqlx::query_as("SELECT id, kind FROM groups WHERE join_code = ? AND deleted_at IS NULL")
             .bind(body.code.trim().to_uppercase())
             .fetch_optional(&state.db)
             .await?
             .ok_or(AppError::BadRequest("bad_code"))?;
+    attempt.found();
     let existing =
         sqlx::query_as::<_, MemberRow>("SELECT * FROM members WHERE group_id = ? AND user_id = ?")
             .bind(room_id)

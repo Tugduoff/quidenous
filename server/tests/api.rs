@@ -233,7 +233,7 @@ async fn endpoints_need_a_token() {
 async fn devices_can_subscribe_to_push() {
     let app = test_app().await;
     let (tug, _) = join(&app, "Tugdual").await;
-    let web = json!({ "kind": "web", "endpoint": "https://push.example/abc", "p256dh": "x", "auth": "y" });
+    let web = json!({ "kind": "web", "endpoint": "https://fcm.googleapis.com/fcm/send/abc", "p256dh": "x", "auth": "y" });
     let (status, _) = call(
         &app,
         "POST",
@@ -2682,7 +2682,7 @@ async fn notification_settings_filter_pushes() {
     let mut people = Vec::new();
     for (i, name) in ["Tugdual", "Louis", "Ravenne"].into_iter().enumerate() {
         let (token, member) = join(&app, name).await;
-        let device = json!({ "kind": "web", "endpoint": format!("https://push.example/{i}"), "p256dh": "x", "auth": "y" });
+        let device = json!({ "kind": "web", "endpoint": format!("https://fcm.googleapis.com/fcm/send/{i}"), "p256dh": "x", "auth": "y" });
         let (status, _) = call(&app, "POST", "/push/subscribe", Some(&token), Some(device)).await;
         assert_eq!(status, StatusCode::OK);
         let user: i64 = sqlx::query_scalar("SELECT user_id FROM members WHERE id = ?")
@@ -2848,7 +2848,7 @@ async fn chat_mentions_are_validated_and_ping_through_the_chat_switch() {
     let mut people = Vec::new();
     for (i, name) in ["Ana", "Bob", "Cyd", "Dan"].into_iter().enumerate() {
         let (token, member) = join(&app, name).await;
-        let device = json!({ "kind": "web", "endpoint": format!("https://push.example/m{i}"), "p256dh": "x", "auth": "y" });
+        let device = json!({ "kind": "web", "endpoint": format!("https://fcm.googleapis.com/fcm/send/m{i}"), "p256dh": "x", "auth": "y" });
         call(&app, "POST", "/push/subscribe", Some(&token), Some(device)).await;
         let user: i64 = sqlx::query_scalar("SELECT user_id FROM members WHERE id = ?")
             .bind(member)

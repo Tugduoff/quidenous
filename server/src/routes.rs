@@ -30,7 +30,13 @@ const QUESTION_MAX: usize = 200;
 const HISTORY_PAGE: i64 = 30;
 const PHOTO_SIZE: u32 = 256;
 const PHOTO_UPLOAD_MAX: usize = 12 * 1024 * 1024;
-const IMPORT_MAX: usize = 4 * 1024 * 1024;
+/// 500 questions of 200 characters, with room for choose items and comments.
+const IMPORT_MAX: usize = 1024 * 1024;
+/// More people than this named in one message counts as @tous.
+const MENTIONS_MAX: usize = 5;
+/// Pixels on either side of an uploaded photo, and memory its decoding may take.
+const PHOTO_MAX_SIDE: u32 = 8000;
+const PHOTO_MAX_ALLOC: u64 = 256 * 1024 * 1024;
 
 pub fn router() -> Router<AppState> {
     Router::new()
@@ -241,6 +247,12 @@ async fn join(
         legacy_gate(&state, ip)?;
     }
     let name = clean_name(&body.name)?;
+    // Already signed in: the same account joins one more room.
+    let signed_in = match bearer {
+        Some(t) => Some(crate::auth::user_for_token(&state, t).await?),
+        None => None,
+    };
+    let attempt = crate::quotas::code_attempt(&state, signed_in, ip)?;
     // Parties have their own way in (`POST /parties/join`); a deleted room takes nobody.
     let group_id: i64 = sqlx::query_scalar(
         "SELECT id FROM groups WHERE join_code = ? AND kind = 'room' AND deleted_at IS NULL",
@@ -249,11 +261,7 @@ async fn join(
     .fetch_optional(&state.db)
     .await?
     .ok_or(AppError::BadRequest("bad_code"))?;
-    // Already signed in: the same account joins one more room.
-    let signed_in = match bearer {
-        Some(t) => Some(crate::auth::user_for_token(&state, t).await?),
-        None => None,
-    };
+    attempt.found();
     let mut tx = crate::db::write_tx(&state.db).await?;
     let existing = match signed_in {
         Some(user_id) => {
@@ -441,15 +449,33 @@ async fn upload_photo(
         }
     }
     let bytes = bytes.ok_or(AppError::BadRequest("missing_photo"))?;
-    let image = image::load_from_memory(&bytes)?.resize_to_fill(
-        PHOTO_SIZE,
-        PHOTO_SIZE,
-        image::imageops::FilterType::Lanczos3,
-    );
-    let file = format!("{}-{}.jpg", me.id, &new_token()[..8]);
+    if let Some(user) = me.user_id {
+        crate::quotas::hit_user(&state, &crate::quotas::PHOTO_USER, user)?;
+    }
+    // A 128-bit random name: photos are public to whoever has the link.
+    let file = format!("{}-{}.jpg", me.id, &new_token()[..32]);
     let dir = state.config.data_dir.join("photos");
     tokio::fs::create_dir_all(&dir).await?;
-    image.to_rgb8().save(dir.join(&file))?;
+    let path = dir.join(&file);
+    // Decoding and resizing are CPU-heavy: off the async threads, within size limits.
+    tokio::task::spawn_blocking(move || -> AppResult<()> {
+        let mut limits = image::Limits::default();
+        limits.max_image_width = Some(PHOTO_MAX_SIDE);
+        limits.max_image_height = Some(PHOTO_MAX_SIDE);
+        limits.max_alloc = Some(PHOTO_MAX_ALLOC);
+        let mut reader =
+            image::ImageReader::new(std::io::Cursor::new(bytes)).with_guessed_format()?;
+        reader.limits(limits);
+        let image = reader.decode()?.resize_to_fill(
+            PHOTO_SIZE,
+            PHOTO_SIZE,
+            image::imageops::FilterType::Lanczos3,
+        );
+        image.to_rgb8().save(path)?;
+        Ok(())
+    })
+    .await
+    .map_err(|e| AppError::Internal(e.to_string()))??;
     // A photo replaces the drawn avatar.
     let mut tx = crate::db::write_tx(&state.db).await?;
     sqlx::query("UPDATE users SET photo = ?, avatar = NULL WHERE id = ?")
@@ -844,17 +870,19 @@ async fn member_from_query(
     ticket: Option<&str>,
     purpose: crate::accounts::tickets::Purpose,
     room: Option<i64>,
-) -> AppResult<MemberRow> {
+) -> AppResult<(MemberRow, String)> {
     if let Some(ticket) = ticket {
         let hash = state
             .auth
             .tickets
             .redeem(ticket, purpose)
             .ok_or(AppError::Unauthorized)?;
-        return crate::auth::member_in_room_by_hash(state, &hash, room).await;
+        let me = crate::auth::member_in_room_by_hash(state, &hash, room).await?;
+        return Ok((me, hash));
     }
     let token = token.ok_or(AppError::Unauthorized)?;
-    crate::auth::member_in_room(state, token, room).await
+    let me = crate::auth::member_in_room(state, token, room).await?;
+    Ok((me, hash_token(token)))
 }
 
 /// The whole history as a CSV file, from a plain link (browser download): see `member_from_query`.
@@ -862,7 +890,7 @@ async fn export_history(
     State(state): State<AppState>,
     Query(q): Query<ExportQuery>,
 ) -> AppResult<Response> {
-    let me = member_from_query(
+    let (me, _) = member_from_query(
         &state,
         q.token.as_deref(),
         q.ticket.as_deref(),
@@ -903,7 +931,7 @@ async fn export_history(
     .bind(me.group_id)
     .fetch_all(&state.db)
     .await?;
-    let cell = |v: &str| format!("\"{}\"", v.replace('"', "\"\""));
+    let cell = csv_cell;
     // BOM so Excel reads the accents right.
     let mut csv = format!("\u{feff}{}\n", i18n::csv_header(lang));
     for (id, number, question, closed_at, kind) in rounds {
@@ -984,6 +1012,17 @@ async fn export_history(
         ],
         csv,
     )))
+}
+
+/// One quoted CSV cell. Text a spreadsheet would run as a formula (`=`, `+`, `-`, `@`, tab or
+/// carriage return first) gets a leading `'`, so a question like `=HYPERLINK(...)` stays text.
+pub fn csv_cell(v: &str) -> String {
+    let guard = if v.starts_with(['=', '+', '-', '@', '\t', '\r']) {
+        "'"
+    } else {
+        ""
+    };
+    format!("\"{guard}{}\"", v.replace('"', "\"\""))
 }
 
 /// A room setting the owner can switch off (`skip_vote`, `kick_vote`).
@@ -1369,6 +1408,9 @@ async fn add_question(
     Json(body): Json<QuestionBody>,
 ) -> AppResult<Json<QueuedQuestion>> {
     may_add_questions(&state, &me).await?;
+    if let Some(user) = me.user_id {
+        crate::quotas::hit_user(&state, &crate::quotas::QUESTION_USER, user)?;
+    }
     let text = body.text.trim();
     let len = text.chars().count();
     if !(QUESTION_MIN..=QUESTION_MAX).contains(&len) {
@@ -1560,38 +1602,137 @@ struct LiveQuery {
     screen: Option<String>,
 }
 
+/// The app only ever sends "here" / "away": anything bigger is cut off at the frame.
+const WS_MAX_MESSAGE: usize = 256;
+/// The server pings this often; browsers and phones answer by themselves.
+const WS_PING: std::time::Duration = std::time::Duration::from_secs(30);
+/// Nothing at all from the other side (no pong, no "here") for this long: the socket is dropped.
+const WS_IDLE: std::time::Duration = std::time::Duration::from_secs(75);
+/// How often an open socket checks that its session, seat or party is still there.
+const WS_RECHECK: std::time::Duration = std::time::Duration::from_secs(60);
+
+/// Who is on the other end of a live socket.
+enum Watcher {
+    /// A signed-in seat: closed after a kick, a leave, a room deletion or a sign-out.
+    Member {
+        member_id: i64,
+        user_id: Option<i64>,
+        token_hash: String,
+    },
+    /// A party's big screen: closed once the party is gone or over for good.
+    Screen,
+}
+
+impl Watcher {
+    fn user_id(&self) -> Option<i64> {
+        match self {
+            Self::Member { user_id, .. } => *user_id,
+            Self::Screen => None,
+        }
+    }
+
+    /// Still allowed to follow `group_id`?
+    async fn still_allowed(&self, state: &AppState, group_id: i64) -> AppResult<bool> {
+        match self {
+            Self::Member {
+                member_id,
+                token_hash,
+                ..
+            } => Ok(sqlx::query_scalar(
+                "SELECT EXISTS (SELECT 1 FROM user_tokens t \
+                 JOIN members m ON m.user_id = t.user_id AND m.id = ?1 AND m.removed_at IS NULL \
+                 JOIN groups g ON g.id = m.group_id AND g.id = ?2 AND g.deleted_at IS NULL \
+                 WHERE t.token_hash = ?3)",
+            )
+            .bind(member_id)
+            .bind(group_id)
+            .bind(token_hash)
+            .fetch_one(&state.db)
+            .await?),
+            Self::Screen => crate::party::screen_alive(state, group_id).await,
+        }
+    }
+
+    /// After relaying this event, the socket has nothing more to follow.
+    fn ends_with(&self, event: &Event) -> bool {
+        match (self, event) {
+            (_, Event::RoomDeleted) => true,
+            (Self::Member { member_id, .. }, Event::MemberRemoved { member_id: gone }) => {
+                member_id == gone
+            }
+            _ => false,
+        }
+    }
+}
+
 /// WebSocket: `?ticket=` (or `?token=` from older apps) because browsers cannot set headers on a socket.
 /// `?screen=<code>`: a party's events, no account (party rooms only).
+/// Sockets are capped per account, per IP and in all (`429 too_many_sockets`).
 async fn live(
     State(state): State<AppState>,
+    crate::accounts::ClientIp(ip): crate::accounts::ClientIp,
     Query(q): Query<LiveQuery>,
     ws: WebSocketUpgrade,
 ) -> AppResult<Response> {
-    if let Some(code) = &q.screen {
-        let group_id = crate::party::by_code(&state, code).await?;
-        return Ok(ws.on_upgrade(move |socket| relay(socket, state, group_id, None)));
-    }
-    let me = member_from_query(
-        &state,
-        q.token.as_deref(),
-        q.ticket.as_deref(),
-        crate::accounts::tickets::Purpose::Live,
-        q.room,
-    )
-    .await?;
-    Ok(ws.on_upgrade(move |socket| relay(socket, state, me.group_id, me.user_id)))
+    let ws = ws
+        .max_message_size(WS_MAX_MESSAGE)
+        .max_frame_size(WS_MAX_MESSAGE)
+        .read_buffer_size(4 * 1024)
+        .max_write_buffer_size(1024 * 1024);
+    let (group_id, watcher) = if let Some(code) = &q.screen {
+        let group_id = crate::party::screen_by_code(&state, code, ip).await?;
+        (group_id, Watcher::Screen)
+    } else {
+        let (me, token_hash) = member_from_query(
+            &state,
+            q.token.as_deref(),
+            q.ticket.as_deref(),
+            crate::accounts::tickets::Purpose::Live,
+            q.room,
+        )
+        .await?;
+        let watcher = Watcher::Member {
+            member_id: me.id,
+            user_id: me.user_id,
+            token_hash,
+        };
+        (me.group_id, watcher)
+    };
+    let slot = state
+        .live
+        .take_socket(watcher.user_id(), ip)
+        .ok_or(AppError::TooMany("too_many_sockets"))?;
+    Ok(ws.on_upgrade(move |socket| relay(socket, state, group_id, watcher, slot)))
 }
 
-async fn relay(mut socket: WebSocket, state: AppState, group_id: i64, user_id: Option<i64>) {
+async fn relay(
+    mut socket: WebSocket,
+    state: AppState,
+    group_id: i64,
+    watcher: Watcher,
+    _slot: crate::live::SocketSlot,
+) {
+    use std::time::Instant;
     let mut rx = state.live.subscribe();
     let presence = state.push.presence().clone();
     let connection = crate::push::Presence::connection();
+    let user_id = watcher.user_id();
+    let mut ping = tokio::time::interval_at((Instant::now() + WS_PING).into(), WS_PING);
+    let every = state.config.live_recheck.unwrap_or(WS_RECHECK);
+    let mut recheck = tokio::time::interval_at((Instant::now() + every).into(), every);
+    let mut heard = Instant::now();
+    // Why the server hangs up, if it does (a policy close tells the app not to hurry back).
+    let mut close: Option<&'static str> = None;
     loop {
         tokio::select! {
             event = rx.recv() => match event {
                 Ok(e) if e.group_id == group_id => {
                     let Ok(text) = serde_json::to_string(&e.event) else { continue };
                     if socket.send(Message::Text(text.into())).await.is_err() { break; }
+                    if watcher.ends_with(&e.event) {
+                        close = Some("gone");
+                        break;
+                    }
                 }
                 Ok(_) => {}
                 // Lagged behind: tell the app to refetch everything.
@@ -1601,16 +1742,49 @@ async fn relay(mut socket: WebSocket, state: AppState, group_id: i64, user_id: O
                 Err(_) => break,
             },
             incoming = socket.recv() => match incoming {
+                // Closed, broken, or a frame over the size cap.
                 Some(Ok(Message::Close(_))) | None | Some(Err(_)) => break,
                 // The app says whether it is on the screen ("here", repeated) or in the background ("away").
-                Some(Ok(Message::Text(text))) => match (text.as_str(), user_id) {
-                    ("here", Some(user)) => presence.here(user, group_id, connection),
-                    ("away", Some(user)) => presence.away(user, group_id, connection),
-                    _ => {}
-                },
-                _ => {}
+                Some(Ok(Message::Text(text))) => {
+                    heard = Instant::now();
+                    match (text.as_str(), user_id) {
+                        ("here", Some(user)) => presence.here(user, group_id, connection),
+                        ("away", Some(user)) => presence.away(user, group_id, connection),
+                        ("here" | "away", None) => {}
+                        _ => {
+                            close = Some("unexpected");
+                            break;
+                        }
+                    }
+                }
+                Some(Ok(Message::Pong(_) | Message::Ping(_))) => heard = Instant::now(),
+                Some(Ok(Message::Binary(_))) => {
+                    close = Some("unexpected");
+                    break;
+                }
+            },
+            _ = ping.tick() => {
+                if heard.elapsed() > WS_IDLE {
+                    close = Some("idle");
+                    break;
+                }
+                if socket.send(Message::Ping(Default::default())).await.is_err() { break; }
+            },
+            _ = recheck.tick() => {
+                // A database hiccup keeps the socket; the next check decides.
+                if let Ok(false) = watcher.still_allowed(&state, group_id).await {
+                    close = Some("gone");
+                    break;
+                }
             },
         }
+    }
+    if let Some(reason) = close {
+        let frame = axum::extract::ws::CloseFrame {
+            code: axum::extract::ws::close_code::POLICY,
+            reason: reason.into(),
+        };
+        let _ = socket.send(Message::Close(Some(frame))).await;
     }
     if let Some(user) = user_id {
         presence.away(user, group_id, connection);
@@ -1807,6 +1981,10 @@ async fn post_message(
     if text.is_empty() || text.chars().count() > MESSAGE_MAX {
         return Err(AppError::BadRequest("bad_message"));
     }
+    if let Some(user) = me.user_id {
+        crate::quotas::hit_user(&state, &crate::quotas::CHAT_USER, user)?;
+        crate::quotas::hit_user(&state, &crate::quotas::CHAT_HOUR_USER, user)?;
+    }
     // Everyone else still in the room: who hears about it, and who can be mentioned.
     let others: Vec<i64> = sqlx::query_scalar(
         "SELECT id FROM members WHERE group_id = ? AND removed_at IS NULL AND id != ? ORDER BY id",
@@ -1822,16 +2000,25 @@ async fn post_message(
         .collect();
     mentions.sort_unstable();
     mentions.dedup();
+    // Naming more than a few people is the same as @tous: it shares its cooldown.
+    let crowd = mentions.len() > MENTIONS_MAX;
     // @tous rings the whole room once in a while; more often, it's a plain message.
-    let ring_everyone = body.everyone
+    let rings = (body.everyone || crowd)
         && !sqlx::query_scalar::<_, bool>(
-            "SELECT EXISTS (SELECT 1 FROM messages WHERE member_id = ? AND everyone = 1 \
+            "SELECT EXISTS (SELECT 1 FROM messages WHERE member_id = ? \
+             AND (everyone = 1 OR json_array_length(mentions) > ?) \
              AND created_at > strftime('%Y-%m-%dT%H:%M:%fZ', 'now', ?))",
         )
         .bind(me.id)
+        .bind(MENTIONS_MAX as i64)
         .bind(EVERYONE_COOLDOWN)
         .fetch_one(&state.db)
         .await?;
+    let ring_everyone = body.everyone && rings;
+    // A crowd of mentions during the cooldown: a plain message for everyone.
+    if crowd && !rings {
+        mentions.clear();
+    }
     let message: MessageRow = sqlx::query_as::<_, MessageDb>(
         "INSERT INTO messages (round_id, member_id, text, mentions, everyone) VALUES (?, ?, ?, ?, ?) \
          RETURNING id, member_id, ? AS user_id, text, created_at, mentions, everyone",
@@ -1926,9 +2113,13 @@ enum SubscribeBody {
     },
 }
 
+/// Registers this device for pushes, tied to this session (signing out removes it). Web Push
+/// endpoints must be on a known push service; at most [`crate::push::MAX_DEVICES`] per account,
+/// the oldest go first.
 async fn push_subscribe(
     State(state): State<AppState>,
     Me(me): Me,
+    headers: axum::http::HeaderMap,
     Json(body): Json<SubscribeBody>,
 ) -> AppResult<Json<Value>> {
     let (kind, endpoint, p256dh, auth) = match body {
@@ -1936,25 +2127,52 @@ async fn push_subscribe(
             endpoint,
             p256dh,
             auth,
-        } => ("web", endpoint, Some(p256dh), Some(auth)),
-        SubscribeBody::Fcm { token } => ("fcm", token, None, None),
+        } => {
+            if !crate::push::web_endpoint_allowed(&endpoint) {
+                return Err(AppError::BadRequest("bad_endpoint"));
+            }
+            if !crate::push::key_ok(&p256dh, 128) || !crate::push::key_ok(&auth, 64) {
+                return Err(AppError::BadRequest("bad_keys"));
+            }
+            ("web", endpoint, Some(p256dh), Some(auth))
+        }
+        SubscribeBody::Fcm { token } => {
+            if !crate::push::fcm_token_ok(&token) {
+                return Err(AppError::BadRequest("bad_endpoint"));
+            }
+            ("fcm", token, None, None)
+        }
     };
-    if !(kind == "fcm" || endpoint.starts_with("https://")) {
-        return Err(AppError::BadRequest("bad_endpoint"));
-    }
+    let user = me.user_id.ok_or(AppError::Unauthorized)?;
+    crate::quotas::hit_user(&state, &crate::quotas::PUSH_USER, user)?;
+    let token_hash = crate::accounts::bearer(&headers).map(hash_token);
+    let mut tx = crate::db::write_tx(&state.db).await?;
     sqlx::query(
-        "INSERT INTO push_subscriptions (member_id, user_id, kind, endpoint, p256dh, auth) VALUES (?, ?, ?, ?, ?, ?) \
+        "INSERT INTO push_subscriptions (member_id, user_id, kind, endpoint, p256dh, auth, token_hash) \
+         VALUES (?, ?, ?, ?, ?, ?, ?) \
          ON CONFLICT (endpoint) DO UPDATE SET member_id = excluded.member_id, user_id = excluded.user_id, \
-         p256dh = excluded.p256dh, auth = excluded.auth",
+         p256dh = excluded.p256dh, auth = excluded.auth, token_hash = excluded.token_hash, \
+         created_at = excluded.created_at",
     )
     .bind(me.id)
-    .bind(me.user_id)
+    .bind(user)
     .bind(kind)
-    .bind(endpoint)
+    .bind(&endpoint)
     .bind(p256dh)
     .bind(auth)
-    .execute(&state.db)
+    .bind(token_hash)
+    .execute(&mut *tx)
     .await?;
+    // Too many devices: the ones not registered again for the longest go (apps register at each start).
+    sqlx::query(
+        "DELETE FROM push_subscriptions WHERE user_id = ?1 AND id NOT IN \
+         (SELECT id FROM push_subscriptions WHERE user_id = ?1 ORDER BY created_at DESC, id DESC LIMIT ?2)",
+    )
+    .bind(user)
+    .bind(crate::push::MAX_DEVICES)
+    .execute(&mut *tx)
+    .await?;
+    tx.commit().await?;
     Ok(Json(json!({ "ok": true })))
 }
 
@@ -1968,9 +2186,10 @@ async fn push_unsubscribe(
     Me(me): Me,
     Json(body): Json<UnsubscribeBody>,
 ) -> AppResult<Json<Value>> {
-    sqlx::query("DELETE FROM push_subscriptions WHERE endpoint = ? AND member_id = ?")
+    // Any device of my account (I may have switched rooms since it registered).
+    sqlx::query("DELETE FROM push_subscriptions WHERE endpoint = ? AND user_id = ?")
         .bind(body.endpoint)
-        .bind(me.id)
+        .bind(me.user_id)
         .execute(&state.db)
         .await?;
     Ok(Json(json!({ "ok": true })))
@@ -2145,6 +2364,13 @@ async fn import_questions(
                 && (*kind != "choose" || items.is_some())
         })
         .collect();
+    // One write transaction per import: keep it short.
+    if valid.len() > crate::quotas::IMPORT_LINES {
+        return Err(AppError::BadRequest("too_many_questions"));
+    }
+    if let Some(user) = me.user_id {
+        crate::quotas::hit_user(&state, &crate::quotas::IMPORT_USER, user)?;
+    }
     // Imports belong to this room only (asked before the shared deck, in file order),
     // never to the deck every room draws from.
     let mut added: u64 = 0;

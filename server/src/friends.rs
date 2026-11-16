@@ -90,9 +90,11 @@ pub struct AddBody {
 pub async fn add(
     State(state): State<AppState>,
     UserId(me): UserId,
+    crate::accounts::ClientIp(ip): crate::accounts::ClientIp,
     Json(body): Json<AddBody>,
 ) -> AppResult<Json<Value>> {
     let code = body.code.trim().to_uppercase();
+    let attempt = crate::quotas::code_attempt(&state, Some(me), ip)?;
     // A block, either way, looks like an unknown code.
     let (other, name): (i64, String) = sqlx::query_as(
         "SELECT id, name FROM users WHERE friend_code = ?1 AND deleted_at IS NULL \
@@ -104,6 +106,7 @@ pub async fn add(
     .fetch_optional(&state.db)
     .await?
     .ok_or(AppError::BadRequest("bad_code"))?;
+    attempt.found();
     if other == me {
         return Err(AppError::BadRequest("self_friend"));
     }
@@ -178,6 +181,7 @@ pub async fn add_to_room(
     Json(body): Json<AddToRoomBody>,
 ) -> AppResult<Json<Value>> {
     let my_seat = seat(&state, me, room).await?;
+    crate::quotas::hit_user(&state, &crate::quotas::ROOM_ADD_USER, me)?;
     if !are_friends(&state, me, body.user_id).await? {
         return Err(AppError::Forbidden("not_friends"));
     }

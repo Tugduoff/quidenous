@@ -6,7 +6,11 @@
 //! Cards and pages speak the sharer's language at share time (`shares.lang`, `stat_shares.lang`).
 //! `/p/{id}` (and `/p/{id}/card.png`) is the same kind of page for a public community pack, in its language.
 
-use std::sync::{Arc, OnceLock};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex, OnceLock},
+    time::{Duration, Instant},
+};
 
 use axum::{
     Json,
@@ -530,13 +534,60 @@ pub async fn card_png(State(state): State<AppState>, Path(token): Path<String>) 
     png_response(svg(&card)).await
 }
 
-/// Renders a card off the async threads and answers it as a PNG.
-async fn png_response(svg: String) -> Response {
-    match tokio::task::spawn_blocking(move || render_svg(&svg))
-        .await
-        .ok()
-        .flatten()
+/// Rendered cards kept in memory, by the SHA-256 of their SVG (a changed card is a new entry).
+const CARD_CACHE: usize = 64;
+const CARD_TTL: Duration = Duration::from_secs(10 * 60);
+/// Cards rendered at once at most (each takes a 1200×630 pixmap and real CPU).
+const CARD_RENDERS: usize = 2;
+
+type CardCache = HashMap<[u8; 32], (Instant, axum::body::Bytes)>;
+
+fn card_cache() -> &'static Mutex<CardCache> {
+    static CACHE: OnceLock<Mutex<CardCache>> = OnceLock::new();
+    CACHE.get_or_init(Mutex::default)
+}
+
+/// The PNG of a card SVG: from the cache, else rendered off the async threads (a few at a time).
+pub async fn card(svg: String) -> Option<axum::body::Bytes> {
+    use sha2::{Digest, Sha256};
+    static RENDERS: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(CARD_RENDERS);
+    let key: [u8; 32] = Sha256::digest(svg.as_bytes()).into();
+    let cached = |now: Instant| {
+        let cache = card_cache().lock().unwrap_or_else(|e| e.into_inner());
+        cache
+            .get(&key)
+            .filter(|(at, _)| now.duration_since(*at) < CARD_TTL)
+            .map(|(_, png)| png.clone())
+    };
+    if let Some(png) = cached(Instant::now()) {
+        return Some(png);
+    }
+    let _permit = RENDERS.acquire().await.ok()?;
+    // Someone else may have rendered it while this one waited.
+    if let Some(png) = cached(Instant::now()) {
+        return Some(png);
+    }
+    let png = axum::body::Bytes::from(
+        tokio::task::spawn_blocking(move || render_svg(&svg))
+            .await
+            .ok()
+            .flatten()?,
+    );
+    let now = Instant::now();
+    let mut cache = card_cache().lock().unwrap_or_else(|e| e.into_inner());
+    cache.retain(|_, (at, _)| now.duration_since(*at) < CARD_TTL);
+    if cache.len() >= CARD_CACHE
+        && let Some(oldest) = cache.iter().min_by_key(|(_, (at, _))| *at).map(|(k, _)| *k)
     {
+        cache.remove(&oldest);
+    }
+    cache.insert(key, (now, png.clone()));
+    Some(png)
+}
+
+/// Renders a card (or takes it from the cache) and answers it as a PNG.
+async fn png_response(svg: String) -> Response {
+    match card(svg).await {
         Some(png) => (
             [
                 (header::CONTENT_TYPE, "image/png"),

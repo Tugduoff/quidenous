@@ -28,6 +28,82 @@ use crate::i18n::{Lang, Text};
 const RECORD_SIZE: u32 = 4096;
 const TTL_SECONDS: &str = "86400";
 const JWT_LIFETIME_SECONDS: u64 = 12 * 3600;
+/// Push services and Google's token endpoint get this long to answer.
+const HTTP_TIMEOUT: Duration = Duration::from_secs(10);
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
+/// Push devices per account at most (registering one more drops the stalest).
+pub const MAX_DEVICES: i64 = 10;
+/// The Web Push services browsers use: Chrome and most Chromium browsers (FCM), Firefox
+/// (Mozilla autopush), Safari (Apple) and Edge (Windows Push Notification Services).
+/// Endpoints anywhere else are refused, so the server never posts to arbitrary hosts.
+const WEB_PUSH_HOSTS: [&str; 4] = [
+    "fcm.googleapis.com",
+    "push.services.mozilla.com",
+    "push.apple.com",
+    "notify.windows.com",
+];
+
+/// A Web Push endpoint on one of [`WEB_PUSH_HOSTS`] (or a subdomain), over https on the
+/// default port, 1 KB at most.
+pub fn web_endpoint_allowed(endpoint: &str) -> bool {
+    if endpoint.len() > 1024 {
+        return false;
+    }
+    let Ok(url) = reqwest::Url::parse(endpoint) else {
+        return false;
+    };
+    // `domain()` is none for IP addresses.
+    let Some(host) = url.domain() else {
+        return false;
+    };
+    let host = host.to_ascii_lowercase();
+    url.scheme() == "https"
+        && url.username().is_empty()
+        && url.password().is_none()
+        && url.port().is_none()
+        && WEB_PUSH_HOSTS
+            .iter()
+            .any(|h| host == *h || host.ends_with(&format!(".{h}")))
+}
+
+/// A browser key (`p256dh`, `auth`): base64 characters, `max` at most.
+pub fn key_ok(key: &str, max: usize) -> bool {
+    !key.is_empty()
+        && key.len() <= max
+        && key
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'+' | b'/' | b'='))
+}
+
+/// An FCM registration token: printable ASCII, 4 KB at most.
+pub fn fcm_token_ok(token: &str) -> bool {
+    !token.is_empty() && token.len() <= 4096 && token.bytes().all(|b| b.is_ascii_graphic())
+}
+
+/// Did FCM say this token is dead? `UNREGISTERED`, or `INVALID_ARGUMENT` about the token itself;
+/// any other `INVALID_ARGUMENT` is our message's fault, and the device stays.
+fn fcm_token_gone(status: u16, body: &str) -> bool {
+    if status == 404 {
+        return true;
+    }
+    let Ok(v) = serde_json::from_str::<serde_json::Value>(body) else {
+        return body.contains("UNREGISTERED");
+    };
+    let error = &v["error"];
+    let details = error["details"].as_array().cloned().unwrap_or_default();
+    let code = |c: &str| error["status"] == c || details.iter().any(|d| d["errorCode"] == c);
+    if code("UNREGISTERED") {
+        return true;
+    }
+    let about_token = details.iter().any(|d| {
+        d["fieldViolations"]
+            .as_array()
+            .is_some_and(|f| f.iter().any(|f| f["field"] == "message.token"))
+    }) || error["message"]
+        .as_str()
+        .is_some_and(|m| m.contains("registration token"));
+    code("INVALID_ARGUMENT") && about_token
+}
 
 /// What a push is about: each kind can be turned off in the notification settings.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -410,7 +486,13 @@ enum Delivery {
 impl Push {
     pub fn new(vapid: Option<Vapid>, fcm: Option<Fcm>) -> Self {
         Self {
-            http: reqwest::Client::new(),
+            http: reqwest::Client::builder()
+                .timeout(HTTP_TIMEOUT)
+                .connect_timeout(CONNECT_TIMEOUT)
+                // A push service never needs to send us elsewhere.
+                .redirect(reqwest::redirect::Policy::none())
+                .build()
+                .unwrap_or_default(),
             vapid: vapid.map(Arc::new),
             fcm: fcm.map(Arc::new),
             presence: Presence::default(),
@@ -628,6 +710,10 @@ impl Push {
         let (Some(p256dh), Some(auth)) = (&sub.p256dh, &sub.auth) else {
             return Delivery::Gone;
         };
+        // Registered before the allowlist: not a push service, never posted to.
+        if !web_endpoint_allowed(&sub.endpoint) {
+            return Delivery::Gone;
+        }
         let payload = serde_json::to_vec(&n.payload(sub.lang())).unwrap_or_default();
         let body = match encrypt(&payload, p256dh, auth) {
             Ok(b) => b,
@@ -691,13 +777,13 @@ impl Push {
             .await;
         match res {
             Ok(r) if r.status().is_success() => Delivery::Sent,
-            Ok(r) if matches!(r.status().as_u16(), 404) => Delivery::Gone,
             Ok(r) => {
+                let status = r.status().as_u16();
                 let text = r.text().await.unwrap_or_default();
-                if text.contains("UNREGISTERED") || text.contains("INVALID_ARGUMENT") {
+                if fcm_token_gone(status, &text) {
                     Delivery::Gone
                 } else {
-                    Delivery::Failed(text)
+                    Delivery::Failed(format!("{status} {text}"))
                 }
             }
             Err(e) => Delivery::Failed(e.to_string()),
@@ -715,6 +801,56 @@ pub fn generate_vapid() -> (String, String) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_known_push_services_are_accepted() {
+        for ok in [
+            "https://fcm.googleapis.com/fcm/send/abc:def",
+            "https://updates.push.services.mozilla.com/wpush/v2/gAAA",
+            "https://web.push.apple.com/QGx",
+            "https://wns2-par02p.notify.windows.com/w/?token=x",
+        ] {
+            assert!(web_endpoint_allowed(ok), "{ok}");
+        }
+        for bad in [
+            "http://fcm.googleapis.com/fcm/send/abc",
+            "https://192.168.1.1/push",
+            "https://[::1]/push",
+            "https://evilfcm.googleapis.com.example.com/x",
+            "https://fcm.googleapis.com.evil.com/x",
+            "https://notfcm.googleapis.co/x",
+            "https://fcm.googleapis.com:8443/x",
+            "https://user@fcm.googleapis.com/x",
+            "https://localhost/x",
+            "not a url",
+        ] {
+            assert!(!web_endpoint_allowed(bad), "{bad}");
+        }
+        let long = format!("https://fcm.googleapis.com/{}", "a".repeat(1024));
+        assert!(!web_endpoint_allowed(&long));
+    }
+
+    #[test]
+    fn fcm_drops_a_token_only_when_the_token_is_the_problem() {
+        let unregistered = r#"{"error":{"code":404,"status":"NOT_FOUND","details":[{"errorCode":"UNREGISTERED"}]}}"#;
+        assert!(fcm_token_gone(404, unregistered));
+        assert!(fcm_token_gone(
+            400,
+            r#"{"error":{"status":"INVALID_ARGUMENT","details":[{"errorCode":"UNREGISTERED"}]}}"#
+        ));
+        let bad_token = r#"{"error":{"code":400,"message":"The registration token is not a valid FCM registration token","status":"INVALID_ARGUMENT","details":[{"@type":"type.googleapis.com/google.firebase.fcm.v1.FcmError","errorCode":"INVALID_ARGUMENT"}]}}"#;
+        assert!(fcm_token_gone(400, bad_token));
+        let field = r#"{"error":{"status":"INVALID_ARGUMENT","details":[{"@type":"type.googleapis.com/google.rpc.BadRequest","fieldViolations":[{"field":"message.token","description":"Invalid registration token"}]}]}}"#;
+        assert!(fcm_token_gone(400, field));
+        // Our payload is wrong: every device would be wiped if that counted.
+        let payload = r#"{"error":{"code":400,"message":"Invalid value at 'message.android.notification.tag'","status":"INVALID_ARGUMENT","details":[{"@type":"type.googleapis.com/google.rpc.BadRequest","fieldViolations":[{"field":"message.android.notification.tag"}]}]}}"#;
+        assert!(!fcm_token_gone(400, payload));
+        assert!(!fcm_token_gone(500, "internal"));
+        assert!(!fcm_token_gone(
+            429,
+            r#"{"error":{"status":"RESOURCE_EXHAUSTED"}}"#
+        ));
+    }
 
     /// Decrypts like a browser would (RFC 8291 from the user agent side) to check `encrypt`.
     fn decrypt(body: &[u8], ua_secret: &SecretKey, auth: &[u8]) -> Vec<u8> {
