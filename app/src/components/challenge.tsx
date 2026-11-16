@@ -11,7 +11,7 @@ import { challengeRoom, communityError, communityKeys, type PodiumEntry, questio
 import { useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
 import { useGroup, useRooms } from '@/lib/queries';
-import { shareText } from '@/lib/share';
+import { confirmPublic, myLinksKey, shareText } from '@/lib/share';
 import { useTheme } from '@/lib/theme';
 
 /** "Défier un autre salon" on a closed result: send it to another of my rooms, or share a link to play it. */
@@ -61,7 +61,9 @@ function ChallengeDialog({ round, onDone }: { round: Round; onDone: () => void }
   const link = useMutation({
     meta: { quiet: true },
     mutationFn: async () => {
+      if (!(await confirmPublic())) return 'failed' as const;
       const url = await questionShareLink(round.id);
+      qc.invalidateQueries({ queryKey: myLinksKey });
       return shareText(tr('community.challenge.share', { question: round.question, link: url }));
     },
     onMutate: () => setError(null),
@@ -130,7 +132,14 @@ export function Challenges({ roundId }: { roundId: number }) {
                 {tr('community.challenge.vs', { a: group.name, b: c.room })}
               </Text>
             </View>
-            {c.podium && c.mine_podium ? (
+            {c.private && c.closed ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Check size={14} color={t.mut} />
+                <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: t.font.regular, fontSize: 14, color: t.mut }}>
+                  {tr('community.challenge.played', { room: c.room })}
+                </Text>
+              </View>
+            ) : c.podium && c.mine_podium ? (
               <View style={{ flexDirection: 'row', gap: 14 }}>
                 <Podium title={group.name} entries={c.mine_podium} />
                 <View style={{ width: 1, backgroundColor: t.line }} />

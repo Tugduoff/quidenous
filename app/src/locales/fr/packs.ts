@@ -23,6 +23,11 @@ export const packs = {
     absurde: 'Absurde',
   },
   spicy: '16+',
+  spicyAge: {
+    title: 'Contenu 16+',
+    message: 'Des questions osées, réservées aux 16 ans et plus.',
+    action: "J'ai 16 ans ou plus",
+  },
   featured: 'Sélection Coflop',
   /** Under a pack's name. */
   byline: { one: '{count} question · {author}', other: '{count} questions · {author}' },

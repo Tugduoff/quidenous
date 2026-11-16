@@ -464,6 +464,7 @@ export function ConfirmModal({
   onCancel,
   busy,
   confirmDisabled,
+  tone,
   children,
 }: {
   visible: boolean;
@@ -474,19 +475,20 @@ export function ConfirmModal({
   onCancel: () => void;
   busy?: boolean;
   confirmDisabled?: boolean;
+  tone?: 'danger' | 'acc';
   children?: ReactNode;
 }) {
   return (
     <Dialog visible={visible} onClose={onCancel}>
       <DialogTitle title={title} message={message} />
       {children}
-      <DialogActions confirmLabel={confirmLabel} onConfirm={onConfirm} onCancel={onCancel} busy={busy} disabled={confirmDisabled} />
+      <DialogActions confirmLabel={confirmLabel} onConfirm={onConfirm} onCancel={onCancel} busy={busy} disabled={confirmDisabled} tone={tone} />
     </Dialog>
   );
 }
 
 /** Asked from anywhere (no state to wire up): the one ConfirmHost in the root layout shows it. */
-type Ask = { title: string; message?: string; action: string; resolve: (ok: boolean) => void };
+type Ask = { title: string; message?: string; action: string; tone?: 'danger' | 'acc'; resolve: (ok: boolean) => void };
 let asking: Ask | null = null;
 const askListeners = new Set<() => void>();
 const setAsking = (next: Ask | null) => {
@@ -494,9 +496,10 @@ const setAsking = (next: Ask | null) => {
   askListeners.forEach((l) => l());
 };
 
-export function askConfirm(title: string, message: string | undefined, action: string): Promise<boolean> {
+/** `tone="acc"`: a go-ahead rather than a destructive action (the button in the accent colour). */
+export function askConfirm(title: string, message: string | undefined, action: string, tone?: 'danger' | 'acc'): Promise<boolean> {
   asking?.resolve(false);
-  return new Promise((resolve) => setAsking({ title, message, action, resolve }));
+  return new Promise((resolve) => setAsking({ title, message, action, tone, resolve }));
 }
 
 export function ConfirmHost() {
@@ -517,6 +520,7 @@ export function ConfirmHost() {
       title={ask?.title ?? ''}
       message={ask?.message}
       confirmLabel={ask?.action ?? ''}
+      tone={ask?.tone}
       onConfirm={() => answer(true)}
       onCancel={() => answer(false)}
     />

@@ -7,6 +7,7 @@ import Animated from 'react-native-reanimated';
 
 import { ErrorText, TextLink } from '@/components/auth-ui';
 import { Screen } from '@/components/screen';
+import { TermsCheck } from '@/components/terms';
 import { Avatar, AvatarStack, Button, Card, Display, Logo } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { setPendingCode } from '@/lib/auth';
@@ -37,6 +38,7 @@ export default function JoinParty() {
   const [color, setColor] = useState(() => COLORS[Math.floor(Math.random() * COLORS.length)]);
   const [error, setError] = useState<string | null>(null);
   const [target, setTarget] = useState<number | null>(null);
+  const [terms, setTerms] = useState(false);
 
   // Once the session is in that party (a guest's goes from signed out to in), on to its screen.
   useEffect(() => {
@@ -59,7 +61,8 @@ export default function JoinParty() {
   const over = p?.phase === 'over' || status === 'party_over';
   const unknown = status === 'not_found';
   const closed = over || unknown;
-  const ready = !closed && (!!token || !!name.trim()) && !join.isPending;
+  // A guest account is made here: the terms first.
+  const ready = !closed && (!!token || (!!name.trim() && terms)) && !join.isPending;
   const go = () => ready && join.mutate();
 
   return (
@@ -69,7 +72,7 @@ export default function JoinParty() {
         !closed && (
           <>
             <ErrorText>{error}</ErrorText>
-            <Button disabled={!token && !name.trim()} loading={join.isPending || target != null} onPress={go}>
+            <Button disabled={!token && (!name.trim() || !terms)} loading={join.isPending || target != null} onPress={go}>
               <Text style={{ fontFamily: t.font.bold, fontSize: 17, color: t.accTxt }}>{tr('party.join.go')}</Text>
               <ArrowRight size={20} color={t.accTxt} />
             </Button>
@@ -154,6 +157,7 @@ export default function JoinParty() {
               })}
             </View>
           </View>
+          <TermsCheck value={terms} onChange={setTerms} />
         </View>
       )}
     </Screen>

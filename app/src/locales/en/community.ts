@@ -46,6 +46,7 @@ export const community: Messages['community'] = {
     vs: '{a} vs {b}',
     waiting: 'Waiting for {room}',
     share: 'We played “{question}”. Your turn: {link}',
+    played: '{room} played it too',
   },
   errors: {
     tooMany: 'No more suggestions today',

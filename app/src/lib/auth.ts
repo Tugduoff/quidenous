@@ -40,6 +40,8 @@ export type Account = {
   guest?: boolean;
   /** A 2FA reset by e-mail is pending: 2FA goes at this time (unix seconds) unless cancelled. */
   mfa_reset_at?: number | null;
+  /** Accepted the current terms (16+ included); `false`: the app asks once. Absent from an older server. */
+  terms?: boolean;
 };
 
 export type DeviceSession = { id: string; device: string | null; created_at: string; last_used_at: string | null; current: boolean };
@@ -132,6 +134,8 @@ export function useFeatures() {
     packChoose: on.has('pack_choose'),
     /** The pack file template for AI agents (`/pack-template.md`, `/en/pack-template.md`). */
     packTemplate: on.has('pack_template'),
+    /** My public links can be listed and deleted (`/shares`). */
+    shareLinks: on.has('share_links'),
   };
 }
 

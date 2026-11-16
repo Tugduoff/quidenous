@@ -9,4 +9,18 @@ export const share: Messages['share'] = {
   points: '{points} pts',
   story: 'qui de nous ? · {title}\n{line}',
   historyFile: 'qui-de-nous-history.csv',
+  public: {
+    title: 'Public link',
+    message: 'Anyone with the link sees this card and the room’s name, for 90 days. You can delete it in Profile > My links.',
+    action: 'Share',
+  },
+  links: {
+    title: 'My links',
+    question: 'Question',
+    result: 'Result',
+    stat: 'Stat',
+    until: 'until {date}',
+    revoke: 'Delete link',
+    revoked: 'Link deleted',
+  },
 };

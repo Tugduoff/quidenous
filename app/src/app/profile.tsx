@@ -24,6 +24,7 @@ import { useState } from 'react';
 import { ActivityIndicator, Linking, Platform, Pressable, Text, TextInput, View } from 'react-native';
 
 import { BackButton } from '@/components/auth-ui';
+import { MyLinksRow } from '@/components/my-links';
 import { Screen } from '@/components/screen';
 import { useSignOut } from '@/components/security/devices';
 import { Avatar, Button, Card, Dialog, DialogTitle, Display } from '@/components/ui';
@@ -337,6 +338,8 @@ export default function Profile() {
           </Card>
         </Pressable>
       )}
+
+      <MyLinksRow />
 
       {features.auth && (
         <Pressable accessibilityRole="button" onPress={() => router.push('/security')}>
