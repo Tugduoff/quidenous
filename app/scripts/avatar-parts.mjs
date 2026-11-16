@@ -20,11 +20,6 @@ const back = (s) => ({ ...s, layer: 'back' });
 const EL = 41;
 const ER = 59;
 const EY = 49;
-/** Translate a path's absolute coordinates by dx (x only): every even number in the list. */
-const shiftX = (d, dx) => {
-  let i = 0;
-  return d.replace(/-?\d+(\.\d+)?/g, (n) => (i++ % 2 === 0 ? String(+(+n + dx).toFixed(2)) : n));
-};
 /** Mirror a path around x = 50. */
 const mirror = (d) => {
   let i = 0;

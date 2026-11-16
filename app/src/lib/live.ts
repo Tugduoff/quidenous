@@ -4,11 +4,9 @@ import { AppState } from 'react-native';
 
 import { liveUrl } from './api';
 import { PARTY_EVENTS, partyKeys } from './party';
-import { keys } from './queries';
+import { keys, refreshHistory } from './queries';
+import { openSocket } from './ws';
 
-const RETRY_MS = 3000;
-/** The server hung up on purpose (seat or session gone, unexpected message): no hurry to come back. */
-const POLICY_RETRY_MS = 60_000;
 /** While on the screen, the app tells the server every so often, so it sends no push for this room. */
 const HERE_MS = 20_000;
 /** Events in a burst (a round closing, guests joining a party) refetch each query once. */
@@ -26,7 +24,7 @@ function touched(event: LiveEvent): QueryKey[] | 'all' {
       return [keys.current];
     case 'round_closed':
     case 'round_opened':
-      return [['round'], keys.history, keys.queue, keys.stats];
+      return [['round'], keys.historyList, keys.queue, keys.stats];
     case 'message_posted':
       return event.round_id ? [keys.messages(event.round_id)] : [];
     case 'inbox_changed':
@@ -34,7 +32,7 @@ function touched(event: LiveEvent): QueryKey[] | 'all' {
     case 'kick_voted':
       return [keys.group];
     case 'round_pinned':
-      return event.round_id ? [keys.history, keys.round(event.round_id)] : [keys.history];
+      return event.round_id ? [keys.pinned, keys.round(event.round_id)] : [keys.pinned];
     case 'question_added':
       return [keys.queue];
     // Settings, owner, pacing, invite code: the room and its open question (skip rules, next opening).
@@ -59,17 +57,21 @@ export function useLive(token: string | null, room: number | null) {
   const qc = useQueryClient();
   useEffect(() => {
     if (!token) return;
-    let ws: WebSocket | null = null;
-    let stopped = false;
-    let retry: ReturnType<typeof setTimeout>;
     // Queries to refetch at the end of the current burst ('all': everything).
     let batch = new Map<string, QueryKey>();
     let batchAll = false;
     let flushTimer: ReturnType<typeof setTimeout> | null = null;
     const flush = () => {
       flushTimer = null;
-      if (batchAll) qc.invalidateQueries();
-      else for (const queryKey of batch.values()) qc.invalidateQueries({ queryKey });
+      if (batchAll) {
+        qc.invalidateQueries({ predicate: (q) => q.queryKey[0] !== 'history' || q.queryKey[1] !== 'list' });
+        refreshHistory(qc).catch(() => {});
+      } else
+        for (const queryKey of batch.values()) {
+          // The history list gets its newest page only (see refreshHistory).
+          if (queryKey === keys.historyList) refreshHistory(qc).catch(() => {});
+          else qc.invalidateQueries({ queryKey });
+        }
       batch = new Map();
       batchAll = false;
     };
@@ -79,43 +81,32 @@ export function useLive(token: string | null, room: number | null) {
       if (!flushTimer && (batchAll || batch.size)) flushTimer = setTimeout(flush, BATCH_MS);
     };
     const presence = () => {
-      if (ws?.readyState === WebSocket.OPEN) ws.send(AppState.currentState === 'active' ? 'here' : 'away');
+      socket.send(AppState.currentState === 'active' ? 'here' : 'away');
     };
     const heartbeat = setInterval(presence, HERE_MS);
     const appState = AppState.addEventListener('change', presence);
-    const connect = async () => {
+    const socket = openSocket<LiveEvent>(async () => {
       // A short-lived ticket instead of the token in the URL, when the server has them.
       const tickets = !!qc.getQueryData<string[]>(['features'])?.includes('tickets');
-      const url = await liveUrl(token, tickets).catch(() => null);
-      if (stopped) return;
-      if (!url) {
-        retry = setTimeout(connect, RETRY_MS);
-        return;
-      }
-      ws = new WebSocket(url);
-      ws.onopen = () => {
+      return liveUrl(token, tickets);
+    }, {
+      onOpen: () => {
         presence();
-        qc.invalidateQueries();
-      };
-      ws.onmessage = (msg) => {
-        const event = JSON.parse(String(msg.data)) as LiveEvent;
+        // Everything but the history list's pages (one refetch each): only its newest page.
+        qc.invalidateQueries({ predicate: (q) => q.queryKey[0] !== 'history' || q.queryKey[1] !== 'list' });
+        refreshHistory(qc).catch(() => {});
+      },
+      onEvent: (event) => {
         // A party's screen follows every event of its room (the socket only carries the current room's).
         if (PARTY_EVENTS.has(event.type)) invalidate([partyKeys.all]);
         invalidate(touched(event));
-      };
-      ws.onclose = (e) => {
-        const policy = e.code === 1008 && e.reason !== 'idle';
-        if (!stopped) retry = setTimeout(connect, policy ? POLICY_RETRY_MS : RETRY_MS);
-      };
-    };
-    connect();
+      },
+    });
     return () => {
-      stopped = true;
-      clearTimeout(retry);
       if (flushTimer) clearTimeout(flushTimer);
       clearInterval(heartbeat);
       appState.remove();
-      ws?.close();
+      socket.close();
     };
   }, [token, room, qc]);
 }

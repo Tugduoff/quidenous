@@ -1,11 +1,11 @@
 import { router } from 'expo-router';
 import { Cable, Crown, Download, Hourglass, PartyPopper, Pin, Target } from 'lucide-react-native';
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, Text, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Pressable, SectionList, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { QueryState } from '@/components/query-state';
-import { Screen } from '@/components/screen';
 import { Avatar, AvatarStack, avatarStackWidth, Display, PressableScale, QuestionText } from '@/components/ui';
 import type { HistoryItem, Member } from '@/lib/api';
 import { dateFormat, t as translate, useT } from '@/lib/i18n';
@@ -134,12 +134,14 @@ function Empty() {
   );
 }
 
+type Section = { key: string; title: string; data: HistoryItem[] };
+
 export default function HistoryScreen() {
   const t = useTheme();
   const tr = useT();
   const history = useHistory();
   const { data: pinned } = usePinned();
-  const data = history.data?.pages.flat();
+  const data = useMemo(() => history.data?.pages.flat(), [history.data]);
   const { byId } = useMembers();
   // The first screenful cascades in once; refetches and later pages just appear.
   const [intro, setIntro] = useState(true);
@@ -149,51 +151,65 @@ export default function HistoryScreen() {
     const done = setTimeout(() => setIntro(false), 900);
     return () => clearTimeout(done);
   }, [loaded]);
-  let row = 0;
-  const order = () => (intro ? row++ : undefined);
   const more = () => {
     if (history.hasNextPage && !history.isFetchingNextPage) history.fetchNextPage();
   };
-  // Same leading column on every row, as wide as the widest tie on screen.
-  const lead = Math.max(
-    SOLO,
-    ...[...(pinned ?? []), ...(data ?? [])].map((i) => (i.winner_ids.length > 1 ? avatarStackWidth(i.winner_ids.length, TIED, MAX) : 0)),
+  // A pin or unpin updates the pinned list alone: it decides the pin on every row.
+  const pinnedIds = useMemo(() => (pinned ? new Set(pinned.map((i) => i.id)) : null), [pinned]);
+  const sections = useMemo<Section[]>(() => {
+    const days = byDay(data ?? []).map((d) => ({ key: d.key, title: d.label, data: d.items.map((i) => (pinnedIds ? { ...i, pinned: pinnedIds.has(i.id) } : i)) }));
+    return pinned?.length ? [{ key: 'pinned', title: tr('history.pinned'), data: pinned }, ...days] : days;
+  }, [data, pinned, pinnedIds, tr]);
+  // Same leading column on every row, as wide as the widest tie in the list.
+  const lead = useMemo(
+    () => Math.max(SOLO, ...[...(pinned ?? []), ...(data ?? [])].map((i) => (i.winner_ids.length > 1 ? avatarStackWidth(i.winner_ids.length, TIED, MAX) : 0))),
+    [pinned, data],
   );
   return (
-    <Screen onEndReached={more}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Display size={30}>{tr('history.title')}</Display>
-        {/* Nothing to export yet. */}
-        {!!(data?.length || pinned?.length) && (
-          <PressableScale
-            accessibilityRole="button"
-            accessibilityLabel={tr('history.export')}
-            onPress={downloadHistory}
-            hitSlop={8}
-            style={[{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card }, t.shadow]}>
-            <Download size={18} color={t.txt} />
-          </PressableScale>
+    <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: t.bg }}>
+      <SectionList
+        sections={sections}
+        keyExtractor={(item) => String(item.id)}
+        stickySectionHeadersEnabled={false}
+        contentContainerStyle={{ padding: 20, flexGrow: 1 }}
+        onEndReached={more}
+        onEndReachedThreshold={1}
+        initialNumToRender={12}
+        windowSize={7}
+        ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
+        SectionSeparatorComponent={() => <View style={{ height: 6 }} />}
+        ListHeaderComponent={
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+            <Display size={30}>{tr('history.title')}</Display>
+            {/* Nothing to export yet. */}
+            {!!(data?.length || pinned?.length) && (
+              <PressableScale
+                accessibilityRole="button"
+                accessibilityLabel={tr('history.export')}
+                onPress={downloadHistory}
+                hitSlop={8}
+                style={[{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card }, t.shadow]}>
+                <Download size={18} color={t.txt} />
+              </PressableScale>
+            )}
+          </View>
+        }
+        renderSectionHeader={({ section }) => (
+          <View style={{ paddingTop: 10 }}>
+            <SectionLabel>{section.title}</SectionLabel>
+          </View>
         )}
-      </View>
-      {!!pinned?.length && (
-        <View style={{ gap: 10 }}>
-          <SectionLabel>{tr('history.pinned')}</SectionLabel>
-          {pinned.map((item) => (
-            <HistoryCard key={item.id} item={item} lead={lead} byId={byId} order={order()} />
-          ))}
-        </View>
-      )}
-      {byDay(data ?? []).map((day) => (
-        <View key={day.key} style={{ gap: 10 }}>
-          <SectionLabel>{day.label}</SectionLabel>
-          {day.items.map((item) => (
-            <HistoryCard key={item.id} item={item} lead={lead} byId={byId} order={order()} />
-          ))}
-        </View>
-      ))}
-      <QueryState query={history} />
-      {data && data.length === 0 && !pinned?.length && <Empty />}
-      {history.isFetchingNextPage && <ActivityIndicator color={t.mut} style={{ paddingVertical: 8 }} />}
-    </Screen>
+        renderItem={({ item, index }) => (
+          <HistoryCard item={item} lead={lead} byId={byId} order={intro && index < 6 ? index : undefined} />
+        )}
+        ListFooterComponent={
+          <View>
+            <QueryState query={history} />
+            {data && data.length === 0 && !pinned?.length && <Empty />}
+            {history.isFetchingNextPage && <ActivityIndicator color={t.mut} style={{ paddingVertical: 8 }} />}
+          </View>
+        }
+      />
+    </SafeAreaView>
   );
 }

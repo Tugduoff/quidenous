@@ -37,12 +37,18 @@ export function Countdown({ ms, total, big }: { ms: number | null; total: number
   const t = useTheme();
   const tr = useT();
   const reduced = useReducedMotion();
+  // `ms` changes once a second; the bar runs down to where it will be at the next change.
   const frac = ms == null ? 1 : Math.min(1, ms / Math.max(1, total * 1000));
+  const next = ms == null ? 1 : Math.min(1, Math.max(0, ms - 1000) / Math.max(1, total * 1000));
   const w = useSharedValue(frac);
   useEffect(() => {
     // The bar is the clock itself, so it moves under reduced motion too, only in steps.
-    w.value = reduced ? frac : withTiming(frac, { duration: 200, easing: Easing.linear, reduceMotion: ReduceMotion.Never });
-  }, [frac, reduced, w]);
+    if (reduced || ms == null) w.value = frac;
+    else {
+      w.value = frac;
+      w.value = withTiming(next, { duration: 1000, easing: Easing.linear, reduceMotion: ReduceMotion.Never });
+    }
+  }, [frac, next, ms, reduced, w]);
   const bar = useAnimatedStyle(() => ({ transform: [{ scaleX: w.value }] }));
   const s = ms == null ? null : Math.ceil(ms / 1000);
   const urgent = s != null && s <= 5;

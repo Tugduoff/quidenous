@@ -1,6 +1,6 @@
-import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import { keepPreviousData, type InfiniteData, type QueryClient, useInfiniteQuery, useQuery } from '@tanstack/react-query';
 
-import { api, type Friend, type Pack, type PackSummary, type Group, type RoomSummary, type HistoryItem, type InboxItem, type Message, type Member, type Queue, type Round, normalizeStats, type Stats, type StatsPeriod, type Vibe } from './api';
+import { api, type Friend, type Group, type RoomSummary, type HistoryItem, type InboxItem, type Message, type Member, type Queue, type Round, normalizeStats, type Stats, type StatsPeriod, type Vibe } from './api';
 import { localizeGroup } from './names';
 
 export const keys = {
@@ -9,6 +9,8 @@ export const keys = {
   unseen: ['round', 'unseen'] as const,
   round: (id: number) => ['round', id] as const,
   history: ['history'] as const,
+  /** The paged list alone (`history` also covers the pinned ones). */
+  historyList: ['history', 'list'] as const,
   pinned: ['history', 'pinned'] as const,
   /** Every period's stats (what a live event invalidates). */
   stats: ['stats'] as const,
@@ -17,8 +19,6 @@ export const keys = {
   inbox: ['inbox'] as const,
   rooms: ['rooms'] as const,
   friends: ['friends'] as const,
-  packs: (q: string) => ['packs', q] as const,
-  pack: (id: number) => ['pack', id] as const,
   queue: ['queue'] as const,
   blocks: ['blocks'] as const,
   vibes: ['vibes'] as const,
@@ -44,11 +44,28 @@ const HISTORY_PAGE = 30;
 /** Finished questions, newest first, a page at a time: `before` is the number of the oldest one shown. */
 export const useHistory = () =>
   useInfiniteQuery({
-    queryKey: keys.history,
+    queryKey: keys.historyList,
     queryFn: ({ pageParam }) => api<HistoryItem[]>(pageParam == null ? '/history' : `/history?before=${pageParam}`),
     initialPageParam: null as number | null,
     getNextPageParam: (last) => (last.length < HISTORY_PAGE ? undefined : last.at(-1)!.number),
   });
+
+/**
+ * A question just closed: fetch only the newest page and put what's new in front of the pages already loaded
+ * (an invalidation would refetch every page, one after the other).
+ */
+export async function refreshHistory(qc: QueryClient) {
+  if (!qc.getQueryData(keys.historyList)) return;
+  const fresh = await api<HistoryItem[]>('/history');
+  qc.setQueryData<InfiniteData<HistoryItem[], number | null>>(keys.historyList, (old) => {
+    if (!old?.pages.length) return old;
+    const byId = new Map(fresh.map((i) => [i.id, i]));
+    const known = new Set(old.pages.flat().map((i) => i.id));
+    const pages = old.pages.map((page) => page.map((i) => byId.get(i.id) ?? i));
+    pages[0] = [...fresh.filter((i) => !known.has(i.id)), ...pages[0]];
+    return { ...old, pages };
+  });
+}
 
 /** Results pinned for the whole group (all of them, not paged). */
 export const usePinned = () => useQuery({ queryKey: keys.pinned, queryFn: () => api<HistoryItem[]>('/history/pinned') });
@@ -61,11 +78,6 @@ export const useInbox = () => useQuery({ queryKey: keys.inbox, queryFn: () => ap
 export const useRooms = () => useQuery({ queryKey: keys.rooms, queryFn: () => api<RoomSummary[]>('/rooms') });
 
 export const useFriends = () => useQuery({ queryKey: keys.friends, queryFn: () => api<{ code: string; friends: Friend[] }>('/friends') });
-
-export const usePacks = (q: string) =>
-  useQuery({ queryKey: keys.packs(q), queryFn: () => api<PackSummary[]>(`/packs?q=${encodeURIComponent(q)}`) });
-
-export const usePack = (id: number) => useQuery({ queryKey: keys.pack(id), queryFn: () => api<Pack>(`/packs/${id}`) });
 
 /** The tones a room can pick (same for every room, so kept for the session). Only asked of a server that has them. */
 export const useVibes = (enabled: boolean) =>

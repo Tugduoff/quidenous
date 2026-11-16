@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
-import { ArrowRight, Cable, Check, CircleCheck, Crown, List, Sparkles } from 'lucide-react-native';
+import { ArrowRight, Check, CircleCheck, Crown, List, Sparkles } from 'lucide-react-native';
 import { type ComponentRef, type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, Text, useWindowDimensions, View } from 'react-native';
 import { GestureDetector, GestureHandlerRootView, usePanGesture } from 'react-native-gesture-handler';
@@ -999,9 +999,3 @@ function BestGuessers({ scores, byId }: { scores: ChooseData['scores']; byId: Ma
     </View>
   );
 }
-
-/** A choose question's icon (wires), for lists and tags. */
-export const ChooseIcon = Cable;
-
-/** Items in one muted line: "Pizza · Sushi · Burger". */
-export const itemsLine = (items: string[] | null | undefined) => (items ?? []).join(' · ');

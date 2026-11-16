@@ -87,7 +87,6 @@ export async function adoptAccountLang() {
 }
 
 export const getLang = () => lang;
-export const getLangPref = () => pref;
 
 const subscribe = (l: () => void) => {
   listeners.add(l);

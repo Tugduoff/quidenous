@@ -8,7 +8,6 @@ import {
   Eye,
   EyeOff,
   ChevronDown,
-  ChevronLeft,
   Inbox,
   Pin,
   RotateCcw,
@@ -22,6 +21,7 @@ import { enablePush, pushState, refreshPush, type PushState } from '@/lib/push';
 import { Pressable, type ScrollView, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
+import { BackButton } from '@/components/auth-ui';
 import { ChallengeButton, Challenges } from '@/components/challenge';
 import { useSecretPicker } from '@/components/celebration';
 import { ChatInput, ChatMessages } from '@/components/chat';
@@ -65,6 +65,7 @@ function PushBell() {
           .then(setState)
           .catch(() => setState(pushState()))
       }
+      hitSlop={4}
       style={{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: denied ? t.card : t.acc }}>
       {denied ? <BellOff size={18} color={t.mut} /> : <Bell size={18} color={t.accTxt} />}
     </Pressable>
@@ -108,6 +109,7 @@ function InboxButton() {
       accessibilityRole="button"
       accessibilityLabel={unread ? tr('vote.header.inboxUnread', { count: unread }) : tr('vote.header.inbox')}
       onPress={() => router.push('/inbox')}
+      hitSlop={4}
       style={[{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card }, t.shadow]}>
       <Inbox size={18} color={t.txt} />
       {unread > 0 && (
@@ -140,6 +142,7 @@ function GroupButton() {
       accessibilityRole="button"
       accessibilityLabel={tr('vote.header.group')}
       onPress={() => router.push('/group')}
+      hitSlop={4}
       style={[{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card }, t.shadow]}>
       <Users size={18} color={t.txt} />
     </PressableScale>
@@ -177,8 +180,6 @@ function HeaderBar() {
 }
 
 export default function VoteScreen() {
-  const t = useTheme();
-  const { me } = useSession();
   const { byId, members } = useMembers();
   const current = useCurrentRound();
   const unseen = useUnseenRound();
@@ -765,21 +766,14 @@ function BackHeader({ onBack, round }: { onBack: () => void; round?: Round }) {
     mutationFn: (pinned: boolean) => api(`/rounds/${round!.id}/pin`, { method: pinned ? 'PUT' : 'DELETE' }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: keys.round(round!.id) });
-      qc.invalidateQueries({ queryKey: keys.history });
+      qc.invalidateQueries({ queryKey: keys.pinned });
     },
   });
   // Show the state being asked for right away; the server echo confirms it.
   const pinned = pin.isPending ? pin.variables : round?.pinned;
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={tr('common.back')}
-        onPress={onBack}
-        hitSlop={8}
-        style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card }}>
-        <ChevronLeft size={22} color={t.txt} />
-      </Pressable>
+      <BackButton onPress={onBack} />
       {round && (
         <PressableScale
           accessibilityRole="button"

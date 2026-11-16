@@ -180,6 +180,7 @@ export function Chip({
       accessibilityLabel={label}
       disabled={disabled}
       onPress={onPress}
+      hitSlop={5}
       style={{
         flexDirection: 'row',
         alignItems: 'center',

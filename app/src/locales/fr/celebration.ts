@@ -10,6 +10,8 @@ export const celebration = {
   two: 'DEUX',
   thousand: 'MILLE',
   access: 'ACCÈS AUTORISÉ',
+  loading: 'CHARGEMENT…',
+  loaded: '1 Ko · 100 %',
   /** The 365 calendar's month. */
   december: 'DÉC.',
   /** Punchlines of the numbers that get their own party (`m<number>`). */

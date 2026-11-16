@@ -1,6 +1,7 @@
 import { ArrowDown, ArrowRight } from 'lucide-react-native';
 import { useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
+import Svg, { Circle, G, Rect, Text as SvgText } from 'react-native-svg';
 
 import { Avatar, Card } from '@/components/ui';
 import type { Member, Stats } from '@/lib/api';
@@ -37,6 +38,8 @@ export function VoteMatrix({
   const cell = width ? Math.max(MIN, Math.min(MAX, Math.floor((width - HEAD - GAP) / n) - GAP)) : 0;
   const face = Math.min(cell, 28);
   const showCounts = cell >= 24;
+  const step = cell + GAP;
+  const side = n * step - GAP;
 
   const grid = (
     <View style={{ gap: GAP }}>
@@ -56,47 +59,55 @@ export function VoteMatrix({
           </Pressable>
         ))}
       </View>
-      {ids.map((voter) => (
-        <View key={voter} style={{ flexDirection: 'row', alignItems: 'center', gap: GAP }}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={byId.get(voter)?.name}
-            onPress={() => onOpen(voter)}
-            hitSlop={2}
-            style={{ width: HEAD, alignItems: 'center' }}>
-            <Avatar member={byId.get(voter)} size={Math.min(HEAD, Math.max(face, 20))} />
-          </Pressable>
-          {ids.map((target) => {
-            const c = count.get(`${voter}:${target}`) ?? 0;
-            const self = voter === target;
-            const strength = c ? 0.2 + 0.8 * (c / max) : 0;
-            const color = byId.get(target)?.color ?? t.mut;
-            return (
-              <View
-                key={target}
-                accessibilityLabel={
-                  c ? tr('stats.matrix.cell', { a: byId.get(voter)?.name ?? '?', b: byId.get(target)?.name ?? '?', count: c }) : undefined
-                }
-                style={{
-                  width: cell,
-                  height: cell,
-                  borderRadius: self ? cell / 2 : Math.min(8, cell / 4),
-                  overflow: 'hidden',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  backgroundColor: c || self ? 'transparent' : t.card2,
-                  borderWidth: self && !c ? 1.5 : 0,
-                  borderColor: t.line,
-                }}>
-                {c > 0 && <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: color, opacity: strength }} />}
-                {showCounts && c > 0 && (
-                  <Text style={{ fontFamily: t.font.bold, fontSize: Math.round(cell * 0.42), color: strength > 0.55 ? '#121216' : t.txt }}>{c}</Text>
-                )}
-              </View>
-            );
-          })}
+      <View style={{ flexDirection: 'row', gap: GAP }}>
+        <View style={{ width: HEAD, gap: GAP }}>
+          {ids.map((voter) => (
+            <Pressable
+              key={voter}
+              accessibilityRole="button"
+              accessibilityLabel={byId.get(voter)?.name}
+              onPress={() => onOpen(voter)}
+              hitSlop={2}
+              style={{ width: HEAD, height: cell, alignItems: 'center', justifyContent: 'center' }}>
+              <Avatar member={byId.get(voter)} size={Math.min(HEAD, Math.max(face, 20), cell)} />
+            </Pressable>
+          ))}
         </View>
-      ))}
+        {/* The n x n cells are one drawing, not n x n views. */}
+        <Svg width={side} height={side}>
+          {ids.flatMap((voter, row) =>
+            ids.map((target, col) => {
+              const c = count.get(`${voter}:${target}`) ?? 0;
+              const self = voter === target;
+              if (!c && !self) return <Rect key={`${voter}:${target}`} x={col * step} y={row * step} width={cell} height={cell} rx={Math.min(8, cell / 4)} fill={t.card2} />;
+              const color = byId.get(target)?.color ?? t.mut;
+              const strength = c ? 0.2 + 0.8 * (c / max) : 0;
+              const x = col * step;
+              const y = row * step;
+              return (
+                <G key={`${voter}:${target}`}>
+                  {self ? (
+                    <Circle cx={x + cell / 2} cy={y + cell / 2} r={cell / 2 - (c ? 0 : 0.75)} fill={c ? color : 'none'} fillOpacity={strength} stroke={c ? 'none' : t.line} strokeWidth={1.5} />
+                  ) : (
+                    <Rect x={x} y={y} width={cell} height={cell} rx={Math.min(8, cell / 4)} fill={color} fillOpacity={strength} />
+                  )}
+                  {showCounts && c > 0 && (
+                    <SvgText
+                      x={x + cell / 2}
+                      y={y + cell / 2 + cell * 0.15}
+                      fontSize={Math.round(cell * 0.42)}
+                      fontFamily={t.font.bold}
+                      textAnchor="middle"
+                      fill={strength > 0.55 ? '#121216' : t.txt}>
+                      {c}
+                    </SvgText>
+                  )}
+                </G>
+              );
+            }),
+          )}
+        </Svg>
+      </View>
     </View>
   );
 

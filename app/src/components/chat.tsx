@@ -24,11 +24,103 @@ const ROW = 40;
 /** `#rrggbb` → the same colour, faint (a mention's background). */
 const soft = (color: string) => (/^#[0-9a-f]{6}$/i.test(color) ? `${color}33` : 'rgba(127,127,127,0.18)');
 
+/** One message. A component of its own, so a new message does not redraw the others. */
+function Bubble({
+  m,
+  author,
+  userId,
+  fresh,
+  onReport,
+  onProfile,
+}: {
+  m: Message;
+  author?: Member;
+  userId?: number | null;
+  fresh: boolean;
+  onReport: (target: ModTarget) => void;
+  onProfile: (id: number) => void;
+}) {
+  const t = useTheme();
+  const tr = useT();
+  const { me } = useSession();
+  const { byId } = useMembers();
+  const mine = m.member_id === me?.id;
+  const mentionStyle = (mine: boolean, color: string): TextStyle =>
+    // On my own bubble (my colour behind): dark text on a darker wash, like the rest of the bubble.
+    mine
+      ? { fontFamily: t.font.bold, color: '#121216', backgroundColor: 'rgba(0,0,0,0.12)', borderRadius: 5, paddingHorizontal: 3 }
+      : { fontFamily: t.font.bold, color, backgroundColor: soft(color), borderRadius: 5, paddingHorizontal: 3 };
+  const onLongPress = mine
+    ? undefined
+    : () =>
+        onReport({
+          kind: 'message',
+          id: m.id,
+          person: author && userId != null ? { user_id: userId, name: author.name, color: author.color, photo: author.photo_url, avatar: author.avatar } : undefined,
+        });
+  return (
+    <Animated.View
+      key={m.id}
+      entering={fresh ? motion.rise : undefined}
+      style={{ flexDirection: mine ? 'row-reverse' : 'row', gap: 8, alignItems: 'flex-end' }}>
+      {!mine && <Avatar member={author} size={28} />}
+      <Pressable
+        onLongPress={onLongPress}
+        delayLongPress={400}
+        accessibilityHint={mine ? undefined : tr('chat.longPressHint')}
+        style={{
+          maxWidth: '78%',
+          paddingHorizontal: 14,
+          paddingVertical: 9,
+          borderRadius: 18,
+          borderBottomLeftRadius: mine ? 18 : 6,
+          borderBottomRightRadius: mine ? 6 : 18,
+          // My own bubbles in my colour: lime is for actions (Suivante, Envoyer).
+          backgroundColor: mine ? (me?.color ?? t.card2) : t.card,
+          gap: 2,
+        }}>
+        {!mine && (
+          <Text numberOfLines={1} style={{ fontFamily: t.font.bold, fontSize: 12, color: author?.color ?? t.mut }}>
+            {author?.name ?? '?'}
+          </Text>
+        )}
+        <Text style={{ fontFamily: t.font.regular, fontSize: 15, lineHeight: 20, color: mine ? '#121216' : t.txt }}>
+          {segments(
+            m.text,
+            (m.mentions ?? []).map((id) => byId.get(id)).filter((x): x is Member => !!x),
+            !!m.everyone,
+          ).map((p, i) =>
+            p.member ? (
+              <Text
+                key={i}
+                accessibilityRole="link"
+                accessibilityHint={tr('chat.seeProfile')}
+                onPress={() => onProfile(p.member!.id)}
+                onLongPress={onLongPress}
+                style={mentionStyle(mine, p.member.color)}>
+                {p.text}
+              </Text>
+            ) : p.everyone ? (
+              <Text key={i} style={mine ? mentionStyle(true, '') : { ...mentionStyle(false, t.accInk), backgroundColor: t.accSoft }}>
+                {p.text}
+              </Text>
+            ) : (
+              p.text
+            ),
+          )}
+        </Text>
+        <Text style={{ fontFamily: t.font.regular, fontSize: 10, color: mine ? '#121216' : t.mut, opacity: 0.7, alignSelf: 'flex-end' }}>
+          {dateFormat({ hour: '2-digit', minute: '2-digit' }).format(new Date(m.created_at))}
+        </Text>
+      </Pressable>
+    </Animated.View>
+  );
+}
+
 /** The conversation under a result, oldest first. Part of the page's own scroll (no box of its own: one scroll at a time). */
 export function ChatMessages({ roundId }: { roundId: number }) {
   const t = useTheme();
   const tr = useT();
-  const { me } = useSession();
   const { byId } = useMembers();
   const { data } = useMessages(roundId);
   const { ids: blocked } = useBlocks();
@@ -44,11 +136,6 @@ export function ChatMessages({ roundId }: { roundId: number }) {
   useEffect(() => {
     if (missing) setProfileId(null);
   }, [missing]);
-  const mentionStyle = (mine: boolean, color: string): TextStyle =>
-    // On my own bubble (my colour behind): dark text on a darker wash, like the rest of the bubble.
-    mine
-      ? { fontFamily: t.font.bold, color: '#121216', backgroundColor: 'rgba(0,0,0,0.12)', borderRadius: 5, paddingHorizontal: 3 }
-      : { fontFamily: t.font.bold, color, backgroundColor: soft(color), borderRadius: 5, paddingHorizontal: 3 };
   const authorId = (m: Message) => m.user_id ?? byId.get(m.member_id)?.user_id;
   // People I blocked: gone at once, live messages included (the server leaves them out after a reload).
   const messages = data?.filter((m) => !blocked.has(authorId(m) ?? -1));
@@ -60,76 +147,17 @@ export function ChatMessages({ roundId }: { roundId: number }) {
     <View style={{ gap: 10 }}>
       <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut, marginLeft: 4 }}>{tr('chat.count', { count: messages.length })}</Text>
       <View style={{ gap: 10 }}>
-        {messages.map((m) => {
-          const author = byId.get(m.member_id);
-          const mine = m.member_id === me?.id;
-          const userId = authorId(m);
-          const onLongPress = mine
-            ? undefined
-            : () =>
-                setTarget({
-                  kind: 'message',
-                  id: m.id,
-                  person: author && userId != null ? { user_id: userId, name: author.name, color: author.color, photo: author.photo_url, avatar: author.avatar } : undefined,
-                });
-          return (
-            <Animated.View
-              key={m.id}
-              entering={isNew(m.id) ? motion.rise : undefined}
-              style={{ flexDirection: mine ? 'row-reverse' : 'row', gap: 8, alignItems: 'flex-end' }}>
-              {!mine && <Avatar member={author} size={28} />}
-              <Pressable
-                onLongPress={onLongPress}
-                delayLongPress={400}
-                accessibilityHint={mine ? undefined : tr('chat.longPressHint')}
-                style={{
-                  maxWidth: '78%',
-                  paddingHorizontal: 14,
-                  paddingVertical: 9,
-                  borderRadius: 18,
-                  borderBottomLeftRadius: mine ? 18 : 6,
-                  borderBottomRightRadius: mine ? 6 : 18,
-                  // My own bubbles in my colour: lime is for actions (Suivante, Envoyer).
-                  backgroundColor: mine ? (me?.color ?? t.card2) : t.card,
-                  gap: 2,
-                }}>
-                {!mine && (
-                  <Text numberOfLines={1} style={{ fontFamily: t.font.bold, fontSize: 12, color: author?.color ?? t.mut }}>
-                    {author?.name ?? '?'}
-                  </Text>
-                )}
-                <Text style={{ fontFamily: t.font.regular, fontSize: 15, lineHeight: 20, color: mine ? '#121216' : t.txt }}>
-                  {segments(
-                    m.text,
-                    (m.mentions ?? []).map((id) => byId.get(id)).filter((x): x is Member => !!x),
-                    !!m.everyone,
-                  ).map((p, i) =>
-                    p.member ? (
-                      <Text
-                        key={i}
-                        accessibilityRole="link"
-                        accessibilityHint={tr('chat.seeProfile')}
-                        onPress={() => setProfileId(p.member!.id)}
-                        onLongPress={onLongPress}
-                        style={mentionStyle(mine, p.member.color)}>
-                        {p.text}
-                      </Text>
-                    ) : p.everyone ? (
-                      <Text key={i} style={mine ? mentionStyle(true, '') : { ...mentionStyle(false, t.accInk), backgroundColor: t.accSoft }}>
-                        {p.text}
-                      </Text>
-                    ) : (
-                      p.text
-                    ),
-                  )}
-                </Text>
-                <Text style={{ fontFamily: t.font.regular, fontSize: 10, color: mine ? '#121216' : t.mut, opacity: 0.7, alignSelf: 'flex-end' }}>
-                  {dateFormat({ hour: '2-digit', minute: '2-digit' }).format(new Date(m.created_at))}
-                </Text>
-              </Pressable>
-            </Animated.View>
-          );
-        })}
+        {messages.map((m) => (
+          <Bubble
+            key={m.id}
+            m={m}
+            author={byId.get(m.member_id)}
+            userId={authorId(m)}
+            fresh={isNew(m.id)}
+            onReport={setTarget}
+            onProfile={setProfileId}
+          />
+        ))}
       </View>
       <ModerationDialog target={target} onClose={() => setTarget(null)} />
       <ProfileSheet

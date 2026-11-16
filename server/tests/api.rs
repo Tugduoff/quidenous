@@ -761,6 +761,40 @@ async fn chat_under_results_and_inbox() {
     assert_eq!(inbox["items"][0]["read"], true);
 }
 
+#[tokio::test]
+async fn chat_list_keeps_the_latest_messages() {
+    let (app, state) = test_app_with_state().await;
+    let (a, a_id) = join(&app, "Ana").await;
+    let (b, b_id) = join(&app, "Bob").await;
+    let (_, open) = call(&app, "GET", "/round/current", Some(&a), None).await;
+    let first = open["id"].as_i64().unwrap();
+    vote_as(&app, &a, b_id).await;
+    vote_as(&app, &b, b_id).await;
+    for i in 0..230 {
+        sqlx::query("INSERT INTO messages (round_id, member_id, text) VALUES (?, ?, ?)")
+            .bind(first)
+            .bind(a_id)
+            .bind(format!("m{i}"))
+            .execute(&state.db)
+            .await
+            .unwrap();
+    }
+    let (s, list) = call(
+        &app,
+        "GET",
+        &format!("/rounds/{first}/messages"),
+        Some(&b),
+        None,
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK);
+    let list = list.as_array().unwrap();
+    assert_eq!(list.len(), 200);
+    // Oldest first, and the last ones.
+    assert_eq!(list[0]["text"], "m30");
+    assert_eq!(list[199]["text"], "m229");
+}
+
 async fn call_room(
     app: &Router,
     method: &str,

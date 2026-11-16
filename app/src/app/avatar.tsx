@@ -1,10 +1,11 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
-import { ChevronLeft, Dices } from 'lucide-react-native';
+import { Dices } from 'lucide-react-native';
 import { type ReactNode, useState } from 'react';
 import { Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 
+import { BackButton } from '@/components/auth-ui';
 import { AvatarArt } from '@/components/avatar-art';
 import { Screen } from '@/components/screen';
 import { Button, PressableScale } from '@/components/ui';
@@ -161,13 +162,7 @@ export default function AvatarBuilder() {
         </>
       }>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={tr('common.back')}
-          onPress={() => router.back()}
-          style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card }}>
-          <ChevronLeft size={22} color={t.txt} />
-        </Pressable>
+        <BackButton onPress={() => router.back()} />
         <PressableScale
           accessibilityRole="button"
           accessibilityLabel={tr('avatar.random')}

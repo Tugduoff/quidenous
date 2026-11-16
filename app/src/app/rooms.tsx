@@ -1,8 +1,9 @@
 import { router } from 'expo-router';
-import { BellOff, Check, ChevronLeft, ChevronRight, Crown, PartyPopper } from 'lucide-react-native';
+import { BellOff, Check, ChevronRight, Crown, PartyPopper } from 'lucide-react-native';
 import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
+import { BackButton } from '@/components/auth-ui';
 import { RoomForms } from '@/components/room-forms';
 import { QueryState } from '@/components/query-state';
 import { Screen } from '@/components/screen';
@@ -35,13 +36,7 @@ export default function RoomsScreen() {
 
   return (
     <Screen tabs={false}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={tr('common.back')}
-        onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
-        style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card }}>
-        <ChevronLeft size={22} color={t.txt} />
-      </Pressable>
+      <BackButton onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))} />
       {!creating && <Display size={30}>{tr('room.list.title')}</Display>}
 
       {!creating && <QueryState query={roomsQuery} />}

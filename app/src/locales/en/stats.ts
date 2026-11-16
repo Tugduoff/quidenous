@@ -107,7 +107,7 @@ export const stats: Messages['stats'] = {
   forWhom: '{a} for {b}',
   pair: '{a} & {b}',
   podiumVotes: { one: '{count} vote', other: '{count} votes' },
-  matrix: { voter: 'who votes', target: 'for whom', cell: '{a} for {b}: {count}' },
+  matrix: { voter: 'who votes', target: 'for whom' },
   heatmap: {
     peak: 'Peak: {day} around {hour}:00',
     hour: '{h}:00',
