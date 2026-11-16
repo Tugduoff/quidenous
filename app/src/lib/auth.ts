@@ -147,6 +147,10 @@ export function useFeatures() {
     chatReactions: on.has('chat_reactions'),
     /** The owner can empty the room's upcoming questions at once (`DELETE /questions/queue`). */
     clearQueue: on.has('clear_queue'),
+    /** Photos in the result chat (`POST /rounds/{id}/messages/image`). */
+    chatImages: on.has('chat_images'),
+    /** GIFs in the result chat, searched through the server (`/gifs`, KLIPY). */
+    chatGifs: on.has('chat_gifs'),
   };
 }
 

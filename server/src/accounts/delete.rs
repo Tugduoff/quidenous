@@ -132,7 +132,7 @@ pub async fn confirm(
 /// Deletes an account. Every active seat is left like `/rooms/{id}/leave` (owner hands over,
 /// alone = room deleted), then in one transaction: chat messages, reactions and inbox entries go,
 /// seats are anonymised, sessions, codes, providers, push, friends and blocks go, and the users row is
-/// scrubbed (kept: votes, packs and reports point at it). Photos are removed last.
+/// scrubbed (kept: votes, packs and reports point at it). Photos and chat images are removed last.
 pub(crate) async fn erase(state: &AppState, user_id: i64) -> AppResult<()> {
     // Signed out everywhere first: nothing the account does can race the rest.
     sqlx::query("DELETE FROM user_tokens WHERE user_id = ?")
@@ -158,6 +158,14 @@ pub(crate) async fn erase(state: &AppState, user_id: i64) -> AppResult<()> {
     let photos: Vec<String> = sqlx::query_scalar(
         "SELECT photo FROM users WHERE id = ?1 AND photo IS NOT NULL \
          UNION SELECT photo FROM members WHERE user_id = ?1 AND photo IS NOT NULL",
+    )
+    .bind(user_id)
+    .fetch_all(&state.db)
+    .await?;
+    // Their chat images (the messages go below).
+    let images: Vec<(i64, Option<String>)> = sqlx::query_as(
+        "SELECT r.group_id, x.media FROM messages x JOIN rounds r ON r.id = x.round_id \
+         WHERE x.kind = 'image' AND x.member_id IN (SELECT id FROM members WHERE user_id = ?)",
     )
     .bind(user_id)
     .fetch_all(&state.db)
@@ -248,6 +256,13 @@ pub(crate) async fn erase(state: &AppState, user_id: i64) -> AppResult<()> {
             let _ = tokio::fs::remove_file(dir.join(photo)).await;
         }
     }
+    let files = images
+        .into_iter()
+        .filter_map(|(room, media)| {
+            crate::media::file_path(&state.config.data_dir, room, media.as_deref())
+        })
+        .collect();
+    crate::media::remove_files(files).await;
     tracing::info!(user_id, "account deleted");
     Ok(())
 }

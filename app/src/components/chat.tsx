@@ -5,12 +5,14 @@ import { type ComponentRef, useEffect, useRef, useState } from 'react';
 import { Platform, Pressable, ScrollView, Text, TextInput, type TextInputProps, type TextStyle, View, type ViewStyle } from 'react-native';
 import Animated from 'react-native-reanimated';
 
+import { AttachButton, MediaViewer, MessageMediaFrame, PendingBubble } from '@/components/chat-media';
 import { HeartBurst, ReactionBar, ReactionChips, WhoReacted } from '@/components/chat-reactions';
 import { ModerationDialog, type ModTarget } from '@/components/moderation';
 import { ProfileSheet } from '@/components/stats/profile-sheet';
 import { Avatar, Card, PressableScale } from '@/components/ui';
 import { api, type Member, type Message } from '@/lib/api';
 import { useFeatures } from '@/lib/auth';
+import { mediaOf, usePending } from '@/lib/chat-media';
 import { dateFormat, useT } from '@/lib/i18n';
 import { activeMention, everyone, matches, outgoing, segments } from '@/lib/mentions';
 import { useBlocks } from '@/lib/moderation';
@@ -48,6 +50,7 @@ function Bubble({
   onDelete,
   onReact,
   onWho,
+  onOpen,
 }: {
   m: Message;
   author?: Member;
@@ -60,6 +63,8 @@ function Bubble({
   /** The server has reactions: toggles mine (true: added). The long-press menu then opens on every message, mine too. */
   onReact?: (emoji: string) => boolean;
   onWho: (emoji: string) => void;
+  /** A photo or GIF was tapped: full screen. */
+  onOpen: (m: Message) => void;
 }) {
   const t = useTheme();
   const tr = useT();
@@ -88,19 +93,31 @@ function Bubble({
   const lastTap = useRef(0);
   const mentionTap = useRef(0);
   const [burst, setBurst] = useState(0);
+  // A photo or a GIF (null: a text, or a kind from a newer server, shown as its text).
+  const media = mediaOf(m);
+  // A tap on a photo opens it, once it's clear it isn't the first of a double tap (❤️).
+  const opening = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => clearTimeout(opening.current), []);
   const heart = () => {
     if (onReact?.(HEART)) setBurst((b) => b + 1);
   };
-  const onPress = onReact
-    ? () => {
-        const now = Date.now();
-        if (now - mentionTap.current < 300) return;
-        if (now - lastTap.current < DOUBLE_TAP_MS) {
-          lastTap.current = 0;
-          heart();
-        } else lastTap.current = now;
-      }
-    : undefined;
+  const onPress =
+    onReact || media
+      ? () => {
+          const now = Date.now();
+          if (now - mentionTap.current < 300) return;
+          if (onReact && now - lastTap.current < DOUBLE_TAP_MS) {
+            lastTap.current = 0;
+            clearTimeout(opening.current);
+            heart();
+            return;
+          }
+          lastTap.current = now;
+          if (!media) return;
+          if (onReact) opening.current = setTimeout(() => onOpen(m), DOUBLE_TAP_MS);
+          else onOpen(m);
+        }
+      : undefined;
   // With reactions: a menu floating by the message (reactions on top, then delete / report / block).
   const menu = () => {
     lastTap.current = 0;
@@ -120,6 +137,39 @@ function Bubble({
         : undefined
       : tr('chat.longPressHint');
   const reactions = m.reactions?.filter((r) => r.count > 0) ?? [];
+  const ink = mine ? '#121216' : t.txt;
+  // The text, or a photo's caption, with its mentions.
+  const rich = (text: string) => (
+    <Text style={{ fontFamily: t.font.regular, fontSize: 15, lineHeight: 20, color: ink, paddingHorizontal: media ? 10 : 0 }}>
+      {segments(
+        text,
+        (m.mentions ?? []).map((id) => byId.get(id)).filter((x): x is Member => !!x),
+        !!m.everyone,
+      ).map((p, i) =>
+        p.member ? (
+          <Text
+            key={i}
+            accessibilityRole="link"
+            accessibilityHint={tr('chat.seeProfile')}
+            onPress={() => {
+              mentionTap.current = Date.now();
+              onProfile(p.member!.id);
+            }}
+            onLongPress={onLongPress}
+            style={mentionStyle(mine, p.member.color)}>
+            {p.text}
+          </Text>
+        ) : p.everyone ? (
+          <Text key={i} style={mine ? mentionStyle(true, '') : { ...mentionStyle(false, t.accInk), backgroundColor: t.accSoft }}>
+            {p.text}
+          </Text>
+        ) : (
+          p.text
+        ),
+      )}
+    </Text>
+  );
+  const mediaLabel = media ? tr(m.kind === 'gif' ? 'chat.media.gifBy' : 'chat.media.photoBy', { name: (mine ? me?.name : author?.name) ?? '?' }) : '';
   return (
     <Animated.View key={m.id} entering={fresh ? motion.rise : undefined} style={{ gap: 4 }}>
       <View style={{ flexDirection: mine ? 'row-reverse' : 'row', gap: 8, alignItems: 'flex-end' }}>
@@ -129,15 +179,18 @@ function Bubble({
           onPress={onPress}
           onLongPress={onLongPress}
           delayLongPress={400}
-          accessibilityHint={hint}
+          accessibilityLabel={media ? (m.caption ? `${mediaLabel}, ${m.caption}` : mediaLabel) : undefined}
+          accessibilityHint={media ? [tr('chat.media.open'), hint].filter(Boolean).join('. ') : hint}
           accessibilityActions={onReact ? [{ name: 'heart', label: tr('chat.reactions.react', { emoji: HEART }) }] : undefined}
           onAccessibilityAction={onReact ? (e) => e.nativeEvent.actionName === 'heart' && heart() : undefined}
           style={[
             NO_SELECT,
             {
               maxWidth: '78%',
-              paddingHorizontal: 14,
-              paddingVertical: 9,
+              // A photo: a thin frame of the bubble around it, the name and caption inset like a text.
+              paddingHorizontal: media ? 4 : 14,
+              paddingTop: media ? 4 : 9,
+              paddingBottom: media ? (m.caption ? 7 : 4) : 9,
               borderRadius: 18,
               borderBottomLeftRadius: mine ? 18 : 6,
               borderBottomRightRadius: mine ? 6 : 18,
@@ -147,41 +200,41 @@ function Bubble({
             },
           ]}>
           {!mine && (
-            <Text numberOfLines={1} style={{ fontFamily: t.font.bold, fontSize: 12, color: author?.color ?? t.mut }}>
+            <Text
+              numberOfLines={1}
+              style={{
+                fontFamily: t.font.bold,
+                fontSize: 12,
+                color: author?.color ?? t.mut,
+                paddingHorizontal: media ? 10 : 0,
+                paddingTop: media ? 3 : 0,
+                paddingBottom: media ? 2 : 0,
+              }}>
               {author?.name ?? '?'}
             </Text>
           )}
-          <Text style={{ fontFamily: t.font.regular, fontSize: 15, lineHeight: 20, color: mine ? '#121216' : t.txt }}>
-            {segments(
-              m.text,
-              (m.mentions ?? []).map((id) => byId.get(id)).filter((x): x is Member => !!x),
-              !!m.everyone,
-            ).map((p, i) =>
-              p.member ? (
-                <Text
-                  key={i}
-                  accessibilityRole="link"
-                  accessibilityHint={tr('chat.seeProfile')}
-                  onPress={() => {
-                    mentionTap.current = Date.now();
-                    onProfile(p.member!.id);
-                  }}
-                  onLongPress={onLongPress}
-                  style={mentionStyle(mine, p.member.color)}>
-                  {p.text}
-                </Text>
-              ) : p.everyone ? (
-                <Text key={i} style={mine ? mentionStyle(true, '') : { ...mentionStyle(false, t.accInk), backgroundColor: t.accSoft }}>
-                  {p.text}
-                </Text>
-              ) : (
-                p.text
-              ),
-            )}
-          </Text>
-          <Text style={{ fontFamily: t.font.regular, fontSize: 10, color: mine ? '#121216' : t.mut, opacity: 0.7, alignSelf: 'flex-end' }}>
-            {dateFormat({ hour: '2-digit', minute: '2-digit' }).format(new Date(m.created_at))}
-          </Text>
+          {media ? (
+            <>
+              <MessageMediaFrame m={m} media={media} label={mediaLabel} />
+              {!!m.caption && rich(m.caption)}
+            </>
+          ) : (
+            rich(m.text)
+          )}
+          {/* A photo without a caption has its time on it. */}
+          {(!media || !!m.caption) && (
+            <Text
+              style={{
+                fontFamily: t.font.regular,
+                fontSize: 10,
+                color: mine ? '#121216' : t.mut,
+                opacity: 0.7,
+                alignSelf: 'flex-end',
+                paddingHorizontal: media ? 10 : 0,
+              }}>
+              {dateFormat({ hour: '2-digit', minute: '2-digit' }).format(new Date(m.created_at))}
+            </Text>
+          )}
           {!!onReact && <HeartBurst trigger={burst} />}
         </Pressable>
       </View>
@@ -202,6 +255,10 @@ export function ChatMessages({ roundId }: { roundId: number }) {
   const { moderation, chatReactions } = useFeatures();
   const { ids: blocked } = useBlocks();
   const react = useReact(roundId);
+  const pending = usePending(roundId);
+  // The photo or GIF open full screen (gone if its message is deleted meanwhile).
+  const [viewing, setViewing] = useState<number | null>(null);
+  const viewed = viewing != null ? (data?.find((m) => m.id === viewing) ?? null) : null;
   // Long-press on a reaction: who reacted with it (kept fresh by the live updates).
   const [who, setWho] = useState<{ id: number; emoji: string } | null>(null);
   const whoReaction = (who && data?.find((m) => m.id === who.id)?.reactions?.find((r) => r.emoji === who.emoji && r.count > 0)) || null;
@@ -229,12 +286,14 @@ export function ChatMessages({ roundId }: { roundId: number }) {
   // Messages already there when the result opens just show; new ones rise in.
   const isNew = useArrivals(messages?.map((m) => m.id));
   // No messages yet: nothing to show, the box below already invites one.
-  if (!messages?.length) return null;
+  if (!messages?.length && !pending.length) return null;
   return (
     <View style={{ gap: 10 }}>
-      <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut, marginLeft: 4 }}>{tr('chat.count', { count: messages.length })}</Text>
+      <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut, marginLeft: 4 }}>
+        {tr('chat.count', { count: (messages?.length ?? 0) + pending.length })}
+      </Text>
       <View style={{ gap: 10 }}>
-        {messages.map((m) => (
+        {messages?.map((m) => (
           <Bubble
             key={m.id}
             m={m}
@@ -246,7 +305,11 @@ export function ChatMessages({ roundId }: { roundId: number }) {
             onDelete={moderation && (owner || m.member_id === me?.id) ? remove(m.id) : undefined}
             onReact={chatReactions ? (emoji) => react(m, emoji) : undefined}
             onWho={(emoji) => setWho({ id: m.id, emoji })}
+            onOpen={(x) => setViewing(x.id)}
           />
+        ))}
+        {pending.map((p) => (
+          <PendingBubble key={p.key} roundId={roundId} p={p} />
         ))}
       </View>
       <ModerationDialog
@@ -268,6 +331,7 @@ export function ChatMessages({ roundId }: { roundId: number }) {
         }
       />
       <WhoReacted reaction={whoReaction} onClose={() => setWho(null)} />
+      <MediaViewer message={viewed} onClose={() => setViewing(null)} />
       <ProfileSheet
         profile={profileId != null ? (profiles.get(profileId) ?? null) : null}
         byId={byId}
@@ -290,6 +354,7 @@ export function ChatInput({ roundId, onFocus, onSent }: { roundId: number; onFoc
   const qc = useQueryClient();
   const { me } = useSession();
   const { members } = useMembers();
+  const features = useFeatures();
   const input = useRef<ComponentRef<typeof TextInput>>(null);
   const [text, setText] = useState('');
   // The caret as the field last reported it (null: nothing reported yet, read as the end of the text).
@@ -423,7 +488,20 @@ export function ChatInput({ roundId, onFocus, onSent }: { roundId: number; onFoc
           </ScrollView>
         </Animated.View>
       )}
-      <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 8, paddingLeft: 10 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 8, paddingLeft: features.chatImages || features.chatGifs ? 0 : 10 }}>
+        <AttachButton
+          roundId={roundId}
+          draft={text}
+          picked={picked}
+          others={others}
+          onUseDraft={() => {
+            setText('');
+            setSel(null);
+            setPicked([]);
+            setClosed(null);
+          }}
+          onSent={onSent}
+        />
         <TextInput
           ref={input}
           accessibilityLabel={tr('chat.inputLabel')}

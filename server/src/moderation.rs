@@ -329,27 +329,33 @@ async fn hide_if_reported(
     Ok(())
 }
 
-/// Deletes a chat message and the inbox entries it made, closes its open reports and tells the
+/// A message about to be erased: round, author, text, sent at, room, kind, media.
+type Erased = (i64, i64, String, String, i64, String, Option<String>);
+
+/// Deletes a chat message (and its image file) and the inbox entries it made, closes its open reports and tells the
 /// room. `false` if it was already gone.
 pub(crate) async fn erase_message(state: &AppState, id: i64) -> AppResult<bool> {
     let mut tx = crate::db::write_tx(&state.db).await?;
-    let row: Option<(i64, i64, String, i64)> = sqlx::query_as(
-        "SELECT x.round_id, x.member_id, x.text, r.group_id FROM messages x \
+    let row: Option<Erased> = sqlx::query_as(
+        "SELECT x.round_id, x.member_id, x.text, x.created_at, r.group_id, x.kind, x.media FROM messages x \
          JOIN rounds r ON r.id = x.round_id WHERE x.id = ?",
     )
     .bind(id)
     .fetch_optional(&mut *tx)
     .await?;
-    let Some((round_id, author, text, room)) = row else {
+    let Some((round_id, author, text, created_at, room, kind, media)) = row else {
         return Ok(false);
     };
-    // The inbox keeps a copy of the text ("message" and "mention" entries).
+    // The inbox keeps a copy of the text ("message" and "mention" entries): per recipient, the
+    // first one made since this message (the same text sent twice, like two "📷 Photo", keeps the other).
     sqlx::query(
-        "DELETE FROM inbox WHERE round_id = ? AND actor_id = ? AND kind IN ('message', 'mention') AND text = ?",
+        "DELETE FROM inbox WHERE id IN (SELECT MIN(id) FROM inbox WHERE round_id = ? AND actor_id = ? \
+         AND kind IN ('message', 'mention') AND text = ? AND created_at >= ? GROUP BY member_id)",
     )
     .bind(round_id)
     .bind(author)
     .bind(&text)
+    .bind(&created_at)
     .execute(&mut *tx)
     .await?;
     sqlx::query("DELETE FROM messages WHERE id = ?")
@@ -358,6 +364,11 @@ pub(crate) async fn erase_message(state: &AppState, id: i64) -> AppResult<bool> 
         .await?;
     resolve(&mut tx, "message", id, "delete").await?;
     tx.commit().await?;
+    // An image goes with its message.
+    if kind == "image" {
+        let file = crate::media::file_path(&state.config.data_dir, room, media.as_deref());
+        crate::media::remove_files(file.into_iter().collect()).await;
+    }
     state.live.send(
         room,
         Event::MessageDeleted {
@@ -527,6 +538,26 @@ pub async fn open_reports(state: &AppState) -> AppResult<Vec<Value>> {
                 false,
             ),
         };
+        // An image or a GIF: what the admin needs to see (an image even while hidden).
+        let media = if kind == "message" && !gone {
+            sqlx::query_as::<_, (String, Option<String>)>(
+                "SELECT kind, media FROM messages WHERE id = ?",
+            )
+            .bind(id)
+            .fetch_optional(&state.db)
+            .await?
+            .and_then(|(k, m)| match k.as_str() {
+                "image" => {
+                    m.map(|_| json!({ "kind": k, "url": crate::media::image_url(state, id, true) }))
+                }
+                _ => crate::media::payload(state, id, &k, m.as_deref()).map(|mut p| {
+                    p["kind"] = json!(k);
+                    p
+                }),
+            })
+        } else {
+            None
+        };
         let reasons: Vec<String> = serde_json::from_str(&reasons).unwrap_or_default();
         let details: Vec<Option<String>> = serde_json::from_str(&details).unwrap_or_default();
         out.push(json!({
@@ -543,6 +574,7 @@ pub async fn open_reports(state: &AppState) -> AppResult<Vec<Value>> {
             })),
             "gone": gone,
             "hidden": hidden,
+            "media": media,
         }));
     }
     Ok(out)

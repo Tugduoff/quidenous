@@ -53,13 +53,14 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Pour ta photo de profil."
+          "photosPermission": "Pour ta photo de profil et les photos du chat.",
+          "cameraPermission": "Pour scanner un QR code ou prendre une photo dans le chat."
         }
       ],
       [
         "expo-camera",
         {
-          "cameraPermission": "Pour scanner le QR code d’un salon ou d’un ami.",
+          "cameraPermission": "Pour scanner un QR code ou prendre une photo dans le chat.",
           "microphonePermission": false,
           "recordAudioAndroid": false
         }

@@ -52,4 +52,8 @@ export const errors = {
   too_many_rooms: 'Tu as déjà 20 salons',
   question_exists: 'Déjà dans ce salon',
   update_required: "Mets l'app à jour",
+  // Chat media
+  bad_image: 'Format d’image non pris en charge',
+  too_large: 'Image trop lourde',
+  gifs_off: 'GIF indisponibles',
 };

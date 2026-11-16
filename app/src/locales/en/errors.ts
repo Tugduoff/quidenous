@@ -53,4 +53,8 @@ export const errors: Messages['errors'] = {
   too_many_rooms: 'You already have 20 rooms',
   question_exists: 'Already in this room',
   update_required: 'Update the app',
+  // Chat media
+  bad_image: 'Unsupported image format',
+  too_large: 'Image too large',
+  gifs_off: 'GIFs unavailable',
 };

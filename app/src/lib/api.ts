@@ -172,16 +172,27 @@ export type HistoryItem = {
  */
 /** One emoji on a chat message: how many, whether I'm among them, and who (member ids, oldest first). */
 export type Reaction = { emoji: string; count: number; mine: boolean; members: number[] };
+/**
+ * A chat photo or GIF. `url` / `preview_url` are server paths (`/api/media/…`, `/api/gifs/media/…`: signed, short-lived,
+ * no header needed) or absolute URLs; `mediaUrl()` makes them loadable.
+ */
+export type MessageMedia = { url: string; width: number; height: number; mime?: string; preview_url?: string | null; provider?: string };
 export type Message = {
   id: number;
   member_id: number;
   user_id?: number | null;
+  /** For a photo or a GIF: what an older app shows ("📷 Photo", "GIF", plus the caption). */
   text: string;
   created_at: string;
   mentions?: number[];
   everyone?: boolean;
   /** Absent from an older server. */
   reactions?: Reaction[];
+  /** `text` when absent (an older server); a kind this app doesn't know shows its `text`. */
+  kind?: 'text' | 'image' | 'gif' | (string & {});
+  /** Photo or GIF: the text under it (mentions apply to it). */
+  caption?: string | null;
+  media?: MessageMedia | null;
 };
 export type InboxItem = {
   id: number;
@@ -428,6 +439,9 @@ export async function api<T>(path: string, init: RequestInit & { json?: unknown;
 export const launchNext = (roomId: number) => api<{ round_id: number | null }>(`/rooms/${roomId}/next`, { method: 'POST' });
 
 export const photoUrl = (m: Member) => (m.photo_url ? `${API_URL}${m.photo_url}` : null);
+
+/** A media path from the server (`/api/…`) on the server in use; an absolute URL as is. */
+export const mediaUrl = (url: string) => (url.startsWith('/') ? `${API_URL}${url}` : url);
 
 export const liveUrl = async (t: string, tickets: boolean) =>
   `${API_URL.replace(/^http/, 'ws')}/api/live?${await urlAuth('live', tickets, t)}${roomQuery()}`;
