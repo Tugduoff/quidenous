@@ -62,6 +62,13 @@ export const party: Messages['party'] = {
     leave: 'Leave the party',
     leaveAsk: 'Leave the party?',
     leaveMessage: 'You can come back with the code.',
+    lock: 'Close the party',
+    unlock: 'Reopen the party',
+    players: 'Remove a player',
+  },
+  remove: {
+    ask: 'Remove {name}?',
+    action: 'Remove',
   },
   join: {
     title: 'Join the party',
@@ -85,5 +92,7 @@ export const party: Messages['party'] = {
     badName: 'Invalid name',
     badColor: 'Invalid colour',
     notParty: 'The party became a room',
+    locked: 'The party is closed',
+    removed: 'You were removed from this party',
   },
 };

@@ -1,24 +1,36 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
-import { Check, X } from 'lucide-react-native';
+import { Ban, Check, Eye, Lightbulb, type LucideIcon, MessageCircle, MessageSquareQuote, Trash2, User, UserX, X } from 'lucide-react-native';
 import { useState } from 'react';
 import { Text, TextInput, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 
 import { MiniTag, PageHeader } from '@/components/pack-card';
 import { Screen } from '@/components/screen';
-import { Card, ConfirmModal, Display, PressableScale, QuestionText } from '@/components/ui';
+import { askConfirm, Card, ConfirmModal, Display, PressableScale, QuestionText } from '@/components/ui';
 import { api } from '@/lib/api';
 import { dateFormat, useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
-import { type PackTag, packKeys, REPORT_REASONS, type ReportReason, type Review, TAG_ICONS, useCommunityMe, useReview } from '@/lib/packs';
+import { REASONS } from '@/lib/moderation';
+import {
+  type PackTag,
+  packKeys,
+  type ReportAction,
+  REPORT_REASONS,
+  type ReportReason,
+  type Review,
+  type ReviewReport,
+  TAG_ICONS,
+  useCommunityMe,
+  useReview,
+} from '@/lib/packs';
 import { useTheme } from '@/lib/theme';
 
 /** The built-in deck's tones a suggestion can join (none picked: the server files it under `potes`). */
 const DECK_TAGS: PackTag[] = ['potes', 'pimente', 'boulot', 'famille'];
 const isReason = (r: string | null): r is ReportReason => !!r && (REPORT_REASONS as string[]).includes(r);
 
-/** Admins: packs sent to review by reports (approve or remove with a reason), suggestions voted up (approve or reject). */
+/** Admins: reported messages, members, questions and suggestions; packs sent to review by reports (approve or remove with a reason), suggestions voted up (approve or reject). */
 export default function AdminScreen() {
   const t = useTheme();
   const tr = useT();
@@ -42,7 +54,22 @@ export default function AdminScreen() {
       setReason('');
     },
   });
-  const empty = review && !review.packs.length && !review.suggestions.length;
+  const close = useMutation({
+    meta: { quiet: true },
+    mutationFn: (v: { report: ReviewReport; action: ReportAction }) =>
+      api('/admin/reports', { method: 'POST', json: { kind: v.report.kind, id: v.report.id, action: v.action } }),
+    onSuccess: (_, { report }) =>
+      qc.setQueryData<Review>(packKeys.review, (r) => r && { ...r, reports: r.reports?.filter((x) => x.kind !== report.kind || x.id !== report.id) }),
+  });
+  const decide = async (report: ReviewReport, action: ReportAction) => {
+    // Acting on the account: asked first (erasing can't be undone).
+    if (action === 'suspend' && !(await askConfirm(tr('admin.suspendTitle', { name: report.person?.name ?? '' }), tr('admin.suspendBody'), tr('admin.suspend'))))
+      return;
+    if (action === 'erase' && !(await askConfirm(tr('admin.eraseTitle', { name: report.person?.name ?? '' }), tr('admin.eraseBody'), tr('admin.erase'))))
+      return;
+    close.mutate({ report, action });
+  };
+  const empty = review && !review.packs.length && !review.suggestions.length && !review.reports?.length;
   const section = { fontFamily: t.font.semibold, fontSize: 13, color: t.mut, marginLeft: 4, marginTop: 4 };
   const day = dateFormat({ day: 'numeric', month: 'short' });
 
@@ -53,7 +80,14 @@ export default function AdminScreen() {
       {(empty || me?.admin === false) && (
         <Text style={{ fontFamily: t.font.regular, fontSize: 15, color: t.mut, textAlign: 'center', marginTop: 24 }}>{tr('admin.empty')}</Text>
       )}
-      {act.isError && <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.tag }}>{tr('common.failed')}</Text>}
+      {(act.isError || close.isError) && <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.tag }}>{tr('common.failed')}</Text>}
+
+      {!!review?.reports?.length && <Text style={section}>{tr('admin.reported')}</Text>}
+      {review?.reports?.map((r, i) => (
+        <Animated.View key={`r${r.kind}${r.id}`} entering={motion.stagger(i)} exiting={motion.exit} layout={motion.layout}>
+          <ReportCard report={r} busy={close.isPending} onAct={(action) => decide(r, action)} />
+        </Animated.View>
+      ))}
 
       {!!review?.packs.length && <Text style={section}>{tr('admin.packs')}</Text>}
       {review?.packs.map((p, i) => (
@@ -192,6 +226,71 @@ function SuggestionCard({
       </View>
       <Actions busy={busy} onReject={onReject} rejectLabel={tr('admin.reject')} onApprove={() => onApprove(tags)} />
     </Card>
+  );
+}
+
+const KIND_ICONS: Record<ReviewReport['kind'], LucideIcon> = {
+  message: MessageCircle,
+  member: User,
+  question: MessageSquareQuote,
+  suggestion: Lightbulb,
+};
+
+/** One reported thing: what it says, who and where, why (reasons and details), and what to do with it. */
+function ReportCard({ report: r, busy, onAct }: { report: ReviewReport; busy: boolean; onAct: (action: ReportAction) => void }) {
+  const t = useTheme();
+  const tr = useT();
+  const Icon = KIND_ICONS[r.kind];
+  const reasons = REASONS.filter((x) => r.reasons.includes(x)).map((x) => tr(`moderation.reasons.${x}`));
+  const who = [r.person && !r.person.deleted ? r.person.name : null, r.room].filter(Boolean).join(' · ');
+  const account = !!r.person && !r.person.deleted;
+  return (
+    <Card style={{ padding: 16, gap: 8 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <Icon size={16} color={t.mut} />
+        <Text style={{ flex: 1, fontFamily: t.font.semibold, fontSize: 13, color: t.tag }}>{tr('admin.reports', { count: r.count })}</Text>
+        {r.hidden && <MiniTag label={tr('admin.hidden')} />}
+        {r.gone && <MiniTag label={tr('admin.gone')} />}
+        {r.person?.suspended && <MiniTag label={tr('admin.suspended')} tone="hot" />}
+      </View>
+      <Text style={{ fontFamily: t.font.semibold, fontSize: 16, lineHeight: 22, color: r.gone ? t.mut : t.txt }}>{r.content}</Text>
+      {!!who && (
+        <Text numberOfLines={1} style={{ fontFamily: t.font.regular, fontSize: 13, color: t.mut }}>
+          {who}
+        </Text>
+      )}
+      <Text style={{ fontFamily: t.font.regular, fontSize: 13, lineHeight: 18, color: t.txt }}>
+        {[reasons.join(', '), ...r.details].filter(Boolean).join(' · ')}
+      </Text>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 }}>
+        <Pill icon={r.hidden ? Eye : Check} label={tr(r.hidden ? 'admin.restore' : 'admin.dismiss')} busy={busy} onPress={() => onAct('dismiss')} />
+        {r.kind !== 'member' && !r.gone && <Pill icon={Trash2} label={tr('admin.delete')} danger busy={busy} onPress={() => onAct('delete')} />}
+        {account && !r.person?.suspended && <Pill icon={Ban} label={tr('admin.suspend')} danger busy={busy} onPress={() => onAct('suspend')} />}
+        {account && <Pill icon={UserX} label={tr('admin.erase')} danger busy={busy} onPress={() => onAct('erase')} />}
+      </View>
+    </Card>
+  );
+}
+
+function Pill({ icon: Icon, label, onPress, busy, danger }: { icon: LucideIcon; label: string; onPress: () => void; busy: boolean; danger?: boolean }) {
+  const t = useTheme();
+  return (
+    <PressableScale
+      accessibilityRole="button"
+      disabled={busy}
+      onPress={onPress}
+      style={{
+        height: 38,
+        paddingHorizontal: 14,
+        borderRadius: t.radius.pill,
+        flexDirection: 'row',
+        gap: 6,
+        alignItems: 'center',
+        backgroundColor: t.card2,
+      }}>
+      <Icon size={15} color={danger ? t.tag : t.txt} />
+      <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.txt }}>{label}</Text>
+    </PressableScale>
   );
 }
 

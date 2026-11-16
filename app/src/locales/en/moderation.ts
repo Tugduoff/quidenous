@@ -13,4 +13,7 @@ export const moderation: Messages['moderation'] = {
   blockBody: "You won't see their messages anymore.",
   blockConfirm: 'Block',
   done: 'Reported',
+  delete: 'Delete',
+  deleteTitle: 'Delete this message?',
+  deleteConfirm: 'Delete',
 };

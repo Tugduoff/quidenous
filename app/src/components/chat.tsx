@@ -8,11 +8,12 @@ import { ModerationDialog, type ModTarget } from '@/components/moderation';
 import { ProfileSheet } from '@/components/stats/profile-sheet';
 import { Avatar, Card, PressableScale } from '@/components/ui';
 import { api, type Member, type Message } from '@/lib/api';
+import { useFeatures } from '@/lib/auth';
 import { dateFormat, useT } from '@/lib/i18n';
 import { activeMention, everyone, matches, outgoing, segments } from '@/lib/mentions';
 import { useBlocks } from '@/lib/moderation';
 import { motion, useArrivals } from '@/lib/motion';
-import { keys, useMembers, useMessages, useStats } from '@/lib/queries';
+import { keys, useGroup, useMembers, useMessages, useStats } from '@/lib/queries';
 import { sendOnEnter } from '@/lib/submit';
 import { useSession } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
@@ -32,6 +33,7 @@ function Bubble({
   fresh,
   onReport,
   onProfile,
+  onDelete,
 }: {
   m: Message;
   author?: Member;
@@ -39,6 +41,8 @@ function Bubble({
   fresh: boolean;
   onReport: (target: ModTarget) => void;
   onProfile: (id: number) => void;
+  /** I may delete it (mine, or I own the room): offered on long-press. */
+  onDelete?: () => Promise<unknown>;
 }) {
   const t = useTheme();
   const tr = useT();
@@ -51,12 +55,13 @@ function Bubble({
       ? { fontFamily: t.font.bold, color: '#121216', backgroundColor: 'rgba(0,0,0,0.12)', borderRadius: 5, paddingHorizontal: 3 }
       : { fontFamily: t.font.bold, color, backgroundColor: soft(color), borderRadius: 5, paddingHorizontal: 3 };
   const onLongPress = mine
-    ? undefined
+    ? onDelete && (() => onReport({ kind: 'message', id: m.id, own: true, onDelete }))
     : () =>
         onReport({
           kind: 'message',
           id: m.id,
           person: author && userId != null ? { user_id: userId, name: author.name, color: author.color, photo: author.photo_url, avatar: author.avatar } : undefined,
+          onDelete,
         });
   return (
     <Animated.View
@@ -67,7 +72,7 @@ function Bubble({
       <Pressable
         onLongPress={onLongPress}
         delayLongPress={400}
-        accessibilityHint={mine ? undefined : tr('chat.longPressHint')}
+        accessibilityHint={mine ? (onDelete ? tr('chat.longPressOwnHint') : undefined) : tr('chat.longPressHint')}
         style={{
           maxWidth: '78%',
           paddingHorizontal: 14,
@@ -121,9 +126,19 @@ function Bubble({
 export function ChatMessages({ roundId }: { roundId: number }) {
   const t = useTheme();
   const tr = useT();
+  const qc = useQueryClient();
+  const { me } = useSession();
   const { byId } = useMembers();
   const { data } = useMessages(roundId);
+  const { data: group } = useGroup();
+  const { moderation } = useFeatures();
   const { ids: blocked } = useBlocks();
+  // My own messages, or anyone's in a room I own (a server that can delete them).
+  const owner = group?.my_role === 'owner';
+  const remove = (id: number) => async () => {
+    await api(`/rounds/${roundId}/messages/${id}`, { method: 'DELETE' });
+    qc.setQueryData<Message[]>(keys.messages(roundId), (old) => old?.filter((x) => x.id !== id));
+  };
   // Long-press on someone else's message: report it, block its author.
   const [target, setTarget] = useState<ModTarget | null>(null);
   // A tapped @mention opens that person's profile, from the all-time stats (fetched on the first tap).
@@ -156,6 +171,7 @@ export function ChatMessages({ roundId }: { roundId: number }) {
             fresh={isNew(m.id)}
             onReport={setTarget}
             onProfile={setProfileId}
+            onDelete={moderation && (owner || m.member_id === me?.id) ? remove(m.id) : undefined}
           />
         ))}
       </View>

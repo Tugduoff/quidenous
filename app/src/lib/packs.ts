@@ -55,7 +55,25 @@ export type ReportReason = 'offensive' | 'sexual' | 'spam' | 'other';
 export const REPORT_REASONS: ReportReason[] = ['offensive', 'sexual', 'spam', 'other'];
 export type PackReport = { reason: string | null; details: string | null; created_at: string };
 export type ReviewSuggestion = { id: number; text: string; kind: PackKind; lang: string; status: string; up: number; down: number; author: string };
-export type Review = { packs: (PackItem & { reports: PackReport[] })[]; suggestions: ReviewSuggestion[] };
+/** Open reports on one thing (a chat message, a member, a question, a suggestion), oldest first. */
+export type ReviewReport = {
+  kind: 'message' | 'member' | 'question' | 'suggestion';
+  id: number;
+  content: string;
+  count: number;
+  first_at: string;
+  reasons: string[];
+  details: string[];
+  room: string | null;
+  person: { user_id: number; name: string; deleted: boolean; suspended: boolean } | null;
+  /** Already deleted (by its author, the owner…). */
+  gone: boolean;
+  /** Hidden by reports until an admin decides. */
+  hidden: boolean;
+};
+export type ReportAction = 'dismiss' | 'delete' | 'suspend' | 'erase';
+/** `reports`: absent from an older server. */
+export type Review = { packs: (PackItem & { reports: PackReport[] })[]; suggestions: ReviewSuggestion[]; reports?: ReviewReport[] };
 
 export const packKeys = {
   all: ['packs'] as const,

@@ -68,8 +68,16 @@ pub fn router() -> Router<AppState> {
         .route("/rounds/{id}", get(round))
         .route("/rounds/{id}/seen", post(mark_seen))
         .route("/rounds/{id}/pin", put(pin).delete(unpin))
+        .route(
+            "/rounds/{id}/question",
+            axum::routing::delete(crate::moderation::retire_round_question),
+        )
         .route("/rounds/{id}/share", post(crate::share::create))
         .route("/rounds/{id}/messages", get(messages).post(post_message))
+        .route(
+            "/rounds/{id}/messages/{message_id}",
+            axum::routing::delete(crate::moderation::delete_message),
+        )
         .route("/inbox", get(inbox))
         .route("/inbox/read", post(read_inbox))
         .route("/history", get(history))
@@ -169,6 +177,7 @@ pub fn router() -> Router<AppState> {
             axum::routing::delete(crate::rooms::force_remove),
         )
         .route("/reports", post(crate::moderation::report))
+        .route("/admin/reports", post(crate::moderation::act))
         .route("/blocks", get(crate::moderation::list_blocks))
         .route(
             "/blocks/{user_id}",
@@ -220,6 +229,7 @@ async fn features(State(state): State<AppState>) -> Json<Value> {
         "reorder",
         "room_preview",
         "consent",
+        "moderation",
     ];
     f.extend(crate::accounts::features(&state));
     Json(json!(f))
@@ -1261,6 +1271,18 @@ pub(crate) async fn take_seat(
         return Ok(None);
     }
     let promoted = game::ensure_owner(tx, group_id).await?;
+    // Removed (not left): the questions they queued go too (a troll's 300 questions).
+    if !left {
+        sqlx::query(concat!(
+            "DELETE FROM questions AS q WHERE q.group_id = ?1 AND q.author_id = ?2 AND ",
+            game::unused!(),
+            " AND NOT EXISTS (SELECT 1 FROM challenges c WHERE c.question_id = q.id)"
+        ))
+        .bind(group_id)
+        .bind(member_id)
+        .execute(&mut **tx)
+        .await?;
+    }
     sqlx::query("DELETE FROM kicks WHERE target_id = ?1 OR from_id = ?1")
         .bind(member_id)
         .execute(&mut **tx)
@@ -1357,6 +1379,16 @@ async fn pin(
     if round.closed_at.is_none() {
         return Err(AppError::BadRequest("round_open"));
     }
+    let pinned: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM pins p JOIN rounds r ON r.id = p.round_id WHERE r.group_id = ? AND p.round_id != ?",
+    )
+    .bind(me.group_id)
+    .bind(id)
+    .fetch_one(&state.db)
+    .await?;
+    if pinned >= PINS_MAX {
+        return Err(AppError::Conflict("too_many_pins"));
+    }
     sqlx::query("INSERT OR IGNORE INTO pins (round_id, member_id) VALUES (?, ?)")
         .bind(id)
         .bind(me.id)
@@ -1378,6 +1410,14 @@ async fn unpin(
     Path(id): Path<i64>,
 ) -> AppResult<Json<Value>> {
     game::round(&state.db, me.group_id, id).await?;
+    // Whoever pinned it, or the owner (not anyone undoing everyone's pins).
+    let by: Option<i64> = sqlx::query_scalar("SELECT member_id FROM pins WHERE round_id = ?")
+        .bind(id)
+        .fetch_optional(&state.db)
+        .await?;
+    if by.is_some_and(|by| by != me.id) && me.role != "owner" {
+        return Err(AppError::Forbidden("not_pinner"));
+    }
     sqlx::query("DELETE FROM pins WHERE round_id = ?")
         .bind(id)
         .execute(&state.db)
@@ -1559,7 +1599,8 @@ async fn order_questions(
     Ok(Json(json!({ "ordered": body.ids.len() })))
 }
 
-/// Remove a question that hasn't been asked yet: its author or the room owner.
+/// Remove a question that hasn't been asked yet: its author or the room owner. One already asked:
+/// the owner only, and it stays in the history as "Question retirée".
 async fn delete_question(
     State(state): State<AppState>,
     Me(me): Me,
@@ -1578,7 +1619,12 @@ async fn delete_question(
     .await?;
     let (author, unused) = row.ok_or(AppError::NotFound)?;
     if !unused {
-        return Err(AppError::Conflict("already_asked"));
+        if me.role != "owner" {
+            return Err(AppError::Conflict("already_asked"));
+        }
+        drop(tx);
+        crate::moderation::retire_question(&state, id).await?;
+        return Ok(Json(json!({ "ok": true, "retired": true })));
     }
     if author != Some(me.id) && me.role != "owner" {
         return Err(AppError::Forbidden("not_author"));
@@ -1956,6 +2002,9 @@ impl From<MessageDb> for MessageRow {
     }
 }
 
+/// Pinned results per room at most.
+const PINS_MAX: i64 = 100;
+
 /// The most recent messages of a chat the app gets (older ones are left out).
 const MESSAGES_SHOWN: i64 = 200;
 
@@ -1968,7 +2017,7 @@ async fn messages(
     game::round(&state.db, me.group_id, id).await?;
     let rows: Vec<MessageDb> = sqlx::query_as(
         "SELECT x.id, x.member_id, m.user_id, x.text, x.created_at, x.mentions, x.everyone FROM messages x \
-         JOIN members m ON m.id = x.member_id WHERE x.round_id = ? \
+         JOIN members m ON m.id = x.member_id WHERE x.round_id = ? AND x.hidden_at IS NULL \
          AND NOT EXISTS (SELECT 1 FROM blocks b WHERE b.user_id = ? AND b.blocked_id = m.user_id) \
          ORDER BY x.id DESC LIMIT ?",
     )

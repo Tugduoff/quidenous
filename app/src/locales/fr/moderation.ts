@@ -12,4 +12,7 @@ export const moderation = {
   blockBody: 'Tu ne verras plus ses messages.',
   blockConfirm: 'Bloquer',
   done: 'Signalé',
+  delete: 'Supprimer',
+  deleteTitle: 'Supprimer ce message ?',
+  deleteConfirm: 'Supprimer',
 };

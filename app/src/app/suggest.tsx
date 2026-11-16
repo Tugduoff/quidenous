@@ -1,6 +1,6 @@
 import { useIsMutating } from '@tanstack/react-query';
 import { router } from 'expo-router';
-import { ArrowUp, CircleCheck, CircleX, Hourglass, SkipForward, ThumbsDown, ThumbsUp, Trophy } from 'lucide-react-native';
+import { ArrowUp, CircleCheck, CircleX, Flag, Hourglass, SkipForward, ThumbsDown, ThumbsUp, Trophy } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import { GestureDetector, GestureHandlerRootView, usePanGesture } from 'react-native-gesture-handler';
@@ -8,6 +8,7 @@ import Animated, { interpolate, useAnimatedStyle, useReducedMotion, useSharedVal
 import { scheduleOnRN } from 'react-native-worklets';
 
 import { BackButton } from '@/components/auth-ui';
+import { ModerationDialog, type ModTarget } from '@/components/moderation';
 import { Screen } from '@/components/screen';
 import { Card, Display, PressableScale, QuestionText, Toggle } from '@/components/ui';
 import {
@@ -23,6 +24,7 @@ import {
   useVoteSuggestion,
   VOTE_KEY,
 } from '@/lib/community';
+import { useFeatures } from '@/lib/auth';
 import { useT } from '@/lib/i18n';
 import { EASE, motion, SPRING } from '@/lib/motion';
 import { sendOnEnter } from '@/lib/submit';
@@ -137,6 +139,9 @@ function VoteStack() {
   const [error, setError] = useState<string | null>(null);
   // A button pressed: the top card flies off that way first, then the vote is sent.
   const [fly, setFly] = useState<{ id: number; value: SuggestionVote } | null>(null);
+  // Reporting the card on top (a server that takes suggestion reports).
+  const { moderation } = useFeatures();
+  const [toReport, setToReport] = useState<ModTarget | null>(null);
   const queue = (data ?? []).filter((s) => !gone.has(s.id));
   const top = queue[0];
 
@@ -161,7 +166,21 @@ function VoteStack() {
   const press = (value: SuggestionVote) => !fly && setFly({ id: top.id, value });
   return (
     <View style={{ gap: 14, marginTop: 6 }}>
-      <Text style={label}>{tr('community.vote.title')}</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Text style={label}>{tr('community.vote.title')}</Text>
+        {moderation && (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={tr('moderation.reportQuestion')}
+            hitSlop={8}
+            onPress={() => setToReport({ kind: 'suggestion', id: top.id })}
+            style={{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' }}>
+            <Flag size={17} color={t.mut} />
+          </Pressable>
+        )}
+      </View>
+      {/* Reported: the card goes. */}
+      <ModerationDialog target={toReport} onClose={() => setToReport(null)} onReported={(r) => setGone((g) => new Set(g).add(r.id))} />
       <GestureHandlerRootView style={{ height: STACK + PEEK }}>
         {/* The card behind first, so the top one is drawn over it. */}
         {queue

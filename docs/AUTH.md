@@ -188,7 +188,14 @@ Migration `0016_play.sql` (store readiness): `users.deleted_at`, `auth_codes.kin
 
 Votes, rankings, rounds, questions they added and packs they published stay, so the others' history and stats still add up (the seat is renamed `Compte supprimé`; the app shows removed members without a name, like anyone who left). Reports they filed are kept. The email is free again afterwards.
 
-**Reports** (store policy on user content) — a message, a member or a question, from inside the room it belongs to. Stored once per (reporter, kind, target) with a snapshot of the content, and emailed (text + HTML) to `REPORT_EMAIL` (default `contact@coflop.fr`).
+**Reports** (store policy on user content) — a message, a member or a question, from inside the room it belongs to, or a suggestion to the shared deck. Stored once per (reporter, kind, target) with a snapshot of the content, and emailed (text + HTML) to `REPORT_EMAIL` (default `contact@coflop.fr`).
+
+Migration `0033_moderation.sql`: `messages.hidden_at`, `reports` rebuilt (kind `suggestion`, `resolved_at`, `resolution`), `users.suspended_at`, `groups.party_locked`.
+
+- **Auto-hide**: 3 different people with an open report on the same message hide it for everyone (author included, `message_deleted` live event); on a suggestion, it leaves the vote stack.
+- **Review** (admins, `ADMIN_USER_IDS`): `GET /admin/review` gains `reports: [{kind, id, content, count, first_at, reasons, details, room, person: {user_id, name, deleted, suspended} | null, gone, hidden}]`, open reports grouped per target, oldest first (100 at most). The app shows them first on the Modération screen (shield button on the Packs screen, admins only).
+- `POST /admin/reports {kind, id, action}` closes every open report on that target (`resolved_at`, `resolution` = action): `dismiss` (a hidden message or suggestion comes back), `delete` (the message with its inbox copies; the question as for an owner, see docs/ROOMS.md; the suggestion is rejected; not for a member: `400 bad_action`), `suspend` (the reported account: every session and push device gone, sign-in refused with `403 suspended`; undo by hand: `UPDATE users SET suspended_at = NULL WHERE id = …`), `erase` (the reported account is deleted as above). Not on an admin account (`400 bad_target`); `404` when nothing is open.
+- **Deleting a message**: `DELETE /rounds/{id}/messages/{message_id}` (author, or room owner) → `{ok}`; deletes it and the inbox entries that copied its text, closes its open reports (`delete`) and sends `message_deleted {round_id, message_id}` to the room (`403 not_author`, `404`).
 
 **Blocks** — I stop seeing someone: their chat messages (`GET /rounds/{id}/messages`, which returns the last 200 of a chat, oldest first), inbox entries they caused (and the unread counts), pushes for their messages and nudges, and friend requests both ways (an unknown code, same answer as a wrong one; inviting to a room says `not_friends`). Blocking removes a friendship by code and any pending friend request or room invitation between us; they leave my friends list. Someone who sent me a friend request can be blocked. Shared rooms, votes and results don't change. Messages (REST and the `message_posted` live event) carry the author's `user_id` (null once deleted) so the app can filter what arrives live.
 
@@ -197,12 +204,12 @@ Votes, rankings, rounds, questions they added and packs they published stay, so 
 | `DELETE /auth/account` | yes | `password?`, `code?` (TOTP or recovery) | `{ok}`, every session gone (next call `401`). The password, a 2FA code, or a recent re-authentication of this session (provider-only accounts: a provider round); legacy: nothing · `403 reauth_required`, `bad_credentials`, `bad_code`, `429`, `403 claimed_session` |
 | `POST /auth/delete/send` | | `email` | `{sent: true}` always (nothing sent for an unknown email) · `bad_email`, `503 email_not_configured`, `503 email_failed` |
 | `POST /auth/delete/confirm` | | `email, code` | `{deleted: true}` · `bad_code`, `expired` (30 min, 5 tries, single use) |
-| `POST /reports` | yes | `kind` (`message`/`member`/`question`), `id`, `reason` (`offensive`/`harassment`/`sexual`/`spam`/`other`), `details?` (≤ 500) | `{ok}` (also for a repeat) · `bad_report` (unknown kind / reason, details too long), `bad_target` (myself), `404 not_found` (unknown, or not in a room of mine), `429` |
+| `POST /reports` | yes | `kind` (`message`/`member`/`question`/`suggestion`), `id`, `reason` (`offensive`/`harassment`/`sexual`/`spam`/`other`), `details?` (≤ 500) | `{ok}` (also for a repeat) · `bad_report` (unknown kind / reason, details too long), `bad_target` (myself), `404 not_found` (unknown, or not in a room of mine), `429` |
 | `GET /blocks` | yes | | `[{user_id, name, color, photo, photo_url, avatar}]` (`photo` = `photo_url` = `/photos/…` or null) |
 | `PUT /blocks/{user_id}` | yes | | `{ok}` (idempotent) · `bad_target` (myself), `404 not_found` (unknown or deleted) |
 | `DELETE /blocks/{user_id}` | yes | | `{ok}` |
 
-`/api/features` gains `delete_account`, `reports`, `blocks`.
+`/api/features` gains `delete_account`, `reports`, `blocks` (and `moderation` with migration 0033: message deletion, report review, retired questions, locked parties).
 
 ## Not in this round
 

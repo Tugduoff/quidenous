@@ -1,4 +1,4 @@
-import { Ban, Check, Flag, type LucideIcon } from 'lucide-react-native';
+import { Ban, Check, Flag, type LucideIcon, Trash2 } from 'lucide-react-native';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
@@ -11,13 +11,16 @@ import { useTheme } from '@/lib/theme';
 
 const RED = '#FF3B5C';
 
-/** What was long-pressed: a message, a member or a question, and the person behind it when they can be blocked. */
-export type ModTarget = { kind: ReportKind; id: number; person?: Blocked };
+/**
+ * What was long-pressed: a message, a member or a question, and the person behind it when they can be blocked.
+ * `onDelete`: I may delete it (my own message, or any message of a room I own). `own`: nothing to report or block.
+ */
+export type ModTarget = { kind: ReportKind; id: number; person?: Blocked; onDelete?: () => Promise<unknown>; own?: boolean };
 
-type Step = 'menu' | 'report' | 'block' | 'done';
+type Step = 'menu' | 'report' | 'block' | 'delete' | 'done';
 
 /** Report (pick a reason) and block / unblock, in one dialog: no second modal on top of the first. */
-export function ModerationDialog({ target, onClose }: { target: ModTarget | null; onClose: () => void }) {
+export function ModerationDialog({ target, onClose, onReported }: { target: ModTarget | null; onClose: () => void; onReported?: (target: ModTarget) => void }) {
   const t = useTheme();
   const tr = useT();
   const { ids } = useBlocks();
@@ -31,7 +34,7 @@ export function ModerationDialog({ target, onClose }: { target: ModTarget | null
   const [error, setError] = useState<string | null>(null);
   if (target && target !== shown) {
     setShown(target);
-    setStep(target.person ? 'menu' : 'report');
+    setStep(target.own ? 'delete' : target.person || target.onDelete ? 'menu' : 'report');
     setReason(null);
     setDetails('');
     setError(null);
@@ -68,6 +71,7 @@ export function ModerationDialog({ target, onClose }: { target: ModTarget | null
     reason &&
     run(async () => {
       await report(shown.kind, shown.id, reason, reason === 'other' ? details.trim() || undefined : undefined);
+      onReported?.(shown);
       setStep('done');
     });
 
@@ -75,17 +79,18 @@ export function ModerationDialog({ target, onClose }: { target: ModTarget | null
     ? ''
     : shown.kind === 'message'
       ? tr('moderation.reportMessage')
-      : shown.kind === 'question'
+      : shown.kind === 'question' || shown.kind === 'suggestion'
         ? tr('moderation.reportQuestion')
         : tr('moderation.reportPerson', { name: person?.name ?? '' });
 
   return (
     <Dialog visible={!!target} onClose={onClose}>
-      {step === 'menu' && person && (
+      {step === 'menu' && (
         <>
-          <DialogTitle title={person.name} />
+          <DialogTitle title={person?.name ?? what} />
           <Action icon={Flag} label={tr('moderation.report')} onPress={() => setStep('report')} />
-          {blocked ? (
+          {!!shown?.onDelete && <Action icon={Trash2} label={tr('moderation.delete')} danger onPress={() => setStep('delete')} />}
+          {!person ? null : blocked ? (
             <Action
               icon={Ban}
               label={tr('moderation.unblock', { name: person.name })}
@@ -182,6 +187,23 @@ export function ModerationDialog({ target, onClose }: { target: ModTarget | null
             onConfirm={() =>
               run(async () => {
                 await block(person);
+                onClose();
+              })
+            }
+          />
+        </>
+      )}
+      {step === 'delete' && (
+        <>
+          <DialogTitle title={tr('moderation.deleteTitle')} />
+          <ErrorText>{error}</ErrorText>
+          <DialogActions
+            confirmLabel={tr('moderation.deleteConfirm')}
+            busy={busy}
+            onCancel={onClose}
+            onConfirm={() =>
+              run(async () => {
+                await shown?.onDelete?.();
                 onClose();
               })
             }

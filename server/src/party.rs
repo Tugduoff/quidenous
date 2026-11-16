@@ -167,13 +167,14 @@ struct PartyRow {
     language: String,
     party_timer: i64,
     party_ends_at: Option<String>,
+    party_locked: bool,
     over: bool,
     now: String,
 }
 
 async fn load(state: &AppState, id: i64) -> AppResult<PartyRow> {
     sqlx::query_as::<_, PartyRow>(concat!(
-        "SELECT id, kind, name, join_code, vibe, language, party_timer, party_ends_at, \
+        "SELECT id, kind, name, join_code, vibe, language, party_timer, party_ends_at, party_locked, \
          (party_ends_at IS NOT NULL AND party_ends_at <= ",
         now!(),
         ") AS over, ",
@@ -286,6 +287,7 @@ pub async fn view(state: &AppState, id: i64, me: Option<&MemberRow>) -> AppResul
         "language": p.language,
         "timer": p.party_timer,
         "ends_at": p.party_ends_at,
+        "locked": p.party_locked,
         "now": p.now,
         "phase": phase,
         "players": player_values,
@@ -342,7 +344,13 @@ async fn round_view(
         let results: Vec<Value> = game::tallies(&state.db, round_id)
             .await?
             .into_iter()
-            .map(|t| json!({ "member_id": t.target_id, "votes": t.count, "voters": t.voter_ids }))
+            // The big screen (no `me`, anyone with the code) gets counts only: who voted for whom stays on the phones.
+            .map(|t| match me {
+                Some(_) => {
+                    json!({ "member_id": t.target_id, "votes": t.count, "voters": t.voter_ids })
+                }
+                None => json!({ "member_id": t.target_id, "votes": t.count, "voters": [] }),
+            })
             .collect();
         let next = if over {
             Value::Null
@@ -631,7 +639,8 @@ pub fn spawn_sweeper(state: AppState) {
 
 // ---------- seats ----------
 
-/// Can someone take (or take back) a seat in this party? `410 party_over`, `409 party_full`.
+/// Can someone take (or take back) a seat in this party? `410 party_over`, `409 party_full`,
+/// `403 party_locked` (the owner closed the door: only seats already taken).
 pub async fn may_take_seat(
     state: &AppState,
     id: i64,
@@ -641,6 +650,14 @@ pub async fn may_take_seat(
         return Err(AppError::Gone("party_over"));
     }
     let seated = existing.is_some_and(|m| m.removed_at.is_none());
+    let locked: bool = sqlx::query_scalar("SELECT party_locked FROM groups WHERE id = ?")
+        .bind(id)
+        .fetch_optional(&state.db)
+        .await?
+        .unwrap_or(false);
+    if locked && !seated {
+        return Err(AppError::Forbidden("party_locked"));
+    }
     if !seated && active_players(state, id).await? >= MAX_PLAYERS {
         return Err(AppError::Conflict("party_full"));
     }
@@ -793,16 +810,22 @@ async fn join(
     };
     may_take_seat(&state, id, existing.as_ref()).await?;
     if let Some((name, _)) = &guest {
-        // Compared in Rust: SQLite's lower() only folds ASCII (Léa / LÉA).
-        let names: Vec<String> = sqlx::query_scalar(
-            "SELECT name FROM members WHERE group_id = ? AND removed_at IS NULL",
+        // Compared in Rust: SQLite's lower() only folds ASCII (Léa / LÉA). The names of guests the
+        // owner removed stay taken: rescanning the QR code doesn't bring them back.
+        let names: Vec<(String, bool)> = sqlx::query_as(
+            "SELECT name, removed_at IS NOT NULL FROM members WHERE group_id = ? \
+             AND (removed_at IS NULL OR NOT left_by_self)",
         )
         .bind(id)
         .fetch_all(&state.db)
         .await?;
         let wanted = name.to_lowercase();
-        if names.iter().any(|n| n.trim().to_lowercase() == wanted) {
-            return Err(AppError::Conflict("name_taken"));
+        if let Some((_, removed)) = names.iter().find(|n| n.0.trim().to_lowercase() == wanted) {
+            return Err(if *removed {
+                AppError::Forbidden("removed")
+            } else {
+                AppError::Conflict("name_taken")
+            });
         }
     }
     let mut tx = crate::db::write_tx(&state.db).await?;
@@ -1050,9 +1073,12 @@ pub struct UpdateBody {
     name: Option<String>,
     #[serde(default)]
     timer: Option<i64>,
+    /// Nobody new can join (seats already taken stay).
+    #[serde(default)]
+    locked: Option<bool>,
 }
 
-/// Owner: rename, change the timer (next questions).
+/// Owner: rename, change the timer (next questions), lock or unlock the door.
 async fn update(
     State(state): State<AppState>,
     UserId(user): UserId,
@@ -1070,10 +1096,12 @@ async fn update(
         None => None,
     };
     sqlx::query(
-        "UPDATE groups SET name = COALESCE(?, name), party_timer = COALESCE(?, party_timer) WHERE id = ?",
+        "UPDATE groups SET name = COALESCE(?, name), party_timer = COALESCE(?, party_timer), \
+         party_locked = COALESCE(?, party_locked) WHERE id = ?",
     )
     .bind(name)
     .bind(timer)
+    .bind(body.locked)
     .bind(id)
     .execute(&state.db)
     .await?;

@@ -8,6 +8,8 @@ import {
   Ellipsis,
   ExternalLink,
   Hourglass,
+  Lock,
+  LockOpen,
   LogOut,
   Monitor,
   Share2,
@@ -26,12 +28,14 @@ import { Screen } from '@/components/screen';
 import { showToast } from '@/components/toast';
 import { askConfirm, Avatar, Button, Card, CodeText, Dialog, DialogTitle, Display, PressableScale, Segmented, Tag } from '@/components/ui';
 import { api, ApiError, type HistoryItem, type Member, setApiRoom } from '@/lib/api';
+import { useFeatures } from '@/lib/auth';
 import { dateFormat, useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
 import { useMembers } from '@/lib/queries';
 import {
   type Party,
   partyApi,
+  partyKeys,
   partyError,
   partyJoinLink,
   partyScreenLink,
@@ -109,6 +113,21 @@ function usePeople(party: Party) {
 }
 const isOwner = (p: Party) => p.me?.role === 'owner';
 
+/** Owner: takes a player out of the party, after asking (their name stays taken: no fresh seat by rescanning). */
+function useRemovePlayer(id: number) {
+  const tr = useT();
+  const qc = useQueryClient();
+  return async (p: { id: number; name: string }) => {
+    if (!(await askConfirm(tr('party.remove.ask', { name: p.name }), undefined, tr('party.remove.action')))) return;
+    try {
+      await api(`/rooms/${id}/members/${p.id}`, { method: 'DELETE' });
+      await qc.invalidateQueries({ queryKey: partyKeys.party(id) });
+    } catch (e) {
+      showToast(partyError(e));
+    }
+  };
+}
+
 function BackToRooms() {
   const t = useTheme();
   const tr = useT();
@@ -171,6 +190,16 @@ function Menu({ party, visible, onClose }: { party: Party; visible: boolean; onC
     onSuccess: setParty,
     onError: (e) => setError(partyError(e)),
   });
+  const lock = useMutation({
+    meta: { quiet: true },
+    mutationFn: (locked: boolean) => partyApi.update(party.id, { locked }),
+    onMutate: () => setError(null),
+    onSuccess: setParty,
+    onError: (e) => setError(partyError(e)),
+  });
+  const removePlayer = useRemovePlayer(party.id);
+  const { moderation } = useFeatures();
+  const others = party.players.filter((p) => p.role !== 'owner');
   const end = async () => {
     onClose();
     if (!(await askConfirm(tr('party.menu.endAsk'), tr('party.menu.endMessage'), tr('party.menu.endAction')))) return;
@@ -205,7 +234,23 @@ function Menu({ party, visible, onClose }: { party: Party; visible: boolean; onC
           />
         </View>
       )}
+      {owner && live && moderation && others.length > 0 && (
+        <View style={{ gap: 8 }}>
+          <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut }}>{tr('party.menu.players')}</Text>
+          <PlayerChips
+            players={others}
+            onPress={(p) => {
+              onClose();
+              removePlayer(p);
+            }}
+          />
+        </View>
+      )}
       <ErrorText>{error}</ErrorText>
+      {owner &&
+        live &&
+        moderation &&
+        (party.locked ? row(LockOpen, tr('party.menu.unlock'), () => lock.mutate(false)) : row(Lock, tr('party.menu.lock'), () => lock.mutate(true)))}
       {owner && live && row(Square, tr('party.menu.end'), end, true)}
       {row(LogOut, tr('party.menu.leave'), leave)}
     </Dialog>
@@ -232,6 +277,8 @@ function Lobby({ party }: { party: Party }) {
     onError: (e) => setError(partyError(e)),
   });
   const owner = isOwner(party);
+  const removePlayer = useRemovePlayer(party.id);
+  const { moderation } = useFeatures();
   const enough = party.players.length >= 2;
   const qr = Math.min(260, Math.max(160, Math.min(width, 520) - 120));
   const share = async () => {
@@ -299,7 +346,7 @@ function Lobby({ party }: { party: Party }) {
             {tr('party.lobby.players', { count: party.players.length })}
           </Text>
         </View>
-        <PlayerChips players={party.players} />
+        <PlayerChips players={party.players} onPress={owner && moderation ? removePlayer : undefined} />
       </View>
 
       <ScreenLink code={party.code} />

@@ -1,6 +1,6 @@
 import { Check, Crown } from 'lucide-react-native';
 import { type ReactNode, useEffect } from 'react';
-import { Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import Animated, {
   Easing,
@@ -260,9 +260,10 @@ export function NextButton({ round, owner, busy, onPress }: { round: PartyRound;
   );
 }
 
-/** The players as chips (face and name); the owner wears a crown, and someone arriving pops in. */
-export function PlayerChips({ players, big }: { players: PartyPlayer[]; big?: boolean }) {
+/** The players as chips (face and name); the owner wears a crown, and someone arriving pops in. `onPress`: the owner removes someone. */
+export function PlayerChips({ players, big, onPress }: { players: PartyPlayer[]; big?: boolean; onPress?: (p: PartyPlayer) => void }) {
   const t = useTheme();
+  const tr = useT();
   const isNew = useArrivals(players.map((p) => p.id));
   const size = big ? 52 : 30;
   return (
@@ -287,11 +288,18 @@ export function PlayerChips({ players, big }: { players: PartyPlayer[]; big?: bo
               },
               t.shadow,
             ]}>
-            <Avatar member={p} size={size} />
-            <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: t.font.semibold, fontSize: big ? 24 : 15, color: t.txt }}>
-              {p.name}
-            </Text>
-            {p.role === 'owner' && <Crown size={big ? 20 : 14} color={t.accInk} />}
+            <Pressable
+              disabled={!onPress || p.role === 'owner'}
+              onPress={() => onPress?.(p)}
+              accessibilityRole={onPress && p.role !== 'owner' ? 'button' : undefined}
+              accessibilityLabel={onPress && p.role !== 'owner' ? tr('party.remove.ask', { name: p.name }) : undefined}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: big ? 12 : 8, flexShrink: 1 }}>
+              <Avatar member={p} size={size} />
+              <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: t.font.semibold, fontSize: big ? 24 : 15, color: t.txt }}>
+                {p.name}
+              </Text>
+              {p.role === 'owner' && <Crown size={big ? 20 : 14} color={t.accInk} />}
+            </Pressable>
           </Animated.View>
         ))}
       </View>

@@ -59,6 +59,11 @@ pub enum Event {
         member_id: i64,
         user_id: Option<i64>,
     },
+    /// Deleted (by its author, the owner or an admin) or hidden by reports.
+    MessageDeleted {
+        round_id: i64,
+        message_id: i64,
+    },
     InboxChanged,
     RoomUpdated,
     /// A party's "Suivante" taps or reactions changed.

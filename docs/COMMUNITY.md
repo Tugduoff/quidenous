@@ -47,10 +47,15 @@ Pack item (lists, creator page, mine):
   (or the `tag=pimente` filter is asked explicitly while opted in).
 - `GET /packs/{id}` → item + `questions: [{ text, kind }]`. Visible if `public`, or to its author, or to an admin; else 404.
 - `POST /packs { name, description?, language?, tags?: [id], spicy?: bool, text?: string, questions?: [{text, kind}] }`
-  → `{ id, count }`. Source: `questions`, else `text` (file, `[classement]` lines), else the room's own questions.
+  → `{ id, count, status }`. Source: `questions`, else `text` (file, `[classement]` lines), else the room's own questions.
   `400 bad_pack | pack_size | bad_language | bad_tags`, `409 too_many_packs` (10 packs in `public`/`review`; removed and deleted don't count).
+  An author with a `removed` pack, or one they deleted while it was in `review` (`removed_reason = 'deleted_in_review'`),
+  publishes into `review` (`status`): deleting and republishing doesn't get round the admins.
+- Publishing, liking and reporting a pack (and reporting a suggestion) need an account whose e-mail is verified (`403 unverified`);
+  accounts without an e-mail (made before e-mail sign-in) or with a provider are fine. Guests never (`403 guest_account`).
 - `PUT /packs/{id} { name, description, language, tags, spicy, questions: [{text, kind}] }` → item. Author only (`403 not_author`);
   not when `removed`/`deleted` (`403 pack_removed`). Changed questions → `version + 1`, `updated_at`. Same validation as publish.
+  A pack an admin approved after reports (`approved_at`, migration 0033) goes back to `review` when its name, description or questions change.
 - `DELETE /packs/{id}` → author: `status = 'deleted'`.
 - `GET /packs/mine` → my packs that are not `deleted` (public, review, removed with its reason), newest first.
 - `POST /packs/{id}/install` → `{ added, skipped, installed: true }`. Into the `X-Room` room (questions_by rule as before).
@@ -65,8 +70,9 @@ Pack item (lists, creator page, mine):
 
 ## Admin
 
-- `GET /admin/review` → `{ packs: [item + reports: [{ reason, details, created_at }]], suggestions: [suggestion + author] }`:
-  packs in `review`, suggestions in `queued`.
+- `GET /admin/review` → `{ packs: [item + reports: [{ reason, details, created_at }]], suggestions: [suggestion + author], reports }`:
+  packs in `review`, suggestions in `queued` then up to 30 `voting` ones with more up than down votes (best first), and
+  the open reports on messages, members, questions and suggestions (docs/AUTH.md, "Reports").
 - `POST /admin/packs/{id}/approve` → back to `public`, its reports cleared.
 - `POST /admin/packs/{id}/remove { reason }` → `removed` with the reason (the author sees it in Mes packs).
 - `POST /admin/packs/{id}/feature { featured: bool }` → `{ featured }` (Sélection Coflop).
@@ -84,7 +90,9 @@ Suggestion: `{ id, text, kind, lang, status, up, down, author, mine }`.
   not voted (or skipped) by me, oldest first.
 - `POST /suggestions/{id}/vote { value: 1 | -1 | 0 }` → `{ up, down, status }`. 0 = skip. Not my own (`400 own_suggestion`),
   only `voting` ones (`409 closed`). Changing my vote is allowed. Reaching `up - down >= 10` with `up / (up + down) >= 0.7`
-  moves it to `queued` (admin approval).
+  moves it to `queued` (admin approval); `down - up >= 5` rejects it for good.
+- Suggestions can be reported (`POST /reports { kind: 'suggestion' }`, flag on the vote card): 3 different reporters take it
+  off the vote stack (`rejected`, no `decided_at`) until an admin dismisses the reports (back to `voting` / `queued`) or deletes it.
 - `GET /suggestions/mine` → `{ left, items: [suggestion] }` newest first.
 - Round view (`GET /round/current`, `/rounds/{id}`) gains `suggested_by: string | null` (the author's name) for an approved
   suggestion: the app shows "proposée par X" on the question card.

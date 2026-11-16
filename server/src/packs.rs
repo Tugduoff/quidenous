@@ -35,6 +35,8 @@ const QUESTION_MIN: usize = 8;
 const QUESTION_MAX: usize = 200;
 const LIST_MAX: i64 = 50;
 const DETAILS_MAX: usize = 500;
+/// `removed_reason` of a pack its author deleted while it was in review.
+const DELETED_IN_REVIEW: &str = "deleted_in_review";
 const REASON_MAX: usize = 500;
 const MAX_TAGS: usize = 3;
 const REPORT_REASONS: [&str; 4] = ["offensive", "sexual", "spam", "other"];
@@ -49,6 +51,24 @@ pub const SPICY_TAG: &str = "pimente";
 /// Accounts listed in `ADMIN_USER_IDS`.
 pub fn is_admin(state: &AppState, user: i64) -> bool {
     state.config.admin_user_ids.contains(&user)
+}
+
+/// Publishing, liking and reporting packs: not with an e-mail that was never verified (`403
+/// unverified`), the cheapest way to make throwaway accounts. Accounts made before e-mail sign-in
+/// (no e-mail at all) and provider accounts are fine.
+pub async fn require_verified(state: &AppState, user: i64) -> AppResult<()> {
+    let unverified: bool = sqlx::query_scalar(
+        "SELECT email IS NOT NULL AND email_verified_at IS NULL \
+         AND NOT EXISTS (SELECT 1 FROM oauth_identities o WHERE o.user_id = users.id) FROM users WHERE id = ?",
+    )
+    .bind(user)
+    .fetch_optional(&state.db)
+    .await?
+    .unwrap_or(true);
+    if unverified {
+        return Err(AppError::Forbidden("unverified"));
+    }
+    Ok(())
 }
 
 pub fn require_admin(state: &AppState, user: i64) -> AppResult<()> {
@@ -402,6 +422,7 @@ pub async fn publish(
     )?;
     let tags = clean_tags(body.tags.as_deref().unwrap_or_default())?;
     let spicy = body.spicy.unwrap_or(false) || tags.contains(&SPICY_TAG);
+    require_verified(&state, user).await?;
     let count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM packs WHERE author_id = ? AND status IN ('public', 'review')",
     )
@@ -427,10 +448,21 @@ pub async fn publish(
         },
     };
     let questions = clean_questions(raw)?;
+    // An author with a pack removed by an admin, or deleted while in review, publishes into
+    // review: deleting and publishing the same pack again doesn't get round the admins.
+    let probation: bool = sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM packs WHERE author_id = ? AND (status = 'removed' \
+         OR (status = 'deleted' AND removed_reason = ?)))",
+    )
+    .bind(user)
+    .bind(DELETED_IN_REVIEW)
+    .fetch_one(&state.db)
+    .await?;
+    let status = if probation { "review" } else { "public" };
     let mut tx = crate::db::write_tx(&state.db).await?;
     let id: i64 = sqlx::query_scalar(
-        "INSERT INTO packs (name, description, author_id, language, tags, spicy) \
-         VALUES (?, ?, ?, ?, ?, ?) RETURNING id",
+        "INSERT INTO packs (name, description, author_id, language, tags, spicy, status) \
+         VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id",
     )
     .bind(&name)
     .bind(&description)
@@ -438,11 +470,14 @@ pub async fn publish(
     .bind(language.as_str())
     .bind(tags.join(","))
     .bind(spicy)
+    .bind(status)
     .fetch_one(&mut *tx)
     .await?;
     insert_questions(&mut tx, id, &questions).await?;
     tx.commit().await?;
-    Ok(Json(json!({ "id": id, "count": questions.len() })))
+    Ok(Json(
+        json!({ "id": id, "count": questions.len(), "status": status }),
+    ))
 }
 
 /// The author edits their pack. Fields left out keep their value; new questions bump the version.
@@ -467,6 +502,7 @@ pub async fn edit(
     if status == "removed" || status == "deleted" {
         return Err(AppError::Forbidden("pack_removed"));
     }
+    let before = (name.clone(), description.clone());
     let language = match body.language.as_deref() {
         Some(l) => clean_language(l)?,
         None => Lang::from_db(Some(&language)),
@@ -488,11 +524,14 @@ pub async fn edit(
         (None, None) => current.clone(),
     };
     let changed = questions != current;
+    // An admin approved it after reports: new words go back to review.
+    let rewritten = changed || before != (name.clone(), description.clone());
     let mut tx = crate::db::write_tx(&state.db).await?;
     sqlx::query(
         "UPDATE packs SET name = ?1, description = ?2, language = ?3, tags = ?4, spicy = ?5, \
          version = version + ?6, \
-         updated_at = CASE WHEN ?6 THEN strftime('%Y-%m-%dT%H:%M:%fZ', 'now') ELSE updated_at END \
+         updated_at = CASE WHEN ?6 THEN strftime('%Y-%m-%dT%H:%M:%fZ', 'now') ELSE updated_at END, \
+         status = CASE WHEN ?8 AND status = 'public' AND approved_at IS NOT NULL THEN 'review' ELSE status END \
          WHERE id = ?7",
     )
     .bind(&name)
@@ -502,6 +541,7 @@ pub async fn edit(
     .bind(spicy)
     .bind(changed)
     .bind(id)
+    .bind(rewritten)
     .execute(&mut *tx)
     .await?;
     if changed {
@@ -644,6 +684,7 @@ pub async fn like(
     crate::auth::Account(me): crate::auth::Account,
     Path(id): Path<i64>,
 ) -> AppResult<Json<Value>> {
+    require_verified(&state, me).await?;
     set_like(&state, me, id, true).await
 }
 
@@ -681,6 +722,7 @@ pub async fn report(
     body: Bytes,
 ) -> AppResult<Json<Value>> {
     let body: ReportBody = optional_body(&body, "bad_report")?;
+    require_verified(&state, me).await?;
     let reason = body
         .reason
         .as_deref()
@@ -783,11 +825,16 @@ pub async fn delete(
     UserId(me): UserId,
     Path(id): Path<i64>,
 ) -> AppResult<Json<Value>> {
-    let done = sqlx::query("UPDATE packs SET status = 'deleted' WHERE id = ? AND author_id = ?")
-        .bind(id)
-        .bind(me)
-        .execute(&state.db)
-        .await?;
+    // Deleted while in review: remembered (see `publish`).
+    let done = sqlx::query(
+        "UPDATE packs SET removed_reason = CASE WHEN status = 'review' THEN ?1 ELSE removed_reason END, \
+         status = 'deleted' WHERE id = ?2 AND author_id = ?3",
+    )
+    .bind(DELETED_IN_REVIEW)
+    .bind(id)
+    .bind(me)
+    .execute(&state.db)
+    .await?;
     if done.rows_affected() == 0 {
         return Err(AppError::Forbidden("not_author"));
     }
@@ -906,7 +953,10 @@ pub async fn review(
         packs.push(pack);
     }
     let suggestions = crate::suggestions::queued(&state.db, me).await?;
-    Ok(Json(json!({ "packs": packs, "suggestions": suggestions })))
+    let reports = crate::moderation::open_reports(&state).await?;
+    Ok(Json(
+        json!({ "packs": packs, "suggestions": suggestions, "reports": reports }),
+    ))
 }
 
 /// The pack as an item, plus `ok`, for the admin actions.
@@ -926,7 +976,8 @@ pub async fn approve(
     require_admin(&state, me)?;
     let mut tx = crate::db::write_tx(&state.db).await?;
     let done = sqlx::query(
-        "UPDATE packs SET status = 'public', removed_reason = NULL WHERE id = ? AND status != 'deleted'",
+        "UPDATE packs SET status = 'public', removed_reason = NULL, \
+         approved_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ? AND status != 'deleted'",
     )
     .bind(id)
     .execute(&mut *tx)
