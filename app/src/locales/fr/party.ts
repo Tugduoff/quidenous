@@ -63,6 +63,13 @@ export const party = {
     leave: 'Quitter la soirée',
     leaveAsk: 'Quitter la soirée ?',
     leaveMessage: 'Tu pourras revenir avec le code.',
+    lock: 'Fermer la soirée',
+    unlock: 'Rouvrir la soirée',
+    players: 'Retirer un joueur',
+  },
+  remove: {
+    ask: 'Retirer {name} ?',
+    action: 'Retirer',
   },
   join: {
     title: 'Rejoindre la soirée',
@@ -86,5 +93,7 @@ export const party = {
     badName: 'Prénom invalide',
     badColor: 'Couleur invalide',
     notParty: 'La soirée est devenue un salon',
+    locked: 'La soirée est fermée',
+    removed: 'Tu as été retiré de cette soirée',
   },
 };

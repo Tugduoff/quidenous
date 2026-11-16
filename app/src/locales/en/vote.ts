@@ -75,4 +75,8 @@ export const vote: Messages['vote'] = {
     import: 'Import a file',
     emptyFile: 'Empty file',
   },
+  retireAsk: 'Remove this question?',
+  retireMessage: 'It stays in the history as “Question removed”.',
+  retireAction: 'Remove',
+  retireHint: 'Long press: remove the question',
 };

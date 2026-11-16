@@ -125,6 +125,8 @@ export function useFeatures() {
     choose: on.has('choose'),
     /** Change e-mail, 2FA reset by e-mail, `email_failed` (docs/AUTH.md). */
     accountRecovery: on.has('account_recovery'),
+    /** Deleting chat messages, removing asked questions, reports an admin reviews, locking a party. */
+    moderation: on.has('moderation'),
   };
 }
 

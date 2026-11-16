@@ -78,4 +78,8 @@ export const vote = {
     import: 'Importer un fichier',
     emptyFile: 'Fichier vide',
   },
+  retireAsk: 'Retirer cette question ?',
+  retireMessage: 'Elle restera dans l’historique comme « Question retirée ».',
+  retireAction: 'Retirer',
+  retireHint: 'Appui long : retirer la question',
 };

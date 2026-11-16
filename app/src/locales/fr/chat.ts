@@ -2,6 +2,7 @@
 export const chat = {
   count: { one: '{count} message', other: '{count} messages' },
   longPressHint: 'Appui long : signaler ou bloquer',
+  longPressOwnHint: 'Appui long : supprimer',
   seeProfile: 'Voir son profil',
   mention: 'Mentionner {name}',
   mentionAll: 'Mentionner tout le salon',

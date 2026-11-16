@@ -3,6 +3,7 @@ import type { Messages } from '../fr';
 export const chat: Messages['chat'] = {
   count: { one: '{count} message', other: '{count} messages' },
   longPressHint: 'Long press: report or block',
+  longPressOwnHint: 'Long press: delete',
   seeProfile: 'See their profile',
   mention: 'Mention {name}',
   mentionAll: 'Mention the whole room',

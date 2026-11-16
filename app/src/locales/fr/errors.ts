@@ -33,4 +33,12 @@ export const errors = {
   already_in_room: 'Déjà dans le salon',
   email_failed: "L'e-mail n'a pas pu être envoyé. Réessaie plus tard.",
   same_email: "C'est déjà ton adresse",
+  not_author: "Ce n'est pas à toi",
+  not_pinner: "Seul qui l'a épinglé (ou le créateur) peut le retirer",
+  too_many_pins: "Trop d'épingles dans ce salon",
+  suspended: 'Ce compte est suspendu',
+  party_locked: 'La soirée est fermée',
+  removed: 'Tu as été retiré de ce salon',
+  unverified: 'Vérifie ton e-mail d’abord',
+  deck_question: 'Question du jeu de base : impossible',
 };

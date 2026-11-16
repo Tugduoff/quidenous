@@ -34,8 +34,10 @@ import { SecureCard } from '@/components/secure-card';
 import { Tip } from '@/components/tip';
 import { NextGate } from '@/components/next-gate';
 import { NoQuestions, SoloInvite } from '@/components/vote-empty';
-import { Avatar, AvatarStack, Button, Card, ConfirmModal, Dialog, Display, Logo, PressableScale, Tag } from '@/components/ui';
+import { askConfirm, Avatar, AvatarStack, Button, Card, ConfirmModal, Dialog, Display, Logo, PressableScale, Tag } from '@/components/ui';
 import { api, ApiError, type Member, type Round } from '@/lib/api';
+import { authError, useFeatures } from '@/lib/auth';
+import { showToast } from '@/components/toast';
 import { getLang, t as translate, useT } from '@/lib/i18n';
 import { EASE, motion, usePop } from '@/lib/motion';
 import { keys, useCurrentRound, useGroup, useInbox, useMembers, useRooms, useRound, useUnseenRound } from '@/lib/queries';
@@ -235,6 +237,19 @@ function Question({ round, result }: { round: Round; result?: boolean }) {
     if (!result) lastQuestion = round.id;
   }, [result, round.id]);
   const { byId } = useMembers();
+  const qc = useQueryClient();
+  const { data: group } = useGroup();
+  const { moderation } = useFeatures();
+  // The owner can take an abusive question of the room out of its result (long-press on the question).
+  const retire =
+    result && round.custom && moderation && group?.my_role === 'owner'
+      ? async () => {
+          if (!(await askConfirm(translate('vote.retireAsk'), translate('vote.retireMessage'), translate('vote.retireAction')))) return;
+          await api(`/rounds/${round.id}/question`, { method: 'DELETE' }).catch((e) => showToast(authError(e)));
+          qc.invalidateQueries({ queryKey: ['round'] });
+          qc.invalidateQueries({ queryKey: ['history'] });
+        }
+      : undefined;
   const [copied, setCopied] = useState(false);
   const share = async () => {
     // The link opens a page whose preview is a picture of the card (the result's podium too, once out).
@@ -263,7 +278,9 @@ function Question({ round, result }: { round: Round; result?: boolean }) {
         </View>
       </View>
       <View style={{ gap: 6 }}>
-        <Display size={result ? 28 : 34}>{tidy(round.question)}</Display>
+        <Pressable disabled={!retire} onLongPress={retire} delayLongPress={500} accessibilityHint={retire ? tr('vote.retireHint') : undefined}>
+          <Display size={result ? 28 : 34}>{tidy(round.question)}</Display>
+        </Pressable>
         {/* A deck question that came from someone's suggestion. */}
         {!!round.suggested_by && (
           <Text numberOfLines={1} style={{ fontFamily: t.font.regular, fontSize: 13, color: t.mut }}>

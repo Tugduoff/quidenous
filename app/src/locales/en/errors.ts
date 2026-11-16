@@ -34,4 +34,12 @@ export const errors: Messages['errors'] = {
   already_in_room: 'Already in the room',
   email_failed: "The email couldn't be sent. Try again later.",
   same_email: "That's already your email",
+  not_author: "That's not yours",
+  not_pinner: 'Only whoever pinned it (or the owner) can unpin it',
+  too_many_pins: 'Too many pins in this room',
+  suspended: 'This account is suspended',
+  party_locked: 'The party is closed',
+  removed: 'You were removed from this room',
+  unverified: 'Verify your e-mail first',
+  deck_question: "Built-in question: can't be removed",
 };

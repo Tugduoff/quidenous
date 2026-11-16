@@ -37,6 +37,8 @@ export type Party = {
   language: 'fr' | 'en';
   timer: number;
   ends_at: string;
+  /** The owner closed the door: nobody new can join (absent from an older server). */
+  locked?: boolean;
   now: string;
   phase: PartyPhase;
   players: PartyPlayer[];
@@ -94,7 +96,7 @@ export const partyApi = {
   next: (id: number) => post(`/parties/${id}/next`),
   unnext: (id: number) => call(`/parties/${id}/next`, { method: 'DELETE' }),
   react: (id: number, round_id: number, emoji: string) => post(`/parties/${id}/react`, { round_id, emoji }),
-  update: (id: number, body: { name?: string; timer?: number }) => call(`/parties/${id}`, { method: 'PATCH', json: body }),
+  update: (id: number, body: { name?: string; timer?: number; locked?: boolean }) => call(`/parties/${id}`, { method: 'PATCH', json: body }),
   end: (id: number) => post(`/parties/${id}/end`),
   keep: (id: number) => api<{ id: number }>(`/parties/${id}/keep`, { method: 'POST' }),
   leave: (id: number) => api(`/rooms/${id}/leave`, { method: 'POST' }),
@@ -187,6 +189,8 @@ const ERRORS: Record<string, TKey> = {
   bad_name: 'party.errors.badName',
   bad_color: 'party.errors.badColor',
   not_party: 'party.errors.notParty',
+  party_locked: 'party.errors.locked',
+  removed: 'party.errors.removed',
   bad_room_name: 'room.errors.badName',
   bad_vibe: 'room.errors.badVibe',
 };
