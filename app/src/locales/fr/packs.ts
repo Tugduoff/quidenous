@@ -68,6 +68,7 @@ export const packs = {
   name: 'Nom du pack',
   description: 'Description (optionnel)',
   language: 'Langue',
+  minHint: 'Il faut au moins {min} questions ({count}/{min})',
   questions: { one: '{count} question', other: '{count} questions' },
   addQuestion: 'Ajouter une question',
   fromFile: 'Fichier .txt',

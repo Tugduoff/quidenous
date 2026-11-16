@@ -41,6 +41,10 @@ A majority is more than half of the other members (the target doesn't count), an
 
 Settings per room: majority skip on/off, majority removal on/off, who can add or import questions (everyone / owner), pacing (below). In the app they live on the owner's "Paramètres du salon" screen (gear on the room page).
 
+## Invite preview
+
+`GET /api/rooms/preview?code=` (no account, limited per IP to 30 looks per 10 minutes, feature `room_preview`) is what an invite link shows before joining: `{name, member_count, names}` with up to 3 first names (owner first). No ids, no photos. Unknown codes, deleted rooms and party codes answer `404 bad_code`. The app shows it on the sign-in landing and above the join field; an invite link opened while signed in goes to the room list with the code filled in.
+
 ## Pacing
 
 Two owner settings, both off by default (= the next question opens as soon as one closes):

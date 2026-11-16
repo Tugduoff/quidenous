@@ -1,7 +1,7 @@
 import type { Messages } from '../fr';
 
 export const inbox: Messages['inbox'] = {
-  title: 'Notifications',
+  title: 'Activity',
   empty: 'Nothing new.',
   mentioned: '{name} mentioned you',
   kinds: {

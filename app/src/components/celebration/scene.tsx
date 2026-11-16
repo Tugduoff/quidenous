@@ -3,6 +3,7 @@ import { Text, View } from 'react-native';
 
 import { useT } from '@/lib/i18n';
 import type { Milestone } from '@/lib/milestones';
+import { tidy } from '@/lib/text';
 import { type Theme, themes } from '@/lib/theme';
 
 import { type Clock, type Impact, type Rand, Reveal } from './engine';
@@ -90,6 +91,3 @@ export function Headline({
     </>
   );
 }
-
-/** French punctuation: the space before ? ! : ; never breaks, so a "?" can't wrap onto a line of its own. */
-export const tidy = (s: string) => s.replace(/ ([?!:;])/g, '\u00A0$1');

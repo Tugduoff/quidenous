@@ -163,7 +163,7 @@ export default function NotificationsScreen() {
         </Card>
         <ErrorText>{enableFailed ? tr('notifications.enableFailed') : save.isError ? tr('notifications.notSaved') : null}</ErrorText>
 
-        <Dim off={!prefs.enabled}>
+        <Dim off={!prefs.enabled || blocked}>
           <Section title={tr('notifications.tellMe')}>
             {KINDS.map(({ kind, label, Icon }) => {
               const on = !prefs.off.includes(kind);
@@ -187,7 +187,7 @@ export default function NotificationsScreen() {
           </Section>
         </Dim>
 
-        <Dim off={!prefs.enabled}>
+        <Dim off={!prefs.enabled || blocked}>
           <Card style={{ padding: 16, gap: 14 }}>
             <Line
               Icon={Moon}

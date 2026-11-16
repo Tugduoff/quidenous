@@ -2,7 +2,7 @@
 
 use axum::{
     Json,
-    extract::{Path, State},
+    extract::{Path, Query, State},
 };
 use rand::Rng;
 use serde::Deserialize;
@@ -303,6 +303,53 @@ pub async fn join(
         }
     }
     Ok(Json(json!({ "id": room_id, "kind": kind })))
+}
+
+#[derive(Deserialize)]
+pub struct PreviewQuery {
+    code: String,
+}
+
+/// How many first names an invite preview shows.
+const PREVIEW_NAMES: usize = 3;
+
+/// `GET /api/rooms/preview?code=`: what an invite link shows before joining, no account needed
+/// (per-IP limited): the room's name, how many people are in it and up to 3 first names (the owner
+/// first). No ids, no photos. Unknown codes, deleted rooms and parties: 404 `bad_code`.
+pub async fn preview(
+    State(state): State<AppState>,
+    crate::accounts::ClientIp(ip): crate::accounts::ClientIp,
+    Query(q): Query<PreviewQuery>,
+) -> AppResult<Json<Value>> {
+    state
+        .auth
+        .limits
+        .hit_ip(&crate::accounts::limits::ROOM_PREVIEW_IP, ip)?;
+    let (room_id, name): (i64, String) = sqlx::query_as(
+        "SELECT id, name FROM groups WHERE join_code = ? AND kind = 'room' AND deleted_at IS NULL",
+    )
+    .bind(q.code.trim().to_uppercase())
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or(AppError::Missing("bad_code"))?;
+    let members: Vec<(String, Option<i64>)> = sqlx::query_as(
+        "SELECT name, user_id FROM members WHERE group_id = ? AND removed_at IS NULL \
+         ORDER BY role = 'owner' DESC, id",
+    )
+    .bind(room_id)
+    .fetch_all(&state.db)
+    .await?;
+    let names: Vec<&str> = members
+        .iter()
+        .filter(|(n, user)| !crate::i18n::is_deleted(n, *user))
+        .filter_map(|(n, _)| n.split_whitespace().next())
+        .take(PREVIEW_NAMES)
+        .collect();
+    Ok(Json(json!({
+        "name": name,
+        "member_count": members.len(),
+        "names": names,
+    })))
 }
 
 #[derive(Deserialize)]

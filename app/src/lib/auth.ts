@@ -108,6 +108,8 @@ export function useFeatures() {
     party: on.has('party'),
     /** The room's upcoming questions can be put in any order (`POST /questions/order`). */
     reorder: on.has('reorder'),
+    /** Choose questions (wire people to items). */
+    choose: on.has('choose'),
   };
 }
 

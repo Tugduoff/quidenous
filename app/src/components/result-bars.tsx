@@ -14,6 +14,7 @@ import Animated, {
 import type { ChooseResult, Member, RankEntry, Tally } from '@/lib/api';
 import { useT } from '@/lib/i18n';
 import { BOUNCE, EASE } from '@/lib/motion';
+import { ordinal } from '@/lib/text';
 import { useTheme } from '@/lib/theme';
 
 import { Avatar, AvatarStack, PressableScale } from './ui';
@@ -145,7 +146,7 @@ export function RankResult({ ranking, byId, mine }: { ranking: RankEntry[]; byId
                 </Text>
                 {/* Only where my ranking differs from the group's. */}
                 {myPlace > 0 && myPlace !== i + 1 && (
-                  <Text style={{ fontFamily: t.font.regular, fontSize: 12, color: t.mut }}>{tr('results.you', { place: myPlace })}</Text>
+                  <Text style={{ fontFamily: t.font.regular, fontSize: 12, color: t.mut }}>{tr('results.you', { place: ordinal(myPlace) })}</Text>
                 )}
               </View>
               <Text style={{ fontFamily: t.font.display, fontSize: 20, color: t.txt }}>

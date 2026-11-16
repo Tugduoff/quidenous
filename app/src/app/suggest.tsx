@@ -157,12 +157,7 @@ function VoteStack() {
   const label = { fontFamily: t.font.bold, fontSize: 18, color: t.txt } as const;
   if (!data) return null;
   if (!top)
-    return (
-      <View style={{ gap: 10, marginTop: 6 }}>
-        <Text style={label}>{tr('community.vote.title')}</Text>
-        {!isFetching && <Text style={{ fontFamily: t.font.regular, fontSize: 15, color: t.mut }}>{tr('community.vote.empty')}</Text>}
-      </View>
-    );
+    return null;
   const press = (value: SuggestionVote) => !fly && setFly({ id: top.id, value });
   return (
     <View style={{ gap: 14, marginTop: 6 }}>

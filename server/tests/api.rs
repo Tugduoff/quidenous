@@ -3642,3 +3642,99 @@ async fn share_cards_draw_avatars() {
     let png = res.into_body().collect().await.unwrap().to_bytes();
     assert_eq!(&png[1..4], b"PNG");
 }
+
+/// `GET /api/rooms/preview`: what an invite link shows before joining, public and per-IP limited.
+#[tokio::test]
+async fn invite_preview_shows_the_room_without_ids() {
+    let config = Config {
+        trust_proxy: true,
+        ..common::config(&common::temp_dir("qdn-preview"))
+    };
+    let state = state(config).await.unwrap();
+    let app = app(state);
+    let get = |code: String, ip: &'static str| {
+        let app = app.clone();
+        async move {
+            let req = Request::builder()
+                .uri(format!("/api/rooms/preview?code={code}"))
+                .header("x-forwarded-for", ip)
+                .body(Body::empty())
+                .unwrap();
+            let res = app.oneshot(req).await.unwrap();
+            let status = res.status();
+            let bytes = res.into_body().collect().await.unwrap().to_bytes();
+            (
+                status,
+                serde_json::from_slice::<Value>(&bytes).unwrap_or(Value::Null),
+            )
+        }
+    };
+
+    let (ana, _) = join(&app, "Ana Martin").await;
+    let (bob, _) = join(&app, "Bob").await;
+    let (chloe, _) = join(&app, "Chloé").await;
+    let (dan, _) = join(&app, "Dan").await;
+    let (_, room) = call(
+        &app,
+        "POST",
+        "/rooms",
+        Some(&bob),
+        Some(json!({ "name": "Les cousins" })),
+    )
+    .await;
+    let cousins = room["id"].as_i64().unwrap();
+    let (_, g) = call_room(&app, "GET", "/group", &bob, cousins, None).await;
+    let code = g["code"].as_str().unwrap().to_owned();
+    for t in [&ana, &chloe, &dan] {
+        let (s, _) = call(
+            &app,
+            "POST",
+            "/rooms/join",
+            Some(t),
+            Some(json!({ "code": code })),
+        )
+        .await;
+        assert_eq!(s, StatusCode::OK);
+    }
+
+    // Name, head count, the owner's first name then the next ones (3 at most): nothing else.
+    let (s, p) = get(code.to_lowercase(), "203.0.113.1").await;
+    assert_eq!(s, StatusCode::OK, "{p}");
+    assert_eq!(
+        p,
+        json!({ "name": "Les cousins", "member_count": 4, "names": ["Bob", "Ana", "Chloé"] })
+    );
+
+    // Unknown codes, parties and deleted rooms: 404.
+    let (s, p) = get("ZZZZZZ".into(), "203.0.113.1").await;
+    assert_eq!(
+        (s, p["error"].as_str()),
+        (StatusCode::NOT_FOUND, Some("bad_code"))
+    );
+    let (s, party) = call(&app, "POST", "/parties", Some(&ana), Some(json!({}))).await;
+    assert_eq!(s, StatusCode::OK, "{party}");
+    let (s, _) = get(party["code"].as_str().unwrap().to_owned(), "203.0.113.1").await;
+    assert_eq!(s, StatusCode::NOT_FOUND);
+    let (s, _) = call_room(
+        &app,
+        "DELETE",
+        &format!("/rooms/{cousins}"),
+        &bob,
+        cousins,
+        None,
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK);
+    let (s, _) = get(code.clone(), "203.0.113.1").await;
+    assert_eq!(s, StatusCode::NOT_FOUND);
+
+    // 30 looks per 10 minutes per IP (the misses above count too).
+    for _ in 0..26 {
+        let (s, _) = get("ZZZZZZ".into(), "203.0.113.1").await;
+        assert_eq!(s, StatusCode::NOT_FOUND);
+    }
+    let (s, _) = get("ZZZZZZ".into(), "203.0.113.1").await;
+    assert_eq!(s, StatusCode::TOO_MANY_REQUESTS);
+    let (s, _) = get("ZZZZZZ".into(), "203.0.113.2").await;
+    assert_eq!(s, StatusCode::NOT_FOUND);
+}

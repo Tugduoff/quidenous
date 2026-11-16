@@ -1,5 +1,5 @@
 export const inbox = {
-  title: 'Notifications',
+  title: 'Activité',
   empty: 'Rien de neuf.',
   /** `{name}` is who mentioned me. */
   mentioned: "{name} t'a mentionné",

@@ -10,7 +10,7 @@ import { ReorderList, useScrollTracker } from '@/components/reorder-list';
 import { QueryState } from '@/components/query-state';
 import { Screen } from '@/components/screen';
 import { Tip } from '@/components/tip';
-import { Avatar, Card, ConfirmModal, Display, PressableScale, QuestionText, Toggle } from '@/components/ui';
+import { Avatar, Card, ConfirmModal, Display, PressableScale, QuestionText, Segmented, Toggle } from '@/components/ui';
 import { api, ApiError, type Queue, type QuestionKind } from '@/lib/api';
 import { useFeatures } from '@/lib/auth';
 import { useT } from '@/lib/i18n';
@@ -18,6 +18,7 @@ import { ITEM_MAX, ITEMS_MAX, ITEMS_MIN, itemsOk, pickQuestionFile, splitTag, ta
 import { motion, useArrivals } from '@/lib/motion';
 import { keys, useGroup, useMembers, useQueue } from '@/lib/queries';
 import { useSession } from '@/lib/session';
+import { tidy } from '@/lib/text';
 import { useTheme } from '@/lib/theme';
 import { sendOnEnter } from '@/lib/submit';
 
@@ -40,7 +41,8 @@ export default function QuestionsScreen() {
   const [items, setItems] = useState<string[]>(['', '']);
   const [addError, setAddError] = useState<string | null>(null);
   const { me } = useSession();
-  const { community, reorder: canReorder } = useFeatures();
+  const features = useFeatures();
+  const { community, reorder: canReorder } = features;
   const [toDelete, setToDelete] = useState<{ id: number; text: string } | null>(null);
   // Long-press on someone else's question: report it.
   const [toReport, setToReport] = useState<ModTarget | null>(null);
@@ -141,7 +143,8 @@ export default function QuestionsScreen() {
   const reorder = useMutation({
     meta: { quiet: true },
     mutationFn: (ids: number[]) => api('/questions/order', { method: 'POST', json: { ids } }),
-    onError: () => setImported(tr('questions.reorderFailed')),
+    // Someone added or removed a question meanwhile: the refetch below shows the real order, no error.
+    onError: (e) => !(e instanceof ApiError && e.code === 'stale_queue') && setImported(tr('questions.reorderFailed')),
     onSettled: () => qc.invalidateQueries({ queryKey: keys.queue }),
   });
   const reordered = (ids: number[]) => {
@@ -323,28 +326,23 @@ export default function QuestionsScreen() {
               </View>
             )}
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, paddingLeft: 16, paddingRight: 10 }}>
-              {/* The next question is a ranking (everyone, first to last), or a choose (who'd take which item). */}
-              <Toggle
-                icon={Trophy}
-                label={tr('questions.ranking')}
-                value={rank}
-                onChange={(v) => {
-                  setRank(v);
-                  if (v) setChoose(false);
-                }}
-              />
-              <Toggle
-                icon={Cable}
-                label={tr('questions.choosing')}
-                a11y={tr('questions.choosingLabel')}
-                value={choose}
-                onChange={(v) => {
-                  setChoose(v);
-                  setAddError(null);
-                  if (v) setRank(false);
-                }}
-              />
-              <View style={{ flex: 1 }} />
+              {/* The next question: about us, a ranking (everyone, first to last), or a choose (who'd take which item). */}
+              <View style={{ flex: 1 }}>
+                <Segmented
+                  label={tr('questions.kind')}
+                  value={rank ? 'rank' : choose ? 'choose' : 'pick'}
+                  onChange={(k) => {
+                    setRank(k === 'rank');
+                    setChoose(k === 'choose');
+                    setAddError(null);
+                  }}
+                  options={[
+                    { id: 'pick', name: tr('vote.kind.custom') },
+                    { id: 'rank', name: tr('questions.ranking') },
+                    ...(features.choose ? [{ id: 'choose' as const, name: tr('questions.choosing') }] : []),
+                  ]}
+                />
+              </View>
               <PressableScale
                 accessibilityRole="button"
                 accessibilityLabel={tr('common.add')}
@@ -444,7 +442,7 @@ export default function QuestionsScreen() {
                     lineHeight: 20,
                     color: t.txt,
                   }}>
-                  {l.text}
+                  {tidy(l.text)}
                   {l.problem && <Text style={{ color: t.tag }}>{`  · ${tr(`questions.problem.${l.problem}`)}`}</Text>}
                 </Text>
                 {!!l.items?.length && (
@@ -507,7 +505,7 @@ export default function QuestionsScreen() {
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 }}>
         <Text style={{ fontFamily: t.font.bold, fontSize: 18, color: t.txt }}>{tr('questions.upcoming')}</Text>
         <View style={{ paddingHorizontal: 8, height: 22, borderRadius: 11, justifyContent: 'center', backgroundColor: t.card2 }}>
-          <Text style={{ fontFamily: t.font.semibold, fontSize: 12, color: t.mut }}>{(data?.custom.length ?? 0) + (data?.deck_left ?? 0)}</Text>
+          <Text style={{ fontFamily: t.font.semibold, fontSize: 12, color: t.mut }}>{data?.custom.length ?? 0}</Text>
         </View>
         <Text numberOfLines={1} style={{ flex: 1, fontFamily: t.font.regular, fontSize: 13, color: t.mut }}>
           {imported ?? ''}
@@ -562,7 +560,7 @@ export default function QuestionsScreen() {
       <ConfirmModal
         visible={!!toDelete}
         title={tr('questions.deleteTitle')}
-        message={toDelete ? tr('questions.deleteBody', { text: toDelete.text.replace(/ ([?!:;»])/g, '\u00A0$1') }) : undefined}
+        message={toDelete ? tr('questions.deleteBody', { text: tidy(toDelete.text) }) : undefined}
         confirmLabel={tr('common.delete')}
         busy={remove.isPending}
         onCancel={() => setToDelete(null)}

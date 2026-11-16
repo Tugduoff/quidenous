@@ -33,6 +33,7 @@ export const room: Messages['room'] = {
   },
   invite: {
     code: 'Invite code',
+    with: 'with {names}',
     linkCopied: 'Link copied',
     codeCopied: 'Code copied',
     copyCode: 'Copy the code',

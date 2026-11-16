@@ -39,7 +39,7 @@ import { api, ApiError, type Member, type Round } from '@/lib/api';
 import { getLang, t as translate, useT } from '@/lib/i18n';
 import { EASE, motion, usePop } from '@/lib/motion';
 import { keys, useCurrentRound, useGroup, useInbox, useMembers, useRooms, useRound, useUnseenRound } from '@/lib/queries';
-import { tidy } from '@/lib/party';
+import { ordinal, tidy } from '@/lib/text';
 import { useSession } from '@/lib/session';
 import { setHideVote, useHideVote } from '@/lib/prefs';
 import { publicLink, questionMessage, resultMessage, shareText } from '@/lib/share';
@@ -293,14 +293,6 @@ function VoteTip() {
   return <Tip id="vote" text={tr('vote.tip')} />;
 }
 
-/** "1er", "2e" / "1st", "2nd", "3rd", "11th": a place in a ranking. */
-function ordinal(n: number) {
-  const a = n % 10;
-  const b = n % 100;
-  const en = a === 1 && b !== 11 ? 'st' : a === 2 && b !== 12 ? 'nd' : a === 3 && b !== 13 ? 'rd' : 'th';
-  return translate(`vote.ordinal.${getLang() === 'fr' ? (n === 1 ? 'st' : 'th') : en}`, { n });
-}
-
 /** The vote button bumps when it becomes usable (and each time the pick changes), so the next step is obvious. */
 function Springy({ trigger, when, children }: { trigger: unknown; when: boolean; children: ReactNode }) {
   return <Animated.View style={usePop(trigger, 1.04, when)}>{children}</Animated.View>;
@@ -316,7 +308,10 @@ function RankBallot({ round, members, byId, onVoted }: { round: Round; members: 
   const t = useTheme();
   const tr = useT();
   const qc = useQueryClient();
-  const [order, setOrder] = useState<number[]>([]);
+  const [picked, setOrder] = useState<number[]>([]);
+  // Only one person left to place: there is only one place left for them, no need to tap.
+  const last = members.length > 1 && picked.length === members.length - 1 ? members.find((m) => !picked.includes(m.id)) : undefined;
+  const order = last ? [...picked, last.id] : picked;
   const vote = useMutation({
     mutationFn: (ranking: number[]) => api('/round/current/vote', { method: 'POST', json: { ranking } }),
     onSuccess: onVoted,
@@ -324,7 +319,7 @@ function RankBallot({ round, members, byId, onVoted }: { round: Round; members: 
     onError: () => qc.invalidateQueries({ queryKey: keys.group }),
     onSettled: () => qc.invalidateQueries({ queryKey: keys.current }),
   });
-  const toggle = (id: number) => setOrder((o) => (o.includes(id) ? o.filter((x) => x !== id) : [...o, id]));
+  const toggle = (id: number) => setOrder(order.includes(id) ? order.filter((x) => x !== id) : [...order, id]);
   const done = order.length === members.length;
   const next = order.length + 1;
   const sorted = [...order.map((id) => members.find((m) => m.id === id)), ...members.filter((m) => !order.includes(m.id))].filter(
@@ -474,7 +469,7 @@ function PickBallot({ round, members, byId, onVoted }: { round: Round; members: 
                 {tr('vote.voteFor', { name: picked.name })}
               </Text>
             ) : (
-              `${round.voter_ids.length}/${round.member_count}`
+              tr('party.vote.pick')
             )}
           </Button>
         </Springy>
@@ -681,7 +676,7 @@ function Waiting({ round, byId, members }: { round: Round; byId: Map<number, Mem
       <Animated.View layout={motion.layout} style={[{ backgroundColor: t.card, borderRadius: t.radius.card, padding: 16, gap: 14 }, t.shadow]}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
           <Text style={{ flex: 1, fontFamily: t.font.bold, fontSize: 15, color: t.txt }}>
-            {tr('vote.waiting.voted', { done, total: round.member_count })}
+            {tr('vote.waiting.voted', { count: done, done, total: round.member_count })}
           </Text>
           <AvatarStack members={round.voter_ids.map((id) => byId.get(id))} size={26} ring={t.card} max={6} />
         </View>

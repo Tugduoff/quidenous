@@ -697,6 +697,7 @@ function Reveal({ people, items, byId, onAll }: { people: Person[]; items: strin
         )}
         <PressableScale
           accessibilityRole="button"
+          accessibilityLabel={tr(last ? 'results.choose.all' : 'results.choose.next')}
           onPress={() => (last ? onAll() : setStep(step + 1))}
           style={{
             flexDirection: 'row',
@@ -707,7 +708,7 @@ function Reveal({ people, items, byId, onAll }: { people: Person[]; items: strin
             borderRadius: t.radius.pill,
             backgroundColor: t.card2,
           }}>
-          <Text style={{ fontFamily: t.font.bold, fontSize: 15, color: t.txt }}>{tr(last ? 'results.choose.all' : 'results.choose.next')}</Text>
+          {last && <Text style={{ fontFamily: t.font.bold, fontSize: 15, color: t.txt }}>{tr('results.choose.all')}</Text>}
           {last ? <List size={16} color={t.txt} /> : <ArrowRight size={16} color={t.txt} />}
         </PressableScale>
       </View>

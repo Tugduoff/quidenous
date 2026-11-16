@@ -14,7 +14,11 @@ import { getLang, type Lang, useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
 import { isPackTag, MAX_TAGS, PACK_TAGS, packError, packKeys, type PackQuestion, type PackTag, TAG_ICONS, usePackDetail } from '@/lib/packs';
 import { useGroup, useQueue } from '@/lib/queries';
+import { tidy } from '@/lib/text';
 import { useTheme } from '@/lib/theme';
+
+/** The server refuses a pack under 5 questions: said before the tap. */
+const PACK_MIN = 5;
 
 /** Same limits as the server for one question. */
 const MIN = 8;
@@ -120,7 +124,12 @@ export default function PackEditScreen() {
       footer={
         <>
           {note && <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.tag, textAlign: 'center' }}>{note}</Text>}
-          <Button disabled={!name.trim() || !questions.length || (id != null && !seeded)} loading={save.isPending} onPress={() => save.mutate()}>
+          {!note && questions.length < PACK_MIN && (
+            <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.mut, textAlign: 'center' }}>
+              {tr('packs.minHint', { count: questions.length, min: PACK_MIN })}
+            </Text>
+          )}
+          <Button disabled={!name.trim() || questions.length < PACK_MIN || (id != null && !seeded)} loading={save.isPending} onPress={() => save.mutate()}>
             {tr(id != null ? 'packs.save' : 'packs.publish')}
           </Button>
         </>
@@ -267,7 +276,7 @@ export default function PackEditScreen() {
                   }}>
                   <Trophy size={16} color={rank ? t.accInk : t.mut} style={{ opacity: rank ? 1 : 0.5 }} />
                 </Pressable>
-                <Text style={{ flex: 1, paddingVertical: 10, fontFamily: t.font.regular, fontSize: 14, lineHeight: 20, color: t.txt }}>{q.text}</Text>
+                <Text style={{ flex: 1, paddingVertical: 10, fontFamily: t.font.regular, fontSize: 14, lineHeight: 20, color: t.txt }}>{tidy(q.text)}</Text>
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel={tr('packs.removeQuestion')}

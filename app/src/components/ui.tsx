@@ -30,6 +30,7 @@ import { photoUrl, type Member } from '@/lib/api';
 import { parseAvatar } from '@/lib/avatar';
 import { useT } from '@/lib/i18n';
 import { EASE, motion, SPRING } from '@/lib/motion';
+import { tidy } from '@/lib/text';
 import { useTheme } from '@/lib/theme';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
@@ -309,7 +310,7 @@ export function QuestionText({
     <View style={[{ flexDirection: 'row', alignItems: 'flex-start', gap: 6, flexShrink: 1 }, containerStyle]}>
       {rank && <Trophy size={size} color={t.accInk} style={{ flexShrink: 0, marginTop: (style.lineHeight - size) / 2 }} />}
       {choose && <Cable size={size} color={t.accInk} style={{ flexShrink: 0, marginTop: (style.lineHeight - size) / 2 }} />}
-      <Text style={[{ flex: 1 }, style]}>{text}</Text>
+      <Text style={[{ flex: 1 }, style]}>{tidy(text)}</Text>
     </View>
   );
 }

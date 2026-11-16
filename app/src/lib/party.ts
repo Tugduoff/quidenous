@@ -157,9 +157,6 @@ export function useRefetchAtZero(ms: number | null, refetch: () => void) {
   }, [over]);
 }
 
-/** French spacing kept on one line: no "?" or "!" alone at the start of a line. */
-export const tidy = (text: string) => text.replace(/ ([?!:;»])/g, '\u00A0$1').replace(/« /g, '«\u00A0');
-
 /** A result as the shared result bars draw it. */
 export const tallies = (round: PartyRound): Tally[] =>
   (round.results ?? []).map((r) => ({ target_id: r.member_id, count: r.votes, voter_ids: r.voters })).sort((a, b) => b.count - a.count);

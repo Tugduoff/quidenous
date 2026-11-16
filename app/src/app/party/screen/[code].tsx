@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams } from 'expo-router';
+import { useEffect } from 'react';
 import { ActivityIndicator, ScrollView, Text, useWindowDimensions, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 
@@ -7,7 +8,8 @@ import { Countdown, JoinQr, PlayerChips, Reactions, VotedLine, WinnerReveal } fr
 import { ResultBars } from '@/components/result-bars';
 import { CodeText, Display, Logo, Tag } from '@/components/ui';
 import type { Member } from '@/lib/api';
-import { useT } from '@/lib/i18n';
+import { showLang, useT } from '@/lib/i18n';
+import { useSession } from '@/lib/session';
 import { motion } from '@/lib/motion';
 import {
   type Party,
@@ -17,11 +19,11 @@ import {
   partyKeys,
   type PartyRound,
   tallies,
-  tidy,
   useCountdown,
   useRefetchAtZero,
   useScreenLive,
 } from '@/lib/party';
+import { tidy } from '@/lib/text';
 import { useTheme } from '@/lib/theme';
 
 /**
@@ -39,6 +41,11 @@ export default function PartyBigScreen() {
   const q = useQuery({ queryKey: partyKeys.screen(code), queryFn: () => partyApi.screen(code), refetchInterval: 15_000, enabled: !!code });
   useScreenLive(code, () => q.refetch());
   const p = q.data;
+  // A TV has no account: it speaks the party's language. A signed-in phone keeps its own.
+  const { token } = useSession();
+  useEffect(() => {
+    if (p?.language && !token) showLang(p.language);
+  }, [p?.language, token]);
   const wide = width >= 760 && width > height * 1.1;
   const unit = Math.min(width / (wide ? 1600 : 800), height / 900);
 
