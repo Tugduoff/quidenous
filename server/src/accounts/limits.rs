@@ -46,6 +46,8 @@ pub const OAUTH_IP: Rule = rule("oauth_ip", 20, 10);
 pub const LEGACY_IP: Rule = rule("legacy_ip", 10, 60);
 /// Joining a party without an account: a whole party shares one Wi-Fi.
 pub const PARTY_GUEST_IP: Rule = rule("party_guest_ip", 30, 60);
+/// The public invite preview (`GET /api/rooms/preview`): enough for a few links, too few to scan codes.
+pub const ROOM_PREVIEW_IP: Rule = rule("room_preview_ip", 30, 10);
 pub const DELETE_SEND_IP: Rule = rule("delete_send_ip", 5, 60);
 pub const DELETE_SEND_ACCOUNT: Rule = rule("delete_send_account", 3, 60);
 pub const DELETE_CONFIRM_ACCOUNT: Rule = rule("delete_confirm_account", 10, 60);
@@ -219,6 +221,7 @@ fn rule_by_name(name: &str) -> Option<Rule> {
         OAUTH_IP,
         LEGACY_IP,
         PARTY_GUEST_IP,
+        ROOM_PREVIEW_IP,
         DELETE_SEND_IP,
         DELETE_SEND_ACCOUNT,
         DELETE_CONFIRM_ACCOUNT,

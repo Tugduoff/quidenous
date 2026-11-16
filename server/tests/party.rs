@@ -763,6 +763,28 @@ async fn the_big_screen_needs_only_the_code() {
     }
 }
 
+/// The big screen draws its words in the party's language (not the TV browser's).
+#[tokio::test]
+async fn the_big_screen_knows_the_party_language() {
+    let (app, _) = setup().await;
+    let host = account(&app, "Tug").await;
+    for lang in ["en", "fr"] {
+        let (status, body) = call(
+            &app,
+            "POST",
+            "/parties",
+            Some(&host),
+            Some(json!({ "language": lang })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+        let code = body["code"].as_str().unwrap();
+        let (status, s) = call(&app, "GET", &format!("/parties/screen/{code}"), None, None).await;
+        assert_eq!(status, StatusCode::OK, "{s}");
+        assert_eq!(s["language"], lang);
+    }
+}
+
 #[tokio::test]
 async fn parties_send_no_inbox_or_push() {
     let (app, state) = setup().await;

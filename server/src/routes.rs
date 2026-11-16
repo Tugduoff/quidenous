@@ -89,6 +89,7 @@ pub fn router() -> Router<AppState> {
         )
         .route("/rooms", get(crate::rooms::list).post(crate::rooms::create))
         .route("/rooms/join", post(crate::rooms::join))
+        .route("/rooms/preview", get(crate::rooms::preview))
         .route("/start", post(crate::rooms::start))
         .route(
             "/packs",
@@ -206,6 +207,7 @@ async fn features(State(state): State<AppState>) -> Json<Value> {
         "party",
         "choose",
         "reorder",
+        "room_preview",
     ];
     f.extend(crate::accounts::features(&state));
     Json(json!(f))
