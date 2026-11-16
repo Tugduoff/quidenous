@@ -27,4 +27,8 @@ export const errors = {
   bad_report: 'Signalement invalide',
   bad_locale: 'Langue inconnue',
   bad_language: 'Langue inconnue',
+  guest_account: 'Crée un compte pour ça',
+  invite_gone: "Cette invitation n'est plus valable",
+  not_friends: "Vous n'êtes pas encore amis",
+  already_in_room: 'Déjà dans le salon',
 };

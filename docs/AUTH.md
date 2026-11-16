@@ -26,7 +26,7 @@ Migration `0015_auth.sql`:
 
 A session's public id is the first 16 hex chars of its token hash (the token itself is never stored or shown).
 
-Account kinds: **secured** = has an email + password, or at least one linked provider. **Legacy** = token only (everyone in the live group today).
+Account kinds: **secured** = has an email + password, or at least one linked provider. **Legacy** = token only (everyone in the live group today). **Guest** = token only, made by a party join (`users.guest`): plays in its party only and is purged 30 days after it (see `docs/PARTY.md`); `GET /auth/account` carries `guest`.
 
 ## Security choices
 
@@ -173,7 +173,7 @@ Votes, rankings, rounds, questions they added and packs they published stay, so 
 
 **Reports** (store policy on user content) — a message, a member or a question, from inside the room it belongs to. Stored once per (reporter, kind, target) with a snapshot of the content, and emailed (text + HTML) to `REPORT_EMAIL` (default `contact@coflop.fr`).
 
-**Blocks** — I stop seeing someone: their chat messages (`GET /rounds/{id}/messages`, which returns the last 200 of a chat, oldest first), inbox entries they caused (and the unread counts), pushes for their messages and nudges, and friend requests both ways (an unknown code, same answer as a wrong one; adding to a room says `not_friends`). Blocking removes a friendship by code; they leave my friends list. Shared rooms, votes and results don't change. Messages (REST and the `message_posted` live event) carry the author's `user_id` (null once deleted) so the app can filter what arrives live.
+**Blocks** — I stop seeing someone: their chat messages (`GET /rounds/{id}/messages`, which returns the last 200 of a chat, oldest first), inbox entries they caused (and the unread counts), pushes for their messages and nudges, and friend requests both ways (an unknown code, same answer as a wrong one; inviting to a room says `not_friends`). Blocking removes a friendship by code and any pending friend request or room invitation between us; they leave my friends list. Someone who sent me a friend request can be blocked. Shared rooms, votes and results don't change. Messages (REST and the `message_posted` live event) carry the author's `user_id` (null once deleted) so the app can filter what arrives live.
 
 | Method + path | Auth | Body | Returns / errors |
 | --- | --- | --- | --- |

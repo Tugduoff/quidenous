@@ -28,4 +28,8 @@ export const errors: Messages['errors'] = {
   bad_report: 'Invalid report',
   bad_locale: 'Unknown language',
   bad_language: 'Unknown language',
+  guest_account: 'Create an account to do that',
+  invite_gone: 'This invite is no longer valid',
+  not_friends: "You're not friends yet",
+  already_in_room: 'Already in the room',
 };

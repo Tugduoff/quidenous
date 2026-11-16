@@ -27,8 +27,9 @@ function touched(event: LiveEvent): QueryKey[] | 'all' {
       return [['round'], keys.historyList, keys.queue, keys.stats];
     case 'message_posted':
       return event.round_id ? [keys.messages(event.round_id)] : [];
+    // Also a friend request or a room invitation for me.
     case 'inbox_changed':
-      return [keys.inbox];
+      return [keys.inbox, keys.friends, keys.invites];
     case 'kick_voted':
       return [keys.group];
     case 'round_pinned':
@@ -41,7 +42,7 @@ function touched(event: LiveEvent): QueryKey[] | 'all' {
     // Who's in: the room, the counts on the open question and in the room list.
     case 'member_joined':
     case 'member_removed':
-      return [keys.group, keys.current, keys.rooms];
+      return [keys.group, keys.current, keys.rooms, ['invites']];
     // A new name or photo: also shown on results and in the chat.
     case 'member_updated':
       return [keys.group, ['round'], ['messages']];

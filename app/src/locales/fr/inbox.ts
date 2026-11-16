@@ -12,6 +12,8 @@ export const inbox = {
     question: 'Nouvelle question',
     added: 'Ajouté à un groupe',
     ask: 'Questions',
+    friendRequest: "Demande d'ami",
+    invite: 'Invitation',
     other: 'Notification',
   },
 };

@@ -1,6 +1,6 @@
 import { keepPreviousData, type InfiniteData, type QueryClient, useInfiniteQuery, useQuery } from '@tanstack/react-query';
 
-import { api, type Friend, type Group, type RoomSummary, type HistoryItem, type InboxItem, type Message, type Member, type Queue, type Round, normalizeStats, type Stats, type StatsPeriod, type Vibe } from './api';
+import { api, type Friends, type Group, type RoomSummary, type HistoryItem, type InboxItem, type Message, type Member, type Queue, type RoomInvite, type Round, normalizeStats, type Stats, type StatsPeriod, type Vibe } from './api';
 import { localizeGroup } from './names';
 
 export const keys = {
@@ -19,6 +19,10 @@ export const keys = {
   inbox: ['inbox'] as const,
   rooms: ['rooms'] as const,
   friends: ['friends'] as const,
+  /** Room invitations for me. */
+  invites: ['invites'] as const,
+  /** Who has a pending invitation into a room. */
+  roomInvites: (id: number) => ['invites', 'room', id] as const,
   queue: ['queue'] as const,
   blocks: ['blocks'] as const,
   vibes: ['vibes'] as const,
@@ -77,7 +81,19 @@ export const useInbox = () => useQuery({ queryKey: keys.inbox, queryFn: () => ap
 
 export const useRooms = () => useQuery({ queryKey: keys.rooms, queryFn: () => api<RoomSummary[]>('/rooms') });
 
-export const useFriends = () => useQuery({ queryKey: keys.friends, queryFn: () => api<{ code: string; friends: Friend[] }>('/friends') });
+export const useFriends = (enabled = true) => useQuery({ queryKey: keys.friends, queryFn: () => api<Friends>('/friends'), enabled });
+
+/** Room invitations waiting for me (a server without them: none). */
+export const useInvites = (enabled = true) =>
+  useQuery({ queryKey: keys.invites, queryFn: async () => (await api<{ invites: RoomInvite[] }>('/invites')).invites, enabled });
+
+/** User ids with a pending invitation into this room. */
+export const useRoomInvites = (room: number | undefined, enabled = true) =>
+  useQuery({
+    queryKey: keys.roomInvites(room ?? 0),
+    queryFn: async () => (await api<{ user_ids: number[] }>(`/rooms/${room}/invites`)).user_ids,
+    enabled: enabled && room != null,
+  });
 
 /** The tones a room can pick (same for every room, so kept for the session). Only asked of a server that has them. */
 export const useVibes = (enabled: boolean) =>

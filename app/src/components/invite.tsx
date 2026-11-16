@@ -1,15 +1,16 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
-import { Check, ChevronRight, Copy, RefreshCw, Share2, UserPlus } from 'lucide-react-native';
+import { Check, ChevronRight, Copy, RefreshCw, Search, Share2, UserPlus, X } from 'lucide-react-native';
 import { useState } from 'react';
-import { Platform, Pressable, Text, View } from 'react-native';
+import { Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 
 import { copyText } from '@/components/auth-ui';
-import { askConfirm, Avatar, Card, CodeText, PressableScale } from '@/components/ui';
-import { api } from '@/lib/api';
+import { askConfirm, Avatar, Card, CodeText, Dialog, DialogTitle, PressableScale } from '@/components/ui';
+import { api, type Friend } from '@/lib/api';
 import { useT } from '@/lib/i18n';
-import { keys, useFriends, useGroup } from '@/lib/queries';
+import { useFeatures } from '@/lib/auth';
+import { keys, useFriends, useGroup, useInvites, useRoomInvites } from '@/lib/queries';
 import { inviteLink, inviteMessage, shareText } from '@/lib/share';
 import { useTheme } from '@/lib/theme';
 
@@ -95,62 +96,198 @@ export function InviteCard({ qrSize = 168, rotate = true }: { qrSize?: number; r
 }
 
 /**
- * Friends who aren't in this room yet, one tap to add them. With no friends at all, a way to add some
- * (unless `onlyIfAny`: the invite screen keeps to the invite); nothing when they are all here already.
+ * One row under the room's invite: "Inviter des amis" opens a sheet with my friends who aren't in the room yet (search,
+ * one tap sends an invitation they accept). With no friends at all, a way to add some (unless `onlyIfAny`: the invite
+ * screen keeps to the invite); nothing when they are all here already, or for a party guest (no friends list).
  */
 export function AddFriends({ onlyIfAny }: { onlyIfAny?: boolean }) {
   const t = useTheme();
   const tr = useT();
-  const qc = useQueryClient();
   const { data: group } = useGroup();
   const { data: friends } = useFriends();
-  const add = useMutation({
-    mutationFn: (userId: number) => api(`/rooms/${group!.id}/add`, { method: 'POST', json: { user_id: userId } }),
-    onSettled: () => {
-      qc.invalidateQueries({ queryKey: keys.group });
-      qc.invalidateQueries({ queryKey: keys.friends });
-      // A second person in the room opens the first question.
-      qc.invalidateQueries({ queryKey: keys.current });
-    },
-  });
+  const [open, setOpen] = useState(false);
   if (!group || !friends) return null;
   const inRoom = new Set(group.members.map((m) => m.user_id));
   const outside = friends.friends.filter((f) => !inRoom.has(f.user_id));
   const none = friends.friends.length === 0;
   if (!outside.length && (onlyIfAny || !none)) return null;
+  const row = (title: string, onPress: () => void, sub?: string) => (
+    <PressableScale scale={0.98} accessibilityRole="button" onPress={onPress}>
+      <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 }}>
+        <View style={{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: t.accSoft }}>
+          <UserPlus size={18} color={t.accInk} />
+        </View>
+        <View style={{ flex: 1, gap: 1 }}>
+          <Text numberOfLines={1} style={{ fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>
+            {title}
+          </Text>
+          {!!sub && (
+            <Text numberOfLines={1} style={{ fontFamily: t.font.regular, fontSize: 13, color: t.mut }}>
+              {sub}
+            </Text>
+          )}
+        </View>
+        <ChevronRight size={18} color={t.mut} />
+      </Card>
+    </PressableScale>
+  );
+  if (none) return row(tr('room.invite.noFriends'), () => router.push('/friends'));
+  return (
+    <>
+      {row(tr('room.invite.addFriends'), () => setOpen(true), tr('room.invite.outside', { count: outside.length }))}
+      <InviteSheet visible={open} onClose={() => setOpen(false)} room={group.id} friends={outside} />
+    </>
+  );
+}
+
+/** The sheet: search my friends outside the room, invite one (tap again to take it back). */
+function InviteSheet({ visible, onClose, room, friends }: { visible: boolean; onClose: () => void; room: number; friends: Friend[] }) {
+  const t = useTheme();
+  const tr = useT();
+  const qc = useQueryClient();
+  const [q, setQ] = useState('');
+  const { data: pending } = useRoomInvites(room, visible);
+  const invited = new Set(pending ?? []);
+  const refresh = () => {
+    qc.invalidateQueries({ queryKey: keys.roomInvites(room) });
+    // An older server seats them straight away.
+    qc.invalidateQueries({ queryKey: keys.group });
+    qc.invalidateQueries({ queryKey: keys.current });
+  };
+  const invite = useMutation({
+    mutationFn: (userId: number) => api(`/rooms/${room}/add`, { method: 'POST', json: { user_id: userId } }),
+    onSettled: refresh,
+  });
+  const cancel = useMutation({
+    mutationFn: (userId: number) => api(`/rooms/${room}/invites/${userId}`, { method: 'DELETE' }),
+    onSettled: refresh,
+  });
+  const needle = q.trim().toLocaleLowerCase();
+  const shown = needle ? friends.filter((f) => f.name.toLocaleLowerCase().includes(needle)) : friends;
+  const close = () => {
+    setQ('');
+    onClose();
+  };
+  return (
+    <Dialog visible={visible} onClose={close}>
+      <DialogTitle title={tr('room.invite.addFriends')} />
+      {friends.length > 5 && (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, height: 44, paddingHorizontal: 14, borderRadius: 22, backgroundColor: t.card2 }}>
+          <Search size={16} color={t.mut} />
+          <TextInput
+            accessibilityLabel={tr('room.invite.search')}
+            placeholder={tr('room.invite.search')}
+            placeholderTextColor={t.mut}
+            value={q}
+            onChangeText={setQ}
+            autoCorrect={false}
+            style={{ flex: 1, minWidth: 0, height: 44, fontFamily: t.font.regular, fontSize: 16, color: t.txt }}
+          />
+        </View>
+      )}
+      <ScrollView style={{ maxHeight: 340 }} contentContainerStyle={{ gap: 4 }} keyboardShouldPersistTaps="handled">
+        {shown.map((f) => {
+          const on = invited.has(f.user_id);
+          return (
+            <View key={f.user_id} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 6 }}>
+              <Avatar member={{ id: f.user_id, name: f.name, color: f.color, photo_url: f.photo_url, avatar: f.avatar }} size={36} />
+              <Text numberOfLines={1} style={{ flex: 1, fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>
+                {f.name}
+              </Text>
+              <PressableScale
+                accessibilityRole="button"
+                accessibilityLabel={on ? tr('room.invite.cancelA11y', { name: f.name }) : tr('room.invite.addToRoom', { name: f.name })}
+                disabled={invite.isPending || cancel.isPending}
+                onPress={() => (on ? cancel.mutate(f.user_id) : invite.mutate(f.user_id))}
+                hitSlop={6}
+                style={{
+                  height: 34,
+                  paddingHorizontal: 12,
+                  borderRadius: 17,
+                  flexDirection: 'row',
+                  gap: 6,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: on ? 'transparent' : t.card2,
+                  borderWidth: on ? 1 : 0,
+                  borderColor: t.line,
+                }}>
+                {on ? <Check size={15} color={t.accInk} /> : <UserPlus size={15} color={t.txt} />}
+                <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: on ? t.mut : t.txt }}>
+                  {on ? tr('room.invite.invited') : tr('room.invite.invite')}
+                </Text>
+              </PressableScale>
+            </View>
+          );
+        })}
+        {!shown.length && <Text style={{ fontFamily: t.font.regular, fontSize: 14, color: t.mut, paddingVertical: 8 }}>{tr('room.invite.noMatch')}</Text>}
+      </ScrollView>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => {
+            close();
+            router.push('/friends');
+          }}
+          hitSlop={8}>
+          <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.accInk }}>{tr('room.invite.myFriends')}</Text>
+        </Pressable>
+        <Pressable accessibilityRole="button" onPress={close} hitSlop={8}>
+          <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.txt }}>{tr('common.close')}</Text>
+        </Pressable>
+      </View>
+    </Dialog>
+  );
+}
+
+/** Rooms someone invited me into: join one, or decline. Nothing when there are none. */
+export function RoomInvites({ onJoined }: { onJoined: (room: number) => void }) {
+  const t = useTheme();
+  const tr = useT();
+  const qc = useQueryClient();
+  const { consent } = useFeatures();
+  const { data: invites } = useInvites(consent);
+  const accept = useMutation({
+    mutationFn: (id: number) => api<{ room_id: number }>(`/invites/${id}/accept`, { method: 'POST' }),
+    onSuccess: (r) => onJoined(r.room_id),
+    onSettled: () => qc.invalidateQueries({ queryKey: keys.invites }),
+  });
+  const decline = useMutation({
+    mutationFn: (id: number) => api(`/invites/${id}`, { method: 'DELETE' }),
+    onSettled: () => qc.invalidateQueries({ queryKey: keys.invites }),
+  });
+  if (!invites?.length) return null;
+  const busy = accept.isPending || decline.isPending;
   return (
     <View style={{ gap: 10 }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginHorizontal: 4 }}>
-        <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut }}>{tr('room.invite.addFriends')}</Text>
-        {!none && (
-          <Pressable accessibilityRole="button" onPress={() => router.push('/friends')} hitSlop={8}>
-            <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.accInk }}>{tr('room.invite.myFriends')}</Text>
-          </Pressable>
-        )}
-      </View>
-      {none && (
-        <PressableScale scale={0.98} accessibilityRole="button" onPress={() => router.push('/friends')}>
-          <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 }}>
-            <UserPlus size={18} color={t.accInk} />
-            <Text style={{ flex: 1, fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>{tr('room.invite.noFriends')}</Text>
-            <ChevronRight size={18} color={t.mut} />
-          </Card>
-        </PressableScale>
-      )}
-      {outside.map((f) => (
-        <Card key={f.user_id} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12 }}>
-          <Avatar member={{ id: f.user_id, name: f.name, color: f.color, photo_url: f.photo_url, avatar: f.avatar }} size={36} />
-          <Text numberOfLines={1} style={{ flex: 1, fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>
-            {f.name}
-          </Text>
+      <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut, marginLeft: 4 }}>{tr('room.invites.title')}</Text>
+      {invites.map((i) => (
+        <Card key={i.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, paddingLeft: 14 }}>
+          <Avatar member={{ id: i.from.user_id, name: i.from.name, color: i.from.color, photo_url: i.from.photo_url, avatar: i.from.avatar }} size={36} />
+          <View style={{ flex: 1, gap: 1 }}>
+            <Text numberOfLines={1} style={{ fontFamily: t.font.bold, fontSize: 15, color: t.txt }}>
+              {i.room_name}
+            </Text>
+            <Text numberOfLines={1} style={{ fontFamily: t.font.regular, fontSize: 13, color: t.mut }}>
+              {tr('room.invites.from', { name: i.from.name })}
+            </Text>
+          </View>
           <PressableScale
             accessibilityRole="button"
-            accessibilityLabel={tr('room.invite.addToRoom', { name: f.name })}
-            disabled={add.isPending}
-            onPress={() => add.mutate(f.user_id)}
+            accessibilityLabel={tr('room.invites.declineA11y', { room: i.room_name })}
+            disabled={busy}
+            onPress={() => decline.mutate(i.id)}
             hitSlop={6}
-            style={{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: t.acc }}>
-            <UserPlus size={17} color={t.accTxt} />
+            style={{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card2 }}>
+            <X size={16} color={t.mut} />
+          </PressableScale>
+          <PressableScale
+            accessibilityRole="button"
+            accessibilityLabel={tr('room.invites.acceptA11y', { room: i.room_name })}
+            disabled={busy}
+            onPress={() => accept.mutate(i.id)}
+            style={{ height: 36, paddingHorizontal: 14, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: t.acc }}>
+            <Text style={{ fontFamily: t.font.bold, fontSize: 13, color: t.accTxt }}>{tr('room.invites.accept')}</Text>
           </PressableScale>
         </Card>
       ))}

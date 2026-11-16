@@ -136,6 +136,17 @@ pub fn router() -> Router<AppState> {
         .route("/rounds/{id}/challenge", post(crate::play::challenge))
         .route("/rounds/{id}/challenges", get(crate::play::challenges))
         .route("/rooms/{id}/add", post(crate::friends::add_to_room))
+        .route("/rooms/{id}/invites", get(crate::friends::room_invites))
+        .route(
+            "/rooms/{id}/invites/{user_id}",
+            axum::routing::delete(crate::friends::cancel_room_invite),
+        )
+        .route("/invites", get(crate::friends::invites))
+        .route(
+            "/invites/{id}",
+            axum::routing::delete(crate::friends::decline_invite),
+        )
+        .route("/invites/{id}/accept", post(crate::friends::accept_invite))
         .merge(crate::party::router())
         .route(
             "/friends",
@@ -208,6 +219,7 @@ async fn features(State(state): State<AppState>) -> Json<Value> {
         "choose",
         "reorder",
         "room_preview",
+        "consent",
     ];
     f.extend(crate::accounts::features(&state));
     Json(json!(f))
@@ -264,6 +276,12 @@ async fn join(
     .await?
     .ok_or(AppError::BadRequest("bad_code"))?;
     attempt.found();
+    // A party guest plays in parties only.
+    if let Some(user) = signed_in
+        && crate::auth::is_guest(&state.db, user).await?
+    {
+        return Err(AppError::Forbidden("guest_account"));
+    }
     let mut tx = crate::db::write_tx(&state.db).await?;
     let existing = match signed_in {
         Some(user_id) => {

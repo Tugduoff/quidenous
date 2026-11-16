@@ -33,8 +33,10 @@ pub const CHAT_USER: Rule = per("chat_user", 15, MINUTE);
 pub const CHAT_HOUR_USER: Rule = per("chat_hour_user", 300, HOUR);
 /// New rooms and parties per account.
 pub const ROOM_CREATE_USER: Rule = per("room_create_user", 20, DAY);
-/// Friends put into one of my rooms.
+/// Friends invited into one of my rooms.
 pub const ROOM_ADD_USER: Rule = per("room_add_user", 30, HOUR);
+/// Friend requests sent (by code or to a room-mate); accepting one is free.
+pub const FRIEND_REQUEST_USER: Rule = per("friend_request_user", 30, HOUR);
 /// Questions added one by one.
 pub const QUESTION_USER: Rule = per("question_user", 60, HOUR);
 /// Question imports (each up to [`IMPORT_LINES`] lines).
@@ -48,13 +50,14 @@ pub const PUSH_USER: Rule = per("push_user", 30, HOUR);
 pub const IMPORT_LINES: usize = 500;
 
 /// Every rule above, so the limiter can prune their buckets.
-pub const RULES: [Rule; 10] = [
+pub const RULES: [Rule; 11] = [
     CODE_MISS_USER,
     CODE_MISS_IP,
     CHAT_USER,
     CHAT_HOUR_USER,
     ROOM_CREATE_USER,
     ROOM_ADD_USER,
+    FRIEND_REQUEST_USER,
     QUESTION_USER,
     IMPORT_USER,
     PHOTO_USER,

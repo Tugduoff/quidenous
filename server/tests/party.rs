@@ -301,12 +301,18 @@ async fn create_and_join_as_guest_or_account() {
     .await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
 
-    // Party mates are not friends by sharing the party.
-    let (_, friends) = call(&app, "GET", "/friends", Some(&lea), None).await;
+    // Party mates are not friends by sharing the party (and a guest has no friends list).
+    let (_, friends) = call(&app, "GET", "/friends", Some(&host), None).await;
     assert!(
-        friends["friends"].as_array().unwrap().is_empty(),
+        !friends["friends"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|f| f["name"] == "Léa"),
         "{friends}"
     );
+    let (status, _) = call(&app, "GET", "/friends", Some(&lea), None).await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
 
     // Not a player: 403.
     let other = account(&app, "Autre").await;

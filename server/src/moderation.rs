@@ -69,7 +69,7 @@ async fn target(state: &AppState, me: i64, kind: &str, id: i64) -> AppResult<Tar
 /// `REPORT_EMAIL` (30 emails an hour at most, server-wide; beyond that, stored only).
 pub async fn report(
     State(state): State<AppState>,
-    UserId(me): UserId,
+    crate::auth::Account(me): crate::auth::Account,
     Json(body): Json<ReportBody>,
 ) -> AppResult<Json<Value>> {
     let details = body
@@ -185,7 +185,8 @@ pub async fn list_blocks(
     Ok(Json(json!(list)))
 }
 
-/// Block someone (idempotent); any friendship by code goes, both ways.
+/// Block someone (idempotent); any friendship by code, friend request or room invitation between
+/// us goes, both ways.
 pub async fn block(
     State(state): State<AppState>,
     UserId(me): UserId,
@@ -200,7 +201,8 @@ pub async fn block(
         "SELECT u.id FROM users u WHERE u.id = ?2 AND u.deleted_at IS NULL AND ( \
          EXISTS (SELECT 1 FROM members a JOIN members b ON a.group_id = b.group_id \
                  WHERE a.user_id = ?1 AND b.user_id = ?2) \
-         OR EXISTS (SELECT 1 FROM friends WHERE user_id = ?1 AND friend_id = ?2))",
+         OR EXISTS (SELECT 1 FROM friends WHERE user_id = ?1 AND friend_id = ?2) \
+         OR EXISTS (SELECT 1 FROM friend_requests WHERE from_id = ?2 AND to_id = ?1))",
     )
     .bind(me)
     .bind(other)
@@ -213,13 +215,17 @@ pub async fn block(
         .bind(other)
         .execute(&mut *tx)
         .await?;
-    sqlx::query(
+    for sql in [
         "DELETE FROM friends WHERE (user_id = ?1 AND friend_id = ?2) OR (user_id = ?2 AND friend_id = ?1)",
-    )
-    .bind(me)
-    .bind(other)
-    .execute(&mut *tx)
-    .await?;
+        "DELETE FROM friend_requests WHERE (from_id = ?1 AND to_id = ?2) OR (from_id = ?2 AND to_id = ?1)",
+        "DELETE FROM room_invites WHERE (from_id = ?1 AND user_id = ?2) OR (from_id = ?2 AND user_id = ?1)",
+    ] {
+        sqlx::query(sql)
+            .bind(me)
+            .bind(other)
+            .execute(&mut *tx)
+            .await?;
+    }
     tx.commit().await?;
     Ok(Json(json!({ "ok": true })))
 }

@@ -388,7 +388,7 @@ async fn insert_questions(
 /// Publish a pack: from `questions`, else a file (`text`), else the questions my room added.
 pub async fn publish(
     State(state): State<AppState>,
-    UserId(user): UserId,
+    crate::auth::Account(user): crate::auth::Account,
     headers: HeaderMap,
     Json(body): Json<PackBody>,
 ) -> AppResult<Json<Value>> {
@@ -448,7 +448,7 @@ pub async fn publish(
 /// The author edits their pack. Fields left out keep their value; new questions bump the version.
 pub async fn edit(
     State(state): State<AppState>,
-    UserId(me): UserId,
+    crate::auth::Account(me): crate::auth::Account,
     headers: HeaderMap,
     Path(id): Path<i64>,
     Json(body): Json<PackBody>,
@@ -641,7 +641,7 @@ async fn set_like(state: &AppState, me: i64, id: i64, on: bool) -> AppResult<Jso
 
 pub async fn like(
     State(state): State<AppState>,
-    UserId(me): UserId,
+    crate::auth::Account(me): crate::auth::Account,
     Path(id): Path<i64>,
 ) -> AppResult<Json<Value>> {
     set_like(&state, me, id, true).await
@@ -649,7 +649,7 @@ pub async fn like(
 
 pub async fn unlike(
     State(state): State<AppState>,
-    UserId(me): UserId,
+    crate::auth::Account(me): crate::auth::Account,
     Path(id): Path<i64>,
 ) -> AppResult<Json<Value>> {
     set_like(&state, me, id, false).await
@@ -676,7 +676,7 @@ pub(crate) fn optional_body<T: serde::de::DeserializeOwned + Default>(
 /// Each new report is e-mailed to `REPORT_EMAIL` (same hourly cap as other reports).
 pub async fn report(
     State(state): State<AppState>,
-    UserId(me): UserId,
+    crate::auth::Account(me): crate::auth::Account,
     Path(id): Path<i64>,
     body: Bytes,
 ) -> AppResult<Json<Value>> {
@@ -859,7 +859,7 @@ pub struct CommunityBody {
 
 pub async fn set_community_me(
     State(state): State<AppState>,
-    UserId(me): UserId,
+    crate::auth::Account(me): crate::auth::Account,
     Json(body): Json<CommunityBody>,
 ) -> AppResult<Json<Value>> {
     sqlx::query("UPDATE users SET show_spicy = ? WHERE id = ?")

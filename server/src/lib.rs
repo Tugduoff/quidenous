@@ -7,6 +7,7 @@ pub mod deck;
 pub mod error;
 pub mod friends;
 pub mod game;
+pub mod guests;
 pub mod i18n;
 pub mod inbox;
 pub mod live;

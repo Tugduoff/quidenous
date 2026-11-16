@@ -1,14 +1,14 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
-import { Check, ChevronLeft, Share2, UserPlus, X } from 'lucide-react-native';
-import { useState } from 'react';
+import { Check, ChevronLeft, Clock, Share2, UserPlus, X } from 'lucide-react-native';
+import { type ReactNode, useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 
 import { ScanButton } from '@/components/qr-scanner';
 import { Screen } from '@/components/screen';
-import { Avatar, Card, CodeText, Display } from '@/components/ui';
-import { api, ApiError, presetFriendCode, type Member } from '@/lib/api';
+import { Avatar, Card, CodeText, Display, PressableScale } from '@/components/ui';
+import { api, ApiError, presetFriendCode, type Member, type Person } from '@/lib/api';
 import { t as tr, type TKey, useT } from '@/lib/i18n';
 import { keys, useFriends } from '@/lib/queries';
 import { friendLink, friendMessage, shareText } from '@/lib/share';
@@ -18,7 +18,50 @@ const ERRORS: Record<string, TKey> = { bad_code: 'friends.errors.badCode', self_
 
 const roomsText = (n: number) => tr('friends.roomsInCommon', { count: n });
 
-/** My friend code (and QR), add someone by code, my friends. */
+/** A section title above a group of cards. */
+function Label({ children }: { children: string }) {
+  const t = useTheme();
+  return <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut, marginLeft: 4, marginTop: 4 }}>{children}</Text>;
+}
+
+/** One person: avatar, name, a grey line, and the actions on the right. */
+function PersonRow({ person, sub, children }: { person: Person; sub?: string; children?: ReactNode }) {
+  const t = useTheme();
+  return (
+    <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12 }}>
+      <Avatar member={{ id: person.user_id, name: person.name, color: person.color, photo_url: person.photo_url, avatar: person.avatar } as Member} size={40} />
+      <View style={{ flex: 1, gap: 2 }}>
+        <Text numberOfLines={1} style={{ fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>
+          {person.name}
+        </Text>
+        {!!sub && (
+          <Text numberOfLines={1} style={{ fontFamily: t.font.regular, fontSize: 12, color: t.mut }}>
+            {sub}
+          </Text>
+        )}
+      </View>
+      {children}
+    </Card>
+  );
+}
+
+/** A round icon button; `tone="acc"` for the one action that matters (accept). */
+function Round({ label, onPress, disabled, tone, children }: { label: string; onPress: () => void; disabled?: boolean; tone?: 'acc'; children: ReactNode }) {
+  const t = useTheme();
+  return (
+    <PressableScale
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      disabled={disabled}
+      onPress={onPress}
+      hitSlop={6}
+      style={{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: tone === 'acc' ? t.acc : t.card2 }}>
+      {children}
+    </PressableScale>
+  );
+}
+
+/** Requests to answer, my friend code (and QR), add someone by code, my friends, then people from my rooms. */
 export default function FriendsScreen() {
   const t = useTheme();
   const tr = useT();
@@ -27,31 +70,40 @@ export default function FriendsScreen() {
   const [code, setCode] = useState(presetFriendCode() ?? '');
   const [note, setNote] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const refresh = () => qc.invalidateQueries({ queryKey: keys.friends });
+  // A code sends a request (or accepts theirs); an older server makes friends at once (no `status`).
   const add = useMutation({
     meta: { quiet: true },
-    mutationFn: (value: string) => api<{ name: string }>('/friends', { method: 'POST', json: { code: value.trim() } }),
+    mutationFn: (value: string) => api<{ name: string; status?: string }>('/friends', { method: 'POST', json: { code: value.trim() } }),
     onSuccess: (r) => {
       setCode('');
-      setNote(tr('friends.added', { name: r.name }));
-      qc.invalidateQueries({ queryKey: keys.friends });
+      setNote(tr(r.status === 'requested' ? 'friends.requestSent' : 'friends.added', { name: r.name }));
+      refresh();
     },
     onError: (e) => setNote(e instanceof ApiError && ERRORS[e.code] ? tr(ERRORS[e.code]) : tr('common.failed')),
   });
-  // A room-mate is a friend only while we share a room: this keeps them for good.
+  // Ask a room-mate to stay friends for good, or accept someone's request.
   const keep = useMutation({
     mutationFn: (id: number) => api(`/friends/${id}`, { method: 'POST' }),
-    onSettled: () => qc.invalidateQueries({ queryKey: keys.friends }),
+    onSettled: refresh,
   });
+  // Remove a friend, decline a request or cancel mine.
   const remove = useMutation({
     mutationFn: (id: number) => api(`/friends/${id}`, { method: 'DELETE' }),
-    onSettled: () => qc.invalidateQueries({ queryKey: keys.friends }),
+    onSettled: refresh,
   });
+  const busy = keep.isPending || remove.isPending;
   const share = async () => {
     if (data && (await shareText(friendMessage(data.code))) === 'copied') {
       setCopied(true);
       setTimeout(() => setCopied(false), 1800);
     }
   };
+  const friends = data?.friends.filter((f) => f.added) ?? [];
+  const roomMates = data?.friends.filter((f) => !f.added) ?? [];
+  const shown = new Set(data?.friends.map((f) => f.user_id));
+  const incoming = data?.incoming ?? [];
+  const outgoing = data?.outgoing?.filter((p) => !shown.has(p.user_id)) ?? [];
 
   return (
     <Screen tabs={false}>
@@ -63,6 +115,18 @@ export default function FriendsScreen() {
         <ChevronLeft size={22} color={t.txt} />
       </Pressable>
       <Display size={30}>{tr('friends.title')}</Display>
+
+      {!!incoming.length && <Label>{tr('friends.requests')}</Label>}
+      {incoming.map((p) => (
+        <PersonRow key={p.user_id} person={p} sub={tr('friends.wantsToBeFriends')}>
+          <Round label={tr('friends.declineA11y', { name: p.name })} disabled={busy} onPress={() => remove.mutate(p.user_id)}>
+            <X size={16} color={t.mut} />
+          </Round>
+          <Round label={tr('friends.acceptA11y', { name: p.name })} disabled={busy} onPress={() => keep.mutate(p.user_id)} tone="acc">
+            <Check size={18} color={t.accTxt} />
+          </Round>
+        </PersonRow>
+      ))}
 
       {data && (
         <Card style={{ padding: 20, gap: 14, alignItems: 'center' }}>
@@ -87,14 +151,12 @@ export default function FriendsScreen() {
               backgroundColor: t.acc,
             }}>
             <Share2 size={18} color={t.accTxt} />
-            <Text style={{ fontFamily: t.font.bold, fontSize: 15, color: t.accTxt }}>
-              {copied ? tr('friends.linkCopied') : tr('friends.shareCode')}
-            </Text>
+            <Text style={{ fontFamily: t.font.bold, fontSize: 15, color: t.accTxt }}>{copied ? tr('friends.linkCopied') : tr('friends.shareCode')}</Text>
           </Pressable>
         </Card>
       )}
 
-      <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut, marginLeft: 4 }}>{tr('friends.addWithCode')}</Text>
+      <Label>{tr('friends.addWithCode')}</Label>
       <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 8, padding: 6, paddingLeft: 16 }}>
         <TextInput
           accessibilityLabel={tr('friends.code')}
@@ -133,59 +195,42 @@ export default function FriendsScreen() {
       </Card>
       {note && <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.accInk, marginLeft: 4 }}>{note}</Text>}
 
-      {!!data?.friends.length && (
-        <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut, marginLeft: 4 }}>
-          {tr('friends.count', { count: data.friends.length })}
-        </Text>
-      )}
-      {data?.friends.map((f) => (
-        <Card key={f.user_id} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12 }}>
-          <Avatar member={{ id: f.user_id, name: f.name, color: f.color, photo_url: f.photo_url, avatar: f.avatar } as Member} size={40} />
-          <View style={{ flex: 1, gap: 2 }}>
-            <Text numberOfLines={1} style={{ fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>
-              {f.name}
-            </Text>
-            <Text numberOfLines={1} style={{ fontFamily: t.font.regular, fontSize: 12, color: t.mut }}>
-              {f.rooms_in_common
-                ? f.added
-                  ? `${tr('friends.friend')} · ${roomsText(f.rooms_in_common)}`
-                  : roomsText(f.rooms_in_common)
-                : tr('friends.addedAsFriend')}
-            </Text>
-          </View>
-          {!f.added && (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={tr('friends.addNameA11y', { name: f.name })}
-              disabled={keep.isPending}
-              onPress={() => keep.mutate(f.user_id)}
-              hitSlop={8}
-              style={{
-                height: 36,
-                paddingHorizontal: 12,
-                borderRadius: 18,
-                flexDirection: 'row',
-                gap: 6,
-                alignItems: 'center',
-                justifyContent: 'center',
-                backgroundColor: t.acc,
-              }}>
-              <UserPlus size={16} color={t.accTxt} />
-              <Text style={{ fontFamily: t.font.bold, fontSize: 13, color: t.accTxt }}>{tr('common.add')}</Text>
-            </Pressable>
-          )}
-          {f.added && !!f.rooms_in_common && <Check size={18} color={t.accInk} />}
-          {f.added && !f.rooms_in_common && (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={tr('friends.removeA11y', { name: f.name })}
-              onPress={() => remove.mutate(f.user_id)}
-              hitSlop={8}
-              style={{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card2 }}>
+      {!!friends.length && <Label>{tr('friends.count', { count: friends.length })}</Label>}
+      {friends.map((f) => (
+        <PersonRow key={f.user_id} person={f} sub={f.rooms_in_common ? roomsText(f.rooms_in_common) : tr('friends.addedAsFriend')}>
+          {/* Sharing a room keeps us friends anyway: only a friend from outside my rooms can be removed. */}
+          {!f.rooms_in_common && (
+            <Round label={tr('friends.removeA11y', { name: f.name })} disabled={busy} onPress={() => remove.mutate(f.user_id)}>
               <X size={16} color={t.mut} />
-            </Pressable>
+            </Round>
           )}
-        </Card>
+        </PersonRow>
+      ))}
+
+      {!!roomMates.length && <Label>{tr('friends.inRooms')}</Label>}
+      {roomMates.map((f) =>
+        f.requested ? (
+          <PersonRow key={f.user_id} person={f} sub={tr('friends.pending')}>
+            <Round label={tr('friends.cancelA11y', { name: f.name })} disabled={busy} onPress={() => remove.mutate(f.user_id)}>
+              <Clock size={16} color={t.mut} />
+            </Round>
+          </PersonRow>
+        ) : (
+          <PersonRow key={f.user_id} person={f} sub={roomsText(f.rooms_in_common)}>
+            <Round label={tr('friends.addNameA11y', { name: f.name })} disabled={busy} onPress={() => keep.mutate(f.user_id)}>
+              <UserPlus size={16} color={t.txt} />
+            </Round>
+          </PersonRow>
+        ),
+      )}
+
+      {!!outgoing.length && <Label>{tr('friends.sent')}</Label>}
+      {outgoing.map((p) => (
+        <PersonRow key={p.user_id} person={p} sub={tr('friends.pending')}>
+          <Round label={tr('friends.cancelA11y', { name: p.name })} disabled={busy} onPress={() => remove.mutate(p.user_id)}>
+            <X size={16} color={t.mut} />
+          </Round>
+        </PersonRow>
       ))}
     </Screen>
   );
