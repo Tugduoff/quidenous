@@ -19,6 +19,11 @@ const RV: &str = "1.0.0";
 const SIG: &str = "sig=\"c2lnbmF0dXJl\", keyid=\"main\"";
 
 async fn test_app(token: Option<&str>) -> (Router, PathBuf) {
+    test_app_with(token, None).await
+}
+
+/// `certificate`: `UPDATES_CERTIFICATE` (signatures required and checked).
+async fn test_app_with(token: Option<&str>, certificate: Option<&str>) -> (Router, PathBuf) {
     let dir = std::env::temp_dir().join(format!("qdn-ota-test-{}", rand_suffix()));
     let config = Config {
         port: 0,
@@ -31,6 +36,7 @@ async fn test_app(token: Option<&str>) -> (Router, PathBuf) {
         vapid_subject: "mailto:test@example.com".into(),
         fcm_service_account: None,
         updates_publish_token: token.map(Into::into),
+        updates_certificate: certificate.map(PathBuf::from),
         ..Config::default()
     };
     std::fs::create_dir_all(&dir).unwrap();
@@ -429,6 +435,7 @@ async fn a_published_update_is_served_byte_for_byte() {
         .await;
         assert_eq!(status, StatusCode::OK);
         assert_eq!(h["content-type"], ct);
+        assert_eq!(h["x-content-type-options"], "nosniff");
         assert_eq!(h["cache-control"], "public, max-age=31536000, immutable");
         assert_eq!(got.as_ref(), bytes);
     }
@@ -796,4 +803,248 @@ async fn rollback_directive_then_update_then_delete() {
     let (_, list) = admin(&app, "GET", "/updates", Some(TOKEN)).await;
     assert_eq!(list[0]["id"], res["id"]);
     assert!(list[0]["createdAt"].as_str().unwrap().ends_with('Z'));
+}
+
+fn manifest_at(runtime: &str, id: &str, created_at: &str) -> Value {
+    let mut body = manifest_body(runtime, id);
+    body["createdAt"] = json!(created_at);
+    body
+}
+
+#[tokio::test]
+async fn an_update_older_than_the_current_one_is_refused() {
+    let (app, _) = test_app(Some(TOKEN)).await;
+    let publish_at = |id: u32, at: &str, platform: &str| {
+        let (archive, _) = update_archive(RV, platform, &manifest_at(RV, &uuid(id), at));
+        publish(&app, Some(TOKEN), archive)
+    };
+    let (status, res) = publish_at(1, "2026-11-12T10:00:00.000Z", "android").await;
+    assert_eq!(status, StatusCode::CREATED, "{res}");
+    // Two CI runs finishing out of order: the older commit's JS is refused.
+    let (status, res) = publish_at(2, "2026-11-12T09:59:59.999Z", "android").await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert_eq!(res["error"], "older_than_current");
+    assert_eq!(served(&app, RV, "android").await, Some(uuid(1)));
+    // Same time (a re-run of the same build) and newer ones go through.
+    let (status, _) = publish_at(3, "2026-11-12T10:00:00Z", "android").await;
+    assert_eq!(status, StatusCode::CREATED);
+    let (status, _) = publish_at(4, "2026-11-12T11:00:00.000Z", "android").await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert_eq!(served(&app, RV, "android").await, Some(uuid(4)));
+    // Per platform and per runtime.
+    let (status, _) = publish_at(5, "2026-01-01T00:00:00.000Z", "ios").await;
+    assert_eq!(status, StatusCode::CREATED);
+    let (archive, _) = update_archive(
+        "2.0.0",
+        "android",
+        &manifest_at("2.0.0", &uuid(6), "2026-01-01T00:00:00.000Z"),
+    );
+    assert_eq!(
+        publish(&app, Some(TOKEN), archive).await.0,
+        StatusCode::CREATED
+    );
+    // A rollback directive doesn't count: the next update (built before it) still goes.
+    let directive = json!({ "type": "rollBackToEmbedded", "parameters": { "commitTime": "2026-11-13T00:00:00.000Z" } });
+    let (status, _) = publish(
+        &app,
+        Some(TOKEN),
+        directive_archive(RV, "android", &directive),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let (status, _) = publish_at(7, "2026-11-12T12:00:00.000Z", "android").await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert_eq!(served(&app, RV, "android").await, Some(uuid(7)));
+    // An unreadable date is refused.
+    let (status, res) = publish_at(8, "yesterday", "android").await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(res["error"], "bad_created_at");
+}
+
+#[tokio::test]
+async fn asset_content_type_comes_from_the_extension_not_the_publisher() {
+    let (app, _) = test_app(Some(TOKEN)).await;
+    let id = uuid(1);
+    let page = b"<script>alert(1)</script>";
+    let mut body = manifest_body(RV, &id);
+    body["assets"] = json!([
+        asset_json(RV, &id, "page-1.html", page, "text/html"),
+        asset_json(RV, &id, "icon-def.png", ICON, "text/html"),
+    ]);
+    let archive = tarball(vec![
+        Entry::File(
+            "update.json",
+            descriptor("update", "android", RV).to_string().into_bytes(),
+        ),
+        Entry::File("body.json", body.to_string().into_bytes()),
+        Entry::File("assets/bundle-abc.hbc", BUNDLE.to_vec()),
+        Entry::File("assets/icon-def.png", ICON.to_vec()),
+        Entry::File("assets/page-1.html", page.to_vec()),
+    ]);
+    let (status, res) = publish(&app, Some(TOKEN), archive).await;
+    assert_eq!(status, StatusCode::CREATED, "{res}");
+    for (name, ct) in [
+        ("page-1.html", "application/octet-stream"),
+        ("icon-def.png", "image/png"),
+    ] {
+        let (status, h, _) = send(
+            &app,
+            Request::get(format!("/api/updates/assets/{RV}/{id}/{name}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(h["content-type"], ct, "{name}");
+        assert_eq!(h["x-content-type-options"], "nosniff");
+    }
+}
+
+const TEST_KEY: &str = include_str!("fixtures/ota-test-key.pem");
+const TEST_CERT: &str = concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/tests/fixtures/ota-test-cert.pem"
+);
+
+/// `expo-signature` of these bytes with the test key, as ota-publish.mjs writes it.
+fn sign(body: &[u8]) -> String {
+    let key = jsonwebtoken::EncodingKey::from_rsa_pem(TEST_KEY.as_bytes()).unwrap();
+    let b64url = jsonwebtoken::crypto::sign(body, &key, jsonwebtoken::Algorithm::RS256).unwrap();
+    let raw = URL_SAFE_NO_PAD.decode(b64url).unwrap();
+    format!(
+        "sig=\"{}\", keyid=\"main\"",
+        base64::engine::general_purpose::STANDARD.encode(raw)
+    )
+}
+
+fn signed_archive(kind: &str, body: &[u8], signature: Option<&str>, with_assets: bool) -> Vec<u8> {
+    let mut d = json!({ "kind": kind, "platform": "android", "runtimeVersion": RV });
+    if let Some(sig) = signature {
+        d["signature"] = json!(sig);
+    }
+    let mut entries = vec![
+        Entry::File("update.json", d.to_string().into_bytes()),
+        Entry::File("body.json", body.to_vec()),
+    ];
+    if with_assets {
+        entries.push(Entry::File("assets/bundle-abc.hbc", BUNDLE.to_vec()));
+        entries.push(Entry::File("assets/icon-def.png", ICON.to_vec()));
+    }
+    tarball(entries)
+}
+
+#[tokio::test]
+async fn with_a_certificate_only_updates_it_verifies_are_accepted() {
+    let (app, _) = test_app_with(Some(TOKEN), Some(TEST_CERT)).await;
+    let body = manifest_body(RV, &uuid(1)).to_string().into_bytes();
+    for (sig, why) in [
+        (None, "unsigned_update"),
+        (Some(SIG.to_owned()), "bad_signature"),
+        (Some("keyid=\"main\"".to_owned()), "bad_signature"),
+        // Signed, but not these bytes.
+        (Some(sign(b"something else")), "bad_signature"),
+    ] {
+        let (status, res) = publish(
+            &app,
+            Some(TOKEN),
+            signed_archive("update", &body, sig.as_deref(), true),
+        )
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{why}");
+        assert_eq!(res["error"], why);
+    }
+    assert_eq!(served(&app, RV, "android").await, None);
+
+    let (status, res) = publish(
+        &app,
+        Some(TOKEN),
+        signed_archive("update", &body, Some(&sign(&body)), true),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "{res}");
+    assert_eq!(served(&app, RV, "android").await, Some(uuid(1)));
+
+    // Directives too.
+    let directive = json!({ "type": "rollBackToEmbedded", "parameters": { "commitTime": "2026-11-13T00:00:00.000Z" } })
+        .to_string()
+        .into_bytes();
+    let (status, res) = publish(
+        &app,
+        Some(TOKEN),
+        signed_archive("directive", &directive, None, false),
+    )
+    .await;
+    assert_eq!(
+        (status, res["error"].as_str()),
+        (StatusCode::BAD_REQUEST, Some("unsigned_update"))
+    );
+    let (status, _) = publish(
+        &app,
+        Some(TOKEN),
+        signed_archive("directive", &directive, Some(&sign(&directive)), false),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    // Without a certificate configured, unsigned uploads still go through (local tests).
+    let (open, _) = test_app(Some(TOKEN)).await;
+    let (status, _) = publish(
+        &open,
+        Some(TOKEN),
+        signed_archive("update", &body, None, true),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+}
+
+#[test]
+fn the_app_certificate_can_verify_signatures() {
+    // The certificate the apps embed is what UPDATES_CERTIFICATE points at in production.
+    let pem = include_bytes!("../../app/certs/certificate.pem");
+    assert!(jsonwebtoken::DecodingKey::from_rsa_pem(pem).is_ok());
+}
+
+#[tokio::test]
+async fn runtimes_idle_for_months_are_removed_but_the_latest_four_stay() {
+    let (app, dir) = test_app(Some(TOKEN)).await;
+    let updates = dir.join("updates");
+    // Six old runtimes, last published 200 days ago (one a day apart), as an older server left them.
+    let day = 86_400_000u64;
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as u64;
+    for n in 0..6u64 {
+        let entry = updates.join(format!("old-{n}")).join(uuid(n as u32));
+        std::fs::create_dir_all(&entry).unwrap();
+        let meta = json!({
+            "id": uuid(n as u32), "kind": "update", "platform": "android", "runtimeVersion": format!("old-{n}"),
+            "createdAt": "2026-01-01T00:00:00.000Z", "publishedAt": now - (200 + n) * day, "assets": {},
+        });
+        std::fs::write(entry.join("meta.json"), meta.to_string()).unwrap();
+    }
+    // A runtime still in use (published 10 days ago) stays whatever its rank.
+    let recent = updates.join("recent").join(uuid(99));
+    std::fs::create_dir_all(&recent).unwrap();
+    let meta = json!({
+        "id": uuid(99), "kind": "update", "platform": "android", "runtimeVersion": "recent",
+        "createdAt": "2026-01-01T00:00:00.000Z", "publishedAt": now - 10 * day, "assets": {},
+    });
+    std::fs::write(recent.join("meta.json"), meta.to_string()).unwrap();
+
+    let (archive, _) = update_archive(RV, "android", &manifest_body(RV, &uuid(1000)));
+    assert_eq!(
+        publish(&app, Some(TOKEN), archive).await.0,
+        StatusCode::CREATED
+    );
+    // Kept: the new one, "recent", and the two most recent old ones (4 in all); the rest is gone.
+    let mut left: Vec<String> = std::fs::read_dir(&updates)
+        .unwrap()
+        .flatten()
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .filter(|n| !n.starts_with('.'))
+        .collect();
+    left.sort();
+    assert_eq!(left, [RV, "old-0", "old-1", "recent"]);
+    assert_eq!(served(&app, RV, "android").await, Some(uuid(1000)));
 }

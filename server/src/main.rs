@@ -37,6 +37,16 @@ async fn main() -> quidenous_server::anyhow_free::Result<()> {
             1
         });
     }
+    // `server --backup <file>`: consistent copy of the database (deploy/backup.sh), before
+    // anything else opens it (no migration, no seeding).
+    let args: Vec<String> = std::env::args().collect();
+    if let Some(i) = args.iter().position(|a| a == "--backup") {
+        let dest = args.get(i + 1).ok_or("usage: server --backup <file.db>")?;
+        let config = Config::from_env();
+        quidenous_server::ops::backup(&config.database_url, std::path::Path::new(dest)).await?;
+        println!("database copied to {dest}");
+        return Ok(());
+    }
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()))
         .init();
@@ -44,7 +54,6 @@ async fn main() -> quidenous_server::anyhow_free::Result<()> {
     tokio::fs::create_dir_all(&config.data_dir).await?;
     let port = config.port;
     let state = state(config).await?;
-    let args: Vec<String> = std::env::args().collect();
     if let Some(i) = args.iter().position(|a| a == "--import") {
         // Into one room's own queue: the shared deck is the built-in deck files only.
         const USAGE: &str = "usage: server --import <questions.txt> --room <room id>";

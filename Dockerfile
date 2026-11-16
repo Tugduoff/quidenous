@@ -1,5 +1,7 @@
 # Web app (Expo export) + Rust server in one image. Build from the repo root.
-FROM node:24-slim AS web
+# Base images are pinned to a release (Dependabot proposes bumps); add @sha256 digests for byte-identical rebuilds.
+# The Rust version matches the CI toolchain (.github/workflows/server.yml): bump both together.
+FROM node:24.22-slim AS web
 WORKDIR /app
 COPY app/package.json app/package-lock.json ./
 RUN npm ci --no-audit --no-fund
@@ -7,7 +9,7 @@ COPY app ./
 ENV CI=1
 RUN npx expo export --platform web --output-dir /web
 
-FROM rust:1-slim AS server
+FROM rust:1.99.1-slim AS server
 WORKDIR /src
 COPY server/Cargo.toml server/Cargo.lock ./
 COPY server/src src
@@ -21,7 +23,10 @@ RUN useradd --system --uid 10001 app && mkdir -p /data && chown app /data
 COPY --from=server /src/target/release/quidenous-server /usr/local/bin/server
 COPY --from=web /web /web
 USER app
-ENV DATA_DIR=/data WEB_DIR=/web PORT=8080
+# What /api/version reports (deploy/deploy.sh passes them): declared last, so they don't invalidate the layers above.
+ARG VERSION=dev
+ARG GIT_SHA=dev
+ENV DATA_DIR=/data WEB_DIR=/web PORT=8080 QUIDENOUS_VERSION=$VERSION QUIDENOUS_GIT_SHA=$GIT_SHA
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=3s CMD ["/usr/local/bin/server", "--health"]
 CMD ["server"]

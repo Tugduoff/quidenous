@@ -30,7 +30,8 @@ const LATER_FOR = 24 * 3600_000;
 const APK_TYPE = 'application/vnd.android.package-archive';
 const FLAG_GRANT_READ_URI_PERMISSION = 1;
 
-export type Release = { version: string; notes: string; url: string; size: number };
+/** `sha256`: the APK's SHA-256 (hex) that GitHub computed when the asset was uploaded. */
+export type Release = { version: string; notes: string; url: string; size: number; sha256: string };
 type Status = 'idle' | 'checking' | 'latest' | 'failed' | 'download' | 'blocked' | 'error';
 type State = { release: Release | null; open: boolean; status: Status; progress: number };
 
@@ -60,6 +61,7 @@ const MOCK: Release = {
   notes: '- Mise à jour depuis l’app : un appui suffit\n- Version affichée dans le profil\n- Petites corrections',
   url: '',
   size: 71_000_000,
+  sha256: '',
 };
 const PREVIEW_STATE: Record<string, Partial<State>> = {
   offer: {},
@@ -95,11 +97,13 @@ async function latest(): Promise<Release | null> {
     body?: string | null;
     draft?: boolean;
     prerelease?: boolean;
-    assets: { name: string; size: number; browser_download_url: string }[];
+    assets: { name: string; size: number; browser_download_url: string; digest?: string | null }[];
   };
   const apk = body.assets.find((a) => a.name.endsWith('.apk'));
-  if (!apk || body.draft || body.prerelease) return null;
-  return { version: body.tag_name.replace(/^v/, ''), notes: body.body ?? '', url: apk.browser_download_url, size: apk.size };
+  // No checksum to verify the download against: not offered.
+  const sha256 = /^sha256:([0-9a-f]{64})$/i.exec(apk?.digest ?? '')?.[1]?.toLowerCase();
+  if (!apk || !sha256 || body.draft || body.prerelease) return null;
+  return { version: body.tag_name.replace(/^v/, ''), notes: body.body ?? '', url: apk.browser_download_url, size: apk.size, sha256 };
 }
 
 /**
@@ -141,7 +145,11 @@ export function clearCheck() {
   if (state.status === 'latest' || state.status === 'failed') set({ status: 'idle' });
 }
 
-/** Downloads the APK (kept in the cache, reused on a retry) and hands it to Android's package installer. */
+/**
+ * Downloads the APK (kept in the cache, reused on a retry), checks it against the SHA-256 GitHub published for the
+ * release asset, and only then hands it to Android's package installer. A mismatch (corrupted or swapped file) is
+ * deleted and never installed.
+ */
 export async function install() {
   const release = state.release;
   if (!release || PREVIEW || state.status === 'download') return;
@@ -157,6 +165,10 @@ export async function install() {
         idempotent: true,
         onProgress: ({ bytesWritten, totalBytes }) => set({ progress: bytesWritten / (totalBytes > 0 ? totalBytes : release.size) }),
       });
+    }
+    if ((await apk.digest('SHA-256')).toLowerCase() !== release.sha256) {
+      apk.delete();
+      throw new Error('APK checksum mismatch');
     }
     set({ status: 'idle', progress: 1 });
     await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {

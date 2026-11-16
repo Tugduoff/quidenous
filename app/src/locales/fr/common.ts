@@ -15,6 +15,8 @@ export const common = {
   save: 'Enregistrer',
   continue: 'Continuer',
   retry: 'Réessayer',
+  /** Full-screen fallback when a screen crashes (ErrorBoundary). */
+  crashed: 'Oups, quelque chose a planté',
   offline: 'Pas de connexion',
   failed: 'Raté, réessaie',
   /** A screen whose data didn't load (the server answered with an error). */

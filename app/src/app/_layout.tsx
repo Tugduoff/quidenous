@@ -28,6 +28,9 @@ import { SessionProvider, useSession } from '@/lib/session';
 import { useScheme, useTheme, useThemeLoaded } from '@/lib/theme';
 import { useUpdateCheck } from '@/lib/update';
 
+// A screen that crashes shows "Something went wrong / Retry" and reports the error (POST /api/client-errors).
+export { ErrorBoundary } from '@/components/error-boundary';
+
 SplashScreen.preventAutoHideAsync();
 
 function Root() {
