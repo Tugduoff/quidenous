@@ -66,6 +66,10 @@ pub async fn send(
     if !state.auth.mailer.configured() {
         return Err(AppError::Unavailable("email_not_configured"));
     }
+    // The last send failed (server-wide, never about this address): say so instead of "sent".
+    if !state.auth.mailer.healthy() {
+        return Err(AppError::Unavailable("email_failed"));
+    }
     let email = clean_email(&body.email)?;
     state.auth.limits.hit_ip(&limits::DELETE_SEND_IP, ip)?;
     state

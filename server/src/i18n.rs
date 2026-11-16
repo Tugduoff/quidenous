@@ -359,6 +359,168 @@ pub fn delete_account(lang: Lang, code: &str) -> CodeMail {
     }
 }
 
+pub fn change_email(lang: Lang, code: &str) -> CodeMail {
+    match lang {
+        Lang::Fr => CodeMail {
+            subject: format!("{code} · ta nouvelle adresse Qui de nous ?"),
+            heading: "Confirme ta nouvelle adresse",
+            intro: "Voici ton code pour utiliser cette adresse e-mail sur Qui de nous ?",
+            outro: "Il expire dans 30 minutes. Si tu n'as rien demandé, ignore cet e-mail : rien ne change.",
+        },
+        Lang::En => CodeMail {
+            subject: format!("{code} · your new Qui de nous ? e-mail"),
+            heading: "Confirm your new e-mail",
+            intro: "Here is your code to use this e-mail address on Qui de nous ?",
+            outro: "It expires in 30 minutes. If you didn't ask for it, ignore this e-mail: nothing changes.",
+        },
+    }
+}
+
+pub fn mfa_reset(lang: Lang, code: &str) -> CodeMail {
+    match lang {
+        Lang::Fr => CodeMail {
+            subject: format!("{code} · retirer la double authentification"),
+            heading: "Retirer la double authentification",
+            intro: "Voici ton code pour retirer la double authentification de ton compte Qui de nous ? Elle sera retirée 24 heures après.",
+            outro: "Il expire dans 30 minutes. Si tu n'as rien demandé, ignore cet e-mail et change ton mot de passe : quelqu'un le connaît.",
+        },
+        Lang::En => CodeMail {
+            subject: format!("{code} · remove two-factor authentication"),
+            heading: "Remove two-factor authentication",
+            intro: "Here is your code to remove two-factor authentication from your Qui de nous ? account. It will be removed 24 hours later.",
+            outro: "It expires in 30 minutes. If you didn't ask for it, ignore this e-mail and change your password: someone knows it.",
+        },
+    }
+}
+
+/// A security change worth a short e-mail to the account's (verified) address.
+#[derive(Clone, Debug)]
+pub enum Notice {
+    TotpOn,
+    TotpOff,
+    PasswordChanged,
+    PasswordSet,
+    /// To the old address: the account now uses `new` (masked), write to `contact` if not me.
+    EmailChanged {
+        new: String,
+        contact: String,
+    },
+    ProviderLinked(String),
+    ProviderUnlinked(String),
+    MfaResetScheduled,
+    MfaResetDone,
+}
+
+pub struct NoticeMail {
+    pub subject: String,
+    pub body: String,
+    pub outro: String,
+}
+
+pub fn notice(lang: Lang, n: &Notice) -> NoticeMail {
+    let fr = lang == Lang::Fr;
+    let (subject, body): (String, String) = match n {
+        Notice::TotpOn => (
+            lang.pick("Double authentification activée", "Two-factor authentication on").into(),
+            lang.pick(
+                "La double authentification vient d'être activée sur ton compte Qui de nous ?",
+                "Two-factor authentication was just turned on for your Qui de nous ? account.",
+            )
+            .into(),
+        ),
+        Notice::TotpOff => (
+            lang.pick("Double authentification désactivée", "Two-factor authentication off").into(),
+            lang.pick(
+                "La double authentification vient d'être désactivée sur ton compte Qui de nous ?",
+                "Two-factor authentication was just turned off for your Qui de nous ? account.",
+            )
+            .into(),
+        ),
+        Notice::PasswordChanged => (
+            lang.pick("Mot de passe modifié", "Password changed").into(),
+            lang.pick(
+                "Le mot de passe de ton compte Qui de nous ? vient d'être modifié.",
+                "The password of your Qui de nous ? account was just changed.",
+            )
+            .into(),
+        ),
+        Notice::PasswordSet => (
+            lang.pick("Mot de passe ajouté", "Password added").into(),
+            lang.pick(
+                "Un mot de passe vient d'être ajouté à ton compte Qui de nous ?",
+                "A password was just added to your Qui de nous ? account.",
+            )
+            .into(),
+        ),
+        Notice::EmailChanged { new, .. } => (
+            lang.pick("Adresse e-mail modifiée", "E-mail address changed").into(),
+            if fr {
+                format!("Ton compte Qui de nous ? utilise maintenant l'adresse {new}. Celle-ci ne sert plus à te connecter.")
+            } else {
+                format!("Your Qui de nous ? account now uses {new}. This address no longer signs you in.")
+            },
+        ),
+        Notice::ProviderLinked(p) => (
+            if fr { format!("{p} associé à ton compte") } else { format!("{p} linked to your account") },
+            if fr {
+                format!("Ton compte {p} peut maintenant servir à te connecter à Qui de nous ?")
+            } else {
+                format!("Your {p} account can now be used to sign in to Qui de nous ?")
+            },
+        ),
+        Notice::ProviderUnlinked(p) => (
+            if fr { format!("{p} dissocié de ton compte") } else { format!("{p} unlinked from your account") },
+            if fr {
+                format!("Ton compte {p} ne sert plus à te connecter à Qui de nous ?")
+            } else {
+                format!("Your {p} account no longer signs you in to Qui de nous ?")
+            },
+        ),
+        Notice::MfaResetScheduled => (
+            lang.pick("Double authentification : retrait demandé", "Two-factor authentication: removal requested").into(),
+            lang.pick(
+                "Le retrait de la double authentification de ton compte Qui de nous ? a été demandé. Elle sera retirée dans 24 heures.",
+                "Removing two-factor authentication from your Qui de nous ? account was requested. It will be removed in 24 hours.",
+            )
+            .into(),
+        ),
+        Notice::MfaResetDone => (
+            lang.pick("Double authentification retirée", "Two-factor authentication removed").into(),
+            lang.pick(
+                "La double authentification de ton compte Qui de nous ? a été retirée, comme demandé il y a 24 heures. Tu peux la réactiver dans Profil > Sécurité.",
+                "Two-factor authentication was removed from your Qui de nous ? account, as requested 24 hours ago. You can turn it back on in Profile > Security.",
+            )
+            .into(),
+        ),
+    };
+    let outro = match n {
+        Notice::EmailChanged { contact, .. } => {
+            if fr {
+                format!("Si ce n'est pas toi, écris-nous vite à {contact}.")
+            } else {
+                format!("If this wasn't you, write to us right away at {contact}.")
+            }
+        }
+        Notice::MfaResetScheduled => lang
+            .pick(
+                "Si ce n'est pas toi, ouvre l'app et annule dans Profil > Sécurité, puis change ton mot de passe.",
+                "If this wasn't you, open the app and cancel it in Profile > Security, then change your password.",
+            )
+            .into(),
+        _ => lang
+            .pick(
+                "Si ce n'est pas toi, change ton mot de passe tout de suite (« Mot de passe oublié ») et vérifie Profil > Sécurité.",
+                "If this wasn't you, change your password right away (\"Forgot password\") and check Profile > Security.",
+            )
+            .into(),
+    };
+    NoticeMail {
+        subject,
+        body,
+        outro,
+    }
+}
+
 // ---------- share cards and pages ----------
 
 pub fn card_tag_rank(lang: Lang, number: i64) -> String {
