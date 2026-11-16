@@ -74,7 +74,7 @@ export const packs = {
   fromFile: 'Fichier .txt',
   emptyFile: 'Aucune question dans ce fichier',
   /** Optional `# key: value` lines at the top of a pack file. */
-  fileHeader: 'En-tête (optionnel) : # titre:, # description:, # catégorie:, # langue:, # 16+:',
+  fileHeader: 'En-tête : # titre, # description, # catégorie, # langue, # 16+',
   /** The pack file format for an AI agent (a .md file). */
   template: 'Modèle pour IA',
   clearAll: 'Tout effacer',

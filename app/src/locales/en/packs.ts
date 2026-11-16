@@ -71,7 +71,7 @@ export const packs: Messages['packs'] = {
   addQuestion: 'Add a question',
   fromFile: '.txt file',
   emptyFile: 'No questions in this file',
-  fileHeader: 'Optional header: # title:, # description:, # category:, # lang:, # 16+:',
+  fileHeader: 'Header: # title, # description, # category, # lang, # 16+',
   template: 'AI template',
   clearAll: 'Clear all',
   clearAsk: { one: 'Clear the question?', other: 'Clear all {count} questions?' },
