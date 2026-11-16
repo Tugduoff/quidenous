@@ -1936,7 +1936,10 @@ impl From<MessageDb> for MessageRow {
     }
 }
 
-/// The chat under a finished question, oldest first, without people I blocked.
+/// The most recent messages of a chat the app gets (older ones are left out).
+const MESSAGES_SHOWN: i64 = 200;
+
+/// The chat under a finished question, oldest first (its last `MESSAGES_SHOWN`), without people I blocked.
 async fn messages(
     State(state): State<AppState>,
     Me(me): Me,
@@ -1947,13 +1950,14 @@ async fn messages(
         "SELECT x.id, x.member_id, m.user_id, x.text, x.created_at, x.mentions, x.everyone FROM messages x \
          JOIN members m ON m.id = x.member_id WHERE x.round_id = ? \
          AND NOT EXISTS (SELECT 1 FROM blocks b WHERE b.user_id = ? AND b.blocked_id = m.user_id) \
-         ORDER BY x.id",
+         ORDER BY x.id DESC LIMIT ?",
     )
     .bind(id)
     .bind(me.user_id)
+    .bind(MESSAGES_SHOWN)
     .fetch_all(&state.db)
     .await?;
-    Ok(Json(rows.into_iter().map(MessageRow::from).collect()))
+    Ok(Json(rows.into_iter().rev().map(MessageRow::from).collect()))
 }
 
 #[derive(Deserialize)]

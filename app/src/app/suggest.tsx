@@ -1,12 +1,13 @@
 import { useIsMutating } from '@tanstack/react-query';
 import { router } from 'expo-router';
-import { ArrowUp, ChevronLeft, CircleCheck, CircleX, Hourglass, SkipForward, ThumbsDown, ThumbsUp, Trophy } from 'lucide-react-native';
+import { ArrowUp, CircleCheck, CircleX, Hourglass, SkipForward, ThumbsDown, ThumbsUp, Trophy } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import { GestureDetector, GestureHandlerRootView, usePanGesture } from 'react-native-gesture-handler';
 import Animated, { interpolate, useAnimatedStyle, useReducedMotion, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 
+import { BackButton } from '@/components/auth-ui';
 import { Screen } from '@/components/screen';
 import { Card, Display, PressableScale, QuestionText, Toggle } from '@/components/ui';
 import {
@@ -29,18 +30,11 @@ import { useTheme } from '@/lib/theme';
 
 /** "Proposer": write a question for the official deck, vote on others' suggestions, follow mine. */
 export default function SuggestScreen() {
-  const t = useTheme();
   const tr = useT();
   const mine = useMySuggestions();
   return (
     <Screen tabs={false}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={tr('common.back')}
-        onPress={() => (router.canGoBack() ? router.back() : router.replace('/questions'))}
-        style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card }}>
-        <ChevronLeft size={22} color={t.txt} />
-      </Pressable>
+      <BackButton onPress={() => (router.canGoBack() ? router.back() : router.replace('/questions'))} />
       <Display size={30}>{tr('community.title')}</Display>
       <Compose left={mine.data?.left} />
       <VoteStack />

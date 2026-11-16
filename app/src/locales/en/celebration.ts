@@ -9,6 +9,8 @@ export const celebration: Messages['celebration'] = {
   two: 'TWO',
   thousand: 'THOUSAND',
   access: 'ACCESS GRANTED',
+  loading: 'LOADING…',
+  loaded: '1 KB · 100%',
   december: 'DEC',
   lines: {
     m10: 'Ten. Warm-up’s over.',

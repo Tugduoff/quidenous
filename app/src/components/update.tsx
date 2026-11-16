@@ -51,6 +51,7 @@ export function UpdateDialog() {
           <PressableScale
             accessibilityRole="button"
             onPress={openInstallSettings}
+            hitSlop={6}
             style={{
               flexDirection: 'row',
               alignItems: 'center',
@@ -209,6 +210,7 @@ export function OtaToast() {
       <PressableScale
         accessibilityRole="button"
         onPress={restart}
+        hitSlop={6}
         style={{ height: 34, paddingHorizontal: 14, borderRadius: t.radius.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: t.acc }}>
         <Text style={{ fontFamily: t.font.bold, fontSize: 14, color: t.accTxt }}>{tr('update.restart')}</Text>
       </PressableScale>

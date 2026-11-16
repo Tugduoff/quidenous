@@ -7,7 +7,6 @@ import {
   Bell,
   Camera,
   Check,
-  ChevronLeft,
   ChevronRight,
   Images,
   Languages,
@@ -24,6 +23,7 @@ import {
 import { useState } from 'react';
 import { ActivityIndicator, Linking, Platform, Pressable, Text, TextInput, View } from 'react-native';
 
+import { BackButton } from '@/components/auth-ui';
 import { Screen } from '@/components/screen';
 import { useSignOut } from '@/components/security/devices';
 import { Avatar, Button, Card, Dialog, DialogTitle, Display } from '@/components/ui';
@@ -151,7 +151,7 @@ export default function Profile() {
       // Say why, so a failure on someone's phone can be told apart (server refusal vs. on the phone).
       setError(
         tr('profile.photo.failed', {
-          reason: e instanceof ApiError ? e.status : e instanceof Error ? e.message.slice(0, 60) : tr('profile.photo.error'),
+          reason: e instanceof ApiError ? e.status : tr('profile.photo.error'),
         }),
       );
     } finally {
@@ -173,13 +173,7 @@ export default function Profile() {
 
   return (
     <Screen tabs={false}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={tr('common.back')}
-        onPress={() => router.back()}
-        style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card }}>
-        <ChevronLeft size={22} color={t.txt} />
-      </Pressable>
+      <BackButton onPress={() => router.back()} />
       <View style={{ alignItems: 'center', gap: 12, marginVertical: 8 }}>
         <Pressable accessibilityRole="button" accessibilityLabel={tr('profile.photo.change')} onPress={() => setChoosing(true)}>
           <Avatar member={me ?? undefined} size={112} />

@@ -1,10 +1,11 @@
 import * as Haptics from 'expo-haptics';
 import { type ComponentRef, type ReactNode, type RefObject, useEffect, useRef, useState } from 'react';
-import { Dimensions, type NativeScrollEvent, Platform, type ScrollView, View, type ViewStyle } from 'react-native';
+import { Dimensions, type NativeScrollEvent, Platform, type ScrollView, type ViewStyle } from 'react-native';
 import { GestureDetector, GestureHandlerRootView, usePanGesture } from 'react-native-gesture-handler';
 import Animated, { ReduceMotion, type SharedValue, useAnimatedReaction, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 
+import { useT } from '@/lib/i18n';
 import { EASE, motion } from '@/lib/motion';
 import { useTheme } from '@/lib/theme';
 
@@ -236,10 +237,20 @@ export function ReorderList<T extends { id: number }>({
     }
   };
 
+  // Without dragging: screen reader actions (and keyboards) move a row one place or to the top.
+  const move = (id: number, action: 'moveUp' | 'moveDown' | 'moveTop') => {
+    const order = [...latest.current];
+    const from = order.indexOf(id);
+    const to = action === 'moveTop' ? 0 : Math.max(0, Math.min(order.length - 1, from + (action === 'moveUp' ? -1 : 1)));
+    if (from < 0 || to === from) return;
+    order.splice(to, 0, order.splice(from, 1)[0]);
+    onReorder(order);
+  };
+
   return (
     <GestureHandlerRootView style={{ height }}>
       {items.map((item) => (
-        <Row key={item.id} id={item.id} s={s} entering={isNew?.(item.id)} onMeasure={measured} onLift={lift} onDrop={drop}>
+        <Row key={item.id} id={item.id} s={s} entering={isNew?.(item.id)} onMeasure={measured} onLift={lift} onDrop={drop} onMove={move}>
           {render(item)}
         </Row>
       ))}
@@ -254,6 +265,7 @@ function Row({
   onMeasure,
   onLift,
   onDrop,
+  onMove,
   children,
 }: {
   id: number;
@@ -262,9 +274,11 @@ function Row({
   onMeasure: (id: number, h: number) => void;
   onLift: () => void;
   onDrop: (id: number, order: number[], moved: boolean) => void;
+  onMove: (id: number, action: 'moveUp' | 'moveDown' | 'moveTop') => void;
   children: ReactNode;
 }) {
   const t = useTheme();
+  const tr = useT();
   const y = useSharedValue(UNPLACED);
   // Its slot: jumps there the first time (or while not measured), slides afterwards.
   useAnimatedReaction(
@@ -325,7 +339,15 @@ function Row({
         entering={entering ? motion.enter : undefined}
         exiting={motion.exit}
         style={[{ position: 'absolute', left: 0, right: 0, top: 0 }, place]}>
-        <Animated.View style={[NO_SELECT, look]} onLayout={(e) => onMeasure(id, Math.round(e.nativeEvent.layout.height))}>
+        <Animated.View
+          style={[NO_SELECT, look]}
+          accessibilityActions={[
+            { name: 'moveUp', label: tr('questions.moveUp') },
+            { name: 'moveDown', label: tr('questions.moveDown') },
+            { name: 'moveTop', label: tr('questions.moveTop') },
+          ]}
+          onAccessibilityAction={(e) => onMove(id, e.nativeEvent.actionName as 'moveUp' | 'moveDown' | 'moveTop')}
+          onLayout={(e) => onMeasure(id, Math.round(e.nativeEvent.layout.height))}>
           <Animated.View pointerEvents="none" style={[LIFT_SHADOW, { borderRadius: t.radius.card }, shadow]} />
           {children}
         </Animated.View>

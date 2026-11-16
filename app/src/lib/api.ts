@@ -127,19 +127,6 @@ export type Friend = {
   rooms_in_common: number;
   added: boolean;
 };
-/** `language`: the language of its questions (absent from an older server). */
-export type PackSummary = {
-  id: number;
-  name: string;
-  description: string;
-  author: string;
-  installs: number;
-  count: number;
-  mine: boolean;
-  sample: string[];
-  language?: 'fr' | 'en';
-};
-export type Pack = Omit<PackSummary, 'count' | 'sample'> & { questions: { text: string; kind: 'pick' | 'rank' }[] };
 /** `muted`: no pushes from this room for me (absent from an older server). `kind`, `ends_at`: a party and when it ends (docs/PARTY.md). */
 export type RoomSummary = {
   id: number;

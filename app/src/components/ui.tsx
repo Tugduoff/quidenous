@@ -172,10 +172,13 @@ export function Button({
   );
 }
 
+/** Pink behind white 12 px text: darker than the brand pink, for 4.5:1. */
+const TAG_BG = '#C2186B';
+
 export function Tag({ label, tone = 'tag' }: { label: string; tone?: 'tag' | 'acc' }) {
   const t = useTheme();
   return (
-    <View style={[styles.tag, { backgroundColor: tone === 'acc' ? t.acc : t.tag }]}>
+    <View style={[styles.tag, { backgroundColor: tone === 'acc' ? t.acc : TAG_BG }]}>
       <Text
         style={{
           fontFamily: t.font.bold,
@@ -338,6 +341,7 @@ export function Segmented<T extends string>({
             accessibilityState={{ selected: on }}
             accessibilityLabel={o.name}
             onPress={() => !on && onChange(o.id)}
+            hitSlop={{ top: 7, bottom: 7 }}
             style={{
               height: 30,
               paddingHorizontal: 12,
@@ -361,11 +365,9 @@ export function Dialog({ visible, onClose, children }: { visible: boolean; onClo
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-        <Pressable
-          accessibilityLabel={tr('common.close')}
-          onPress={onClose}
-          style={{ flex: 1, backgroundColor: '#0008', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-          {/* Taps inside the card don't close it. */}
+        {/* The backdrop is a sibling of the card, not its parent: screen readers don't take the dialog for one button. */}
+        <Pressable accessibilityLabel={tr('common.close')} onPress={onClose} style={[StyleSheet.absoluteFill, { backgroundColor: '#0008' }]} />
+        <View pointerEvents="box-none" style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 }}>
           <ModalCard
             style={{
               width: '100%',
@@ -379,7 +381,7 @@ export function Dialog({ visible, onClose, children }: { visible: boolean; onClo
             }}>
             {children}
           </ModalCard>
-        </Pressable>
+        </View>
       </KeyboardAvoidingView>
     </Modal>
   );
@@ -442,7 +444,7 @@ export function DialogActions({
           borderRadius: t.radius.pill,
           alignItems: 'center',
           justifyContent: 'center',
-          backgroundColor: tone === 'acc' ? t.acc : '#FF3B5C',
+          backgroundColor: tone === 'acc' ? t.acc : '#D7263D',
           opacity: disabled ? 0.45 : 1,
         }}>
         {busy ? <ActivityIndicator color={ink} /> : <Text style={{ fontFamily: t.font.bold, fontSize: 15, color: ink }}>{confirmLabel}</Text>}
@@ -529,8 +531,8 @@ function ModalCard({ children, style }: { children: ReactNode; style: ViewStyle 
   }, [p]);
   const shown = useAnimatedStyle(() => ({ opacity: p.value, transform: [{ scale: 0.94 + 0.06 * p.value }] }));
   return (
-    <AnimatedPressable onPress={() => {}} style={[style, shown]}>
+    <Animated.View accessibilityViewIsModal style={[style, shown]}>
       {children}
-    </AnimatedPressable>
+    </Animated.View>
   );
 }

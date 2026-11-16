@@ -31,7 +31,6 @@ export type Avatar = Record<Field, number>;
 type Parts = { fields: string[]; base: Shape[]; presets: string[] } & Record<PaletteField, [string, string][]> & Record<PartField, Shape[][]>;
 export const PARTS = raw as unknown as Parts;
 
-export const isPalette = (f: Field): f is PaletteField => f === 'skin' || f === 'hairColor' || f === 'bg';
 export const optionCount = (f: Field) => PARTS[f].length;
 export const PRESETS = PARTS.presets;
 

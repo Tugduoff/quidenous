@@ -113,7 +113,7 @@ export const stats = {
   forWhom: '{a} pour {b}',
   pair: '{a} et {b}',
   podiumVotes: { one: '{count} vote', other: '{count} votes' },
-  matrix: { voter: 'qui vote', target: 'pour qui', cell: '{a} pour {b} : {count}' },
+  matrix: { voter: 'qui vote', target: 'pour qui' },
   heatmap: {
     peak: 'Pic : le {day} vers {hour} h',
     hour: '{h} h',

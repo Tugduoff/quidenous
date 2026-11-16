@@ -16,11 +16,11 @@ import {
   Pop,
   type Rand,
   Rays,
-  Reveal,
   Shockwave,
   Slam,
   sparks,
 } from '../engine';
+import { useT } from '@/lib/i18n';
 import { GOLD, Headline, numberSize, type SceneFactory, type SceneProps } from '../scene';
 
 const clamp01 = (v: number) => {
@@ -922,6 +922,7 @@ const g1024: SceneFactory = (m, t) => {
           }),
         [rand, w],
       );
+      const tr = useT();
       const list = useMemo(
         () =>
           burst(rand, {
@@ -965,10 +966,10 @@ const g1024: SceneFactory = (m, t) => {
             </View>
             <View style={{ height: 22, marginTop: 8 }}>
               <FadeAway clock={clock} from={load[1]} to={load[1] + 1} style={{ position: 'absolute', left: 0, right: 0 }}>
-                <Text style={{ fontFamily: 'monospace', fontSize: 14, color: '#9C9CC0', textAlign: 'center', letterSpacing: 2 }}>CHARGEMENT…</Text>
+                <Text style={{ fontFamily: 'monospace', fontSize: 14, color: '#9C9CC0', textAlign: 'center', letterSpacing: 2 }}>{tr('celebration.loading')}</Text>
               </FadeAway>
               <Window clock={clock} from={load[1]} to={1e9} style={{ position: 'absolute', left: 0, right: 0 }}>
-                <Text style={{ fontFamily: 'monospace', fontSize: 14, color: '#FFE600', textAlign: 'center', letterSpacing: 2 }}>1 Ko · 100 %</Text>
+                <Text style={{ fontFamily: 'monospace', fontSize: 14, color: '#FFE600', textAlign: 'center', letterSpacing: 2 }}>{tr('celebration.loaded')}</Text>
               </Window>
             </View>
           </View>

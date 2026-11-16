@@ -28,7 +28,6 @@ import { ago } from '@/lib/time';
 
 /** Google / Discord: link (the web leaves for the provider and comes back on /oauth), unlink. */
 export function ProvidersSection({ account }: { account: Account }) {
-  const t = useTheme();
   const tr = useT();
   const qc = useQueryClient();
   const { providers } = useFeatures();

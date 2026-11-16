@@ -20,6 +20,7 @@ export async function registerNativePush() {
   if (Platform.OS !== 'android') return;
   await Notifications.setNotificationChannelAsync('default', {
     name: 'Questions',
+    // eslint-disable-next-line import/namespace -- Android only, missing from the web typings
     importance: Notifications.AndroidImportance.HIGH,
     lightColor: '#C8FF3D',
   });

@@ -114,6 +114,7 @@ function SortTabs({ value, onChange }: { value: PackSort; onChange: (s: PackSort
             accessibilityRole="radio"
             accessibilityState={{ selected: on }}
             onPress={() => !on && onChange(s)}
+            hitSlop={{ top: 6, bottom: 6 }}
             style={{
               flex: 1,
               height: 32,

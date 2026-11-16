@@ -7,6 +7,7 @@ import { authError } from './auth';
 import { t, type TKey } from './i18n';
 import { localizeMembers } from './names';
 import { appUrl } from './share';
+import { openSocket } from './ws';
 
 export type PartyPhase = 'lobby' | 'voting' | 'reveal' | 'over';
 export type PartyPlayer = Member & { role: Role; guest: boolean };
@@ -114,25 +115,29 @@ export const partyJoinLink = (code: string) => `${appUrl()}/party/join/${code}`;
 /** The big-screen view of a party (a TV, a laptop). */
 export const partyScreenLink = (code: string) => `${appUrl()}/party/screen/${code}`;
 
-/** Milliseconds left until `deadline` on the server's clock, ticking (0 once past, null without a deadline). */
+/**
+ * Milliseconds left until `deadline` on the server's clock, in whole seconds (rounded up, as the screen shows them),
+ * 0 once past, null without a deadline. Ticks once a second, right as the second changes, so the screen re-renders 1x/s.
+ */
 export function useCountdown(deadline: string | null | undefined, clock: number) {
   const end = deadline ? Date.parse(deadline) : NaN;
-  const left = () => (Number.isFinite(end) ? Math.max(0, end - (Date.now() + clock)) : null);
-  const [ms, setMs] = useState(left);
+  const [ms, setMs] = useState<number | null>(() => (Number.isFinite(end) ? wholeSeconds(end - (Date.now() + clock)) : null));
   useEffect(() => {
-    setMs(left());
     if (!Number.isFinite(end)) return;
-    const timer = setInterval(() => {
-      const v = left();
-      setMs(v);
-      if (v === 0) clearInterval(timer);
-    }, 200);
-    return () => clearInterval(timer);
-    // `left` only reads these two.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    let timer: ReturnType<typeof setTimeout>;
+    const tick = () => {
+      const left = Math.max(0, end - (Date.now() + clock));
+      setMs(wholeSeconds(left));
+      // The next change is when `left` drops under the whole second below it.
+      if (left > 0) timer = setTimeout(tick, left - (wholeSeconds(left) - 1000) + 5);
+    };
+    tick();
+    return () => clearTimeout(timer);
   }, [end, clock]);
-  return ms;
+  return Number.isFinite(end) ? ms : null;
 }
+
+const wholeSeconds = (ms: number) => Math.max(0, Math.ceil(ms / 1000) * 1000);
 
 /** Once the countdown hits 0: refetch a little later (and again every few seconds), in case the closing event got lost. */
 export function useRefetchAtZero(ms: number | null, refetch: () => void) {
@@ -163,29 +168,13 @@ export const tallies = (round: PartyRound): Tally[] =>
 export function useScreenLive(code: string, onEvent: () => void) {
   useEffect(() => {
     if (!code) return;
-    let ws: WebSocket | null = null;
-    let stopped = false;
-    let retry: ReturnType<typeof setTimeout>;
-    const connect = () => {
-      ws = new WebSocket(`${API_URL.replace(/^http/, 'ws')}/api/live?screen=${encodeURIComponent(code)}`);
-      ws.onopen = onEvent;
-      ws.onmessage = (msg) => {
-        try {
-          const event = JSON.parse(String(msg.data)) as { type: string };
-          if (PARTY_EVENTS.has(event.type)) onEvent();
-        } catch {}
-      };
-      // 1008: the server closed it on purpose (the party is long over): no hurry to come back.
-      ws.onclose = (e) => {
-        if (!stopped) retry = setTimeout(connect, e.code === 1008 && e.reason !== 'idle' ? 60_000 : 3000);
-      };
-    };
-    connect();
-    return () => {
-      stopped = true;
-      clearTimeout(retry);
-      ws?.close();
-    };
+    const socket = openSocket<{ type: string }>(`${API_URL.replace(/^http/, 'ws')}/api/live?screen=${encodeURIComponent(code)}`, {
+      onOpen: onEvent,
+      onEvent: (event) => {
+        if (PARTY_EVENTS.has(event.type)) onEvent();
+      },
+    });
+    return socket.close;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code]);
 }

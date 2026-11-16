@@ -11,6 +11,7 @@ type LocalAuth = typeof import('expo-local-authentication');
 let LA: LocalAuth | null = null;
 if (Platform.OS !== 'web' && requireOptionalNativeModule('ExpoLocalAuthentication')) {
   try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     LA = require('expo-local-authentication') as LocalAuth;
   } catch {}
 }

@@ -1,10 +1,10 @@
 import { useMutation } from '@tanstack/react-query';
 import { router } from 'expo-router';
-import { ChevronLeft, PartyPopper } from 'lucide-react-native';
+import { PartyPopper } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
-import { Pressable, Text, TextInput, View } from 'react-native';
+import { Text, TextInput, View } from 'react-native';
 
-import { ErrorText } from '@/components/auth-ui';
+import { BackButton, ErrorText } from '@/components/auth-ui';
 import { Screen } from '@/components/screen';
 import { Button, Card, Display, Segmented } from '@/components/ui';
 import { VibeCards } from '@/components/vibes';
@@ -69,13 +69,7 @@ export default function NewParty() {
           </Button>
         </>
       }>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={tr('common.back')}
-        onPress={() => (router.canGoBack() ? router.back() : router.replace('/rooms'))}
-        style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card }}>
-        <ChevronLeft size={22} color={t.txt} />
-      </Pressable>
+      <BackButton onPress={() => (router.canGoBack() ? router.back() : router.replace('/rooms'))} />
       <Display size={30}>{tr('party.create.title')}</Display>
 
       <Card style={{ paddingHorizontal: 16 }}>

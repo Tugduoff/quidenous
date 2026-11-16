@@ -5,7 +5,6 @@
   "dependencies": {
     "@expo-google-fonts/bricolage-grotesque": "^0.4.1",
     "@expo-google-fonts/inter": "^0.4.2",
-    "@expo/ui": "~58.0.27",
     "@tanstack/react-query": "^5.107.1",
     "expo": "~58.0.23",
     "expo-application": "~58.1.2",
@@ -15,7 +14,6 @@
     "expo-document-picker": "~58.0.4",
     "expo-file-system": "~58.0.13",
     "expo-font": "~58.0.11",
-    "expo-glass-effect": "~58.0.5",
     "expo-haptics": "~58.0.8",
     "expo-image": "~58.0.18",
     "expo-image-manipulator": "~58.0.16",
@@ -29,7 +27,6 @@
     "expo-secure-store": "~58.0.2",
     "expo-splash-screen": "~58.0.13",
     "expo-status-bar": "~58.0.4",
-    "expo-symbols": "~58.0.4",
     "expo-system-ui": "~58.0.7",
     "expo-updates": "~58.0.22",
     "expo-web-browser": "~58.0.7",
@@ -48,11 +45,12 @@
   },
   "devDependencies": {
     "@types/react": "~19.3.0",
+    "eslint": "^9.39.0",
+    "eslint-config-expo": "~58.0.4",
     "typescript": "~6.0.3"
   },
   "scripts": {
     "start": "expo start",
-    "reset-project": "node ./scripts/reset-project.js",
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
