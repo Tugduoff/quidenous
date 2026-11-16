@@ -1,6 +1,12 @@
 //! Email: Mailgun's HTTP API in production, a log line when not configured, a recorder in tests.
 
-use std::{sync::Mutex, time::Duration};
+use std::{
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
+    },
+    time::{Duration, Instant},
+};
 
 use futures::future::BoxFuture;
 
@@ -15,6 +21,8 @@ pub struct Email {
     pub subject: String,
     pub text: String,
     pub html: String,
+    /// A security notice (no code): tests keep these apart from the code e-mails.
+    pub notice: bool,
 }
 
 pub trait Mailer: Send + Sync {
@@ -111,10 +119,51 @@ impl Mailer for MailgunMailer {
     }
 }
 
-/// Keeps every email in memory (tests read the codes from here).
+/// How long a failed send makes `forgot` and `delete/send` answer `503 email_failed` up front
+/// (unless a send works meanwhile).
+pub const FAILURE_WINDOW: Duration = Duration::from_secs(15 * 60);
+
+/// The configured mailer, plus whether its last send failed: `forgot` and the public deletion
+/// page send in the background (the answer must not say whether the account exists), so they
+/// can only tell a failure from the previous sends, server-wide, never from this address.
+pub struct Watched {
+    inner: Arc<dyn Mailer>,
+    failed_at: Mutex<Option<Instant>>,
+}
+
+impl Watched {
+    pub fn new(inner: Arc<dyn Mailer>) -> Self {
+        Self {
+            inner,
+            failed_at: Mutex::new(None),
+        }
+    }
+
+    pub fn configured(&self) -> bool {
+        self.inner.configured()
+    }
+
+    /// No failure in the last `FAILURE_WINDOW` (or a success since).
+    pub fn healthy(&self) -> bool {
+        let failed = self.failed_at.lock().unwrap_or_else(|e| e.into_inner());
+        failed.is_none_or(|t| t.elapsed() >= FAILURE_WINDOW)
+    }
+
+    pub async fn send(&self, email: Email) -> Result<(), String> {
+        let result = self.inner.send(email).await;
+        *self.failed_at.lock().unwrap_or_else(|e| e.into_inner()) =
+            result.is_err().then(Instant::now);
+        result
+    }
+}
+
+/// Keeps every email in memory (tests read the codes from here). Security notices go to `notices`.
 #[derive(Default)]
 pub struct MemoryMailer {
     pub sent: Mutex<Vec<Email>>,
+    pub notices: Mutex<Vec<Email>>,
+    /// Tests: every send fails (Mailgun down, sandbox refusing the address).
+    pub fail: AtomicBool,
 }
 
 impl MemoryMailer {
@@ -133,6 +182,15 @@ impl MemoryMailer {
         let sent = self.sent.lock().unwrap_or_else(|e| e.into_inner());
         sent.iter().filter(|e| e.to == to).count()
     }
+
+    /// The subjects of the security notices sent to this address, oldest first.
+    pub fn notices(&self, to: &str) -> Vec<String> {
+        let sent = self.notices.lock().unwrap_or_else(|e| e.into_inner());
+        sent.iter()
+            .filter(|e| e.to == to)
+            .map(|e| e.subject.clone())
+            .collect()
+    }
 }
 
 impl Mailer for MemoryMailer {
@@ -141,10 +199,15 @@ impl Mailer for MemoryMailer {
     }
 
     fn send(&self, email: Email) -> BoxFuture<'_, Result<(), String>> {
-        self.sent
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .push(email);
+        if self.fail.load(Ordering::Relaxed) {
+            return Box::pin(async { Err("refused (test)".to_owned()) });
+        }
+        let list = if email.notice {
+            &self.notices
+        } else {
+            &self.sent
+        };
+        list.lock().unwrap_or_else(|e| e.into_inner()).push(email);
         Box::pin(async { Ok(()) })
     }
 }
@@ -169,6 +232,7 @@ fn code_email(to: &str, code: &str, lang: Lang, m: i18n::CodeMail) -> Email {
         subject: m.subject,
         text: format!("{}\n\n{code}\n\n{}\n", m.intro, m.outro),
         html: layout(lang, m.heading, m.intro, code, m.outro),
+        notice: false,
     }
 }
 
@@ -182,6 +246,38 @@ pub fn reset_password(to: &str, code: &str, lang: Lang) -> Email {
 
 pub fn delete_account(to: &str, code: &str, lang: Lang) -> Email {
     code_email(to, code, lang, i18n::delete_account(lang, code))
+}
+
+pub fn change_email(to: &str, code: &str, lang: Lang) -> Email {
+    code_email(to, code, lang, i18n::change_email(lang, code))
+}
+
+pub fn mfa_reset(to: &str, code: &str, lang: Lang) -> Email {
+    code_email(to, code, lang, i18n::mfa_reset(lang, code))
+}
+
+/// A short security notice ("2FA turned on", "password changed"…), no code.
+pub fn notice(to: &str, lang: Lang, n: &i18n::Notice) -> Email {
+    let m = i18n::notice(lang, n);
+    let html = format!(
+        "<!doctype html><html lang=\"{}\"><body style=\"margin:0;padding:24px;background:#f4f1ec;font-family:-apple-system,Segoe UI,Roboto,sans-serif;color:#1d1a16\">\
+<div style=\"max-width:420px;margin:0 auto;background:#fff;border-radius:16px;padding:28px\">\
+<h1 style=\"font-size:20px;margin:0 0 12px\">{}</h1>\
+<p style=\"font-size:15px;line-height:1.5;margin:0 0 20px\">{}</p>\
+<p style=\"font-size:13px;line-height:1.5;color:#6b645b;margin:0\">{}</p>\
+</div></body></html>",
+        lang.as_str(),
+        escape(&m.subject),
+        escape(&m.body),
+        escape(&m.outro)
+    );
+    Email {
+        to: to.to_owned(),
+        text: format!("{}\n\n{}\n", m.body, m.outro),
+        subject: m.subject,
+        html,
+        notice: true,
+    }
 }
 
 /// Escapes text for the HTML part of an email.
@@ -219,6 +315,7 @@ pub fn report(to: &str, subject: &str, lines: &[(&str, String)]) -> Email {
         subject: subject.to_owned(),
         text,
         html,
+        notice: false,
     }
 }
 

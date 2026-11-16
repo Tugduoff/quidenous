@@ -23,14 +23,23 @@ use sha2::{Digest, Sha256};
 use super::{
     ClientIp, Device, MaybeSession, Session, account, codes,
     crypto::{constant_eq, random_b64url, random_hex},
-    limits, mark_reauth, not_claimed, require_reauth, sign_in,
+    free_stale_email, limits, mark_reauth, not_claimed, notify, require_reauth, sign_in,
 };
 use crate::{
     AppState,
     config::{Config, OAuthClient, OAuthEndpoints},
     error::{AppError, AppResult},
+    i18n::Notice,
     routes::COLORS,
 };
+
+/// `google` → `Google`, for the security notices.
+fn provider_name(provider: &str) -> String {
+    let mut c = provider.chars();
+    c.next()
+        .map(|f| f.to_uppercase().chain(c).collect())
+        .unwrap_or_default()
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Flavor {
@@ -672,6 +681,10 @@ async fn resolve(
     }
 
     if let Some(email) = verified_email {
+        // An address typed without proof a week ago is free for whoever proves it now.
+        free_stale_email(state, email)
+            .await
+            .map_err(Refusal::Failed)?;
         let existing: Option<(i64, Option<String>)> =
             sqlx::query_as("SELECT id, email_verified_at FROM users WHERE email = ?")
                 .bind(email)
@@ -681,6 +694,7 @@ async fn resolve(
             // Both sides verified: same person.
             Some((user, Some(_))) => {
                 insert_identity(state, user, provider, id).await?;
+                notify(state, user, Notice::ProviderLinked(provider_name(provider)));
                 return Ok(Outcome {
                     user_id: user,
                     new: false,
@@ -802,6 +816,11 @@ pub async fn redeem(
         Err(Refusal::Failed(e)) => return Err(e),
     };
     if outcome.linked {
+        notify(
+            &state,
+            outcome.user_id,
+            Notice::ProviderLinked(provider_name(provider)),
+        );
         return Ok(Json(json!({ "linked": provider })));
     }
     Ok(Json(
@@ -871,6 +890,11 @@ pub async fn unlink(
         .bind(&provider)
         .execute(&state.db)
         .await?;
+    notify(
+        &state,
+        user,
+        Notice::ProviderUnlinked(provider_name(&provider)),
+    );
     Ok(Json(json!({ "ok": true })))
 }
 

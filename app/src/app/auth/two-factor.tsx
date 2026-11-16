@@ -1,10 +1,10 @@
-import { Redirect } from 'expo-router';
+import { Redirect, router } from 'expo-router';
 import { useState } from 'react';
 
 import { AuthScreen, CODE_LENGTH, CodeField, ErrorText, RecoveryField, TextLink } from '@/components/auth-ui';
 import { Button } from '@/components/ui';
 import { ApiError } from '@/lib/api';
-import { auth, authError, flow } from '@/lib/auth';
+import { auth, authError, flow, useFeatures } from '@/lib/auth';
 import { useT } from '@/lib/i18n';
 import { useSession } from '@/lib/session';
 
@@ -12,6 +12,7 @@ import { useSession } from '@/lib/session';
 export default function TwoFactorStep() {
   const tr = useT();
   const { signIn } = useSession();
+  const features = useFeatures();
   const [recovery, setRecovery] = useState(false);
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
@@ -57,6 +58,9 @@ export default function TwoFactorStep() {
         }}>
         {recovery ? tr('auth.twoFactor.useApp') : tr('auth.twoFactor.useRecovery')}
       </TextLink>
+      {recovery && features.email && features.accountRecovery && (
+        <TextLink onPress={() => router.push('/auth/mfa-reset')}>{tr('auth.twoFactor.lost')}</TextLink>
+      )}
     </AuthScreen>
   );
 }

@@ -125,6 +125,7 @@ function Root() {
           <Stack.Screen name="auth/two-factor" />
           <Stack.Screen name="auth/forgot" />
           <Stack.Screen name="auth/reset" />
+          <Stack.Screen name="auth/mfa-reset" />
         </Stack.Protected>
         {/* Back from Google / Discord: signing in (signed out) or linking (signed in). */}
         <Stack.Screen name="oauth" />
@@ -161,7 +162,7 @@ export default function Layout() {
 
 type Stage = 'out' | 'verify' | 'room' | 'in';
 const STAGE_HOME: Record<Stage, string> = { out: '/join', verify: '/auth/verify', room: '/setup', in: '/' };
-const SIGNED_OUT = ['/join', '/auth/email', '/auth/password', '/auth/two-factor', '/auth/forgot', '/auth/reset'];
+const SIGNED_OUT = ['/join', '/auth/email', '/auth/password', '/auth/two-factor', '/auth/forgot', '/auth/reset', '/auth/mfa-reset'];
 
 /**
  * Keep the screen on the current stage: when signing up, in or out changes it, go to that stage's screen.

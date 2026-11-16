@@ -35,14 +35,15 @@ use crate::{
 };
 
 pub use crypto::{totp_code, totp_match};
-pub use mail::{Email, LogMailer, Mailer, MailgunMailer, MemoryMailer};
+pub use mail::{Email, LogMailer, Mailer, MailgunMailer, MemoryMailer, Watched};
 
 /// Everything the auth endpoints share, built once at start-up.
 pub struct Auth {
     pub keys: crypto::Keys,
     pub hasher: crypto::Hasher,
     pub limits: limits::Limiter,
-    pub mailer: Arc<dyn Mailer>,
+    /// The mailer, and whether its last send failed (`503 email_failed`).
+    pub mailer: Arc<Watched>,
     pub oauth: oauth::OAuth,
     /// When each token's `last_used_at` was last written (spares the SD card).
     touched: Mutex<HashMap<String, Instant>>,
@@ -58,7 +59,7 @@ impl Auth {
             keys: crypto::Keys::load(config.auth_secret.as_deref(), &config.data_dir)?,
             hasher: crypto::Hasher::default(),
             limits: limits::Limiter::default(),
-            mailer,
+            mailer: Arc::new(Watched::new(mailer)),
             oauth: oauth::OAuth::new(config),
             touched: Mutex::new(HashMap::new()),
             labelled: Mutex::new(std::collections::HashSet::new()),
@@ -95,6 +96,11 @@ pub fn router() -> Router<AppState> {
         .route("/2fa/enable", post(mfa::enable))
         .route("/2fa/disable", post(mfa::disable))
         .route("/2fa/recovery", post(mfa::regenerate))
+        .route("/2fa/reset/send", post(mfa::reset_send))
+        .route("/2fa/reset/confirm", post(mfa::reset_confirm))
+        .route("/2fa/reset/cancel", post(mfa::reset_cancel))
+        .route("/email/change", post(password::change_email))
+        .route("/email/confirm", post(password::confirm_email))
         .route("/sessions", get(sessions::list))
         .route("/sessions/revoke-others", post(sessions::revoke_others))
         .route("/sessions/{id}", delete(sessions::revoke))
@@ -114,7 +120,8 @@ pub fn router() -> Router<AppState> {
 pub fn features(state: &AppState) -> Vec<&'static str> {
     // `reauth`: sensitive changes answer `403 reauth_required` until `POST /auth/reauth` (or an
     // OAuth round with `reauth: true`); `tickets`: `POST /auth/ticket` for the CSV link and the socket.
-    let mut f = vec!["auth", "reauth", "tickets"];
+    // `account_recovery`: change e-mail, 2FA reset by e-mail, `email_failed`, security notices.
+    let mut f = vec!["auth", "reauth", "tickets", "account_recovery"];
     if state.auth.mailer.configured() {
         f.push("email");
     }
@@ -332,10 +339,11 @@ pub async fn label(state: &AppState, token: &str, headers: &HeaderMap) {
 }
 
 /// A new session token for this account.
-pub async fn issue_token<'e, E>(db: E, user_id: i64, device: Option<&str>) -> AppResult<String>
-where
-    E: sqlx::Executor<'e, Database = sqlx::Sqlite>,
-{
+pub async fn issue_token(
+    db: &sqlx::SqlitePool,
+    user_id: i64,
+    device: Option<&str>,
+) -> AppResult<String> {
     let token = crate::auth::new_token();
     sqlx::query(
         "INSERT INTO user_tokens (token_hash, user_id, device, last_used_at) \
@@ -346,7 +354,37 @@ where
     .bind(device)
     .execute(db)
     .await?;
+    // At most `MAX_SESSIONS` per account: the least recently used ones go.
+    sqlx::query(
+        "DELETE FROM user_tokens WHERE user_id = ?1 AND token_hash NOT IN ( \
+             SELECT token_hash FROM user_tokens WHERE user_id = ?1 \
+             ORDER BY COALESCE(last_used_at, created_at) DESC, rowid DESC LIMIT ?2)",
+    )
+    .bind(user_id)
+    .bind(MAX_SESSIONS)
+    .execute(db)
+    .await?;
     Ok(token)
+}
+
+/// Sessions per account; signing in once more signs the least recently used one out.
+pub const MAX_SESSIONS: i64 = 20;
+/// A session of an account that can sign in again (e-mail + password, or a provider) ends after
+/// this many days unused. Legacy and guest sessions don't: they have no way back in.
+pub const IDLE_DAYS: i64 = 180;
+
+/// Deletes the sessions unused for `IDLE_DAYS` (hourly, with the guest purge). Returns how many.
+pub async fn purge_idle_sessions(state: &AppState) -> AppResult<u64> {
+    let done = sqlx::query(
+        "DELETE FROM user_tokens WHERE COALESCE(last_used_at, created_at) \
+             < strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-' || ? || ' days') \
+         AND user_id IN (SELECT u.id FROM users u WHERE u.password_hash IS NOT NULL \
+             OR EXISTS (SELECT 1 FROM oauth_identities o WHERE o.user_id = u.id))",
+    )
+    .bind(IDLE_DAYS)
+    .execute(&state.db)
+    .await?;
+    Ok(done.rows_affected())
 }
 
 /// `{token, user_id, new}`, or `{mfa: "totp", challenge}` when the account has 2FA on.
@@ -356,6 +394,7 @@ pub async fn sign_in(
     new: bool,
     device: Option<&str>,
 ) -> AppResult<Value> {
+    mfa::finish_due_reset(state, user_id).await?;
     let totp: Option<String> = sqlx::query_scalar("SELECT totp_secret FROM users WHERE id = ?")
         .bind(user_id)
         .fetch_one(&state.db)
@@ -378,13 +417,14 @@ pub async fn sign_in(
     Ok(json!({ "token": token, "user_id": user_id, "new": new }))
 }
 
-/// Has an email + password, or a linked provider: can't be claimed by first name any more.
+/// Has a password (with its e-mail, or one whose unverified e-mail was freed: still not a legacy
+/// account), or a linked provider: can't be claimed by first name any more.
 pub async fn is_secured<'e, E>(db: E, user_id: i64) -> AppResult<bool>
 where
     E: sqlx::Executor<'e, Database = sqlx::Sqlite>,
 {
     Ok(sqlx::query_scalar(
-        "SELECT (email IS NOT NULL AND password_hash IS NOT NULL) \
+        "SELECT password_hash IS NOT NULL \
              OR EXISTS (SELECT 1 FROM oauth_identities o WHERE o.user_id = users.id) \
          FROM users WHERE id = ?",
     )
@@ -427,15 +467,22 @@ pub(crate) async fn account_by_email(state: &AppState, email: &str) -> AppResult
     .await?)
 }
 
+/// Days without use after which another session no longer stops a claimed one (a lost phone).
+pub const CLAIM_IDLE_DAYS: i64 = 30;
+
 /// A token handed over by `/api/join` by first name (`claimed`) can't change how the account
-/// signs in nor sign other devices out, unless it is the account's only session (nothing is
-/// then taken from anyone). `403 claimed_session`.
+/// signs in nor sign other devices out, unless it is the account's only session in use (the
+/// others unused for `CLAIM_IDLE_DAYS`: nothing is then taken from anyone, and a lost phone can't
+/// lock its owner out for good). `403 claimed_session`.
 pub(crate) async fn not_claimed(state: &AppState, user_id: i64, token_hash: &str) -> AppResult<()> {
     let row: Option<(bool, bool)> = sqlx::query_as(
         "SELECT claimed != 0, EXISTS (SELECT 1 FROM user_tokens o \
-             WHERE o.user_id = t.user_id AND o.token_hash != t.token_hash) \
+             WHERE o.user_id = t.user_id AND o.token_hash != t.token_hash \
+             AND COALESCE(o.last_used_at, o.created_at) \
+                 >= strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-' || ? || ' days')) \
          FROM user_tokens t WHERE t.token_hash = ? AND t.user_id = ?",
     )
+    .bind(CLAIM_IDLE_DAYS)
     .bind(token_hash)
     .bind(user_id)
     .fetch_optional(&state.db)
@@ -518,6 +565,77 @@ pub(crate) async fn revoke_sessions(
         .execute(&state.db)
         .await?;
     Ok(done.rows_affected())
+}
+
+// ---------- security notices, stale e-mails ----------
+
+/// A short e-mail about a security change to the account's address, if it is verified (an
+/// unverified one may be someone else's). In the background: never slows or fails the request.
+pub(crate) fn notify(state: &AppState, user_id: i64, notice: crate::i18n::Notice) {
+    let state = state.clone();
+    tokio::spawn(async move {
+        let row: Option<(Option<String>, bool)> =
+            sqlx::query_as("SELECT email, email_verified_at IS NOT NULL FROM users WHERE id = ?")
+                .bind(user_id)
+                .fetch_optional(&state.db)
+                .await
+                .ok()
+                .flatten();
+        let Some((Some(email), true)) = row else {
+            return;
+        };
+        let lang = crate::i18n::of_user(&state.db, user_id)
+            .await
+            .unwrap_or_default();
+        notify_address(&state, email, lang, notice).await;
+    });
+}
+
+/// The same, to a given address (the old one after an e-mail change).
+pub(crate) async fn notify_address(
+    state: &AppState,
+    to: String,
+    lang: crate::i18n::Lang,
+    notice: crate::i18n::Notice,
+) {
+    if let Err(e) = state
+        .auth
+        .mailer
+        .send(mail::notice(&to, lang, &notice))
+        .await
+    {
+        tracing::warn!(error = %e, "security notice not sent");
+    }
+}
+
+/// Days an e-mail nobody verified stays taken: then signing up (or adding it) with it frees it
+/// from the account that typed it, so a typo or a squatter can't block the real owner.
+pub const UNVERIFIED_EMAIL_DAYS: i64 = 7;
+
+/// Frees `email` if an account typed it more than `UNVERIFIED_EMAIL_DAYS` ago without ever
+/// verifying it (that account keeps its sessions and can add another address).
+pub(crate) async fn free_stale_email(state: &AppState, email: &str) -> AppResult<()> {
+    let freed: Option<i64> = sqlx::query_scalar(
+        "UPDATE users SET email = NULL WHERE email = ? AND email_verified_at IS NULL \
+         AND email_set_at < strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-' || ? || ' days') \
+         RETURNING id",
+    )
+    .bind(email)
+    .bind(UNVERIFIED_EMAIL_DAYS)
+    .fetch_optional(&state.db)
+    .await?;
+    if let Some(user) = freed {
+        sqlx::query("DELETE FROM auth_codes WHERE email = ? AND user_id = ?")
+            .bind(email)
+            .bind(user)
+            .execute(&state.db)
+            .await?;
+        tracing::info!(
+            user,
+            "unverified e-mail freed after {UNVERIFIED_EMAIL_DAYS} days"
+        );
+    }
+    Ok(())
 }
 
 // ---------- input checks ----------
@@ -628,6 +746,8 @@ pub(crate) mod codes {
     pub const VERIFY_TTL: u64 = 15 * 60;
     pub const RESET_TTL: u64 = 30 * 60;
     pub const DELETE_TTL: u64 = 30 * 60;
+    pub const CHANGE_EMAIL_TTL: u64 = 30 * 60;
+    pub const MFA_RESET_TTL: u64 = 30 * 60;
     pub const MFA_TTL: u64 = 5 * 60;
     pub const OAUTH_STATE_TTL: u64 = 10 * 60;
     pub const OAUTH_RESULT_TTL: u64 = 60;
@@ -646,6 +766,8 @@ pub(crate) mod codes {
         OAuthState,
         OAuthResult,
         DeleteAccount,
+        ChangeEmail,
+        MfaReset,
     }
 
     impl Kind {
@@ -657,6 +779,8 @@ pub(crate) mod codes {
                 Kind::OAuthState => "oauth_state",
                 Kind::OAuthResult => "oauth_result",
                 Kind::DeleteAccount => "delete_account",
+                Kind::ChangeEmail => "change_email",
+                Kind::MfaReset => "mfa_reset",
             }
         }
 
@@ -664,7 +788,11 @@ pub(crate) mod codes {
         fn short(self) -> bool {
             matches!(
                 self,
-                Kind::VerifyEmail | Kind::ResetPassword | Kind::DeleteAccount
+                Kind::VerifyEmail
+                    | Kind::ResetPassword
+                    | Kind::DeleteAccount
+                    | Kind::ChangeEmail
+                    | Kind::MfaReset
             )
         }
     }

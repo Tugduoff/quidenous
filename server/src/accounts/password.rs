@@ -7,12 +7,13 @@ use serde_json::{Value, json};
 
 use super::{
     ClientIp, Device, Session, account_by_email, check_password, clean_email, codes,
-    crypto::six_digits, limits, mail, not_claimed, reauth::PasswordBudget, require_reauth,
-    revoke_sessions, sign_in,
+    crypto::six_digits, free_stale_email, limits, mail, not_claimed, notify, notify_address,
+    reauth::PasswordBudget, require_reauth, revoke_sessions, sign_in,
 };
 use crate::{
     AppState,
     error::{AppError, AppResult},
+    i18n::Notice,
     routes::{COLORS, clean_name},
 };
 
@@ -20,8 +21,25 @@ fn is_unique_violation(e: &sqlx::Error) -> bool {
     matches!(e, sqlx::Error::Database(d) if d.is_unique_violation())
 }
 
-/// Sends a fresh verification code. `false` when nothing was really sent.
-pub(super) async fn send_verify(state: &AppState, user_id: i64, email: &str) -> AppResult<bool> {
+/// What became of a verification e-mail.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum Sent {
+    Yes,
+    /// Mailgun not configured: only logged.
+    NotConfigured,
+    /// Mailgun refused it or was unreachable.
+    Failed,
+}
+
+impl Sent {
+    /// `email_sent` + `email_failed` (the app then says the e-mail couldn't be sent).
+    fn fields(self) -> (bool, bool) {
+        (self == Sent::Yes, self == Sent::Failed)
+    }
+}
+
+/// Sends a fresh verification code.
+pub(super) async fn send_verify(state: &AppState, user_id: i64, email: &str) -> AppResult<Sent> {
     let code = six_digits();
     codes::create(
         state,
@@ -36,10 +54,11 @@ pub(super) async fn send_verify(state: &AppState, user_id: i64, email: &str) -> 
     let lang = crate::i18n::of_user(&state.db, user_id).await?;
     let mailer = &state.auth.mailer;
     match mailer.send(mail::verify_email(email, &code, lang)).await {
-        Ok(()) => Ok(mailer.configured()),
+        Ok(()) if mailer.configured() => Ok(Sent::Yes),
+        Ok(()) => Ok(Sent::NotConfigured),
         Err(e) => {
             tracing::warn!(error = %e, "verification email not sent");
-            Ok(false)
+            Ok(Sent::Failed)
         }
     }
 }
@@ -56,6 +75,7 @@ pub async fn email_exists(
 ) -> AppResult<Json<Value>> {
     let email = clean_email(&body.email)?;
     state.auth.limits.hit_ip(&limits::EMAIL_IP, ip)?;
+    free_stale_email(&state, &email).await?;
     let exists = account_by_email(&state, &email).await?.is_some();
     Ok(Json(json!({ "account": exists })))
 }
@@ -80,6 +100,7 @@ pub async fn signup(
     let name = clean_name(&body.name)?;
     check_password(&body.password, Some(&email))?;
     state.auth.limits.hit_ip(&limits::SIGNUP_IP, ip)?;
+    free_stale_email(&state, &email).await?;
     if account_by_email(&state, &email).await?.is_some() {
         return Err(AppError::Conflict("email_taken"));
     }
@@ -109,9 +130,10 @@ pub async fn signup(
         }
     })?;
     let token = super::issue_token(&state.db, user_id, device.as_deref()).await?;
-    let email_sent = send_verify(&state, user_id, &email).await?;
+    let (email_sent, email_failed) = send_verify(&state, user_id, &email).await?.fields();
     Ok(Json(json!({
-        "token": token, "user_id": user_id, "new": true, "email_sent": email_sent
+        "token": token, "user_id": user_id, "new": true,
+        "email_sent": email_sent, "email_failed": email_failed
     })))
 }
 
@@ -153,6 +175,10 @@ pub async fn forgot(
 ) -> AppResult<Json<Value>> {
     if !state.auth.mailer.configured() {
         return Err(AppError::Unavailable("email_not_configured"));
+    }
+    // The last send failed (server-wide, never about this address): say so instead of "sent".
+    if !state.auth.mailer.healthy() {
+        return Err(AppError::Unavailable("email_failed"));
     }
     let email = clean_email(&body.email)?;
     state.auth.limits.hit_ip(&limits::FORGOT_IP, ip)?;
@@ -207,8 +233,9 @@ pub async fn reset(
         .ok_or(AppError::BadRequest("bad_code"))?;
     let hash = state.auth.hasher.hash(&body.password).await?;
     let mut tx = crate::db::write_tx(&state.db).await?;
+    // A pending 2FA reset stops too: someone who knew the old password may have asked for it.
     sqlx::query(
-        "UPDATE users SET password_hash = ?, \
+        "UPDATE users SET password_hash = ?, mfa_reset_at = NULL, \
          email_verified_at = COALESCE(email_verified_at, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) \
          WHERE id = ?",
     )
@@ -242,6 +269,7 @@ pub async fn reset(
         .execute(&mut *tx)
         .await?;
     tx.commit().await?;
+    notify(&state, acct.id, Notice::PasswordChanged);
     Ok(Json(
         sign_in(&state, acct.id, false, device.as_deref()).await?,
     ))
@@ -261,6 +289,11 @@ pub async fn account_info(state: &AppState, user_id: i64) -> AppResult<Value> {
     .bind(user_id)
     .fetch_one(&state.db)
     .await?;
+    let mfa_reset_at: Option<i64> =
+        sqlx::query_scalar("SELECT mfa_reset_at FROM users WHERE id = ?")
+            .bind(user_id)
+            .fetch_one(&state.db)
+            .await?;
     let secured = (a.email.is_some() && a.password_hash.is_some()) || !providers.is_empty();
     Ok(json!({
         "user_id": a.id,
@@ -270,6 +303,8 @@ pub async fn account_info(state: &AppState, user_id: i64) -> AppResult<Value> {
         "has_password": a.password_hash.is_some(),
         "totp": a.totp_secret.is_some(),
         "recovery_codes_left": codes_left,
+        // A confirmed 2FA reset by e-mail: 2FA goes at this time (unix seconds) unless cancelled.
+        "mfa_reset_at": mfa_reset_at,
         "providers": providers,
         "secured": secured,
         // A party guest: plays in its party only (no rooms, friends, packs…) until secured.
@@ -302,6 +337,7 @@ pub async fn credentials(
     require_reauth(&state, &acct, &session.token_hash).await?;
     let email = clean_email(&body.email)?;
     check_password(&body.password, Some(&email))?;
+    free_stale_email(&state, &email).await?;
     if account_by_email(&state, &email).await?.is_some() {
         return Err(AppError::Conflict("email_taken"));
     }
@@ -322,8 +358,10 @@ pub async fn credentials(
             e.into()
         }
     })?;
-    let email_sent = send_verify(&state, acct.id, &email).await?;
-    Ok(Json(json!({ "ok": true, "email_sent": email_sent })))
+    let (email_sent, email_failed) = send_verify(&state, acct.id, &email).await?.fields();
+    Ok(Json(
+        json!({ "ok": true, "email_sent": email_sent, "email_failed": email_failed }),
+    ))
 }
 
 pub async fn verify_send(
@@ -339,8 +377,10 @@ pub async fn verify_send(
         .auth
         .limits
         .hit(&limits::VERIFY_SEND_ACCOUNT, &acct.id.to_string())?;
-    let email_sent = send_verify(&state, acct.id, &email).await?;
-    Ok(Json(json!({ "email_sent": email_sent })))
+    match send_verify(&state, acct.id, &email).await? {
+        Sent::Failed => Err(AppError::Unavailable("email_failed")),
+        sent => Ok(Json(json!({ "email_sent": sent == Sent::Yes }))),
+    }
 }
 
 #[derive(Deserialize)]
@@ -420,5 +460,129 @@ pub async fn change_password(
     } else {
         0
     };
+    notify(
+        &state,
+        acct.id,
+        if acct.password_hash.is_some() {
+            Notice::PasswordChanged
+        } else {
+            Notice::PasswordSet
+        },
+    );
     Ok(Json(json!({ "ok": true, "revoked": revoked })))
+}
+
+#[derive(Deserialize)]
+pub struct ChangeEmailBody {
+    email: String,
+}
+
+/// Change the account's e-mail (verified or not, e.g. a typo): a code goes to the new address,
+/// nothing changes until `confirm_email`. Needs a recent re-authentication (it is the address
+/// that resets the password).
+pub async fn change_email(
+    State(state): State<AppState>,
+    session: Session,
+    Json(body): Json<ChangeEmailBody>,
+) -> AppResult<Json<Value>> {
+    let acct = super::account(&state, session.user_id).await?;
+    let current = acct.email.clone().ok_or(AppError::BadRequest("no_email"))?;
+    not_claimed(&state, acct.id, &session.token_hash).await?;
+    require_reauth(&state, &acct, &session.token_hash).await?;
+    let email = clean_email(&body.email)?;
+    if email == current {
+        return Err(AppError::BadRequest("same_email"));
+    }
+    if !state.auth.mailer.configured() {
+        return Err(AppError::Unavailable("email_not_configured"));
+    }
+    state
+        .auth
+        .limits
+        .hit(&limits::VERIFY_SEND_ACCOUNT, &acct.id.to_string())?;
+    free_stale_email(&state, &email).await?;
+    if account_by_email(&state, &email).await?.is_some() {
+        return Err(AppError::Conflict("email_taken"));
+    }
+    let code = six_digits();
+    codes::create(
+        &state,
+        codes::Kind::ChangeEmail,
+        &code,
+        Some(acct.id),
+        Some(&email),
+        codes::CHANGE_EMAIL_TTL,
+        None,
+    )
+    .await?;
+    let lang = crate::i18n::of_user(&state.db, acct.id).await?;
+    if let Err(e) = state
+        .auth
+        .mailer
+        .send(mail::change_email(&email, &code, lang))
+        .await
+    {
+        tracing::warn!(error = %e, "change-email code not sent");
+        return Err(AppError::Unavailable("email_failed"));
+    }
+    Ok(Json(json!({ "sent": true })))
+}
+
+#[derive(Deserialize)]
+pub struct ConfirmEmailBody {
+    email: String,
+    code: String,
+}
+
+/// The code from the new address: it becomes the account's e-mail, verified. The old address (if
+/// it was verified) gets a notice.
+pub async fn confirm_email(
+    State(state): State<AppState>,
+    ClientIp(ip): ClientIp,
+    session: Session,
+    Json(body): Json<ConfirmEmailBody>,
+) -> AppResult<Json<Value>> {
+    state.auth.limits.hit_ip(&limits::CODE_IP, ip)?;
+    let acct = super::account(&state, session.user_id).await?;
+    let old = acct.email.clone().ok_or(AppError::BadRequest("no_email"))?;
+    let Ok(email) = clean_email(&body.email) else {
+        return Err(AppError::BadRequest("bad_code"));
+    };
+    let row = codes::redeem_short(&state, codes::Kind::ChangeEmail, &email, &body.code).await?;
+    if row.user_id != Some(acct.id) {
+        return Err(AppError::BadRequest("bad_code"));
+    }
+    free_stale_email(&state, &email).await?;
+    sqlx::query(
+        "UPDATE users SET email = ?, email_verified_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') \
+         WHERE id = ? AND email = ?",
+    )
+    .bind(&email)
+    .bind(acct.id)
+    .bind(&old)
+    .execute(&state.db)
+    .await
+    .map_err(|e| {
+        if is_unique_violation(&e) {
+            AppError::Conflict("email_taken")
+        } else {
+            e.into()
+        }
+    })?;
+    // Codes sent to the old address no longer apply to this account.
+    sqlx::query("DELETE FROM auth_codes WHERE email = ? AND user_id = ?")
+        .bind(&old)
+        .bind(acct.id)
+        .execute(&state.db)
+        .await?;
+    if acct.email_verified_at.is_some() {
+        let lang = crate::i18n::of_user(&state.db, acct.id).await?;
+        let notice = Notice::EmailChanged {
+            new: mail::mask_email(&email),
+            contact: state.config.report_email().to_owned(),
+        };
+        let state = state.clone();
+        tokio::spawn(async move { notify_address(&state, old, lang, notice).await });
+    }
+    Ok(Json(json!({ "email": email, "email_verified": true })))
 }

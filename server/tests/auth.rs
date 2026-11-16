@@ -3317,3 +3317,523 @@ async fn tickets_replace_the_token_in_urls() {
     let (s, _) = call(&t.app, "GET", "/live?ticket=x", None, None).await;
     assert_ne!(s, StatusCode::OK);
 }
+
+// ---------- account recovery (limits review, batch 3) ----------
+
+/// Security notices are sent in the background.
+async fn wait_notices(mail: &MemoryMailer, to: &str, count: usize) -> Vec<String> {
+    for _ in 0..100 {
+        let n = mail.notices(to);
+        if n.len() >= count {
+            return n;
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    panic!("no notice {count} to {to}: {:?}", mail.notices(to));
+}
+
+async fn enable_2fa(t: &T, token: &str) -> String {
+    reauth(t, token).await;
+    let (s, setup) = call(&t.app, "POST", "/auth/2fa/setup", Some(token), None).await;
+    assert_eq!(s, StatusCode::OK, "{setup}");
+    let secret = setup["secret"].as_str().unwrap().to_owned();
+    let code = totp_code(&secret, now()).unwrap();
+    let (s, b) = call(
+        &t.app,
+        "POST",
+        "/auth/2fa/enable",
+        Some(token),
+        Some(json!({ "code": code })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{b}");
+    secret
+}
+
+#[tokio::test]
+async fn security_changes_send_a_notice_to_the_verified_email() {
+    let t = setup().await;
+    // Unverified: the address may be someone else's, nothing is sent to it.
+    let (bob, _) = signup(&t, "bob@example.com", "Bob").await;
+    let (s, _) = call(
+        &t.app,
+        "POST",
+        "/auth/password",
+        Some(&bob),
+        Some(json!({ "current": PASSWORD, "password": "un-autre-velo-rouge" })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK);
+
+    let (ana, _) = signup(&t, "ana@example.com", "Ana").await;
+    verify_email(&t, &ana, "ana@example.com").await;
+    let secret = enable_2fa(&t, &ana).await;
+    assert_eq!(
+        wait_notices(&t.mail, "ana@example.com", 1).await,
+        ["Double authentification activée"]
+    );
+    let (s, _) = call(
+        &t.app,
+        "POST",
+        "/auth/password",
+        Some(&ana),
+        Some(json!({ "current": PASSWORD, "password": "un-autre-velo-rouge" })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK);
+    wait_notices(&t.mail, "ana@example.com", 2).await;
+    tokio::time::sleep(Duration::from_millis(30)).await;
+    let code = totp_code(&secret, now() + 30).unwrap();
+    let (s, b) = call(
+        &t.app,
+        "POST",
+        "/auth/2fa/disable",
+        Some(&ana),
+        Some(json!({ "code": code })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{b}");
+    let notices = wait_notices(&t.mail, "ana@example.com", 3).await;
+    assert_eq!(
+        notices,
+        [
+            "Double authentification activée",
+            "Mot de passe modifié",
+            "Double authentification désactivée"
+        ]
+    );
+    // The notice has no code in it (the code e-mails are unaffected).
+    let n = t.mail.notices.lock().unwrap()[0].clone();
+    assert!(n.text.contains("Si ce n'est pas toi"), "{}", n.text);
+    assert!(n.html.contains("lang=\"fr\""));
+    assert!(t.mail.notices("bob@example.com").is_empty());
+}
+
+#[tokio::test]
+async fn failed_sends_are_reported_without_saying_who_has_an_account() {
+    use std::sync::atomic::Ordering;
+    let t = setup().await;
+    let (ana, _) = signup(&t, "ana@example.com", "Ana").await;
+    t.mail.fail.store(true, Ordering::Relaxed);
+    // Sign-up: the account works, and the app can say the e-mail didn't go.
+    let (s, b) = call(
+        &t.app,
+        "POST",
+        "/auth/signup",
+        None,
+        Some(json!({ "email": "bob@example.com", "password": PASSWORD, "name": "Bob" })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{b}");
+    assert_eq!(
+        (&b["email_sent"], &b["email_failed"]),
+        (&json!(false), &json!(true))
+    );
+    let (s, b) = call(&t.app, "POST", "/auth/verify/send", Some(&ana), None).await;
+    assert_eq!(
+        (s, b["error"].as_str()),
+        (StatusCode::SERVICE_UNAVAILABLE, Some("email_failed"))
+    );
+    // Forgot and the public deletion page: same answer for an account and for nobody.
+    for email in ["ana@example.com", "nobody@example.com"] {
+        for path in ["/auth/forgot", "/auth/delete/send"] {
+            let (s, b) = call(&t.app, "POST", path, None, Some(json!({ "email": email }))).await;
+            assert_eq!(
+                (s, b["error"].as_str()),
+                (StatusCode::SERVICE_UNAVAILABLE, Some("email_failed")),
+                "{path} {email}"
+            );
+        }
+    }
+    // Mail works again: the next send clears it.
+    t.mail.fail.store(false, Ordering::Relaxed);
+    let (s, b) = call(&t.app, "POST", "/auth/verify/send", Some(&ana), None).await;
+    assert_eq!((s, &b["email_sent"]), (StatusCode::OK, &json!(true)));
+    let (s, b) = call(
+        &t.app,
+        "POST",
+        "/auth/forgot",
+        None,
+        Some(json!({ "email": "nobody@example.com" })),
+    )
+    .await;
+    assert_eq!((s, &b), (StatusCode::OK, &json!({ "sent": true })));
+}
+
+#[tokio::test]
+async fn changing_the_email_needs_a_code_from_the_new_address() {
+    let t = setup().await;
+    let (ana, _) = signup(&t, "ana@example.com", "Ana").await;
+    verify_email(&t, &ana, "ana@example.com").await;
+    signup(&t, "taken@example.com", "Taken").await;
+    let change = |email: &'static str| {
+        let app = t.app.clone();
+        let ana = ana.clone();
+        async move {
+            call(
+                &app,
+                "POST",
+                "/auth/email/change",
+                Some(&ana),
+                Some(json!({ "email": email })),
+            )
+            .await
+        }
+    };
+    assert_eq!(
+        change("new@example.com").await.1["error"],
+        "reauth_required"
+    );
+    reauth(&t, &ana).await;
+    assert_eq!(change("ana@example.com").await.1["error"], "same_email");
+    let (s, b) = change("taken@example.com").await;
+    assert_eq!(
+        (s, b["error"].as_str()),
+        (StatusCode::CONFLICT, Some("email_taken"))
+    );
+    let (s, b) = change("New@Example.com").await;
+    assert_eq!((s, &b), (StatusCode::OK, &json!({ "sent": true })));
+    let code = t.mail.last_code("new@example.com").unwrap();
+    let wrong = if code == "000000" { "111111" } else { "000000" };
+    let confirm = |code: String| {
+        let app = t.app.clone();
+        let ana = ana.clone();
+        async move {
+            call(
+                &app,
+                "POST",
+                "/auth/email/confirm",
+                Some(&ana),
+                Some(json!({ "email": "new@example.com", "code": code })),
+            )
+            .await
+        }
+    };
+    assert_eq!(confirm(wrong.into()).await.1["error"], "bad_code");
+    // Nothing changed yet.
+    let (_, acct) = call(&t.app, "GET", "/auth/account", Some(&ana), None).await;
+    assert_eq!(acct["email"], "ana@example.com");
+    let (s, b) = confirm(code).await;
+    assert_eq!(s, StatusCode::OK, "{b}");
+    let (_, acct) = call(&t.app, "GET", "/auth/account", Some(&ana), None).await;
+    assert_eq!(
+        (&acct["email"], &acct["email_verified"]),
+        (&json!("new@example.com"), &json!(true))
+    );
+    // The old address is told, with the new one masked.
+    let notices = wait_notices(&t.mail, "ana@example.com", 1).await;
+    assert_eq!(notices, ["Adresse e-mail modifiée"]);
+    let n = t.mail.notices.lock().unwrap()[0].clone();
+    assert!(n.text.contains("n***@example.com") && !n.text.contains("new@example.com"));
+    assert_eq!(
+        login(&t, "new@example.com", PASSWORD).await.0,
+        StatusCode::OK
+    );
+    assert_eq!(
+        login(&t, "ana@example.com", PASSWORD).await.0,
+        StatusCode::BAD_REQUEST
+    );
+}
+
+#[tokio::test]
+async fn an_unverified_email_is_freed_after_a_week() {
+    let t = setup().await;
+    let (typo, typo_id) = signup(&t, "real@example.com", "Typo").await;
+    let set: Option<String> = sqlx::query_scalar("SELECT email_set_at FROM users WHERE id = ?")
+        .bind(typo_id)
+        .fetch_one(&t.state.db)
+        .await
+        .unwrap();
+    assert!(set.is_some());
+    let again = || {
+        call(
+            &t.app,
+            "POST",
+            "/auth/signup",
+            None,
+            Some(json!({ "email": "real@example.com", "password": PASSWORD, "name": "Real" })),
+        )
+    };
+    assert_eq!(again().await.1["error"], "email_taken");
+    sqlx::query(
+        "UPDATE users SET email_set_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-8 days') WHERE id = ?",
+    )
+    .bind(typo_id)
+    .execute(&t.state.db)
+    .await
+    .unwrap();
+    let (s, b) = call(
+        &t.app,
+        "POST",
+        "/auth/email",
+        None,
+        Some(json!({ "email": "real@example.com" })),
+    )
+    .await;
+    assert_eq!((s, &b["account"]), (StatusCode::OK, &json!(false)));
+    let (s, b) = again().await;
+    assert_eq!(s, StatusCode::OK, "{b}");
+    // The account that typed it keeps its sessions and can add another address.
+    let (s, acct) = call(&t.app, "GET", "/auth/account", Some(&typo), None).await;
+    assert_eq!((s, &acct["email"]), (StatusCode::OK, &Value::Null));
+    // A verified address is never freed.
+    let real = b["token"].as_str().unwrap().to_owned();
+    verify_email(&t, &real, "real@example.com").await;
+    sqlx::query("UPDATE users SET email_set_at = '2020-01-01T00:00:00.000Z' WHERE email = 'real@example.com'")
+        .execute(&t.state.db)
+        .await
+        .unwrap();
+    assert_eq!(again().await.1["error"], "email_taken");
+}
+
+#[tokio::test]
+async fn lost_2fa_without_codes_is_reset_by_email_a_day_later() {
+    let t = setup().await;
+    let (ana, ana_id) = signup(&t, "ana@example.com", "Ana").await;
+    verify_email(&t, &ana, "ana@example.com").await;
+    let secret = enable_2fa(&t, &ana).await;
+    let challenge = || async {
+        let (s, b) = login(&t, "ana@example.com", PASSWORD).await;
+        assert_eq!(s, StatusCode::OK, "{b}");
+        b["challenge"].as_str().unwrap().to_owned()
+    };
+    let c = challenge().await;
+    let (s, b) = call(
+        &t.app,
+        "POST",
+        "/auth/2fa/reset/send",
+        None,
+        Some(json!({ "challenge": "nope" })),
+    )
+    .await;
+    assert_eq!(
+        (s, b["error"].as_str()),
+        (StatusCode::BAD_REQUEST, Some("bad_code"))
+    );
+    let (s, b) = call(
+        &t.app,
+        "POST",
+        "/auth/2fa/reset/send",
+        None,
+        Some(json!({ "challenge": c })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{b}");
+    assert_eq!(b["email"], "a***@example.com");
+    let code = t.mail.last_code("ana@example.com").unwrap();
+    let (s, b) = call(
+        &t.app,
+        "POST",
+        "/auth/2fa/reset/confirm",
+        None,
+        Some(json!({ "challenge": c, "code": code })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{b}");
+    let at = b["reset_at"].as_i64().unwrap();
+    assert!((at - now() as i64 - 24 * 3600).abs() < 60, "{at}");
+    assert!(wait_notices(&t.mail, "ana@example.com", 2).await[1].contains("retrait demandé"));
+    let (_, acct) = call(&t.app, "GET", "/auth/account", Some(&ana), None).await;
+    assert_eq!(acct["mfa_reset_at"], at);
+    // Before the day is over, 2FA still applies.
+    assert!(login(&t, "ana@example.com", PASSWORD).await.1["challenge"].is_string());
+
+    // A signed-in session cancels it.
+    let (s, _) = call(&t.app, "POST", "/auth/2fa/reset/cancel", Some(&ana), None).await;
+    assert_eq!(s, StatusCode::OK);
+    let (_, acct) = call(&t.app, "GET", "/auth/account", Some(&ana), None).await;
+    assert_eq!(acct["mfa_reset_at"], Value::Null);
+
+    // Asked again, and the day is over: the next sign-in removes 2FA.
+    let c = challenge().await;
+    call(
+        &t.app,
+        "POST",
+        "/auth/2fa/reset/send",
+        None,
+        Some(json!({ "challenge": c })),
+    )
+    .await;
+    let code = t.mail.last_code("ana@example.com").unwrap();
+    let (s, _) = call(
+        &t.app,
+        "POST",
+        "/auth/2fa/reset/confirm",
+        None,
+        Some(json!({ "challenge": c, "code": code })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK);
+    sqlx::query("UPDATE users SET mfa_reset_at = ? WHERE id = ?")
+        .bind(now() as i64 - 1)
+        .bind(ana_id)
+        .execute(&t.state.db)
+        .await
+        .unwrap();
+    let (s, b) = login(&t, "ana@example.com", PASSWORD).await;
+    assert_eq!(s, StatusCode::OK);
+    let token = b["token"]
+        .as_str()
+        .expect("signed in without a code")
+        .to_owned();
+    let (_, acct) = call(&t.app, "GET", "/auth/account", Some(&token), None).await;
+    assert_eq!(
+        (&acct["totp"], &acct["recovery_codes_left"]),
+        (&json!(false), &json!(0))
+    );
+    let notices = wait_notices(&t.mail, "ana@example.com", 4).await;
+    assert!(
+        notices
+            .iter()
+            .any(|n| n == "Double authentification retirée"),
+        "{notices:?}"
+    );
+    let _ = secret;
+
+    // Signing in with a code calls a pending reset off; no verified e-mail, no reset.
+    let secret = enable_2fa(&t, &token).await;
+    let c = challenge().await;
+    call(
+        &t.app,
+        "POST",
+        "/auth/2fa/reset/send",
+        None,
+        Some(json!({ "challenge": c })),
+    )
+    .await;
+    let code = t.mail.last_code("ana@example.com").unwrap();
+    call(
+        &t.app,
+        "POST",
+        "/auth/2fa/reset/confirm",
+        None,
+        Some(json!({ "challenge": c, "code": code })),
+    )
+    .await;
+    let c = challenge().await;
+    let (s, _) = call(
+        &t.app,
+        "POST",
+        "/auth/login/2fa",
+        None,
+        Some(json!({ "challenge": c, "code": totp_code(&secret, now() + 30).unwrap() })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK);
+    let (_, acct) = call(&t.app, "GET", "/auth/account", Some(&token), None).await;
+    assert_eq!(acct["mfa_reset_at"], Value::Null);
+    sqlx::query("UPDATE users SET email_verified_at = NULL WHERE id = ?")
+        .bind(ana_id)
+        .execute(&t.state.db)
+        .await
+        .unwrap();
+    let c = challenge().await;
+    let (s, b) = call(
+        &t.app,
+        "POST",
+        "/auth/2fa/reset/send",
+        None,
+        Some(json!({ "challenge": c })),
+    )
+    .await;
+    assert_eq!(
+        (s, b["error"].as_str()),
+        (StatusCode::BAD_REQUEST, Some("no_email"))
+    );
+}
+
+#[tokio::test]
+async fn sessions_are_capped_and_expire_when_unused() {
+    let t = setup().await;
+    let (first, ana_id) = signup(&t, "ana@example.com", "Ana").await;
+    for _ in 0..20 {
+        assert_eq!(
+            login(&t, "ana@example.com", PASSWORD).await.0,
+            StatusCode::OK
+        );
+    }
+    let n: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM user_tokens WHERE user_id = ?")
+        .bind(ana_id)
+        .fetch_one(&t.state.db)
+        .await
+        .unwrap();
+    assert_eq!(n, quidenous_server::accounts::MAX_SESSIONS);
+    // The least recently used one (the sign-up's, never used since) went.
+    assert_eq!(
+        call(&t.app, "GET", "/auth/account", Some(&first), None)
+            .await
+            .0,
+        StatusCode::UNAUTHORIZED
+    );
+
+    // 180 days unused: gone for an account that can sign in again, kept for a legacy one.
+    let (_, b) = login(&t, "ana@example.com", PASSWORD).await;
+    let ana = b["token"].as_str().unwrap().to_owned();
+    let (_, b) = legacy_join(&t.app, "Rita").await;
+    let rita = b["token"].as_str().unwrap().to_owned();
+    sqlx::query(
+        "UPDATE user_tokens SET last_used_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-181 days'), \
+         created_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-200 days')",
+    )
+    .execute(&t.state.db)
+    .await
+    .unwrap();
+    let purged = quidenous_server::accounts::purge_idle_sessions(&t.state)
+        .await
+        .unwrap();
+    assert_eq!(purged, 20);
+    assert_eq!(
+        call(&t.app, "GET", "/auth/account", Some(&ana), None)
+            .await
+            .0,
+        StatusCode::UNAUTHORIZED
+    );
+    assert_eq!(
+        call(&t.app, "GET", "/me", Some(&rita), None).await.0,
+        StatusCode::OK
+    );
+}
+
+#[tokio::test]
+async fn a_claimed_session_can_secure_an_account_whose_other_device_is_long_unused() {
+    let t = setup().await;
+    let (_, b) = legacy_join(&t.app, "Rita").await;
+    let lost = b["token"].as_str().unwrap().to_owned();
+    let (_, b) = legacy_join(&t.app, "rita").await;
+    let grab = b["token"].as_str().unwrap().to_owned();
+    let (s, b) = call(
+        &t.app,
+        "POST",
+        "/auth/sessions/revoke-others",
+        Some(&grab),
+        None,
+    )
+    .await;
+    assert_eq!(
+        (s, b["error"].as_str()),
+        (StatusCode::FORBIDDEN, Some("claimed_session"))
+    );
+    // The lost phone hasn't been used for 31 days.
+    let hash = hex::encode(Sha256::digest(lost.as_bytes()));
+    sqlx::query(
+        "UPDATE user_tokens SET last_used_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-31 days'), \
+         created_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-40 days') WHERE token_hash = ?",
+    )
+    .bind(hash)
+    .execute(&t.state.db)
+    .await
+    .unwrap();
+    let (s, b) = call(
+        &t.app,
+        "POST",
+        "/auth/sessions/revoke-others",
+        Some(&grab),
+        None,
+    )
+    .await;
+    assert_eq!((s, &b["revoked"]), (StatusCode::OK, &json!(1)));
+    assert_eq!(
+        call(&t.app, "GET", "/me", Some(&lost), None).await.0,
+        StatusCode::UNAUTHORIZED
+    );
+}

@@ -14,6 +14,8 @@ export const security = {
     none: 'Aucun',
     change: 'Changer',
     set: 'Définir',
+    newEmail: 'Nouvelle adresse',
+    sendCode: 'Envoyer le code',
     current: 'Mot de passe actuel',
     newPassword: 'Nouveau ({min} min.)',
     saved: 'Enregistré',
@@ -70,6 +72,8 @@ export const security = {
   },
   twoFactor: {
     title: 'Double authentification',
+    resetPending: 'Retrait demandé',
+    resetOn: 'Retirée le {when}',
     copyKey: 'Copier la clé',
     shareKey: 'Partager la clé',
     openApp: "Ouvrir l'app d'authentification",

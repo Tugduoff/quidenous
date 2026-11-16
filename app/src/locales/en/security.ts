@@ -15,6 +15,8 @@ export const security: Messages['security'] = {
     none: 'None',
     change: 'Change',
     set: 'Set',
+    newEmail: 'New email',
+    sendCode: 'Send the code',
     current: 'Current password',
     newPassword: 'New ({min} min.)',
     saved: 'Saved',
@@ -67,6 +69,8 @@ export const security: Messages['security'] = {
   },
   twoFactor: {
     title: 'Two-factor authentication',
+    resetPending: 'Removal requested',
+    resetOn: 'Removed on {when}',
     copyKey: 'Copy the key',
     shareKey: 'Share the key',
     openApp: 'Open the authenticator app',

@@ -19,7 +19,7 @@ import {
 import { withReauth } from '@/components/security/reauth';
 import { Toggle } from '@/components/ui';
 import { ApiError } from '@/lib/api';
-import { accountKey, auth, authError, looksLikeEmail, PASSWORD_MIN, type Account } from '@/lib/auth';
+import { accountKey, auth, authError, looksLikeEmail, PASSWORD_MIN, useFeatures, type Account } from '@/lib/auth';
 import { useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 
@@ -28,20 +28,22 @@ export function SignInSection({ account }: { account: Account }) {
   const tr = useT();
   const qc = useQueryClient();
   const refresh = () => qc.invalidateQueries({ queryKey: accountKey });
-  // The code field opens by itself when the server just emailed one.
+  // The code field opens by itself when the server just emailed one (or tried to: then it says so).
   const [entering, setEntering] = useState(false);
+  const [mailFailed, setMailFailed] = useState(false);
   return (
     <Section title={tr('security.signIn.title')}>
       {account.email ? (
         <>
-          <EmailRow account={account} entering={entering} setEntering={setEntering} refresh={refresh} />
+          <EmailRow account={account} entering={entering} setEntering={setEntering} refresh={refresh} mailFailed={mailFailed} />
           <PasswordRow account={account} refresh={refresh} />
         </>
       ) : (
         <Credentials
           account={account}
-          onDone={(sent) => {
-            setEntering(sent);
+          onDone={(sent, failed) => {
+            setEntering(sent || failed);
+            setMailFailed(failed);
             refresh();
           }}
         />
@@ -50,7 +52,7 @@ export function SignInSection({ account }: { account: Account }) {
   );
 }
 
-function Credentials({ account, onDone }: { account: Account; onDone: (codeSent: boolean) => void }) {
+function Credentials({ account, onDone }: { account: Account; onDone: (codeSent: boolean, failed: boolean) => void }) {
   const t = useTheme();
   const tr = useT();
   const [email, setEmail] = useState('');
@@ -67,7 +69,7 @@ function Credentials({ account, onDone }: { account: Account; onDone: (codeSent:
       // An account signed in with a provider that gave no e-mail proves it is me first.
       const r = await withReauth(account, () => auth.credentials(email.trim().toLowerCase(), password));
       if (r === null) return;
-      onDone(!!r?.email_sent);
+      onDone(!!r?.email_sent, !!r?.email_failed);
     } catch (e) {
       setError(authError(e));
     } finally {
@@ -118,18 +120,22 @@ function EmailRow({
   entering,
   setEntering,
   refresh,
+  mailFailed,
 }: {
   account: Account;
   entering: boolean;
   setEntering: (v: boolean) => void;
   refresh: () => void;
+  mailFailed: boolean;
 }) {
   const t = useTheme();
   const tr = useT();
+  const features = useFeatures();
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(() => (mailFailed ? tr('errors.email_failed') : null));
   const [wait, startWait] = useCooldown();
+  const [changing, setChanging] = useState(false);
 
   const send = async () => {
     setBusy(true);
@@ -165,21 +171,38 @@ function EmailRow({
   };
 
   const verified = account.email_verified;
+  // A typo or a new address: a code to the new one first (older servers can't).
+  const canChange = features.email && features.accountRecovery;
+  if (changing)
+    return (
+      <ChangeEmail
+        account={account}
+        onClose={(changed) => {
+          setChanging(false);
+          if (changed) {
+            setEntering(false);
+            setError(null);
+            refresh();
+          }
+        }}
+      />
+    );
   return (
     <>
       <Row
-        icon={<Mail size={20} color={t.mut} />}
+        icon={verified ? <BadgeCheck size={20} color={t.accInk} /> : <Mail size={20} color={t.mut} />}
         title={account.email!}
         sub={verified ? tr('security.signIn.verified') : tr('security.signIn.notVerified')}
         right={
-          verified ? (
-            <BadgeCheck size={20} color={t.accInk} />
-          ) : (
-            !entering && (
-              <Pill tone="acc" onPress={send} loading={busy}>
-                {tr('security.signIn.verify')}
-              </Pill>
-            )
+          !entering && (
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              {canChange && <Pill onPress={() => setChanging(true)}>{tr('security.signIn.change')}</Pill>}
+              {!verified && (
+                <Pill tone="acc" onPress={send} loading={busy}>
+                  {tr('security.signIn.verify')}
+                </Pill>
+              )}
+            </View>
           )
         }
       />
@@ -197,6 +220,94 @@ function EmailRow({
         </>
       )}
       <ErrorText>{error}</ErrorText>
+    </>
+  );
+}
+
+/** New address → a code sent to it → confirmed: it replaces the old one (which gets a notice). */
+function ChangeEmail({ account, onClose }: { account: Account; onClose: (changed: boolean) => void }) {
+  const t = useTheme();
+  const tr = useT();
+  const [email, setEmail] = useState('');
+  const [sentTo, setSentTo] = useState<string | null>(null);
+  const [code, setCode] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [wait, startWait] = useCooldown();
+  const value = email.trim().toLowerCase();
+  const ok = looksLikeEmail(value);
+
+  const run = async (f: () => Promise<void>) => {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await f();
+    } catch (e) {
+      setError(authError(e));
+      setCode('');
+    } finally {
+      setBusy(false);
+    }
+  };
+  const send = () =>
+    ok &&
+    run(async () => {
+      // The address that resets the password: proof that it is me first.
+      const r = await withReauth(account, () => auth.changeEmail(value));
+      if (!r) return;
+      setSentTo(value);
+      startWait();
+    });
+  const confirm = (c = code) =>
+    !!sentTo &&
+    c.length === CODE_LENGTH &&
+    run(async () => {
+      await auth.confirmEmail(sentTo, c);
+      onClose(true);
+    });
+
+  return (
+    <>
+      <Row icon={<Mail size={20} color={t.accInk} />} title={tr('security.signIn.newEmail')} sub={sentTo ? tr('auth.codeSentTo', { email: sentTo }) : account.email!} />
+      {sentTo ? (
+        <>
+          <CodeField inset value={code} onChange={setCode} onDone={confirm} />
+          <TextLink onPress={send} disabled={wait > 0 || busy} style={{ alignSelf: 'flex-start', paddingHorizontal: 0 }}>
+            {wait > 0 ? tr('auth.resendIn', { count: wait }) : tr('auth.resend')}
+          </TextLink>
+        </>
+      ) : (
+        <Field
+          inset
+          autoFocus
+          placeholder={tr('auth.emailPlaceholder')}
+          accessibilityLabel={tr('security.signIn.newEmail')}
+          value={email}
+          onChangeText={setEmail}
+          keyboardType="email-address"
+          inputMode="email"
+          autoCapitalize="none"
+          autoCorrect={false}
+          autoComplete="email"
+          textContentType="emailAddress"
+          returnKeyType="go"
+          onSubmitEditing={send}
+        />
+      )}
+      <ErrorText>{error}</ErrorText>
+      <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 8 }}>
+        <Pill onPress={() => onClose(false)}>{tr('common.cancel')}</Pill>
+        {sentTo ? (
+          <Pill tone="acc" onPress={() => confirm()} loading={busy} disabled={code.length !== CODE_LENGTH}>
+            {tr('auth.validate')}
+          </Pill>
+        ) : (
+          <Pill tone="acc" onPress={send} loading={busy} disabled={!ok}>
+            {tr('security.signIn.sendCode')}
+          </Pill>
+        )}
+      </View>
     </>
   );
 }

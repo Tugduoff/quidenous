@@ -6,12 +6,13 @@ use serde_json::{Value, json};
 
 use super::{
     Account, ClientIp, Device, Session, account, codes,
-    crypto::{self, normalize_recovery, now_unix, otpauth_url, totp_match},
-    is_secured, issue_token, limits, not_claimed, require_reauth, revoke_sessions,
+    crypto::{self, normalize_recovery, now_unix, otpauth_url, six_digits, totp_match},
+    is_secured, issue_token, limits, mail, not_claimed, notify, require_reauth, revoke_sessions,
 };
 use crate::{
     AppState,
     error::{AppError, AppResult},
+    i18n::Notice,
 };
 
 const RECOVERY_COUNT: usize = 10;
@@ -128,6 +129,11 @@ pub async fn login_2fa(
     }
     limits.refund(&limits::MFA_ACCOUNT, &key);
     codes::consume(&state, row.id).await?;
+    // Whoever has a second factor doesn't need a pending reset (see `reset_send`): it stops.
+    sqlx::query("UPDATE users SET mfa_reset_at = NULL WHERE id = ?")
+        .bind(user_id)
+        .execute(&state.db)
+        .await?;
     let token = issue_token(&state.db, user_id, device.as_deref()).await?;
     let new = row.data()["new"].as_bool().unwrap_or(false);
     Ok(Json(
@@ -191,13 +197,15 @@ pub async fn enable(
     };
     limits.refund(&limits::MFA_ACCOUNT, &key);
     sqlx::query(
-        "UPDATE users SET totp_secret = totp_pending, totp_pending = NULL, totp_last_step = ? WHERE id = ?",
+        "UPDATE users SET totp_secret = totp_pending, totp_pending = NULL, totp_last_step = ?, \
+         mfa_reset_at = NULL WHERE id = ?",
     )
     .bind(step as i64)
     .bind(acct.id)
     .execute(&state.db)
     .await?;
     let recovery_codes = new_recovery_codes(&state, acct.id).await?;
+    notify(&state, acct.id, Notice::TotpOn);
     let revoked = if body.revoke_others {
         revoke_sessions(&state, acct.id, Some(&session.token_hash)).await?
     } else {
@@ -232,16 +240,8 @@ pub async fn disable(
         return Err(AppError::BadRequest("bad_code"));
     }
     limits.refund(&limits::MFA_ACCOUNT, &key);
-    sqlx::query(
-        "UPDATE users SET totp_secret = NULL, totp_pending = NULL, totp_last_step = NULL WHERE id = ?",
-    )
-    .bind(acct.id)
-    .execute(&state.db)
-    .await?;
-    sqlx::query("DELETE FROM recovery_codes WHERE user_id = ?")
-        .bind(acct.id)
-        .execute(&state.db)
-        .await?;
+    remove_2fa(&state, acct.id).await?;
+    notify(&state, acct.id, Notice::TotpOff);
     Ok(Json(json!({ "ok": true })))
 }
 
@@ -265,4 +265,153 @@ pub async fn regenerate(
     Ok(Json(
         json!({ "recovery_codes": new_recovery_codes(&state, acct.id).await? }),
     ))
+}
+
+/// 2FA off: secret, pending set-up, recovery codes and a pending reset go.
+async fn remove_2fa(state: &AppState, user_id: i64) -> AppResult<()> {
+    let mut tx = crate::db::write_tx(&state.db).await?;
+    sqlx::query(
+        "UPDATE users SET totp_secret = NULL, totp_pending = NULL, totp_last_step = NULL, \
+         mfa_reset_at = NULL WHERE id = ?",
+    )
+    .bind(user_id)
+    .execute(&mut *tx)
+    .await?;
+    sqlx::query("DELETE FROM recovery_codes WHERE user_id = ?")
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await?;
+    tx.commit().await?;
+    Ok(())
+}
+
+// ---------- 2FA lost with no recovery code: a delayed reset by e-mail ----------
+
+/// How long after a confirmed request 2FA is removed (unless a signed-in session cancels it).
+pub const MFA_RESET_DELAY: i64 = 24 * 3600;
+
+/// The account behind a live sign-in challenge (the first step, password or provider, is done).
+async fn challenge_account(state: &AppState, challenge: &str) -> AppResult<(Account, String)> {
+    let row = codes::find(state, codes::Kind::Mfa, challenge)
+        .await?
+        .ok_or(AppError::BadRequest("bad_code"))?;
+    codes::alive(&row)?;
+    let user_id = row.user_id.ok_or(AppError::BadRequest("bad_code"))?;
+    let acct = account(state, user_id).await?;
+    // Only a verified address can stand in for the second factor.
+    let email = match (&acct.email, &acct.email_verified_at) {
+        (Some(e), Some(_)) => e.clone(),
+        _ => return Err(AppError::BadRequest("no_email")),
+    };
+    Ok((acct, email))
+}
+
+#[derive(Deserialize)]
+pub struct ResetSendBody {
+    challenge: String,
+}
+
+/// Phone lost and no recovery code, at the second sign-in step: a code to the account's
+/// verified e-mail. `no_email` without one (then only the admin can help).
+pub async fn reset_send(
+    State(state): State<AppState>,
+    ClientIp(ip): ClientIp,
+    Json(body): Json<ResetSendBody>,
+) -> AppResult<Json<Value>> {
+    state.auth.limits.hit_ip(&limits::MFA_IP, ip)?;
+    let (acct, email) = challenge_account(&state, &body.challenge).await?;
+    if !state.auth.mailer.configured() {
+        return Err(AppError::Unavailable("email_not_configured"));
+    }
+    state.auth.limits.hit(&limits::FORGOT_ACCOUNT, &email)?;
+    let code = six_digits();
+    codes::create(
+        &state,
+        codes::Kind::MfaReset,
+        &code,
+        Some(acct.id),
+        Some(&email),
+        codes::MFA_RESET_TTL,
+        None,
+    )
+    .await?;
+    let lang = crate::i18n::of_user(&state.db, acct.id).await?;
+    // The caller passed the first step: no need to hide whether this address gets the mail.
+    if let Err(e) = state
+        .auth
+        .mailer
+        .send(mail::mfa_reset(&email, &code, lang))
+        .await
+    {
+        tracing::warn!(error = %e, "2FA reset email not sent");
+        return Err(AppError::Unavailable("email_failed"));
+    }
+    Ok(Json(
+        json!({ "sent": true, "email": mail::mask_email(&email) }),
+    ))
+}
+
+#[derive(Deserialize)]
+pub struct ResetConfirmBody {
+    challenge: String,
+    code: String,
+}
+
+/// The e-mailed code: 2FA will be removed in `MFA_RESET_DELAY` (a notice says so), unless a
+/// signed-in session cancels it or someone signs in with a second factor meanwhile.
+pub async fn reset_confirm(
+    State(state): State<AppState>,
+    ClientIp(ip): ClientIp,
+    Json(body): Json<ResetConfirmBody>,
+) -> AppResult<Json<Value>> {
+    state.auth.limits.hit_ip(&limits::CODE_IP, ip)?;
+    let (acct, email) = challenge_account(&state, &body.challenge).await?;
+    let row = codes::redeem_short(&state, codes::Kind::MfaReset, &email, &body.code).await?;
+    if row.user_id != Some(acct.id) {
+        return Err(AppError::BadRequest("bad_code"));
+    }
+    if acct.totp_secret.is_none() {
+        return Err(AppError::BadRequest("totp_off"));
+    }
+    let at: i64 = sqlx::query_scalar(
+        "UPDATE users SET mfa_reset_at = COALESCE(mfa_reset_at, ?) WHERE id = ? RETURNING mfa_reset_at",
+    )
+    .bind(now_unix() as i64 + MFA_RESET_DELAY)
+    .bind(acct.id)
+    .fetch_one(&state.db)
+    .await?;
+    notify(&state, acct.id, Notice::MfaResetScheduled);
+    Ok(Json(json!({ "reset_at": at })))
+}
+
+/// From any signed-in session: the pending 2FA reset is called off.
+pub async fn reset_cancel(
+    State(state): State<AppState>,
+    session: Session,
+) -> AppResult<Json<Value>> {
+    sqlx::query("UPDATE users SET mfa_reset_at = NULL WHERE id = ?")
+        .bind(session.user_id)
+        .execute(&state.db)
+        .await?;
+    Ok(Json(json!({ "ok": true })))
+}
+
+/// At sign-in: a reset whose delay is over removes 2FA (this sign-in then needs no code).
+pub(super) async fn finish_due_reset(state: &AppState, user_id: i64) -> AppResult<()> {
+    let due: Option<(Option<String>,)> = sqlx::query_as(
+        "SELECT totp_secret FROM users WHERE id = ? AND mfa_reset_at IS NOT NULL AND mfa_reset_at <= ?",
+    )
+    .bind(user_id)
+    .bind(now_unix() as i64)
+    .fetch_optional(&state.db)
+    .await?;
+    let Some((secret,)) = due else {
+        return Ok(());
+    };
+    remove_2fa(state, user_id).await?;
+    if secret.is_some() {
+        tracing::info!(user_id, "2FA removed by a delayed e-mail reset");
+        notify(state, user_id, Notice::MfaResetDone);
+    }
+    Ok(())
 }
