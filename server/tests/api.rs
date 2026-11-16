@@ -468,11 +468,21 @@ async fn results_can_be_pinned_for_the_group() {
     assert_eq!(pinned.as_array().unwrap().len(), 1);
     assert_eq!(pinned[0]["id"], first);
 
+    // Only whoever pinned it (or the owner) unpins it.
     let (status, _) = call(
         &app,
         "DELETE",
         &format!("/rounds/{first}/pin"),
         Some(&louis),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    let (status, _) = call(
+        &app,
+        "DELETE",
+        &format!("/rounds/{first}/pin"),
+        Some(&tug),
         None,
     )
     .await;
