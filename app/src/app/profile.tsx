@@ -304,13 +304,15 @@ export default function Profile() {
         ))}
       </Dialog>
 
-      <Pressable accessibilityRole="button" onPress={() => router.push('/friends')}>
-        <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16 }}>
-          <Users size={20} color={t.txt} />
-          <Text style={{ flex: 1, fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>{tr('profile.friends')}</Text>
-          <ChevronRight size={20} color={t.mut} />
-        </Card>
-      </Pressable>
+      {!account?.guest && (
+        <Pressable accessibilityRole="button" onPress={() => router.push('/friends')}>
+          <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16 }}>
+            <Users size={20} color={t.txt} />
+            <Text style={{ flex: 1, fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>{tr('profile.friends')}</Text>
+            <ChevronRight size={20} color={t.mut} />
+          </Card>
+        </Pressable>
+      )}
 
       {features.notificationSettings && (
         <Pressable accessibilityRole="button" onPress={() => router.push('/notifications')}>

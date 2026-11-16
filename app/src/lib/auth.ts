@@ -36,6 +36,8 @@ export type Account = {
   recovery_codes_left: number;
   providers: Provider[];
   secured: boolean;
+  /** A party guest: plays in its party only (no friends, rooms, packs…) until secured. Absent from an older server. */
+  guest?: boolean;
 };
 
 export type DeviceSession = { id: string; device: string | null; created_at: string; last_used_at: string | null; current: boolean };
@@ -92,6 +94,8 @@ export function useFeatures() {
     auth: on.has('auth'),
     email: on.has('email'),
     providers: PROVIDERS.filter((p) => on.has(`oauth_${p}`)),
+    /** Friend requests to accept and room invitations (`/invites`) instead of instant adds. */
+    consent: on.has('consent'),
     /** Rooms can pick a tone for their built-in questions (`/vibes`). */
     vibes: on.has('vibes'),
     /** The app in French or English, and each room picks the language of its questions (`language`). */

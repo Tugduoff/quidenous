@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
 import { BackButton } from '@/components/auth-ui';
+import { RoomInvites } from '@/components/invite';
 import { RoomForms } from '@/components/room-forms';
 import { QueryState } from '@/components/query-state';
 import { Screen } from '@/components/screen';
@@ -40,6 +41,7 @@ export default function RoomsScreen() {
       <BackButton onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))} />
       {!creating && <Display size={30}>{tr('room.list.title')}</Display>}
 
+      {!creating && <RoomInvites onJoined={(id) => switchRoom(id)} />}
       {!creating && <QueryState query={roomsQuery} />}
       {!creating && rooms?.map((r) => {
         const on = r.id === current;

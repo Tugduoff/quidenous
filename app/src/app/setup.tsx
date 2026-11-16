@@ -2,6 +2,7 @@ import { LogOut } from 'lucide-react-native';
 import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
+import { RoomInvites } from '@/components/invite';
 import { RoomForms } from '@/components/room-forms';
 import { Screen } from '@/components/screen';
 import { Display, Logo } from '@/components/ui';
@@ -23,6 +24,7 @@ export default function Setup() {
         <Logo />
         {!creating && <Display size={32}>{tr('auth.setup.title')}</Display>}
       </View>
+      {!creating && <RoomInvites onJoined={enterRoom} />}
       <RoomForms joinFirst={!!code} initialCode={code} onEntered={enterRoom} onVibeStep={setCreating} />
       <View style={{ flex: 1 }} />
       <Pressable

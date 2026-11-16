@@ -41,10 +41,25 @@ export const room = {
     newCodeAsk: 'Nouveau code ?',
     newCodeMessage: "L'ancien code et les liens déjà envoyés ne marcheront plus.",
     change: 'Changer',
-    addFriends: 'Ajouter des amis',
+    addFriends: 'Inviter des amis',
     myFriends: 'Mes amis',
     noFriends: "Pas encore d'amis",
-    addToRoom: 'Ajouter {name} au salon',
+    /** Under "Inviter des amis": my friends not in the room yet. */
+    outside: { one: '{count} ami pas encore là', other: '{count} amis pas encore là' },
+    search: 'Rechercher',
+    noMatch: 'Personne avec ce nom',
+    invite: 'Inviter',
+    invited: 'Invité',
+    addToRoom: 'Inviter {name} dans le salon',
+    cancelA11y: "Annuler l'invitation de {name}",
+  },
+  /** Invitations into someone else's room (rooms screen). */
+  invites: {
+    title: 'Invitations',
+    from: '{name} t\'invite',
+    accept: 'Rejoindre',
+    acceptA11y: 'Rejoindre {room}',
+    declineA11y: "Refuser l'invitation dans {room}",
   },
   list: {
     title: 'Mes salons',

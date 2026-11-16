@@ -12,6 +12,8 @@ export const inbox: Messages['inbox'] = {
     question: 'New question',
     added: 'Added to a room',
     ask: 'Questions',
+    friendRequest: 'Friend request',
+    invite: 'Room invite',
     other: 'Notification',
   },
 };
