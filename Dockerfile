@@ -1,7 +1,7 @@
 # Web app (Expo export) + Rust server in one image. Build from the repo root.
 # Base images are pinned to a release (Dependabot proposes bumps); add @sha256 digests for byte-identical rebuilds.
 # The Rust version matches the CI toolchain (.github/workflows/server.yml): bump both together.
-FROM node:24.22-slim AS web
+FROM node:26.13-slim AS web
 WORKDIR /app
 COPY app/package.json app/package-lock.json ./
 RUN npm ci --no-audit --no-fund
