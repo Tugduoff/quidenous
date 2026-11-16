@@ -5,6 +5,8 @@
 //! first names, colours and drawn avatars of the people in it.
 //! Cards and pages speak the sharer's language at share time (`shares.lang`, `stat_shares.lang`).
 //! `/p/{id}` (and `/p/{id}/card.png`) is the same kind of page for a public community pack, in its language.
+//! Links expire after 90 days (older ones never do), their sharer or the room's owner can
+//! revoke them (`DELETE /api/shares/{token}`), and no page is meant for search engines (`noindex`).
 
 use std::{
     collections::HashMap,
@@ -32,6 +34,19 @@ use crate::{
 
 const W: u32 = 1200;
 const H: u32 = 630;
+/// SQL: a link (alias `s`) that hasn't expired.
+macro_rules! live_sql {
+    () => {
+        "(s.expires_at IS NULL OR s.expires_at > strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+    };
+}
+pub(crate) use live_sql;
+/// SQL: the expiry of a link made now (90 days).
+macro_rules! expires_sql {
+    () => {
+        "strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '+90 days')"
+    };
+}
 
 #[derive(Deserialize)]
 pub struct ShareBody {
@@ -50,9 +65,10 @@ pub async fn create(
     // A result can only be shown once the question is closed.
     let with_result = body.result && round.closed_at.is_some();
     let lang = i18n::of_member(&state.db, me.id).await?;
-    let existing: Option<String> = sqlx::query_scalar(
-        "SELECT token FROM shares WHERE round_id = ? AND member_id = ? AND with_result = ? AND lang = ?",
-    )
+    let existing: Option<String> = sqlx::query_scalar(concat!(
+        "SELECT token FROM shares s WHERE round_id = ? AND member_id = ? AND with_result = ? AND lang = ? AND ",
+        live_sql!()
+    ))
     .bind(round_id)
     .bind(me.id)
     .bind(with_result)
@@ -63,9 +79,12 @@ pub async fn create(
         Some(t) => t,
         None => {
             let t = crate::auth::new_token()[..12].to_owned();
-            sqlx::query(
-                "INSERT INTO shares (token, round_id, member_id, with_result, lang) VALUES (?, ?, ?, ?, ?)",
-            )
+            sqlx::query(concat!(
+                "INSERT INTO shares (token, round_id, member_id, with_result, lang, expires_at) \
+                 VALUES (?, ?, ?, ?, ?, ",
+                expires_sql!(),
+                ")"
+            ))
             .bind(&t)
             .bind(round_id)
             .bind(me.id)
@@ -124,11 +143,35 @@ pub async fn create_stat(
         };
         people.push((first, color, avatar));
     }
+    let people = json!(people).to_string();
+    // Sharing the same story again gives the same link (not one more public row per tap).
+    let existing: Option<String> = sqlx::query_scalar(concat!(
+        "SELECT token FROM stat_shares s WHERE group_id = ? AND member_id = ? AND key = ? AND big = ? \
+         AND line = ? AND people = ? AND lang = ? AND ",
+        live_sql!(),
+        " ORDER BY created_at DESC LIMIT 1"
+    ))
+    .bind(me.group_id)
+    .bind(me.id)
+    .bind(&story.key)
+    .bind(&story.big)
+    .bind(&story.line)
+    .bind(&people)
+    .bind(lang.as_str())
+    .fetch_optional(&state.db)
+    .await?;
+    if let Some(token) = existing {
+        return Ok(Json(
+            json!({ "token": token, "path": format!("/s/{token}") }),
+        ));
+    }
     let token = crate::auth::new_token()[..12].to_owned();
-    sqlx::query(
-        "INSERT INTO stat_shares (token, group_id, member_id, key, title, big, line, people, lang) \
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    )
+    sqlx::query(concat!(
+        "INSERT INTO stat_shares (token, group_id, member_id, key, title, big, line, people, lang, member_ids, expires_at) \
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ",
+        expires_sql!(),
+        ")"
+    ))
     .bind(&token)
     .bind(me.group_id)
     .bind(me.id)
@@ -136,13 +179,89 @@ pub async fn create_stat(
     .bind(story.title)
     .bind(&story.big)
     .bind(&story.line)
-    .bind(json!(people).to_string())
+    .bind(&people)
     .bind(lang.as_str())
+    .bind(json!(story.member_ids).to_string())
     .execute(&state.db)
     .await?;
     Ok(Json(
         json!({ "token": token, "path": format!("/s/{token}") }),
     ))
+}
+
+/// `GET /shares`: my public links that still work (every room, newest first), for "My links".
+pub async fn mine(
+    State(state): State<AppState>,
+    crate::auth::UserId(me): crate::auth::UserId,
+) -> AppResult<Json<Value>> {
+    #[allow(clippy::type_complexity)]
+    let rows: Vec<(String, String, String, String, bool, String, Option<String>)> =
+        sqlx::query_as(concat!(
+            "SELECT * FROM (\
+               SELECT s.token, 'question' AS kind, q.text AS title, g.name AS room, s.with_result, \
+                      s.created_at, s.expires_at \
+               FROM shares s JOIN members m ON m.id = s.member_id JOIN rounds r ON r.id = s.round_id \
+               JOIN questions q ON q.id = r.question_id JOIN groups g ON g.id = r.group_id AND g.deleted_at IS NULL \
+               WHERE m.user_id = ?1 AND ",
+            live_sql!(),
+            " UNION ALL \
+               SELECT s.token, 'stat', s.title || ' · ' || s.big, g.name, 1, s.created_at, s.expires_at \
+               FROM stat_shares s JOIN members m ON m.id = s.member_id \
+               JOIN groups g ON g.id = s.group_id AND g.deleted_at IS NULL \
+               WHERE m.user_id = ?1 AND ",
+            live_sql!(),
+            ") ORDER BY created_at DESC LIMIT 100"
+        ))
+        .bind(me)
+        .fetch_all(&state.db)
+        .await?;
+    let out: Vec<Value> = rows
+        .into_iter()
+        .map(
+            |(token, kind, title, room, with_result, created_at, expires_at)| {
+                json!({
+                    "token": token, "path": format!("/s/{token}"), "kind": kind, "title": title,
+                    "room": room, "with_result": with_result, "created_at": created_at,
+                    "expires_at": expires_at,
+                })
+            },
+        )
+        .collect();
+    Ok(Json(json!(out)))
+}
+
+/// `DELETE /shares/{token}`: revoke a public link (its page, card and "play" stop working). By
+/// whoever made it, or the owner of its room. `404` for anyone else.
+pub async fn revoke(
+    State(state): State<AppState>,
+    crate::auth::UserId(me): crate::auth::UserId,
+    Path(token): Path<String>,
+) -> AppResult<Json<Value>> {
+    // Mine, or in a room I own.
+    macro_rules! revoke_sql {
+        ($table:literal) => {
+            concat!(
+                "DELETE FROM ", $table, " WHERE token = ?1 AND member_id IN (SELECT m.id FROM members m \
+                 WHERE m.user_id = ?2 OR EXISTS (SELECT 1 FROM members o WHERE o.group_id = m.group_id \
+                 AND o.user_id = ?2 AND o.role = 'owner' AND o.removed_at IS NULL))"
+            )
+        };
+    }
+    let mut tx = crate::db::write_tx(&state.db).await?;
+    let mut gone = 0;
+    for sql in [revoke_sql!("shares"), revoke_sql!("stat_shares")] {
+        gone += sqlx::query(sql)
+            .bind(&token)
+            .bind(me)
+            .execute(&mut *tx)
+            .await?
+            .rows_affected();
+    }
+    tx.commit().await?;
+    if gone == 0 {
+        return Err(AppError::NotFound);
+    }
+    Ok(Json(json!({ "ok": true })))
 }
 
 enum Card {
@@ -186,10 +305,11 @@ struct QuestionCard {
 }
 
 async fn load(state: &AppState, token: &str) -> AppResult<Card> {
-    let question: Option<(i64, i64, bool, String)> = sqlx::query_as(
+    let question: Option<(i64, i64, bool, String)> = sqlx::query_as(concat!(
         "SELECT s.round_id, r.group_id, s.with_result, s.lang FROM shares s JOIN rounds r ON r.id = s.round_id \
-         JOIN groups g ON g.id = r.group_id AND g.deleted_at IS NULL WHERE s.token = ?",
-    )
+         JOIN groups g ON g.id = r.group_id AND g.deleted_at IS NULL WHERE s.token = ? AND ",
+        live_sql!()
+    ))
     .bind(token)
     .fetch_optional(&state.db)
     .await?;
@@ -212,8 +332,14 @@ async fn load(state: &AppState, token: &str) -> AppResult<Card> {
             .fetch_one(&db)
             .await
             .unwrap_or_else(|_| ("?".into(), "#8D8D99".into(), None, Some(0)));
+            // First names only, as on stat cards.
+            let name = if i18n::is_deleted(&row.0, row.3) {
+                i18n::deleted_name(lang).to_owned()
+            } else {
+                row.0.split_whitespace().next().unwrap_or("?").to_owned()
+            };
             Person {
-                name: i18n::member_name(lang, &row.0, row.3),
+                name,
                 color: row.1,
                 avatar: row.2,
             }
@@ -253,10 +379,11 @@ async fn load(state: &AppState, token: &str) -> AppResult<Card> {
 
 async fn load_stat(state: &AppState, token: &str) -> AppResult<StatCard> {
     let (room, title, big, line, people, lang): (String, String, String, String, String, String) =
-        sqlx::query_as(
+        sqlx::query_as(concat!(
             "SELECT g.name, s.title, s.big, s.line, s.people, s.lang FROM stat_shares s \
-             JOIN groups g ON g.id = s.group_id AND g.deleted_at IS NULL WHERE s.token = ?",
-        )
+             JOIN groups g ON g.id = s.group_id AND g.deleted_at IS NULL WHERE s.token = ? AND ",
+            live_sql!()
+        ))
         .bind(token)
         .fetch_optional(&state.db)
         .await?
@@ -611,7 +738,7 @@ pub async fn page(
         return (
             StatusCode::NOT_FOUND,
             Html(format!(
-                "<!doctype html><html lang=\"fr\"><head><meta charset=\"utf-8\"></head><body><h1>{}</h1><p lang=\"en\">{}</p></body></html>",
+                "<!doctype html><html lang=\"fr\"><head><meta charset=\"utf-8\"><meta name=\"robots\" content=\"noindex\"></head><body><h1>{}</h1><p lang=\"en\">{}</p></body></html>",
                 i18n::share_expired(Lang::Fr),
                 i18n::share_expired(Lang::En)
             )),
@@ -643,6 +770,7 @@ pub async fn page(
     let html = format!(
         r##"<!doctype html><html lang="{lang}"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
 <title>{q} · qui de nous ?</title>
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="qui de nous ?">
@@ -704,7 +832,8 @@ async fn load_pack(state: &AppState, id: i64) -> AppResult<PackCard> {
         sqlx::query_as(
             "SELECT p.name, p.description, u.name, p.language, \
                     (SELECT COUNT(*) FROM pack_questions x WHERE x.pack_id = p.id) \
-             FROM packs p JOIN users u ON u.id = p.author_id WHERE p.id = ? AND p.status = 'public'",
+             FROM packs p JOIN users u ON u.id = p.author_id \
+             WHERE p.id = ? AND p.status = 'public' AND p.spicy = 0",
         )
         .bind(id)
         .fetch_optional(&state.db)
@@ -799,7 +928,7 @@ pub async fn pack_page(
         return (
             StatusCode::NOT_FOUND,
             Html(format!(
-                "<!doctype html><html lang=\"fr\"><head><meta charset=\"utf-8\"></head><body><h1>{}</h1><p lang=\"en\">{}</p></body></html>",
+                "<!doctype html><html lang=\"fr\"><head><meta charset=\"utf-8\"><meta name=\"robots\" content=\"noindex\"></head><body><h1>{}</h1><p lang=\"en\">{}</p></body></html>",
                 i18n::pack_missing(Lang::Fr),
                 i18n::pack_missing(Lang::En)
             )),
@@ -817,6 +946,7 @@ pub async fn pack_page(
     let html = format!(
         r##"<!doctype html><html lang="{lang}"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
 <title>{name} · qui de nous ?</title>
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="qui de nous ?">

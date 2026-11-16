@@ -85,6 +85,11 @@ pub fn router() -> Router<AppState> {
         .route("/history/export", get(export_history))
         .route("/stats", get(stats))
         .route("/stats/share", post(crate::share::create_stat))
+        .route("/shares", get(crate::share::mine))
+        .route(
+            "/shares/{token}",
+            axum::routing::delete(crate::share::revoke),
+        )
         .route("/questions", post(add_question))
         .route("/questions/queue", get(queue))
         .route("/questions/shuffle", post(shuffle_questions))
@@ -232,6 +237,9 @@ async fn features(State(state): State<AppState>) -> Json<Value> {
         "moderation",
         "pack_choose",
         "pack_template",
+        // Privacy: share links can be listed and revoked (`/shares`); `/auth/terms` records acceptance.
+        "share_links",
+        "terms",
     ];
     f.extend(crate::accounts::features(&state));
     Json(json!(f))

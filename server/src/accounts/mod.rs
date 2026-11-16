@@ -106,6 +106,7 @@ pub fn router() -> Router<AppState> {
         .route("/sessions/{id}", delete(sessions::revoke))
         .route("/logout", post(sessions::logout))
         .route("/reauth", post(reauth::reauth))
+        .route("/terms", post(password::accept_terms))
         .route("/ticket", post(tickets::create))
         .route("/delete/send", post(delete::send))
         .route("/delete/confirm", post(delete::confirm))

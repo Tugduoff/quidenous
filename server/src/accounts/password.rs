@@ -295,6 +295,10 @@ pub async fn account_info(state: &AppState, user_id: i64) -> AppResult<Value> {
             .fetch_one(&state.db)
             .await?;
     let secured = (a.email.is_some() && a.password_hash.is_some()) || !providers.is_empty();
+    let terms: Option<i64> = sqlx::query_scalar("SELECT terms_version FROM users WHERE id = ?")
+        .bind(user_id)
+        .fetch_one(&state.db)
+        .await?;
     Ok(json!({
         "user_id": a.id,
         "name": a.name,
@@ -309,7 +313,28 @@ pub async fn account_info(state: &AppState, user_id: i64) -> AppResult<Value> {
         "secured": secured,
         // A party guest: plays in its party only (no rooms, friends, packs…) until secured.
         "guest": crate::auth::is_guest(&state.db, user_id).await?,
+        // Accepted the current terms (and said they are 16 or over): else the app asks once.
+        "terms": terms.is_some_and(|v| v >= TERMS_VERSION),
     }))
+}
+
+/// The current version of the terms (`/terms`, `/privacy`). Bump it when they change: every
+/// account is asked to accept them again (the app shows a short sheet).
+pub const TERMS_VERSION: i64 = 1;
+
+/// `POST /auth/terms`: I accept the current terms and say I am 16 or over.
+pub async fn accept_terms(
+    State(state): State<AppState>,
+    session: Session,
+) -> AppResult<Json<Value>> {
+    sqlx::query(
+        "UPDATE users SET terms_version = ?, terms_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
+    )
+    .bind(TERMS_VERSION)
+    .bind(session.user_id)
+    .execute(&state.db)
+    .await?;
+    Ok(Json(json!({ "ok": true, "version": TERMS_VERSION })))
 }
 
 pub async fn account(State(state): State<AppState>, session: Session) -> AppResult<Json<Value>> {
