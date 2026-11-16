@@ -1,0 +1,35 @@
+# titre: La soirée chez moi
+# description: Qui reçoit en chef, qui pille le frigo, qui reste jusqu'à 5 h : l'appart se souvient.
+# catégorie: soiree, potes
+# langue: fr
+# 16+: non
+Qui annonce « petite soirée tranquille » et finit avec 40 personnes ?
+Qui arrive à l'heure pile alors que l'hôte est encore sous la douche ?
+Qui vient les mains vides mais repart avec les restes ?
+Qui s'empare de l'enceinte et ne lâche plus la playlist ?
+Qui ouvre le frigo de l'hôte comme si c'était le sien ?
+Qui fait la vaisselle pendant que la fête bat son plein ?
+Qui ne remarque pas que tout le monde est rentré ?
+Qui s'endort sur le canapé de l'hôte sans rien demander ?
+Qui ramène des gens que l'hôte n'a jamais vus ?
+Qui casse un verre et le cache derrière une plante ?
+Qui se fait sa propre visite de l'appart en commentant la déco ?
+Qui baisse la musique toutes les dix minutes par peur des voisins ?
+Qui dit « je reste une heure » et part au lever du soleil ?
+Qui a déjà gâché une fête surprise en vendant la mèche ?
+Qui devinerait sa propre fête surprise trois semaines à l'avance ?
+Qui ferait semblant d'être surpris de façon très peu crédible ?
+Qui cuisine pour 30 alors qu'on est 8 ?
+Qui apporte un paquet de chips et considère qu'il a cuisiné ?
+Qui disparaît deux heures sur le balcon pour une grande discussion ?
+Qui lance un débat enflammé à 3 h du matin ?
+Qui oublie un truc chez l'hôte à chaque soirée ?
+Qui envoie « merci pour hier ! » à 9 h pile le lendemain ?
+[classement] Classe-nous de l'hôte le plus attentionné à celui qui reçoit en pyjama.
+[classement] Du plus serviable au plus « je suis invité, je ne touche à rien ».
+[classement] Classe-nous selon l'état de notre appart après une fête, du nickel au champ de bataille.
+[classement] Classe-nous du plus ponctuel au « j'arrive » envoyé à minuit.
+[classement] Du plus doué au plus nul pour mettre l'ambiance.
+[choix] Tu préfères quoi ? | Recevoir | Être invité | Rester chez moi
+[choix] Tu apportes quoi en soirée ? | Un plat maison | Des chips | Une bouteille | Juste moi
+[choix] Ton anniversaire idéal ? | Grosse fête | Dîner à six | Une surprise | Que personne n'en parle

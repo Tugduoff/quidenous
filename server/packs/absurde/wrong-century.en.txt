@@ -1,0 +1,20 @@
+# title: Lost in the Wrong Century
+# description: Burned as a witch for owning a lighter? The group goes time-travelling.
+# category: absurde, culture
+# lang: en
+# 16+: no
+Who would be burned as a witch for pulling out a lighter?
+Who would try to explain the internet to a knight and give up after two minutes?
+Who would crown themselves king of the Middle Ages just by switching on their phone torch?
+Who would ask for the Wi-Fi password on arrival at a medieval castle?
+Who would become the king's jester in under a week?
+Who would invent pizza in ancient Egypt and end up worshipped as a god?
+Who would wreck the whole of history by stepping on the wrong butterfly?
+Who would travel back in time just to check they'd switched the oven off?
+Who would get kicked out of a prehistoric cave for critiquing the wall paintings?
+Who would sell life-coaching sessions to the Romans?
+[classement] Rank us from most at home in the Middle Ages to first thrown in the dungeon.
+[classement] Rank us from most likely to be hailed a prophet to most likely to be called a lunatic.
+[classement] Rank us from best to worst 21st-century ambassador to the Vikings.
+[choix] Your medieval job? | Blacksmith | Witch | Innkeeper | Monk
+[choix] What do you take back in time? | A lighter | Soap | A speaker | Loo roll

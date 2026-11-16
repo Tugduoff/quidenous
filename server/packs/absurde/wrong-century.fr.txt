@@ -1,0 +1,20 @@
+# titre: Perdus dans le mauvais siècle
+# description: Brûlé pour sorcellerie à cause d'un briquet ? Le groupe voyage dans le temps.
+# catégorie: absurde, culture
+# langue: fr
+# 16+: non
+Qui serait brûlé comme sorcier pour avoir sorti un briquet ?
+Qui essaierait d'expliquer internet à un chevalier et abandonnerait au bout de deux minutes ?
+Qui se proclamerait roi au Moyen Âge juste en allumant la lampe de son téléphone ?
+Qui demanderait le code Wi-Fi en arrivant dans un château fort ?
+Qui deviendrait le bouffon du roi en moins d'une semaine ?
+Qui inventerait la pizza en Égypte antique et finirait vénéré comme un dieu ?
+Qui détraquerait toute l'histoire en écrasant le mauvais papillon ?
+Qui remonterait le temps juste pour vérifier qu'il a bien éteint le four ?
+Qui se ferait chasser d'une grotte préhistorique pour avoir critiqué les peintures ?
+Qui vendrait des séances de coaching de vie aux Romains ?
+[classement] Classe-nous du plus à l'aise au Moyen Âge au premier jeté au cachot.
+[classement] Classe-nous du plus probable d'être pris pour un prophète au plus probable d'être pris pour un fou.
+[classement] Classe-nous du meilleur au pire ambassadeur du XXIe siècle chez les Vikings.
+[choix] Ton métier au Moyen Âge ? | Forgeron | Sorcière | Tavernier | Moine copiste
+[choix] Tu emportes quoi dans le passé ? | Un briquet | Du savon | Une enceinte | Du PQ

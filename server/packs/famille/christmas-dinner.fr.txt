@@ -1,0 +1,36 @@
+# titre: Le repas de Noël
+# description: Dinde, débats et cadeaux ratés : qui fait quoi au réveillon ?
+# catégorie: famille, soiree
+# langue: fr
+# 16+: non
+Qui emballe ses cadeaux dans la voiture, sur le trajet du réveillon ?
+Qui achète un cadeau de dernière minute à la station-service ?
+Qui fait semblant d'adorer un pull qu'il ne portera jamais ?
+Qui lance le débat qui fait déraper tout le repas ?
+Qui se ressert trois fois puis jure qu'il n'a « presque rien mangé » ?
+Qui serait encore à table à 2 h du matin à refaire le monde ?
+Qui a cru au Père Noël bien trop longtemps ?
+Qui garde les papiers cadeaux pour les réutiliser l'an prochain ?
+Qui propose de faire la vaisselle… quand tout est déjà rangé ?
+Qui disparaît pile au moment de débarrasser la table ?
+Qui ferait le meilleur Père Noël pour les petits ?
+Qui accuse tout le monde de triche s'il n'a jamais la fève ?
+Qui envoie sa liste de Noël avec les liens et les tailles ?
+Qui connaît par cœur les répliques du film de Noël qui passe chaque année ?
+Qui oublie la bûche au congélateur jusqu'à minuit ?
+Qui a déjà fait brûler le plat principal du réveillon ?
+Qui devine chaque cadeau à voix haute avant de le déballer ?
+Qui serait capable de sécher Noël pour partir au ski ?
+Qui garde la décoration de Noël jusqu'en février ?
+Qui mettrait 400 guirlandes lumineuses sur la façade ?
+Qui ferait pleurer toute la table avec un toast trop sincère ?
+[classement] Classe-nous du plus fan de Noël au plus Grinch.
+[classement] Classe-nous du roi du paquet cadeau au massacreur de scotch.
+[classement] Classe-nous de celui qui offre les meilleurs cadeaux au moins inspiré.
+[classement] Du plus fort sur les chants de Noël au plus discret : classe-nous.
+[classement] Classe-nous du plus impatient d'ouvrir les cadeaux au plus patient.
+[classement] Classe-nous de celui qui décore le sapin avec soin à celui qui jette les boules au hasard.
+[choix] Ton moment préféré du repas de Noël ? | L'apéro | Le plat | Le fromage | La bûche
+[choix] Le cadeau idéal pour toi ? | Un livre | Des chaussettes | Une expérience | De l'argent
+[choix] Tu ouvres tes cadeaux quand ? | Le 24 au soir | Le 25 au matin | Dès qu'on me laisse
+[choix] Ton rôle au réveillon ? | Aux fourneaux | À la vaisselle | Animateur | Sur le canapé

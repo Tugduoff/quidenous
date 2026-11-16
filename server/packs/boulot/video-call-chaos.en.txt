@@ -1,0 +1,35 @@
+# title: You're on mute
+# description: Frozen faces, cats on keyboards, "can you see my screen?": video calls on trial.
+# category: boulot
+# lang: en
+# 16+: no
+Who asks "can everyone see my screen?" when we've all been looking at it for five minutes?
+Who has presented an entire slide on mute while nobody dared to tell them?
+Who has left their camera on while thinking it was off?
+Who wears a smart shirt on top and pyjama bottoms on video calls?
+Who hides behind a tropical beach background in the middle of November?
+Who has a pet that gatecrashes every single video call?
+Who would share the wrong tab in front of the whole team?
+Who says "I think you've frozen" when it's actually their own connection dying?
+Who turns their camera off to sneakily eat a sandwich mid-meeting?
+Who says "sorry, I've got another call" just to escape?
+Who nods along on camera while doing something else entirely?
+Who joins calls from the car, the train or the queue at the bakery?
+Who opens every meeting with "let's give it two more minutes for people to join"?
+Who asks a question right as the meeting was about to wrap up?
+Who has waited alone for ten minutes on the wrong meeting link?
+Who arranges their best bookshelf behind them on calls, purely to show off?
+Who forgets they're sharing their screen and shows everyone their shopping list?
+Who starts talking at the same time as someone, apologises, then does it again?
+Who would accidentally switch on a kitten filter in a client meeting?
+Who says "you're on mute" at least three times per meeting?
+[classement] Rank us from best video-call lighting to most "security camera footage".
+[classement] Rank us from always on time for calls to "brb, my laptop is restarting".
+[classement] Rank us from most expressive on camera to most waxwork.
+[classement] Rank us from quickest at sharing their screen to most lost in the menus.
+[classement] Rank us from "camera always on" to "just my initials in a circle".
+[classement] Rank us from most active in the call chat to most silent.
+[choix] Your ideal call background? | Blurred | Real bookshelf | Virtual beach | My actual kitchen
+[choix] This meeting could've been an email. You…? | Suffer in silence | Say so | Do something else
+[choix] Someone says "you're on mute". You…? | Repeat everything | Summarise | "Anyway, that's it"
+[choix] Your favourite spot for calls? | Spotless desk | Sofa | Bed | Walking around

@@ -1,0 +1,35 @@
+# titre: La vie en open space
+# description: Le frigo, la clim, la machine à café et le lundi matin : chroniques du bureau.
+# catégorie: boulot
+# langue: fr
+# 16+: non
+Qui a déjà mangé le yaourt de quelqu'un d'autre dans le frigo « par erreur » ?
+Qui oublie un Tupperware dans le frigo du bureau jusqu'à ce qu'il développe sa propre civilisation ?
+Qui mène une guerre silencieuse pour le thermostat ?
+Qui met son casque sans musique juste pour qu'on ne le dérange pas ?
+Qui est le seul à savoir débloquer l'imprimante quand elle fait des siennes ?
+Qui a un mug sacré auquel personne d'autre n'a le droit de toucher ?
+Qui ne lave sa tasse que quand il n'en reste plus aucune propre ?
+Qui squatte la seule cabine téléphonique de l'étage pendant des heures ?
+Qui ramène des croissants le vendredi sans qu'on lui ait rien demandé ?
+Qui traverse tout l'étage pour poser une question plutôt que d'envoyer un message ?
+Qui est déjà venu au bureau un jour férié sans s'en rendre compte ?
+Qui travaille en chaussettes dans l'open space ?
+Qui collectionne tous les goodies de la boîte (stylos, gourdes, tote bags) ?
+Qui fait une pause café qui dure plus longtemps que la réunion d'avant ?
+Qui ne remettrait plus jamais les pieds au bureau si on lui laissait le choix ?
+Qui a « sa » place en flex office et le vit très mal quand quelqu'un la prend ?
+Qui oserait réchauffer du poisson au micro-ondes du bureau ?
+Qui prend l'ascenseur pour monter un seul étage ?
+Qui arrive le lundi matin avec l'histoire de week-end la plus improbable ?
+Qui annonce « c'est presque fini » trois jours avant la deadline, sans avoir commencé ?
+[classement] Classe-nous du plus frileux au bureau au plus « fenêtre ouverte en janvier ».
+[classement] Du plus fan de télétravail au plus accro à l'open space.
+[classement] Classe-nous du bureau le plus décoré au plus impersonnel.
+[classement] Classe-nous du plus discret au téléphone au plus « tout l'étage suit l'affaire ».
+[classement] De la pause café la plus courte à la plus interminable.
+[classement] Classe-nous du plus « bonjour à tout l'étage » au plus « je file à mon poste en rasant les murs ».
+[choix] Ton spot de télétravail ? | Bureau | Table de la cuisine | Canapé | Café du coin
+[choix] Ton déj' au boulot ? | Cantine | Gamelle maison | Sandwich | Resto avec l'équipe
+[choix] La clim au bureau ? | À fond | Éteinte | Je ramène un plaid
+[choix] Ta place rêvée en open space ? | Près de la fenêtre | Dans un coin | Près du café | Loin des réunions

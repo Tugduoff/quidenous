@@ -1,0 +1,19 @@
+# title: Movie Night
+# description: Popcorn, subtitles and guessed endings: who ruins the screening?
+# category: culture, potes
+# lang: en
+# 16+: no
+Who guesses the ending ten minutes in and announces it out loud?
+Who spends 45 minutes picking a film only to rewatch the usual one?
+Who finishes their popcorn before the trailers are over?
+Who stays until the very end of the credits in case there's a hidden scene?
+Who refuses to watch anything dubbed and reminds us every single time?
+Who checks their phone mid-film with the brightness on max?
+Who has never seen the great classics and is totally fine with it?
+Who asks "wait, who's he?" every five minutes?
+Who refuses to watch horror films but reads the full plot the next day?
+Who sneaks an actual three-course meal into the cinema?
+[classement] Rank us from true film buff to "what was that film called again?".
+[classement] Rank us from biggest scaredy-cat at horror films to most unbothered.
+[classement] Rank us from who we'd trust most to pick the film to who we'd trust least.
+[choix] Your seat at the cinema? | Front row | Dead centre | Right at the back | Near the exit

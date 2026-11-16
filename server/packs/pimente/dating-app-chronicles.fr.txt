@@ -1,0 +1,33 @@
+# titre: Chroniques des applis
+# description: Swipes au lit, bios mensongères et premiers verres : le grand déballage.
+# catégorie: pimente, potes
+# langue: fr
+# 16+: oui
+Qui a une photo de profil qui date d'au moins cinq ans ?
+Qui swipe à droite sur tout le monde en regardant une série ?
+Qui a déjà reconnu un collègue sur une appli et fait comme si de rien n'était ?
+Qui écrit une bio de trois paragraphes que personne ne lit ?
+Qui a déjà donné rendez-vous à deux dates dans le même bar la même semaine ?
+Qui demande « tu fais quoi dans la vie ? » dès le premier message ?
+Qui a déjà fait débarquer un pote « par hasard » en plein premier rendez-vous ?
+Qui se met sur son trente-et-un pour un simple café ?
+Qui a déjà matché avec l'ex de quelqu'un du groupe ?
+Qui envoie un vocal de deux minutes à quelqu'un qu'il n'a jamais vu ?
+Qui prépare une liste de sujets de conversation avant un date ?
+Qui a déjà demandé l'addition au bout de vingt minutes ?
+Qui finit toujours par parler de son ex au premier rendez-vous ?
+Qui supprime l'appli le lundi et la réinstalle le vendredi soir ?
+Qui a déjà eu un premier rendez-vous qui s'est terminé au petit-déj ?
+Qui ferait relire ses messages de drague par le groupe avant de les envoyer ?
+Qui a déjà enquêté à fond sur son match avant le premier verre ?
+Qui pose sur son profil avec un chien qui n'est pas le sien ?
+Qui propose déjà un deuxième rendez-vous avant le dessert ?
+[classement] Classe-nous du plus difficile sur les applis au moins exigeant.
+[classement] Classe-nous de la meilleure bio de profil à la plus gênante.
+[classement] Classe-nous de celui qui a le plus de dates au compteur à celui qui en a le moins.
+[classement] Classe-nous du roi du premier message au plus nul pour lancer la conversation.
+[classement] Classe-nous de celui qui embrasse dès le premier soir à celui qui attend le troisième date.
+[classement] Du plus romantique au plus cash en premier rendez-vous, classe-nous.
+[choix] Ton premier rendez-vous idéal ? | Verre en terrasse | Resto chic | Balade | Canapé et film
+[choix] Ton premier message sur une appli ? | « Salut, ça va ? » | Une blague | Un GIF | J'attends qu'on m'écrive
+[choix] Le date tourne mal, tu fais quoi ? | Je reste poli | Faux appel urgent | Je m'éclipse | Je commande un dessert

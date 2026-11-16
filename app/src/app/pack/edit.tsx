@@ -1,18 +1,32 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
-import { FileUp, Flame, Plus, Trophy, X } from 'lucide-react-native';
+import { Cable, FileUp, Flame, Plus, Star, Trash2, Trophy, X } from 'lucide-react-native';
 import { type ComponentRef, useRef, useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 
 import { Chip, PageHeader } from '@/components/pack-card';
 import { Screen } from '@/components/screen';
-import { Button, Card, Display, PressableScale, Segmented, Toggle } from '@/components/ui';
+import { TemplateLink } from '@/components/template-link';
+import { askConfirm, Button, Card, Display, PressableScale, Segmented, Toggle } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
-import { pickQuestionFile } from '@/lib/import-draft';
+import { useFeatures } from '@/lib/auth';
+import { itemsOk, parseQuestions, pickTextFile, splitTag } from '@/lib/import-draft';
 import { getLang, type Lang, useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
-import { isPackTag, MAX_TAGS, PACK_TAGS, packError, packKeys, type PackQuestion, type PackTag, TAG_ICONS, usePackDetail } from '@/lib/packs';
+import { parsePackHeader } from '@/lib/pack-file';
+import {
+  isPackTag,
+  MAX_TAGS,
+  PACK_TAGS,
+  packError,
+  packKeys,
+  type PackQuestion,
+  type PackTag,
+  TAG_ICONS,
+  useCommunityMe,
+  usePackDetail,
+} from '@/lib/packs';
 import { useGroup, useQueue } from '@/lib/queries';
 import { tidy } from '@/lib/text';
 import { useTheme } from '@/lib/theme';
@@ -34,12 +48,17 @@ export default function PackEditScreen() {
   const { data: pack } = usePackDetail(id ?? 0);
   const { data: queue } = useQueue();
   const { data: group } = useGroup();
+  const { data: me } = useCommunityMe();
+  // An older server: packs without choose questions, no AI template.
+  const { loaded, packChoose, packTemplate } = useFeatures();
 
   const [name, setName] = useState('');
   const [desc, setDesc] = useState('');
   const [tags, setTags] = useState<PackTag[]>([]);
   const [spicyPick, setSpicy] = useState(false);
   const [lang, setLang] = useState<Lang | null>(null);
+  // Admins can publish straight into the Coflop pick.
+  const [featured, setFeatured] = useState(false);
   const [questions, setQuestions] = useState<PackQuestion[]>([]);
   const [draft, setDraft] = useState('');
   const [note, setNote] = useState<string | null>(null);
@@ -55,13 +74,13 @@ export default function PackEditScreen() {
     setSpicy(pack.spicy);
     setLang(pack.language ?? null);
     setQuestions(pack.questions);
-  } else if (!seeded && id == null && queue) {
+  } else if (!seeded && id == null && queue && loaded) {
     setSeeded(true);
-    // A new pack starts from the room's own questions (packs don't carry choose questions).
+    // A new pack starts from the room's own questions (choose ones only when the server takes them in packs).
     setQuestions((qs) =>
       merge(
         qs,
-        queue.custom.filter((q) => q.kind !== 'choose').map((q) => ({ text: q.text, kind: q.kind === 'rank' ? 'rank' : 'pick' })),
+        queue.custom.filter((q) => packChoose || q.kind !== 'choose').map((q) => ({ text: q.text, kind: q.kind, items: q.items })),
       ),
     );
   }
@@ -69,35 +88,50 @@ export default function PackEditScreen() {
   const spicy = spicyPick || tags.includes('pimente');
   const language: Lang = lang ?? group?.language ?? getLang();
   const keyOf = (text: string) => text.trim().toLowerCase();
-  const draftOk = [...draft.trim()].length >= MIN;
+  // `[classement] …` and (on a server that takes them) `[choix] Question | A | B` typed by hand.
+  const typed = splitTag(draft);
+  const draftOk = [...typed.text].length >= MIN && (typed.kind !== 'choose' || (packChoose && itemsOk(typed.items ?? [])));
 
   const add = () => {
     if (!draftOk) return;
-    setQuestions((qs) => merge(qs, [{ text: draft.trim(), kind: 'pick' }]));
+    setQuestions((qs) => merge(qs, [{ text: typed.text, kind: typed.kind, items: typed.items }]));
     setDraft('');
   };
+  // A file fills the list, and the pack's name, description, categories, language and 16+ from its header.
   const importFile = async () => {
-    const lines = await pickQuestionFile().catch(() => null);
-    if (!lines) return;
-    if (lines === 'empty') return setNote(tr('packs.emptyFile'));
+    const content = await pickTextFile().catch(() => null);
+    if (content == null) return;
+    const head = parsePackHeader(content);
+    if (head.title) setName(clip(head.title, 40));
+    if (head.description) setDesc(clip(head.description, 140));
+    if (head.categories.length) setTags(head.categories);
+    if (head.lang) setLang(head.lang);
+    if (head.spicy != null) setSpicy(head.spicy);
+    const lines = parseQuestions(content);
+    if (!lines.length) return setNote(tr('packs.emptyFile'));
     setNote(null);
     setQuestions((qs) =>
       merge(
         qs,
-        // Packs don't carry choose questions (docs/CHOOSE.md).
-        lines.filter((l) => !l.problem && l.kind !== 'choose').map((l) => ({ text: l.text, kind: l.rank ? 'rank' : 'pick' })),
+        lines.filter((l) => !l.problem && (packChoose || l.kind !== 'choose')).map((l) => ({ text: l.text, kind: l.kind, items: l.items })),
       ),
     );
+  };
+  const clearAll = async () => {
+    if (await askConfirm(tr('packs.clearAsk', { count: questions.length }), undefined, tr('packs.clearAll'))) setQuestions([]);
   };
   const toggleTag = (tag: PackTag) => setTags((l) => (l.includes(tag) ? l.filter((x) => x !== tag) : l.length < MAX_TAGS ? [...l, tag] : l));
 
   const save = useMutation({
     meta: { quiet: true },
     mutationFn: () => {
-      const body = { name: name.trim(), description: desc.trim(), language, tags, spicy, questions };
+      const sent = questions
+        .filter((q) => packChoose || q.kind !== 'choose')
+        .map((q) => (q.kind === 'choose' ? { text: q.text, kind: q.kind, items: q.items } : { text: q.text, kind: q.kind }));
+      const body = { name: name.trim(), description: desc.trim(), language, tags, spicy, questions: sent };
       return id != null
         ? api<{ id: number }>(`/packs/${id}`, { method: 'PUT', json: body })
-        : api<{ id: number; count: number }>('/packs', { method: 'POST', json: body });
+        : api<{ id: number; count: number }>('/packs', { method: 'POST', json: me?.admin && featured ? { ...body, featured: true } : body });
     },
     onSuccess: (r) => {
       qc.invalidateQueries({ queryKey: packKeys.all });
@@ -174,6 +208,7 @@ export default function PackEditScreen() {
             onChange={setLang}
           />
         </View>
+        {id == null && me?.admin && <Toggle label={tr('packs.featured')} icon={Star} value={featured} onChange={setFeatured} />}
       </Card>
 
       <Text style={label}>{tr('packs.categories')}</Text>
@@ -193,8 +228,18 @@ export default function PackEditScreen() {
         })}
       </View>
 
-      <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
         <Text style={[label, { flex: 1 }]}>{tr('packs.questions', { count: questions.length })}</Text>
+        {questions.length > 0 && (
+          <PressableScale
+            accessibilityRole="button"
+            accessibilityLabel={tr('packs.clearAll')}
+            onPress={clearAll}
+            hitSlop={4}
+            style={{ width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card }}>
+            <Trash2 size={15} color={t.txt} />
+          </PressableScale>
+        )}
         <PressableScale
           accessibilityRole="button"
           onPress={importFile}
@@ -210,6 +255,11 @@ export default function PackEditScreen() {
           <FileUp size={15} color={t.txt} />
           <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.txt }}>{tr('packs.fromFile')}</Text>
         </PressableScale>
+      </View>
+      {/* What a file's header can fill in, and the format for an AI to write one. */}
+      <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginTop: -8, paddingHorizontal: 4 }}>
+        <Text style={{ flex: 1, fontFamily: t.font.regular, fontSize: 12, lineHeight: 17, color: t.mut }}>{tr('packs.fileHeader')}</Text>
+        {packTemplate && <TemplateLink style={{ marginTop: 1 }} />}
       </View>
       <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 8, padding: 8, paddingLeft: 14, marginTop: -6 }}>
         <TextInput
@@ -245,6 +295,7 @@ export default function PackEditScreen() {
         <Card style={{ paddingVertical: 4 }}>
           {questions.map((q, i) => {
             const rank = q.kind === 'rank';
+            const choose = q.kind === 'choose';
             return (
               <Animated.View
                 key={keyOf(q.text)}
@@ -260,23 +311,37 @@ export default function PackEditScreen() {
                   borderTopWidth: i ? 1 : 0,
                   borderColor: t.line,
                 }}>
-                <Pressable
-                  accessibilityRole="switch"
-                  accessibilityLabel={tr('packs.ranking')}
-                  accessibilityState={{ checked: rank }}
-                  hitSlop={4}
-                  onPress={() => setQuestions((qs) => qs.map((x, j) => (j === i ? { ...x, kind: rank ? 'pick' : 'rank' } : x)))}
-                  style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: 18,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    backgroundColor: rank ? t.accSoft : 'transparent',
-                  }}>
-                  <Trophy size={16} color={rank ? t.accInk : t.mut} style={{ opacity: rank ? 1 : 0.5 }} />
-                </Pressable>
-                <Text style={{ flex: 1, paddingVertical: 10, fontFamily: t.font.regular, fontSize: 14, lineHeight: 20, color: t.txt }}>{tidy(q.text)}</Text>
+                {/* A choose question stays one; the others switch between pick and ranking. */}
+                {choose ? (
+                  <View
+                    accessibilityLabel={tr('questions.choosingLabel')}
+                    style={{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: t.accSoft }}>
+                    <Cable size={16} color={t.accInk} />
+                  </View>
+                ) : (
+                  <Pressable
+                    accessibilityRole="switch"
+                    accessibilityLabel={tr('packs.ranking')}
+                    accessibilityState={{ checked: rank }}
+                    hitSlop={4}
+                    onPress={() => setQuestions((qs) => qs.map((x, j) => (j === i ? { ...x, kind: rank ? 'pick' : 'rank' } : x)))}
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 18,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor: rank ? t.accSoft : 'transparent',
+                    }}>
+                    <Trophy size={16} color={rank ? t.accInk : t.mut} style={{ opacity: rank ? 1 : 0.5 }} />
+                  </Pressable>
+                )}
+                <View style={{ flex: 1, paddingVertical: 10, gap: 2 }}>
+                  <Text style={{ fontFamily: t.font.regular, fontSize: 14, lineHeight: 20, color: t.txt }}>{tidy(q.text)}</Text>
+                  {choose && !!q.items?.length && (
+                    <Text style={{ fontFamily: t.font.regular, fontSize: 12, lineHeight: 17, color: t.mut }}>{q.items.join(' · ')}</Text>
+                  )}
+                </View>
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel={tr('packs.removeQuestion')}
@@ -294,7 +359,7 @@ export default function PackEditScreen() {
   );
 }
 
-/** `more` after `list`, without a question already there (case-insensitive) or out of bounds. */
+/** `more` after `list`, without a question already there (case-insensitive), out of bounds, or a choose one with bad items. */
 function merge(list: PackQuestion[], more: PackQuestion[]): PackQuestion[] {
   const seen = new Set(list.map((q) => q.text.trim().toLowerCase()));
   const out = [...list];
@@ -303,8 +368,15 @@ function merge(list: PackQuestion[], more: PackQuestion[]): PackQuestion[] {
     const key = text.toLowerCase();
     const len = [...text].length;
     if (seen.has(key) || len < MIN || len > MAX) continue;
+    if (q.kind === 'choose') {
+      const items = (q.items ?? []).map((x) => x.trim());
+      if (!itemsOk(items)) continue;
+      out.push({ text, kind: 'choose', items });
+    } else out.push({ text, kind: q.kind === 'rank' ? 'rank' : 'pick' });
     seen.add(key);
-    out.push({ text, kind: q.kind === 'rank' ? 'rank' : 'pick' });
   }
   return out;
 }
+
+/** The first `max` characters (whole characters, not UTF-16 halves). */
+const clip = (s: string, max: number) => [...s.trim()].slice(0, max).join('');

@@ -1,0 +1,19 @@
+# titre: Avis brûlants sur l'amour
+# description: Âme sœur, coup de foudre, premier bisou : vos opinions vont faire débat.
+# catégorie: pimente, potes
+# langue: fr
+# 16+: oui
+Qui croit encore dur comme fer au coup de foudre ?
+Qui pense que l'âme sœur, c'est une invention des comédies romantiques ?
+Qui défendrait qu'on peut être amoureux de deux personnes à la fois ?
+Qui trouve qu'un premier bisou raté, c'est éliminatoire ?
+Qui dirait qu'un bon danseur fait forcément un bon partenaire… tout court ?
+Qui pense que l'humour, c'est le meilleur des aphrodisiaques ?
+Qui défendrait que partager l'addition tue l'ambiance d'un rendez-vous ?
+Qui affirmerait qu'on sait dès les trois premières minutes si ça va coller ?
+[classement] Classe-nous du plus cœur d'artichaut au plus cœur de pierre.
+[classement] Classe-nous des avis les plus tranchés sur l'amour au plus « chacun fait ce qu'il veut ».
+[choix] Coup de foudre ou amour qui se construit ? | Coup de foudre | Ça se construit | Ni l'un ni l'autre
+[choix] Les bisous en public, c'est… | Partout, tout le temps | Un petit, ça va | Seulement à la maison
+[choix] Dormir à deux, c'est… | Enlacés toute la nuit | Chacun sa moitié | Deux couettes | Deux chambres
+[choix] Un peu de jalousie en couple, c'est… | Mignon | Toxique | Normal à petite dose

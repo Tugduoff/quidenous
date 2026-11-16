@@ -1,0 +1,19 @@
+# title: Flatshare Chronicles
+# description: Soaking pans, a shared fridge, passive-aggressive notes: life under one roof.
+# category: potes
+# lang: en
+# 16+: no
+Who leaves a pan "soaking" for four days?
+Who sticks passive-aggressive notes on the fridge?
+Who eats your cheese and swears blind it wasn't them?
+Who'd invite a mate to crash for one night… and they'd stay three weeks?
+Who never takes the bins out but notices when they overflow?
+Who makes a cleaning rota that nobody follows?
+Who has a secret stash of loo roll in their room?
+Who cranks the heating up to 25 degrees, then opens the window?
+Who blasts music without headphones at 7am?
+[classement] Rank us from biggest dirty-dish pile to washes up straight away.
+[classement] Rank us from loudest to quietest through a thin wall.
+[classement] Rank us from shares everything to writes their name on their yoghurts.
+[choix] Your ideal spot in the flat? | The big bedroom | Next to the kitchen | Far from everyone | The sofa
+[choix] Someone's dirty dishes are piling up. You…? | Wash them | Leave a note | Post in the group chat | Put them on their bed

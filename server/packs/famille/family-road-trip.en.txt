@@ -1,0 +1,20 @@
+# title: Family Road Trip
+# description: Overpacked car, rest stops and a forced playlist: who cracks first?
+# category: famille
+# lang: en
+# 16+: no
+Who packs the car like a game of Tetris and won't let anyone touch it?
+Who needs a bathroom stop twenty minutes after leaving?
+Who forces their playlist on everyone for the whole eight-hour drive?
+Who falls asleep before you've even left town?
+Who wants to leave at 4 a.m. "to beat the traffic"?
+Who has forgotten something essential and demanded a U-turn?
+Who turns every rest stop into a shopping trip?
+Who reads every tourist sign out loud like a tour guide?
+Who makes sandwiches for everyone the night before?
+Who argues with the GPS like it's a real person?
+[classement] Rank us from best co-pilot to worst map reader.
+[classement] Rank us from lightest packer to "brought the whole house".
+[classement] Rank us from grumpiest in the car to most zen.
+[choix] Your ideal seat in the car? | Driving | Front passenger | Back, by the window | Squeezed in the middle
+[choix] Ideal family holiday? | Camping | Rented house | At the grandparents' | All-inclusive resort

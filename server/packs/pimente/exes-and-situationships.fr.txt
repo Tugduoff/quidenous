@@ -1,0 +1,33 @@
+# titre: Ex et plans flous
+# description: C'était « rien de sérieux »… et pourtant on en parle encore.
+# catégorie: pimente, potes
+# langue: fr
+# 16+: oui
+Qui a encore un pull de son ex au fond du placard ?
+Qui a déjà été dans une relation « pas officielle » pendant plus d'un an ?
+Qui écoute encore « votre chanson » en boucle dans la voiture ?
+Qui inviterait tous ses ex à son mariage, sans aucun malaise ?
+Qui a déjà dit « on reste amis » et l'a vraiment fait ?
+Qui a un ex que tout le groupe déteste encore ?
+Qui pose encore des likes stratégiques sur les stories d'un ex ?
+Qui a déjà rompu par message ?
+Qui demanderait « on est quoi, nous deux ? » au bout de trois jours ?
+Qui prendrait la fuite dès qu'on lui demande « on est quoi, nous deux ? »
+Qui a déjà remis le couvert « juste une dernière fois »… plusieurs fois ?
+Qui garde les cadeaux de ses ex « parce qu'ils sont jolis » ?
+Qui posterait la story parfaite juste pour que son ex la voie ?
+Qui a déjà croisé son ex au pire moment possible ?
+Qui a un « plan du jeudi » que personne n'a jamais rencontré ?
+Qui a déjà reçu un « coucou toi » six mois après s'être fait ghoster ?
+Qui répondrait au « coucou toi » de son ex en moins de cinq minutes ?
+Qui a déjà vécu une rupture digne d'une série, larmes en public comprises ?
+Qui bloque quelqu'un devant le groupe… et le débloque le lendemain ?
+Qui pourrait écrire un livre entier sur ses ex ?
+[classement] Classe-nous de celui qui se remet le mieux d'une rupture au plus en miettes.
+[classement] Classe-nous des histoires d'ex les plus folles aux plus banales.
+[classement] Classe-nous du plus doué pour rompre proprement au pire.
+[classement] Du plus nostalgique de ses ex au plus « next », classe-nous.
+[classement] Classe-nous de celui qui s'attache le plus vite à celui qui ne s'attache jamais.
+[choix] Ton ex t'écrit à minuit, tu fais quoi ? | Vu, sans réponse | Je réponds direct | Capture au groupe | Je bloque
+[choix] Ta thérapie après une rupture ? | Pot de glace | Nouvelle coupe | Salle de sport | Appli de rencontre
+[choix] Ta situationship idéale dure combien de temps ? | Un été | Trois mois | Jamais assez | Elle dure encore

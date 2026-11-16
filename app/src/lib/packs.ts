@@ -21,7 +21,8 @@ export const MAX_TAGS = 3;
 
 export type PackStatus = 'public' | 'review' | 'removed' | 'deleted';
 export type PackKind = 'pick' | 'rank';
-export type PackQuestion = { text: string; kind: PackKind };
+/** `choose` (with its 2 to 4 `items`) only from a server with `pack_choose`. */
+export type PackQuestion = { text: string; kind: PackKind | 'choose'; items?: string[] | null };
 
 /** A pack as lists show it. `installed`: in the current room. `status`/`removed_reason` only matter to its author (and admins). */
 export type PackItem = {

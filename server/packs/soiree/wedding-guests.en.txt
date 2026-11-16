@@ -1,0 +1,33 @@
+# title: Wedding Guests
+# description: Drinks reception, seating plan, conga line at 2am: who's the guest everyone dreads?
+# category: soiree, famille
+# lang: en
+# 16+: no
+Who swaps the place cards to sit next to their friends?
+Who walks in mid-vows through the creakiest door in the building?
+Who attacks the canapés like they haven't eaten in three days?
+Who starts a conga line nobody asked for?
+Who cries harder than the couple during the ceremony?
+Who would turn up in white and not see the problem?
+Who sneaks into every single official photo?
+Who ends up dancing all night with the bride's grandma?
+Who requests the same song from the DJ every twenty minutes?
+Who reviews every course out loud for the whole table?
+Who forgets the gift and scribbles a card in the car park?
+Who grabs the mic without being on the running order?
+Who gets lost on the way to the venue despite the satnav?
+Who would rugby-tackle someone to catch the bouquet?
+Who tells every stranger at the table how they know the couple?
+Who's barefoot before the starters are even served?
+Who organises a game for the couple that goes on way too long?
+Who ends up helping the caterers clear the tables?
+Who takes bets on which couple will get married next?
+Who would be the one who loses the rings?
+[classement] Rank us from sharpest dressed to "I did my best".
+[classement] Rank us from first on the dance floor to last to leave their chair.
+[classement] Rank us from most trusted with the rings to keep-them-well-away.
+[classement] Rank us by how long we'd last in our wedding shoes.
+[classement] Rank us from most emotional to most stone-faced during the vows.
+[choix] Your favourite part of a wedding? | Ceremony | Drinks reception | Dinner | Dance floor
+[choix] Your ideal table? | The friends | The family | Total strangers | By the buffet
+[choix] Your wedding gift? | From the registry | Cash in a card | Homemade | Forgot it

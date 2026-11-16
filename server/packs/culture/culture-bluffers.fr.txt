@@ -1,0 +1,19 @@
+# titre: Culture de façade
+# description: Livres jamais finis, expos survolées et « oui oui, je connais » : qui bluffe ?
+# catégorie: culture, potes
+# langue: fr
+# 16+: non
+Qui dit « ah oui, je connais » sans avoir la moindre idée de quoi on parle ?
+Qui a la même pile de livres sur sa table de nuit depuis deux ans ?
+Qui a déjà donné son avis sur un livre en ayant seulement lu la quatrième de couverture ?
+Qui fait le tour d'un musée en 20 minutes chrono, boutique comprise ?
+Qui lit tous les panneaux d'une expo, même les tout petits ?
+Qui sort une grande citation en soirée sans savoir de qui elle est ?
+Qui achète des livres uniquement pour leur couverture ?
+Qui s'endormirait à l'opéra et applaudirait le plus fort à la fin ?
+Qui vérifie discrètement sur son téléphone en plein débat pour avoir raison ?
+Qui dit toujours « le livre est mieux » sans avoir lu le livre ?
+[classement] Classe-nous du plus gros lecteur au plus « j'attends l'adaptation ».
+[classement] Classe-nous du plus fort en culture générale au plus perdu.
+[classement] Du plus grand bluffeur culturel au plus honnête : classe-nous.
+[choix] Au musée, tu es plutôt ? | Audioguide intégral | Boutique d'abord | Photo de chaque œuvre | Banc et pause

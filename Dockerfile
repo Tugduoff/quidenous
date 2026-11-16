@@ -22,6 +22,8 @@ FROM debian:trixie-slim
 RUN useradd --system --uid 10001 app && mkdir -p /data && chown app /data
 COPY --from=server /src/target/release/quidenous-server /usr/local/bin/server
 COPY --from=web /web /web
+# The first community packs (docs/PACK_FILES.md, `server seed-packs /packs`).
+COPY server/packs /packs
 USER app
 # What /api/version reports (deploy/deploy.sh passes them): declared last, so they don't invalidate the layers above.
 ARG VERSION=dev

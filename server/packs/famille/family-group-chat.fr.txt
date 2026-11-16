@@ -1,0 +1,20 @@
+# titre: Le groupe de la famille
+# description: « Bonjour » en GIF à paillettes, vocaux sans fin : qui fait quoi dans le groupe ?
+# catégorie: famille
+# langue: fr
+# 16+: non
+Qui envoie « Bonjour » chaque matin avec une image de fleurs à paillettes ?
+Qui signe ses messages comme une lettre (« Bisous, Maman ») ?
+Qui utilise un émoji sans savoir ce qu'il veut vraiment dire ?
+Qui partage une fausse info et jure que « c'est vrai, je l'ai lu » ?
+Qui poste la même photo du chat tous les jours ?
+Qui transfère encore des chaînes « à envoyer à 10 personnes » ?
+Qui écrit TOUT EN MAJUSCULES sans s'en rendre compte ?
+Qui a mis le groupe de la famille en silencieux depuis des mois ?
+Qui lance l'organisation de Noël… en juillet ?
+Qui envoie un vocal « parce que c'est plus rapide » et parle cinq minutes ?
+[classement] Classe-nous du plus actif dans le groupe au fantôme.
+[classement] Classe-nous du pro des émojis au plus perdu.
+[classement] Classe-nous de celui qui envoie le plus de photos de vacances au plus avare en nouvelles.
+[choix] Ton style dans le groupe ? | Pavé de texte | Que des émojis | Vocaux | Juste « ok »
+[choix] Ta réaction à une photo de bébé ? | Des cœurs partout | « Trop mignon !!! » | Un pouce | Vu, rien

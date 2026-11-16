@@ -1,0 +1,20 @@
+# titre: En route pour les vacances
+# description: Coffre plein à craquer, aires d'autoroute, playlist imposée : qui craque en premier ?
+# catégorie: famille
+# langue: fr
+# 16+: non
+Qui charge le coffre comme une partie de Tetris et refuse qu'on y touche ?
+Qui réclame une pause pipi vingt minutes après le départ ?
+Qui impose sa playlist pendant les huit heures de route ?
+Qui s'endort avant même la sortie de la ville ?
+Qui veut partir à 4 h du matin « pour éviter les bouchons » ?
+Qui a déjà oublié un truc essentiel et exigé un demi-tour ?
+Qui transforme chaque aire d'autoroute en séance shopping ?
+Qui lit tous les panneaux touristiques à voix haute comme un guide ?
+Qui prépare les sandwichs de tout le monde la veille du départ ?
+Qui se dispute avec le GPS comme si c'était une vraie personne ?
+[classement] Classe-nous du meilleur copilote au pire lecteur de carte.
+[classement] Classe-nous de la valise la plus légère à celui qui emporte toute la maison.
+[classement] Du plus râleur en voiture au plus zen : classe-nous.
+[choix] Ta place idéale en voiture ? | Au volant | Copilote | Derrière, côté fenêtre | Coincé au milieu
+[choix] Les vacances en famille idéales ? | Camping | Location | Chez les grands-parents | Club tout compris

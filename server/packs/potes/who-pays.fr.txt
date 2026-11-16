@@ -1,0 +1,19 @@
+# titre: Qui paie l'addition ?
+# description: Virements fantômes, additions au centime, appli de comptes : l'argent entre potes.
+# catégorie: potes
+# langue: fr
+# 16+: non
+Qui calcule l'addition au centime près, pourboire compris ?
+Qui dit « je te fais un virement ce soir » et oublie pendant trois mois ?
+Qui n'a jamais de liquide « pile ce jour-là » ?
+Qui commande le plat le plus cher puis propose de partager en parts égales ?
+Qui propose un cadeau commun et nous inscrit tous pour 40 € chacun ?
+Qui avance tout pour le week-end et n'ose jamais réclamer ?
+Qui part aux toilettes pile au moment où l'addition arrive ?
+Qui ajouterait 0,80 € de sel dans les comptes du séjour ?
+Qui insiste pour payer puis le rappelle à tout le monde pendant un an ?
+[classement] Classe-nous du plus rapide au plus lent pour rembourser.
+[classement] Classe-nous de celui qui tient les comptes au centime à celui qui dit « laisse, on verra ».
+[classement] Classe-nous du meilleur au pire pour marchander.
+[choix] Au resto, l'addition se partage comment ? | Parts égales | Chacun sa part | Celui qui invite paie | On tire au sort
+[choix] Un pote te doit 15 €. Tu fais quoi ? | Je relance direct | J'attends un mois | J'oublie | Je m'en souviens à vie

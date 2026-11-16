@@ -1,0 +1,19 @@
+# titre: Soirée karaoké
+# description: Micro en main, dignité au vestiaire : qui chante faux et qui ne rend plus le micro ?
+# catégorie: soiree, potes
+# langue: fr
+# 16+: non
+Qui garde le micro pendant trois chansons d'affilée ?
+Qui choisit une chanson de 9 minutes et la regrette dès la deuxième ?
+Qui ne connaît que le refrain et marmonne tout le reste ?
+Qui chante les yeux fermés comme s'il remplissait le Stade de France ?
+Qui jure qu'il ne chantera pas et finit debout sur la banquette ?
+Qui transforme chaque duo en compétition ?
+Qui inscrit les autres en douce sur la liste des chansons ?
+Qui verse une larme sur une ballade des années 2000 ?
+Qui fait la chorégraphie complète, même sur une chanson lente ?
+Qui lit les paroles avec deux secondes de retard du début à la fin ?
+[classement] Classe-nous de la plus belle voix à la plus dangereuse pour les tympans.
+[classement] Du plus timide au micro à celui qu'il faut débrancher.
+[classement] Classe-nous du meilleur au pire sur une chanson en anglais (accent compris).
+[choix] Ton choix au karaoké ? | Variété française | Tube des années 80 | Rap | Grosse ballade

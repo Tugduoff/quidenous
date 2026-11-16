@@ -1,0 +1,19 @@
+# titre: Manette en main
+# description: Rage quit, nuits blanches et « dernière partie » : qui est le vrai gamer ?
+# catégorie: culture, soiree
+# langue: fr
+# 16+: non
+Qui a déjà (presque) jeté sa manette après une défaite ?
+Qui dit « dernière partie » et en relance encore six ?
+Qui lit toute la soluce avant même de commencer le jeu ?
+Qui passe plus de temps à créer son personnage qu'à jouer ?
+Qui refait le même jeu de son enfance chaque année ?
+Qui a des centaines d'heures sur un jeu de ferme tout mignon ?
+Qui accuse la connexion à chaque défaite ?
+Qui gagne aux jeux de combat en appuyant sur tous les boutons au hasard ?
+Qui achète des jeux en promo qu'il ne lancera jamais ?
+Qui hurle des ordres dans le micro comme un général en pleine bataille ?
+[classement] Classe-nous de celui qui abandonne la partie le plus vite au plus patient.
+[classement] Classe-nous du meilleur coéquipier en ligne au pire boulet.
+[classement] Classe-nous du plus nostalgique des vieilles consoles au plus à la pointe.
+[choix] Tu joues sur quoi ? | Console portable | Console de salon | PC | Téléphone

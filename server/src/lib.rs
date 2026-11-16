@@ -16,6 +16,7 @@ pub mod moderation;
 pub mod notifications;
 pub mod ops;
 pub mod pacing;
+pub mod packfile;
 pub mod packs;
 pub mod party;
 pub mod play;
@@ -169,6 +170,15 @@ pub fn app(state: AppState) -> Router {
             axum::routing::get(|| async {
                 axum::response::Html(include_str!("../assets/legal/terms.en.html"))
             }),
+        )
+        // The pack file guide for AI agents (docs/PACK_FILES.md), linked from the app and the docs.
+        .route(
+            "/pack-template.md",
+            axum::routing::get(|| async { packfile::template_response(i18n::Lang::Fr) }),
+        )
+        .route(
+            "/en/pack-template.md",
+            axum::routing::get(|| async { packfile::template_response(i18n::Lang::En) }),
         )
         .nest_service("/photos", photos);
     if let Some(web) = &state.config.web_dir {

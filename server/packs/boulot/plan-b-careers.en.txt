@@ -1,0 +1,19 @@
+# title: Plan B careers
+# description: Baker, lighthouse keeper or summer camp leader: what if we all changed jobs?
+# category: boulot, potes
+# lang: en
+# 16+: no
+Who would drop everything to run a B&B in the countryside?
+Who would make an excellent lighthouse keeper?
+Who had the most unlikely dream job as a kid?
+Who would be the best museum guide, trivia included?
+Who would retrain as a carpenter after ten years in an open-plan office?
+Who would be a hit as a summer camp leader?
+Who would be the most convincing weather presenter?
+Who could have been a lawyer, given how they win every argument?
+Who would open a food truck with just one recipe?
+Who would be a wildly passionate commentator for any sport at all?
+[classement] Rank us from most likely to change careers this year to most loyal to their job.
+[classement] Rank us from most made for hands-on work to most made for a desk.
+[classement] Rank us from born for the stage to happiest behind the scenes.
+[choix] Your plan B? | Baker | Ski instructor | Bookseller | Goat farmer

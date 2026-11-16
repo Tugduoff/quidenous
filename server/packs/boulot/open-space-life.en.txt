@@ -1,0 +1,35 @@
+# title: Open-plan life
+# description: The fridge, the thermostat, the coffee machine and Monday mornings: office tales.
+# category: boulot
+# lang: en
+# 16+: no
+Who has eaten someone else's yoghurt from the office fridge "by mistake"?
+Who leaves a lunchbox in the office fridge until it develops its own civilisation?
+Who is fighting a silent war over the thermostat?
+Who wears headphones with no music on just so nobody bothers them?
+Who is the only one who can fix the printer when it throws a tantrum?
+Who has a sacred mug that nobody else is allowed to touch?
+Who only washes a mug when there's not a single clean one left?
+Who hogs the only phone booth on the floor for hours?
+Who brings in pastries on a Friday without anyone asking?
+Who walks across the whole floor to ask a question instead of sending a message?
+Who has turned up at the office on a bank holiday without realising?
+Who works in their socks in the open-plan office?
+Who collects every bit of company swag (pens, water bottles, tote bags)?
+Who takes a coffee break that lasts longer than the meeting before it?
+Who would never set foot in the office again if they had the choice?
+Who has "their" hot desk and takes it personally when someone else sits there?
+Who would dare to microwave fish in the office kitchen?
+Who takes the lift to go up a single floor?
+Who rolls in on Monday morning with the most unlikely weekend story?
+Who says "it's nearly done" three days before the deadline, without having started?
+[classement] Rank us from always cold in the office to "window open in January".
+[classement] Rank us from biggest work-from-home fan to most office-addicted.
+[classement] Rank us from most decorated desk to most anonymous.
+[classement] Rank us from quietest on the phone to "the whole floor knows the plot".
+[classement] Rank us from shortest coffee break to most never-ending.
+[classement] Rank us from "good morning, everyone!" to "sneaks to their desk unseen".
+[choix] Your work-from-home spot? | Desk | Kitchen table | Sofa | Local café
+[choix] Your work lunch? | Canteen | Homemade lunchbox | Sandwich | Team lunch out
+[choix] Office air con? | Full blast | Off | I bring a blanket
+[choix] Your dream open-plan seat? | By the window | In a corner | Near the coffee | Far from meeting rooms

@@ -1,0 +1,19 @@
+# titre: Le grand classement des tâches
+# description: Vaisselle, linge, poubelles : on classe toute la maison, sans pitié.
+# catégorie: famille, potes
+# langue: fr
+# 16+: non
+[classement] Classe-nous du héros de la vaisselle à celui qui laisse « tremper » trois jours.
+[classement] Classe-nous de celui qui sort les poubelles sans qu'on demande à celui qui ne les voit jamais.
+[classement] Du roi du rangement au champion du « je sais où sont mes affaires » : classe-nous.
+[classement] Classe-nous du meilleur plieur de linge à l'ennemi juré du fer à repasser.
+[classement] Classe-nous du pro du lave-vaisselle à celui qui empile n'importe comment.
+[classement] Classe-nous de la douche la plus courte à celui qui vide le ballon d'eau chaude.
+[classement] Classe-nous de celui qui remplace le rouleau de papier toilette à celui qui laisse le carton vide.
+[classement] Du plus maniaque du ménage au plus détendu face à la poussière : classe-nous.
+[classement] Classe-nous du meilleur pour les courses à celui qui revient sans la moitié de la liste.
+[classement] Classe-nous du plus bricoleur au plus dangereux avec un tournevis.
+[classement] Classe-nous du dictateur de la télécommande à celui qui n'a jamais son mot à dire.
+[classement] Classe-nous de la main verte au tueur de cactus.
+[classement] Classe-nous de celui qui éteint toujours la lumière à celui qui éclaire toute la maison.
+[classement] Classe-nous de celui qui range ses chaussures à l'entrée à celui qui les sème partout.

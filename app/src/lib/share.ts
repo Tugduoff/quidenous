@@ -4,7 +4,7 @@ import { showToast } from '@/components/toast';
 
 import { api, API_URL, historyExportUrl, type Member, type Round, type StatsPeriod, type Story } from './api';
 import { featuresQuery } from './auth';
-import { t } from './i18n';
+import { getLang, t } from './i18n';
 import { queryClient } from './query-client';
 
 /** Where friends can open the app (web app served by the API server). */
@@ -128,4 +128,29 @@ export async function downloadHistory() {
     return;
   }
   Linking.openURL(url);
+}
+
+/**
+ * The pack file template for an AI agent, in the app's language: a file download on the web, the share sheet with its text
+ * elsewhere (to paste into an AI app). Can't fetch it: opened in the browser instead.
+ */
+export async function downloadPackTemplate() {
+  const url = `${appUrl()}${getLang() === 'en' ? '/en' : ''}/pack-template.md`;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const text = await res.text();
+    if (Platform.OS === 'web' && typeof document !== 'undefined') {
+      const href = URL.createObjectURL(new Blob([text], { type: 'text/markdown' }));
+      const a = document.createElement('a');
+      a.href = href;
+      a.download = 'quidenous-pack-template.md';
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(href), 10_000);
+      return;
+    }
+    await Share.share({ message: text });
+  } catch {
+    Linking.openURL(url).catch(() => showToast(t('common.failed')));
+  }
 }

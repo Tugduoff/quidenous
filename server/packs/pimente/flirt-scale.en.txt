@@ -1,0 +1,19 @@
+# title: The flirt scale
+# description: From serial charmer to chronic disaster: everyone gets ranked.
+# category: pimente, soiree
+# lang: en
+# 16+: yes
+[classement] Rank us from most smouldering stare to most lost-in-space gaze.
+[classement] Rank us from instantly knows they're being flirted with to totally oblivious.
+[classement] Rank us from best chat-up line to most catastrophic.
+[classement] Rank us from smoothest compliments to clumsiest.
+[classement] Rank us from walks up to a stranger at the bar to waits to be approached.
+[classement] Rank us from best slow dancer to stiffest.
+[classement] Rank us from leaves a party with the most numbers to leaves with none.
+[classement] Rank us from most charming wink to most alarming.
+[classement] Rank us from best flirting by text to replies "ok".
+[classement] Rank us from blushes first to totally unflappable.
+[classement] Rank us from master of innuendo to takes everything literally.
+[classement] Rank us from takes rejection best to most traumatised.
+[classement] Rank us from best wingman to worst saboteur.
+[classement] Rank us from best at playing it cool to most see-through.

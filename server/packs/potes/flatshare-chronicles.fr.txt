@@ -1,0 +1,19 @@
+# titre: Chroniques de coloc
+# description: Vaisselle qui trempe, frigo partagé, post-it passifs-agressifs : la vie à plusieurs.
+# catégorie: potes
+# langue: fr
+# 16+: non
+Qui laisse une poêle « tremper » pendant quatre jours ?
+Qui colle des post-it passifs-agressifs sur le frigo ?
+Qui mange ton fromage en jurant que ce n'est pas lui ?
+Qui inviterait un pote à dormir une nuit… qui resterait trois semaines ?
+Qui ne descend jamais les poubelles mais remarque quand elles débordent ?
+Qui crée un planning de ménage que personne ne respecte ?
+Qui a un stock secret de papier toilette dans sa chambre ?
+Qui monte le chauffage à 25 °C puis ouvre la fenêtre ?
+Qui met sa musique sans écouteurs à 7 h du matin ?
+[classement] Classe-nous de la plus grosse pile de vaisselle sale à celui qui lave tout de suite.
+[classement] Classe-nous du plus bruyant au plus silencieux à travers une cloison.
+[classement] Classe-nous de celui qui partage tout à celui qui écrit son nom sur ses yaourts.
+[choix] Ta place idéale dans la coloc ? | La grande chambre | Près de la cuisine | Loin de tout le monde | Le canapé
+[choix] La vaisselle des autres traîne. Tu fais quoi ? | Je la fais | Un post-it | Message au groupe | Je la pose sur son lit

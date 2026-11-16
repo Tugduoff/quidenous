@@ -1,0 +1,35 @@
+# titre: Soirée jeux : mauvais perdants
+# description: Règles inventées, plateau renversé, rancune éternelle : qui ne sait pas perdre ?
+# catégorie: soiree, potes
+# langue: fr
+# 16+: non
+Qui invente une règle « qu'on a toujours jouée comme ça » ?
+Qui lit les règles pendant 40 minutes avant qu'on ait le droit de jouer ?
+Qui renverserait le plateau après une défaite humiliante ?
+Qui réclame une revanche, puis une deuxième, puis une troisième ?
+Qui fait des alliances et les trahit au tour suivant ?
+Qui voit les cartes des autres « sans faire exprès » ?
+Qui met dix minutes à jouer un seul tour ?
+Qui gagne sa toute première partie et devient insupportable ?
+Qui n'écoute pas les règles et gagne quand même ?
+Qui ressort une partie perdue il y a cinq ans comme si c'était hier ?
+Qui fait le banquier et se sert discrètement ?
+Qui perd exprès pour que la soirée se termine enfin ?
+Qui mime des mots que personne n'arrive jamais à deviner ?
+Qui hurle sa réponse au blind test avant même la première note ?
+Qui conteste chaque réponse du quiz avec « techniquement… » ?
+Qui ramène un jeu de 4 heures avec 80 pages de règles ?
+Qui est sur son téléphone quand c'est son tour ?
+Qui accuse tout le monde de tricher dès qu'il perd ?
+Qui ment le mieux au loup-garou… et un peu trop bien ?
+Qui range le jeu sans vérifier qu'il ne manque aucune pièce ?
+Qui s'autoproclame arbitre alors qu'il joue ?
+Qui fait une danse de la victoire après une partie de petits chevaux ?
+[classement] Classe-nous du plus beau joueur au plus mauvais perdant.
+[classement] Du plus gros tricheur au plus honnête (soyons honnêtes).
+[classement] Classe-nous du meilleur bluffeur au pire visage impassible.
+[classement] Classe-nous selon notre rancune après une défaite, du zen au vindicatif.
+[classement] Du meilleur au pire coéquipier dans un jeu en équipe.
+[choix] Ton style de joueur ? | Stratège | Tricheur | Chanceux | Là pour les chips
+[choix] Ta réaction quand tu perds ? | J'en ris | Je boude | Revanche ! | On change de jeu
+[choix] Ton rôle rêvé au loup-garou ? | Loup | Voyante | Villageois | Mort en premier

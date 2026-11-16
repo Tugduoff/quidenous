@@ -73,6 +73,12 @@ export const packs = {
   addQuestion: 'Ajouter une question',
   fromFile: 'Fichier .txt',
   emptyFile: 'Aucune question dans ce fichier',
+  /** Optional `# key: value` lines at the top of a pack file. */
+  fileHeader: 'En-tête : # titre, # description, # catégorie, # langue, # 16+',
+  /** The pack file format for an AI agent (a .md file). */
+  template: 'Modèle pour IA',
+  clearAll: 'Tout effacer',
+  clearAsk: { one: 'Effacer la question ?', other: 'Effacer les {count} questions ?' },
   ranking: 'Classement',
   removeQuestion: 'Retirer',
   publish: 'Publier',

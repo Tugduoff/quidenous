@@ -1,0 +1,19 @@
+# title: The Great Chores Ranking
+# description: Dishes, laundry, bins: we rank the whole household, no mercy.
+# category: famille, potes
+# lang: en
+# 16+: no
+[classement] Rank us from dishwashing hero to "it's soaking" for three days.
+[classement] Rank us from takes the bins out unasked to never seems to notice them.
+[classement] Rank us from tidiest to "I know exactly where my stuff is".
+[classement] Rank us from best laundry folder to sworn enemy of the iron.
+[classement] Rank us from dishwasher-loading pro to "just shove it in".
+[classement] Rank us from shortest shower to whoever uses up all the hot water.
+[classement] Rank us from replaces the toilet roll to leaves the empty tube.
+[classement] Rank us from cleaning-obsessed to totally relaxed about dust.
+[classement] Rank us from best grocery shopper to comes back with half the list.
+[classement] Rank us from handiest DIYer to most dangerous with a screwdriver.
+[classement] Rank us from remote-control dictator to never gets a say.
+[classement] Rank us from green thumb to cactus killer.
+[classement] Rank us from always turns the lights off to lights up the whole house.
+[classement] Rank us from shoes neatly by the door to shoes scattered all over the house.

@@ -1,0 +1,19 @@
+# title: Who's Paying?
+# description: Phantom bank transfers, bills split to the penny, the expenses app: money among friends.
+# category: potes
+# lang: en
+# 16+: no
+Who splits the bill to the penny, tip included?
+Who says "I'll transfer it tonight" and forgets for three months?
+Who never has cash "on that exact day"?
+Who orders the priciest dish, then suggests splitting it evenly?
+Who suggests a group gift and signs us all up for £40 each?
+Who pays upfront for the whole weekend and never dares ask for it back?
+Who goes to the loo right as the bill arrives?
+Who would log 80p of salt in the trip expenses?
+Who insists on paying, then reminds everyone about it for a year?
+[classement] Rank us from fastest to slowest at paying people back.
+[classement] Rank us from keeps accounts to the penny to "don't worry, we'll sort it".
+[classement] Rank us from best to worst at haggling.
+[choix] How should we split the bill? | Equal shares | Pay for what you ate | Whoever invited pays | Card roulette
+[choix] A friend owes you £15. You…? | Chase it today | Wait a month | Forget about it | Remember it forever

@@ -1,0 +1,35 @@
+# titre: Le tribunal de la conv
+# description: Vocaux de 4 minutes, vus sans réponse, stickers douteux : la conv passe en procès.
+# catégorie: potes
+# langue: fr
+# 16+: non
+Qui envoie des vocaux de 3 minutes pour dire « bon ben rien en fait » ?
+Qui répond « mdr » sans avoir lu le message ?
+Qui a désactivé les confirmations de lecture pour être tranquille ?
+Qui met 48 h à répondre puis s'étonne qu'on ait décidé sans lui ?
+Qui envoie 12 messages d'affilée au lieu d'une seule phrase ?
+Qui a déjà envoyé un message sur quelqu'un… à cette personne ?
+Qui fait partie d'un sous-groupe secret sans certains d'entre nous ?
+Qui lance un sondage pour choisir une date et ne vote jamais ?
+Qui réagit avec un pouce levé à absolument tout ?
+Qui ressort un message d'il y a 4 ans pour gagner un débat ?
+Qui a mis le groupe en sourdine pour toujours ?
+Qui poste un mème que tout le monde a déjà vu il y a trois semaines ?
+Qui disparaît de la conv pendant un mois puis revient avec « ça dit quoi ? »
+Qui écrit des pavés que personne ne lit jusqu'au bout ?
+Qui a la photo de profil la plus ancienne ?
+Qui supprime ses messages juste après les avoir envoyés ?
+Qui envoie « ? » si personne ne répond dans les cinq minutes ?
+Qui fait des captures de la conv pour les montrer à d'autres ?
+Qui enregistre ses vocaux en marchant en plein vent ?
+Qui écrit sans aucune ponctuation ni majuscule ?
+Qui répond à un message d'il y a trois jours comme si de rien n'était ?
+[classement] Classe-nous du plus rapide au plus lent pour répondre dans le groupe.
+[classement] Classe-nous de celui qui envoie le plus de vocaux à celui qui n'en envoie jamais.
+[classement] Classe-nous du meilleur fournisseur de mèmes au pire.
+[classement] Classe-nous du plus actif dans la conv au plus fantôme.
+[classement] Classe-nous de l'auteur de pavés à celui qui répond juste « ok ».
+[classement] Du plus gros utilisateur d'émojis au plus sobre : classe-nous.
+[choix] Tu réponds comment à un vocal de 5 minutes ? | Je l'écoute en x2 | Vocal de 6 minutes | « J'écoute plus tard » | Jamais écouté
+[choix] Ton émoji le plus utilisé ? | Mort de rire | Le crâne | Le pouce | Le cœur
+[choix] Les notifs du groupe, chez toi ? | Tout activé | Mentions seules | Sourdine à vie | Je lis jamais

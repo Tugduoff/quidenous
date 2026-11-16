@@ -1,0 +1,20 @@
+# title: If Your Stuff Could Talk
+# description: Your fridge testifies, your alarm clock snitches: the objects strike back.
+# category: absurde, potes
+# lang: en
+# 16+: no
+Whose fridge would grass them up first if it could talk?
+Who would get told off by their robot vacuum?
+Whose sofa would be the first to go on strike?
+Who would argue with their satnav until it quit?
+Who would get snubbed by their own coffee machine?
+Whose socks would file a formal complaint?
+Whose houseplant would phone a helpline?
+Whose toothbrush is begging to retire?
+Who would get dumped by their toaster?
+Whose alarm clock would testify about the 14 snoozes?
+[classement] Rank us from most polite to objects to most violent with the printer.
+[classement] Rank us from adored by our belongings to target of an appliance plot.
+[classement] Rank us by how many household objects would testify against us in court.
+[choix] Which object knows your worst secrets? | The fridge | The laundry basket | Your phone | The junk drawer
+[choix] Your ally in the machine uprising? | The toaster | The robot vacuum | The kettle | The microwave

@@ -1,0 +1,34 @@
+# titre: Séminaire, pot et Secret Santa
+# description: Escape game, karaoké d'équipe et cadeaux douteux : qui brille hors du bureau ?
+# catégorie: boulot, soiree
+# langue: fr
+# 16+: non
+Qui prend le team building beaucoup trop au sérieux ?
+Qui finirait au micro au karaoké du séminaire ?
+Qui devinerait son Secret Santa en deux secondes ?
+Qui offrirait le cadeau le plus bizarre au Secret Santa ?
+Qui se perdrait pendant la course d'orientation du séminaire ?
+Qui résoudrait l'escape game pendant que les autres cherchent encore la première clé ?
+Qui s'éclipse du pot juste avant les discours ?
+Qui verserait une larme pendant le discours de départ d'un collègue ?
+Qui n'oublie jamais l'anniversaire de personne dans l'équipe ?
+Qui gère la cagnotte du cadeau de départ comme un vrai trésorier ?
+Qui finirait la soirée d'entreprise à danser avec toute la direction ?
+Qui transformerait l'atelier « tour en spaghettis » en compétition sans pitié ?
+Qui trouverait une excuse en béton pour échapper à l'accrobranche ?
+Qui prendrait 300 photos du séminaire pour le groupe de l'équipe ?
+Qui débarquerait à la soirée de la boîte avec sa propre playlist ?
+Qui gagnerait le quiz de culture générale de l'équipe ?
+Qui aurait le déguisement le plus ambitieux à la soirée à thème ?
+Qui garde un souvenir de chaque séminaire (tee-shirt, gourde, bob) ?
+Qui serait le premier dans la piscine de l'hôtel du séminaire ?
+Qui raterait le bus du retour le dernier matin du séminaire ?
+[classement] Classe-nous du plus motivé par le team building au plus « je viens pour le buffet ».
+[classement] Du meilleur cadeau de Secret Santa au plus « acheté à la station-service ».
+[classement] Classe-nous du plus compétitif au jeu de piste au plus pacifiste.
+[classement] Classe-nous du premier arrivé au pot au dernier parti.
+[classement] Du plus juste au karaoké au plus courageux.
+[choix] Le team building idéal ? | Escape game | Cours de cuisine | Accrobranche | Un vrai jour off
+[choix] Toi et le Secret Santa ? | Le cadeau parfait | Dernière minute | Fait main | J'oublie
+[choix] Ton poste à la soirée d'entreprise ? | Piste de danse | Buffet | Photographe | Parti à 21 h
+[choix] Le séminaire idéal ? | À la mer | À la montagne | Dans un château | En visio, merci

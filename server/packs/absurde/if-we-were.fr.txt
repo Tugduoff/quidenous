@@ -1,0 +1,34 @@
+# titre: Et si on était…
+# description: Un groupe de rock, un royaume, une soupe : qui joue quel rôle ?
+# catégorie: absurde, potes
+# langue: fr
+# 16+: non
+Si on était un groupe de rock, qui serait le batteur qui casse tout ?
+Si on était un groupe de rock, qui partirait pour une carrière solo catastrophique ?
+Si on était un royaume, qui serait le roi qui ne fait strictement rien ?
+Si on était un royaume, qui comploterait dans les couloirs du château ?
+Si on était une soupe, qui serait le gros morceau que personne n'attendait ?
+Si on était une sitcom, qui serait le voisin qui entre sans frapper ?
+Si on était une sitcom, qui aurait des rires enregistrés à chaque réplique ?
+Si on préparait un casse, qui ferait les repérages en tenue de ninja en plein jour ?
+Si on préparait un casse, qui serait celui qui « connaît un gars » ?
+Si on était une pizza, qui serait l'ananas ?
+Si on était une équipe de super-héros, qui aurait le pouvoir le plus inutile ?
+Si on était une famille de canards, qui marcherait en dernier et se perdrait ?
+Si on était une équipe de bobsleigh, qui serait à l'arrière à crier « plus vite » ?
+Si on était une équipe de foot, qui serait le remplaçant qui fête les buts plus fort que tout le monde ?
+Si on était un cirque, qui se porterait volontaire comme homme-canon ?
+Si on était une comédie musicale, qui se mettrait à chanter au pire moment ?
+Si on était une colonie de vacances, qui serait le mono qui a perdu les enfants ?
+Si on était un plateau de fromages, qui serait celui qui pue mais que tout le monde adore ?
+Si on était un groupe de pop, qui aurait toujours un temps de retard sur la choré ?
+Si on était un vaisseau spatial, qui appuierait sur le gros bouton rouge « pour voir » ?
+[classement] Si on était un groupe de rock, classe-nous de la star sur scène au roadie oublié.
+[classement] Classe-nous du monarque au dernier des paysans de notre royaume.
+[classement] Si on était une soupe, classe-nous de l'ingrédient principal à la pincée de sel.
+[classement] Classe-nous du cerveau du casse à celui qui déclenche l'alarme.
+[classement] Si on était une sitcom, classe-nous du personnage principal au figurant.
+[classement] Classe-nous du plus probable au moins probable d'avoir sa propre série dérivée.
+[choix] Ton rôle dans le casse ? | Le cerveau | Le chauffeur | La diversion | Le boulet
+[choix] Si tu étais une soupe ? | Velouté chic | Soupe alphabet | Gaspacho | Minestrone
+[choix] Ton instrument dans le groupe ? | Batterie | Triangle | Tambourin | Kazoo

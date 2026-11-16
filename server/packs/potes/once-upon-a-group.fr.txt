@@ -1,0 +1,35 @@
+# titre: Il était une fois le groupe
+# description: Première rencontre, vieilles photos, souvenirs racontés en boucle : notre légende.
+# catégorie: potes
+# langue: fr
+# 16+: non
+Qui a fait la pire première impression au groupe ?
+Qui a le plus changé depuis qu'on se connaît ?
+Qui n'a absolument pas changé depuis le premier jour ?
+Qui se souvient de la date exacte de notre rencontre ?
+Qui garde encore les photos les plus gênantes de nos débuts ?
+Qui était le plus insupportable au début ?
+Qui a failli ne jamais faire partie du groupe ?
+Qui a fait entrer le plus de monde dans le groupe ?
+Qui avait les goûts musicaux les plus gênants à l'époque ?
+Qui pleurerait en premier devant un diaporama de nos 10 ans d'amitié ?
+Qui était « le pote d'un pote » avant de devenir indispensable ?
+Qui organisera nos retrouvailles dans 20 ans ?
+Qui a gardé tous les tickets, bracelets et souvenirs depuis le début ?
+Qui raconte notre rencontre complètement différemment des autres ?
+Qui a déclenché la première grosse dispute du groupe ?
+Qui est la colle du groupe, celui sans qui on ne se verrait plus ?
+Qui sera encore là pour l'apéro avec nous à 80 ans ?
+Qui a le surnom le plus ancien du groupe ?
+Qui a traversé la phase la plus gênante de notre histoire commune ?
+Qui relit de vieilles conversations juste pour rire tout seul ?
+Qui serait la voix off du documentaire sur notre groupe ?
+[classement] Classe-nous du plus ancien membre du groupe au dernier arrivé.
+[classement] Classe-nous du plus nostalgique au plus tourné vers l'avenir.
+[classement] Classe-nous de la meilleure mémoire des souvenirs du groupe à la pire.
+[classement] Classe-nous de celui qui organise le plus de retrouvailles au plus passif.
+[classement] Du plus sentimental au moins démonstratif : classe-nous.
+[classement] Classe-nous du meilleur conteur de nos légendes à celui qui n'en raconte jamais.
+[choix] Tu es entré dans le groupe comment ? | À l'école | Par le boulot | Pote d'un pote | Je sais plus
+[choix] Le groupe dans 20 ans ? | Toujours soudé | Un apéro par an | Juste la conv | Éparpillés
+[choix] Ton genre de souvenir de groupe préféré ? | Un voyage | Une soirée | Un fou rire | Un truc idiot

@@ -1,0 +1,35 @@
+# titre: Encore un épisode
+# description: Spoilers, sitcom revue douze fois et « le dernier » à 3 h : qui est accro ?
+# catégorie: culture, potes
+# langue: fr
+# 16+: non
+Qui a déjà regardé une saison entière en une seule nuit ?
+Qui met les sous-titres même pour les séries en français ?
+Qui a revu la même sitcom en entier au moins dix fois ?
+Qui lance un épisode « pour s'endormir » et le finit les yeux grands ouverts ?
+Qui commence une série directement par la dernière saison ?
+Qui regarde ses séries en vitesse x1,5 ?
+Qui lit le résumé de la saison en ligne au lieu de la regarder ?
+Qui abandonne une série à un épisode de la fin ?
+Qui utilise le compte de streaming d'une personne qu'il n'a jamais rencontrée ?
+Qui pleure à chaque fin de série, même quand elle est ratée ?
+Qui fait « chut ! » dès qu'on ouvre la bouche pendant un épisode ?
+Qui passe plus de temps à choisir quoi regarder qu'à regarder ?
+Qui a des théories sur une série que personne ne lui a demandées ?
+Qui recommande une série avec « les trois premières saisons sont lentes, mais après… » ?
+Qui regarde la télé-réalité « au second degré » mais ne rate aucun épisode ?
+Qui peut réciter des scènes entières d'une série culte ?
+Qui a déjà posé un jour de congé pour la sortie d'une saison ?
+Qui ne zappe jamais le générique, par principe ?
+Qui parle encore d'une série terminée il y a dix ans comme si c'était hier ?
+Qui couperait tous ses réseaux pour éviter un spoiler ?
+Qui commence une nouvelle série chaque semaine sans jamais en finir une ?
+[classement] Classe-nous du plus gros binge-watcheur au plus raisonnable.
+[classement] Classe-nous du plus grand spoileur au plus discret.
+[classement] Du plus fidèle à une seule série au plus volage : classe-nous.
+[classement] Classe-nous de celui qui a le meilleur goût en séries au pire.
+[classement] Classe-nous de celui qui tiendrait le plus longtemps sans streaming au premier à craquer.
+[classement] Classe-nous du plus bavard pendant un épisode au plus concentré.
+[choix] Ta série du dimanche soir ? | Polar | Sitcom culte | Télé-réalité | Docu true crime
+[choix] Ton rythme idéal ? | 1 épisode/semaine | Saison d'un coup | Selon l'humeur
+[choix] Tu regardes tes séries où ? | Canapé | Au lit | Dans les transports | En cuisinant

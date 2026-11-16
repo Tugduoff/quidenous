@@ -1,0 +1,19 @@
+# titre: Le réveillon du 31
+# description: Compte à rebours raté, résolutions oubliées le 2 : qui survit au 31 décembre ?
+# catégorie: soiree, potes
+# langue: fr
+# 16+: non
+Qui rate le compte à rebours parce qu'il était aux toilettes ?
+Qui lance le compte à rebours avec deux minutes d'avance ?
+Qui envoie « bonne année » à tout son répertoire à 0 h 01 ?
+Qui abandonne ses résolutions avant le 3 janvier ?
+Qui cherche la soirée parfaite toute la nuit et fête minuit dans un taxi ?
+Qui porte le chapeau pointu et les lunettes de l'année sans aucune honte ?
+Qui fait son bilan de l'année en larmes à 1 h du matin ?
+Qui réserve un réveillon hors de prix dès le mois de septembre ?
+Qui écrit encore la mauvaise année sur ses papiers en mars ?
+Qui fait la bise à toute la salle après minuit, inconnus compris ?
+[classement] Classe-nous du réveillon le plus fou au plus calme l'an dernier.
+[classement] Du plus fidèle à ses résolutions au plus rapide à craquer.
+[classement] Classe-nous du plus frais au plus en vrac le 1er janvier.
+[choix] Ton 31 idéal ? | Grosse soirée | Dîner entre amis | Canapé et plaid | Dodo avant minuit

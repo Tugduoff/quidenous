@@ -1,0 +1,35 @@
+# titre: Vacances entre potes
+# description: Valises, budget, location douteuse et lits tirés au sort : qui survit au séjour ?
+# catégorie: potes
+# langue: fr
+# 16+: non
+Qui prendrait une valise de 23 kg pour un week-end de deux nuits ?
+Qui ferait un tableur des vacances avec un onglet par jour ?
+Qui réserverait la location sans lire un seul avis ?
+Qui s'approprie le meilleur lit en arrivant, sans discussion ?
+Qui confirmerait sa venue la veille du départ ?
+Qui râle contre le programme sans jamais rien proposer ?
+Qui ferait la sieste pendant l'excursion qu'il a lui-même proposée ?
+Qui oublie son chargeur et emprunte celui de tout le monde ?
+Qui attrape un coup de soleil dès le premier jour ?
+Qui fait la vaisselle en douce pendant que les autres sont à la plage ?
+Qui se lève à 7 h « pour profiter » et réveille toute la maison ?
+Qui disparaîtrait une journée entière sans prévenir personne ?
+Qui rapporterait le souvenir le plus moche de la boutique ?
+Qui commande au resto avec un accent local inventé ?
+Qui perd les clés de la location dès le premier soir ?
+Qui serait le premier à vouloir rentrer plus tôt ?
+Qui laisserait la location dans un état à nous faire perdre la caution ?
+Qui n'est jamais prêt à l'heure le jour du départ ?
+Qui transforme chaque repas en débat de 40 minutes sur le choix du resto ?
+Qui poste les photos des vacances avant que le groupe les ait validées ?
+Qui finit sur le canapé du salon parce qu'il a réservé en dernier ?
+[classement] Classe-nous du plus chargé au plus léger côté bagages.
+[classement] Classe-nous du compagnon de voyage idéal au pire cauchemar.
+[classement] Classe-nous du plus aventurier au plus « transat et bouquin ».
+[classement] Classe-nous de celui qui claque le plus en vacances à celui qui rentre avec des économies.
+[classement] Du plus à l'aise avec la langue locale au plus perdu : classe-nous.
+[classement] Classe-nous du plus gros ronfleur présumé au dormeur le plus silencieux.
+[choix] Ton rôle dans l'organisation ? | Je réserve tout | Je suis le mouvement | Je râle | Je paie à la fin
+[choix] Ta valise, c'est quoi ? | Bagage cabine | 23 kg pile | Deux valises | Un sac plastique
+[choix] Premier réflexe en arrivant ? | Les courses | Direct la piscine | Sieste | Inspecter la salle de bain

@@ -1,0 +1,33 @@
+# titre: Invités au mariage
+# description: Vin d'honneur, plan de table, chenille à 2 h : qui est l'invité qu'on redoute ?
+# catégorie: soiree, famille
+# langue: fr
+# 16+: non
+Qui échange les marque-places pour être à côté des copains ?
+Qui arrive pendant les vœux en faisant grincer la porte de l'église ?
+Qui se jette sur les petits fours comme s'il n'avait rien mangé depuis trois jours ?
+Qui lance une chenille que personne n'a demandée ?
+Qui pleure plus que les mariés pendant la cérémonie ?
+Qui viendrait en blanc sans comprendre le problème ?
+Qui s'incruste sur toutes les photos officielles ?
+Qui finit par danser toute la soirée avec la grand-mère de la mariée ?
+Qui redemande la même chanson au DJ toutes les vingt minutes ?
+Qui commente chaque plat du menu à voix haute pour toute la table ?
+Qui oublie le cadeau et écrit une carte en catastrophe sur le parking ?
+Qui prend le micro sans être prévu au programme ?
+Qui se perd sur la route du domaine malgré le GPS ?
+Qui plaquerait quelqu'un au sol pour attraper le bouquet ?
+Qui raconte à chaque inconnu de la table comment il a connu les mariés ?
+Qui est pieds nus avant même l'entrée ?
+Qui organise un jeu pour les mariés qui dure beaucoup trop longtemps ?
+Qui finit par aider le traiteur à débarrasser les tables ?
+Qui prend les paris sur le prochain couple à se marier ?
+Qui serait le témoin qui perd les alliances ?
+[classement] Classe-nous du plus élégant au plus « j'ai fait avec ce que j'avais ».
+[classement] Du premier sur la piste au dernier à quitter sa chaise.
+[classement] Classe-nous de celui à qui on confierait les alliances à celui qu'on tiendrait loin.
+[classement] Classe-nous selon le temps qu'on tiendrait dans nos chaussures de cérémonie.
+[classement] Du plus ému au plus impassible pendant les vœux.
+[choix] Ton moment préféré d'un mariage ? | Cérémonie | Vin d'honneur | Repas | Piste de danse
+[choix] Ta table idéale ? | Les copains | La famille | Des inconnus | Près du buffet
+[choix] Ton cadeau de mariage ? | La liste | Une enveloppe | Fait maison | Oublié

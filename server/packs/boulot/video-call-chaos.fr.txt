@@ -1,0 +1,35 @@
+# titre: Visio : t'es en muet
+# description: Caméra figée, chat sur le clavier, « tu vois mon écran ? » : le procès des visios.
+# catégorie: boulot
+# langue: fr
+# 16+: non
+Qui demande « vous voyez mon écran ? » alors que tout le monde le voit depuis cinq minutes ?
+Qui a déjà présenté toute une slide micro coupé sans que personne n'ose le dire ?
+Qui a déjà laissé sa caméra allumée en croyant qu'elle était coupée ?
+Qui porte une chemise en haut et un bas de pyjama en visio ?
+Qui se cache derrière un fond virtuel de plage tropicale en plein mois de novembre ?
+Qui a un animal qui s'invite à toutes les visios ?
+Qui partagerait le mauvais onglet devant toute l'équipe ?
+Qui dit « je crois que tu as gelé » alors que c'est sa propre connexion qui lâche ?
+Qui coupe sa caméra pour manger un sandwich en douce pendant la réunion ?
+Qui dit « je vous laisse, j'ai une autre réunion » pour s'échapper ?
+Qui hoche la tête en visio en faisant tout autre chose ?
+Qui se connecte depuis la voiture, le train ou la queue de la boulangerie ?
+Qui ouvre chaque réunion par « on attend encore deux minutes que tout le monde arrive » ?
+Qui pose une question pile au moment où la réunion allait se terminer ?
+Qui a déjà attendu seul dix minutes sur le mauvais lien de visio ?
+Qui place sa plus belle bibliothèque derrière lui en visio, juste pour la frime ?
+Qui oublie qu'il partage son écran et affiche sa liste de courses à tout le monde ?
+Qui commence à parler en même temps que quelqu'un, s'excuse, puis recommence en même temps ?
+Qui activerait un filtre chaton par erreur en pleine réunion client ?
+Qui dit « tu es en muet » au moins trois fois par réunion ?
+[classement] Classe-nous du plus bel éclairage en visio au plus « caméra de surveillance ».
+[classement] Du plus ponctuel en visio au plus « j'arrive, mon ordi redémarre ».
+[classement] Classe-nous du plus expressif en visio au plus statue de cire.
+[classement] Du plus rapide à partager son écran au plus perdu dans les menus.
+[classement] Classe-nous du plus « caméra toujours allumée » au plus « juste mes initiales ».
+[classement] Du plus actif dans le chat de la visio au plus silencieux.
+[choix] Ton fond de visio idéal ? | Flou | Vraie bibliothèque | Plage virtuelle | Ma cuisine en vrai
+[choix] Cette réunion aurait pu être un mail. Tu fais quoi ? | Je souffre en silence | Je le dis | Je fais autre chose
+[choix] On te dit « tu es en muet ». Tu fais quoi ? | Je répète tout | Je résume | « Bref, c'est tout »
+[choix] Ton poste de visio préféré ? | Bureau impeccable | Canapé | Lit | En marchant
