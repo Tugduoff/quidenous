@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Pressable, Text } from 'react-native';
 
 import { ErrorText, Field, PasswordField, Pill, Row, Section, TextLink } from '@/components/auth-ui';
+import { needsReauth, ReauthProviders } from '@/components/security/reauth';
 import { Avatar, ConfirmModal } from '@/components/ui';
 import { auth, authError, type Account } from '@/lib/auth';
 import { useT } from '@/lib/i18n';
@@ -43,7 +44,10 @@ export function BlockedSection() {
   );
 }
 
-/** "Supprimer mon compte": confirmed with the password, or a 2FA / recovery code, when the account has one. */
+/**
+ * "Supprimer mon compte": confirmed with the password, or a 2FA / recovery code, when the account has one. An account
+ * signed in with Google / Discord only signs in with it again when the server asks (`reauth_required`).
+ */
 export function DeleteAccount({ account }: { account: Account }) {
   const t = useTheme();
   const tr = useT();
@@ -53,6 +57,7 @@ export function DeleteAccount({ account }: { account: Account }) {
   const [value, setValue] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [provider, setProvider] = useState(false);
   const field = account.has_password && !withCode ? 'password' : account.totp ? 'code' : null;
 
   const close = () => {
@@ -60,6 +65,7 @@ export function DeleteAccount({ account }: { account: Account }) {
     setWithCode(false);
     setValue('');
     setError(null);
+    setProvider(false);
   };
   const submit = async () => {
     if (busy || (field && !value.trim())) return;
@@ -68,7 +74,8 @@ export function DeleteAccount({ account }: { account: Account }) {
     try {
       await auth.deleteAccount(field === 'password' ? { password: value } : field === 'code' ? { code: value.trim() } : {});
     } catch (e) {
-      setError(authError(e));
+      if (!field && needsReauth(e)) setProvider(true);
+      else setError(authError(e));
       setBusy(false);
       return;
     }
@@ -91,7 +98,7 @@ export function DeleteAccount({ account }: { account: Account }) {
         message={tr('security.deleteAccount.message')}
         confirmLabel={tr('common.delete')}
         busy={busy}
-        confirmDisabled={!!field && !value.trim()}
+        confirmDisabled={(!!field && !value.trim()) || provider}
         onCancel={close}
         onConfirm={submit}>
         {field === 'password' && (
@@ -131,6 +138,7 @@ export function DeleteAccount({ account }: { account: Account }) {
             {withCode ? tr('security.deleteAccount.usePassword') : tr('security.deleteAccount.useCode')}
           </TextLink>
         )}
+        {provider && <ReauthProviders account={account} onDone={submit} />}
         <ErrorText>{error}</ErrorText>
       </ConfirmModal>
     </>

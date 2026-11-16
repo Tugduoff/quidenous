@@ -16,10 +16,15 @@ export type SessionResult = { token: string; user_id: number; new: boolean; emai
 /** 2FA is on: trade the challenge and a code for the session. */
 export type Challenge = { mfa: 'totp'; challenge: string };
 export type AuthResult = SessionResult | Challenge;
-export type RedeemResult = AuthResult | { linked: Provider };
+export type RedeemResult = AuthResult | { linked: Provider } | { reauth: true };
 
 export const isChallenge = (r: RedeemResult): r is Challenge => 'challenge' in r;
 export const isLinked = (r: RedeemResult): r is { linked: Provider } => 'linked' in r;
+/** A Google / Discord round that only proved it is me (before a sensitive change). */
+export const isReauth = (r: RedeemResult): r is { reauth: true } => 'reauth' in r;
+
+/** `link`: add the provider to my account; `reauth`: prove it is me (signed in, already linked). */
+export type OAuthMode = 'signin' | 'link' | 'reauth';
 
 export type Account = {
   user_id: number;
@@ -60,8 +65,12 @@ export const auth = {
   revokeOthers: () => post<{ revoked: number }>('/sessions/revoke-others'),
   logout: () => post<{ ok: boolean }>('/logout'),
   deleteAccount: (body: { password?: string; code?: string }) => api<{ ok: boolean }>('/auth/account', { method: 'DELETE', json: body }),
-  oauthStart: (provider: Provider, app_redirect: string, link: boolean) =>
-    post<{ url: string; key: string }>(`/oauth/${provider}/start`, link ? { app_redirect, link } : { app_redirect }),
+  /** Proves it is me (password, or a 2FA / recovery code): sensitive changes then work for 10 minutes. */
+  reauth: (body: { password: string } | { code: string }) => post<{ ok: boolean }>('/reauth', body),
+  /** A 60 s single-use stand-in for the token in a URL (the CSV link, the live socket). */
+  ticket: (purpose: 'export' | 'live') => post<{ ticket: string }>('/ticket', { purpose }),
+  oauthStart: (provider: Provider, app_redirect: string, mode: OAuthMode) =>
+    post<{ url: string; key: string }>(`/oauth/${provider}/start`, mode === 'signin' ? { app_redirect } : { app_redirect, [mode]: true }),
   redeem: (code: string, key: string) => post<RedeemResult>('/oauth/redeem', { code, key }, true),
   unlink: (provider: Provider) => api<{ ok: boolean }>(`/auth/oauth/${provider}`, { method: 'DELETE' }),
 };

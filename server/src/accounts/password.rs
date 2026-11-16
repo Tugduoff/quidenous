@@ -7,7 +7,8 @@ use serde_json::{Value, json};
 
 use super::{
     ClientIp, Device, Session, account_by_email, check_password, clean_email, codes,
-    crypto::six_digits, limits, mail, not_claimed, revoke_sessions, sign_in,
+    crypto::six_digits, limits, mail, not_claimed, reauth::PasswordBudget, require_reauth,
+    revoke_sessions, sign_in,
 };
 use crate::{
     AppState,
@@ -130,16 +131,15 @@ pub async fn login(
     let Ok(email) = clean_email(&body.email) else {
         return Err(AppError::BadRequest("bad_credentials"));
     };
-    let limits = &state.auth.limits;
     // Taken before the hash (parallel guesses each pay), given back on success.
-    limits.hit(&limits::LOGIN_ACCOUNT, &email)?;
+    let budget = PasswordBudget::take(&state, &email, ip)?;
     let acct = account_by_email(&state, &email).await?;
     let hash = acct.as_ref().and_then(|a| a.password_hash.as_deref());
     // Unknown email or no password: same answer, same cost.
     let ok = state.auth.hasher.verify(&body.password, hash).await?;
     match acct {
         Some(a) if ok => {
-            limits.refund(&limits::LOGIN_ACCOUNT, &email);
+            budget.refund(&state);
             Ok(Json(sign_in(&state, a.id, false, device.as_deref()).await?))
         }
         _ => Err(AppError::BadRequest("bad_credentials")),
@@ -285,7 +285,8 @@ pub struct CredentialsBody {
     password: String,
 }
 
-/// A legacy (token-only) account gets an email + password, keeping its rooms and history.
+/// A legacy (token-only) account gets an email + password, keeping its rooms and history. An
+/// account signed in with a provider that gave no e-mail (Discord) needs a recent re-auth first.
 pub async fn credentials(
     State(state): State<AppState>,
     session: Session,
@@ -296,6 +297,7 @@ pub async fn credentials(
         return Err(AppError::Conflict("already_secured"));
     }
     not_claimed(&state, acct.id, &session.token_hash).await?;
+    require_reauth(&state, &acct, &session.token_hash).await?;
     let email = clean_email(&body.email)?;
     check_password(&body.password, Some(&email))?;
     if account_by_email(&state, &email).await?.is_some() {
@@ -378,9 +380,11 @@ pub struct PasswordBody {
     revoke_others: bool,
 }
 
-/// Set (no password yet, e.g. OAuth-only) or change the password.
+/// Set (no password yet, e.g. OAuth-only: needs a recent re-auth) or change the password (the
+/// current one is the proof).
 pub async fn change_password(
     State(state): State<AppState>,
+    ClientIp(ip): ClientIp,
     session: Session,
     Json(body): Json<PasswordBody>,
 ) -> AppResult<Json<Value>> {
@@ -389,8 +393,7 @@ pub async fn change_password(
     let email = acct.email.clone().ok_or(AppError::BadRequest("no_email"))?;
     check_password(&body.password, Some(&email))?;
     if acct.password_hash.is_some() {
-        let limits = &state.auth.limits;
-        limits.hit(&limits::LOGIN_ACCOUNT, &email)?;
+        let budget = PasswordBudget::take(&state, &email, ip)?;
         let current = body.current.as_deref().unwrap_or("");
         if !state
             .auth
@@ -400,7 +403,9 @@ pub async fn change_password(
         {
             return Err(AppError::BadRequest("bad_credentials"));
         }
-        limits.refund(&limits::LOGIN_ACCOUNT, &email);
+        budget.refund(&state);
+    } else {
+        require_reauth(&state, &acct, &session.token_hash).await?;
     }
     let hash = state.auth.hasher.hash(&body.password).await?;
     sqlx::query("UPDATE users SET password_hash = ? WHERE id = ?")

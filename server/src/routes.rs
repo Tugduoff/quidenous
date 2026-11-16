@@ -827,18 +827,49 @@ async fn history_items(
 
 #[derive(Deserialize)]
 struct ExportQuery {
-    token: String,
+    /// Older apps: the session token itself.
+    token: Option<String>,
+    /// A 60 s single-use ticket from `POST /auth/ticket` (`purpose: "export"`).
+    ticket: Option<String>,
     room: Option<i64>,
     /// Minutes east of UTC, for the dates (default: the account's notification setting, else UTC).
     tz: Option<String>,
 }
 
-/// The whole history as a CSV file. The token comes in the query so a plain link (browser download) works.
+/// The session behind `?ticket=` (single use, for one purpose) or, from older apps, `?token=`:
+/// a plain link (browser download) or a socket can't send an `Authorization` header.
+async fn member_from_query(
+    state: &AppState,
+    token: Option<&str>,
+    ticket: Option<&str>,
+    purpose: crate::accounts::tickets::Purpose,
+    room: Option<i64>,
+) -> AppResult<MemberRow> {
+    if let Some(ticket) = ticket {
+        let hash = state
+            .auth
+            .tickets
+            .redeem(ticket, purpose)
+            .ok_or(AppError::Unauthorized)?;
+        return crate::auth::member_in_room_by_hash(state, &hash, room).await;
+    }
+    let token = token.ok_or(AppError::Unauthorized)?;
+    crate::auth::member_in_room(state, token, room).await
+}
+
+/// The whole history as a CSV file, from a plain link (browser download): see `member_from_query`.
 async fn export_history(
     State(state): State<AppState>,
     Query(q): Query<ExportQuery>,
 ) -> AppResult<Response> {
-    let me = crate::auth::member_in_room(&state, &q.token, q.room).await?;
+    let me = member_from_query(
+        &state,
+        q.token.as_deref(),
+        q.ticket.as_deref(),
+        crate::accounts::tickets::Purpose::Export,
+        q.room,
+    )
+    .await?;
     let lang = i18n::of_member(&state.db, me.id).await?;
     let names: std::collections::HashMap<i64, String> =
         sqlx::query_as::<_, (i64, String, Option<i64>)>(
@@ -1522,12 +1553,14 @@ async fn queue(State(state): State<AppState>, Me(me): Me) -> AppResult<Json<Valu
 #[derive(Deserialize)]
 struct LiveQuery {
     token: Option<String>,
+    /// A 60 s single-use ticket from `POST /auth/ticket` (`purpose: "live"`), instead of `token`.
+    ticket: Option<String>,
     room: Option<i64>,
     /// A party's code: the big screen follows that party without an account.
     screen: Option<String>,
 }
 
-/// WebSocket: `?token=` because browsers cannot set headers on a socket.
+/// WebSocket: `?ticket=` (or `?token=` from older apps) because browsers cannot set headers on a socket.
 /// `?screen=<code>`: a party's events, no account (party rooms only).
 async fn live(
     State(state): State<AppState>,
@@ -1538,8 +1571,14 @@ async fn live(
         let group_id = crate::party::by_code(&state, code).await?;
         return Ok(ws.on_upgrade(move |socket| relay(socket, state, group_id, None)));
     }
-    let token = q.token.ok_or(AppError::Unauthorized)?;
-    let me = crate::auth::member_in_room(&state, &token, q.room).await?;
+    let me = member_from_query(
+        &state,
+        q.token.as_deref(),
+        q.ticket.as_deref(),
+        crate::accounts::tickets::Purpose::Live,
+        q.room,
+    )
+    .await?;
     Ok(ws.on_upgrade(move |socket| relay(socket, state, me.group_id, me.user_id)))
 }
 

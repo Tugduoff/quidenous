@@ -16,6 +16,7 @@ import {
   TextLink,
   useCooldown,
 } from '@/components/auth-ui';
+import { withReauth } from '@/components/security/reauth';
 import { Toggle } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { accountKey, auth, authError, looksLikeEmail, PASSWORD_MIN, type Account } from '@/lib/auth';
@@ -38,6 +39,7 @@ export function SignInSection({ account }: { account: Account }) {
         </>
       ) : (
         <Credentials
+          account={account}
           onDone={(sent) => {
             setEntering(sent);
             refresh();
@@ -48,7 +50,7 @@ export function SignInSection({ account }: { account: Account }) {
   );
 }
 
-function Credentials({ onDone }: { onDone: (codeSent: boolean) => void }) {
+function Credentials({ account, onDone }: { account: Account; onDone: (codeSent: boolean) => void }) {
   const t = useTheme();
   const tr = useT();
   const [email, setEmail] = useState('');
@@ -62,7 +64,9 @@ function Credentials({ onDone }: { onDone: (codeSent: boolean) => void }) {
     setBusy(true);
     setError(null);
     try {
-      const r = await auth.credentials(email.trim().toLowerCase(), password);
+      // An account signed in with a provider that gave no e-mail proves it is me first.
+      const r = await withReauth(account, () => auth.credentials(email.trim().toLowerCase(), password));
+      if (r === null) return;
       onDone(!!r?.email_sent);
     } catch (e) {
       setError(authError(e));
@@ -222,7 +226,9 @@ function PasswordRow({ account, refresh }: { account: Account; refresh: () => vo
     setBusy(true);
     setError(null);
     try {
-      const r = await auth.password({ ...(has && { current }), password, revoke_others: revoke });
+      // A first password (no current one to type) needs proof that it is me first.
+      const r = await withReauth(account, () => auth.password({ ...(has && { current }), password, revoke_others: revoke }));
+      if (!r) return;
       close();
       setDone(r.revoked ? tr('security.signIn.revoked', { count: r.revoked }) : tr('security.signIn.saved'));
       refresh();

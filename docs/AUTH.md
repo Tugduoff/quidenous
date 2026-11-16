@@ -21,6 +21,8 @@ Migration `0015_auth.sql`:
 | `auth_codes` | short-lived secrets, hashed: `kind` = `verify_email` / `reset_password` / `mfa` / `oauth_state` / `oauth_result` / `delete_account` (0016), `user_id`, `email`, `data` (JSON), `expires_at`, `used_at`, `attempts` |
 | `user_tokens.last_used_at`, `.device` | session metadata (device label from `X-Device`, else the User-Agent, 80 chars) |
 | `user_tokens.claimed` | `1` = handed over by `/api/join` by first name (see *Legacy name grab*) |
+| `user_tokens.reauth_at` | (0029) when this session last re-authenticated, unix seconds (see *Re-authentication*) |
+| `code_failures` | (0029) `email, at`: one row per wrong six-digit code, kept 24 h (see *Codes*) |
 
 A session's public id is the first 16 hex chars of its token hash (the token itself is never stored or shown).
 
@@ -29,10 +31,11 @@ Account kinds: **secured** = has an email + password, or at least one linked pro
 ## Security choices
 
 - **Passwords**: argon2id, m = 19 MiB, t = 2, p = 1 (OWASP minimum, ~50 ms on a Pi-class CPU), hashed on a blocking thread, at most 2 at once. 8 to 128 characters, rejected if in a built-in list of the most common passwords or equal to the email. Unknown email and wrong password give the same `bad_credentials`, and an unknown email still pays for one hash (no timing oracle).
-- **Codes** (email verification, password reset): 6 digits, 15 min (verify) / 30 min (reset), single use, 5 wrong tries kill the code, stored as a keyed hash. A new code replaces the previous one. Every guess (codes, 2FA challenges, OAuth results) uses up its try in one `UPDATE … WHERE attempts < 5` *before* it is compared, and marking a code used is one `UPDATE … WHERE used_at IS NULL`: parallel guesses can't share a try, a code can't be redeemed twice.
+- **Codes** (email verification, password reset, account deletion): 6 digits, 15 min (verify) / 30 min (reset, delete), single use, 5 wrong tries kill the code, stored as a keyed hash. A new code replaces the previous one. On top of that, every wrong code is recorded per e-mail in SQLite (`code_failures`, all three kinds together, so restarts and a new code change nothing): the 20th wrong code in 24 h kills the current code, and from then on codes for that e-mail answer `429 rate_limited` (with `retry_after` = when the oldest failure is a day old), even a right one; refused tries don't extend it. A right code takes its own try back. Without that, 5 tries per code and a new code every 20 minutes was about 240 guesses a day per known e-mail. The cost is that someone who knows the e-mail can block its codes for a day (the owner can still sign in with the password or a provider). Every guess (codes, 2FA challenges, OAuth results) uses up its try in one `UPDATE … WHERE attempts < 5` *before* it is compared, and marking a code used is one `UPDATE … WHERE used_at IS NULL`: parallel guesses can't share a try, a code can't be redeemed twice.
 - **2FA**: TOTP RFC 6238 (SHA-1, 6 digits, 30 s, ±1 step, no replay). Enabling needs a valid code from the app. 10 recovery codes `xxxxx-xxxxx`, one-time, shown once, can be regenerated. Sign-in with 2FA: the first step returns a `challenge` (5 min, 5 tries), the second step trades it plus a code for the session.
 - **Rate limits** (in memory, token buckets, per IP and per account): see below. `429 {"error":"rate_limited","retry_after":s}`.
-- **Client IP**: the socket address; with `TRUST_PROXY=1` the **last** `X-Forwarded-For` entry, the one the (single) reverse proxy appended: the entries before it are whatever the client sent. Set it behind the homelab reverse proxy (which must *append* to the header: Caddy and Traefik do by default, nginx needs `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;`), never when the port is exposed directly. Without it behind a proxy every client shares the proxy's IP, so the anonymous `/join` and `/start` limits throttle everyone at once.
+- **Client IP**: the socket address; with `TRUST_PROXY=1` the **right-most** `X-Forwarded-For` entry of the **last** header line, the one the (single) reverse proxy appended: the entries before it are whatever the client sent, and a proxy that adds its own header line (HAProxy `option forwardfor`, some load balancers) leaves the client's line first. Only one proxy hop is trusted: a chain (a CDN, then the homelab proxy) would make every client share the CDN's address, so put nothing else in front without changing this. Set it behind the homelab reverse proxy (which must *append* to the header: Caddy and Traefik do by default, nginx needs `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;`), never when the port is exposed directly. Without it behind a proxy every client shares the proxy's IP, so the anonymous `/join` and `/start` limits throttle everyone at once.
+- **Re-authentication** (`0029`): a stolen session alone must not become a permanent takeover. Turning 2FA on (`2fa/setup` and `2fa/enable`), linking a provider (`oauth/{p}/start` with `link: true`), unlinking one, setting a first password (`/auth/password` with no current one, `/auth/credentials` on an account that has a provider but no e-mail) and deleting the account answer `403 reauth_required` unless this session re-authenticated in the last 10 minutes: `POST /auth/reauth` with the password, or a 2FA / recovery code when 2FA is on; for an account with neither (Google / Discord only), a fresh provider round: `oauth/{p}/start` with `reauth: true` (signed in), then `redeem` answers `{reauth: true}` if the provider vouches for an identity already linked to that account (`403 wrong_account` otherwise; nothing is linked or created). That works for every account that has something to prove with, needs no e-mail delivery, and is the same flow as signing in. Legacy and guest accounts have nothing to prove: they are never asked. Changing the password still takes the current one instead, and `DELETE /auth/account` still accepts the password or code inline (older apps). The proof is per session (`user_tokens.reauth_at`), not per account. Caveat: a provider round proves control of that Google / Discord account in this browser (a phone stolen unlocked with the browser signed in passes it). Old apps get `403 reauth_required` ("Confirme que c'est bien toi") on those actions and have no way to answer it until they update (OTA); everything else works as before.
 - **Sessions**: a reset password signs out every device. If the email had never been verified, the reset is the first proof of who owns it: it also removes the linked providers, 2FA (secret, pending set-up, recovery codes) that whoever typed the address may have added, and that 2FA doesn't apply to the reset's own sign-in. With an already verified email, 2FA still applies (challenge). Changing the password and enabling 2FA offer to sign out the others (on by default in the app). Sign-out deletes the token server-side.
 - **OAuth**: authorization code + PKCE with the provider (done by the server, which holds the client secrets), `state` and `nonce` checked, Google ID tokens verified against Google's JWKS (signature, `iss`, `aud`, `exp`, `nonce`), Discord through `/users/@me` (verified email only). The app gets the result in two halves: `start` hands the app a random `key` (kept in memory / sessionStorage), the redirect back to the app only carries a 60 s one-time `code`, and `redeem` needs both. The callback only stores the verified identity; linking, finding or creating the account happens in `redeem`, after the key check. A hijacked redirect alone gets nothing, and a victim's browser walked through an attacker's link-mode URL links nothing (the attacker has the key but the code went to the victim's browser).
 - **Account linking**: a provider identity attaches to an existing account only (a) from Profile > Sécurité while signed in, or (b) automatically when both the provider *and* the account have a verified email. Never on an unverified email.
@@ -47,20 +50,20 @@ Account kinds: **secured** = has an email + password, or at least one linked pro
 | --- | --- | --- |
 | `auth/email` (does it exist) | 20 / 10 min | |
 | `auth/signup` | 5 / hour | |
-| `auth/login` | 10 / 10 min | 5 failures / 15 min (then `429`, refills one every 3 min) |
-| `auth/login/2fa`, 2FA disable | 10 / 10 min | 5 failures / 15 min, plus 5 per challenge |
+| `auth/login`, `auth/reauth` (password) | 10 / 10 min | 5 failures / 15 min per (email, IP) (then `429`, refills one every 3 min), and 40 failures / hour per email from anywhere |
+| `auth/login/2fa`, 2FA disable, `auth/reauth` (code) | 10 / 10 min | 5 failures / 15 min, plus 5 per challenge |
 | `auth/forgot` | 5 / hour | 3 / hour |
-| `auth/reset` | 10 / 10 min | 10 / hour per email, 5 per code |
+| `auth/reset` | 10 / 10 min | 10 / hour per email, 5 per code, 20 wrong codes / 24 h per email (persistent, every code kind) |
 | `auth/verify`, `oauth/redeem` | 10 / 10 min | 5 per code |
 | `auth/verify/send` | | 5 / hour |
 | `auth/delete/send` | 5 / hour | 3 / hour per email |
-| `auth/delete/confirm` | 10 / 10 min | 10 / hour per email, 5 per code |
-| `DELETE auth/account` | | password: the sign-in failure budget; 2FA code: the 2FA one |
+| `auth/delete/confirm` | 10 / 10 min | 10 / hour per email, 5 per code, the same 20 / 24 h |
+| `DELETE auth/account` | | password: the sign-in failure budgets; 2FA code: the 2FA one |
 | `reports` | | 20 / hour per account (and 30 report emails / hour server-wide) |
 | `oauth/*/start` | 20 / 10 min | |
 | legacy `/join` (without a token), `/start` | 10 / hour | |
 
-Per-account keys: the lowercased email for login / forgot / reset (so unknown emails are limited the same way), the user id for 2FA. "Failures" budgets (sign-in, 2FA, password change) take their token before the password or code is checked and give it back on success, so parallel attempts can't all slip through. Per-IP limits only apply when the IP is known (always in production; in-process tests have no socket). With `TRUST_PROXY` unset behind a proxy every client shares the proxy's IP: set it.
+Per-account keys: the lowercased email for login / forgot / reset (so unknown emails are limited the same way), the user id for 2FA. Wrong passwords count per (email, IP) and, more loosely, per email: one IP (at most 20 tries an hour) can't lock the owner out any more, guesses spread over many IPs still stop at 40 an hour. When memory is short (100 000 buckets), the limiter drops the buckets that are full again, then per-IP buckets, least recently used first, before any per-account one (it used to clear everything, handing out fresh guesses). "Failures" budgets (sign-in, 2FA, password change) take their token before the password or code is checked and give it back on success, so parallel attempts can't all slip through. Per-IP limits only apply when the IP is known (always in production; in-process tests have no socket). With `TRUST_PROXY` unset behind a proxy every client shares the proxy's IP: set it.
 
 ## Endpoints
 
@@ -78,9 +81,11 @@ Everything under `/api/auth`. Bodies are JSON. Errors: `{"error": code}`, status
 | `POST /auth/credentials` | yes | `email, password` | `{ok, email_sent}`: legacy account adds email + password, a verification code is emailed · `already_secured` (has an email already), `bad_email`, `email_taken`, password errors |
 | `POST /auth/verify/send` | yes | | `{email_sent}` · `no_email`, `already_verified` |
 | `POST /auth/verify` | yes | `code` | `{email_verified: true}` · `bad_code`, `expired` |
-| `POST /auth/password` | yes | `current` (if one exists), `password`, `revoke_others` | `{ok, revoked}` · `bad_credentials`, password errors, `no_email` |
-| `POST /auth/2fa/setup` | yes | | `{secret, otpauth_url}` (base32; label = email, issuer `Qui de nous ?`) · `totp_enabled`, `not_secured` (2FA needs an email + password or a provider first) |
-| `POST /auth/2fa/enable` | yes | `code`, `revoke_others` | `{recovery_codes: [10], revoked}` · `bad_code`, `no_setup`, `totp_enabled` |
+| `POST /auth/password` | yes | `current` (if one exists), `password`, `revoke_others` | `{ok, revoked}` · `bad_credentials`, password errors, `no_email`, `403 reauth_required` (first password) |
+| `POST /auth/reauth` | yes | `password` or `code` (TOTP or recovery) | `{ok, expires_in: 600}`: this session may make sensitive changes for 10 min · `bad_credentials` (wrong password, or nothing this account can use), `bad_code`, `429` |
+| `POST /auth/ticket` | yes | `purpose`: `export` or `live` | `{ticket, expires_in: 60}`: a single-use stand-in for the token in `GET /history/export?ticket=` or `/live?ticket=` (in memory, 60 s, one purpose; stops working with its session). `?token=` keeps working for older apps |
+| `POST /auth/2fa/setup` | yes | | `{secret, otpauth_url}` (base32; label = email, issuer `Qui de nous ?`) · `totp_enabled`, `not_secured` (2FA needs an email + password or a provider first), `403 reauth_required` |
+| `POST /auth/2fa/enable` | yes | `code`, `revoke_others` | `{recovery_codes: [10], revoked}` · `bad_code`, `no_setup`, `totp_enabled`, `403 reauth_required` |
 | `POST /auth/2fa/disable` | yes | `code` (TOTP or recovery, same field) | `{ok}` · `bad_code`, `totp_off` |
 | `POST /auth/2fa/recovery` | yes | `code` (TOTP) | `{recovery_codes: [10]}` (old ones dropped) · `bad_code`, `totp_off` |
 | `GET /auth/sessions` | yes | | `[{id, device, created_at, last_used_at, current}]` |
@@ -88,12 +93,12 @@ Everything under `/api/auth`. Bodies are JSON. Errors: `{"error": code}`, status
 | `POST /auth/sessions/revoke-others` | yes | | `{revoked}` |
 | `POST /auth/logout` | yes | | `{ok}` (deletes this token) |
 | `GET /auth/providers` | | | `["google", "discord"]` (the configured ones) |
-| `POST /auth/oauth/{provider}/start` | optional (`link: true` needs it) | `app_redirect, link?` | `{url, key}`: open `url` in the browser, keep `key` for `redeem` · `unknown_provider`, `bad_redirect` |
+| `POST /auth/oauth/{provider}/start` | optional (`link` / `reauth` need it) | `app_redirect, link?, reauth?` | `{url, key}`: open `url` in the browser, keep `key` for `redeem` · `unknown_provider`, `bad_redirect`, `403 reauth_required` (link) |
 | `GET /auth/oauth/{provider}/callback` | | provider redirect | 302 to `app_redirect?code=…` or `?error=…` (see below); an unknown or already used `state` gets a plain-text `400` page (no redirect target is known) |
-| `POST /auth/oauth/redeem` | | `code, key` | session or challenge, or `{linked: provider}` · `bad_code` (wrong / used / expired code or wrong key), `409`: `identity_taken`, `already_linked`, `email_taken`; link mode: `403 claimed_session`, `401` if the session that started it was signed out meanwhile |
-| `DELETE /auth/oauth/{provider}` | yes | | `{ok}` · `last_method` (would leave no way to sign in), `404 not_found` (not linked) |
+| `POST /auth/oauth/redeem` | | `code, key` | session or challenge, or `{linked: provider}`, or `{reauth: true}` · `bad_code` (wrong / used / expired code or wrong key), `409`: `identity_taken`, `already_linked`, `email_taken`; link mode: `403 claimed_session`, `401` if the session that started it was signed out meanwhile; re-auth mode: `403 wrong_account`, `401` likewise |
+| `DELETE /auth/oauth/{provider}` | yes | | `{ok}` · `last_method` (would leave no way to sign in), `404 not_found` (not linked), `403 reauth_required` |
 
-`/api/features` gains `auth`, `email` (Mailgun configured), `oauth_google`, `oauth_discord` (each only when configured).
+`/api/features` gains `auth`, `email` (Mailgun configured), `oauth_google`, `oauth_discord` (each only when configured), `reauth` (the re-authentication above) and `tickets` (`POST /auth/ticket`; the app then stops putting its token in URLs).
 
 `GET /api/me` (and every room endpoint) for a signed-in account with no room yet answers `403 no_room` instead of `401`, so the app sends that account to "join or create a room" instead of signing it out. `POST /api/rooms` and `/api/rooms/join` work without a room (`{id, …}`). This applies to **secured** accounts only: a legacy (token-only) account left with no room still gets `401` as before, since old app builds sign out on it after a removal and that account has no other way back in.
 
@@ -109,14 +114,14 @@ Everything under `/api/auth`. Bodies are JSON. Errors: `{"error": code}`, status
 
 **OAuth** (Google and Discord, same for web and phone, no new native module; the provider code is a small generic table so Apple can be added later):
 
-1. App calls `POST /auth/oauth/{p}/start {app_redirect}` and keeps the returned `key`. `app_redirect` is `quidenous://oauth` on the phone, `<origin>/oauth` on the web; anything else must start with `PUBLIC_URL` or be in `OAUTH_REDIRECTS`.
+1. App calls `POST /auth/oauth/{p}/start {app_redirect}` and keeps the returned `key`. `app_redirect` is `quidenous://oauth` on the phone, `<origin>/oauth` on the web; anything else must be under `PUBLIC_URL` or an `OAUTH_REDIRECTS` entry. Both are parsed and compared on scheme, host and port, plus the entry's path as a prefix on a `/` boundary (never as raw strings: `http://localhost:8081` doesn't allow `http://localhost:8081.evil.com`); URLs with a user name are refused. An entry with no host, `exp://`, allows Expo Go only on `localhost` or a private / loopback / link-local address; a tunnel (`exp://xyz.exp.direct`) must be listed with its host.
 2. App opens `url` with `expo-web-browser` `openAuthSessionAsync` (web: same tab).
 3. Provider → `PUBLIC_URL/api/auth/oauth/{p}/callback` (one https redirect URI to register per provider). The server checks `state`, exchanges the code with its own PKCE verifier + client secret, verifies the ID token (Google) or reads `/users/@me` (Discord, verified email only).
 4. Server stores the verified identity (provider, subject, email, whether it is verified, name, link-mode account) as a 60 s one-time result and redirects to `app_redirect?code=…`. Nothing is linked or created yet.
 5. App `POST /auth/oauth/redeem {code, key}`. Once the key matches, the server finds the account (identity → link-mode user → verified email) or creates one (name and verified email from the provider) → session (or 2FA challenge, or `linked`).
 
 
-**Security screen** (Profile > Sécurité): email (+ verify), password (set/change, sign out others), 2FA (QR + secret, code, then 10 recovery codes to save), linked accounts (link/unlink), sessions (list, revoke, revoke all others), app lock (phone only).
+**Security screen** (Profile > Sécurité): email (+ verify), password (set/change, sign out others), 2FA (QR + secret, code, then 10 recovery codes to save), linked accounts (link/unlink), sessions (list, revoke, revoke all others), app lock (phone only). When an action gets `403 reauth_required`, a dialog asks for the password (or a 2FA / recovery code, switchable when both exist) or, without either, "Continuer avec Google / Discord" for the linked providers, then runs the action again. On the web the provider round leaves the page: back on Sécurité a toast says to tap the action again. Deleting a provider-only account shows those buttons inside the delete dialog.
 
 **App lock** (phone only, `expo-local-authentication`, needs a new native build): off by default; when on, coming back to the app after 5 min (or a cold start) asks Face ID / fingerprint / device passcode before showing anything. Hidden on builds without the native module and on the web.
 
@@ -139,7 +144,7 @@ Everything under `/api/auth`. Bodies are JSON. Errors: `{"error": code}`, status
 | `MAILGUN_REPLY_TO` | optional, e.g. `contact@coflop.fr`: replies to the automatic e-mails go there instead of the no-reply sender |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Google "Web application" OAuth client, redirect URI `PUBLIC_URL/api/auth/oauth/google/callback` |
 | `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET` | Discord application > OAuth2, redirect `PUBLIC_URL/api/auth/oauth/discord/callback` |
-| `OAUTH_REDIRECTS` | extra allowed app redirects, comma-separated prefixes (e.g. `exp://` for Expo Go in dev) |
+| `OAUTH_REDIRECTS` | extra allowed app redirects, comma-separated URLs (scheme + host + port, optional path prefix; `exp://` alone = Expo Go on a local address, for dev) |
 | `AUTH_REQUIRED` | `1` = no more anonymous join/start |
 | `REPORT_EMAIL` | where reports are emailed (default `contact@coflop.fr`) |
 
@@ -172,7 +177,7 @@ Votes, rankings, rounds, questions they added and packs they published stay, so 
 
 | Method + path | Auth | Body | Returns / errors |
 | --- | --- | --- | --- |
-| `DELETE /auth/account` | yes | `password?`, `code?` (TOTP or recovery) | `{ok}`, every session gone (next call `401`). With a password: that password, or a 2FA code if 2FA is on; 2FA without a password: a code; legacy / provider-only: nothing · `reauth_required`, `bad_credentials`, `bad_code`, `429`, `403 claimed_session` |
+| `DELETE /auth/account` | yes | `password?`, `code?` (TOTP or recovery) | `{ok}`, every session gone (next call `401`). The password, a 2FA code, or a recent re-authentication of this session (provider-only accounts: a provider round); legacy: nothing · `403 reauth_required`, `bad_credentials`, `bad_code`, `429`, `403 claimed_session` |
 | `POST /auth/delete/send` | | `email` | `{sent: true}` always (nothing sent for an unknown email) · `bad_email`, `503 email_not_configured` |
 | `POST /auth/delete/confirm` | | `email, code` | `{deleted: true}` · `bad_code`, `expired` (30 min, 5 tries, single use) |
 | `POST /reports` | yes | `kind` (`message`/`member`/`question`), `id`, `reason` (`offensive`/`harassment`/`sexual`/`spam`/`other`), `details?` (≤ 500) | `{ok}` (also for a repeat) · `bad_report` (unknown kind / reason, details too long), `bad_target` (myself), `404 not_found` (unknown, or not in a room of mine), `429` |

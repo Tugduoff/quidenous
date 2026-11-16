@@ -4,6 +4,7 @@ import { BackButton, ErrorText } from '@/components/auth-ui';
 import { Screen } from '@/components/screen';
 import { BlockedSection, DeleteAccount } from '@/components/security/account';
 import { LockSection, ProvidersSection, SessionsSection, SignOutButton } from '@/components/security/devices';
+import { ReauthHost } from '@/components/security/reauth';
 import { SignInSection } from '@/components/security/sign-in';
 import { TwoFactorSection } from '@/components/security/two-factor';
 import { Display } from '@/components/ui';
@@ -36,6 +37,7 @@ export default function Security() {
           <LockSection />
           <SignOutButton />
           <DeleteAccount account={account} />
+          <ReauthHost />
         </>
       )}
     </Screen>

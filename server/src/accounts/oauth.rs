@@ -21,9 +21,9 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
 use super::{
-    ClientIp, Device, MaybeSession, Session, codes,
+    ClientIp, Device, MaybeSession, Session, account, codes,
     crypto::{constant_eq, random_b64url, random_hex},
-    limits, not_claimed, sign_in,
+    limits, mark_reauth, not_claimed, require_reauth, sign_in,
 };
 use crate::{
     AppState,
@@ -159,20 +159,25 @@ impl OAuth {
         )
     }
 
-    /// `quidenous://oauth`, a page of this server (`PUBLIC_URL/...`), or an `OAUTH_REDIRECTS` prefix.
+    /// `quidenous://oauth`, a page of this server (`PUBLIC_URL/...`), or an `OAUTH_REDIRECTS` entry.
+    /// URLs are parsed and compared on scheme, host and port (and the entry's path as a prefix, on a
+    /// `/` boundary), never as raw strings: `http://localhost:8081` must not allow
+    /// `http://localhost:8081.evil.com`. An entry with no host (`exp://`) only allows that scheme on a
+    /// local address (Expo Go on the LAN); anything else must be listed with its host.
     pub fn redirect_allowed(&self, app_redirect: &str) -> bool {
-        if Url::parse(app_redirect).is_err() {
+        let Ok(url) = Url::parse(app_redirect) else {
+            return false;
+        };
+        if !url.username().is_empty() || url.password().is_some() {
             return false;
         }
         if app_redirect == APP_REDIRECT {
             return true;
         }
-        if let Some(base) = &self.public_url
-            && (app_redirect == base || app_redirect.starts_with(&format!("{base}/")))
-        {
-            return true;
-        }
-        self.redirects.iter().any(|p| app_redirect.starts_with(p))
+        self.public_url
+            .iter()
+            .chain(&self.redirects)
+            .any(|entry| redirect_matches(entry, &url))
     }
 
     async fn jwks(&self, url: &str, kid: &str) -> AppResult<Option<DecodingKey>> {
@@ -224,6 +229,47 @@ impl OAuth {
     }
 }
 
+/// Is `url` covered by one allowed redirect `entry` (see `OAuth::redirect_allowed`)?
+fn redirect_matches(entry: &str, url: &Url) -> bool {
+    let Ok(base) = Url::parse(entry.trim()) else {
+        return false;
+    };
+    if base.scheme() != url.scheme() {
+        return false;
+    }
+    match base.host_str() {
+        // `exp://`: Expo Go dev builds, served from a computer on the same network.
+        None | Some("") => {
+            let host = url.host_str().unwrap_or("");
+            host == "localhost"
+                || match host.trim_start_matches('[').trim_end_matches(']').parse() {
+                    Ok(std::net::IpAddr::V4(ip)) => {
+                        ip.is_private() || ip.is_loopback() || ip.is_link_local()
+                    }
+                    // Loopback or unique local (fc00::/7).
+                    Ok(std::net::IpAddr::V6(ip)) => {
+                        ip.is_loopback() || ip.segments()[0] & 0xfe00 == 0xfc00
+                    }
+                    Err(_) => false,
+                }
+        }
+        Some(host) => {
+            if url.host_str() != Some(host)
+                || base.port_or_known_default() != url.port_or_known_default()
+            {
+                return false;
+            }
+            let prefix = base.path().trim_end_matches('/');
+            let path = url.path();
+            prefix.is_empty()
+                || path == prefix
+                || path
+                    .strip_prefix(prefix)
+                    .is_some_and(|rest| rest.starts_with('/'))
+        }
+    }
+}
+
 /// Who the provider says this is (kept in the one-time result until `redeem`).
 #[derive(Serialize, Deserialize)]
 struct Identity {
@@ -252,6 +298,10 @@ pub struct StartBody {
     app_redirect: String,
     #[serde(default)]
     link: bool,
+    /// Signed in: this round only proves the session's owner (the identity must already be linked
+    /// to the account); `redeem` answers `{reauth: true}` and the session may make sensitive changes.
+    #[serde(default)]
+    reauth: bool,
 }
 
 pub async fn start(
@@ -267,11 +317,16 @@ pub async fn start(
     if !oauth.redirect_allowed(&body.app_redirect) {
         return Err(AppError::BadRequest("bad_redirect"));
     }
-    let link = match (body.link, session) {
+    let reauth = body.reauth && !body.link;
+    let link = match (body.link || reauth, session) {
         (false, _) => None,
         (true, None) => return Err(AppError::Unauthorized),
+        (true, Some(s)) if reauth => Some(s),
         (true, Some(s)) => {
             not_claimed(&state, s.user_id, &s.token_hash).await?;
+            // Linking adds a way into the account: a stolen session must not add its own.
+            let acct = account(&state, s.user_id).await?;
+            require_reauth(&state, &acct, &s.token_hash).await?;
             Some(s)
         }
     };
@@ -293,8 +348,9 @@ pub async fn start(
             "nonce": nonce,
             "app_redirect": body.app_redirect,
             "key_hash": key_hash(&state, &key),
-            "link": link_user.is_some(),
-            // Link mode: the session that asked, checked again on redeem.
+            "link": link_user.is_some() && !reauth,
+            "reauth": reauth,
+            // Link and re-auth modes: the session that asked, checked again on redeem.
             "session": link.as_ref().map(|s| s.token_hash.clone()),
         })),
     )
@@ -399,6 +455,7 @@ pub async fn callback(
         "provider": provider,
         "identity": identity,
         "session": data["session"],
+        "reauth": data["reauth"],
     });
     // user_id: the account to link to (link mode), none otherwise.
     if let Err(e) = codes::create(
@@ -730,6 +787,9 @@ pub async fn redeem(
         .ok_or(AppError::BadRequest("bad_code"))?;
     let identity: Identity = serde_json::from_value(data["identity"].clone())
         .map_err(|_| AppError::BadRequest("bad_code"))?;
+    if data["reauth"].as_bool() == Some(true) {
+        return reauth_result(&state, row.user_id, &data, provider, &identity).await;
+    }
     let link_user = row.user_id;
     if let Some(user) = link_user {
         // The session that started the link must still be there, and not a claimed one.
@@ -749,7 +809,35 @@ pub async fn redeem(
     ))
 }
 
-/// Unlink a provider, unless it is the last way to sign in.
+/// A re-auth round: the provider must vouch for an identity already linked to the session's
+/// account (`403 wrong_account` otherwise); then that session may make sensitive changes.
+async fn reauth_result(
+    state: &AppState,
+    user: Option<i64>,
+    data: &Value,
+    provider: &str,
+    identity: &Identity,
+) -> AppResult<Json<Value>> {
+    let user = user.ok_or(AppError::BadRequest("bad_code"))?;
+    let owner: Option<i64> = sqlx::query_scalar(
+        "SELECT user_id FROM oauth_identities WHERE provider = ? AND subject = ?",
+    )
+    .bind(provider)
+    .bind(&identity.subject)
+    .fetch_optional(&state.db)
+    .await?;
+    if owner != Some(user) {
+        return Err(AppError::Forbidden("wrong_account"));
+    }
+    // The session that started the round, if it still exists.
+    let session = data["session"].as_str().unwrap_or_default();
+    if !mark_reauth(state, user, session).await? {
+        return Err(AppError::Unauthorized);
+    }
+    Ok(Json(json!({ "reauth": true })))
+}
+
+/// Unlink a provider, unless it is the last way to sign in. Needs a recent re-authentication.
 pub async fn unlink(
     State(state): State<AppState>,
     session: Session,
@@ -757,6 +845,7 @@ pub async fn unlink(
 ) -> AppResult<Json<Value>> {
     let user = session.user_id;
     not_claimed(&state, user, &session.token_hash).await?;
+    require_reauth(&state, &account(&state, user).await?, &session.token_hash).await?;
     let (this, others): (i64, i64) = sqlx::query_as(
         "SELECT COALESCE(SUM(provider = ?1), 0), COALESCE(SUM(provider != ?1), 0) \
          FROM oauth_identities WHERE user_id = ?2",
@@ -793,16 +882,38 @@ mod tests {
     fn redirects_are_checked() {
         let config = Config {
             public_url: Some("https://qdn.example.com".into()),
-            oauth_redirects: vec!["exp://".into()],
+            oauth_redirects: vec![
+                "exp://".into(),
+                "http://localhost:8081".into(),
+                "https://staging.example.com/app/".into(),
+                "exp://abc.exp.direct".into(),
+            ],
             ..Config::default()
         };
         let o = OAuth::new(&config);
         assert!(o.redirect_allowed("quidenous://oauth"));
         assert!(o.redirect_allowed("https://qdn.example.com/oauth"));
+        assert!(o.redirect_allowed("https://qdn.example.com:443/oauth"));
         assert!(o.redirect_allowed("exp://192.168.1.2:8081/--/oauth"));
+        assert!(o.redirect_allowed("exp://localhost:8081/--/oauth"));
+        assert!(o.redirect_allowed("exp://abc.exp.direct/--/oauth"));
+        assert!(o.redirect_allowed("http://localhost:8081/oauth"));
+        assert!(o.redirect_allowed("https://staging.example.com/app/oauth"));
         assert!(!o.redirect_allowed("https://qdn.example.com.evil.com/oauth"));
+        assert!(!o.redirect_allowed("https://qdn.example.com@evil.com/oauth"));
+        assert!(!o.redirect_allowed("http://qdn.example.com/oauth"));
         assert!(!o.redirect_allowed("https://evil.com/oauth"));
         assert!(!o.redirect_allowed("quidenous://other"));
+        // Raw prefixes no longer match across a host or port boundary.
+        assert!(!o.redirect_allowed("http://localhost:8081.evil.com/oauth"));
+        assert!(!o.redirect_allowed("http://localhost:80812/oauth"));
+        assert!(!o.redirect_allowed("http://localhost/oauth"));
+        assert!(!o.redirect_allowed("https://staging.example.com/application"));
+        assert!(!o.redirect_allowed("https://staging.example.com/other"));
+        // `exp://` alone: local addresses only.
+        assert!(!o.redirect_allowed("exp://evil.com/--/oauth"));
+        assert!(!o.redirect_allowed("exp://8.8.8.8:8081/--/oauth"));
+        assert!(!o.redirect_allowed("exp://other.exp.direct/--/oauth"));
         assert!(o.enabled().is_empty());
     }
 

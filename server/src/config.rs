@@ -16,8 +16,8 @@ pub struct Config {
     pub auth_secret: Option<String>,
     /// `PUBLIC_URL`: `https://host` (no trailing slash). Needed for OAuth callbacks.
     pub public_url: Option<String>,
-    /// `TRUST_PROXY=1`: the client IP is the last `X-Forwarded-For` entry, the one our single
-    /// reverse proxy appended (behind that proxy only).
+    /// `TRUST_PROXY=1`: the client IP is the right-most `X-Forwarded-For` entry (last header line), the
+    /// one a single reverse proxy appended (behind that proxy only).
     pub trust_proxy: bool,
     /// `AUTH_REQUIRED=1`: the anonymous `/api/join` and `/api/start` answer `410 sign_in_required`.
     pub auth_required: bool,
@@ -27,7 +27,8 @@ pub struct Config {
     pub google: Option<OAuthClient>,
     /// `DISCORD_CLIENT_ID` + `DISCORD_CLIENT_SECRET`.
     pub discord: Option<OAuthClient>,
-    /// `OAUTH_REDIRECTS`: extra allowed app redirect prefixes, comma-separated (e.g. `exp://`).
+    /// `OAUTH_REDIRECTS`: extra allowed app redirects, comma-separated URLs compared on scheme, host,
+    /// port and path prefix (`exp://` alone: Expo Go on a local address only).
     pub oauth_redirects: Vec<String>,
     /// `REPORT_EMAIL`: where content reports go (`contact@coflop.fr` when unset).
     pub report_email: Option<String>,

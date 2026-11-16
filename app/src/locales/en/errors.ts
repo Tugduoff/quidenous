@@ -22,6 +22,7 @@ export const errors: Messages['errors'] = {
   claimed_session: 'Do it from your first device.',
   sign_in_required: 'Sign in to continue',
   reauth_required: "Confirm it's really you",
+  wrong_account: "That's not the account linked here",
   bad_target: "Can't do that to yourself",
   not_found: 'Not found',
   bad_report: 'Invalid report',

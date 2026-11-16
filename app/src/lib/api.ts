@@ -349,9 +349,19 @@ export const setApiRoom = (value: number | null) => {
 export const apiRoom = () => room;
 const roomQuery = () => (room != null ? `&room=${room}` : '');
 
-/** Plain link to the CSV of the whole history (the token rides in the query so a browser can download it). */
-export const historyExportUrl = () =>
-  `${API_URL}/api/history/export?token=${token ?? ''}${roomQuery()}&tz=${-new Date().getTimezoneOffset()}`;
+/**
+ * How a plain link or a socket (no `Authorization` header) says who I am: a 60 s single-use ticket when the server has
+ * them (`tickets` in /api/features), so the token never sits in a URL; the token itself for an older server.
+ */
+async function urlAuth(purpose: 'export' | 'live', tickets: boolean, own = token): Promise<string> {
+  if (!tickets) return `token=${own ?? ''}`;
+  const { ticket } = await api<{ ticket: string }>('/auth/ticket', { method: 'POST', json: { purpose } });
+  return `ticket=${ticket}`;
+}
+
+/** Plain link to the CSV of the whole history (a browser downloads it). */
+export const historyExportUrl = async (tickets: boolean) =>
+  `${API_URL}/api/history/export?${await urlAuth('export', tickets)}${roomQuery()}&tz=${-new Date().getTimezoneOffset()}`;
 
 /** `room`: this call is about another room than the current one (`X-Room` for it alone). */
 export async function api<T>(path: string, init: RequestInit & { json?: unknown; room?: number } = {}): Promise<T> {
@@ -375,7 +385,8 @@ export const launchNext = (roomId: number) => api<{ round_id: number | null }>(`
 
 export const photoUrl = (m: Member) => (m.photo_url ? `${API_URL}${m.photo_url}` : null);
 
-export const liveUrl = (t: string) => `${API_URL.replace(/^http/, 'ws')}/api/live?token=${t}${roomQuery()}`;
+export const liveUrl = async (t: string, tickets: boolean) =>
+  `${API_URL.replace(/^http/, 'ws')}/api/live?${await urlAuth('live', tickets, t)}${roomQuery()}`;
 
 /** Multipart upload (photo). Content type is set by fetch with the boundary. */
 export async function apiUpload<T>(path: string, form: FormData, method = 'PUT'): Promise<T> {

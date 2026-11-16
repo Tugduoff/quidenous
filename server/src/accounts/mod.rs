@@ -8,7 +8,9 @@ pub mod mail;
 mod mfa;
 pub mod oauth;
 mod password;
+mod reauth;
 mod sessions;
+pub mod tickets;
 
 use std::{
     collections::HashMap,
@@ -46,6 +48,8 @@ pub struct Auth {
     touched: Mutex<HashMap<String, Instant>>,
     /// Tokens whose device label was already checked (sessions from before 0015 have none).
     labelled: Mutex<std::collections::HashSet<String>>,
+    /// Short-lived single-purpose tickets that stand in for the token in URLs (CSV link, live socket).
+    pub tickets: tickets::Tickets,
 }
 
 impl Auth {
@@ -58,6 +62,7 @@ impl Auth {
             oauth: oauth::OAuth::new(config),
             touched: Mutex::new(HashMap::new()),
             labelled: Mutex::new(std::collections::HashSet::new()),
+            tickets: tickets::Tickets::default(),
         })
     }
 
@@ -94,6 +99,8 @@ pub fn router() -> Router<AppState> {
         .route("/sessions/revoke-others", post(sessions::revoke_others))
         .route("/sessions/{id}", delete(sessions::revoke))
         .route("/logout", post(sessions::logout))
+        .route("/reauth", post(reauth::reauth))
+        .route("/ticket", post(tickets::create))
         .route("/delete/send", post(delete::send))
         .route("/delete/confirm", post(delete::confirm))
         .route("/providers", get(oauth::providers))
@@ -105,7 +112,9 @@ pub fn router() -> Router<AppState> {
 
 /// What `/api/features` adds for auth.
 pub fn features(state: &AppState) -> Vec<&'static str> {
-    let mut f = vec!["auth"];
+    // `reauth`: sensitive changes answer `403 reauth_required` until `POST /auth/reauth` (or an
+    // OAuth round with `reauth: true`); `tickets`: `POST /auth/ticket` for the CSV link and the socket.
+    let mut f = vec!["auth", "reauth", "tickets"];
     if state.auth.mailer.configured() {
         f.push("email");
     }
@@ -121,8 +130,9 @@ pub fn features(state: &AppState) -> Vec<&'static str> {
 
 // ---------- extractors ----------
 
-/// The client's IP: the socket address, or with `TRUST_PROXY=1` the last `X-Forwarded-For`
-/// entry (the one our single reverse proxy appended; anything before it is client-controlled).
+/// The client's IP: the socket address, or with `TRUST_PROXY=1` the right-most `X-Forwarded-For`
+/// entry, across every header line (the one our single reverse proxy appended; anything before it
+/// is client-controlled, and a proxy may add its own line instead of extending the client's).
 /// `None` when unknown (in-process tests): per-IP limits then don't apply.
 pub struct ClientIp(pub Option<IpAddr>);
 
@@ -133,7 +143,9 @@ pub fn client_ip(
 ) -> Option<IpAddr> {
     if trust_proxy
         && let Some(ip) = parts_headers
-            .get("x-forwarded-for")
+            .get_all("x-forwarded-for")
+            .iter()
+            .next_back()
             .and_then(|v| v.to_str().ok())
             .and_then(|v| v.rsplit(',').next())
             .and_then(|v| v.trim().parse::<IpAddr>().ok())
@@ -435,6 +447,65 @@ pub(crate) async fn not_claimed(state: &AppState, user_id: i64, token_hash: &str
     }
 }
 
+/// How long a re-authentication lasts for the session that did it.
+pub const REAUTH_TTL: u64 = 10 * 60;
+
+/// Can this account prove who it is beyond holding a session (a password, 2FA, a linked provider)?
+/// Legacy and guest accounts can't: they have nothing to re-authenticate with.
+pub(crate) async fn can_reauth(state: &AppState, acct: &Account) -> AppResult<bool> {
+    if acct.password_hash.is_some() || acct.totp_secret.is_some() {
+        return Ok(true);
+    }
+    Ok(
+        sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM oauth_identities WHERE user_id = ?)")
+            .bind(acct.id)
+            .fetch_one(&state.db)
+            .await?,
+    )
+}
+
+/// Sensitive changes (2FA on, linking / unlinking a provider, a first password, deleting the
+/// account) need this session to have re-authenticated in the last `REAUTH_TTL`, unless the account
+/// has nothing to prove with. `403 reauth_required`.
+pub(crate) async fn require_reauth(
+    state: &AppState,
+    acct: &Account,
+    token_hash: &str,
+) -> AppResult<()> {
+    if !can_reauth(state, acct).await? {
+        return Ok(());
+    }
+    let at: Option<i64> = sqlx::query_scalar(
+        "SELECT reauth_at FROM user_tokens WHERE token_hash = ? AND user_id = ?",
+    )
+    .bind(token_hash)
+    .bind(acct.id)
+    .fetch_optional(&state.db)
+    .await?
+    .flatten();
+    let now = crypto::now_unix() as i64;
+    match at {
+        Some(t) if t <= now && now - t < REAUTH_TTL as i64 => Ok(()),
+        _ => Err(AppError::Forbidden("reauth_required")),
+    }
+}
+
+/// Records that this session just proved who it is.
+pub(crate) async fn mark_reauth(
+    state: &AppState,
+    user_id: i64,
+    token_hash: &str,
+) -> AppResult<bool> {
+    let done =
+        sqlx::query("UPDATE user_tokens SET reauth_at = ? WHERE token_hash = ? AND user_id = ?")
+            .bind(crypto::now_unix() as i64)
+            .bind(token_hash)
+            .bind(user_id)
+            .execute(&state.db)
+            .await?;
+    Ok(done.rows_affected() == 1)
+}
+
 /// Deletes every session of an account but `keep` (a token hash). Returns how many.
 pub(crate) async fn revoke_sessions(
     state: &AppState,
@@ -517,6 +588,10 @@ mod tests {
         // The first entry is whatever the client sent; the last one is the proxy's.
         assert_eq!(client_ip(&h, Some(socket), true), ip("203.0.113.7"));
         assert_eq!(client_ip(&h, Some(socket), false), ip("10.0.0.2"));
+        // A proxy that adds its own header line: the last line counts, not the client's first one.
+        h.append("x-forwarded-for", "198.51.100.4".parse().unwrap());
+        assert_eq!(client_ip(&h, Some(socket), true), ip("198.51.100.4"));
+        h.remove("x-forwarded-for");
         h.insert("x-forwarded-for", "garbage".parse().unwrap());
         assert_eq!(client_ip(&h, Some(socket), true), ip("10.0.0.2"));
     }
@@ -557,6 +632,11 @@ pub(crate) mod codes {
     pub const OAUTH_STATE_TTL: u64 = 10 * 60;
     pub const OAUTH_RESULT_TTL: u64 = 60;
     pub const MAX_TRIES: i64 = 5;
+    /// Wrong six-digit codes per e-mail in 24 h (every kind, across restarts) before codes for that
+    /// e-mail stop being accepted: the current one dies and the next tries get `429` until the
+    /// oldest failure is a day old. 5 tries per code alone would allow a new code, 5 more tries…
+    pub const DAILY_FAILURES: i64 = 20;
+    const DAY: i64 = 86_400;
 
     #[derive(Clone, Copy, PartialEq, Eq)]
     pub enum Kind {
@@ -632,6 +712,10 @@ pub(crate) mod codes {
             .bind(now - 86_400)
             .execute(&mut *tx)
             .await?;
+        sqlx::query("DELETE FROM code_failures WHERE at <= ?")
+            .bind(now - DAY)
+            .execute(&mut *tx)
+            .await?;
         if kind.short() {
             sqlx::query("DELETE FROM auth_codes WHERE kind = ? AND email = ?")
                 .bind(kind.as_str())
@@ -654,8 +738,10 @@ pub(crate) mod codes {
         Ok(())
     }
 
-    /// Checks a six-digit code for an email: right → consumed and returned; wrong → one try used.
-    /// Errors: `bad_code` (wrong or none), `expired` (too old or too many tries).
+    /// Checks a six-digit code for an email: right → consumed and returned; wrong → one try used,
+    /// and one failure counted for the e-mail (`DAILY_FAILURES`).
+    /// Errors: `bad_code` (wrong or none), `expired` (too old or too many tries), `429` (too many
+    /// wrong codes for this e-mail today).
     pub async fn redeem_short(
         state: &AppState,
         kind: Kind,
@@ -671,12 +757,61 @@ pub(crate) mod codes {
         .fetch_optional(&state.db)
         .await?;
         let row = row.ok_or(AppError::BadRequest("bad_code"))?;
-        take_try(state, &row).await?;
+        let now = now_unix() as i64;
+        // Counted as a failure before the compare (parallel guesses each count), taken back if right.
+        let failure: i64 =
+            sqlx::query_scalar("INSERT INTO code_failures (email, at) VALUES (?, ?) RETURNING id")
+                .bind(email)
+                .bind(now)
+                .fetch_one(&state.db)
+                .await?;
+        let forget = || async move {
+            sqlx::query("DELETE FROM code_failures WHERE id = ?")
+                .bind(failure)
+                .execute(&state.db)
+                .await
+        };
+        let (failures, oldest): (i64, Option<i64>) = sqlx::query_as(
+            "SELECT COUNT(*), MIN(at) FROM code_failures WHERE email = ? AND at > ?",
+        )
+        .bind(email)
+        .bind(now - DAY)
+        .fetch_one(&state.db)
+        .await?;
+        if failures > DAILY_FAILURES {
+            // Locked: this code dies too, and a refused try doesn't push the end of the lock back.
+            kill(state, row.id).await?;
+            forget().await?;
+            let wait = oldest.map_or(DAY, |t| t + DAY - now).max(1);
+            return Err(AppError::RateLimited(wait as u64));
+        }
+        if let Err(e) = take_try(state, &row).await {
+            forget().await?;
+            return Err(e);
+        }
         if !constant_eq(&row.code_hash, &hash(state, kind, Some(email), code)) {
+            if failures >= DAILY_FAILURES {
+                kill(state, row.id).await?;
+                tracing::warn!(
+                    kind = kind.as_str(),
+                    "too many wrong codes for one e-mail: locked for a day"
+                );
+            }
             return Err(AppError::BadRequest("bad_code"));
         }
+        forget().await?;
         consume(state, row.id).await?;
         Ok(row)
+    }
+
+    /// A code that must not be accepted any more (used up without being redeemed).
+    async fn kill(state: &AppState, id: i64) -> AppResult<()> {
+        sqlx::query("UPDATE auth_codes SET used_at = ? WHERE id = ? AND used_at IS NULL")
+            .bind(now_unix() as i64)
+            .bind(id)
+            .execute(&state.db)
+            .await?;
+        Ok(())
     }
 
     /// Looks a random token up by its hash (MFA challenge, OAuth state/result).

@@ -55,6 +55,16 @@ export const security: Messages['security'] = {
     usePassword: 'Use password',
     useCode: 'Use a code',
   },
+  reauth: {
+    title: "Confirm it's you",
+    password: 'Enter your password to continue.',
+    code: 'Enter a code from your authenticator app or a recovery code.',
+    provider: 'Sign in again to continue.',
+    confirm: 'Confirm',
+    useCode: 'Use a code',
+    usePassword: 'Use password',
+    done: 'Confirmed: you can go on.',
+  },
   twoFactor: {
     title: 'Two-factor authentication',
     copyKey: 'Copy the key',

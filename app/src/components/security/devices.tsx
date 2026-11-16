@@ -5,6 +5,7 @@ import { Pressable, Text } from 'react-native';
 
 import { ErrorText, Pill, Row, Section, TextLink } from '@/components/auth-ui';
 import { BrandIcon } from '@/components/brand-icons';
+import { withReauth } from '@/components/security/reauth';
 import { askConfirm, Toggle } from '@/components/ui';
 import {
   accountKey,
@@ -49,12 +50,12 @@ export function ProvidersSection({ account }: { account: Account }) {
   };
   const link = (p: Provider) =>
     run(p, async () => {
-      const r = await oauth(p, true);
+      const r = await withReauth(account, () => oauth(p, 'link'));
       if (r && !isLinked(r)) throw new Error('not linked');
     });
   const unlink = async (p: Provider) => {
     if (await askConfirm(tr('security.providers.unlinkConfirm', { provider: PROVIDER_NAMES[p] }), undefined, tr('security.providers.unlink')))
-      run(p, () => auth.unlink(p));
+      run(p, () => withReauth(account, () => auth.unlink(p)));
   };
 
   return (

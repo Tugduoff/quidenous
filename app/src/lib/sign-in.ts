@@ -4,7 +4,7 @@ import * as WebBrowser from 'expo-web-browser';
 import { Platform } from 'react-native';
 
 import { ApiError } from './api';
-import { auth, flow, isChallenge, type AuthResult, type Provider, type RedeemResult } from './auth';
+import { auth, flow, isChallenge, type AuthResult, type OAuthMode, type Provider, type RedeemResult } from './auth';
 import { useSession } from './session';
 
 const web = Platform.OS === 'web';
@@ -21,12 +21,12 @@ export async function redeem(code: string | undefined, error: string | undefined
 }
 
 /**
- * Sign in with (or `link`) Google / Discord. The phone opens the provider in an auth session and gets the result
- * (null if cancelled); the web leaves for the provider in the same tab and finishes on `/oauth`.
+ * Sign in with Google / Discord (or `link` it, or `reauth`: prove it is me). The phone opens the provider in an auth
+ * session and gets the result (null if cancelled); the web leaves for the provider in the same tab and finishes on `/oauth`.
  */
-export async function oauth(provider: Provider, link = false): Promise<RedeemResult | null> {
+export async function oauth(provider: Provider, mode: OAuthMode = 'signin'): Promise<RedeemResult | null> {
   const redirect = appRedirect();
-  const { url, key } = await auth.oauthStart(provider, redirect, link);
+  const { url, key } = await auth.oauthStart(provider, redirect, mode);
   if (web) {
     sessionStorage.setItem(KEY, key);
     window.location.assign(url);
