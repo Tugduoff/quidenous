@@ -59,7 +59,7 @@ A paced room that closes a question is *paused* (`groups.paused_at`, `next_open_
 
 ## When someone is away
 
-Normal rooms have no question timer, so three rules keep them moving when people go quiet (`server/src/flow.rs`, migration `0035_game_flow.sql`; parties have their own, see `docs/PARTY.md`):
+Normal rooms have no question timer, so three rules keep them moving when people go quiet (`server/src/flow.rs`, migration `0038_game_flow.sql`; parties have their own, see `docs/PARTY.md`):
 
 - **Away**: someone whose last 3 questions in the room closed without their vote (counting questions that closed since they joined) is *away*: the open question no longer waits for them, like a skip. Voting again makes them present again. The round view lists them in `away_ids` (and leaves them out of `member_count`); the app shows them dimmed with "absent", without a skip button.
 - **Late quorum**: a question open for 24 h closes as soon as at least half of the people it waits for voted (2 people: one vote). Checked on each vote and by the scheduler every 5 minutes. This is what gets a 2-person room past a holiday: one question a day, then, after 3, the absent person is away and the room runs at its normal pace.
