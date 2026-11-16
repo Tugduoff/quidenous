@@ -388,9 +388,10 @@ async fn failed_sign_ins_lock_the_account_and_ips_are_limited() {
     assert!((1..=180).contains(&wait), "{wait}");
     assert!(r.headers.get("retry-after").is_some());
 
-    // Per IP: 10 sign-in attempts per 10 minutes, whatever the email. The IP is the last
-    // X-Forwarded-For entry (the proxy's): changing the ones before it changes nothing.
-    for i in 0..10 {
+    // Per IP: 30 sign-in attempts per 10 minutes, whatever the email (loose: many phones share a
+    // carrier IP). The IP is the last X-Forwarded-For entry (the proxy's): changing the ones before
+    // it changes nothing.
+    for i in 0..quidenous_server::accounts::limits::LOGIN_IP.capacity {
         let forwarded = format!("198.18.0.{i}, 203.0.113.7");
         let r = send(
             &t.app,

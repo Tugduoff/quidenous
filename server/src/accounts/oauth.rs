@@ -718,7 +718,7 @@ async fn resolve(
     let mut tx = crate::db::write_tx(db).await?;
     let user: i64 = sqlx::query_scalar(
         "INSERT INTO users (name, color, friend_code, email, email_verified_at) \
-         VALUES (?, ?, upper(hex(randomblob(4))), ?, CASE WHEN ? IS NULL THEN NULL ELSE strftime('%Y-%m-%dT%H:%M:%fZ', 'now') END) \
+         VALUES (?, ?, upper(hex(randomblob(5))), ?, CASE WHEN ? IS NULL THEN NULL ELSE strftime('%Y-%m-%dT%H:%M:%fZ', 'now') END) \
          RETURNING id",
     )
     .bind(&name)

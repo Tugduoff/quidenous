@@ -100,7 +100,7 @@ pub async fn create(
     crate::auth::Account(me): crate::auth::Account,
     Json(body): Json<CreateBody>,
 ) -> AppResult<Json<Value>> {
-    let text = body.text.trim();
+    let text = &crate::text::line(&body.text);
     if !(TEXT_MIN..=TEXT_MAX).contains(&text.chars().count()) {
         return Err(AppError::BadRequest("bad_question"));
     }

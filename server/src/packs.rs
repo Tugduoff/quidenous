@@ -350,13 +350,13 @@ pub struct PackBody {
 }
 
 fn clean_meta(name: &str, description: &str) -> AppResult<(String, String)> {
-    let name = name.trim();
-    let description = description.trim();
+    let name = crate::text::line(name);
+    let description = crate::text::line(description);
     if name.is_empty() || name.chars().count() > NAME_MAX || description.chars().count() > DESC_MAX
     {
         return Err(AppError::BadRequest("bad_pack"));
     }
-    Ok((name.to_owned(), description.to_owned()))
+    Ok((name, description))
 }
 
 fn clean_language(language: &str) -> AppResult<Lang> {
@@ -425,6 +425,9 @@ fn from_list(list: Vec<QuestionIn>, known: &[PackQuestion]) -> Vec<PackQuestion>
 /// Questions of the right length, each once (case-insensitive), choose ones with valid answers,
 /// 5 to 300 of them.
 pub fn clean_questions(mut questions: Vec<PackQuestion>) -> AppResult<Vec<PackQuestion>> {
+    for q in &mut questions {
+        q.text = crate::text::line(&q.text);
+    }
     questions.retain(|q| {
         (QUESTION_MIN..=QUESTION_MAX).contains(&q.text.chars().count())
             && (q.kind != "choose" || q.items.clone().and_then(crate::deck::clean_items).is_some())
@@ -435,7 +438,7 @@ pub fn clean_questions(mut questions: Vec<PackQuestion>) -> AppResult<Vec<PackQu
         }
     }
     let mut seen = std::collections::HashSet::new();
-    questions.retain(|q| seen.insert(q.text.to_lowercase()));
+    questions.retain(|q| seen.insert(crate::text::key(&q.text)));
     if questions.len() < MIN_QUESTIONS || questions.len() > MAX_QUESTIONS {
         return Err(AppError::BadRequest("pack_size"));
     }

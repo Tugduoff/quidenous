@@ -26,9 +26,11 @@ const fn rule(name: &'static str, capacity: u32, minutes: u64) -> Rule {
     }
 }
 
-pub const EMAIL_IP: Rule = rule("email_ip", 20, 10);
-pub const SIGNUP_IP: Rule = rule("signup_ip", 5, 60);
-pub const LOGIN_IP: Rule = rule("login_ip", 10, 10);
+// Per-IP rules are loose: a mobile carrier puts hundreds of phones behind one IPv4 (CGNAT), a
+// venue's Wi-Fi a whole party. The per-account rules below stop guessing.
+pub const EMAIL_IP: Rule = rule("email_ip", 40, 10);
+pub const SIGNUP_IP: Rule = rule("signup_ip", 30, 60);
+pub const LOGIN_IP: Rule = rule("login_ip", 30, 10);
 /// Wrong passwords for one e-mail from one IP (a success gives its token back); refills one every 3 min.
 pub const LOGIN_ACCOUNT_IP: Rule = rule("login_ip_account", 5, 15);
 /// Wrong passwords for one e-mail from anywhere: looser, so one IP (at most 20 an hour through the
@@ -44,8 +46,9 @@ pub const RESET_ACCOUNT: Rule = rule("reset_account", 10, 60);
 pub const VERIFY_SEND_ACCOUNT: Rule = rule("verify_send_account", 5, 60);
 pub const OAUTH_IP: Rule = rule("oauth_ip", 20, 10);
 pub const LEGACY_IP: Rule = rule("legacy_ip", 10, 60);
-/// Joining a party without an account: a whole party shares one Wi-Fi.
-pub const PARTY_GUEST_IP: Rule = rule("party_guest_ip", 30, 60);
+/// Joining a party without an account: a whole party shares one Wi-Fi (three full parties an hour,
+/// `party::MAX_PLAYERS` each).
+pub const PARTY_GUEST_IP: Rule = rule("party_guest_ip", 120, 60);
 /// The public invite preview (`GET /api/rooms/preview`): enough for a few links, too few to scan codes.
 pub const ROOM_PREVIEW_IP: Rule = rule("room_preview_ip", 30, 10);
 pub const DELETE_SEND_IP: Rule = rule("delete_send_ip", 5, 60);

@@ -36,3 +36,7 @@ Allowed: Play's policy permits code downloaded into a JS runtime as long as it d
 ## Server setup
 
 One env var on the server: `UPDATES_PUBLISH_TOKEN` (the same value as the GitHub secret). Behind nginx, `client_max_body_size` must allow the upload (about 5 MB today; 10m is enough). Updates are stored in `DATA_DIR/updates/`: about 15 MB each, 5 kept per build, so ~150 MB at most.
+
+## Oldest version served (`MIN_APP_VERSION`)
+
+Every API call carries `X-App-Version` (the version of the running JS bundle, so an OTA update counts). With `MIN_APP_VERSION=x.y.z` set on the server, an older app gets `426 {"error":"update_required","min_version"}` and covers the screen with "Mise à jour nécessaire": its button applies an OTA update when one is available, else opens the APK updater (sideload builds), Google Play, or reloads the page on the web. Health, features, version, crash reports and `/api/updates/*` stay open to old apps; a request without the header (apps before 0.33, scripts) is always served. Raise it only to a version that has been out (store and OTA) for a while.

@@ -28,6 +28,7 @@ pub mod routes;
 pub mod share;
 pub mod stats;
 pub mod suggestions;
+pub mod text;
 pub mod updates;
 pub mod vibes;
 pub mod web;
@@ -95,14 +96,28 @@ pub async fn state_with_mailer(
             "a room still uses the public join code BANDE-42: its owner should get a new code in the app"
         );
     }
-    let vapid = match &config.vapid_private_key {
-        Some(key) => Some(push::Vapid::new(key, config.vapid_subject.clone())?),
-        None => None,
-    };
-    let fcm = match &config.fcm_service_account {
-        Some(path) => Some(push::Fcm::from_json(&std::fs::read_to_string(path)?)?),
-        None => None,
-    };
+    // A push setting that doesn't work turns that kind of push off, loudly, instead of keeping
+    // the whole app down (a crash loop that a rollback to the previous image can't fix either).
+    let vapid = config.vapid_private_key.as_ref().and_then(|key| {
+        push::Vapid::new(key, config.vapid_subject.clone())
+            .inspect_err(|e| {
+                tracing::error!(error = %e, "VAPID_PRIVATE_KEY is not a valid key: web push is OFF");
+            })
+            .ok()
+    });
+    let fcm = config.fcm_service_account.as_ref().and_then(|path| {
+        std::fs::read_to_string(path)
+            .map_err(|e| e.to_string())
+            .and_then(|json| push::Fcm::from_json(&json))
+            .inspect_err(|e| {
+                tracing::error!(
+                    file = %path.display(),
+                    error = %e,
+                    "FCM_SERVICE_ACCOUNT_FILE can't be used: Android push is OFF"
+                );
+            })
+            .ok()
+    });
     tracing::info!(
         web_push = vapid.is_some(),
         fcm = fcm.is_some(),
@@ -201,13 +216,17 @@ pub fn app(state: AppState) -> Router {
         app = app.fallback_service(web::app_files(web, csp));
     }
     let headers = web::Headers::new(&state.config);
-    app.layer(axum::middleware::from_fn(error::log_server_errors))
-        .layer(web::cors(&state.config))
-        .layer(axum::middleware::from_fn(move |req, next| {
-            headers.clone().apply(req, next)
-        }))
-        .layer(TraceLayer::new_for_http())
-        .with_state(state)
+    app.layer(axum::middleware::from_fn_with_state(
+        state.clone(),
+        ops::version_gate,
+    ))
+    .layer(axum::middleware::from_fn(error::log_server_errors))
+    .layer(web::cors(&state.config))
+    .layer(axum::middleware::from_fn(move |req, next| {
+        headers.clone().apply(req, next)
+    }))
+    .layer(TraceLayer::new_for_http())
+    .with_state(state)
 }
 
 /// Tiny boxed-error result so main and tests can use `?` on any error.

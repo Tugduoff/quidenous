@@ -35,20 +35,30 @@ macro_rules! unused {
 }
 pub(crate) use unused;
 
-/// The room's own question with this text (case-insensitive), if it has one: the one rule for
-/// "already in this room" when importing a file, installing a pack or playing a shared question.
+/// The room's own question with this text, else a built-in one the room was already asked, if
+/// any: the one rule for "already in this room" when adding a question, importing a file,
+/// installing a pack or playing a shared question. Case-insensitive beyond ASCII ("ÉTÉ" = "été",
+/// see [`crate::text::key`]): same length in SQL, then compared here.
 pub(crate) async fn same_question(
     tx: &mut Transaction<'_, Sqlite>,
     group_id: i64,
     text: &str,
 ) -> AppResult<Option<i64>> {
-    Ok(sqlx::query_scalar(
-        "SELECT id FROM questions WHERE group_id = ? AND lower(text) = lower(?) ORDER BY id LIMIT 1",
+    let rows: Vec<(i64, String)> = sqlx::query_as(
+        "SELECT id, text FROM (\
+           SELECT 0 AS o, id, text FROM questions WHERE group_id = ?1 AND length(text) = length(?2) \
+           UNION ALL SELECT 1, q.id, q.text FROM rounds r JOIN questions q ON q.id = r.question_id \
+           WHERE r.group_id = ?1 AND q.group_id IS NULL AND length(q.text) = length(?2)) ORDER BY o, id",
     )
     .bind(group_id)
     .bind(text)
-    .fetch_optional(&mut **tx)
-    .await?)
+    .fetch_all(&mut **tx)
+    .await?;
+    let key = crate::text::key(text);
+    Ok(rows
+        .into_iter()
+        .find(|(_, t)| crate::text::key(t) == key)
+        .map(|(id, _)| id))
 }
 
 pub async fn open_round(db: &SqlitePool, group_id: i64) -> AppResult<Option<RoundRow>> {
@@ -87,7 +97,7 @@ pub async fn round(db: &SqlitePool, group_id: i64, round_id: i64) -> AppResult<R
 }
 
 /// Built-in deck questions this room can still get (the deck of its language), with their vibe tags.
-/// Parties draw pick questions only.
+/// Parties draw pick questions only. One the room has its own copy of (added by hand) is left to that copy.
 async fn deck_candidates<'e, E: sqlx::SqliteExecutor<'e>>(
     db: E,
     group_id: i64,
@@ -95,7 +105,8 @@ async fn deck_candidates<'e, E: sqlx::SqliteExecutor<'e>>(
     Ok(sqlx::query_as(concat!(
         "SELECT q.id, q.vibes FROM questions q WHERE q.group_id IS NULL \
          AND q.lang = (SELECT language FROM groups WHERE id = ?1) \
-         AND (q.kind = 'pick' OR (SELECT kind FROM groups WHERE id = ?1) = 'room') AND ",
+         AND (q.kind = 'pick' OR (SELECT kind FROM groups WHERE id = ?1) = 'room') \
+         AND NOT EXISTS (SELECT 1 FROM questions c WHERE c.group_id = ?1 AND lower(c.text) = lower(q.text)) AND ",
         votable!(),
         " AND ",
         unused!()

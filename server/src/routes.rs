@@ -40,7 +40,6 @@ const PHOTO_MAX_ALLOC: u64 = 256 * 1024 * 1024;
 
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/health", get(|| async { "ok" }))
         // What this server can do, so apps (and release scripts) can tell a deploy has landed.
         .route("/features", get(features))
         .route("/vibes", get(crate::vibes::list))
@@ -256,12 +255,13 @@ pub(crate) fn legacy_gate(state: &AppState, ip: Option<std::net::IpAddr>) -> App
         .hit_ip(&crate::accounts::limits::LEGACY_IP, ip)
 }
 
+/// A first name: one line, no invisible characters, 1 to 24 characters.
 pub(crate) fn clean_name(name: &str) -> AppResult<String> {
-    let name = name.trim();
+    let name = crate::text::line(name);
     if name.is_empty() || name.chars().count() > NAME_MAX {
         return Err(AppError::BadRequest("bad_name"));
     }
-    Ok(name.to_owned())
+    Ok(name)
 }
 
 #[derive(Deserialize)]
@@ -340,6 +340,9 @@ async fn join(
     }
     let rejoined = existing.as_ref().is_some_and(|m| m.removed_at.is_some());
     let joined = existing.is_none();
+    if joined || rejoined {
+        crate::rooms::seat_free(&mut *tx, group_id).await?;
+    }
     let member = match existing {
         Some(member) => {
             if rejoined {
@@ -357,7 +360,7 @@ async fn join(
                 Some(id) => id,
                 None => {
                     sqlx::query_scalar(
-                        "INSERT INTO users (name, color, friend_code) VALUES (?, ?, upper(hex(randomblob(4)))) RETURNING id",
+                        "INSERT INTO users (name, color, friend_code) VALUES (?, ?, upper(hex(randomblob(5)))) RETURNING id",
                     )
                     .bind(&name)
                     .bind(color)
@@ -1483,7 +1486,7 @@ async fn add_question(
     if let Some(user) = me.user_id {
         crate::quotas::hit_user(&state, &crate::quotas::QUESTION_USER, user)?;
     }
-    let text = body.text.trim();
+    let text = &crate::text::line(&body.text);
     let len = text.chars().count();
     if !(QUESTION_MIN..=QUESTION_MAX).contains(&len) {
         return Err(AppError::BadRequest("bad_question"));
@@ -1501,6 +1504,13 @@ async fn add_question(
         None
     };
     let mut tx = crate::db::write_tx(&state.db).await?;
+    // Already waiting in this room, or already asked here: once is enough.
+    if game::same_question(&mut tx, me.group_id, text)
+        .await?
+        .is_some()
+    {
+        return Err(AppError::Conflict("question_exists"));
+    }
     let question = sqlx::query_as::<_, QueuedQuestion>(
         "INSERT INTO questions (group_id, text, author_id, kind, items) VALUES (?, ?, ?, ?, ?) \
          RETURNING id, text, author_id, kind, items",
@@ -2088,7 +2098,8 @@ async fn post_message(
     if round.closed_at.is_none() {
         return Err(AppError::BadRequest("round_open"));
     }
-    let text = body.text.trim();
+    // Hidden characters dropped, one blank line in a row at most.
+    let text = &crate::text::lines(&body.text);
     if text.is_empty() || text.chars().count() > MESSAGE_MAX {
         return Err(AppError::BadRequest("bad_message"));
     }
@@ -2482,10 +2493,9 @@ async fn import_questions(
     may_add_questions(&state, &me).await?;
     // `[classement]` lines become ranking questions, `[choix] … | A | B` choose questions (skipped
     // when their items are not valid); the length rule applies to the question itself.
-    let valid: Vec<(&str, &str, Option<String>)> = body
-        .text
-        .lines()
-        .map(str::trim)
+    let lines: Vec<String> = body.text.lines().map(crate::text::line).collect();
+    let valid: Vec<(&str, &str, Option<String>)> = lines
+        .iter()
         .filter(|l| !l.is_empty() && !l.starts_with('#'))
         .map(|l| {
             let (text, kind) = crate::deck::parse_line(l);

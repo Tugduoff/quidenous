@@ -113,7 +113,7 @@ pub async fn signup(
         .map(|l| l.as_str());
     let user_id: i64 = sqlx::query_scalar(
         "INSERT INTO users (name, color, friend_code, email, password_hash, locale) \
-         VALUES (?, ?, upper(hex(randomblob(4))), ?, ?, ?) RETURNING id",
+         VALUES (?, ?, upper(hex(randomblob(5))), ?, ?, ?) RETURNING id",
     )
     .bind(&name)
     .bind(color)

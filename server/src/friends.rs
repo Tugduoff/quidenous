@@ -372,6 +372,7 @@ pub async fn add_to_room(
         }
         _ => {}
     }
+    crate::rooms::seat_free(&state.db, room).await?;
     let new = sqlx::query(
         "INSERT OR IGNORE INTO room_invites (group_id, user_id, from_id) VALUES (?, ?, ?)",
     )
@@ -499,10 +500,12 @@ pub async fn accept_invite(
             return Err(AppError::Forbidden("removed"));
         }
         Some((member_id, Some(_), _)) => {
+            crate::rooms::seat_free(&mut *tx, room).await?;
             crate::routes::rejoin_seat(&mut tx, member_id).await?;
             member_id
         }
         None => {
+            crate::rooms::seat_free(&mut *tx, room).await?;
             let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM members WHERE group_id = ?")
                 .bind(room)
                 .fetch_one(&mut *tx)

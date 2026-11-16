@@ -38,12 +38,33 @@ pub(crate) fn code_of_len(len: usize) -> String {
         .collect()
 }
 
+/// People in one room at most: every question waits for all of them, and every message or
+/// result reaches each one (a party has its own cap, `party::MAX_PLAYERS`).
+pub const MEMBERS_MAX: i64 = 50;
+
+/// Rooms one account can own at a time (a room handed over or deleted frees its place).
+pub const OWNED_MAX: i64 = 20;
+
+/// `409 room_full` when this room already seats [`MEMBERS_MAX`] people.
+pub(crate) async fn seat_free<'e, E: sqlx::SqliteExecutor<'e>>(db: E, room: i64) -> AppResult<()> {
+    let seated: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM members WHERE group_id = ? AND removed_at IS NULL",
+    )
+    .bind(room)
+    .fetch_one(db)
+    .await?;
+    if seated >= MEMBERS_MAX {
+        return Err(AppError::Conflict("room_full"));
+    }
+    Ok(())
+}
+
 fn clean_room_name(name: &str) -> AppResult<String> {
-    let name = name.trim();
+    let name = crate::text::line(name);
     if name.is_empty() || name.chars().count() > ROOM_NAME_MAX {
         return Err(AppError::BadRequest("bad_room_name"));
     }
-    Ok(name.to_owned())
+    Ok(name)
 }
 
 /// My active seat in a room that still exists.
@@ -168,6 +189,16 @@ pub async fn create(
 ) -> AppResult<Json<Value>> {
     let name = clean_room_name(&body.name)?;
     let vibe = clean_vibe(body.vibe.as_deref())?;
+    let owned: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM members m JOIN groups g ON g.id = m.group_id AND g.deleted_at IS NULL \
+         AND g.kind = 'room' WHERE m.user_id = ? AND m.role = 'owner' AND m.removed_at IS NULL",
+    )
+    .bind(user)
+    .fetch_one(&state.db)
+    .await?;
+    if owned >= OWNED_MAX {
+        return Err(AppError::TooMany("too_many_rooms"));
+    }
     crate::quotas::hit_user(&state, &crate::quotas::ROOM_CREATE_USER, user)?;
     let language = match body.language.as_deref() {
         Some(l) => clean_language(l)?,
@@ -256,6 +287,9 @@ pub async fn join(
         crate::party::may_take_seat(&state, room_id, existing.as_ref()).await?;
     }
     let mut tx = crate::db::write_tx(&state.db).await?;
+    if kind == "room" && existing.as_ref().is_none_or(|m| m.removed_at.is_some()) {
+        seat_free(&mut *tx, room_id).await?;
+    }
     let joined = match existing {
         // Removed by the owner or a vote: only the owner can add them back.
         Some(m) if m.removed_at.is_some() && !m.left_by_self => {
@@ -619,16 +653,13 @@ pub async fn start(
     Json(body): Json<StartBody>,
 ) -> AppResult<Json<Value>> {
     crate::routes::legacy_gate(&state, ip)?;
-    let name = body.name.trim();
-    if name.is_empty() || name.chars().count() > 24 {
-        return Err(AppError::BadRequest("bad_name"));
-    }
+    let name = &crate::routes::clean_name(&body.name)?;
     let room = clean_room_name(&body.room)?;
     clean_vibe(body.vibe.as_deref())?;
     let token = crate::auth::new_token();
     let mut tx = crate::db::write_tx(&state.db).await?;
     let user: i64 = sqlx::query_scalar(
-        "INSERT INTO users (name, color, friend_code) VALUES (?, ?, upper(hex(randomblob(4)))) RETURNING id",
+        "INSERT INTO users (name, color, friend_code) VALUES (?, ?, upper(hex(randomblob(5)))) RETURNING id",
     )
     .bind(name)
     .bind(COLORS[0])
