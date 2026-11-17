@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
-import { Send, Users } from 'lucide-react-native';
+import { EyeOff, Send, Users } from 'lucide-react-native';
 import { type ComponentRef, useEffect, useRef, useState } from 'react';
 import { Platform, Pressable, ScrollView, Text, TextInput, type TextInputProps, type TextStyle, View, type ViewStyle } from 'react-native';
 import Animated from 'react-native-reanimated';
@@ -9,7 +9,7 @@ import { AttachButton, MediaViewer, MessageMediaFrame, PendingBubble } from '@/c
 import { HeartBurst, ReactionBar, ReactionChips, WhoReacted } from '@/components/chat-reactions';
 import { ModerationDialog, type ModTarget } from '@/components/moderation';
 import { ProfileSheet } from '@/components/stats/profile-sheet';
-import { Avatar, Card, PressableScale } from '@/components/ui';
+import { Avatar, Card, DialogTitle, PressableScale } from '@/components/ui';
 import { api, type Member, type Message } from '@/lib/api';
 import { useFeatures } from '@/lib/auth';
 import { mediaOf, usePending } from '@/lib/chat-media';
@@ -48,6 +48,7 @@ function Bubble({
   onReport,
   onProfile,
   onDelete,
+  onRestore,
   onReact,
   onWho,
   onOpen,
@@ -60,6 +61,8 @@ function Bubble({
   onProfile: (id: number) => void;
   /** I may delete it (mine, or I own the room): offered on long-press. */
   onDelete?: () => Promise<unknown>;
+  /** Hidden by reports, in a room I own: I may bring it back (long-press). */
+  onRestore?: () => Promise<unknown>;
   /** The server has reactions: toggles mine (true: added). The long-press menu then opens on every message, mine too. */
   onReact?: (emoji: string) => boolean;
   onWho: (emoji: string) => void;
@@ -78,7 +81,7 @@ function Bubble({
       : { fontFamily: t.font.bold, color, backgroundColor: soft(color), borderRadius: 5, paddingHorizontal: 3 };
   const target = (): ModTarget =>
     mine
-      ? { kind: 'message', id: m.id, own: true, onDelete }
+      ? { kind: 'message', id: m.id, own: true, onDelete, onRestore }
       : {
           kind: 'message',
           id: m.id,
@@ -87,6 +90,7 @@ function Bubble({
               ? { user_id: userId, name: author.name, color: author.color, photo: author.photo_url, avatar: author.avatar }
               : undefined,
           onDelete,
+          onRestore,
         };
   const bubble = useRef<ComponentRef<typeof View>>(null);
   // Double tap: the time of the last tap, and of the last tap on a mention (that one opens a profile, nothing else).
@@ -128,7 +132,7 @@ function Bubble({
       onReport(Number.isFinite(y) && height > 0 ? { ...at, anchor: { y, height, side: mine ? 'right' : 'left' } } : at),
     );
   };
-  const onLongPress = onReact ? menu : mine ? onDelete && (() => onReport(target())) : () => onReport(target());
+  const onLongPress = onReact || onRestore ? menu : mine ? onDelete && (() => onReport(target())) : () => onReport(target());
   const hint = onReact
     ? tr(mine ? (onDelete ? 'chat.reactions.ownHint' : 'chat.reactions.ownOnlyHint') : 'chat.reactions.hint')
     : mine
@@ -172,7 +176,7 @@ function Bubble({
   const mediaLabel = media ? tr(m.kind === 'gif' ? 'chat.media.gifBy' : 'chat.media.photoBy', { name: (mine ? me?.name : author?.name) ?? '?' }) : '';
   return (
     <Animated.View key={m.id} entering={fresh ? motion.rise : undefined} style={{ gap: 4 }}>
-      <View style={{ flexDirection: mine ? 'row-reverse' : 'row', gap: 8, alignItems: 'flex-end' }}>
+      <View style={{ flexDirection: mine ? 'row-reverse' : 'row', gap: 8, alignItems: 'flex-end', opacity: m.hidden ? 0.45 : 1 }}>
         {!mine && <Avatar member={author} size={28} />}
         <Pressable
           ref={bubble}
@@ -239,6 +243,13 @@ function Bubble({
         </Pressable>
       </View>
       {reactions.length > 0 && <ReactionChips reactions={reactions} mine={mine} onToggle={onReact && ((e) => void onReact(e))} onWho={onWho} />}
+      {/* Hidden by reports: only I (the owner) see it, faded, until I restore or delete it. */}
+      {!!m.hidden && (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: mine ? 'flex-end' : 'flex-start', marginLeft: mine ? 0 : 36 }}>
+          <EyeOff size={13} color={t.mut} />
+          <Text style={{ fontFamily: t.font.semibold, fontSize: 12, color: t.mut }}>{tr('chat.hidden')}</Text>
+        </View>
+      )}
     </Animated.View>
   );
 }
@@ -267,6 +278,10 @@ export function ChatMessages({ roundId }: { roundId: number }) {
   const remove = (id: number) => async () => {
     await api(`/rounds/${roundId}/messages/${id}`, { method: 'DELETE' });
     qc.setQueryData<Message[]>(keys.messages(roundId), (old) => old?.filter((x) => x.id !== id));
+  };
+  const restore = (id: number) => async () => {
+    await api(`/rounds/${roundId}/messages/${id}/restore`, { method: 'POST' });
+    qc.setQueryData<Message[]>(keys.messages(roundId), (old) => old?.map((x) => (x.id === id ? { ...x, hidden: false } : x)));
   };
   // Long-press on someone else's message: report it, block its author.
   const [target, setTarget] = useState<ModTarget | null>(null);
@@ -303,7 +318,8 @@ export function ChatMessages({ roundId }: { roundId: number }) {
             onReport={setTarget}
             onProfile={setProfileId}
             onDelete={moderation && (owner || m.member_id === me?.id) ? remove(m.id) : undefined}
-            onReact={chatReactions ? (emoji) => react(m, emoji) : undefined}
+            onRestore={m.hidden && owner ? restore(m.id) : undefined}
+            onReact={chatReactions && !m.hidden ? (emoji) => react(m, emoji) : undefined}
             onWho={(emoji) => setWho({ id: m.id, emoji })}
             onOpen={(x) => setViewing(x.id)}
           />
@@ -317,16 +333,19 @@ export function ChatMessages({ roundId }: { roundId: number }) {
         onClose={() => setTarget(null)}
         header={
           chatReactions
-            ? (at) => (
-                <ReactionBar
-                  reactions={data?.find((m) => m.id === at.id)?.reactions}
-                  onPick={(emoji) => {
-                    const m = data?.find((x) => x.id === at.id);
-                    if (m) react(m, emoji);
-                    setTarget(null);
-                  }}
-                />
-              )
+            ? (at) =>
+                at.onRestore ? (
+                  <DialogTitle title={tr('chat.hidden')} />
+                ) : (
+                  <ReactionBar
+                    reactions={data?.find((m) => m.id === at.id)?.reactions}
+                    onPick={(emoji) => {
+                      const m = data?.find((x) => x.id === at.id);
+                      if (m) react(m, emoji);
+                      setTarget(null);
+                    }}
+                  />
+                )
             : undefined
         }
       />

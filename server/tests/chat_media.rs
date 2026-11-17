@@ -559,6 +559,7 @@ async fn blocks_reports_and_deletions() {
     );
 
     // Three reports hide one: no longer served.
+    common::trust_all(&state).await;
     let rid = reported["id"].as_i64().unwrap();
     for t in [&bob, &carl, &dan] {
         let (s, b) = call(
@@ -620,8 +621,8 @@ async fn blocks_reports_and_deletions() {
             .iter()
             .filter(|i| i["text"] == "📷 Photo")
             .count(),
-        2,
-        "{inbox}"
+        1,
+        "the hidden photo's and the deleted one's entries are gone: {inbox}"
     );
 
     // Ana deletes her account: her images go.

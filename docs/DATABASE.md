@@ -37,8 +37,12 @@ Rolling back to an older server after a migration: the old binary refuses a data
 
 ## Indexes
 
-`0028_indexes.sql` covers the hot lookups: `rounds(group_id, question_id)` ("has this room asked it?"), `rounds(group_id, number)` (history, latest round), `members(group_id)`, `questions(group_id)`, `push_subscriptions(user_id)`, `shares(round_id)`, `challenges(question_id)`, and the unread inbox rows (`inbox(member_id) WHERE read_at IS NULL`). Deck questions are unique per `(text, lang)`.
+`0028_indexes.sql` covers the hot lookups: `rounds(group_id, question_id)` ("has this room asked it?"), `rounds(group_id, number)` (history, latest round), `members(group_id)`, `questions(group_id)`, `push_subscriptions(user_id)`, `shares(round_id)`, `challenges(question_id)`, and the unread inbox rows (`inbox(member_id) WHERE read_at IS NULL`). `0043` adds `messages(member_id)` and `inbox(actor_id)` (erasing an account and the hourly guest purge delete by them). Deck questions are unique per `(text, lang)`.
+
+## Pruning
+
+Hourly (`guests::spawn_purger`, first run at start-up): guest accounts 30 days after their last party (docs/PARTY.md), sessions unused for 180 days (docs/AUTH.md), and the inbox (`inbox::prune`): entries older than 90 days, read or not, and everything past a seat's latest 200 (the app shows 50).
 
 ## Not pruned (product decision)
 
-Nothing deletes old `inbox`, `messages` (chat images under `DATA_DIR/chat/` go with their message, account or room: `docs/CHAT_MEDIA.md`), `shares`, `nudges`, `party_*` rows, guest users, session tokens or guest photos yet: how long to keep people's content is a product decision. OTA bundles are pruned per runtime version (5 kept), but folders of old runtime versions stay. Unused leftovers kept in the schema: tables `ratings`, `member_tokens`, column `members.token_hash` (still filled with a throwaway hash on every new seat).
+Nothing deletes old `messages` (chat images under `DATA_DIR/chat/` go with their message, account or room: `docs/CHAT_MEDIA.md`), `shares`, `stat_shares`, `nudges`, `reports`, `party_*` rows or legacy session tokens yet: how long to keep people's content is a product decision. OTA bundles are pruned per runtime version (5 kept), but folders of old runtime versions stay. Unused leftovers kept in the schema: tables `ratings`, `member_tokens`, column `members.token_hash` (still filled with a throwaway hash on every new seat).

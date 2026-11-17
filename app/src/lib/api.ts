@@ -193,6 +193,8 @@ export type Message = {
   /** Photo or GIF: the text under it (mentions apply to it). */
   caption?: string | null;
   media?: MessageMedia | null;
+  /** Hidden by reports: only the room owner gets it, to restore it. */
+  hidden?: boolean;
 };
 export type InboxItem = {
   id: number;

@@ -1495,9 +1495,10 @@ async fn public_share_links_show_only_the_card() {
 
 #[tokio::test]
 async fn community_packs_publish_install_report() {
-    let app = test_app().await;
+    let (app, state) = test_app_with_state().await;
     let (a, _) = join(&app, "Ana").await;
     let (b, _) = join(&app, "Bob").await;
+    common::trust_all(&state).await;
     let file = "Qui a le plus de chaussettes dépareillées ?\nQui ferait le pire astronaute ?\nQui pleure devant les pubs ?\n[classement] Classe-nous du plus frileux au plus résistant\nQui perd toujours ses clés ?\nnon\n";
     let (s, pack) = call(
         &app,
@@ -1564,6 +1565,7 @@ async fn community_packs_publish_install_report() {
     // Three reports hide it.
     for name in ["Cyd", "Dan", "Eve"] {
         let (t, _) = join(&app, name).await;
+        common::trust_all(&state).await;
         call(&app, "POST", &format!("/packs/{id}/report"), Some(&t), None).await;
     }
     let (_, list) = call(&app, "GET", "/packs", Some(&b), None).await;
@@ -2356,9 +2358,10 @@ async fn majority_votes_need_three_people() {
 
 #[tokio::test]
 async fn the_quill_counts_only_written_questions() {
-    let app = test_app().await;
+    let (app, state) = test_app_with_state().await;
     let (a, a_id) = join(&app, "Ana").await;
     let (b, b_id) = join(&app, "Bob").await;
+    common::trust_all(&state).await;
     // Ana imports a file and installs a pack; Bob writes one question by hand.
     let (s, _) = call(
         &app,
@@ -2716,6 +2719,7 @@ async fn a_stalled_room_hears_when_questions_arrive() {
         .unwrap();
     let (ana, _) = join(&app, "Ana").await;
     let (bob, _) = join(&app, "Bob").await;
+    common::trust_all(&state).await;
     let (_, current) = call(&app, "GET", "/round/current", Some(&ana), None).await;
     assert!(current.is_null());
     let question_items = |inbox: &Value| {

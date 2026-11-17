@@ -283,17 +283,36 @@ pub async fn unblock(
 
 // ---------- hiding, deleting ----------
 
-/// [`HIDE_AFTER`] different people reported it (open reports): a message disappears for everyone,
-/// a suggestion leaves the vote stack (`rejected`, no `decided_at`), until an admin decides.
+/// Someone whose reports and suggestion votes count toward hiding or rejecting (`$user`: their
+/// `users.id` in the query): a verified e-mail or a linked provider, and an account more than a day
+/// old. Throwaway accounts can still report (admins read every report); they just can't hide.
+macro_rules! trusted {
+    ($user:literal) => {
+        concat!(
+            "EXISTS (SELECT 1 FROM users t WHERE t.id = ",
+            $user,
+            " AND t.created_at <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-1 day') \
+             AND ((t.email IS NOT NULL AND t.email_verified_at IS NOT NULL) \
+                  OR EXISTS (SELECT 1 FROM oauth_identities o WHERE o.user_id = t.id)))"
+        )
+    };
+}
+pub(crate) use trusted;
+
+/// [`HIDE_AFTER`] different trusted people reported it (open reports; for a message the owner
+/// restored, made since): a message disappears for everyone, a suggestion leaves the vote stack
+/// (`rejected`, no `decided_at`), until an admin decides.
 async fn hide_if_reported(
     state: &AppState,
     kind: &str,
     id: i64,
     room: Option<i64>,
 ) -> AppResult<()> {
-    let open: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM reports WHERE kind = ? AND target_id = ? AND resolved_at IS NULL",
-    )
+    let open: i64 = sqlx::query_scalar(concat!(
+        "SELECT COUNT(*) FROM reports r WHERE r.kind = ?1 AND r.target_id = ?2 AND r.resolved_at IS NULL \
+         AND (?1 <> 'message' OR r.created_at > COALESCE((SELECT unhidden_at FROM messages WHERE id = ?2), '')) AND ",
+        trusted!("r.reporter_id")
+    ))
     .bind(kind)
     .bind(id)
     .fetch_one(&state.db)
@@ -302,14 +321,20 @@ async fn hide_if_reported(
         return Ok(());
     }
     if kind == "message" {
-        let hidden: Option<i64> = sqlx::query_scalar(
+        let mut tx = crate::db::write_tx(&state.db).await?;
+        let hidden: Option<(i64, i64, String, String)> = sqlx::query_as(
             "UPDATE messages SET hidden_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') \
-             WHERE id = ? AND hidden_at IS NULL RETURNING round_id",
+             WHERE id = ? AND hidden_at IS NULL RETURNING round_id, member_id, text, created_at",
         )
         .bind(id)
-        .fetch_optional(&state.db)
+        .fetch_optional(&mut *tx)
         .await?;
-        if let (Some(round_id), Some(room)) = (hidden, room) {
+        // Its inbox copies go: a hidden text must not stay readable in the Activity tab.
+        if let Some((round_id, author, text, created_at)) = &hidden {
+            drop_inbox_copies(&mut tx, *round_id, *author, text, created_at).await?;
+        }
+        tx.commit().await?;
+        if let (Some((round_id, ..)), Some(room)) = (hidden, room) {
             state.live.send(
                 room,
                 Event::MessageDeleted {
@@ -317,6 +342,7 @@ async fn hide_if_reported(
                     message_id: id,
                 },
             );
+            state.live.send(room, Event::InboxChanged);
         }
     } else {
         sqlx::query(
@@ -329,35 +355,84 @@ async fn hide_if_reported(
     Ok(())
 }
 
-/// A message about to be erased: round, author, text, sent at, room, kind, media.
-type Erased = (i64, i64, String, String, i64, String, Option<String>);
-
-/// Deletes a chat message (and its image file) and the inbox entries it made, closes its open reports and tells the
-/// room. `false` if it was already gone.
-pub(crate) async fn erase_message(state: &AppState, id: i64) -> AppResult<bool> {
-    let mut tx = crate::db::write_tx(&state.db).await?;
-    let row: Option<Erased> = sqlx::query_as(
-        "SELECT x.round_id, x.member_id, x.text, x.created_at, r.group_id, x.kind, x.media FROM messages x \
-         JOIN rounds r ON r.id = x.round_id WHERE x.id = ?",
-    )
-    .bind(id)
-    .fetch_optional(&mut *tx)
-    .await?;
-    let Some((round_id, author, text, created_at, room, kind, media)) = row else {
-        return Ok(false);
-    };
-    // The inbox keeps a copy of the text ("message" and "mention" entries): per recipient, the
-    // first one made since this message (the same text sent twice, like two "📷 Photo", keeps the other).
+/// The inbox keeps a copy of a message's text ("message" and "mention" entries): per recipient,
+/// the first one made since it was sent (the same text sent twice, like two "📷 Photo", keeps the other).
+async fn drop_inbox_copies(
+    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    round_id: i64,
+    author: i64,
+    text: &str,
+    created_at: &str,
+) -> AppResult<()> {
     sqlx::query(
         "DELETE FROM inbox WHERE id IN (SELECT MIN(id) FROM inbox WHERE round_id = ? AND actor_id = ? \
          AND kind IN ('message', 'mention') AND text = ? AND created_at >= ? GROUP BY member_id)",
     )
     .bind(round_id)
     .bind(author)
-    .bind(&text)
-    .bind(&created_at)
-    .execute(&mut *tx)
+    .bind(text)
+    .bind(created_at)
+    .execute(&mut **tx)
     .await?;
+    Ok(())
+}
+
+/// `POST /rounds/{id}/messages/{message_id}/restore`: the room owner brings back a message hidden
+/// by reports (three people can't silence a room). Its open reports stay for the admins; it takes
+/// [`HIDE_AFTER`] new ones to hide it again. `403 owner_only`, `404` when it isn't hidden.
+pub async fn restore_message(
+    State(state): State<AppState>,
+    Me(me): Me,
+    Path((round_id, message_id)): Path<(i64, i64)>,
+) -> AppResult<Json<Value>> {
+    if me.role != "owner" {
+        return Err(AppError::Forbidden("owner_only"));
+    }
+    crate::game::round(&state.db, me.group_id, round_id).await?;
+    let back: Option<(i64, Option<i64>)> = sqlx::query_as(
+        "UPDATE messages SET hidden_at = NULL, unhidden_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') \
+         WHERE id = ? AND round_id = ? AND hidden_at IS NOT NULL \
+         RETURNING member_id, (SELECT user_id FROM members m WHERE m.id = member_id)",
+    )
+    .bind(message_id)
+    .bind(round_id)
+    .fetch_optional(&state.db)
+    .await?;
+    let (member_id, user_id) = back.ok_or(AppError::NotFound)?;
+    state.live.send(
+        me.group_id,
+        Event::MessagePosted {
+            round_id,
+            message_id,
+            member_id,
+            user_id,
+        },
+    );
+    Ok(Json(json!({ "ok": true })))
+}
+
+/// A message about to be erased: round, author, text, sent at, room, kind, media, hidden.
+type Erased = (i64, i64, String, String, i64, String, Option<String>, bool);
+
+/// Deletes a chat message (and its image file) and the inbox entries it made, closes its open reports and tells the
+/// room. `false` if it was already gone.
+pub(crate) async fn erase_message(state: &AppState, id: i64) -> AppResult<bool> {
+    let mut tx = crate::db::write_tx(&state.db).await?;
+    let row: Option<Erased> = sqlx::query_as(
+        "SELECT x.round_id, x.member_id, x.text, x.created_at, r.group_id, x.kind, x.media, x.hidden_at IS NOT NULL \
+         FROM messages x \
+         JOIN rounds r ON r.id = x.round_id WHERE x.id = ?",
+    )
+    .bind(id)
+    .fetch_optional(&mut *tx)
+    .await?;
+    let Some((round_id, author, text, created_at, room, kind, media, hidden)) = row else {
+        return Ok(false);
+    };
+    // Hidden by reports: its copies already went.
+    if !hidden {
+        drop_inbox_copies(&mut tx, round_id, author, &text, &created_at).await?;
+    }
     sqlx::query("DELETE FROM messages WHERE id = ?")
         .bind(id)
         .execute(&mut *tx)
@@ -409,11 +484,13 @@ fn retired_text(lang: Lang) -> &'static str {
 }
 
 /// Removes a room's own question: deleted if it was never asked, else its text is replaced
-/// everywhere it shows. `409 deck_question` for the shared deck. Returns its room.
+/// everywhere it shows, its inbox entries ("new question", "result") included. Its open question
+/// closes without a result (votes dropped) and the next one opens. `409 deck_question` for the
+/// shared deck. Returns its room.
 pub(crate) async fn retire_question(state: &AppState, id: i64) -> AppResult<i64> {
     let mut tx = crate::db::write_tx(&state.db).await?;
     let row: Option<(Option<i64>, bool, String)> = sqlx::query_as(
-        "SELECT q.group_id, NOT EXISTS (SELECT 1 FROM rounds r WHERE r.question_id = q.id), \
+        "SELECT q.group_id, NOT EXISTS (SELECT 1 FROM rounds r WHERE r.group_id = q.group_id AND r.question_id = q.id), \
          COALESCE(g.language, 'fr') FROM questions q LEFT JOIN groups g ON g.id = q.group_id WHERE q.id = ?",
     )
     .bind(id)
@@ -421,6 +498,7 @@ pub(crate) async fn retire_question(state: &AppState, id: i64) -> AppResult<i64>
     .await?;
     let (room, unused, lang) = row.ok_or(AppError::NotFound)?;
     let room = room.ok_or(AppError::Conflict("deck_question"))?;
+    let mut events = Vec::new();
     if unused {
         sqlx::query("DELETE FROM challenges WHERE question_id = ?")
             .bind(id)
@@ -436,6 +514,29 @@ pub(crate) async fn retire_question(state: &AppState, id: i64) -> AppResult<i64>
             .bind(id)
             .execute(&mut *tx)
             .await?;
+        // The inbox copied the text, in each reader's language.
+        sqlx::query(
+            "UPDATE inbox SET text = CASE WHEN (SELECT u.locale FROM members m JOIN users u ON u.id = m.user_id \
+                                                WHERE m.id = inbox.member_id) = 'en' THEN ?1 ELSE ?2 END \
+             WHERE kind IN ('question', 'result') \
+             AND round_id IN (SELECT id FROM rounds WHERE group_id = ?3 AND question_id = ?4)",
+        )
+        .bind(retired_text(Lang::En))
+        .bind(retired_text(Lang::Fr))
+        .bind(room)
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
+        let open: Option<i64> = sqlx::query_scalar(
+            "SELECT id FROM rounds WHERE group_id = ? AND question_id = ? AND closed_at IS NULL",
+        )
+        .bind(room)
+        .bind(id)
+        .fetch_optional(&mut *tx)
+        .await?;
+        if let Some(round_id) = open {
+            events = crate::game::drop_round(&mut tx, room, round_id).await?;
+        }
     }
     resolve(&mut tx, "question", id, "delete").await?;
     tx.commit().await?;
@@ -443,6 +544,17 @@ pub(crate) async fn retire_question(state: &AppState, id: i64) -> AppResult<i64>
         .live
         .send(room, Event::QuestionAdded { question_id: id });
     state.live.send(room, Event::RoomUpdated);
+    let opened = events.iter().find_map(|e| match e {
+        Event::RoundOpened { round_id } => Some(*round_id),
+        _ => None,
+    });
+    for event in events {
+        state.live.send(room, event);
+    }
+    state.live.send(room, Event::InboxChanged);
+    if opened.is_some() {
+        crate::routes::notify_round(state, room, None, opened, false).await;
+    }
     Ok(room)
 }
 
@@ -684,7 +796,11 @@ pub async fn act(
     Ok(Json(json!({ "ok": true })))
 }
 
-/// Signs the account out everywhere and refuses its sign-ins (`403 suspended`) from now on.
+/// Signs the account out everywhere and refuses its sign-ins (`403 suspended`) from now on. Its
+/// rooms stop waiting for it: every seat it shares with someone is given up like a leave
+/// (`rooms::leave_seat`, as when an account is deleted: an owner hands over, the open question is
+/// checked again without it). A room it is alone in stays as it is (nobody waits there, and a
+/// suspension can be lifted).
 pub(crate) async fn suspend(state: &AppState, user: i64) -> AppResult<()> {
     let mut tx = crate::db::write_tx(&state.db).await?;
     sqlx::query(
@@ -701,6 +817,17 @@ pub(crate) async fn suspend(state: &AppState, user: i64) -> AppResult<()> {
         sqlx::query(sql).bind(user).execute(&mut *tx).await?;
     }
     tx.commit().await?;
+    let seats: Vec<crate::models::MemberRow> = sqlx::query_as(
+        "SELECT m.* FROM members m JOIN groups g ON g.id = m.group_id AND g.deleted_at IS NULL \
+         WHERE m.user_id = ? AND m.removed_at IS NULL AND EXISTS (SELECT 1 FROM members o \
+             WHERE o.group_id = m.group_id AND o.removed_at IS NULL AND o.id != m.id) ORDER BY m.id",
+    )
+    .bind(user)
+    .fetch_all(&state.db)
+    .await?;
+    for seat in &seats {
+        crate::rooms::leave_seat(state, seat).await?;
+    }
     Ok(())
 }
 

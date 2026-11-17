@@ -147,3 +147,27 @@ pub async fn list(db: &SqlitePool, me: &MemberRow) -> AppResult<(Vec<InboxItem>,
     .await?;
     Ok((items, unread))
 }
+
+/// Days an inbox entry is kept.
+pub const KEEP_DAYS: i64 = 90;
+/// Entries kept per seat at most (the inbox shows the latest 50).
+pub const KEEP_PER_MEMBER: i64 = 200;
+
+/// Keeps the inbox bounded (hourly, with the guest purge): entries older than [`KEEP_DAYS`] go,
+/// read or not, and so does everything past a seat's latest [`KEEP_PER_MEMBER`]. Returns how many.
+pub async fn prune(db: &SqlitePool) -> AppResult<u64> {
+    let old = sqlx::query(
+        "DELETE FROM inbox WHERE created_at < strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-' || ? || ' days')",
+    )
+    .bind(KEEP_DAYS)
+    .execute(db)
+    .await?;
+    let extra = sqlx::query(
+        "DELETE FROM inbox WHERE id IN (SELECT id FROM \
+           (SELECT id, ROW_NUMBER() OVER (PARTITION BY member_id ORDER BY id DESC) AS n FROM inbox) WHERE n > ?)",
+    )
+    .bind(KEEP_PER_MEMBER)
+    .execute(db)
+    .await?;
+    Ok(old.rows_affected() + extra.rows_affected())
+}

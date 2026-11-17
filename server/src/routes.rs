@@ -89,6 +89,10 @@ pub fn router() -> Router<AppState> {
             "/rounds/{id}/messages/{message_id}",
             axum::routing::delete(crate::moderation::delete_message),
         )
+        .route(
+            "/rounds/{id}/messages/{message_id}/restore",
+            post(crate::moderation::restore_message),
+        )
         .route("/inbox", get(inbox))
         .route("/inbox/read", post(read_inbox))
         .route("/history", get(history))
@@ -2055,12 +2059,16 @@ pub(crate) struct MessageDb {
     caption: Option<String>,
     /// As stored (`crate::media`): turned into short-lived URLs for the reader.
     media: Option<String>,
+    /// Hidden by reports (only its room owner gets it, to restore it).
+    #[sqlx(default)]
+    hidden: bool,
 }
 
 /// The columns of a [`MessageDb`], for `SELECT`s on `messages x JOIN members m`.
 macro_rules! message_columns {
     () => {
-        "x.id, x.member_id, m.user_id, x.text, x.created_at, x.mentions, x.everyone, x.kind, x.caption, x.media"
+        "x.id, x.member_id, m.user_id, x.text, x.created_at, x.mentions, x.everyone, x.kind, x.caption, x.media, \
+         x.hidden_at IS NOT NULL AS hidden"
     };
 }
 
@@ -2085,11 +2093,18 @@ pub(crate) struct MessageRow {
     media: Option<Value>,
     /// Emojis on it, as the reader sees them (`crate::reactions::for_messages`).
     reactions: Vec<crate::reactions::Reaction>,
+    /// Hidden by reports: only the room owner gets it (`true`), and may restore it.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    hidden: bool,
 }
 
 impl MessageRow {
     fn new(state: &AppState, m: MessageDb) -> Self {
-        let media = crate::media::payload(state, m.id, &m.kind, m.media.as_deref());
+        let mut media = crate::media::payload(state, m.id, &m.kind, m.media.as_deref());
+        // A hidden photo loads for its owner only through a review link.
+        if let (true, Some(media)) = (m.hidden && m.kind == "image", media.as_mut()) {
+            media["url"] = json!(crate::media::image_url(state, m.id, true));
+        }
         Self {
             id: m.id,
             member_id: m.member_id,
@@ -2102,6 +2117,7 @@ impl MessageRow {
             caption: m.caption,
             media,
             reactions: Vec::new(),
+            hidden: m.hidden,
         }
     }
 }
@@ -2112,7 +2128,8 @@ const PINS_MAX: i64 = 100;
 /// The most recent messages of a chat the app gets (older ones are left out).
 const MESSAGES_SHOWN: i64 = 200;
 
-/// The chat under a finished question, oldest first (its last `MESSAGES_SHOWN`), without people I blocked.
+/// The chat under a finished question, oldest first (its last `MESSAGES_SHOWN`), without people I
+/// blocked. Messages hidden by reports only for the room owner (`hidden: true`), who may restore them.
 async fn messages(
     State(state): State<AppState>,
     Me(me): Me,
@@ -2123,11 +2140,12 @@ async fn messages(
         "SELECT ",
         message_columns!(),
         " FROM messages x \
-         JOIN members m ON m.id = x.member_id WHERE x.round_id = ? AND x.hidden_at IS NULL \
+         JOIN members m ON m.id = x.member_id WHERE x.round_id = ? AND (x.hidden_at IS NULL OR ?) \
          AND NOT EXISTS (SELECT 1 FROM blocks b WHERE b.user_id = ? AND b.blocked_id = m.user_id) \
          ORDER BY x.id DESC LIMIT ?"
     ))
     .bind(id)
+    .bind(me.role == "owner")
     .bind(me.user_id)
     .bind(MESSAGES_SHOWN)
     .fetch_all(&state.db)

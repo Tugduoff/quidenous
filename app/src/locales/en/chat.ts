@@ -4,6 +4,7 @@ export const chat: Messages['chat'] = {
   count: { one: '{count} message', other: '{count} messages' },
   longPressHint: 'Long press: report or block',
   longPressOwnHint: 'Long press: delete',
+  hidden: 'Hidden after reports',
   seeProfile: 'See their profile',
   mention: 'Mention {name}',
   mentionAll: 'Mention the whole room',

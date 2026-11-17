@@ -200,6 +200,7 @@ async fn packs_have_categories_spicy_opt_in_likes_and_sorts() {
     let (ana, _) = join(app, "Ana").await;
     let (bob, _) = join(app, "Bob").await;
     let (cyd, _) = join(app, "Cyd").await;
+    common::trust_all(&t.state).await;
     let (_, features) = call(app, "GET", "/features", None, None).await;
     assert!(features.as_array().unwrap().contains(&json!("community")));
 
@@ -391,6 +392,7 @@ async fn installs_count_per_room_and_authors_edit_and_delete() {
     let (admin, _) = join(app, "Admin").await;
     let (ana, _) = join(app, "Ana").await;
     let (bob, _) = join(app, "Bob").await;
+    common::trust_all(&t.state).await;
     let pack = publish(
         app,
         &ana,
@@ -598,6 +600,7 @@ async fn reports_send_a_pack_to_review_and_admins_decide() {
     let (admin, _) = join(app, "Admin").await;
     let (ana, ana_member) = join(app, "Ana Martin").await;
     let (bob, bob_member) = join(app, "Bob").await;
+    common::trust_all(&t.state).await;
     let ana_user = user_of(&t, ana_member).await;
     let bob_user = user_of(&t, bob_member).await;
     let pack = publish(
@@ -610,6 +613,7 @@ async fn reports_send_a_pack_to_review_and_admins_decide() {
     for name in ["Cyd", "Dan", "Eve"] {
         reporters.push(join(app, name).await.0);
     }
+    common::trust_all(&t.state).await;
     let (s, b) = call(
         app,
         "POST",
@@ -812,6 +816,7 @@ async fn suggestions_are_voted_then_approved_into_the_deck() {
     let (admin, _) = join(app, "Admin").await;
     let (ana, ana_member) = join(app, "Ana").await;
     let (bob, _) = join(app, "Bob").await;
+    common::trust_all(&t.state).await;
     let ana_user = user_of(&t, ana_member).await;
 
     let (s, b) = call(
@@ -963,6 +968,7 @@ async fn suggestions_are_voted_then_approved_into_the_deck() {
     // 10 up, 1 down: score 9, still voting; the 11th up makes it 10 at 92 %: queued.
     for i in 0..11 {
         let (voter, _) = join(app, &format!("Voter{i}")).await;
+        common::trust_all(&t.state).await;
         let (s, b) = call(
             app,
             "POST",
@@ -1363,6 +1369,7 @@ async fn public_pack_pages() {
     let t = setup().await;
     let app = &t.app;
     let (ana, _) = join(app, "Ana").await;
+    common::trust_all(&t.state).await;
     let fr = publish(
         app,
         &ana,

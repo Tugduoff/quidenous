@@ -55,8 +55,9 @@ Pack item (lists, creator page, mine):
   `400 bad_pack | pack_size | bad_language | bad_tags`, `409 too_many_packs` (10 packs in `public`/`review`; removed and deleted don't count).
   An author with a `removed` pack, or one they deleted while it was in `review` (`removed_reason = 'deleted_in_review'`),
   publishes into `review` (`status`): deleting and republishing doesn't get round the admins.
-- Publishing, liking and reporting a pack (and reporting a suggestion) need an account whose e-mail is verified (`403 unverified`);
-  accounts without an e-mail (made before e-mail sign-in) or with a provider are fine. Guests never (`403 guest_account`).
+- Publishing, liking and reporting a pack, and making, voting on and reporting a suggestion need a verified e-mail or a linked
+  provider (`403 unverified`); admins always can. Accounts without an e-mail (made before e-mail sign-in, claimable by first name)
+  secure themselves first (the app's "Sécurise ton compte" card). Guests never (`403 guest_account`).
 - `PUT /packs/{id} { name, description, language, tags, spicy, questions: [{text, kind, items?}] }` → item. Author only (`403 not_author`);
   not when `removed`/`deleted` (`403 pack_removed`). Changed questions → `version + 1`, `updated_at`. Same validation as publish.
   A pack an admin approved after reports (`approved_at`, migration 0033) goes back to `review` when its name, description or questions change.
@@ -67,7 +68,7 @@ Pack item (lists, creator page, mine):
   Installing again adds only the questions the room lacks (new version).
 - `POST /packs/{id}/like` / `DELETE /packs/{id}/like` → `{ likes, liked }`. Not on my own pack (`400 own_pack`).
 - `POST /packs/{id}/report { reason?: 'offensive'|'sexual'|'spam'|'other', details? }` → `{ ok }`. One per person.
-  The 3rd distinct report moves a `public` pack to `review`. Each new report is e-mailed to `REPORT_EMAIL`
+  The 3rd distinct report from a *trusted* account (verified, more than a day old: see docs/AUTH.md, Reports) moves a `public` pack to `review`. Each new report is e-mailed to `REPORT_EMAIL`
   (contact@coflop.fr; same hourly cap as other reports) with the pack, its author, reason, report count and whether it went to review.
 - `GET /creators/{user_id}` → `{ id, name, color, photo_url, avatar, installs, likes, packs: [item] }`: public packs only. 404 if none and not me.
 - `GET /community/me` → `{ admin, show_spicy, suggestions_left }`; `PUT /community/me { show_spicy }` → same.
@@ -94,8 +95,9 @@ Suggestion: `{ id, text, kind, lang, status, up, down, author, mine }`.
   not voted (or skipped) by me, oldest first.
 - `POST /suggestions/{id}/vote { value: 1 | -1 | 0 }` → `{ up, down, status }`. 0 = skip. Not my own (`400 own_suggestion`),
   only `voting` ones (`409 closed`). Changing my vote is allowed. Reaching `up - down >= 10` with `up / (up + down) >= 0.7`
-  moves it to `queued` (admin approval); `down - up >= 5` rejects it for good.
-- Suggestions can be reported (`POST /reports { kind: 'suggestion' }`, flag on the vote card): 3 different reporters take it
+  moves it to `queued` (admin approval); `down - up >= 5` counted on trusted voters only (verified accounts more than a day old)
+  rejects it for good.
+- Suggestions can be reported (`POST /reports { kind: 'suggestion' }`, flag on the vote card): 3 different trusted reporters take it
   off the vote stack (`rejected`, no `decided_at`) until an admin dismisses the reports (back to `voting` / `queued`) or deletes it.
 - `GET /suggestions/mine` → `{ left, items: [suggestion] }` newest first.
 - Round view (`GET /round/current`, `/rounds/{id}`) gains `suggested_by: string | null` (the author's name) for an approved

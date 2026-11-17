@@ -15,4 +15,6 @@ export const moderation = {
   delete: 'Supprimer',
   deleteTitle: 'Supprimer ce message ?',
   deleteConfirm: 'Supprimer',
+  /** The room owner brings back a message hidden by reports. */
+  restore: 'Rétablir',
 };

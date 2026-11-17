@@ -52,19 +52,23 @@ pub fn is_admin(state: &AppState, user: i64) -> bool {
     state.config.admin_user_ids.contains(&user)
 }
 
-/// Publishing, liking and reporting packs: not with an e-mail that was never verified (`403
-/// unverified`), the cheapest way to make throwaway accounts. Accounts made before e-mail sign-in
-/// (no e-mail at all) and provider accounts are fine.
+/// Publishing, liking and reporting packs, making, voting on and reporting suggestions: only with a
+/// verified e-mail or a linked provider (`403 unverified`). Never-verified e-mails are the cheapest
+/// throwaway accounts; legacy accounts (no e-mail: anyone who types their first name can take them
+/// over) and guests secure themselves first. Admins always can.
 pub async fn require_verified(state: &AppState, user: i64) -> AppResult<()> {
-    let unverified: bool = sqlx::query_scalar(
-        "SELECT email IS NOT NULL AND email_verified_at IS NULL \
-         AND NOT EXISTS (SELECT 1 FROM oauth_identities o WHERE o.user_id = users.id) FROM users WHERE id = ?",
+    if is_admin(state, user) {
+        return Ok(());
+    }
+    let verified: bool = sqlx::query_scalar(
+        "SELECT (email IS NOT NULL AND email_verified_at IS NOT NULL) \
+         OR EXISTS (SELECT 1 FROM oauth_identities o WHERE o.user_id = users.id) FROM users WHERE id = ?",
     )
     .bind(user)
     .fetch_optional(&state.db)
     .await?
-    .unwrap_or(true);
-    if unverified {
+    .unwrap_or(false);
+    if !verified {
         return Err(AppError::Forbidden("unverified"));
     }
     Ok(())
@@ -870,10 +874,14 @@ pub async fn report(
     if inserted.rows_affected() == 0 {
         return Ok(Json(json!({ "ok": true })));
     }
-    let reports: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM pack_reports WHERE pack_id = ?")
-        .bind(id)
-        .fetch_one(&state.db)
-        .await?;
+    // Only trusted reporters take it off the catalogue (a fresh verified account can still report).
+    let reports: i64 = sqlx::query_scalar(concat!(
+        "SELECT COUNT(*) FROM pack_reports r WHERE r.pack_id = ? AND ",
+        crate::moderation::trusted!("r.user_id")
+    ))
+    .bind(id)
+    .fetch_one(&state.db)
+    .await?;
     let to_review = reports >= REPORTS_TO_REVIEW
         && sqlx::query("UPDATE packs SET status = 'review' WHERE id = ? AND status = 'public'")
             .bind(id)
