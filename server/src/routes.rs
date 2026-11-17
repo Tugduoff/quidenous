@@ -176,6 +176,7 @@ pub fn router() -> Router<AppState> {
         )
         .route("/invites/{id}/accept", post(crate::friends::accept_invite))
         .merge(crate::party::router())
+        .merge(crate::global::router())
         .route(
             "/friends",
             get(crate::friends::list).post(crate::friends::add),
@@ -258,6 +259,8 @@ async fn features(State(state): State<AppState>) -> Json<Value> {
         "chat_reactions",
         "clear_queue",
         "chat_images",
+        // The global question of the day (docs/GLOBAL_QUESTION.md).
+        "global_question",
     ];
     if state.config.klipy.is_some() {
         f.push("chat_gifs");

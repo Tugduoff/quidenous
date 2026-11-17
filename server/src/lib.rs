@@ -9,6 +9,7 @@ pub mod flow;
 pub mod friends;
 pub mod game;
 pub mod gifs;
+pub mod global;
 pub mod guests;
 pub mod i18n;
 pub mod inbox;
