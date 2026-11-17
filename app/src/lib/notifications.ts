@@ -28,6 +28,8 @@ export function useSaveNotifPrefs() {
   const qc = useQueryClient();
   return useMutation({
     mutationKey: notifKey,
+    // The screen says "not saved" itself.
+    meta: { quiet: true },
     mutationFn: putPrefs,
     onMutate: async (next: NotifPrefs) => {
       await qc.cancelQueries({ queryKey: notifKey });

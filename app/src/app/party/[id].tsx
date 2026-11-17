@@ -208,7 +208,13 @@ function Menu({ party, visible, onClose }: { party: Party; visible: boolean; onC
   const leave = async () => {
     onClose();
     if (!(await askConfirm(tr('party.menu.leaveAsk'), tr('party.menu.leaveMessage'), tr('common.leave')))) return;
-    await partyApi.leave(party.id).catch(() => {});
+    try {
+      await partyApi.leave(party.id);
+    } catch (e) {
+      // Already out of it (removed, or the party is gone): leave the screen all the same.
+      const out = e instanceof ApiError && (e.status === 404 || e.code === 'not_in_room' || e.code === 'removed');
+      if (!out) return showToast(partyError(e));
+    }
     await roomGone();
   };
   const row = (Icon: typeof LogOut, label: string, onPress: () => void, danger?: boolean) => (
