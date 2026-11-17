@@ -139,7 +139,23 @@ async fn notice_seat(state: &AppState, user: i64) -> AppResult<Option<(i64, i64)
 
 /// Tells `to` about something `from` did that isn't about one of `to`'s rooms (a friend request,
 /// a room invitation): an inbox entry and a push on the seat they use most, if they have one.
+/// Runs after the request or invitation committed: a failure is logged, never an error (a retry
+/// would find it already sent and say nothing).
 async fn notify_user(
+    state: &AppState,
+    to: i64,
+    from: i64,
+    kind: &str,
+    title: Text,
+    body: Text,
+    url: &str,
+) {
+    if let Err(e) = try_notify_user(state, to, from, kind, title, body, url).await {
+        tracing::warn!(to, from, kind, error = ?e, "notice failed");
+    }
+}
+
+async fn try_notify_user(
     state: &AppState,
     to: i64,
     from: i64,
@@ -224,7 +240,7 @@ async fn befriend(state: &AppState, me: i64, other: i64, my_name: &str) -> AppRe
             Text::by(|l| i18n::friend_request(l, my_name)),
             "/friends",
         )
-        .await?;
+        .await;
     }
     Ok(false)
 }
@@ -393,7 +409,7 @@ pub async fn add_to_room(
             Text::by(|l| i18n::room_invite(l, &my_seat.name, &room_name)),
             "/rooms",
         )
-        .await?;
+        .await;
     }
     Ok(Json(json!({ "invited": true, "user_id": other })))
 }
@@ -453,50 +469,65 @@ pub async fn accept_invite(
     Account(me): Account,
     Path(id): Path<i64>,
 ) -> AppResult<Json<Value>> {
-    let (room, from, valid): (i64, i64, bool) = sqlx::query_as(concat!(
-        "SELECT i.group_id, i.from_id, ",
+    // Which room, read first: a double tap's second request finds the invitation already used.
+    let room: i64 =
+        sqlx::query_scalar("SELECT group_id FROM room_invites WHERE id = ? AND user_id = ?")
+            .bind(id)
+            .bind(me)
+            .fetch_optional(&state.db)
+            .await?
+            .ok_or(AppError::NotFound)?;
+    // Everything else checked in the write transaction.
+    let mut tx = crate::db::write_tx(&state.db).await?;
+    let invite: Option<(i64, bool)> = sqlx::query_as(concat!(
+        "SELECT i.from_id, ",
         invite_valid!(),
         " FROM room_invites i WHERE i.id = ? AND i.user_id = ?"
     ))
     .bind(id)
     .bind(me)
-    .fetch_optional(&state.db)
-    .await?
-    .ok_or(AppError::NotFound)?;
-    let drop_invite = || {
-        sqlx::query("DELETE FROM room_invites WHERE id = ?")
-            .bind(id)
-            .execute(&state.db)
-    };
-    if !valid {
-        drop_invite().await?;
-        return Err(AppError::Gone("invite_gone"));
-    }
+    .fetch_optional(&mut *tx)
+    .await?;
     let existing: Option<(i64, Option<String>, bool)> = sqlx::query_as(
         "SELECT id, removed_at, left_by_self FROM members WHERE group_id = ? AND user_id = ?",
     )
     .bind(room)
     .bind(me)
-    .fetch_optional(&state.db)
+    .fetch_optional(&mut *tx)
     .await?;
+    let Some((from, valid)) = invite else {
+        // The first tap already took the seat: the same answer.
+        return match existing {
+            Some((member_id, None, _)) => {
+                Ok(Json(json!({ "room_id": room, "member_id": member_id })))
+            }
+            _ => Err(AppError::NotFound),
+        };
+    };
+    let drop_invite = || sqlx::query("DELETE FROM room_invites WHERE id = ?").bind(id);
+    if !valid {
+        drop_invite().execute(&mut *tx).await?;
+        tx.commit().await?;
+        return Err(AppError::Gone("invite_gone"));
+    }
+    // Valid: the inviter is still in the room.
     let inviter_role: String = sqlx::query_scalar(
         "SELECT role FROM members WHERE group_id = ? AND user_id = ? AND removed_at IS NULL",
     )
     .bind(room)
     .bind(from)
-    .fetch_one(&state.db)
+    .fetch_one(&mut *tx)
     .await?;
-    let mut tx = crate::db::write_tx(&state.db).await?;
     let member_id = match existing {
         Some((member_id, None, _)) => {
-            tx.rollback().await?;
-            drop_invite().await?;
+            drop_invite().execute(&mut *tx).await?;
+            tx.commit().await?;
             return Ok(Json(json!({ "room_id": room, "member_id": member_id })));
         }
         // Removed by the owner (or a vote): only an invitation from the owner brings them back.
         Some((_, Some(_), false)) if inviter_role != "owner" => {
-            tx.rollback().await?;
-            drop_invite().await?;
+            drop_invite().execute(&mut *tx).await?;
+            tx.commit().await?;
             return Err(AppError::Forbidden("removed"));
         }
         Some((member_id, Some(_), _)) => {
@@ -529,10 +560,7 @@ pub async fn accept_invite(
             .await?
         }
     };
-    sqlx::query("DELETE FROM room_invites WHERE id = ?")
-        .bind(id)
-        .execute(&mut *tx)
-        .await?;
+    drop_invite().execute(&mut *tx).await?;
     sqlx::query("UPDATE users SET last_group_id = ? WHERE id = ?")
         .bind(room)
         .bind(me)

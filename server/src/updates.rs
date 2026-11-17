@@ -492,8 +492,14 @@ async fn publish(State(state): State<AppState>, req: Request) -> AppResult<Respo
     let meta = tokio::task::spawn_blocking(move || store(&job, archive, certificate.as_deref()))
         .await
         .map_err(|e| AppError::Internal(format!("publish task: {e}")))??;
-    retain(&updates.join(&meta.runtime_version), &meta.platform).await?;
-    prune_runtimes(&updates).await?;
+    // The update is live: a failed clean-up is logged (the next publish retries it), never
+    // reported as a failed publish.
+    if let Err(e) = retain(&updates.join(&meta.runtime_version), &meta.platform).await {
+        tracing::warn!(error = ?e, "pruning old updates");
+    }
+    if let Err(e) = prune_runtimes(&updates).await {
+        tracing::warn!(error = ?e, "pruning old runtime versions");
+    }
     sweep_tmp(&updates).await;
     tracing::info!(
         id = %meta.id,

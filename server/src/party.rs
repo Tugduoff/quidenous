@@ -236,13 +236,13 @@ async fn taps(state: &AppState, round_id: i64) -> AppResult<Vec<i64>> {
     .await?)
 }
 
-async fn active_players(state: &AppState, id: i64) -> AppResult<i64> {
+async fn active_players<'e, E: sqlx::SqliteExecutor<'e>>(db: E, id: i64) -> AppResult<i64> {
     Ok(
         sqlx::query_scalar(
             "SELECT COUNT(*) FROM members WHERE group_id = ? AND removed_at IS NULL",
         )
         .bind(id)
-        .fetch_one(&state.db)
+        .fetch_one(db)
         .await?,
     )
 }
@@ -523,7 +523,7 @@ async fn check_taps_at(state: &AppState, id: i64, now: Option<&str>) -> AppResul
     let Some((round_id, true)) = latest_round(state, id).await? else {
         return Ok(None);
     };
-    let players = active_players(state, id).await?;
+    let players = active_players(&state.db, id).await?;
     if (taps(state, round_id).await?.len() as i64)
         < needed_now(state, round_id, players, now).await?
     {
@@ -702,25 +702,26 @@ pub fn spawn_sweeper(state: AppState) {
 // ---------- seats ----------
 
 /// Can someone take (or take back) a seat in this party? `410 party_over`, `409 party_full`,
-/// `403 party_locked` (the owner closed the door: only seats already taken).
+/// `403 party_locked` (the owner closed the door: only seats already taken). Run in the write
+/// transaction that takes the seat: QR codes scanned at the same moment can't beat the cap.
 pub async fn may_take_seat(
-    state: &AppState,
+    tx: &mut sqlx::SqliteConnection,
     id: i64,
     existing: Option<&MemberRow>,
 ) -> AppResult<()> {
-    if game::party(&state.db, id).await?.is_some_and(|p| p.over) {
+    if game::party(&mut *tx, id).await?.is_some_and(|p| p.over) {
         return Err(AppError::Gone("party_over"));
     }
     let seated = existing.is_some_and(|m| m.removed_at.is_none());
     let locked: bool = sqlx::query_scalar("SELECT party_locked FROM groups WHERE id = ?")
         .bind(id)
-        .fetch_optional(&state.db)
+        .fetch_optional(&mut *tx)
         .await?
         .unwrap_or(false);
     if locked && !seated {
         return Err(AppError::Forbidden("party_locked"));
     }
-    if !seated && active_players(state, id).await? >= MAX_PLAYERS {
+    if !seated && active_players(&mut *tx, id).await? >= MAX_PLAYERS {
         return Err(AppError::Conflict("party_full"));
     }
     Ok(())
@@ -858,6 +859,10 @@ async fn join(
         crate::quotas::code_attempt(&state, signed_in, guest.is_none().then_some(ip).flatten())?;
     let id = by_code(&state, &body.code).await?;
     attempt.found();
+    // Everything checked in the write transaction: joins at the same moment can't beat the cap or
+    // take the same name, and a double tap finds the seat the first one took.
+    let mut tx = crate::db::write_tx(&state.db).await?;
+    crate::rooms::still_open(&mut *tx, id).await?;
     let existing = match signed_in {
         Some(user) => {
             sqlx::query_as::<_, MemberRow>(
@@ -865,12 +870,12 @@ async fn join(
             )
             .bind(id)
             .bind(user)
-            .fetch_optional(&state.db)
+            .fetch_optional(&mut *tx)
             .await?
         }
         None => None,
     };
-    may_take_seat(&state, id, existing.as_ref()).await?;
+    may_take_seat(&mut tx, id, existing.as_ref()).await?;
     if let Some((name, _)) = &guest {
         // Compared in Rust: SQLite's lower() only folds ASCII (Léa / LÉA). The names of guests the
         // owner removed stay taken: rescanning the QR code doesn't bring them back.
@@ -879,7 +884,7 @@ async fn join(
              AND (removed_at IS NULL OR NOT left_by_self)",
         )
         .bind(id)
-        .fetch_all(&state.db)
+        .fetch_all(&mut *tx)
         .await?;
         let wanted = name.to_lowercase();
         if let Some((_, removed)) = names.iter().find(|n| n.0.trim().to_lowercase() == wanted) {
@@ -890,7 +895,6 @@ async fn join(
             });
         }
     }
-    let mut tx = crate::db::write_tx(&state.db).await?;
     let mut token = None;
     let (member_id, joined) = match (signed_in, existing) {
         (Some(_), Some(m)) if m.removed_at.is_some() && !m.left_by_self => {
@@ -1012,7 +1016,7 @@ async fn start(
     if latest_round(&state, id).await?.is_some() {
         return Err(AppError::Conflict("started"));
     }
-    if active_players(&state, id).await? < 2 {
+    if active_players(&state.db, id).await? < 2 {
         return Err(AppError::Conflict("need_two"));
     }
     open_next(&state, id, None).await?;

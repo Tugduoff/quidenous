@@ -481,9 +481,28 @@ pub struct NewPack {
     pub questions: Vec<PackQuestion>,
 }
 
-/// Inserts a checked pack; returns its id.
-pub async fn create_pack(db: &sqlx::SqlitePool, author: i64, pack: &NewPack) -> AppResult<i64> {
+/// How many packs this author has up (public or in review).
+async fn live_packs<'e, E: sqlx::SqliteExecutor<'e>>(db: E, author: i64) -> AppResult<i64> {
+    Ok(sqlx::query_scalar(
+        "SELECT COUNT(*) FROM packs WHERE author_id = ? AND status IN ('public', 'review')",
+    )
+    .bind(author)
+    .fetch_one(db)
+    .await?)
+}
+
+/// Inserts a checked pack; returns its id. `capped`: `409 too_many_packs` at [`PACKS_PER_USER`],
+/// counted in the write transaction (publishes at the same moment can't beat it).
+pub async fn create_pack(
+    db: &sqlx::SqlitePool,
+    author: i64,
+    pack: &NewPack,
+    capped: bool,
+) -> AppResult<i64> {
     let mut tx = crate::db::write_tx(db).await?;
+    if capped && live_packs(&mut *tx, author).await? >= PACKS_PER_USER {
+        return Err(AppError::Conflict("too_many_packs"));
+    }
     let id: i64 = sqlx::query_scalar(
         "INSERT INTO packs (name, description, author_id, language, tags, spicy, featured, status) \
          VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id",
@@ -534,13 +553,8 @@ pub async fn publish(
     let spicy = body.spicy.or(header.spicy).unwrap_or(false) || tags.contains(&SPICY_TAG);
     require_verified(&state, user).await?;
     let admin = is_admin(&state, user);
-    let count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM packs WHERE author_id = ? AND status IN ('public', 'review')",
-    )
-    .bind(user)
-    .fetch_one(&state.db)
-    .await?;
-    if count >= PACKS_PER_USER && !admin {
+    // Early, before the work; counted again when it is stored.
+    if !admin && live_packs(&state.db, user).await? >= PACKS_PER_USER {
         return Err(AppError::Conflict("too_many_packs"));
     }
     let raw = match (body.questions, &file) {
@@ -591,7 +605,7 @@ pub async fn publish(
         status,
         questions,
     };
-    let id = create_pack(&state.db, user, &pack).await?;
+    let id = create_pack(&state.db, user, &pack, !admin).await?;
     Ok(Json(
         json!({ "id": id, "count": pack.questions.len(), "status": status, "featured": pack.featured }),
     ))
@@ -1306,7 +1320,7 @@ pub async fn seed_dir(
                 dropped,
             },
             None => {
-                let id = create_pack(db, author, &pack)
+                let id = create_pack(db, author, &pack, false)
                     .await
                     .map_err(|e| format!("{e:?}"))?;
                 SeedAction::Created {
