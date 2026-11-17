@@ -1,5 +1,5 @@
 name: app
-# Type-checks the app (also catches a French string missing in English, docs/I18N.md). A required check on main.
+# Type-checks the app (also catches a French string missing in English, docs/I18N.md) and looks for text translated at module load. A required check on main.
 on:
   pull_request:
   push:
@@ -28,6 +28,9 @@ jobs:
           cache-dependency-path: app/package-lock.json
       - run: npm ci --no-audit --no-fund --ignore-scripts
       - run: npx tsc --noEmit
+      # A t() (or date/number format) computed when a module loads stays in the first language (docs/I18N.md).
+      - name: No translation at module load
+        run: node scripts/check-i18n-module-t.mjs
       - name: Version matches the tag, versionCode goes up
         if: startsWith(github.ref, 'refs/tags/v')
         run: |

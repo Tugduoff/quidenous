@@ -10,7 +10,9 @@ import {
   type StyleProp,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
+  type LayoutChangeEvent,
   type TextStyle,
   type ViewStyle,
 } from 'react-native';
@@ -24,6 +26,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { Image } from 'expo-image';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AvatarArt } from '@/components/avatar-art';
 import { photoUrl, type Member } from '@/lib/api';
@@ -359,32 +362,56 @@ export function Segmented<T extends string>({
   );
 }
 
-/** The app's dialog: a card centred on a dark backdrop (tapping the backdrop closes it). Rises with the keyboard. */
-export function Dialog({ visible, onClose, children }: { visible: boolean; onClose: () => void; children: ReactNode }) {
+/** Where a Dialog floats instead of the centre: next to something on screen (window coordinates), on its side. */
+export type Anchor = { y: number; height: number; side: 'left' | 'right' };
+
+/**
+ * The app's dialog: a card centred on a dark backdrop (tapping the backdrop closes it). Rises with the keyboard.
+ * With an `anchor`, a smaller card floats right under it (above when there's no room below), on its side.
+ */
+export function Dialog({ visible, onClose, anchor, children }: { visible: boolean; onClose: () => void; anchor?: Anchor; children: ReactNode }) {
   const t = useTheme();
   const tr = useT();
+  const card: ViewStyle = { borderRadius: 24, backgroundColor: t.card, borderWidth: 1, borderColor: t.line };
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         {/* The backdrop is a sibling of the card, not its parent: screen readers don't take the dialog for one button. */}
-        <Pressable accessibilityLabel={tr('common.close')} onPress={onClose} style={[StyleSheet.absoluteFill, { backgroundColor: '#0008' }]} />
-        <View pointerEvents="box-none" style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-          <ModalCard
-            style={{
-              width: '100%',
-              maxWidth: 380,
-              borderRadius: 24,
-              padding: 22,
-              gap: 12,
-              backgroundColor: t.card,
-              borderWidth: 1,
-              borderColor: t.line,
-            }}>
+        <Pressable
+          accessibilityLabel={tr('common.close')}
+          onPress={onClose}
+          style={[StyleSheet.absoluteFill, { backgroundColor: anchor ? '#0006' : '#0008' }]}
+        />
+        {anchor ? (
+          <Anchored anchor={anchor} style={{ ...card, padding: 10, gap: 6 }}>
             {children}
-          </ModalCard>
-        </View>
+          </Anchored>
+        ) : (
+          <View pointerEvents="box-none" style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+            <ModalCard style={{ ...card, width: '100%', maxWidth: 380, padding: 22, gap: 12 }}>{children}</ModalCard>
+          </View>
+        )}
       </KeyboardAvoidingView>
     </Modal>
+  );
+}
+
+/** The anchored card: placed once its height is known, kept inside the safe area. */
+function Anchored({ anchor, style, children }: { anchor: Anchor; style: ViewStyle; children: ReactNode }) {
+  const { width, height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const [cardHeight, setCardHeight] = useState(0);
+  const min = insets.top + 12;
+  const max = height - insets.bottom - 12 - cardHeight;
+  const below = anchor.y + anchor.height + 8;
+  const above = anchor.y - 8 - cardHeight;
+  const top = below <= max ? below : Math.max(min, Math.min(above, max));
+  return (
+    <ModalCard
+      onLayout={(e) => setCardHeight(e.nativeEvent.layout.height)}
+      style={{ ...style, position: 'absolute', top, width: Math.min(340, width - 32), [anchor.side]: 16 }}>
+      {children}
+    </ModalCard>
   );
 }
 
@@ -528,7 +555,7 @@ export function ConfirmHost() {
 }
 
 /** The dialog's card: grows in from slightly smaller while the backdrop fades (the Modal remounts it on every open). */
-function ModalCard({ children, style }: { children: ReactNode; style: ViewStyle }) {
+function ModalCard({ children, style, onLayout }: { children: ReactNode; style: ViewStyle; onLayout?: (e: LayoutChangeEvent) => void }) {
   const reduced = useReducedMotion();
   const p = useSharedValue(reduced ? 1 : 0);
   useEffect(() => {
@@ -536,7 +563,7 @@ function ModalCard({ children, style }: { children: ReactNode; style: ViewStyle 
   }, [p]);
   const shown = useAnimatedStyle(() => ({ opacity: p.value, transform: [{ scale: 0.94 + 0.06 * p.value }] }));
   return (
-    <Animated.View accessibilityViewIsModal style={[style, shown]}>
+    <Animated.View accessibilityViewIsModal onLayout={onLayout} style={[style, shown]}>
       {children}
     </Animated.View>
   );

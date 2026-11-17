@@ -130,8 +130,8 @@ pub async fn confirm(
 }
 
 /// Deletes an account. Every active seat is left like `/rooms/{id}/leave` (owner hands over,
-/// alone = room deleted), then in one transaction: chat messages and inbox entries go, seats are
-/// anonymised, sessions, codes, providers, push, friends and blocks go, and the users row is
+/// alone = room deleted), then in one transaction: chat messages, reactions and inbox entries go,
+/// seats are anonymised, sessions, codes, providers, push, friends and blocks go, and the users row is
 /// scrubbed (kept: votes, packs and reports point at it). Photos are removed last.
 pub(crate) async fn erase(state: &AppState, user_id: i64) -> AppResult<()> {
     // Signed out everywhere first: nothing the account does can race the rest.
@@ -169,6 +169,8 @@ pub(crate) async fn erase(state: &AppState, user_id: i64) -> AppResult<()> {
         .flatten();
     let mut tx = crate::db::write_tx(&state.db).await?;
     for sql in [
+        // Reactions on their messages go with them (cascade); theirs on others' messages here.
+        "DELETE FROM message_reactions WHERE member_id IN (SELECT id FROM members WHERE user_id = ?1)",
         "DELETE FROM messages WHERE member_id IN (SELECT id FROM members WHERE user_id = ?1)",
         // Inbox entries carry message text and names: theirs and the ones they caused.
         "DELETE FROM inbox WHERE member_id IN (SELECT id FROM members WHERE user_id = ?1) \

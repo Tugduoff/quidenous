@@ -45,6 +45,9 @@ function touched(event: LiveEvent): QueryKey[] | 'all' {
       return [['round'], keys.historyList, keys.queue, keys.stats];
     case 'message_posted':
       return event.round_id ? [keys.messages(event.round_id)] : [];
+    // Someone reacted to a message (or took their reaction back).
+    case 'message_reacted':
+      return event.round_id ? [keys.messages(event.round_id)] : [];
     // Deleted by its author, the owner or an admin, or hidden by reports.
     case 'message_deleted':
       return event.round_id ? [keys.messages(event.round_id), keys.inbox] : [keys.inbox];

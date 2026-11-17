@@ -44,6 +44,11 @@ export const questions = {
   reorderFailed: 'Ordre non enregistré',
   upcoming: 'À venir',
   shuffleUpcoming: 'Mélanger les questions à venir',
+  clearQueue: 'Vider la file',
+  // No-break space: the « ? » never ends up alone on the dialog's last line.
+  clearTitle: { one: 'Supprimer la question à venir\u00a0?', other: 'Supprimer les {count} questions à venir\u00a0?' },
+  cleared: { one: '{count} question supprimée', other: '{count} questions supprimées' },
+  clearFailed: 'Suppression ratée',
   deleteQuestion: 'Supprimer la question',
   deleteTitle: 'Supprimer cette question ?',
   deleteBody: '« {text} »\nElle ne sera jamais posée.',

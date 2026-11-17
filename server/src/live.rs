@@ -64,6 +64,11 @@ pub enum Event {
         round_id: i64,
         message_id: i64,
     },
+    /// Someone added or took back a reaction on a chat message (no inbox entry, no push).
+    MessageReacted {
+        round_id: i64,
+        message_id: i64,
+    },
     InboxChanged,
     RoomUpdated,
     /// A party's "Suivante" taps or reactions changed.

@@ -35,6 +35,7 @@ Status: design, 2026-11-11. Built in phases so the live group never breaks and o
 | Remove someone directly, no vote (force kick) | owner; a removal (vote or owner, not a leave) also deletes the questions they queued that were never asked |
 | Delete a chat message | its author; the owner deletes any message of the room (`DELETE /rounds/{id}/messages/{message_id}`) |
 | Remove a question already asked | owner (`DELETE /questions/{id}` → `{ok, retired: true}`, or `DELETE /rounds/{id}/question` from its result): the text becomes "Question retirée" / "Question removed" everywhere (history, stats, shares); built-in deck questions can't (`409 deck_question`). Not asked yet: its author or the owner, deleted as before |
+| Clear the question queue | owner (`DELETE /questions/queue` → `{deleted}`, `403 owner_only` otherwise, feature `clear_queue`): every upcoming question of the room (what `GET /questions/queue` lists) goes, like `DELETE /questions/{id}` one by one; the deck, questions already asked and the open one stay. Live `question_added` (`question_id: 0`) |
 | Unpin a result | whoever pinned it, or the owner (`403 not_pinner`); 100 pins per room at most (`409 too_many_pins`) |
 | Hand over ownership, delete the room | owner |
 | Leave | anyone; an owner leaving hands over to the oldest member, or deletes the room if alone. The app then opens another of my rooms, or the join / create screen when none is left |
@@ -43,6 +44,15 @@ Status: design, 2026-11-11. Built in phases so the live group never breaks and o
 A majority is more than half of the other members (the target doesn't count), and never one person alone. Whenever an owner seat ends (leaving, removal, account deletion) the oldest remaining member becomes owner; rooms left without one are repaired at startup. People who left stay in `/group` as `former` (flagged `left`) so the history, awards and chat keep their name and photo.
 
 Settings per room: majority skip on/off, majority removal on/off, who can add or import questions (everyone / owner), pacing (below). In the app they live on the owner's "Paramètres du salon" screen (gear on the room page).
+
+## Chat reactions
+
+Feature `chat_reactions`. Any member reacts to a chat message under a finished question with one of ❤️ 😂 😮 😢 👍 🔥 (a bare `❤` counts as `❤️`; anything else `400 bad_emoji`), once per emoji (`message_reactions`, `0039`).
+
+- `POST /messages/{id}/reactions` `{emoji}` adds mine, `DELETE` with the same body takes it back; both idempotent and both answer `{message_id, reactions}`. `404 not_found` for a message of another room, under an open question, hidden by reports, or by someone I blocked.
+- Every message (`GET /rounds/{id}/messages`, the `POST` answer) carries `reactions: [{emoji, count, mine, members}]`: emojis in the order above, only those used, `members` oldest first, without the people I blocked.
+- A change sends live `message_reacted` `{round_id, message_id}` to the room; no inbox entry, no push.
+- Reactions go with their message (deleted by its author, the owner or an admin) and with a deleted account (theirs, and those on their messages). A message hidden by reports keeps them (an admin dismissing the reports shows it back as it was); seats that leave or are removed keep theirs, like their messages.
 
 ## Invite preview
 
@@ -77,6 +87,7 @@ In-memory token buckets (same limiter as the auth limits in `docs/AUTH.md`, rule
 | --- | --- |
 | Wrong codes: `POST /rooms/join`, signed-in `/join` and `/parties/join`, `POST /friends`, the big screen (`/parties/screen/{code}`, `/live?screen=`) | 10 / hour per account, 20 / 10 min per IP. Only codes that don't exist count (a right code gives its token back), so a party joining from one Wi-Fi is not slowed down |
 | Chat messages | 15 / minute and 300 / hour per account |
+| Chat reactions (added or taken back) | 60 / minute and 600 / hour per account |
 | @mentions | more than 5 people in one message counts as `@tous` and shares its 10-minute cooldown (during it, a plain message for everyone) |
 | New rooms and parties | 20 / day per account; 20 rooms owned at a time (`429 too_many_rooms`; a room handed over or deleted frees its place) |
 | Room size | 50 people (`409 room_full` on join by code, first-name join, a returning leaver, an invitation sent or accepted); parties: 40 players |

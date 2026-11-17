@@ -1,9 +1,9 @@
 import { Ban, Check, Flag, type LucideIcon, Trash2 } from 'lucide-react-native';
-import { useEffect, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
 import { ErrorText, Field } from '@/components/auth-ui';
-import { Dialog, DialogActions, DialogTitle } from '@/components/ui';
+import { type Anchor, Dialog, DialogActions, DialogTitle } from '@/components/ui';
 import { authError } from '@/lib/auth';
 import { useT } from '@/lib/i18n';
 import { REASONS, report, useBlockActions, useBlocks, type Blocked, type ReportKind, type ReportReason } from '@/lib/moderation';
@@ -14,13 +14,27 @@ const RED = '#FF3B5C';
 /**
  * What was long-pressed: a message, a member or a question, and the person behind it when they can be blocked.
  * `onDelete`: I may delete it (my own message, or any message of a room I own). `own`: nothing to report or block.
+ * `anchor`: the menu floats next to it instead of the middle of the screen.
  */
-export type ModTarget = { kind: ReportKind; id: number; person?: Blocked; onDelete?: () => Promise<unknown>; own?: boolean };
+export type ModTarget = { kind: ReportKind; id: number; person?: Blocked; onDelete?: () => Promise<unknown>; own?: boolean; anchor?: Anchor };
 
 type Step = 'menu' | 'report' | 'block' | 'delete' | 'done';
 
-/** Report (pick a reason) and block / unblock, in one dialog: no second modal on top of the first. */
-export function ModerationDialog({ target, onClose, onReported }: { target: ModTarget | null; onClose: () => void; onReported?: (target: ModTarget) => void }) {
+/**
+ * Report (pick a reason) and block / unblock, in one dialog: no second modal on top of the first.
+ * `header`: shown at the top of the menu instead of its title (the chat's reactions); the menu then always opens first.
+ */
+export function ModerationDialog({
+  target,
+  onClose,
+  onReported,
+  header,
+}: {
+  target: ModTarget | null;
+  onClose: () => void;
+  onReported?: (target: ModTarget) => void;
+  header?: (target: ModTarget) => ReactNode;
+}) {
   const t = useTheme();
   const tr = useT();
   const { ids } = useBlocks();
@@ -34,7 +48,7 @@ export function ModerationDialog({ target, onClose, onReported }: { target: ModT
   const [error, setError] = useState<string | null>(null);
   if (target && target !== shown) {
     setShown(target);
-    setStep(target.own ? 'delete' : target.person || target.onDelete ? 'menu' : 'report');
+    setStep(header ? 'menu' : target.own ? 'delete' : target.person || target.onDelete ? 'menu' : 'report');
     setReason(null);
     setDetails('');
     setError(null);
@@ -84,11 +98,11 @@ export function ModerationDialog({ target, onClose, onReported }: { target: ModT
         : tr('moderation.reportPerson', { name: person?.name ?? '' });
 
   return (
-    <Dialog visible={!!target} onClose={onClose}>
+    <Dialog visible={!!target} onClose={onClose} anchor={step === 'menu' ? shown?.anchor : undefined}>
       {step === 'menu' && (
         <>
-          <DialogTitle title={person?.name ?? what} />
-          <Action icon={Flag} label={tr('moderation.report')} onPress={() => setStep('report')} />
+          {header && shown ? header(shown) : <DialogTitle title={person?.name ?? what} />}
+          {!shown?.own && <Action icon={Flag} label={tr('moderation.report')} onPress={() => setStep('report')} />}
           {!!shown?.onDelete && <Action icon={Trash2} label={tr('moderation.delete')} danger onPress={() => setStep('delete')} />}
           {!person ? null : blocked ? (
             <Action
@@ -106,19 +120,22 @@ export function ModerationDialog({ target, onClose, onReported }: { target: ModT
             <Action icon={Ban} label={tr('moderation.block', { name: person.name })} danger onPress={() => setStep('block')} />
           )}
           <ErrorText>{error}</ErrorText>
-          <Pressable
-            accessibilityRole="button"
-            onPress={onClose}
-            style={{
-              height: 46,
-              marginTop: 6,
-              borderRadius: t.radius.pill,
-              alignItems: 'center',
-              justifyContent: 'center',
-              backgroundColor: t.card2,
-            }}>
-            <Text style={{ fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>{tr('common.cancel')}</Text>
-          </Pressable>
+          {/* The floating menu closes with a tap beside it. */}
+          {!header && (
+            <Pressable
+              accessibilityRole="button"
+              onPress={onClose}
+              style={{
+                height: 46,
+                marginTop: 6,
+                borderRadius: t.radius.pill,
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: t.card2,
+              }}>
+              <Text style={{ fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>{tr('common.cancel')}</Text>
+            </Pressable>
+          )}
         </>
       )}
       {step === 'report' && (

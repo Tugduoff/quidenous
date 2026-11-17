@@ -170,7 +170,19 @@ export type HistoryItem = {
  * `user_id`: the author's account (null once deleted; absent from an older server).
  * `mentions`: member ids pinged with `@Name`; `everyone`: the text pings the whole room with `@tous` (both absent from an older server).
  */
-export type Message = { id: number; member_id: number; user_id?: number | null; text: string; created_at: string; mentions?: number[]; everyone?: boolean };
+/** One emoji on a chat message: how many, whether I'm among them, and who (member ids, oldest first). */
+export type Reaction = { emoji: string; count: number; mine: boolean; members: number[] };
+export type Message = {
+  id: number;
+  member_id: number;
+  user_id?: number | null;
+  text: string;
+  created_at: string;
+  mentions?: number[];
+  everyone?: boolean;
+  /** Absent from an older server. */
+  reactions?: Reaction[];
+};
 export type InboxItem = {
   id: number;
   /** Unknown kinds (a newer server) are shown with a generic icon and title. */

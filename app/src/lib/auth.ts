@@ -143,6 +143,10 @@ export function useFeatures() {
     packTemplate: on.has('pack_template'),
     /** My public links can be listed and deleted (`/shares`). */
     shareLinks: on.has('share_links'),
+    /** Emoji reactions on chat messages (`POST/DELETE /messages/{id}/reactions`). */
+    chatReactions: on.has('chat_reactions'),
+    /** The owner can empty the room's upcoming questions at once (`DELETE /questions/queue`). */
+    clearQueue: on.has('clear_queue'),
   };
 }
 

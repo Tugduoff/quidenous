@@ -23,6 +23,7 @@ pub mod party;
 pub mod play;
 pub mod push;
 pub mod quotas;
+pub mod reactions;
 pub mod rooms;
 pub mod routes;
 pub mod share;

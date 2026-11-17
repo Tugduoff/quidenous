@@ -6,13 +6,11 @@ import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Dialog, PressableScale } from '@/components/ui';
-import { formatNumber, t as translate, useT } from '@/lib/i18n';
+import { formatNumber, useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
 import { restart, useOtaReady } from '@/lib/ota';
 import { appVersion, checkForUpdate, clearCheck, install, later, openInstallSettings, UPDATES, useUpdate } from '@/lib/update';
 import { useTheme } from '@/lib/theme';
-
-const megabytes = (bytes: number) => translate('update.megabytes', { size: formatNumber(Math.round(bytes / 1_000_000)) });
 
 /** A newer APK is out: its notes, Installer (download, then Android's installer) or Plus tard. Mounted once, in the root layout. */
 export function UpdateDialog() {
@@ -30,7 +28,7 @@ export function UpdateDialog() {
         <View style={{ flex: 1 }}>
           <Text style={{ fontFamily: t.font.bold, fontSize: 18, color: t.txt }}>{tr('update.title')}</Text>
           <Text style={{ fontFamily: t.font.regular, fontSize: 14, color: t.mut }}>
-            {release.version} · {megabytes(release.size)}
+            {release.version} · {tr('update.megabytes', { size: formatNumber(Math.round(release.size / 1_000_000)) })}
           </Text>
         </View>
       </View>

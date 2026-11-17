@@ -11,4 +11,14 @@ export const chat: Messages['chat'] = {
   everyone: 'everyone',
   inputLabel: 'Write a message',
   placeholder: 'Thoughts on this result?',
+  reactions: {
+    hint: 'Long press: react or report',
+    ownHint: 'Long press: react or delete',
+    ownOnlyHint: 'Long press: react',
+    react: 'React with {emoji}',
+    chip: { one: '{emoji}, {count} reaction', other: '{emoji}, {count} reactions' },
+    chipMine: { one: '{emoji}, your reaction', other: '{emoji}, {count} reactions including yours' },
+    chipHint: 'Long press: see who reacted',
+    count: { one: '{count} reaction', other: '{count} reactions' },
+  },
 };

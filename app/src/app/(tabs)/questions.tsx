@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Cable, Check, FileUp, Lightbulb, Lock, MessageCircleQuestion, Package, Plus, Shuffle, Trash2, Trophy, X } from 'lucide-react-native';
+import { Cable, Check, FileUp, Lightbulb, ListX, Lock, MessageCircleQuestion, Package, Plus, Shuffle, Trash2, Trophy, X } from 'lucide-react-native';
 import { type ComponentRef, useEffect, useRef, useState } from 'react';
 import { Platform, Pressable, type ScrollView, Text, TextInput, View } from 'react-native';
 import Animated from 'react-native-reanimated';
@@ -11,7 +11,7 @@ import { QueryState } from '@/components/query-state';
 import { Screen } from '@/components/screen';
 import { TemplateLink } from '@/components/template-link';
 import { Tip } from '@/components/tip';
-import { Avatar, Card, ConfirmModal, Display, PressableScale, QuestionText, Segmented, Toggle } from '@/components/ui';
+import { askConfirm, Avatar, Card, ConfirmModal, Display, PressableScale, QuestionText, Segmented, Toggle } from '@/components/ui';
 import { api, ApiError, type Queue, type QuestionKind } from '@/lib/api';
 import { useFeatures } from '@/lib/auth';
 import { useT } from '@/lib/i18n';
@@ -43,7 +43,7 @@ export default function QuestionsScreen() {
   const [addError, setAddError] = useState<string | null>(null);
   const { me } = useSession();
   const features = useFeatures();
-  const { community, reorder: canReorder } = features;
+  const { community, reorder: canReorder, clearQueue } = features;
   const [toDelete, setToDelete] = useState<{ id: number; text: string } | null>(null);
   // Long-press on someone else's question: report it.
   const [toReport, setToReport] = useState<ModTarget | null>(null);
@@ -138,6 +138,21 @@ export default function QuestionsScreen() {
     },
     onError: () => setImported(tr('questions.shuffleFailed')),
   });
+  // Owner: delete every upcoming question of the room at once (the built-in deck stays).
+  const clear = useMutation({
+    meta: { quiet: true },
+    mutationFn: () => api<{ deleted: number }>('/questions/queue', { method: 'DELETE' }),
+    onSuccess: (res) => setImported(tr('questions.cleared', { count: res?.deleted ?? 0 })),
+    onError: () => setImported(tr('questions.clearFailed')),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: keys.queue });
+      qc.invalidateQueries({ queryKey: keys.current });
+    },
+  });
+  const askClear = async () => {
+    const count = data?.custom.length ?? 0;
+    if (await askConfirm(tr('questions.clearTitle', { count }), undefined, tr('common.delete'))) clear.mutate();
+  };
   // Hold a question and drag it: the new order shows at once, and comes back if the server says no.
   const scroller = useRef<ComponentRef<typeof ScrollView>>(null);
   const tracker = useScrollTracker();
@@ -531,6 +546,25 @@ export default function QuestionsScreen() {
               opacity: shuffle.isPending ? 0.5 : 1,
             }}>
             <Shuffle size={18} color={t.accInk} />
+          </PressableScale>
+        )}
+        {clearQueue && group?.my_role === 'owner' && (data?.custom.length ?? 0) > 0 && (
+          <PressableScale
+            accessibilityRole="button"
+            accessibilityLabel={tr('questions.clearQueue')}
+            disabled={clear.isPending}
+            onPress={askClear}
+            hitSlop={8}
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: 18,
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: t.card2,
+              opacity: clear.isPending ? 0.5 : 1,
+            }}>
+            <ListX size={18} color={t.mut} />
           </PressableScale>
         )}
       </View>
