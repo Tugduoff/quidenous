@@ -8,7 +8,7 @@ import Animated from 'react-native-reanimated';
 import { ErrorText, TextLink } from '@/components/auth-ui';
 import { Screen } from '@/components/screen';
 import { TermsCheck } from '@/components/terms';
-import { Avatar, AvatarStack, Button, Card, Display, Logo } from '@/components/ui';
+import { Avatar, AvatarStack, Button, Card, Display, Logo, PressableScale } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { setPendingCode } from '@/lib/auth';
 import { PARTS } from '@/lib/avatar';
@@ -32,13 +32,15 @@ export default function JoinParty() {
   const code = String(raw ?? '')
     .trim()
     .toUpperCase();
-  const { token, room, joinParty } = useSession();
+  const { token, room, me, joinParty } = useSession();
   const info = useQuery({ queryKey: partyKeys.screen(code), queryFn: () => partyApi.screen(code), retry: false, enabled: !!code });
   const [name, setName] = useState('');
   const [color, setColor] = useState(() => COLORS[Math.floor(Math.random() * COLORS.length)]);
   const [error, setError] = useState<string | null>(null);
   const [target, setTarget] = useState<number | null>(null);
   const [terms, setTerms] = useState(false);
+  // A bad or ended link: another code to try.
+  const [other, setOther] = useState('');
 
   // Once the session is in that party (a guest's goes from signed out to in), on to its screen.
   useEffect(() => {
@@ -64,13 +66,30 @@ export default function JoinParty() {
   // A guest account is made here: the terms first.
   const ready = !closed && (!!token || (!!name.trim() && terms)) && !join.isPending;
   const go = () => ready && join.mutate();
+  const otherCode = other.trim().toUpperCase();
+  const tryOther = () => {
+    if (otherCode.length < 4) return;
+    setOther('');
+    router.replace(`/party/join/${encodeURIComponent(otherCode)}`);
+  };
 
   return (
     <Screen
       tabs={false}
       footer={
-        !closed && (
+        closed ? (
+          // Nothing to join here: on to the app (home, or the welcome screen without an account).
+          <Button onPress={() => router.replace('/')}>{tr('party.join.open')}</Button>
+        ) : (
           <>
+            {!!token && me && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                <Avatar member={me} size={22} />
+                <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: t.font.semibold, fontSize: 14, color: t.mut }}>
+                  {tr('party.join.as', { name: me.name })}
+                </Text>
+              </View>
+            )}
             <ErrorText>{error}</ErrorText>
             <Button disabled={!token && (!name.trim() || !terms)} loading={join.isPending || target != null} onPress={go}>
               <Text style={{ fontFamily: t.font.bold, fontSize: 17, color: t.accTxt }}>{tr('party.join.go')}</Text>
@@ -109,6 +128,39 @@ export default function JoinParty() {
           </View>
         )}
       </Animated.View>
+
+      {closed && (
+        <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 8, padding: 6, paddingLeft: 16, marginTop: 8 }}>
+          <TextInput
+            accessibilityLabel={tr('party.join.other')}
+            placeholder={tr('party.join.other')}
+            placeholderTextColor={t.mut}
+            value={other}
+            onChangeText={(v) => setOther(v.replace(/[^a-z0-9]/gi, '').toUpperCase())}
+            maxLength={12}
+            autoCapitalize="characters"
+            autoCorrect={false}
+            returnKeyType="go"
+            onSubmitEditing={tryOther}
+            style={{ flex: 1, minWidth: 0, height: 48, fontFamily: t.font.bold, fontSize: 17, letterSpacing: other ? 2 : 0, color: t.txt }}
+          />
+          <PressableScale
+            accessibilityRole="button"
+            accessibilityLabel={tr('party.join.go')}
+            disabled={otherCode.length < 4}
+            onPress={tryOther}
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: 22,
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: otherCode.length >= 4 ? t.acc : t.card2,
+            }}>
+            <ArrowRight size={20} color={otherCode.length >= 4 ? t.accTxt : t.mut} />
+          </PressableScale>
+        </Card>
+      )}
 
       {!closed && !token && (
         <View style={{ gap: 16, marginTop: 8 }}>
