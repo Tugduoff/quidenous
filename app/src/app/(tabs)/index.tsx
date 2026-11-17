@@ -37,6 +37,7 @@ import { Screen } from '@/components/screen';
 import { SecureCard } from '@/components/secure-card';
 import { RoomStreak, StreakBadge } from '@/components/streaks';
 import { Tip } from '@/components/tip';
+import { BetRow, TripotResult } from '@/components/tripot';
 import { NextGate } from '@/components/next-gate';
 import { NoQuestions, SoloInvite } from '@/components/vote-empty';
 import { askConfirm, Avatar, AvatarStack, Button, Card, ConfirmModal, Dialog, Display, Logo, PressableScale, Tag, TAG_BG } from '@/components/ui';
@@ -391,6 +392,7 @@ function RankBallot({ round, members, byId, onVoted }: { round: Round; members: 
           </PressableScale>
         )}
       </View>
+      <BetRow round={round} members={members} byId={byId} />
       <VoteTip />
       {/* Ranked people move up to their place, the rest slide down. A big group gets a grid of faces (no endless list). */}
       {members.length > BIG_GROUP + 1 ? (
@@ -524,6 +526,7 @@ function PickBallot({ round, members, byId, onVoted }: { round: Round; members: 
           </Text>
         </View>
       )}
+      <BetRow round={round} members={members} byId={byId} />
       <VoteTip />
       {members.length > BIG_GROUP ? (
         <MemberGrid>
@@ -712,6 +715,7 @@ function Waiting({ round, byId, members }: { round: Round; byId: Map<number, Mem
           {hidden ? <Eye size={18} color={t.txt} /> : <EyeOff size={18} color={t.txt} />}
         </PressableScale>
       </Card>
+      <BetRow round={round} members={members} byId={byId} />
       {/* Who's in, who we're waiting for. A card (not Card) that animates its height as people leave the list. */}
       <Animated.View layout={motion.layout} style={[{ backgroundColor: t.card, borderRadius: t.radius.card, padding: 16, gap: 14 }, t.shadow]}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
@@ -960,6 +964,7 @@ export function Result({
           <ResultBars result={round.result ?? []} byId={byId} anonymous={round.anonymous} />
         )}
       </View>
+      <TripotResult round={round} byId={byId} />
       <Challenges roundId={round.id} />
       <ChatMessages roundId={round.id} />
     </Screen>

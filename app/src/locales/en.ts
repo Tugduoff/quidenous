@@ -31,6 +31,7 @@ import { party } from './en/party';
 import { globalQuestion } from './en/global';
 import { streaks } from './en/streaks';
 import { anonymous } from './en/anonymous';
+import { tripot } from './en/tripot';
 
 export const en: Messages = {
   common,
@@ -64,4 +65,5 @@ export const en: Messages = {
   globalQuestion,
   streaks,
   anonymous,
+  tripot,
 };

@@ -380,6 +380,13 @@ function Settings({ group }: { group: Group }) {
         {features.anonymousVotes && group.kind !== 'party' && s.anonymous_votes && (
           <AnonymousSetting value={s.anonymous_votes} onChange={(v) => save.mutate({ anonymous_votes: v })} />
         )}
+        {/* Le Tripot (docs/TRIPOT.md): rooms only, absent from an older server. */}
+        {features.tripot && group.kind !== 'party' && s.tripot !== undefined && (
+          <Row
+            label={tr('tripot.setting')}
+            right={<Toggle label="" a11y={tr('tripot.setting')} value={s.tripot} onChange={(v) => save.mutate({ tripot: v })} />}
+          />
+        )}
       </Section>
 
       <Section title={tr('room.settings.questions')} Icon={MessageCircleQuestion}>
