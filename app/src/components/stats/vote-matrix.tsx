@@ -1,6 +1,7 @@
 import { ArrowDown, ArrowRight } from 'lucide-react-native';
 import { useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
+import { ScrollView } from 'react-native-gesture-handler';
 import Svg, { Circle, G, Rect, Text as SvgText } from 'react-native-svg';
 
 import { Avatar, Card } from '@/components/ui';
@@ -129,6 +130,7 @@ export function VoteMatrix({
           (fits ? (
             <View style={{ alignItems: 'center' }}>{grid}</View>
           ) : (
+            // Gesture handler's: it wins over swiping between tabs (components/tab-swipe.tsx) as soon as it scrolls.
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               {grid}
             </ScrollView>

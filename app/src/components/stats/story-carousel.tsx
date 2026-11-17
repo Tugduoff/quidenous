@@ -1,6 +1,7 @@
 import { Check, Share2 } from 'lucide-react-native';
 import { useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, type ScrollViewInstance, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, type ScrollViewInstance, Text, View } from 'react-native';
+import { ScrollView } from 'react-native-gesture-handler';
 import Animated from 'react-native-reanimated';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
@@ -141,6 +142,7 @@ export function StoryCarousel({
   return (
     <Animated.View entering={motion.question} style={{ marginHorizontal: -20, gap: 12 }} onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
       {width > 0 && (
+        // Gesture handler's: it wins over swiping between tabs (components/tab-swipe.tsx) as soon as it scrolls.
         <ScrollView
           ref={ref}
           horizontal
