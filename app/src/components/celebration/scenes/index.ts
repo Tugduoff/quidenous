@@ -11,6 +11,8 @@ import { SCENES as THEMED } from './themed';
 const BESPOKE: Record<number, SceneFactory> = { ...THEMED, ...EPIC_A, ...EPIC_B };
 
 export function sceneFor(m: Milestone, t: Theme) {
+  // Streaks: the generic parties (the bespoke ones are about question numbers).
+  if (m.streak) return (m.n >= 30 ? medium : small)(m, t);
   const own = BESPOKE[m.n];
   if (own) return own(m, t);
   return (tier(m.n) === 'small' ? small : medium)(m, t);

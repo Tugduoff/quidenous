@@ -117,10 +117,12 @@ pub enum Kind {
     Ask,
     /// Someone wrote my name (or @tous) in a chat: on even when chat pushes are off.
     Mention,
+    /// "Your N-day streak ends tonight" (docs/STREAKS.md).
+    Streak,
 }
 
 impl Kind {
-    pub const ALL: [Kind; 7] = [
+    pub const ALL: [Kind; 8] = [
         Kind::Question,
         Kind::Result,
         Kind::Chat,
@@ -128,6 +130,7 @@ impl Kind {
         Kind::Added,
         Kind::Ask,
         Kind::Mention,
+        Kind::Streak,
     ];
 
     pub fn as_str(self) -> &'static str {
@@ -139,6 +142,7 @@ impl Kind {
             Kind::Added => "added",
             Kind::Ask => "ask",
             Kind::Mention => "mention",
+            Kind::Streak => "streak",
         }
     }
 

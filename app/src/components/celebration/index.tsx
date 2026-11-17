@@ -5,7 +5,7 @@ import Animated, { FadeIn, useAnimatedStyle, useReducedMotion, useSharedValue, w
 
 import { Dialog, DialogTitle } from '@/components/ui';
 import { useLang, useT } from '@/lib/i18n';
-import { milestone as describe, PREVIEW_AT, playPreview, SPECIAL_NUMBERS, tier, usePreview } from '@/lib/milestones';
+import { milestone as describe, PREVIEW_AT, playPreview, SPECIAL_NUMBERS, STREAK_PREVIEW, streakMilestone, tier, usePreview } from '@/lib/milestones';
 import { tidy } from '@/lib/text';
 import { useTheme } from '@/lib/theme';
 
@@ -14,10 +14,10 @@ import { numberSize } from './scene';
 import { sceneFor } from './scenes';
 
 /**
- * Full-screen party for a milestone, drawn over the app. Tap anywhere to skip; it also closes by itself.
- * Under reduced motion: a still card instead.
+ * Full-screen party for a milestone, drawn over the app (`streak`: my days in a row instead of the room's questions).
+ * Tap anywhere to skip; it also closes by itself. Under reduced motion: a still card instead.
  */
-export function Celebration({ count, onDone, frozen }: { count: number; onDone: () => void; frozen?: number | null }) {
+export function Celebration({ count, onDone, frozen, streak }: { count: number; onDone: () => void; frozen?: number | null; streak?: boolean }) {
   const reduced = useReducedMotion();
   const t = useTheme();
   const tr = useT();
@@ -25,7 +25,7 @@ export function Celebration({ count, onDone, frozen }: { count: number; onDone: 
   const { width: w, height: h } = useWindowDimensions();
   // The punchline is read in the app's language.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const m = useMemo(() => describe(count), [count, lang]);
+  const m = useMemo(() => (streak ? streakMilestone(count) : describe(count)), [count, lang, streak]);
   const scene = useMemo(() => sceneFor(m, t), [m, t]);
   const rand = useMemo(() => makeRand(count * 7919 + 17), [count]);
   const clock = useClock(scene.duration, reduced ? scene.duration : frozen);
@@ -67,12 +67,12 @@ export function Celebration({ count, onDone, frozen }: { count: number; onDone: 
   return (
     <Animated.View entering={FadeIn.duration(160)} style={[StyleSheet.absoluteFill, { zIndex: 100 }]}>
       <Animated.View style={[StyleSheet.absoluteFill, fade]}>
-        <Pressable accessibilityRole="button" accessibilityLabel={tr('celebration.close', { count })} onPress={close} style={StyleSheet.absoluteFill}>
+        <Pressable accessibilityRole="button" accessibilityLabel={tr(streak ? 'streaks.party.close' : 'celebration.close', { count })} onPress={close} style={StyleSheet.absoluteFill}>
           <View style={[StyleSheet.absoluteFill, { backgroundColor: reduced ? t.bg : scene.bg, opacity: reduced ? 0.96 : (scene.dim ?? 0.96) }]} />
           {reduced ? (
             <View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center', padding: 32, gap: 8 }]}>
               <BigNumber value={count} size={numberSize(count)} color={t.accInk} font={t.font.display} />
-              <Text style={{ fontFamily: t.font.display, fontSize: 28, letterSpacing: -0.5, color: t.txt }}>{tr('celebration.questions')}</Text>
+              <Text style={{ fontFamily: t.font.display, fontSize: 28, letterSpacing: -0.5, color: t.txt }}>{m.unit ?? tr('celebration.questions')}</Text>
               <Text style={{ fontFamily: t.font.semibold, fontSize: 16, lineHeight: 22, color: t.mut, textAlign: 'center', maxWidth: 290 }}>
                 {tidy(m.line)}
               </Text>
@@ -91,6 +91,8 @@ export function Celebration({ count, onDone, frozen }: { count: number; onDone: 
 /** Plays the hidden preview (`?fete=777`, or the room name long-pressed five times), signed in or not. */
 export function CelebrationPreview() {
   const n = usePreview();
+  const [streak, setStreak] = useState(STREAK_PREVIEW);
+  if (streak != null) return <Celebration streak count={streak} frozen={PREVIEW_AT} onDone={() => setStreak(null)} />;
   if (n == null) return null;
   return <Celebration key={n} count={n} frozen={PREVIEW_AT} onDone={() => playPreview(null)} />;
 }

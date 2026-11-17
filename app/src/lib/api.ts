@@ -291,6 +291,8 @@ export type Stats = {
   heatmap: number[][];
   activity: Activity | null;
   profiles: MemberStats[];
+  /** Days in a row with a vote, all time (docs/STREAKS.md): absent from an older server and in a party. */
+  day_streaks?: { member: Award | null; room: { current: number; best: number } };
 };
 
 const STATS_NULLABLE = [

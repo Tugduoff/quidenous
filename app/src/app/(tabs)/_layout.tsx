@@ -8,6 +8,7 @@ import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSprin
 import { Celebration } from '@/components/celebration';
 import { useT } from '@/lib/i18n';
 import { useMilestone } from '@/lib/milestones';
+import { useStreakMilestone } from '@/lib/streaks';
 import { BOUNCE, SPRING, usePop } from '@/lib/motion';
 import { useTheme } from '@/lib/theme';
 
@@ -44,6 +45,7 @@ export default function TabsLayout() {
   const t = useTheme();
   const tr = useT();
   const { milestone, dismiss } = useMilestone();
+  const streak = useStreakMilestone();
   const reduced = useReducedMotion();
   const tab = (Icon: Icon, label: string) => ({
     tabBarAccessibilityLabel: label,
@@ -68,6 +70,7 @@ export default function TabsLayout() {
         <Tabs.Screen name="questions" options={tab(MessageCircleQuestion, tr('vote.tabs.questions'))} />
       </Tabs>
       {milestone != null && <Celebration key={milestone} count={milestone} onDone={dismiss} />}
+      {milestone == null && streak.milestone != null && <Celebration key={`s${streak.milestone}`} streak count={streak.milestone} onDone={streak.dismiss} />}
     </View>
   );
 }

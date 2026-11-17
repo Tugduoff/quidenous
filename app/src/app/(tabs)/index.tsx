@@ -34,6 +34,7 @@ import { RankResult, ResultBars, ResultSummary } from '@/components/result-bars'
 import { QueryState } from '@/components/query-state';
 import { Screen } from '@/components/screen';
 import { SecureCard } from '@/components/secure-card';
+import { RoomStreak, StreakBadge } from '@/components/streaks';
 import { Tip } from '@/components/tip';
 import { NextGate } from '@/components/next-gate';
 import { NoQuestions, SoloInvite } from '@/components/vote-empty';
@@ -92,7 +93,7 @@ function RoomPill() {
         onPress={() => router.push('/rooms')}
         onLongPress={secret.onLongPress}
         hitSlop={6}
-        style={{ flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', maxWidth: '100%' }}>
+        style={{ flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', maxWidth: '100%', flexShrink: 1 }}>
         <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: t.font.semibold, fontSize: 14, color: t.mut }}>
           {group.name}
         </Text>
@@ -171,7 +172,10 @@ function HeaderBar() {
     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
       <View style={{ gap: 4, flexShrink: 1 }}>
         <Logo />
-        <RoomPill />
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <RoomPill />
+          <RoomStreak />
+        </View>
       </View>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
         <GroupButton />
@@ -767,6 +771,7 @@ function PendingRow({ member: m, round, canSkip, big }: { member: Member; round:
       <Text numberOfLines={1} style={{ flex: 1, fontFamily: big ? t.font.bold : t.font.semibold, fontSize: big ? 17 : 15, color: t.txt }}>
         {m.name}
       </Text>
+      <StreakBadge id={m.id} />
       {(skipped || away) && (
         <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut }}>{tr(skipped ? 'vote.waiting.skipped' : 'vote.waiting.away')}</Text>
       )}

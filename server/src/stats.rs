@@ -235,6 +235,9 @@ pub struct Stats {
     pub heatmap: Vec<Vec<i64>>,
     pub activity: Activity,
     pub profiles: Vec<MemberStats>,
+    /// Days in a row with a vote, all time (docs/STREAKS.md); set by the route, absent for a party.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub day_streaks: Option<crate::streaks::Records>,
 }
 
 // ---------- small helpers ----------

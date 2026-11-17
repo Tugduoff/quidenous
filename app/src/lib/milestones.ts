@@ -22,7 +22,8 @@ export type Theme =
   | 'siren'
   | 'tricolore'
   | 'night';
-export type Milestone = { n: number; theme: Theme; line: string; epic?: boolean };
+/** `streak`: my days in a row in the room (docs/STREAKS.md), with its own words (`unit` replaces "questions !"). */
+export type Milestone = { n: number; theme: Theme; line: string; epic?: boolean; streak?: boolean; unit?: string };
 
 /** Numbers that get their own party, on top of every 50. Their punchline: `celebration.lines.m<n>`. */
 const SPECIAL: Record<number, Omit<Milestone, 'n' | 'line'>> = {
@@ -99,6 +100,12 @@ export function milestone(n: number): Milestone {
   return { n, theme: 'confetti', line: FIFTY.includes(n) ? t(`celebration.fifty.f${n}` as TKey) : t('celebration.other') };
 }
 
+/** A streak party (7, 30 or 100 days in a row): gold for the hundred. */
+export function streakMilestone(n: number): Milestone {
+  const line = n >= 100 ? 'streaks.party.s100' : n >= 30 ? 'streaks.party.s30' : 'streaks.party.s7';
+  return { n, theme: n >= 100 ? 'gold' : 'confetti', line: t(line), streak: true, unit: t('streaks.party.unit') };
+}
+
 const param = (k: string) =>
   Platform.OS === 'web' && typeof location !== 'undefined' ? Number(new URLSearchParams(location.search).get(k)) || null : null;
 
@@ -108,6 +115,8 @@ const param = (k: string) =>
  */
 export const PREVIEW_AT = param('at');
 let preview: number | null = param('fete') ?? param('milestone');
+/** `/?serie=30`: the streak party instead. */
+export const STREAK_PREVIEW = param('serie');
 const previewListeners = new Set<() => void>();
 export function playPreview(n: number | null) {
   preview = n;
