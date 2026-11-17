@@ -99,6 +99,7 @@ pub fn router() -> Router<AppState> {
         .route("/history/pinned", get(pinned_history))
         .route("/history/export", get(export_history))
         .route("/stats", get(stats))
+        .route("/streaks", get(crate::streaks::get))
         .route("/stats/share", post(crate::share::create_stat))
         .route("/shares", get(crate::share::mine))
         .route(
@@ -261,6 +262,7 @@ async fn features(State(state): State<AppState>) -> Json<Value> {
         "chat_images",
         // The global question of the day (docs/GLOBAL_QUESTION.md).
         "global_question",
+        "streaks",
     ];
     if state.config.klipy.is_some() {
         f.push("chat_gifs");
@@ -1492,9 +1494,10 @@ async fn stats(
     let tz = crate::stats::parse_tz(q.tz.as_deref());
     // Story titles and punchlines in the reader's language.
     let lang = i18n::of_member(&state.db, me.id).await?;
-    Ok(Json(
-        crate::stats::for_group_in(&state.db, me.group_id, period, tz, lang).await?,
-    ))
+    let mut stats = crate::stats::for_group_in(&state.db, me.group_id, period, tz, lang).await?;
+    stats.day_streaks =
+        crate::streaks::records(&state.db, me.group_id, crate::streaks::now_secs()).await?;
+    Ok(Json(stats))
 }
 
 #[derive(Deserialize)]

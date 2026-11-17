@@ -4,6 +4,7 @@ import { Text, View } from 'react-native';
 
 import { QueryState } from '@/components/query-state';
 import { Screen } from '@/components/screen';
+import { StreakRecords } from '@/components/streaks';
 import { Awards } from '@/components/stats/awards';
 import { Section } from '@/components/stats/common';
 import { Heatmap } from '@/components/stats/heatmap';
@@ -32,7 +33,7 @@ export default function StatsScreen() {
   const [period, setPeriod] = useState<StatsPeriod>('30d');
   const stats = useStats(period);
   const { data: s, isPlaceholderData } = stats;
-  const { byId } = useMembers();
+  const { byId, members } = useMembers();
   const [profileId, setProfileId] = useState<number | null>(null);
 
   const header = (
@@ -91,6 +92,7 @@ export default function StatsScreen() {
           </Section>
         )}
         <Awards s={s} byId={byId} name={name} onOpen={open} />
+        <StreakRecords s={s} byId={byId} members={members} onOpen={open} />
         {ids.length >= 2 && edges.length > 0 && (
           <Section title={tr('stats.section.matrix')}>
             <VoteMatrix ids={ids} edges={edges} byId={byId} onOpen={open} />

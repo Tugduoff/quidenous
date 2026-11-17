@@ -26,6 +26,7 @@ import { ActivityIndicator, Linking, Platform, Pressable, Text, TextInput, View 
 import { BackButton } from '@/components/auth-ui';
 import { MyLinksRow } from '@/components/my-links';
 import { Screen } from '@/components/screen';
+import { MyStreak } from '@/components/streaks';
 import { useSignOut } from '@/components/security/devices';
 import { Avatar, Button, Card, Dialog, DialogTitle, Display } from '@/components/ui';
 import { VersionLine } from '@/components/update';
@@ -203,6 +204,7 @@ export default function Profile() {
             </View>
           </Pressable>
           <Display size={me.name.length > 14 ? 22 : 28}>{me.name}</Display>
+          <MyStreak />
         </View>
       )}
 

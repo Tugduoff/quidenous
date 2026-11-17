@@ -151,6 +151,8 @@ export function useFeatures() {
     chatImages: on.has('chat_images'),
     /** GIFs in the result chat, searched through the server (`/gifs`, KLIPY). */
     chatGifs: on.has('chat_gifs'),
+    /** Days in a row with a vote (`/streaks`, `day_streaks` in /stats, the "streak" push; docs/STREAKS.md). */
+    streaks: on.has('streaks'),
   };
 }
 

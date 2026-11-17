@@ -29,6 +29,7 @@ import { community } from './en/community';
 import { admin } from './en/admin';
 import { party } from './en/party';
 import { globalQuestion } from './en/global';
+import { streaks } from './en/streaks';
 
 export const en: Messages = {
   common,
@@ -60,4 +61,5 @@ export const en: Messages = {
   admin,
   party,
   globalQuestion,
+  streaks,
 };

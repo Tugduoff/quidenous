@@ -6,6 +6,7 @@ import {
   BellOff,
   BellRing,
   Crown,
+  Flame,
   type LucideIcon,
   MessageCircle,
   MessageCircleQuestion,
@@ -34,6 +35,8 @@ const KINDS: { kind: NotifKind; label: TKey; Icon: LucideIcon }[] = [
   { kind: 'nudge', label: 'notifications.kinds.nudge', Icon: BellRing },
   { kind: 'added', label: 'notifications.kinds.added', Icon: UserPlus },
   { kind: 'ask', label: 'notifications.kinds.ask', Icon: MessageCircleQuestion },
+  // Only from a server with streaks (docs/STREAKS.md).
+  { kind: 'streak', label: 'streaks.notif', Icon: Flame },
 ];
 
 const QUIET_START = 22 * 60;
@@ -165,7 +168,7 @@ export default function NotificationsScreen() {
 
         <Dim off={!prefs.enabled || blocked}>
           <Section title={tr('notifications.tellMe')}>
-            {KINDS.map(({ kind, label, Icon }) => {
+            {KINDS.filter((k) => k.kind !== 'streak' || features.streaks).map(({ kind, label, Icon }) => {
               const on = !prefs.off.includes(kind);
               return (
                 <Line

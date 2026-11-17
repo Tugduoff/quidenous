@@ -9,6 +9,7 @@ import { AddFriends, InviteCard } from '@/components/invite';
 import { type ModAction, ModerationDialog, type ModTarget } from '@/components/moderation';
 import { QueryState } from '@/components/query-state';
 import { Screen } from '@/components/screen';
+import { StreakBadge } from '@/components/streaks';
 import { showToast } from '@/components/toast';
 import { askConfirm, Avatar, Card, Display, PressableScale } from '@/components/ui';
 import { api, type RoomSummary } from '@/lib/api';
@@ -71,6 +72,7 @@ function Members() {
           <Text numberOfLines={1} style={{ flex: 1, fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>
             {me.name}
           </Text>
+          <StreakBadge id={me.id} />
           {owner && <Crown size={16} color={t.accInk} />}
           <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut }}>{tr('room.group.you')}</Text>
         </Card>
@@ -113,6 +115,7 @@ function Members() {
             <Text numberOfLines={1} style={{ flex: 1, fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>
               {m.name}
             </Text>
+            <StreakBadge id={m.id} />
             {m.role === 'owner' && <Crown size={16} color={t.accInk} />}
             {state && (
               <View

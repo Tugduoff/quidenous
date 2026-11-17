@@ -8,7 +8,7 @@ import { nativePushState, registerNativePush } from './native-push';
 import { enablePush, pushState, webSubscribed } from './push';
 
 /** What a push can be about (the inbox keeps everything; these only silence pushes). */
-export type NotifKind = 'question' | 'result' | 'chat' | 'mention' | 'nudge' | 'added' | 'ask';
+export type NotifKind = 'question' | 'result' | 'chat' | 'mention' | 'nudge' | 'added' | 'ask' | 'streak';
 
 /** Quiet hours in minutes after local midnight (both null = none; may wrap past midnight). `enabled`: every device of the account. */
 export type NotifPrefs = { enabled: boolean; off: NotifKind[]; quiet_start: number | null; quiet_end: number | null; tz_offset: number };
@@ -83,16 +83,19 @@ export function useDevicePush() {
   return { state, enable };
 }
 
-/** On start: quiet hours follow the phone's clock (summer time, travel). Silent, and only when it changed. */
+/**
+ * On start: quiet hours (and, on a server with streaks, the days they count) follow the phone's clock (summer time, travel).
+ * Silent, and only when it changed.
+ */
 export function useNotifTzSync(active: boolean) {
   const qc = useQueryClient();
-  const { notificationSettings } = useFeatures();
+  const { notificationSettings, streaks } = useFeatures();
   useEffect(() => {
     if (!active || !notificationSettings) return;
     (async () => {
       const p = await qc.fetchQuery({ queryKey: notifKey, queryFn: getPrefs });
-      if (p.quiet_start == null || p.tz_offset === tzOffset()) return;
+      if ((p.quiet_start == null && !streaks) || p.tz_offset === tzOffset()) return;
       qc.setQueryData(notifKey, await putPrefs(p));
     })().catch(() => {});
-  }, [active, notificationSettings, qc]);
+  }, [active, notificationSettings, streaks, qc]);
 }

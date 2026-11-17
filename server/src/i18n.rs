@@ -206,6 +206,21 @@ pub fn nudge(lang: Lang, name: &str) -> String {
     }
 }
 
+/// The evening streak reminder (docs/STREAKS.md): title, then body.
+pub fn streak_ending(lang: Lang, days: i64) -> String {
+    match lang {
+        Lang::Fr => format!("Ta série de {days} jours va s'arrêter"),
+        Lang::En => format!("Your {days}-day streak ends tonight"),
+    }
+}
+
+pub fn streak_ending_body(lang: Lang, room: &str) -> String {
+    match lang {
+        Lang::Fr => format!("Vote dans « {room} » avant minuit pour la garder."),
+        Lang::En => format!("Vote in “{room}” before midnight to keep it."),
+    }
+}
+
 pub fn ask_questions(lang: Lang, name: &str) -> String {
     match lang {
         Lang::Fr => format!("{name} demande des questions"),

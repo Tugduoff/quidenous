@@ -71,6 +71,7 @@ type Stats = {
   heatmap: number[][];              // [7][24] votes cast, weekday 0 = Monday, local hours
   activity: { bucket: 'day' | 'week'; start: string; questions: number[]; votes: number[] };  // start = YYYY-MM-DD local
   profiles: MemberStats[];          // every current member, by id
+  day_streaks?: { member: Award | null; room: { current: number; best: number } };  // days in a row with a vote, all time (docs/STREAKS.md); absent in a party
 };
 ```
 

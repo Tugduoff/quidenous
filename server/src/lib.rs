@@ -31,6 +31,7 @@ pub mod rooms;
 pub mod routes;
 pub mod share;
 pub mod stats;
+pub mod streaks;
 pub mod suggestions;
 pub mod text;
 pub mod updates;
