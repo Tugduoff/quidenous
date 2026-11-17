@@ -416,6 +416,7 @@ pub async fn vote(
         return Err(AppError::Conflict("already_voted"));
     }
 
+    crate::tripot::on_vote(&mut tx, group_id, voter_id).await?;
     let mut events = vec![Event::VoteCast { round_id, voter_id }];
     events.extend(close_if_done(&mut tx, group_id, round_id).await?);
     tx.commit().await?;
@@ -639,6 +640,7 @@ pub async fn close_if_done(
         if done.rows_affected() == 0 {
             return Ok(events);
         }
+        crate::tripot::settle(tx, round_id).await?;
         events.push(Event::RoundClosed { round_id });
         if crate::pacing::pause(tx, group_id).await? {
             events.push(Event::RoomUpdated);
@@ -677,6 +679,7 @@ pub async fn drop_round(
     if done.rows_affected() == 0 {
         return Ok(Vec::new());
     }
+    crate::tripot::refund(tx, round_id).await?;
     let mut events = vec![Event::RoundClosed { round_id }];
     if let Some(next) = ensure_open_round(tx, group_id).await? {
         events.push(Event::RoundOpened { round_id: next });
@@ -838,7 +841,9 @@ pub async fn view(db: &SqlitePool, round: RoundRow, me: i64) -> AppResult<RoundV
     .bind(round.question_id)
     .fetch_optional(db)
     .await?;
+    let tripot = crate::tripot::view(db, &round, me).await?;
     Ok(RoundView {
+        tripot,
         anonymous: round.anonymous,
         id: round.id,
         number: round.number,

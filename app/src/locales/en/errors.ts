@@ -58,4 +58,11 @@ export const errors: Messages['errors'] = {
   bad_image: 'Unsupported image format',
   too_large: 'Image too large',
   gifs_off: 'GIFs unavailable',
+  // Tripot
+  already_bet: 'You already bet on this question',
+  not_enough_chips: 'Not enough chips',
+  round_closed: 'Betting is closed',
+  tripot_off: 'Tripot is off in this room',
+  no_bets: 'No betting on this question',
+  bad_amount: 'Invalid stake',
 };

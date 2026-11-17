@@ -100,6 +100,8 @@ pub fn router() -> Router<AppState> {
         .route("/history/export", get(export_history))
         .route("/stats", get(stats))
         .route("/streaks", get(crate::streaks::get))
+        .route("/tripot", get(crate::tripot::board))
+        .route("/rounds/{id}/bet", post(crate::tripot::bet))
         .route("/stats/share", post(crate::share::create_stat))
         .route("/shares", get(crate::share::mine))
         .route(
@@ -264,6 +266,8 @@ async fn features(State(state): State<AppState>) -> Json<Value> {
         "global_question",
         "streaks",
         "anonymous_votes",
+        // Le Tripot: bets with chips worth nothing (docs/TRIPOT.md).
+        "tripot",
     ];
     if state.config.klipy.is_some() {
         f.push("chat_gifs");
@@ -725,6 +729,9 @@ async fn group(State(state): State<AppState>, Me(me): Me) -> AppResult<Json<Valu
     });
     out["settings"]["anonymous_votes"] =
         json!(crate::anonymous::mode(&state.db, me.group_id).await?);
+    if kind == "room" {
+        out["settings"]["tripot"] = json!(crate::tripot::enabled(&state.db, me.group_id).await?);
+    }
     if kind == "party" {
         out["ends_at"] = json!(ends_at);
         out["over"] = json!(over);

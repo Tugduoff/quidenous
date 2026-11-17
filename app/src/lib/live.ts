@@ -39,6 +39,8 @@ function touched(event: LiveEvent): QueryKey[] | 'all' {
       return [];
     case 'vote_cast':
     case 'skip_voted':
+    // Someone bet on the open question (Tripot): its pot changed.
+    case 'tripot_updated':
       return [keys.current];
     case 'round_closed':
     case 'round_opened':

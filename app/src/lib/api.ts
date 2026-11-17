@@ -1,6 +1,7 @@
 import { Platform } from 'react-native';
 
 import { deviceHeader } from './device';
+import type { Tripot } from './tripot';
 import { appVersion } from './update';
 
 /** Same origin on web (served by the Rust server); on phones, the build URL or the one typed at join. */
@@ -74,6 +75,8 @@ export type Round = {
   /** A shared-deck question that came from someone's suggestion: their name (absent from an older server). */
   suggested_by?: string | null;  /** Anonymous votes (docs/ANONYMOUS.md): `result` has counts only, empty `voter_ids` (absent from an older server). */
   anonymous?: boolean;
+  /** Le Tripot (docs/TRIPOT.md): bets on the winner; absent where it doesn't apply (and from an older server). */
+  tripot?: Tripot;
 };
 export type QuestionKind = 'pick' | 'rank' | 'choose';
 export type AnonymousMode = 'never' | 'per_question' | 'always';
@@ -113,6 +116,8 @@ export type Group = {
     next_delay?: number;
     /** Anonymous votes: never, each question says, or always (absent from an older server). */
     anonymous_votes?: AnonymousMode;
+    /** Le Tripot on or off (rooms only; absent from an older server). */
+    tripot?: boolean;
   };
   /** Pacing between questions: waiting for the owner or the delay, and when the next opens by itself (absent from an older server). */
   pace?: { waiting: boolean; next_open_at: string | null; round_id?: number | null };

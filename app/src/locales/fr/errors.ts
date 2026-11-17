@@ -57,4 +57,11 @@ export const errors = {
   bad_image: 'Format d’image non pris en charge',
   too_large: 'Image trop lourde',
   gifs_off: 'GIF indisponibles',
+  // Tripot
+  already_bet: 'Tu as déjà parié sur cette question',
+  not_enough_chips: 'Pas assez de jetons',
+  round_closed: 'Les paris sont fermés',
+  tripot_off: 'Le Tripot est désactivé dans ce salon',
+  no_bets: 'Pas de paris sur cette question',
+  bad_amount: 'Mise invalide',
 };

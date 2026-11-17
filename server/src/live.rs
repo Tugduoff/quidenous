@@ -76,6 +76,10 @@ pub enum Event {
         round_id: i64,
     },
     RoomDeleted,
+    /// Someone bet on the open question (Tripot): its pot and bettor count changed.
+    TripotUpdated {
+        round_id: i64,
+    },
 }
 
 #[derive(Clone, Debug)]

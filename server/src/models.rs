@@ -111,6 +111,9 @@ pub struct RoundView {
     pub choose: Option<ChooseResult>,
     /// Anonymous votes: `result` has counts only (empty `voter_ids`), see `anonymous`.
     pub anonymous: bool,
+    /// Bets on the winner (see `tripot`); absent where Tripot doesn't apply.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tripot: Option<crate::tripot::TripotView>,
 }
 
 /// A wire: `member_id` goes to item number `item`.

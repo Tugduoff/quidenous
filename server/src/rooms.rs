@@ -432,6 +432,8 @@ pub struct SettingsBody {
     language: Option<String>,
     /// `never` | `per_question` | `always` (see `anonymous`).
     anonymous_votes: Option<String>,
+    /// Le Tripot on or off (rooms only, see `tripot`).
+    tripot: Option<bool>,
 }
 
 /// Owner only: rename, turn majority skip/removal on or off, who can add questions, vibe, pacing,
@@ -471,7 +473,9 @@ pub async fn update(
         .transpose()?;
     let pacing = body.owner_next.is_some() || body.next_delay.is_some();
     // A party runs its own pace (taps and the owner, see `party`), and is never anonymous.
-    if (pacing || anonymous.is_some()) && crate::game::party(&state.db, room).await?.is_some() {
+    if (pacing || anonymous.is_some() || body.tripot.is_some())
+        && crate::game::party(&state.db, room).await?.is_some()
+    {
         return Err(AppError::BadRequest("bad_setting"));
     }
     let mut tx = crate::db::write_tx(&state.db).await?;
@@ -501,6 +505,10 @@ pub async fn update(
     }
     if let Some(mode) = anonymous {
         crate::anonymous::set_mode(&mut tx, room, mode).await?;
+        crate::tripot::after_anonymous(&mut tx, room).await?;
+    }
+    if let Some(on) = body.tripot {
+        crate::tripot::set_enabled(&mut tx, room, on).await?;
     }
     tx.commit().await?;
     state.live.send(room, Event::RoomUpdated);

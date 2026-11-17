@@ -35,6 +35,7 @@ pub mod stats;
 pub mod streaks;
 pub mod suggestions;
 pub mod text;
+pub mod tripot;
 pub mod updates;
 pub mod vibes;
 pub mod web;
