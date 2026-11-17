@@ -111,7 +111,7 @@ pub fn app_csp(web_dir: &Path, public_url: Option<&str>) -> String {
 }
 
 /// The bodies of `<script>` tags with no attributes (the inline ones; `src=` ones are files).
-fn inline_scripts(html: &str) -> impl Iterator<Item = &str> {
+pub fn inline_scripts(html: &str) -> impl Iterator<Item = &str> {
     html.split("<script>")
         .skip(1)
         .filter_map(|rest| rest.split_once("</script>").map(|(body, _)| body))

@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<script>(function(){try{var d=window.matchMedia&&(matchMedia('(display-mode: standalone)').matches||matchMedia('(display-mode: fullscreen)').matches);if(!(d||navigator.standalone===true||localStorage.getItem('qdn.token')))return;document.documentElement.style.display='none';document.cookie='qdn_app=1; path=/; max-age=31536000; samesite=lax'+(location.protocol==='https:'?'; secure':'');location.replace(document.cookie.indexOf('qdn_app=1')>=0?'/':'/?app=1');}catch(e){}})();</script>
+<title>qui de nous ? · The voting game for friends</title>
+<meta name="description" content="Who of us would end up on reality TV? Ask the question, your friends vote, the verdict lands. Free, no ads, in private rooms. Android beta and browser version.">
+<link rel="canonical" href="https://qdn.coflop.fr/en">
+<link rel="alternate" hreflang="fr" href="https://qdn.coflop.fr/">
+<link rel="alternate" hreflang="en" href="https://qdn.coflop.fr/en">
+<link rel="alternate" hreflang="x-default" href="https://qdn.coflop.fr/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="qui de nous ?">
+<meta property="og:title" content="qui de nous ? · Your friends vote. The verdict lands.">
+<meta property="og:description" content="The voting game for friends: which of us is most likely to…? Free, no ads, private rooms.">
+<meta property="og:url" content="https://qdn.coflop.fr/en">
+<meta property="og:image" content="https://qdn.coflop.fr/vitrine/og.jpg">
+<meta property="og:image:width" content="1024">
+<meta property="og:image:height" content="500">
+<meta property="og:locale" content="en_GB">
+<meta property="og:locale:alternate" content="fr_FR">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#0E0E12">
+<link rel="icon" type="image/png" href="/vitrine/icon-192.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png?v=2" sizes="180x180">
+<link rel="manifest" href="/manifest.json">
+<link rel="preload" href="/vitrine/bricolage-800.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/vitrine/inter-400.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/vitrine/site.css?v=1">
+<script src="/vitrine/site.js?v=1" defer></script>
+</head>
+<body>
+<svg class="sprite" aria-hidden="true" focusable="false">
+  <symbol id="i-phone" viewBox="0 0 24 24"><rect width="14" height="20" x="5" y="2" rx="2"/><path d="M12 18h.01"/></symbol>
+  <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></symbol>
+  <symbol id="i-crown" viewBox="0 0 24 24"><path d="M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.734H5.81a1 1 0 0 1-.957-.734L2.02 6.02a.5.5 0 0 1 .798-.519l4.276 3.664a1 1 0 0 0 1.516-.294z"/><path d="M5 21h14"/></symbol>
+  <symbol id="i-flame" viewBox="0 0 24 24"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></symbol>
+  <symbol id="i-coins" viewBox="0 0 24 24"><circle cx="8" cy="8" r="6"/><path d="M18.09 10.37A6 6 0 1 1 10.34 18"/><path d="M7 6h1v4"/><path d="m16.71 13.88.7.71-2.82 2.82"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></symbol>
+  <symbol id="i-left" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></symbol>
+  <symbol id="i-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+  <symbol id="i-redo" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></symbol>
+  <symbol id="i-chat" viewBox="0 0 24 24"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M10 12h11"/><path d="M10 18h11"/><path d="M10 6h11"/><path d="M4 10h2"/><path d="M4 6h1v4"/><path d="M6 18H4c0-1 2-2 2-3s-1-1.5-2-1"/></symbol>
+  <symbol id="i-party" viewBox="0 0 24 24"><path d="M5.8 11.3 2 22l10.7-3.79"/><path d="M4 3h.01"/><path d="M22 8h.01"/><path d="M15 2h.01"/><path d="M22 20h.01"/><path d="m22 2-2.24.75a2.9 2.9 0 0 0-1.96 3.12c.1.86-.57 1.63-1.45 1.63h-.38c-.86 0-1.6.6-1.76 1.44L14 10"/><path d="m22 13-.82-.33c-.86-.34-1.82.2-1.98 1.11-.11.7-.72 1.22-1.43 1.22H17"/><path d="m11 2 .33.82c.34.86-.2 1.82-1.11 1.98C9.52 4.9 9 5.52 9 6.23V7"/><path d="M11 13c1.93 1.93 2.83 4.17 2 5-.83.83-3.07-.07-5-2-1.93-1.93-2.83-4.17-2-5 .83-.83 3.07.07 5 2Z"/></symbol>
+  <symbol id="i-pack" viewBox="0 0 24 24"><path d="m16 6 4 14"/><path d="M12 6v14"/><path d="M8 8v12"/><path d="M4 4v16"/></symbol>
+  <symbol id="i-vote" viewBox="0 0 24 24"><path d="m9 12 2 2 4-4"/><path d="M5 7c0-1.1.9-2 2-2h10a2 2 0 0 1 2 2v12H5V7Z"/><path d="M22 19H2"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+  <symbol id="i-gift" viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5A4.8 8 0 0 1 12 8a4.8 8 0 0 1 4.5-5 2.5 2.5 0 0 1 0 5"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></symbol>
+  <symbol id="i-qr" viewBox="0 0 24 24"><rect width="5" height="5" x="3" y="3" rx="1"/><rect width="5" height="5" x="16" y="3" rx="1"/><rect width="5" height="5" x="3" y="16" rx="1"/><path d="M21 16h-3a2 2 0 0 0-2 2v3"/><path d="M21 21v.01"/><path d="M12 7v3a2 2 0 0 1-2 2H7"/><path d="M3 12h.01"/><path d="M12 3h.01"/><path d="M12 16v.01"/><path d="M16 12h1"/><path d="M21 12v.01"/><path d="M12 21v-1"/></symbol>
+</svg>
+
+<a class="skip" href="#demo">Skip to the demo</a>
+
+<header class="top">
+  <a class="brand" href="/en" aria-label="qui de nous ? home">qui de nous<span>?</span></a>
+  <nav class="top-nav" aria-label="Sections">
+    <a href="#demo">Demo</a>
+    <a href="#screens">The app</a>
+    <a href="#modes">Games</a>
+  </nav>
+  <a class="lang" href="/" hreflang="fr" lang="fr">Français</a>
+  <a class="btn btn-sm" href="/en/beta">Android beta</a>
+</header>
+
+<main>
+<section class="hero" aria-labelledby="hero-title">
+  <div class="hero-glow" aria-hidden="true"></div>
+  <div class="hero-copy">
+    <h1 id="hero-title" class="wordmark">qui de nous<span class="qmark" data-burst>?</span></h1>
+    <div class="ticker"><span class="tag">Us · #<span data-ticker-n>14</span></span><p class="ticker-q" data-ticker>Who would get thrown out of a wedding?</p><button class="ticker-btn" type="button" data-ticker-next aria-label="Another question"><svg class="ic"><use href="#i-redo"/></svg></button></div>
+    <p class="pitch"><span class="muted">Your friends vote.</span> The verdict lands.</p>
+    <p class="lede">The voting game for friends, in private rooms. One question, everyone votes for someone in the group, and you all find out who wins. And who voted for whom.</p>
+    <div class="ctas">
+      <a class="btn btn-lime" href="/en/beta"><svg class="ic"><use href="#i-phone"/></svg>Join the Android beta</a>
+      <a class="btn btn-ghost" href="/join"><svg class="ic"><use href="#i-globe"/></svg>Play in the browser</a>
+      <!-- Google Play badge goes here once the app is out of closed testing. -->
+    </div>
+    <p class="fineprint">Free, no ads, no in-app purchases. iPhone: play in the browser and add it to your home screen.</p>
+    <ul class="crew" aria-label="A group of six: Léa, Hugo, Inès, Nathan, Camille, Jules">
+      <li class="av av-l">L</li><li class="av av-h">H</li><li class="av av-i">I</li><li class="av av-n">N</li><li class="av av-c">C</li><li class="av av-j">J</li>
+    </ul>
+  </div>
+  <div class="hero-visual" data-parallax>
+    <figure class="phone phone-back" data-depth="-14"><img src="/vitrine/shots/02-result-tripot.webp" width="540" height="960" alt="Result: Nathan wins with 67% of the votes, and the Tripot pays those who bet on him."></figure>
+    <figure class="phone phone-front" data-depth="10"><img src="/vitrine/shots/01-vote.webp" width="540" height="960" alt="Voting screen: “Who would get thrown out of a wedding?”, six friends to pick from, a “Vote for Jules” button." fetchpriority="high"></figure>
+    <span class="chip chip-streak" data-depth="26" aria-hidden="true"><svg class="ic"><use href="#i-flame"/></svg>14-day streak</span>
+    <span class="chip chip-coins" data-depth="34" aria-hidden="true"><svg class="ic"><use href="#i-coins"/></svg>+51 chips</span>
+    <span class="chip chip-crown" data-depth="20" aria-hidden="true"><svg class="ic"><use href="#i-crown"/></svg>Nathan · 67%</span>
+  </div>
+</section>
+
+<section id="demo" class="demo" aria-labelledby="demo-title">
+  <div class="section-head">
+    <p class="kicker">No account, right now</p>
+    <h2 id="demo-title">Play a round</h2>
+    <p class="sub">Vote, bet your chips, and watch the group decide. Don't worry, Léa, Hugo and the others can take it.</p>
+    <ul class="tripot-how">
+      <li><svg class="ic"><use href="#i-vote"/></svg><span><b>You vote</b>, so do the others. Nobody sees a thing before the last vote.</span></li>
+      <li><svg class="ic"><use href="#i-coins"/></svg><span><b>The Tripot:</b> bet on the winner, the pot goes to those who called it.</span></li>
+      <li><svg class="ic"><use href="#i-crown"/></svg><span><b>The verdict lands</b>, with who voted for whom. Own it.</span></li>
+    </ul>
+  </div>
+  <div class="demo-card" data-demo>
+    <div class="demo-top">
+      <span class="tag" data-demo-tag>Us · #1</span>
+      <span class="wallet" title="Tripot chips"><svg class="ic"><use href="#i-coins"/></svg><b data-demo-wallet>100</b> <span>chips</span></span>
+    </div>
+    <h3 class="demo-q" data-demo-q>Who would get thrown out of a wedding?</h3>
+    <div class="demo-voters" aria-hidden="true"><span class="stack" data-demo-stack></span><span class="count" data-demo-count>0/7</span></div>
+    <div class="demo-grid" role="group" aria-label="Pick someone" data-demo-grid></div>
+    <div class="demo-results" data-demo-results hidden></div>
+    <label class="bet" data-demo-bet>
+      <input type="checkbox" checked data-demo-betbox>
+      <span class="switch" aria-hidden="true"></span>
+      <span class="bet-text"><b>Bet 10 chips</b> on my pick</span>
+    </label>
+    <p class="verdict" data-demo-verdict aria-live="polite"></p>
+    <button class="btn btn-lime btn-block" type="button" data-demo-go disabled>Pick someone</button>
+    <p class="demo-note">Pretend chips, like in the app: nothing to buy, nothing to win, except glory.</p>
+  </div>
+</section>
+
+<section id="screens" class="screens" aria-labelledby="screens-title">
+  <div class="section-head">
+    <p class="kicker">In the app</p>
+    <h2 id="screens-title">Everything that happens after the vote</h2>
+  </div>
+  <div class="chips" aria-label="Go to screen" data-chips>
+    <button type="button" data-go="0">Vote</button>
+    <button type="button" data-go="1">Verdict</button>
+    <button type="button" data-go="2">Chat</button>
+    <button type="button" data-go="3">Rankings</button>
+    <button type="button" data-go="4">Global question</button>
+    <button type="button" data-go="5">Party</button>
+    <button type="button" data-go="6">Packs</button>
+    <button type="button" data-go="7">Streaks</button>
+  </div>
+  <div class="rail-wrap">
+    <button class="rail-btn rail-prev" type="button" aria-label="Previous screen" data-prev><svg class="ic"><use href="#i-left"/></svg></button>
+    <ol class="rail" data-rail aria-label="Screenshots">
+      <li class="slide"><figure class="phone tilt"><img src="/vitrine/shots/01-vote.webp" width="540" height="960" loading="lazy" decoding="async" alt="Voting: one question, six friends to pick from."></figure>
+        <div class="cap"><span class="cap-ic"><svg class="ic"><use href="#i-vote"/></svg></span><h3>One question, everyone votes</h3><p>Everyone picks someone in the room. Votes stay secret until the very last one.</p></div></li>
+      <li class="slide"><figure class="phone tilt"><img src="/vitrine/shots/02-result-tripot.webp" width="540" height="960" loading="lazy" decoding="async" alt="Result: who wins, who voted for whom, and the Tripot winnings."></figure>
+        <div class="cap"><span class="cap-ic"><svg class="ic"><use href="#i-crown"/></svg></span><h3>The verdict lands</h3><p>Who wins, by how much, and who voted for whom. The Tripot pays out to those who bet right.</p></div></li>
+      <li class="slide"><figure class="phone tilt"><img src="/vitrine/shots/03-chat.webp" width="540" height="960" loading="lazy" decoding="async" alt="Chat under a result, with messages and a photo."></figure>
+        <div class="cap"><span class="cap-ic"><svg class="ic"><use href="#i-chat"/></svg></span><h3>Fight it out in the chat</h3><p>Protest, explain yourself, or rub it in. Photos, GIFs, reactions and mentions.</p></div></li>
+      <li class="slide"><figure class="phone tilt"><img src="/vitrine/shots/04-ranking.webp" width="540" height="960" loading="lazy" decoding="async" alt="Ranking: six friends ranked with their points."></figure>
+        <div class="cap"><span class="cap-ic"><svg class="ic"><use href="#i-list"/></svg></span><h3>Rank us</h3><p>You rank the whole group, the points make the podium. From apocalypse survivor to first one eaten.</p></div></li>
+      <li class="slide"><figure class="phone tilt"><img src="/vitrine/shots/05-world-question.webp" width="540" height="960" loading="lazy" decoding="async" alt="Global question: the room's result and anonymous numbers about other rooms."></figure>
+        <div class="cap"><span class="cap-ic"><svg class="ic"><use href="#i-globe"/></svg></span><h3>The global question</h3><p>Every day, the same question in every room. Then the other groups, in anonymous numbers.</p></div></li>
+      <li class="slide"><figure class="phone tilt"><img src="/vitrine/shots/06-party.webp" width="540" height="960" loading="lazy" decoding="async" alt="Party mode: Hugo wins the round, revealed big."></figure>
+        <div class="cap"><span class="cap-ic"><svg class="ic"><use href="#i-party"/></svg></span><h3>Party mode</h3><p>Your guests scan a QR code and play without an account. Countdown, big reveal, even on the TV.</p></div></li>
+      <li class="slide"><figure class="phone tilt"><img src="/vitrine/shots/07-packs.webp" width="540" height="960" loading="lazy" decoding="async" alt="Question packs made by the community."></figure>
+        <div class="cap"><span class="cap-ic"><svg class="ic"><use href="#i-pack"/></svg></span><h3>Packs to install</h3><p>Over 250 questions to start with, community packs in one tap, and your own.</p></div></li>
+      <li class="slide"><figure class="phone tilt"><img src="/vitrine/shots/08-streaks-tripot.webp" width="540" height="960" loading="lazy" decoding="async" alt="Stats: streak records and the monthly Tripot leaderboard."></figure>
+        <div class="cap"><span class="cap-ic"><svg class="ic"><use href="#i-flame"/></svg></span><h3>Streaks and Tripot</h3><p>A flame for every day you vote, a party at 7, 30 and 100 days, and the monthly chip podium.</p></div></li>
+    </ol>
+    <button class="rail-btn rail-next" type="button" aria-label="Next screen" data-next><svg class="ic"><use href="#i-right"/></svg></button>
+  </div>
+</section>
+
+<section id="modes" class="modes" aria-labelledby="modes-title">
+  <div class="section-head">
+    <p class="kicker">Three ways to play</p>
+    <h2 id="modes-title">One group, a thousand verdicts</h2>
+  </div>
+  <div class="mode-grid">
+    <article class="mode">
+      <div class="mode-art art-pick" aria-hidden="true"><span class="av av-l">L</span><span class="av av-h win"><svg class="ic crown"><use href="#i-crown"/></svg>H</span><span class="av av-i">I</span></div>
+      <h3>“Who of us…”</h3>
+      <p>One name. Most votes wins, and walks off with the crown.</p>
+    </article>
+    <article class="mode">
+      <div class="mode-art art-rank" aria-hidden="true"><span class="pod p2"><i class="av av-c">C</i><b>2</b></span><span class="pod p1"><i class="av av-j">J</i><b>1</b></span><span class="pod p3"><i class="av av-n">N</i><b>3</b></span></div>
+      <h3>“Rank us…”</h3>
+      <p>You rank everyone. The points make the podium, the last one sulks.</p>
+    </article>
+    <article class="mode">
+      <div class="mode-art art-choose" aria-hidden="true"><span class="pill">Pizza</span><span class="or">or</span><span class="pill pill-rose">Sushi</span></div>
+      <h3>“Who would pick what?”</h3>
+      <p>Give your answer, guess everyone else's. Find out who knows the group best.</p>
+    </article>
+  </div>
+</section>
+
+<section class="how" aria-labelledby="how-title">
+  <div class="section-head">
+    <p class="kicker">How it works</p>
+    <h2 id="how-title">Three steps, zero hassle</h2>
+  </div>
+  <ol class="steps">
+    <li><span class="num">1</span><h3>Create a room</h3><p>Flatmates, family, colleagues: one room per group, one account.</p></li>
+    <li><span class="num">2</span><h3>Invite your friends</h3><p>A code, a link or a QR code. No public feed, no strangers.</p></li>
+    <li><span class="num">3</span><h3>Vote, own it</h3><p>One question at a time, at your own pace: one a day or ten in a row.</p></li>
+  </ol>
+  <ul class="values">
+    <li><svg class="ic"><use href="#i-gift"/></svg>Free, no ads, no purchases</li>
+    <li><svg class="ic"><use href="#i-lock"/></svg>Private rooms, optional anonymous votes</li>
+    <li><svg class="ic"><use href="#i-shield"/></svg>Built-in reporting and blocking</li>
+    <li><svg class="ic"><use href="#i-coins"/></svg>Pretend chips, no real money</li>
+  </ul>
+</section>
+
+<section class="final" aria-labelledby="final-title">
+  <div class="final-glow" aria-hidden="true"></div>
+  <h2 id="final-title">So then: qui de nous<span class="lime">?</span></h2>
+  <div class="final-row">
+    <div class="ctas">
+      <a class="btn btn-lime" href="/en/beta"><svg class="ic"><use href="#i-phone"/></svg>Join the Android beta</a>
+      <a class="btn btn-ghost" href="/join"><svg class="ic"><use href="#i-globe"/></svg>Play in the browser</a>
+    </div>
+    <div class="qr" aria-hidden="true">
+      <div class="qr-code"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 25 25" shape-rendering="crispEdges"><path stroke="#0E0E12" d="M0 0.5h7m7 0h1m1 0h1m1 0h7M0 1.5h1m5 0h1m2 0h2m1 0h1m2 0h2m1 0h1m5 0h1M0 2.5h1m1 0h3m1 0h1m1 0h1m1 0h1m5 0h1m1 0h1m1 0h3m1 0h1M0 3.5h1m1 0h3m1 0h1m1 0h1m2 0h1m1 0h1m4 0h1m1 0h3m1 0h1M0 4.5h1m1 0h3m1 0h1m1 0h1m2 0h3m2 0h1m1 0h1m1 0h3m1 0h1M0 5.5h1m5 0h1m1 0h1m2 0h1m1 0h3m2 0h1m5 0h1M0 6.5h7m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h7M8 7.5h4m3 0h2M0 8.5h1m1 0h5m2 0h1m3 0h2m3 0h5M0 9.5h5m2 0h1m1 0h1m2 0h1m3 0h1m2 0h1m3 0h1M0 10.5h4m2 0h3m1 0h1m1 0h4m1 0h3m1 0h1m1 0h2M0 11.5h1m1 0h1m2 0h1m2 0h2m6 0h1m1 0h1m5 0h1M0 12.5h1m1 0h2m2 0h2m3 0h1m1 0h3m1 0h4m1 0h3M0 13.5h1m1 0h1m1 0h1m2 0h1m1 0h2m1 0h1m1 0h1m1 0h1m2 0h1m1 0h1m1 0h1M0 14.5h1m5 0h1m1 0h3m2 0h1m1 0h3m1 0h3m1 0h2M0 15.5h1m2 0h2m3 0h1m1 0h1m1 0h1m3 0h1m2 0h2m3 0h1M0 16.5h1m2 0h2m1 0h2m1 0h2m1 0h2m2 0h5m1 0h1M8 17.5h1m4 0h1m1 0h2m3 0h2M0 18.5h7m2 0h6m1 0h1m1 0h1m1 0h1m1 0h3M0 19.5h1m5 0h1m1 0h1m2 0h1m2 0h1m1 0h1m3 0h2m2 0h1M0 20.5h1m1 0h3m1 0h1m1 0h2m1 0h10m1 0h1M0 21.5h1m1 0h3m1 0h1m1 0h2m2 0h1m3 0h1m1 0h1m1 0h5M0 22.5h1m1 0h3m1 0h1m1 0h3m1 0h1m1 0h2m5 0h2m1 0h1M0 23.5h1m5 0h1m2 0h1m1 0h1m2 0h4m1 0h3m2 0h1M0 24.5h7m1 0h2m1 0h4m4 0h6"/></svg></div>
+      <p><svg class="ic"><use href="#i-qr"/></svg>Scan to open it on your phone</p>
+    </div>
+  </div>
+  <p class="fineprint">For ages 16 and up. In English or French, light or dark theme.</p>
+</section>
+</main>
+
+<footer class="foot">
+  <p class="foot-brand">qui de nous<span>?</span> <span class="by">a Coflop game</span></p>
+  <nav aria-label="Links">
+    <a href="/en/privacy">Privacy</a>
+    <a href="/en/terms">Terms</a>
+    <a href="/en/delete-account">Delete my account</a>
+    <a href="/en/beta">Android beta</a>
+    <a href="mailto:contact@coflop.fr">contact@coflop.fr</a>
+    <a href="/" hreflang="fr" lang="fr">Français</a>
+  </nav>
+</footer>
+<canvas class="confetti" data-confetti aria-hidden="true"></canvas>
+</body>
+</html>
