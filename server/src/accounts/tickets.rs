@@ -13,16 +13,19 @@ use axum::{Json, extract::State};
 use serde::Deserialize;
 use serde_json::{Value, json};
 
-use super::Session;
+use super::{ClientIp, Session};
 use crate::{
     AppState,
     auth::{hash_token, new_token},
     error::{AppError, AppResult},
+    quotas::{TICKET_IP, TICKET_USER},
 };
 
 pub const TICKET_TTL: Duration = Duration::from_secs(60);
 /// Live tickets at once, server-wide: beyond it (after dropping the expired ones) new ones wait.
 const MAX_TICKETS: usize = 10_000;
+/// Live tickets per session: one more drops that session's oldest (the app uses each at once).
+pub const MAX_PER_SESSION: usize = 20;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -48,6 +51,25 @@ impl Tickets {
     fn issue(&self, token_hash: &str, purpose: Purpose) -> AppResult<String> {
         let now = Instant::now();
         let mut map = self.map.lock().unwrap_or_else(|e| e.into_inner());
+        // One session can't fill the store: its expired tickets go, and its oldest live one if
+        // it already has `MAX_PER_SESSION`.
+        let mut mine: Vec<(Instant, String)> = Vec::new();
+        map.retain(|key, t| {
+            if t.token_hash != token_hash {
+                return true;
+            }
+            if t.expires <= now {
+                return false;
+            }
+            mine.push((t.expires, key.clone()));
+            true
+        });
+        if mine.len() >= MAX_PER_SESSION {
+            mine.sort_unstable();
+            for (_, key) in &mine[..=mine.len() - MAX_PER_SESSION] {
+                map.remove(key);
+            }
+        }
         if map.len() >= MAX_TICKETS {
             map.retain(|_, t| t.expires > now);
             if map.len() >= MAX_TICKETS {
@@ -83,9 +105,12 @@ pub struct TicketBody {
 /// stops working with it) for one request.
 pub async fn create(
     State(state): State<AppState>,
+    ClientIp(ip): ClientIp,
     session: Session,
     Json(body): Json<TicketBody>,
 ) -> AppResult<Json<Value>> {
+    state.auth.limits.hit_ip(&TICKET_IP, ip)?;
+    crate::quotas::hit_user(&state, &TICKET_USER, session.user_id)?;
     let ticket = state
         .auth
         .tickets

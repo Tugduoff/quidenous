@@ -7,7 +7,8 @@ use serde_json::{Value, json};
 use super::{
     Account, ClientIp, Device, Session, account, codes,
     crypto::{self, normalize_recovery, now_unix, otpauth_url, six_digits, totp_match},
-    is_secured, issue_token, limits, mail, not_claimed, notify, require_reauth, revoke_sessions,
+    is_secured, is_suspended, issue_token, limits, mail, not_claimed, notify, require_reauth,
+    revoke_sessions,
 };
 use crate::{
     AppState,
@@ -129,6 +130,10 @@ pub async fn login_2fa(
     }
     limits.refund(&limits::MFA_ACCOUNT, &key);
     codes::consume(&state, row.id).await?;
+    // Suspended since the first step: no session.
+    if is_suspended(&state.db, user_id).await? {
+        return Err(AppError::Forbidden("suspended"));
+    }
     // Whoever has a second factor doesn't need a pending reset (see `reset_send`): it stops.
     sqlx::query("UPDATE users SET mfa_reset_at = NULL WHERE id = ?")
         .bind(user_id)
@@ -290,6 +295,24 @@ async fn remove_2fa(state: &AppState, user_id: i64) -> AppResult<()> {
 /// How long after a confirmed request 2FA is removed (unless a signed-in session cancels it).
 pub const MFA_RESET_DELAY: i64 = 24 * 3600;
 
+/// After a password reset by e-mail, how long 2FA can't be reset by e-mail (`403
+/// password_reset_recent`): the mailbox alone must not beat 2FA, the owner gets a week to notice
+/// the reset notice and react.
+pub const RESET_AFTER_PASSWORD_RESET: i64 = 7 * 24 * 3600;
+
+/// `403 password_reset_recent` while a password reset by e-mail is less than
+/// `RESET_AFTER_PASSWORD_RESET` old.
+async fn not_after_password_reset(state: &AppState, user_id: i64) -> AppResult<()> {
+    let at: Option<i64> = sqlx::query_scalar("SELECT password_reset_at FROM users WHERE id = ?")
+        .bind(user_id)
+        .fetch_one(&state.db)
+        .await?;
+    if at.is_some_and(|at| at > now_unix() as i64 - RESET_AFTER_PASSWORD_RESET) {
+        return Err(AppError::Forbidden("password_reset_recent"));
+    }
+    Ok(())
+}
+
 /// The account behind a live sign-in challenge (the first step, password or provider, is done).
 async fn challenge_account(state: &AppState, challenge: &str) -> AppResult<(Account, String)> {
     let row = codes::find(state, codes::Kind::Mfa, challenge)
@@ -320,6 +343,7 @@ pub async fn reset_send(
 ) -> AppResult<Json<Value>> {
     state.auth.limits.hit_ip(&limits::MFA_IP, ip)?;
     let (acct, email) = challenge_account(&state, &body.challenge).await?;
+    not_after_password_reset(&state, acct.id).await?;
     if !state.auth.mailer.configured() {
         return Err(AppError::Unavailable("email_not_configured"));
     }
@@ -366,6 +390,7 @@ pub async fn reset_confirm(
 ) -> AppResult<Json<Value>> {
     state.auth.limits.hit_ip(&limits::CODE_IP, ip)?;
     let (acct, email) = challenge_account(&state, &body.challenge).await?;
+    not_after_password_reset(&state, acct.id).await?;
     let row = codes::redeem_short(&state, codes::Kind::MfaReset, &email, &body.code).await?;
     if row.user_id != Some(acct.id) {
         return Err(AppError::BadRequest("bad_code"));

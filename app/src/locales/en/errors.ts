@@ -37,6 +37,7 @@ export const errors: Messages['errors'] = {
   not_author: "That's not yours",
   not_pinner: 'Only whoever pinned it (or the owner) can unpin it',
   too_many_pins: 'Too many pins in this room',
+  password_reset_recent: 'Password reset less than 7 days ago: try again later',
   suspended: 'This account is suspended',
   party_locked: 'The party is closed',
   removed: 'You were removed from this room',

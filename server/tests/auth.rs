@@ -3909,3 +3909,264 @@ async fn a_claimed_session_can_secure_an_account_whose_other_device_is_long_unus
         StatusCode::UNAUTHORIZED
     );
 }
+
+// ---------- re-audit batch 2: 2FA reset after a password reset, tickets, suspension ----------
+
+#[tokio::test]
+async fn a_password_reset_by_email_holds_off_a_2fa_reset_for_a_week() {
+    let t = setup().await;
+    let (ana, ana_id) = signup(&t, "ana@example.com", "Ana").await;
+    verify_email(&t, &ana, "ana@example.com").await;
+    let secret = enable_2fa(&t, &ana).await;
+    let mfa_reset =
+        async |path: &str, body: Value| call(&t.app, "POST", path, None, Some(body)).await;
+
+    // A 2FA reset is pending (confirmed), and another code is on its way. (Sends share the
+    // 3 / hour budget with `forgot`.)
+    sqlx::query("UPDATE users SET mfa_reset_at = ? WHERE id = ?")
+        .bind(now() as i64 + 3600)
+        .bind(ana_id)
+        .execute(&t.state.db)
+        .await
+        .unwrap();
+    let (_, b) = login(&t, "ana@example.com", PASSWORD).await;
+    let c = b["challenge"].as_str().unwrap().to_owned();
+    let (s, _) = mfa_reset("/auth/2fa/reset/send", json!({ "challenge": c })).await;
+    assert_eq!(s, StatusCode::OK);
+    let pending = t.mail.last_code("ana@example.com").unwrap();
+
+    // With the mailbox alone: the password is reset by e-mail...
+    let code = forgot_code(&t, "ana@example.com").await;
+    let new_password = "nouveau-mot-de-passe-solide";
+    let (s, b) = call(
+        &t.app,
+        "POST",
+        "/auth/reset",
+        None,
+        Some(json!({ "email": "ana@example.com", "code": code, "password": new_password })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{b}");
+    let c = b["challenge"]
+        .as_str()
+        .expect("2FA still applies")
+        .to_owned();
+    // ...which calls the pending 2FA reset off, its codes too...
+    let at: Option<i64> = sqlx::query_scalar("SELECT mfa_reset_at FROM users WHERE id = ?")
+        .bind(ana_id)
+        .fetch_one(&t.state.db)
+        .await
+        .unwrap();
+    assert_eq!(at, None);
+    let (s, b) = mfa_reset(
+        "/auth/2fa/reset/confirm",
+        json!({ "challenge": c, "code": pending }),
+    )
+    .await;
+    assert_eq!(
+        (s, b["error"].as_str()),
+        (StatusCode::FORBIDDEN, Some("password_reset_recent"))
+    );
+    // ...and no new 2FA reset by e-mail can start for a week.
+    let mails = t.mail.count("ana@example.com");
+    let (s, b) = mfa_reset("/auth/2fa/reset/send", json!({ "challenge": c })).await;
+    assert_eq!(
+        (s, b["error"].as_str()),
+        (StatusCode::FORBIDDEN, Some("password_reset_recent"))
+    );
+    assert_eq!(t.mail.count("ana@example.com"), mails, "no code sent");
+    // The owner, with the second factor, still signs in.
+    let (s, b) = call(
+        &t.app,
+        "POST",
+        "/auth/login/2fa",
+        None,
+        Some(json!({ "challenge": c, "code": totp_code(&secret, now() + 30).unwrap() })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{b}");
+
+    // A week later, the e-mail way works again (and the old code is still dead).
+    sqlx::query("UPDATE users SET password_reset_at = ? WHERE id = ?")
+        .bind(now() as i64 - 7 * 24 * 3600 - 60)
+        .bind(ana_id)
+        .execute(&t.state.db)
+        .await
+        .unwrap();
+    let (_, b) = login(&t, "ana@example.com", new_password).await;
+    let c = b["challenge"].as_str().unwrap().to_owned();
+    let (s, b) = mfa_reset(
+        "/auth/2fa/reset/confirm",
+        json!({ "challenge": c, "code": pending }),
+    )
+    .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST, "{b}");
+    let (s, b) = mfa_reset("/auth/2fa/reset/send", json!({ "challenge": c })).await;
+    assert_eq!(s, StatusCode::OK, "{b}");
+}
+
+async fn ticket(t: &T, token: &str, ip: &str) -> (StatusCode, Value) {
+    let r = send(
+        &t.app,
+        "POST",
+        "/auth/ticket",
+        Some(token),
+        Some(json!({ "purpose": "export" })),
+        &[("x-forwarded-for", ip)],
+    )
+    .await;
+    (r.status, r.body)
+}
+
+#[tokio::test]
+async fn tickets_are_capped_per_session_account_and_ip() {
+    use quidenous_server::{
+        accounts::tickets::MAX_PER_SESSION,
+        quotas::{TICKET_IP, TICKET_USER},
+    };
+    let t = setup().await;
+    let (ana, _) = signup(&t, "ana@example.com", "Ana").await;
+    let room = room_with(&t, &ana, &[]).await;
+    // One session keeps its last `MAX_PER_SESSION` live tickets: asking for more drops the oldest.
+    let mut tickets = Vec::new();
+    for _ in 0..MAX_PER_SESSION + 5 {
+        let (s, b) = ticket(&t, &ana, "10.0.0.1").await;
+        assert_eq!(s, StatusCode::OK, "{b}");
+        tickets.push(b["ticket"].as_str().unwrap().to_owned());
+    }
+    let export = async |tk: &str| {
+        send(
+            &t.app,
+            "GET",
+            &format!("/history/export?ticket={tk}&room={room}"),
+            None,
+            None,
+            &[],
+        )
+        .await
+        .status
+    };
+    for tk in &tickets[..5] {
+        assert_eq!(export(tk).await, StatusCode::UNAUTHORIZED);
+    }
+    for tk in &tickets[5..] {
+        assert_eq!(export(tk).await, StatusCode::OK);
+    }
+    // Per account, whatever the session.
+    let (s, b) = login(&t, "ana@example.com", PASSWORD).await;
+    assert_eq!(s, StatusCode::OK);
+    let other = b["token"].as_str().unwrap().to_owned();
+    let mut asked = tickets.len();
+    let status = loop {
+        let (s, _) = ticket(&t, &other, "10.0.0.2").await;
+        asked += 1;
+        if s != StatusCode::OK || asked > TICKET_USER.capacity as usize + 3 {
+            break s;
+        }
+    };
+    assert_eq!(status, StatusCode::TOO_MANY_REQUESTS);
+    // (A slow run may have refilled a token meanwhile.)
+    let cap = TICKET_USER.capacity as usize;
+    assert!((cap + 1..=cap + 2).contains(&asked), "{asked}");
+    // Per IP: another account behind a busy IP.
+    let (bob, _) = signup(&t, "bob@example.com", "Bob").await;
+    for _ in 0..TICKET_IP.capacity {
+        t.state.auth.limits.hit(&TICKET_IP, "10.0.0.3").unwrap();
+    }
+    let (s, b) = ticket(&t, &bob, "10.0.0.3").await;
+    assert_eq!(s, StatusCode::TOO_MANY_REQUESTS, "{b}");
+    let (s, _) = ticket(&t, &bob, "10.0.0.4").await;
+    assert_eq!(s, StatusCode::OK);
+}
+
+async fn suspend_in_db(t: &T, user: i64) {
+    sqlx::query(
+        "UPDATE users SET suspended_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
+    )
+    .bind(user)
+    .execute(&t.state.db)
+    .await
+    .unwrap();
+}
+
+#[tokio::test]
+async fn a_suspended_account_gets_and_keeps_no_session() {
+    let t = setup().await;
+    // A session left over (issued while the suspension was being written) is no session.
+    let (ana, ana_id) = signup(&t, "ana@example.com", "Ana").await;
+    let room = room_with(&t, &ana, &[]).await;
+    let (s, _) = in_room(&t, "GET", "/me", &ana, room, None).await;
+    assert_eq!(s, StatusCode::OK);
+    let (s, b) = ticket(&t, &ana, "10.0.0.1").await;
+    assert_eq!(s, StatusCode::OK);
+    let tk = b["ticket"].as_str().unwrap().to_owned();
+    suspend_in_db(&t, ana_id).await;
+    for path in ["/me", "/group", "/rooms"] {
+        let (s, _) = in_room(&t, "GET", path, &ana, room, None).await;
+        assert_eq!(s, StatusCode::UNAUTHORIZED, "{path}");
+    }
+    let (s, _) = call(&t.app, "GET", "/auth/account", Some(&ana), None).await;
+    assert_eq!(s, StatusCode::UNAUTHORIZED);
+    let (s, _) = ticket(&t, &ana, "10.0.0.1").await;
+    assert_eq!(s, StatusCode::UNAUTHORIZED);
+    let r = send(
+        &t.app,
+        "GET",
+        &format!("/history/export?ticket={tk}&room={room}"),
+        None,
+        None,
+        &[],
+    )
+    .await;
+    assert_eq!(r.status, StatusCode::UNAUTHORIZED);
+
+    // Suspended between the password and the 2FA code: no session either.
+    let (bob, bob_id) = signup(&t, "bob@example.com", "Bob").await;
+    verify_email(&t, &bob, "bob@example.com").await;
+    let secret = enable_2fa(&t, &bob).await;
+    let (_, b) = login(&t, "bob@example.com", PASSWORD).await;
+    let c = b["challenge"].as_str().unwrap().to_owned();
+    suspend_in_db(&t, bob_id).await;
+    let (s, b) = call(
+        &t.app,
+        "POST",
+        "/auth/login/2fa",
+        None,
+        Some(json!({ "challenge": c, "code": totp_code(&secret, now() + 30).unwrap() })),
+    )
+    .await;
+    assert_eq!(
+        (s, b["error"].as_str()),
+        (StatusCode::FORBIDDEN, Some("suspended")),
+        "{b}"
+    );
+    assert!(b["token"].is_null());
+
+    // A legacy account can't come back by typing its first name.
+    let (s, b) = legacy_join(&t.app, "Zoé").await;
+    assert_eq!(s, StatusCode::OK, "{b}");
+    let zoe = b["token"].as_str().unwrap().to_owned();
+    let zoe_id: i64 = sqlx::query_scalar("SELECT user_id FROM user_tokens WHERE token_hash = ?")
+        .bind(hex::encode(Sha256::digest(zoe.as_bytes())))
+        .fetch_one(&t.state.db)
+        .await
+        .unwrap();
+    suspend_in_db(&t, zoe_id).await;
+    sqlx::query("DELETE FROM user_tokens WHERE user_id = ?")
+        .bind(zoe_id)
+        .execute(&t.state.db)
+        .await
+        .unwrap();
+    let (s, b) = legacy_join(&t.app, "zoé").await;
+    assert_eq!(
+        (s, b["error"].as_str()),
+        (StatusCode::FORBIDDEN, Some("suspended")),
+        "{b}"
+    );
+    let tokens: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM user_tokens WHERE user_id = ?")
+        .bind(zoe_id)
+        .fetch_one(&t.state.db)
+        .await
+        .unwrap();
+    assert_eq!(tokens, 0);
+}

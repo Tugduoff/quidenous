@@ -233,16 +233,23 @@ pub async fn reset(
         .ok_or(AppError::BadRequest("bad_code"))?;
     let hash = state.auth.hasher.hash(&body.password).await?;
     let mut tx = crate::db::write_tx(&state.db).await?;
-    // A pending 2FA reset stops too: someone who knew the old password may have asked for it.
+    // A pending 2FA reset stops too (its codes with it): someone who knew the old password may
+    // have asked for it. And none can start for a while (`mfa::RESET_AFTER_PASSWORD_RESET`):
+    // with the mailbox alone, a password reset then a 2FA reset by e-mail would beat 2FA.
     sqlx::query(
-        "UPDATE users SET password_hash = ?, mfa_reset_at = NULL, \
+        "UPDATE users SET password_hash = ?, mfa_reset_at = NULL, password_reset_at = ?, \
          email_verified_at = COALESCE(email_verified_at, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) \
          WHERE id = ?",
     )
     .bind(&hash)
+    .bind(super::crypto::now_unix() as i64)
     .bind(acct.id)
     .execute(&mut *tx)
     .await?;
+    sqlx::query("DELETE FROM auth_codes WHERE user_id = ? AND kind = 'mfa_reset'")
+        .bind(acct.id)
+        .execute(&mut *tx)
+        .await?;
     if acct.email_verified_at.is_none() {
         // Until now nobody had proven this address: whoever typed it may have linked their own
         // provider or turned 2FA on. The reset proves the real owner, so those go (and 2FA set up

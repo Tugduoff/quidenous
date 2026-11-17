@@ -101,7 +101,7 @@ In-memory token buckets (same limiter as the auth limits in `docs/AUTH.md`, rule
 | Friend requests sent (`POST /friends`, `POST /friends/{id}`) | 30 / hour per account; accepting is free |
 | `POST /questions` | 60 / hour per account; `409 question_exists` when the room already has it waiting or was already asked it (built-in deck included) |
 | `POST /questions/import` | 10 / hour per account, 500 questions per import (`400 too_many_questions`), 1 MB body |
-| `PUT /me/photo` | 10 / hour per account, 12 MB, 8000 px a side at most (decoded off the async threads); stored under a 128-bit random name |
+| `PUT /me/photo` | 10 / hour per account (taken before the body is read), 12 MB, 4096 px a side and 64 MB of decoding at most (off the async threads, 2 image decodes at once server-wide, see CHAT_MEDIA.md); stored under a 128-bit random name. Party guests may set one too (same limits) |
 | `POST /push/subscribe` | 30 / hour per account, 10 devices per account (the least recently registered go), Web Push endpoints on a known push service only (below) |
 | Live sockets | 8 per account, 64 per IP, 2000 in all (`429 too_many_sockets`); 256-byte messages, only `here` / `away` (anything else closes the socket); a ping every 30 s, closed after 75 s without an answer; every minute the socket checks that its session and seat still exist (closed after a sign-out, a removal or a room deletion; also right after `member_removed` for its own seat and `room_deleted`) |
 

@@ -34,9 +34,6 @@ const PHOTO_UPLOAD_MAX: usize = 12 * 1024 * 1024;
 const IMPORT_MAX: usize = 1024 * 1024;
 /// More people than this named in one message counts as @tous.
 const MENTIONS_MAX: usize = 5;
-/// Pixels on either side of an uploaded photo, and memory its decoding may take.
-const PHOTO_MAX_SIDE: u32 = 8000;
-const PHOTO_MAX_ALLOC: u64 = 256 * 1024 * 1024;
 
 pub fn router() -> Router<AppState> {
     Router::new()
@@ -355,9 +352,14 @@ async fn join(
     // A first name no longer hands over an account that can sign in: sign in instead.
     if signed_in.is_none()
         && let Some(user) = existing.as_ref().and_then(|m| m.user_id)
-        && crate::accounts::is_secured(&mut *tx, user).await?
     {
-        return Err(AppError::Conflict("account_protected"));
+        if crate::accounts::is_secured(&mut *tx, user).await? {
+            return Err(AppError::Conflict("account_protected"));
+        }
+        // Nor a suspended one (legacy accounts have no other way back in).
+        if crate::accounts::is_suspended(&mut *tx, user).await? {
+            return Err(AppError::Forbidden("suspended"));
+        }
     }
     let rejoined = existing.as_ref().is_some_and(|m| m.removed_at.is_some());
     let joined = existing.is_none();
@@ -497,6 +499,10 @@ async fn upload_photo(
     Me(me): Me,
     mut multipart: Multipart,
 ) -> AppResult<Json<Member>> {
+    // Charged before the body is read: a flood of uploads costs its sender, not the server's memory.
+    if let Some(user) = me.user_id {
+        crate::quotas::hit_user(&state, &crate::quotas::PHOTO_USER, user)?;
+    }
     let mut bytes = None;
     while let Some(field) = multipart
         .next_field()
@@ -513,23 +519,17 @@ async fn upload_photo(
         }
     }
     let bytes = bytes.ok_or(AppError::BadRequest("missing_photo"))?;
-    if let Some(user) = me.user_id {
-        crate::quotas::hit_user(&state, &crate::quotas::PHOTO_USER, user)?;
-    }
     // A 128-bit random name: photos are public to whoever has the link.
     let file = format!("{}-{}.jpg", me.id, &new_token()[..32]);
     let dir = state.config.data_dir.join("photos");
     tokio::fs::create_dir_all(&dir).await?;
     let path = dir.join(&file);
-    // Decoding and resizing are CPU-heavy: off the async threads, within size limits.
-    tokio::task::spawn_blocking(move || -> AppResult<()> {
-        let mut limits = image::Limits::default();
-        limits.max_image_width = Some(PHOTO_MAX_SIDE);
-        limits.max_image_height = Some(PHOTO_MAX_SIDE);
-        limits.max_alloc = Some(PHOTO_MAX_ALLOC);
+    // Decoding and resizing are CPU- and memory-heavy: off the async threads, within size limits,
+    // a couple at a time server-wide.
+    crate::media::decode(move || -> AppResult<()> {
         let mut reader =
             image::ImageReader::new(std::io::Cursor::new(bytes)).with_guessed_format()?;
-        reader.limits(limits);
+        reader.limits(crate::media::decode_limits());
         let image = reader.decode()?.resize_to_fill(
             PHOTO_SIZE,
             PHOTO_SIZE,
@@ -538,8 +538,7 @@ async fn upload_photo(
         image.to_rgb8().save(path)?;
         Ok(())
     })
-    .await
-    .map_err(|e| AppError::Internal(e.to_string()))??;
+    .await?;
     // A photo replaces the drawn avatar.
     let mut tx = crate::db::write_tx(&state.db).await?;
     sqlx::query("UPDATE users SET photo = ?, avatar = NULL WHERE id = ?")
