@@ -5,6 +5,7 @@ import { type ReactNode, useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 
+import { QueryState } from '@/components/query-state';
 import { ScanButton } from '@/components/qr-scanner';
 import { Screen } from '@/components/screen';
 import { Avatar, Card, CodeText, Display, PressableScale } from '@/components/ui';
@@ -66,7 +67,8 @@ export default function FriendsScreen() {
   const t = useTheme();
   const tr = useT();
   const qc = useQueryClient();
-  const { data } = useFriends();
+  const friendsQuery = useFriends();
+  const data = friendsQuery.data;
   const [code, setCode] = useState(presetFriendCode() ?? '');
   const [note, setNote] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -111,10 +113,12 @@ export default function FriendsScreen() {
         accessibilityRole="button"
         accessibilityLabel={tr('common.back')}
         onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
+        hitSlop={4}
         style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card }}>
         <ChevronLeft size={22} color={t.txt} />
       </Pressable>
       <Display size={30}>{tr('friends.title')}</Display>
+      <QueryState query={friendsQuery} />
 
       {!!incoming.length && <Label>{tr('friends.requests')}</Label>}
       {incoming.map((p) => (

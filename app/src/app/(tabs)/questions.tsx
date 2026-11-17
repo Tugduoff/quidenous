@@ -182,6 +182,11 @@ export default function QuestionsScreen() {
   const locked = group?.settings.questions_by === 'owner' && group.my_role !== 'owner';
   const sortable = canReorder && !locked && (data?.custom.length ?? 0) > 1;
   const othersQuestion = (q: Queue['custom'][number]) => q.author_id != null && q.author_id !== me?.id;
+  const canDelete = (q: Queue['custom'][number]) => q.author_id === me?.id || group?.my_role === 'owner';
+  const rowActions = (q: Queue['custom'][number]) => [
+    ...(othersQuestion(q) ? [{ name: 'report', label: tr('moderation.reportQuestion') }] : []),
+    ...(canDelete(q) ? [{ name: 'delete', label: tr('questions.deleteQuestion') }] : []),
+  ];
   const row = (q: Queue['custom'][number]) => (
     <Card
       style={{
@@ -206,7 +211,7 @@ export default function QuestionsScreen() {
         )}
       </View>
       {/* Its author or the room owner can take it out before it's asked. */}
-      {(q.author_id === me?.id || group?.my_role === 'owner') && (
+      {canDelete(q) && (
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={tr('questions.deleteQuestion')}
@@ -335,7 +340,7 @@ export default function QuestionsScreen() {
                     </Pressable>
                   )}
                   {(sameItems || addError) && (
-                    <Text numberOfLines={1} style={{ flex: 1, textAlign: 'right', fontFamily: t.font.regular, fontSize: 13, color: t.tag }}>
+                    <Text numberOfLines={1} style={{ flex: 1, textAlign: 'right', fontFamily: t.font.regular, fontSize: 13, color: t.tagInk }}>
                       {sameItems ? tr('questions.sameItems') : addError}
                     </Text>
                   )}
@@ -462,7 +467,7 @@ export default function QuestionsScreen() {
                     color: t.txt,
                   }}>
                   {tidy(l.text)}
-                  {l.problem && <Text style={{ color: t.tag }}>{`  · ${tr(`questions.problem.${l.problem}`)}`}</Text>}
+                  {l.problem && <Text style={{ color: t.tagInk }}>{`  · ${tr(`questions.problem.${l.problem}`)}`}</Text>}
                 </Text>
                 {!!l.items?.length && (
                   <Text numberOfLines={1} style={{ fontFamily: t.font.regular, fontSize: 13, lineHeight: 18, color: t.mut }}>
@@ -588,7 +593,15 @@ export default function QuestionsScreen() {
         // Deleting one closes the gap and shuffling slides every card to its new place.
         data?.custom.map((q) => (
           <Animated.View key={q.id} entering={isNew(q.id) ? motion.enter : undefined} exiting={motion.exit} layout={motion.layout}>
-            <Pressable delayLongPress={400} onLongPress={othersQuestion(q) ? () => setToReport({ kind: 'question', id: q.id }) : undefined}>
+            <Pressable
+              delayLongPress={400}
+              onLongPress={othersQuestion(q) ? () => setToReport({ kind: 'question', id: q.id }) : undefined}
+              // Screen readers can't long-press: the report (and the delete button inside the row) as actions.
+              accessibilityActions={rowActions(q)}
+              onAccessibilityAction={(e) => {
+                if (e.nativeEvent.actionName === 'report') setToReport({ kind: 'question', id: q.id });
+                if (e.nativeEvent.actionName === 'delete') setToDelete(q);
+              }}>
               {row(q)}
             </Pressable>
           </Animated.View>

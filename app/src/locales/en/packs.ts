@@ -4,6 +4,8 @@ export const packs: Messages['packs'] = {
   title: 'Packs',
   search: 'Search packs',
   none: 'No packs',
+  notFound: 'This pack no longer exists',
+  creatorNotFound: 'Profile not found',
   mine: 'My packs',
   create: 'Publish a pack',
   sort: {

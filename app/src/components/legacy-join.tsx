@@ -145,7 +145,7 @@ export function LegacyJoin() {
         </Card>
       )}
       <TermsCheck value={terms} onChange={setTerms} />
-      {error && <Text style={{ fontFamily: t.font.semibold, color: t.tag }}>{error}</Text>}
+      {error && <Text style={{ fontFamily: t.font.semibold, color: t.tagInk }}>{error}</Text>}
     </Screen>
   );
 }

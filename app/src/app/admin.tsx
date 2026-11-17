@@ -80,7 +80,7 @@ export default function AdminScreen() {
       {(empty || me?.admin === false) && (
         <Text style={{ fontFamily: t.font.regular, fontSize: 15, color: t.mut, textAlign: 'center', marginTop: 24 }}>{tr('admin.empty')}</Text>
       )}
-      {(act.isError || close.isError) && <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.tag }}>{tr('common.failed')}</Text>}
+      {(act.isError || close.isError) && <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.tagInk }}>{tr('common.failed')}</Text>}
 
       {!!review?.reports?.length && <Text style={section}>{tr('admin.reported')}</Text>}
       {review?.reports?.map((r, i) => (
@@ -104,7 +104,7 @@ export default function AdminScreen() {
                 {tr('packs.byline', { count: p.count, author: p.author })}
               </Text>
             </PressableScale>
-            <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.tag }}>{tr('admin.reports', { count: p.reports.length })}</Text>
+            <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.tagInk }}>{tr('admin.reports', { count: p.reports.length })}</Text>
             {p.reports.map((r, j) => (
               <Text key={j} style={{ fontFamily: t.font.regular, fontSize: 13, lineHeight: 18, color: t.txt }}>
                 <Text style={{ fontFamily: t.font.semibold }}>{isReason(r.reason) ? tr(`packs.reasons.${r.reason}`) : '—'}</Text>
@@ -248,7 +248,7 @@ function ReportCard({ report: r, busy, onAct }: { report: ReviewReport; busy: bo
     <Card style={{ padding: 16, gap: 8 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
         <Icon size={16} color={t.mut} />
-        <Text style={{ flex: 1, fontFamily: t.font.semibold, fontSize: 13, color: t.tag }}>{tr('admin.reports', { count: r.count })}</Text>
+        <Text style={{ flex: 1, fontFamily: t.font.semibold, fontSize: 13, color: t.tagInk }}>{tr('admin.reports', { count: r.count })}</Text>
         {r.hidden && <MiniTag label={tr('admin.hidden')} />}
         {r.gone && <MiniTag label={tr('admin.gone')} />}
         {r.person?.suspended && <MiniTag label={tr('admin.suspended')} tone="hot" />}
@@ -288,7 +288,7 @@ function Pill({ icon: Icon, label, onPress, busy, danger }: { icon: LucideIcon; 
         alignItems: 'center',
         backgroundColor: t.card2,
       }}>
-      <Icon size={15} color={danger ? t.tag : t.txt} />
+      <Icon size={15} color={danger ? t.tagInk : t.txt} />
       <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.txt }}>{label}</Text>
     </PressableScale>
   );
@@ -310,7 +310,7 @@ function Actions({ busy, onReject, rejectLabel, onApprove }: { busy: boolean; on
   return (
     <View style={{ flexDirection: 'row', gap: 10, marginTop: 4 }}>
       <PressableScale accessibilityRole="button" disabled={busy} onPress={onReject} style={[pill, { backgroundColor: t.card2 }]}>
-        <X size={16} color={t.tag} />
+        <X size={16} color={t.tagInk} />
         <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.txt }}>{rejectLabel}</Text>
       </PressableScale>
       <PressableScale accessibilityRole="button" disabled={busy} onPress={onApprove} style={[pill, { backgroundColor: t.acc }]}>

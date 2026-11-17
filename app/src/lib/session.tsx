@@ -11,6 +11,8 @@ import { storage } from './storage';
 const TOKEN_KEY = 'qdn.token';
 const SERVER_KEY = 'qdn.server';
 const ROOM_KEY = 'qdn.room';
+/** Set while the account is in no room: the next start asks for the room list instead of a `/me` known to fail. */
+const ROOMLESS_KEY = 'qdn.roomless';
 
 type Session = {
   ready: boolean;
@@ -47,6 +49,18 @@ const SessionContext = createContext<Session | null>(null);
 
 /** Who I am in the current room, or why not. A room I left is forgotten and the server picks another. */
 async function loadMe(): Promise<Member | 'no_room' | 'out' | 'offline'> {
+  const found = await askMe();
+  if (found === 'no_room') await storage.set(ROOMLESS_KEY, '1');
+  else if (typeof found === 'object') await storage.remove(ROOMLESS_KEY);
+  return found;
+}
+
+async function askMe(): Promise<Member | 'no_room' | 'out' | 'offline'> {
+  // In no room last time and still none: `/me` would only answer 403 (an error in the console on every start).
+  if (apiRoom() == null && (await storage.get(ROOMLESS_KEY))) {
+    const rooms = await api<unknown[]>('/rooms').catch(() => null);
+    if (Array.isArray(rooms) && !rooms.length) return 'no_room';
+  }
   try {
     return await api<Member>('/me');
   } catch (e) {
@@ -55,7 +69,7 @@ async function loadMe(): Promise<Member | 'no_room' | 'out' | 'offline'> {
     if (e.status === 403 && apiRoom() != null) {
       setApiRoom(null);
       await storage.remove(ROOM_KEY);
-      return loadMe();
+      return askMe();
     }
     if (e.status === 401) return 'out';
     return 'offline';
@@ -158,6 +172,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
   };
 
   const enterRoom = async (id: number) => {
+    await storage.remove(ROOMLESS_KEY);
     await setRoom(id);
     clearRoomData(qc);
     setPendingCode(null);
@@ -167,6 +182,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
   const noRoomLeft = async () => {
     setApiRoom(null);
     await storage.remove(ROOM_KEY);
+    await storage.set(ROOMLESS_KEY, '1');
     setRoomState(null);
     setRoomless(true);
   };
@@ -196,6 +212,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
   const leave = async () => {
     await storage.remove(TOKEN_KEY);
     await storage.remove(ROOM_KEY);
+    await storage.remove(ROOMLESS_KEY);
     setApiRoom(null);
     setRoomState(null);
     setApiToken(null);

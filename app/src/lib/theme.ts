@@ -27,6 +27,8 @@ export const themes = {
     accInk: '#C8FF3D',
     accSoft: '#1F2412',
     tag: '#FF4FA3',
+    /** Pink text and its icons (errors, danger rows): `tag` is too light on the light background. */
+    tagInk: '#FF4FA3',
     shadow: {},
   },
   light: {
@@ -40,6 +42,7 @@ export const themes = {
     accInk: '#4F7D00',
     accSoft: '#F1FFD0',
     tag: '#E8338A',
+    tagInk: '#C2186B',
     shadow: {
       shadowColor: '#000',
       shadowOpacity: 0.06,

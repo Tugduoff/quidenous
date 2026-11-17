@@ -155,7 +155,7 @@ export default function AvatarBuilder() {
       tabs={false}
       footer={
         <>
-          {error && <Text style={{ fontFamily: t.font.semibold, color: t.tag, textAlign: 'center' }}>{tr('avatar.notSaved')}</Text>}
+          {error && <Text style={{ fontFamily: t.font.semibold, color: t.tagInk, textAlign: 'center' }}>{tr('avatar.notSaved')}</Text>}
           <Button onPress={save} loading={busy} disabled={spec === me?.avatar && !me?.photo_url}>
             {tr('common.save')}
           </Button>

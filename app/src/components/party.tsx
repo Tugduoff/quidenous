@@ -19,7 +19,7 @@ import Animated, {
 import { Avatar, AvatarStack, PressableScale } from '@/components/ui';
 import type { Member } from '@/lib/api';
 import { useT } from '@/lib/i18n';
-import { EASE, motion, useArrivals } from '@/lib/motion';
+import { EASE, LAYOUT_EASE, motion, useArrivals } from '@/lib/motion';
 import { type PartyPlayer, type PartyRound, partyJoinLink, REACTIONS, tallies } from '@/lib/party';
 import { useTheme } from '@/lib/theme';
 
@@ -69,7 +69,7 @@ export function Countdown({ ms, total, big }: { ms: number | null; total: number
           fontFamily: t.font.display,
           fontSize: big ? 88 : 30,
           lineHeight: big ? 96 : 34,
-          color: urgent ? t.tag : t.txt,
+          color: urgent ? t.tagInk : t.txt,
           fontVariant: ['tabular-nums'],
         }}>
         {s ?? ''}
@@ -94,8 +94,8 @@ export function VotedLine({ round, byId, big }: { round: PartyRound; byId: Map<n
 
 const sys = ReduceMotion.System;
 // Fresh builders: a preset's own `.delay()` would change it for the whole app.
-const crownIn = FadeInUp.duration(260).easing(EASE).delay(500).reduceMotion(sys);
-const nameIn = FadeInDown.duration(280).easing(EASE).delay(650).reduceMotion(sys);
+const crownIn = FadeInUp.duration(260).easing(LAYOUT_EASE).delay(500).reduceMotion(sys);
+const nameIn = FadeInDown.duration(280).easing(LAYOUT_EASE).delay(650).reduceMotion(sys);
 const faceIn = (i: number) =>
   ZoomIn.springify()
     .damping(11)

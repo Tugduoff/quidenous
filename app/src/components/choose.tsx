@@ -121,7 +121,7 @@ export function ChooseBallot({
       footer={
         <>
           {vote.isError && (
-            <Text style={{ textAlign: 'center', fontFamily: t.font.semibold, fontSize: 13, color: t.tag }}>{tr('vote.choose.failed')}</Text>
+            <Text style={{ textAlign: 'center', fontFamily: t.font.semibold, fontSize: 13, color: t.tagInk }}>{tr('vote.choose.failed')}</Text>
           )}
           <Animated.View style={bump}>
             <Button testID="choose-vote" disabled={!all} loading={vote.isPending} onPress={send}>
@@ -655,7 +655,7 @@ function Verdict({ p, compact }: { p: Person; compact?: boolean }) {
   const tr = useT();
   const v = verdict(p);
   const saw = p.real == null ? 0 : p.guesses.filter((g) => g.item === p.real).length;
-  const [Icon, color] = v === 'match' ? [CircleCheck, t.accInk] : v === 'surprise' ? [Sparkles, t.tag] : [null, t.mut];
+  const [Icon, color] = v === 'match' ? [CircleCheck, t.accInk] : v === 'surprise' ? [Sparkles, t.tagInk] : [null, t.mut];
   if (compact) return Icon ? <Icon size={18} color={color} /> : null;
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }}>

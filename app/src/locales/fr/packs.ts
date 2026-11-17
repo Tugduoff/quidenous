@@ -3,6 +3,8 @@ export const packs = {
   title: 'Packs',
   search: 'Chercher un pack',
   none: 'Aucun pack',
+  notFound: "Ce pack n'existe plus",
+  creatorNotFound: 'Profil introuvable',
   mine: 'Mes packs',
   create: 'Publier un pack',
   sort: {

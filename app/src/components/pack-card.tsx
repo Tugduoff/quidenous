@@ -3,7 +3,7 @@ import { Check, ChevronLeft, Download, Heart, Star } from 'lucide-react-native';
 import type { ReactNode } from 'react';
 import { Text, View } from 'react-native';
 
-import { Card, PressableScale } from '@/components/ui';
+import { Card, PressableScale, TAG_BG } from '@/components/ui';
 import { formatNumber, useT } from '@/lib/i18n';
 import type { PackItem } from '@/lib/packs';
 import { useTheme } from '@/lib/theme';
@@ -18,7 +18,7 @@ export function MiniTag({ label, tone = 'mut' }: { label: string; tone?: 'mut' |
         height: 18,
         borderRadius: 6,
         justifyContent: 'center',
-        backgroundColor: tone === 'hot' ? t.tag : t.card2,
+        backgroundColor: tone === 'hot' ? TAG_BG : t.card2,
       }}>
       <Text style={{ fontFamily: t.font.bold, fontSize: 10, letterSpacing: 0.5, color: tone === 'hot' ? '#fff' : t.mut }}>{label}</Text>
     </View>
@@ -38,7 +38,7 @@ export function StatusBadge({ status }: { status: PackItem['status'] }) {
         height: 22,
         borderRadius: 11,
         justifyContent: 'center',
-        backgroundColor: removed ? t.tag : t.card2,
+        backgroundColor: removed ? TAG_BG : t.card2,
       }}>
       <Text style={{ fontFamily: t.font.bold, fontSize: 11, color: removed ? '#fff' : t.mut }}>{tr(`packs.status.${status}`)}</Text>
     </View>
@@ -85,7 +85,7 @@ export function PackCard({ pack: p, roomLang, withStatus }: { pack: PackItem; ro
           </Text>
         )}
         {withStatus && p.status === 'removed' && !!p.removed_reason && (
-          <Text numberOfLines={2} style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.tag }}>
+          <Text numberOfLines={2} style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.tagInk }}>
             {tr('packs.removedReason', { reason: p.removed_reason })}
           </Text>
         )}
@@ -171,7 +171,7 @@ export function Chip({
   onPress: () => void;
 }) {
   const t = useTheme();
-  const bg = on ? (hot ? t.tag : t.acc) : t.card;
+  const bg = on ? (hot ? TAG_BG : t.acc) : t.card;
   const fg = on ? (hot ? '#fff' : t.accTxt) : t.txt;
   return (
     <PressableScale

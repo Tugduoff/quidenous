@@ -6,9 +6,10 @@ import { Text, TextInput, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 
 import { IconButton, MiniTag, PageHeader, Stat, StatusBadge } from '@/components/pack-card';
+import { QueryState } from '@/components/query-state';
 import { Screen } from '@/components/screen';
 import { askConfirm, Card, Dialog, DialogActions, DialogTitle, Display, PressableScale, QuestionText } from '@/components/ui';
-import { api, ApiError } from '@/lib/api';
+import { api, ApiError, isNotFound } from '@/lib/api';
 import { useT } from '@/lib/i18n';
 import { motion, usePop } from '@/lib/motion';
 import {
@@ -34,7 +35,8 @@ export default function PackScreen() {
   const tr = useT();
   const qc = useQueryClient();
   const id = Number(useLocalSearchParams<{ id: string }>().id);
-  const { data: pack, isError } = usePackDetail(id);
+  const detail = usePackDetail(id);
+  const pack = detail.data;
   const { data: group } = useGroup();
   const { data: rooms } = useRooms();
   const { data: me } = useCommunityMe();
@@ -103,7 +105,11 @@ export default function PackScreen() {
     return (
       <Screen tabs={false}>
         <PageHeader fallback="/packs" />
-        {isError && <Text style={{ fontFamily: t.font.regular, fontSize: 15, color: t.mut }}>{tr('packs.none')}</Text>}
+        {isNotFound(detail.error) ? (
+          <Text style={{ fontFamily: t.font.regular, fontSize: 15, color: t.mut }}>{tr('packs.notFound')}</Text>
+        ) : (
+          <QueryState query={detail} />
+        )}
       </Screen>
     );
 
@@ -221,7 +227,7 @@ export default function PackScreen() {
           </View>
         )}
         {pack.mine && pack.status === 'removed' && !!pack.removed_reason && (
-          <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.tag }}>
+          <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.tagInk }}>
             {tr('packs.removedReason', { reason: pack.removed_reason })}
           </Text>
         )}
@@ -394,7 +400,7 @@ function ReportDialog({ visible, onClose, onSent, id }: { visible: boolean; onCl
         />
       )}
       {send.isError && !(send.error instanceof ApiError && send.error.status === 409) && (
-        <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.tag }}>{tr('common.failed')}</Text>
+        <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.tagInk }}>{tr('common.failed')}</Text>
       )}
       <DialogActions confirmLabel={tr('packs.report')} onConfirm={() => send.mutate()} onCancel={onClose} busy={send.isPending} disabled={!reason} />
     </Dialog>

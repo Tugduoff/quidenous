@@ -4,6 +4,7 @@ import { Text } from 'react-native';
 import Animated from 'react-native-reanimated';
 
 import { IconButton, PackCard, PageHeader } from '@/components/pack-card';
+import { QueryState } from '@/components/query-state';
 import { Screen } from '@/components/screen';
 import { Button, Display } from '@/components/ui';
 import { useT } from '@/lib/i18n';
@@ -16,7 +17,8 @@ import { useTheme } from '@/lib/theme';
 export default function MyPacksScreen() {
   const t = useTheme();
   const tr = useT();
-  const { data: packs } = useMyPacks();
+  const mine = useMyPacks();
+  const packs = mine.data;
   const { data: group } = useGroup();
   return (
     <Screen tabs={false}>
@@ -24,6 +26,7 @@ export default function MyPacksScreen() {
         <IconButton icon={Plus} label={tr('packs.create')} onPress={() => router.push('/pack/edit')} />
       </PageHeader>
       <Display size={30}>{tr('packs.mine')}</Display>
+      <QueryState query={mine} />
       {packs?.length === 0 && (
         <>
           <Text style={{ fontFamily: t.font.regular, fontSize: 15, color: t.mut, textAlign: 'center', marginTop: 24 }}>{tr('packs.mineNone')}</Text>

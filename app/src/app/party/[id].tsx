@@ -136,6 +136,7 @@ function BackToRooms() {
       accessibilityRole="button"
       accessibilityLabel={tr('common.back')}
       onPress={() => router.replace('/rooms')}
+      hitSlop={4}
       style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card }}>
       <ChevronLeft size={22} color={t.txt} />
     </Pressable>
@@ -166,6 +167,7 @@ function Header({ party }: { party: Party }) {
         accessibilityRole="button"
         accessibilityLabel={tr('party.menu.a11y')}
         onPress={() => setMenu(true)}
+        hitSlop={4}
         style={[{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card }, t.shadow]}>
         <Ellipsis size={20} color={t.txt} />
       </PressableScale>
@@ -208,7 +210,13 @@ function Menu({ party, visible, onClose }: { party: Party; visible: boolean; onC
   const leave = async () => {
     onClose();
     if (!(await askConfirm(tr('party.menu.leaveAsk'), tr('party.menu.leaveMessage'), tr('common.leave')))) return;
-    await partyApi.leave(party.id).catch(() => {});
+    try {
+      await partyApi.leave(party.id);
+    } catch (e) {
+      // Already out of it (removed, or the party is gone): leave the screen all the same.
+      const out = e instanceof ApiError && (e.status === 404 || e.code === 'not_in_room' || e.code === 'removed');
+      if (!out) return showToast(partyError(e));
+    }
     await roomGone();
   };
   const row = (Icon: typeof LogOut, label: string, onPress: () => void, danger?: boolean) => (
@@ -216,8 +224,8 @@ function Menu({ party, visible, onClose }: { party: Party; visible: boolean; onC
       accessibilityRole="button"
       onPress={onPress}
       style={{ flexDirection: 'row', alignItems: 'center', gap: 12, height: 48, paddingHorizontal: 14, borderRadius: 14, backgroundColor: t.card2 }}>
-      <Icon size={18} color={danger ? t.tag : t.txt} />
-      <Text style={{ flex: 1, fontFamily: t.font.semibold, fontSize: 15, color: danger ? t.tag : t.txt }}>{label}</Text>
+      <Icon size={18} color={danger ? t.tagInk : t.txt} />
+      <Text style={{ flex: 1, fontFamily: t.font.semibold, fontSize: 15, color: danger ? t.tagInk : t.txt }}>{label}</Text>
     </Pressable>
   );
   return (
@@ -374,6 +382,7 @@ function ScreenLink({ code }: { code: string }) {
           setCopied(true);
           setTimeout(() => setCopied(false), 1800);
         }}
+        hitSlop={4}
         style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card2 }}>
         {copied ? <Check size={18} color={t.accInk} /> : <Share2 size={18} color={t.txt} />}
       </PressableScale>
@@ -381,6 +390,7 @@ function ScreenLink({ code }: { code: string }) {
         accessibilityRole="link"
         accessibilityLabel={tr('party.lobby.openScreen')}
         onPress={() => Linking.openURL(url).catch(() => {})}
+        hitSlop={4}
         style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card2 }}>
         <ExternalLink size={18} color={t.txt} />
       </PressableScale>

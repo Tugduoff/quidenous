@@ -546,6 +546,7 @@ export function ChatInput({ roundId, onFocus, onSent }: { roundId: number; onFoc
           accessibilityLabel={tr('common.send')}
           disabled={!ok}
           onPress={submit}
+          hitSlop={4}
           style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: ok ? t.acc : t.card2 }}>
           <Send size={18} color={ok ? t.accTxt : t.mut} />
         </PressableScale>

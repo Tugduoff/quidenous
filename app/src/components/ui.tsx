@@ -177,7 +177,7 @@ export function Button({
 }
 
 /** Pink behind white 12 px text: darker than the brand pink, for 4.5:1. */
-const TAG_BG = '#C2186B';
+export const TAG_BG = '#C2186B';
 
 export function Tag({ label, tone = 'tag' }: { label: string; tone?: 'tag' | 'acc' }) {
   const t = useTheme();

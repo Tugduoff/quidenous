@@ -17,6 +17,7 @@ import { type ReactNode, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, Text, TextInput, View } from 'react-native';
 
 import { BackButton, ErrorText } from '@/components/auth-ui';
+import { QueryState } from '@/components/query-state';
 import { Screen } from '@/components/screen';
 import { showToast } from '@/components/toast';
 import { askConfirm, Avatar, Button, Card, Dialog, DialogActions, DialogTitle, Display, PressableScale, Segmented, Toggle } from '@/components/ui';
@@ -43,7 +44,7 @@ const delayLabel = (s: number) =>
 /** A small titled block: grey header with its icon (red for the danger zone), the rows in a card. */
 function Section({ title, Icon, danger, children }: { title: string; Icon: LucideIcon; danger?: boolean; children: ReactNode }) {
   const t = useTheme();
-  const color = danger ? t.tag : t.mut;
+  const color = danger ? t.tagInk : t.mut;
   return (
     <View style={{ gap: 8 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginLeft: 4 }}>
@@ -74,7 +75,7 @@ function Row({
   const t = useTheme();
   const body = (
     <>
-      <Text numberOfLines={1} style={{ flexShrink: 0, maxWidth: '70%', fontFamily: t.font.semibold, fontSize: 15, color: danger ? t.tag : t.txt }}>
+      <Text numberOfLines={1} style={{ flexShrink: 0, maxWidth: '70%', fontFamily: t.font.semibold, fontSize: 15, color: danger ? t.tagInk : t.txt }}>
         {label}
       </Text>
       <View style={{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
@@ -83,7 +84,7 @@ function Row({
             {value}
           </Text>
         )}
-        {right ?? (onPress && <ChevronRight size={18} color={danger ? t.tag : t.mut} />)}
+        {right ?? (onPress && <ChevronRight size={18} color={danger ? t.tagInk : t.mut} />)}
       </View>
     </>
   );
@@ -419,7 +420,7 @@ function Settings({ group }: { group: Group }) {
 
       <Section title={tr('room.settings.danger')} Icon={TriangleAlert} danger>
         {others.length > 0 && <Row label={tr('room.settings.handOver')} danger onPress={() => setDialog('owner')} />}
-        <Row label={tr('room.settings.delete')} danger onPress={remove} right={<Trash2 size={18} color={t.tag} />} />
+        <Row label={tr('room.settings.delete')} danger onPress={remove} right={<Trash2 size={18} color={t.tagInk} />} />
       </Section>
 
       <NameDialog
@@ -455,7 +456,8 @@ function Settings({ group }: { group: Group }) {
 export default function RoomSettings() {
   const t = useTheme();
   const tr = useT();
-  const { data: group } = useGroup();
+  const groupQuery = useGroup();
+  const group = groupQuery.data;
   const owner = group?.my_role === 'owner';
   // Not (or no longer) the owner: nothing to see here.
   useEffect(() => {
@@ -475,7 +477,7 @@ export default function RoomSettings() {
           </Text>
         )}
       </View>
-      {!group ? <ActivityIndicator color={t.mut} style={{ marginTop: 24 }} /> : owner ? <Settings group={group} /> : null}
+      {!group ? <QueryState query={groupQuery} /> : owner ? <Settings group={group} /> : null}
     </Screen>
   );
 }

@@ -118,7 +118,7 @@ export function NoQuestions() {
           <Action icon={FileUp} label={tr('vote.empty.import')} onPress={importFile} />
         </View>
       )}
-      {note && <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.tag, marginLeft: 4 }}>{note}</Text>}
+      {note && <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.tagInk, marginLeft: 4 }}>{note}</Text>}
     </Animated.View>
   );
 }

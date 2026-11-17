@@ -10,7 +10,7 @@ import { ModerationDialog, type ModTarget } from '@/components/moderation';
 import { QueryState } from '@/components/query-state';
 import { Screen } from '@/components/screen';
 import { showToast } from '@/components/toast';
-import { askConfirm, Avatar, Card, Display, PressableScale } from '@/components/ui';
+import { askConfirm, Avatar, Card, Display, PressableScale, TAG_BG } from '@/components/ui';
 import { api, type RoomSummary } from '@/lib/api';
 import { authError, useFeatures } from '@/lib/auth';
 import { useT } from '@/lib/i18n';
@@ -69,7 +69,7 @@ function RowButton({
             borderRadius: 9,
             alignItems: 'center',
             justifyContent: 'center',
-            backgroundColor: t.tag,
+            backgroundColor: TAG_BG,
             borderWidth: 2,
             borderColor: t.card,
           }}>
@@ -145,7 +145,7 @@ function Members() {
                   if (await confirm(tr('room.group.removeMessage', { name: m.name }), tr('room.group.removeAsk'), tr('room.group.remove')))
                     forceRemove.mutate(m.id);
                 }}>
-                <UserX size={16} color={t.tag} />
+                <UserX size={16} color={t.tagInk} />
               </RowButton>
             ) : voteOn && m.role !== 'owner' ? (
               <RowButton
@@ -157,7 +157,7 @@ function Members() {
                 disabled={kick.isPending}
                 onPress={onPress}
                 badge={state ? `${state.count}/${group.kick_needed}` : undefined}>
-                <UserX size={16} color={mine ? t.tag : t.mut} />
+                <UserX size={16} color={mine ? t.tagInk : t.mut} />
               </RowButton>
             ) : null}
             <RowButton
@@ -208,8 +208,8 @@ function Leave() {
         justifyContent: 'center',
         backgroundColor: '#FF4FA318',
       }}>
-      <LogOut size={18} color={t.tag} />
-      <Text style={{ fontFamily: t.font.bold, fontSize: 15, color: t.tag }}>{tr('room.group.leave')}</Text>
+      <LogOut size={18} color={t.tagInk} />
+      <Text style={{ fontFamily: t.font.bold, fontSize: 15, color: t.tagInk }}>{tr('room.group.leave')}</Text>
     </Pressable>
   );
 }
@@ -271,6 +271,7 @@ export default function GroupScreen() {
           accessibilityRole="button"
           accessibilityLabel={tr('common.back')}
           onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
+          hitSlop={4}
           style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card }}>
           <ChevronLeft size={22} color={t.txt} />
         </Pressable>

@@ -65,7 +65,7 @@ export function UpdateDialog() {
         </View>
       )}
 
-      {status === 'error' && <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.tag }}>{tr('update.downloadFailed')}</Text>}
+      {status === 'error' && <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.tagInk }}>{tr('update.downloadFailed')}</Text>}
 
       <View style={{ flexDirection: 'row', gap: 10, marginTop: 6 }}>
         <PressableScale

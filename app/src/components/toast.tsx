@@ -63,7 +63,7 @@ export function ToastHost() {
           borderColor: t.line,
           ...t.shadow,
         }}>
-        <CircleAlert size={18} color={t.tag} />
+        <CircleAlert size={18} color={t.tagInk} />
         <Text style={{ flexShrink: 1, fontFamily: t.font.semibold, fontSize: 14, color: t.txt }}>{toast.text}</Text>
       </Pressable>
     </Animated.View>

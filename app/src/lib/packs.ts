@@ -1,7 +1,7 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Beer, BookOpen, Briefcase, Flame, House, type LucideIcon, PartyPopper, Sparkles } from 'lucide-react-native';
 
-import { api, API_URL, type Member } from './api';
+import { api, API_URL, isNotFound, type Member } from './api';
 import type { TKey } from './i18n';
 
 /** Pack categories (docs/COMMUNITY.md "Categories"): fixed ids, the app names and draws them. `pimente` means 16+. */
@@ -98,13 +98,26 @@ export const usePackList = (sort: PackSort, tag: string | null, q: string) =>
     placeholderData: keepPreviousData,
   });
 
+/** A link to a pack or creator that's gone: said at once, not after three retries. */
+const notFoundNoRetry = (n: number, e: unknown) => !isNotFound(e) && n < 3;
+
 export const usePackDetail = (id: number) =>
-  useQuery({ queryKey: packKeys.detail(id), queryFn: () => api<PackDetail>(`/packs/${id}`), enabled: Number.isInteger(id) && id > 0 });
+  useQuery({
+    queryKey: packKeys.detail(id),
+    queryFn: () => api<PackDetail>(`/packs/${id}`),
+    enabled: Number.isInteger(id) && id > 0,
+    retry: notFoundNoRetry,
+  });
 
 export const useMyPacks = () => useQuery({ queryKey: packKeys.mine, queryFn: () => api<PackItem[]>('/packs/mine') });
 
 export const useCreator = (id: number) =>
-  useQuery({ queryKey: packKeys.creator(id), queryFn: () => api<Creator>(`/creators/${id}`), enabled: Number.isInteger(id) && id > 0 });
+  useQuery({
+    queryKey: packKeys.creator(id),
+    queryFn: () => api<Creator>(`/creators/${id}`),
+    enabled: Number.isInteger(id) && id > 0,
+    retry: notFoundNoRetry,
+  });
 
 export const useCommunityMe = () => useQuery({ queryKey: packKeys.me, queryFn: () => api<CommunityMe>('/community/me'), staleTime: 60_000 });
 

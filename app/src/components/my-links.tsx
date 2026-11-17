@@ -77,7 +77,7 @@ function LinkRow({ link }: { link: MyLink }) {
         onPress={() => revoke.mutate()}
         hitSlop={8}
         style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card2 }}>
-        <Trash2 size={18} color={t.tag} />
+        <Trash2 size={18} color={t.tagInk} />
       </Pressable>
     </View>
   );
