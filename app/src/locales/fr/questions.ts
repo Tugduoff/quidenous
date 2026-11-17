@@ -7,10 +7,6 @@ export const questions = {
   placeholder: 'Qui de nous…',
   placeholderRank: 'Classe-nous du plus… au moins…',
   kind: 'Type de question',
-  ranking: 'Classement',
-  /** Choose question: a prompt and 2 to 4 items (docs/CHOOSE.md). */
-  choosing: 'Choix',
-  choosingLabel: 'Qui choisit quoi',
   placeholderChoose: 'Qui prendrait quoi…',
   item: 'Choix {n}',
   addItem: 'Ajouter un choix',

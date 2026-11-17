@@ -324,11 +324,14 @@ export function Segmented<T extends string>({
   options,
   value,
   onChange,
+  fill,
 }: {
   label: string;
   options: { id: T; name: string }[];
   value: T;
   onChange: (v: T) => void;
+  /** Span the whole width (each option grows from its own size). */
+  fill?: boolean;
 }) {
   const t = useTheme();
   return (
@@ -348,7 +351,8 @@ export function Segmented<T extends string>({
             hitSlop={{ top: 7, bottom: 7 }}
             style={{
               height: 30,
-              paddingHorizontal: 12,
+              paddingHorizontal: fill ? 8 : 12,
+              flexGrow: fill ? 1 : 0,
               borderRadius: t.radius.pill,
               alignItems: 'center',
               justifyContent: 'center',

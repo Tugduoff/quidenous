@@ -37,7 +37,7 @@ export default function QuestionsScreen() {
   const { byId } = useMembers();
   const [text, setText] = useState('');
   const [rank, setRank] = useState(false);
-  // "Qui choisit quoi": the question and its 2 to 4 items.
+  // A choose question ("Choix"): the question and its 2 to 4 items.
   const [choose, setChoose] = useState(false);
   const [items, setItems] = useState<string[]>(['', '']);
   const [addError, setAddError] = useState<string | null>(null);
@@ -268,28 +268,48 @@ export default function QuestionsScreen() {
       {locked ? null : (
         <>
           <Tip id="questions" text={tr('questions.tip')} />
-          {/* Write one: the ranking switch and the add button sit under the text, in the same card. */}
+          {/* Write one: the add button beside the text, the kind under it, in the same card. */}
           <Card style={{ paddingBottom: 10 }}>
-            <TextInput
-              ref={composer}
-              accessibilityLabel={tr('questions.newQuestion')}
-              placeholder={choose ? tr('questions.placeholderChoose') : rank ? tr('questions.placeholderRank') : tr('questions.placeholder')}
-              placeholderTextColor={t.mut}
-              value={text}
-              onChangeText={setText}
-              multiline
-              maxLength={200}
-              {...sendOnEnter(() => ok && add.mutate())}
-              style={{
-                minHeight: 76,
-                padding: 16,
-                paddingBottom: 6,
-                fontFamily: t.font.regular,
-                fontSize: 16,
-                color: t.txt,
-                textAlignVertical: 'top',
-              }}
-            />
+            <View style={{ flexDirection: 'row', alignItems: 'flex-end', paddingRight: 10 }}>
+              <TextInput
+                ref={composer}
+                accessibilityLabel={tr('questions.newQuestion')}
+                placeholder={choose ? tr('questions.placeholderChoose') : rank ? tr('questions.placeholderRank') : tr('questions.placeholder')}
+                placeholderTextColor={t.mut}
+                value={text}
+                onChangeText={setText}
+                multiline
+                maxLength={200}
+                {...sendOnEnter(() => ok && add.mutate())}
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  minHeight: 76,
+                  padding: 16,
+                  paddingBottom: 6,
+                  fontFamily: t.font.regular,
+                  fontSize: 16,
+                  color: t.txt,
+                  textAlignVertical: 'top',
+                }}
+              />
+              <PressableScale
+                accessibilityRole="button"
+                accessibilityLabel={tr('common.add')}
+                disabled={!ok}
+                onPress={() => add.mutate()}
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 22,
+                  backgroundColor: ok ? t.acc : t.card2,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginBottom: 6,
+                }}>
+                <Plus size={24} color={ok ? t.accTxt : t.mut} />
+              </PressableScale>
+            </View>
             {/* A choose question's items: 2 to 4, one per line. */}
             {choose && (
               <View style={{ paddingHorizontal: 12, paddingBottom: 10, gap: 8 }}>
@@ -347,39 +367,23 @@ export default function QuestionsScreen() {
                 </View>
               </View>
             )}
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, paddingLeft: 16, paddingRight: 10 }}>
-              {/* The next question: about us, a ranking (everyone, first to last), or a choose (who'd take which item). */}
-              <View style={{ flex: 1 }}>
-                <Segmented
-                  label={tr('questions.kind')}
-                  value={rank ? 'rank' : choose ? 'choose' : 'pick'}
-                  onChange={(k) => {
-                    setRank(k === 'rank');
-                    setChoose(k === 'choose');
-                    setAddError(null);
-                  }}
-                  options={[
-                    { id: 'pick', name: tr('vote.kind.custom') },
-                    { id: 'rank', name: tr('questions.ranking') },
-                    ...(features.choose ? [{ id: 'choose' as const, name: tr('questions.choosing') }] : []),
-                  ]}
-                />
-              </View>
-              <PressableScale
-                accessibilityRole="button"
-                accessibilityLabel={tr('common.add')}
-                disabled={!ok}
-                onPress={() => add.mutate()}
-                style={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: 22,
-                  backgroundColor: ok ? t.acc : t.card2,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}>
-                <Plus size={24} color={ok ? t.accTxt : t.mut} />
-              </PressableScale>
+            {/* The next question: about us, a ranking (everyone, first to last), or a choose (who'd take which item). */}
+            <View style={{ paddingHorizontal: 10 }}>
+              <Segmented
+                fill
+                label={tr('questions.kind')}
+                value={rank ? 'rank' : choose ? 'choose' : 'pick'}
+                onChange={(k) => {
+                  setRank(k === 'rank');
+                  setChoose(k === 'choose');
+                  setAddError(null);
+                }}
+                options={[
+                  { id: 'pick', name: tr('vote.kind.pick') },
+                  { id: 'rank', name: tr('vote.kind.rank') },
+                  ...(features.choose ? [{ id: 'choose' as const, name: tr('vote.kind.choose') }] : []),
+                ]}
+              />
             </View>
           </Card>
           {/* Or many at once. */}
@@ -393,7 +397,9 @@ export default function QuestionsScreen() {
               onPress={pick}
             />
             {/* A question for the official deck, voted on by everyone. */}
-            {community && <BulkButton label={tr('community.entry')} icon={<Lightbulb size={16} color={t.txt} />} onPress={() => router.push('/suggest')} />}
+            {community && (
+              <BulkButton label={tr('community.entry')} icon={<Lightbulb size={16} color={t.txt} />} onPress={() => router.push('/suggest')} />
+            )}
           </View>
           {/* The file format, for an AI to write a question file. */}
           {features.packTemplate && <TemplateLink style={{ alignSelf: 'center', marginTop: -6 }} />}
