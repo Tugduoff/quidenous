@@ -567,7 +567,9 @@ pub async fn transfer(
     Path(room): Path<i64>,
     Json(body): Json<OwnerBody>,
 ) -> AppResult<Json<Value>> {
-    let me = owner_seat(&state, user, room).await?;
+    // Only a seat here: whether I'm (still) the owner is decided in the transaction, so a double tap
+    // whose first tap already handed the room over answers 200, not 403.
+    let me = seat(&state, user, room).await?;
     let mut tx = crate::db::write_tx(&state.db).await?;
     // Still the owner when it runs: two transfers at once can't leave two owners.
     let stepped_down = sqlx::query(
