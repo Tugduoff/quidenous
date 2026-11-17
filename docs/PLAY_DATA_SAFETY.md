@@ -13,26 +13,33 @@ processor is added, or the privacy policy changes. The Play build has no self-up
 | Does your app collect or share any of the required user data types? | **Yes** |
 | Is all of the user data collected by your app encrypted in transit? | **Yes** (HTTPS only, `https://qdn.coflop.fr`) |
 | Do you provide a way for users to request that their data is deleted? | **Yes**: in the app (Profil > Sécurité > Supprimer mon compte) and on the web at https://qdn.coflop.fr/delete-account |
-| Can users ask for some data to be deleted without deleting the account? (optional) | **Yes**: they delete their own chat messages and photos, questions, share links (Profil > Mes liens), profile photo, packs; anything else by e-mail to contact@coflop.fr |
+| Can users ask for some data to be deleted without deleting the account? (optional) | **Yes** (filed as No on 2026-11-17 because the page didn't say how; switch it once the "Supprimer seulement certaines données" section of https://qdn.coflop.fr/delete-account is live): chat messages with their photos and GIFs, reactions, questions not yet asked, published packs, share links, profile photo (replaced by an avatar), friends, pins, devices, linked accounts, 2FA, blocks, an owned room; anything else (votes, Tripot bets, suggestions, asked questions) by e-mail to contact@coflop.fr |
 | Account creation methods | Username and password (e-mail), OAuth (Google, Discord), and "Other": party guest (first name only, no credentials, erased 30 days after its last party). Production runs with `AUTH_REQUIRED=1`, so the old first-name join (`/api/join`, `/api/start`) can't create accounts any more; existing legacy accounts are still there |
 | Delete account URL | https://qdn.coflop.fr/delete-account |
-| Data shared with third parties | **None** (see below) |
+| Data shared with third parties | **In-app search history** with Klipy (see below); nothing else |
 
 Not "sharing" under Play's definition (a service provider processing on our behalf, or a transfer the user starts
 and expects):
 - Mailgun: sends verification, reset, deletion codes and security notices to the e-mail address.
 - Google and Discord sign-in: they send us an account ID, name and verified e-mail; we send them nothing.
 - Firebase Cloud Messaging and browser push services: deliver notifications (push token and notification text).
-- Klipy (GIF search, only when `KLIPY_API_KEY` is set): the server, not the phone, sends Klipy the search text, the
-  region picked from the app language (`FR` / `GB`), a content-filter level and an opaque per-account ID (an HMAC,
-  not the account ID); no IP address, name or e-mail. GIF files are fetched and streamed back by our server, never
-  stored. The user starts it (the field says "Rechercher sur KLIPY"), and Klipy only answers the request: service
-  provider + user-initiated. If Klipy's API terms let it reuse queries for its own purposes (ads, profiling), declare
-  "In-app search history" as **shared** instead.
+- Klipy is **not** in this list any more, see "Shared with a third party" below.
 - Discord webhook (`CLIENT_ERRORS_WEBHOOK`, optional): the team's private channel receives app error reports.
 - Public share links (`/s/…`) and public packs (`/p/…`): published by the user on purpose (user-initiated), first names
   and drawn avatars only, 90-day expiry, revocable, `noindex`. The global question of the day only shows other
   rooms as percentages (at least 5 rooms), never a name, room or member.
+
+Shared with a third party:
+- **Klipy** (GIF search, only when `KLIPY_API_KEY` is set): the server, not the phone, sends Klipy the search text
+  (100 characters at most), the region picked from the app language (`FR` / `GB`), a content-filter level and an
+  opaque per-account ID (the first 32 hex characters of an HMAC, not the account ID); no IP address (only the
+  server's), name, e-mail or user agent (`gifs.rs`). GIF files are fetched and streamed back by our server, never
+  stored. Klipy's privacy policy (https://klipy.com/support/privacy-policy, updated 2026-06-23) says search terms
+  from integration partners may be used to improve its service and for ad measurement and targeting: that is Klipy's
+  own purpose, not processing on our behalf, so declare **In-app search history** as **Shared** (purpose: App
+  functionality). It is still user-initiated (the field says "Rechercher sur KLIPY"), but Play's user-initiated
+  exception only covers transfers the user expects to a destination they chose, which a GIF search arguably isn't.
+  The privacy policy says all of this, with a link to Klipy's.
 
 ## Data types
 
@@ -49,7 +56,7 @@ performance data, race, religion, political or sexual orientation, phone number,
 | Photos and videos > **Photos** | Yes | No | No | Optional | App functionality | Profile photo (re-encoded to 256 px) and photos sent in the chat (JPEG / WebP re-encoded, at most 1600 px; PNG re-encoded; GIF kept as is, it has no EXIF): metadata such as location is dropped. Chat photos are stored on our server, shown to the room's members through signed links that expire, and deleted with their message, their author's account or the room. The camera scans QR codes and takes chat photos. |
 | Messages > **Other in-app messages** | Yes | No | No | Optional | App functionality | Chat under results (room members only): text, captions, mentions, reactions, the GIFs picked (Klipy ID and URL). Deleted with the account. |
 | App activity > **App interactions** | Yes | No | No | Required | App functionality | Votes, rankings, choices, anonymous-question flags, the global question vote, Tripot bets and chip ledger (fictional chips), nudges, skips, pins, reactions, likes, installs, with timestamps (results, history, stats, streaks). |
-| App activity > **In-app search history** | Yes | No | **Yes** | Optional | App functionality | GIF search text (forwarded to Klipy, see above) and pack search text: used for that one request, never stored or logged. |
+| App activity > **In-app search history** | Yes | **Yes** (Klipy) | **Yes** | Optional | App functionality | GIF search text (forwarded to Klipy, see above) and pack search text: used for that one request, never stored or logged. |
 | App activity > **Other user-generated content** | Yes | No | No | Optional | App functionality | Questions added to rooms, published packs, deck suggestions, share links, reports (reason, details, snapshot of the reported content). |
 | App info and performance > **Crash logs** | Yes | No | No | Required (automatic) | Analytics | When the app hits an unexpected error (a screen crash, an uncaught error or an unhandled promise rejection; at most 5 per session): error message and stack, app version, platform, screen path (web only), account ID. Logged on the server and optionally posted to the team's private Discord channel. Play's "Analytics" purpose is the one that covers monitoring app health and fixing crashes. |
 | Device or other IDs | Yes | No | No | Optional | App functionality, Account management | Push token (FCM) when notifications are allowed; device label (e.g. "Android · Pixel 8") in the sessions list. |
@@ -84,11 +91,10 @@ The privacy policy says so.
 
 ## Policy-side items still open
 
-- **The privacy policy is behind the app** (`server/assets/legal/privacy.html` and `privacy.en.html`, both still
-  "version 1" of 16 November 2026): it doesn't mention chat photos (stored on our server), GIF search through Klipy
-  (a provider to add to "Prestataires"), the time-zone offset, the Tripot (fictional chips) or the global question
-  (anonymous aggregates across rooms). Play checks that the policy and this form agree: update both pages before
-  submitting. A wording-only update doesn't need a `TERMS_VERSION` bump.
+- Done (2026-11-17): the privacy policy (`privacy.html`, `privacy.en.html`, still terms version 1: wording only, no
+  `TERMS_VERSION` bump) now covers chat photos, Klipy (as a provider, with what it receives and its own use of
+  searches), the time-zone offset, the Tripot, the global question, anonymous votes and streaks; `/delete-account`
+  lists what users can delete themselves.
 - The privacy policy names the controller as "coflop" with contact@coflop.fr: add the legal name and postal address.
 - Mailgun region: the policy covers both EU and US (DPF + SCCs). Prefer `MAILGUN_REGION=eu` with an EU domain.
 - No automatic purge of reports, soft-deleted rooms or inactive accounts yet: if one is added, update the policy and

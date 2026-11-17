@@ -53,47 +53,45 @@ Wording, checked against v0.39.0:
 - "Plus de 250 questions": the built-in decks have 266 (FR) and 324 (EN) questions; four room vibes (Entre potes, Pimenté 16+, Boulot, Famille, `server/deck/vibes.json`).
 - Google and Discord sign-in only show when their OAuth clients are configured on production (`oauth_google` / `oauth_discord` in `/api/features`). The description promises both: check that production lists both, or drop the one that's off.
 - GIFs only exist with `KLIPY_API_KEY` set on production (`chat_gifs`): same check.
-- **The privacy policy is behind the app**: it doesn't mention chat photos, Klipy, the time-zone offset, the Tripot or the global question. See docs/PLAY_DATA_SAFETY.md, "Policy-side items still open". Fix it before submitting.
+- Privacy policy: since 2026-11-17 it covers chat photos, GIF search through Klipy, the time-zone offset, the Tripot, the global question, anonymous votes and streaks, in line with docs/PLAY_DATA_SAFETY.md.
 
 ## Content rating (IARC questionnaire)
 
-Category: **Game** (or "Social networking / UGC" if you list it as Social; the answers are the same). Re-checked at v0.39.0: answer for everything a signed-in user can reach, including the opt-in Pimenté 16+ deck and the Tripot.
+Filed in the Play Console on 2026-11-17 for v0.39.0 (closed test). These are the answers actually submitted and the ratings IARC returned; if a later version changes the content (new deck questions, a Tripot change), redo the questionnaire and update this section. Answers cover everything a signed-in user can reach, including the opt-in Pimenté 16+ vibe and the Tripot.
 
-| Section | Answer | Why |
+| Section | Submitted answer | Why |
 | --- | --- | --- |
-| Violence (realistic, fantasy, blood, gore) | **No** | Text only. Some built-in questions mention prison, zombies, a serial killer, torture (FR only), as jokes; no depiction. GIFs and photos are user content (rows below). |
-| Fear / horror | **No** | |
-| Sexuality: nudity | **No** | None built in. User photos and GIFs: covered by the UGC answers; the terms ban explicit sexual content and the Klipy filter is on. |
-| Sexuality: sexual innuendo / references | **Yes, mild, text only** | Default deck: "Qui pourrait coucher avec quelqu'un pour une promotion ?" (FR, untagged, so it is in the default Entre potes vibe; the EN line is the softer "flirt their way to a promotion"), cheating. Pimenté 16+ (opt-in vibe, 34 FR / 39 EN questions): "proposition indécente", "strip-poker", "coup d'un soir", "message coquin", "bisou pour gagner un pari". |
-| Language (profanity, crude) | **Yes, mild** | "connerie" in a built-in question; user chat is unfiltered (covered by the interaction questions). |
-| Crude humour | **Yes** | The whole game is teasing friends. |
-| Controlled substances (drugs, alcohol, tobacco) | **Yes: alcohol references, text only** (was No) | "Qui commande quoi au bar ? Bière / Vin / Cocktail / Soft" (FR and EN choose question, since #30), "Who is most likely to send the group chat a drunk voice note?" (EN). No drugs, no tobacco, no use shown. |
-| Gambling: real money | **No** | Nothing can be bought or cashed out, no prizes (docs/TRIPOT.md). |
-| Gambling: **simulated gambling** | **Yes** (was No) | Le Tripot: players stake chips on who wins a question, odds come from the pot (pari-mutuel) and winners take it. The chips are free and worthless, but every authority's definition is about the activity, not the money (see below). Also text mentions: casino, loto, crypto, "un bisou pour gagner un pari". |
-| Discrimination / hate | **No** | (See the note below on one question.) |
-| Users can interact or communicate | **Yes** | Chat under every result inside a room: text, photos, GIFs, reactions, mentions. Party guests join a party by code or QR without an account and show up by first name to the party's players. |
-| User-generated content shared with other users | **Yes** | Room members see custom questions, chat text, **photos** (user-uploaded, stored on our server) and **GIFs** (picked from Klipy), profile name and photo. All signed-in users see public question packs, creator pages (name, photo, packs) and deck suggestions (with first name); public `/p/…` pack pages and `/s/…` share links are open to anyone with the link. The global question only shows other rooms as anonymous percentages (5 rooms minimum): not UGC from strangers. |
-| Moderation tools | **Yes** | Report a message (photos and GIFs included), question, member, pack or suggestion, with a reason; block a user. Three reports from trusted accounts hide a message, send a pack to review or pull a suggestion. Every report is e-mailed to the team; admins review them in the app (dismiss, delete, suspend, erase the account). Owners delete messages, restore hidden ones, remove members, lock a party; members can vote someone out. GIF search goes through Klipy's content filter (`KLIPY_CONTENT_FILTER`, default `low` ≈ PG-13). The terms list what's banned. |
-| Shares the user's location | **No** | Only a time-zone offset is stored (quiet hours, streaks); nothing is shown to others. |
-| Digital purchases / loot boxes | **No** | No in-app purchases, no random paid items. |
-| Unrestricted internet access / web browser | **No** | The browser only opens for Google/Discord sign-in and our legal pages. GIF search returns Klipy results through our server, filtered. |
-| Is the app a web browser or search engine | **No** | |
+| Category | **Game** | Listed as a Casual game (above). |
+| Violence, blood, fear / horror | **No** | Text only. Some built-in questions mention prison, zombies or torture as jokes; no depiction. |
+| Suggestive / sexual themes or references | **Yes**: "Suggestive references and innuendo" + "References to sexual activity without descriptive detail" | Default deck: "Qui pourrait coucher avec quelqu'un pour une promotion ?" (FR); Pimenté 16+ (opt-in): "proposition indécente", "strip-poker", "coup d'un soir". No nudity built in; user photos and GIFs are covered by the interaction answers and the terms. |
+| Gambling themes, simulated gambling or real gambling | **Yes**: "Gambling themes" + "Other games that use and reward in-game currency through gameplay". Casino games, bingo, lotteries / racetrack: unticked. Real-money gambling: **No** | Le Tripot: players stake free chips on who wins a question and winners share the pot (docs/TRIPOT.md); the name, the "Tapis" button and the coin shower are gambling themes. Nothing can be bought or cashed out, no prizes; voting on friends is not a casino game. |
+| Language | **Yes**: "Minor profanities", **Rarely**. Moderate swearing, sexual expletives, discriminatory language: unticked | "connerie" in one built-in question out of hundreds. |
+| Controlled substances | **Yes**: "Reference to alcohol", "Alcohol rarely shown". No drugs, no tobacco | "Qui commande quoi au bar ? Bière / Vin / Cocktail / Soft", "drunk voice note" (EN), the beer icon of a vibe. |
+| Crude humour (bodily functions) | **No** | Nothing about burps, farts or vomit; "Who spends the longest in the bathroom?" doesn't count. |
+| Realistic crime, terrorism, Nazi symbols, Korean national identity | **No** | Jokes about prison or scams don't describe crimes. |
+| Users can interact or share content | **Yes** | Chat under every result: text, photos, GIFs, reactions, mentions. |
+| Users or UGC can be blocked / reported | **Yes / Yes** | Block a user; report a message, question, member, pack or suggestion. |
+| Moderated chat | **Yes** | Authors, owners and admins delete messages; three reports hide a message; admins review reports. |
+| Interactions limited to invited friends | **Yes** | Rooms are private, joined with a code; public packs are only questions; the world question only shows anonymous percentages. |
+| Shares precise location | **No** | Only a time-zone offset is stored. |
+| Digital purchases | **No** | |
 
-### Simulated gambling: why Yes, and what it does to the rating
+Ratings returned:
 
-The Play Console's own help text for this question is only visible inside the questionnaire; what follows is from the rating authorities' published definitions (checked 2026-11-17).
+| Region (authority) | Rating | Descriptors |
+| --- | --- | --- |
+| Europe (PEGI) | **PEGI 12** | Sexual innuendo |
+| Germany (USK) | **USK 12** | Sexual innuendo |
+| North America (ESRB) | **Teen** | Suggestive themes |
+| Brazil (ClassInd) | **12** | Sexual content, inappropriate language |
+| South Korea (GRAC) | **15+** | Sexuality; drug, alcohol and tobacco references |
+| Taiwan (DGSC) | **15+** (parental guidance) | Sex, tobacco and alcohol, inappropriate language, card or casual games |
+| Saudi Arabia (Gmedia) | **16** | |
+| Australia (ACB) | **R 18+** | Simulated gambling, online interactivity and chat |
+| Indonesia (IGRS) | **18+** | Gambling |
+| Russia (Google Play), rest of world (IARC generic) | **12+** | Sexual innuendo |
 
-- **ESRB**: "Simulated Gambling: Player can gamble without betting or wagering real cash or currency. Typically assigned to simulations of casino-based gambling." Teen covers it ("may contain ... simulated gambling"). Source: https://www.esrb.org/ratings-guide/
-- **Australia (ACB)**: since 22 September 2024, "Computer games containing simulated gambling have a minimum classification of R 18+". The 2023 guidelines define it as activity that "resembles or functions like a real world age restricted betting or gambling service" (examples include sports and other betting services, not only casinos) with no real-money payout. Betting chips on an outcome with pool-based odds fits. Sources: https://www.globalratings.com/ratings-guide.aspx, https://legislation.gov.au/F2023L01424/asmade/2023-10-27/text/original/pdf
-- **PEGI**: "If a game contains themes that prominently reference gambling, it gets a PEGI 12. Simulation of gambling, like games of chance that are normally carried out in casinos or gambling halls, will be classified with a PEGI 18." (https://pegi.info/what-do-the-labels-mean). IARC's ratings guide still lists simulated gambling under PEGI 12. The Tripot is not a casino game of chance (no cards, slots or roulette, the outcome is a friends' vote), so expect **PEGI 12**; if the questionnaire asks a follow-up about casino-style games, answer No.
-- **USK**: case by case (Leitkriterien 2022, 4.16 "Glücksspiel"; descriptor "Glücksspielthematik"); non-realistic stakes lower it. Likely 12; not verifiable without running the questionnaire.
-- **Brazil (ClassInd, 2025 guide)**: features that "show odds, rankings or results that reproduce the logic and dynamics of gambling" are rated 18 even without real money. Likely **18** (our reading, not confirmed).
-- **IARC generic**: 12+ ("mild language and simulated gambling are also permitted").
-- **Google Play**: Families policy bans "real or simulated gambling" in apps aimed at children: irrelevant at 16+, but it rules out ever adding under-13s. In the EEA, Australia, Brazil, Indonesia, Singapore, Switzerland and the UK, Play blocks users it determines to be minors from getting 18+ rated apps: Australian (and probably Brazilian) minors can't install the app. Answering No to hide this is not an option: misrepresenting content can get the app removed (https://support.google.com/googleplay/android-developer/answer/188189).
-
-Other PEGI criteria added in 2026 that the IARC questionnaire may now ask about (we couldn't see the current questionnaire): "pressure to play" (daily rewards or streaks, PEGI 12 when missing a day loses status: our streaks end on a missed day, and the first vote of the day earns 20 chips); "unrestricted communication" (PEGI 18 only when there is no block, mute or moderation: we have all three). Answer them truthfully if they show up.
-
-Expected result: **PEGI 12** (16 is possible from the sexual references), **USK 12 to 16**, **ESRB Teen** (Simulated Gambling, Suggestive Themes, Crude Humor, Mild Language, Alcohol Reference; interactive element "Users Interact"; not "Shares Info", which means sharing personal data with third parties), **IARC generic 12+ to 16+**, **Australia R 18+** (because of the Tripot), **Brazil likely 18**. The computed rating can be lower than the 16+ target audience: that's fine, the target audience setting below is what keeps it away from kids. If R 18+ in Australia and 18 in Brazil are a problem, leave those countries out of the release (the app is French and English, France first), or turn the Tripot into fixed-point predictions with no stakes or pot.
+All of them carry "Users interact". The only 18+ ratings, Australia and Indonesia, come from the Tripot (Australia rates any simulated gambling R 18+ since September 2024); there Play blocks users it identifies as minors. Fine for a French 16+ app; to lower them one day, the Tripot would have to become stake-free predictions. A 12+ content rating doesn't contradict the 16+ target audience below: the rating describes the content, the target audience keeps the app away from kids.
 
 Built-in questions worth softening in `server/deck/` (they drive the rating and could draw a policy flag). None of the four flagged on 2026-11-12 was softened in French:
 
@@ -126,7 +124,11 @@ Still 16+ at v0.39.0, checked:
 
 ## Data safety
 
-The answers live in [docs/PLAY_DATA_SAFETY.md](../../docs/PLAY_DATA_SAFETY.md), re-checked at v0.39.0. New since the first draft: chat photos (Photos), GIF and pack search (In-app search history, ephemeral, Klipy as a service provider), time-zone offset and language (Other info), Tripot bets and global question votes (App interactions), crash reports from any unexpected error with the purpose moved to Analytics, and the privacy policy gaps to close before submitting.
+The answers live in [docs/PLAY_DATA_SAFETY.md](../../docs/PLAY_DATA_SAFETY.md), re-checked at v0.39.0. Two answers to change in the Console once the 2026-11-17 legal pages are deployed:
+
+- **"Can users request that some of their data is deleted without deleting their account?"**: filed as **No** (the page only explained full deletion). Switch it to **Yes**: https://qdn.coflop.fr/delete-account now has a "Supprimer seulement certaines données" section listing what users delete themselves in the app (chat messages and photos, reactions, unasked questions, packs, share links, profile photo, friends, pins, devices, linked accounts, 2FA, blocks, an owned room) and contact@coflop.fr for the rest.
+- **In-app search history**: tick **Shared** (Klipy). Klipy's own privacy policy lets it use search terms for ads and service improvement, so it isn't a pure service provider (details in the data safety doc).
+ New since the first draft: chat photos (Photos), GIF and pack search (In-app search history, ephemeral, Klipy as a service provider), time-zone offset and language (Other info), Tripot bets and global question votes (App interactions), crash reports from any unexpected error with the purpose moved to Analytics, and the privacy policy gaps to close before submitting.
 
 ## App access (for reviewers)
 
@@ -210,13 +212,15 @@ Timeline:
 
 Done in the repo (checked at v0.39.0, dropped from the list): real launcher icon, adaptive icon and splash (lime `?` on #0E0E12, `app/app.json`); privacy and terms say 16+; terms say "une question à la fois"; the privacy page's "votes selon les règles du salon" matches anonymous votes; `expo.version` 0.39.0 and `android.versionCode` 65 in `app/app.json` (the `app` workflow fails a tag whose version doesn't match or whose versionCode doesn't go up).
 
-- [ ] Privacy policy (FR and EN) updated for chat photos, Klipy, time-zone offset, Tripot and the global question (docs/PLAY_DATA_SAFETY.md, "Policy-side items still open"), plus the controller's legal name and address
+- [x] Privacy policy (FR and EN) updated for chat photos, Klipy, time-zone offset, Tripot, the global question, anonymous votes and streaks; `/delete-account` lists partial deletion (2026-11-17)
+- [ ] Privacy policy: the controller's legal name and postal address (still a placeholder comment)
 - [ ] Optional: soften the deck questions listed under Content rating (Nigerian prince in both languages, "coucher … promotion" and "torture" in French)
 - [ ] Production runs v0.39.0 with `AUTH_REQUIRED=1`, `REPORT_EMAIL`, `ADMIN_USER_IDS`, Mailgun (codes, verification, reset, notices), `KLIPY_API_KEY` (or drop "GIF" from the description), Google and Discord OAuth (or drop the missing one from the description), `CLIENT_ERRORS_WEBHOOK`; `/delete-account`, `/privacy`, `/terms` live. `GET https://qdn.coflop.fr/api/features` should list `tripot`, `streaks`, `anonymous_votes`, `global_question`, `chat_images`, `chat_gifs`, `party`, `oauth_google`, `oauth_discord`, `email`
 - [ ] AAB: GitHub Actions workflow **`android`**, job `apk`, built on every `v*` tag (and on pushes to `main` touching `app/`). Take the **`quidenous-aab`** artifact (`app-release.aab`, signed with the upload key from the `ANDROID_UPLOAD_KEYSTORE_B64` / `ANDROID_UPLOAD_KEYSTORE_PASSWORD` secrets) from the **v0.39.0 tag run**: production and the OTA updates follow tags, not `main`. If the artifact is missing, the upload key secrets are not set (the step logs "no upload key, skipping"). Upload once per versionCode: 65 can't be reused after an upload
 - [ ] Play App Signing: on the first upload accept "Google manages your app signing key". The upload key already exists; register it if the Console asks (Setup > App integrity > upload key certificate). The sideload APK (`quidenous-apk`) keeps its old key: Play installs can't update hand-installed APKs and vice versa, testers must uninstall the APK first
-- [ ] Content rating questionnaire answered with the v0.39.0 answers above (simulated gambling **Yes**, alcohol references **Yes**); target audience 16-17 and 18+; Advertising ID declared
-- [ ] Countries: decide whether to include Australia (R 18+) and Brazil (likely 18) because of the Tripot
+- [x] Content rating questionnaire answered (2026-11-17, answers and ratings above)
+- [ ] Target audience 16-17 and 18+; Advertising ID declared
+- [ ] Countries: decide whether to include Australia and Indonesia (both 18+ because of the Tripot); Brazil came out 12
 - [ ] Data safety form filled from docs/PLAY_DATA_SAFETY.md
 - [ ] Reviewer account and demo room created on production (see App access), state checked the day you submit
 - [ ] Upload the AAB to the closed testing track, release notes (FR), roll out
