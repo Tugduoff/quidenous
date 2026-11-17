@@ -85,6 +85,7 @@ Traefik: point a router at the service on port 8080; WebSockets work out of the 
 | `UPDATES_CERTIFICATE` | — | Path **inside the container** to the OTA code signing certificate, e.g. `/data/ota-certificate.pem` (copy `app/certs/certificate.pem` into `deploy/data/`). Recommended: publishing then refuses unsigned updates and signatures that don't match, so a leaked publish token can't stall updates |
 | `MIN_APP_VERSION` | — | Oldest app version served, e.g. `0.33.0`. Apps send their version (`X-App-Version`, from 0.33); an older one gets `426 update_required` and shows an "Update" screen (over-the-air update first, else the store / APK). Apps from before 0.33 send no version and are not affected. Health, features, version, crash reports and OTA stay open |
 | `CLIENT_ERRORS_WEBHOOK` | — | Discord webhook URL (channel → Integrations → Webhooks): app crashes caught by the app's error screen are posted there (30 an hour at most). Without it they are only logged (`app error`, level WARN) |
+| `DONATION_URL` | — | "Buy us a coffee" page, an `https://` URL (Ko-fi, Buy Me a Coffee, PayPal, Stripe payment link…). Set: a discreet link in the profile screen of the web app and the sideloaded APK only (never the Play or iOS builds: store billing rules). Not https: ignored, warned about at start-up. See [docs/DONATE.md](../docs/DONATE.md) |
 
 Accounts, 2FA and sign-in details: [docs/AUTH.md](../docs/AUTH.md).
 
