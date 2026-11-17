@@ -56,7 +56,9 @@ export default function QuestionsScreen() {
   });
   // Typing `[classement] …` (or `[rank] …`, `[choix] … | A | B`) by hand works too.
   const typed = splitTag(text.trim());
-  const kind: QuestionKind = choose || typed.kind === 'choose' ? 'choose' : rank || typed.rank ? 'rank' : 'pick';
+  // A server without choose questions can't take a typed `[choix]` one either.
+  const typedChoose = typed.kind === 'choose' && features.choose;
+  const kind: QuestionKind = choose || typedChoose ? 'choose' : rank || typed.rank ? 'rank' : 'pick';
   const chosenItems = choose ? items.map((i) => i.trim()) : (typed.items ?? []);
   const sameItems = new Set(chosenItems.filter(Boolean).map((i) => i.toLowerCase())).size < chosenItems.filter(Boolean).length;
   const add = useMutation({
@@ -78,7 +80,7 @@ export default function QuestionsScreen() {
     },
     onError: (e) => setAddError(e instanceof ApiError && e.code === 'bad_items' ? tr('questions.badItems') : null),
   });
-  const ok = typed.text.length >= MIN && (kind !== 'choose' || itemsOk(chosenItems)) && !add.isPending;
+  const ok = typed.text.length >= MIN && (kind !== 'choose' || itemsOk(chosenItems)) && (typed.kind !== 'choose' || typedChoose) && !add.isPending;
   const setItem = (i: number, v: string) => setItems((l) => l.map((x, j) => (j === i ? v : x)));
   const [imported, setImported] = useState<string | null>(null);
   // Pick a file, show what's in it, send only what's ticked.
