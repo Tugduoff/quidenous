@@ -44,7 +44,8 @@ function ChallengeDialog({ round, onDone }: { round: Round; onDone: () => void }
   const qc = useQueryClient();
   const { data: group } = useGroup();
   const { data: rooms } = useRooms();
-  const others = rooms?.filter((r) => r.id !== group?.id) ?? [];
+  // Rooms only: a party is a one-night thing (and two "Anniv de Léa" can't be told apart).
+  const others = rooms?.filter((r) => r.id !== group?.id && r.kind !== 'party') ?? [];
   const [sent, setSent] = useState<Set<number>>(() => new Set());
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);

@@ -1,16 +1,16 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { type ReactNode, useState } from 'react';
+import { useState } from 'react';
 import { router } from 'expo-router';
 import { Bell, BellOff, ChevronLeft, Crown, Ellipsis, LogOut, Settings, UserX } from 'lucide-react-native';
 import { Pressable, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 
 import { AddFriends, InviteCard } from '@/components/invite';
-import { ModerationDialog, type ModTarget } from '@/components/moderation';
+import { type ModAction, ModerationDialog, type ModTarget } from '@/components/moderation';
 import { QueryState } from '@/components/query-state';
 import { Screen } from '@/components/screen';
 import { showToast } from '@/components/toast';
-import { askConfirm, Avatar, Card, Display, PressableScale, TAG_BG } from '@/components/ui';
+import { askConfirm, Avatar, Card, Display, PressableScale } from '@/components/ui';
 import { api, type RoomSummary } from '@/lib/api';
 import { authError, useFeatures } from '@/lib/auth';
 import { useT } from '@/lib/i18n';
@@ -20,74 +20,34 @@ import { useRoomGone } from '@/lib/rooms';
 import { useSession } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
 
-/** Ask before anything that can't be undone with one tap, in the app's own dialog. */
+/** Ask before leaving, in the app's own dialog. */
 const confirm = (message: string, title: string, action: string) => askConfirm(title, message, action);
 
-/** The round icon button of a member row (36 px, like the "…" next to it). */
-function RowButton({
-  label,
-  onPress,
-  disabled,
-  tone = 'plain',
-  badge,
-  children,
-}: {
-  label: string;
-  onPress: () => void;
-  disabled?: boolean;
-  tone?: 'plain' | 'danger';
-  /** A small count on the corner (votes so far). */
-  badge?: string;
-  children: ReactNode;
-}) {
+/** The "…" of a member row (36 px): remove, vote to remove, report, block. */
+function MoreButton({ label, onPress }: { label: string; onPress: () => void }) {
   const t = useTheme();
   return (
     <PressableScale
       accessibilityRole="button"
       accessibilityLabel={label}
-      disabled={disabled}
       onPress={onPress}
       hitSlop={4}
-      style={{
-        width: 36,
-        height: 36,
-        borderRadius: 18,
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: tone === 'danger' ? '#FF4FA322' : t.card2,
-      }}>
-      {children}
-      {badge && (
-        <View
-          style={{
-            position: 'absolute',
-            top: -4,
-            right: -6,
-            minWidth: 20,
-            height: 18,
-            paddingHorizontal: 4,
-            borderRadius: 9,
-            alignItems: 'center',
-            justifyContent: 'center',
-            backgroundColor: TAG_BG,
-            borderWidth: 2,
-            borderColor: t.card,
-          }}>
-          <Text style={{ fontFamily: t.font.bold, fontSize: 9, color: '#fff' }}>{badge}</Text>
-        </View>
-      )}
+      style={{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card2 }}>
+      <Ellipsis size={16} color={t.mut} />
     </PressableScale>
   );
 }
 
-/** The other members, each with a vote to remove them. A majority of the others removes someone (never the owner, and only from 3 people). */
+/**
+ * The members, each with a "…": the owner removes someone there; with the vote on, the others vote there to remove them
+ * (a majority of the others, never the owner, and only from 3 people). A vote in progress shows as a quiet count on the row.
+ */
 function Members() {
   const t = useTheme();
   const tr = useT();
   const qc = useQueryClient();
   const { me } = useSession();
   const { data: group } = useGroup();
-  // "…" on a member: report, block / unblock.
   const [target, setTarget] = useState<ModTarget | null>(null);
   const owner = group?.my_role === 'owner';
   const forceRemove = useMutation({
@@ -116,20 +76,37 @@ function Members() {
         </Card>
       )}
       {others.map((m) => {
-        const state = group.kicks.find((k) => k.target_id === m.id);
+        const state = voteOn ? group.kicks.find((k) => k.target_id === m.id) : undefined;
         const mine = !!state?.mine;
-        const onPress = async () => {
-          if (
-            !mine &&
-            !(await confirm(
-              tr('room.group.kickMessage', { name: m.name, count: group.kick_needed }),
-              tr('room.group.kickAsk', { name: m.name }),
-              tr('room.group.vote'),
-            ))
-          )
-            return;
-          kick.mutate({ id: m.id, undo: mine });
-        };
+        const votes = state ? `${state.count}/${group.kick_needed}` : undefined;
+        const actions: ModAction[] = owner
+          ? [
+              {
+                icon: UserX,
+                label: tr('room.group.removeA11y', { name: m.name }),
+                danger: true,
+                confirm: { title: tr('room.group.removeAsk'), message: tr('room.group.removeMessage', { name: m.name }), label: tr('room.group.remove') },
+                run: () => forceRemove.mutateAsync(m.id),
+              },
+            ]
+          : voteOn && m.role !== 'owner'
+            ? [
+                {
+                  icon: UserX,
+                  label: tr(mine ? 'room.group.unvoteA11y' : 'room.group.voteA11y', { name: m.name }),
+                  hint: votes,
+                  danger: !mine,
+                  confirm: mine
+                    ? undefined
+                    : {
+                        title: tr('room.group.kickAsk', { name: m.name }),
+                        message: tr('room.group.kickMessage', { name: m.name, count: group.kick_needed }),
+                        label: tr('room.group.vote'),
+                      },
+                  run: () => kick.mutateAsync({ id: m.id, undo: mine }),
+                },
+              ]
+            : [];
         return (
           <Card key={m.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12 }}>
             <Avatar member={m} size={36} />
@@ -137,36 +114,26 @@ function Members() {
               {m.name}
             </Text>
             {m.role === 'owner' && <Crown size={16} color={t.accInk} />}
-            {owner ? (
-              <RowButton
-                label={tr('room.group.removeA11y', { name: m.name })}
-                tone="danger"
-                onPress={async () => {
-                  if (await confirm(tr('room.group.removeMessage', { name: m.name }), tr('room.group.removeAsk'), tr('room.group.remove')))
-                    forceRemove.mutate(m.id);
-                }}>
-                <UserX size={16} color={t.tagInk} />
-              </RowButton>
-            ) : voteOn && m.role !== 'owner' ? (
-              <RowButton
-                label={
-                  tr(mine ? 'room.group.unvoteA11y' : 'room.group.voteA11y', { name: m.name }) +
-                  (state ? tr('room.group.votesOf', { count: state.count, total: group.kick_needed }) : '')
-                }
-                tone={mine ? 'danger' : 'plain'}
-                disabled={kick.isPending}
-                onPress={onPress}
-                badge={state ? `${state.count}/${group.kick_needed}` : undefined}>
-                <UserX size={16} color={mine ? t.tagInk : t.mut} />
-              </RowButton>
-            ) : null}
-            <RowButton
+            {state && (
+              <View
+                accessible
+                accessibilityLabel={tr('room.group.kickVotesA11y', { count: state.count, total: group.kick_needed })}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <UserX size={13} color={mine ? t.tagInk : t.mut} />
+                <Text style={{ fontFamily: t.font.semibold, fontSize: 12, color: mine ? t.tagInk : t.mut }}>{votes}</Text>
+              </View>
+            )}
+            <MoreButton
               label={tr('room.group.moreA11y', { name: m.name })}
               onPress={() =>
-                setTarget({ kind: 'member', id: m.id, person: { user_id: m.user_id, name: m.name, color: m.color, photo: m.photo_url, avatar: m.avatar } })
-              }>
-              <Ellipsis size={16} color={t.mut} />
-            </RowButton>
+                setTarget({
+                  kind: 'member',
+                  id: m.id,
+                  person: { user_id: m.user_id, name: m.name, color: m.color, photo: m.photo_url, avatar: m.avatar },
+                  actions,
+                })
+              }
+            />
           </Card>
         );
       })}

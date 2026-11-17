@@ -77,8 +77,7 @@ export const room = {
     vote: 'Voter',
     voteA11y: 'Voter pour exclure {name}',
     unvoteA11y: 'Retirer mon vote contre {name}',
-    /** Follows voteA11y / unvoteA11y. */
-    votesOf: { one: ', {count} vote sur {total}', other: ', {count} votes sur {total}' },
+    kickVotesA11y: { one: "{count} vote sur {total} pour l'exclure", other: "{count} votes sur {total} pour l'exclure" },
     removeA11y: 'Retirer {name} du salon',
     removeAsk: 'Retirer du salon ?',
     removeMessage: '{name} sort du salon tout de suite.',

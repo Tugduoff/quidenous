@@ -75,7 +75,7 @@ export const room: Messages['room'] = {
     vote: 'Vote',
     voteA11y: 'Vote to remove {name}',
     unvoteA11y: 'Take back my vote against {name}',
-    votesOf: { one: ', {count} vote of {total}', other: ', {count} votes of {total}' },
+    kickVotesA11y: { one: '{count} of {total} votes to remove them', other: '{count} of {total} votes to remove them' },
     removeA11y: 'Remove {name} from the room',
     removeAsk: 'Remove from the room?',
     removeMessage: '{name} leaves the room right away.',

@@ -18,7 +18,8 @@ import { useTheme } from '@/lib/theme';
 /** Solo winner size; tied faces are 4 px smaller so that with their 2 px ring they match it. */
 const SOLO = 44;
 const TIED = 40;
-const MAX = 3;
+/** A tie shows two faces at most (the second one "+n" past two): the names are spelled out under the question. */
+const MAX = 2;
 
 const dayKey = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
 
@@ -45,7 +46,7 @@ function byDay(items: HistoryItem[]) {
   return days;
 }
 
-function HistoryCard({ item, lead, byId, order }: { item: HistoryItem; lead: number; byId: Map<number, Member>; order?: number }) {
+function HistoryCard({ item, byId, order }: { item: HistoryItem; byId: Map<number, Member>; order?: number }) {
   const t = useTheme();
   const tr = useT();
   const winners = item.winner_ids.map((id) => byId.get(id));
@@ -53,6 +54,8 @@ function HistoryCard({ item, lead, byId, order }: { item: HistoryItem; lead: num
   // A choose question's "winners" are its best guessers (none when nobody guessed right).
   const choose = item.kind === 'choose';
   const Mark = choose ? Target : Crown;
+  // Each row as wide as its own faces: a tie elsewhere doesn't squeeze this title.
+  const lead = winners.length > 1 ? avatarStackWidth(winners.length, TIED, MAX) : SOLO;
   return (
     <Animated.View entering={order != null ? motion.stagger(order) : undefined}>
       <PressableScale
@@ -160,11 +163,6 @@ export default function HistoryScreen() {
     const days = byDay(data ?? []).map((d) => ({ key: d.key, title: d.label, data: d.items.map((i) => (pinnedIds ? { ...i, pinned: pinnedIds.has(i.id) } : i)) }));
     return pinned?.length ? [{ key: 'pinned', title: tr('history.pinned'), data: pinned }, ...days] : days;
   }, [data, pinned, pinnedIds, tr]);
-  // Same leading column on every row, as wide as the widest tie in the list.
-  const lead = useMemo(
-    () => Math.max(SOLO, ...[...(pinned ?? []), ...(data ?? [])].map((i) => (i.winner_ids.length > 1 ? avatarStackWidth(i.winner_ids.length, TIED, MAX) : 0))),
-    [pinned, data],
-  );
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: t.bg }}>
       <SectionList
@@ -200,7 +198,7 @@ export default function HistoryScreen() {
           </View>
         )}
         renderItem={({ item, index }) => (
-          <HistoryCard item={item} lead={lead} byId={byId} order={intro && index < 6 ? index : undefined} />
+          <HistoryCard item={item} byId={byId} order={intro && index < 6 ? index : undefined} />
         )}
         ListFooterComponent={
           <View>

@@ -47,6 +47,15 @@ function wirePath(ax: number, ay: number, bx: number, by: number) {
 /** "Léa Martin" → "Léa": names stay on one line in the narrow column. */
 const firstName = (name: string) => name.trim().split(/\s+/)[0] || name;
 
+/**
+ * About how wide the items column wants to be: its longest label on two lines at most (bold 15 px is ~9 px a letter,
+ * plus the padding and border of a plug). A rough guess is enough: labels wrap, and the column is clamped.
+ */
+function itemsWidth(items: string[]) {
+  const letters = Math.max(0, ...items.map((l) => Math.max(...l.split(/\s+/).map((w) => w.length), Math.ceil(l.length / 2))));
+  return letters * 9 + 28;
+}
+
 const haptic = () => {
   if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
 };
@@ -170,9 +179,11 @@ function WireBoard({
   const [stackH, setStackH] = useState(items.length * 60);
   const [rects, setRects] = useState<(Rect | undefined)[]>([]);
 
-  const left = Math.round(width * 0.47);
-  const itemsW = Math.round(width * 0.33);
+  // Items as narrow as their labels allow (a third of the board at most): the rest goes to the names.
+  const itemsW = Math.round(Math.min(width * 0.33, Math.max(width * 0.24, itemsWidth(items))));
   const itemsX = width - PAD - itemsW;
+  // The wires keep a fifth of the board between the two columns.
+  const left = Math.round(itemsX - width * 0.2 + PAD);
   const anchorX = PAD + left - SOCKET;
   const content = PAD * 2 + people.length * g.row + Math.max(0, people.length - 1) * g.gap;
   // Tall enough for the items; past what fits above the vote button, the list scrolls inside the board (not the page).

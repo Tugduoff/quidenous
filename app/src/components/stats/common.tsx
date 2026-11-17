@@ -130,11 +130,11 @@ export const AWARD_ICONS: Record<string, string> = {
 export const awardTitle = (key: string) => t(`stats.award.${key}` as TKey);
 
 /** A small-caps label: section headers, card titles. */
-export function Caps({ children, color, size = 12 }: { children: ReactNode; color?: string; size?: number }) {
+export function Caps({ children, color, size = 12, lines = 1 }: { children: ReactNode; color?: string; size?: number; lines?: number }) {
   const t = useTheme();
   return (
     <Text
-      numberOfLines={1}
+      numberOfLines={lines}
       style={{ flexShrink: 1, fontFamily: t.font.bold, fontSize: size, letterSpacing: 0.6, color: color ?? t.mut, textTransform: 'uppercase' }}>
       {children}
     </Text>

@@ -39,12 +39,12 @@ export const stats = {
   },
   /** The four big tiles and the list of smaller facts. */
   key: {
-    voting: 'à voter',
+    voting: 'Temps passé à voter',
     unanimous: { one: 'Unanime', other: 'Unanimes' },
     ties: { one: 'Égalité', other: 'Égalités' },
     nudges: { one: 'Relance', other: 'Relances' },
-    waiting: 'À attendre',
-    perQuestion: 'Par question',
+    waiting: 'Attente du dernier vote',
+    perQuestion: "Durée médiane d'une question",
   },
   /** Award titles, by the server's keys (docs/STATS.md). */
   award: {

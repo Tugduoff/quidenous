@@ -25,9 +25,21 @@ export type ModTarget = {
   onRestore?: () => Promise<unknown>;
   own?: boolean;
   anchor?: Anchor;
+  /** Extra actions at the top of the menu (a room member: remove, vote to remove). */
+  actions?: ModAction[];
 };
 
-type Step = 'menu' | 'report' | 'block' | 'delete' | 'done';
+/** One more line of the menu. `confirm`: asked in the same dialog first. `hint`: quiet text at the end (votes so far). */
+export type ModAction = {
+  icon: LucideIcon;
+  label: string;
+  hint?: string;
+  danger?: boolean;
+  confirm?: { title: string; message?: string; label: string };
+  run: () => Promise<unknown>;
+};
+
+type Step = 'menu' | 'report' | 'block' | 'delete' | 'action' | 'done';
 
 /**
  * Report (pick a reason) and block / unblock, in one dialog: no second modal on top of the first.
@@ -55,9 +67,13 @@ export function ModerationDialog({
   const [details, setDetails] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [action, setAction] = useState<ModAction | null>(null);
   if (target && target !== shown) {
     setShown(target);
-    setStep(header || target.onRestore ? 'menu' : target.own ? 'delete' : target.person || target.onDelete ? 'menu' : 'report');
+    setStep(
+      header || target.onRestore || target.actions?.length ? 'menu' : target.own ? 'delete' : target.person || target.onDelete ? 'menu' : 'report',
+    );
+    setAction(null);
     setReason(null);
     setDetails('');
     setError(null);
@@ -87,6 +103,12 @@ export function ModerationDialog({
     }
   };
 
+  const runAction = (a: ModAction) =>
+    run(async () => {
+      await a.run();
+      onClose();
+    });
+
   const person = shown?.person;
   const blocked = !!person && ids.has(person.user_id);
   const send = () =>
@@ -111,6 +133,21 @@ export function ModerationDialog({
       {step === 'menu' && (
         <>
           {header && shown ? header(shown) : <DialogTitle title={person?.name ?? what} />}
+          {shown?.actions?.map((a) => (
+            <Action
+              key={a.label}
+              icon={a.icon}
+              label={a.label}
+              hint={a.hint}
+              danger={a.danger}
+              disabled={busy}
+              onPress={() => {
+                if (!a.confirm) return runAction(a);
+                setAction(a);
+                setStep('action');
+              }}
+            />
+          ))}
           {!!shown?.onRestore && (
             <Action
               icon={Eye}
@@ -249,6 +286,13 @@ export function ModerationDialog({
           />
         </>
       )}
+      {step === 'action' && action?.confirm && (
+        <>
+          <DialogTitle title={action.confirm.title} message={action.confirm.message} />
+          <ErrorText>{error}</ErrorText>
+          <DialogActions confirmLabel={action.confirm.label} busy={busy} onCancel={onClose} onConfirm={() => runAction(action)} />
+        </>
+      )}
       {step === 'done' && (
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 8 }}>
           <Check size={22} color={t.accInk} strokeWidth={3} />
@@ -262,12 +306,14 @@ export function ModerationDialog({
 function Action({
   icon: Icon,
   label,
+  hint,
   onPress,
   danger,
   disabled,
 }: {
   icon: LucideIcon;
   label: string;
+  hint?: string;
   onPress: () => void;
   danger?: boolean;
   disabled?: boolean;
@@ -293,6 +339,7 @@ function Action({
       <Text numberOfLines={1} style={{ flex: 1, fontFamily: t.font.semibold, fontSize: 15, color }}>
         {label}
       </Text>
+      {!!hint && <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut }}>{hint}</Text>}
     </Pressable>
   );
 }

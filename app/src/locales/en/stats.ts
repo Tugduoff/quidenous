@@ -36,12 +36,12 @@ export const stats: Messages['stats'] = {
     onAverage: 'on average',
   },
   key: {
-    voting: 'voting',
+    voting: 'Time spent voting',
     unanimous: { one: 'Unanimous', other: 'Unanimous' },
     ties: { one: 'Tie', other: 'Ties' },
     nudges: { one: 'Nudge', other: 'Nudges' },
-    waiting: 'Waiting',
-    perQuestion: 'Per question',
+    waiting: 'Waiting for the last vote',
+    perQuestion: 'Median time per question',
   },
   award: {
     most_chosen: 'The star',
