@@ -223,6 +223,16 @@
   var bet = $('[data-demo-bet]', demo);
   var betBox = $('[data-demo-betbox]', demo);
   var betText = $('.bet-text', bet);
+  var mascot = $('[data-demo-mascot]', demo);
+  // A mascot reacts to the verdict (decorative). Files from mascots/build.mjs.
+  var MASCOTS = { celebrate: 'paillette-celebrate', think: 'pave-think', sad: 'paillette-sad', accuse: 'zeste-accuse' };
+  function mascotSrc(mood) { return '/vitrine/mascots/' + MASCOTS[mood] + '.svg?v=1'; }
+  var mascotsLoaded = false;
+  function preloadMascots() {
+    if (mascotsLoaded) return;
+    mascotsLoaded = true;
+    Object.keys(MASCOTS).forEach(function (m) { new Image().src = mascotSrc(m); });
+  }
   var wallet = 100;
   var round = 1;
   var picked = null;
@@ -245,6 +255,8 @@
     stack.textContent = '';
     count.textContent = '0/7';
     verdict.textContent = '';
+    mascot.hidden = true;
+    mascot.classList.remove('pop');
     results.hidden = true;
     results.textContent = '';
     grid.hidden = false;
@@ -258,6 +270,7 @@
       b.addEventListener('click', function () {
         if (phase !== 'vote') return;
         picked = m;
+        preloadMascots();
         $$('.pick', grid).forEach(function (o) { o.setAttribute('aria-pressed', String(o === b)); });
         setGo(T.voteFor(m.n), true);
       });
@@ -369,6 +382,12 @@
     small.appendChild(document.createTextNode(line + ' '));
     if (money) small.insertAdjacentHTML('beforeend', money);
     verdict.appendChild(small);
+    // Right guess: Paillette hops. Tie: Pavé thinks. Alone in your vote: Paillette cries. Else Zeste points.
+    var mood = iWon ? 'celebrate' : names.length > 1 ? 'think' : others ? 'accuse' : 'sad';
+    mascot.src = mascotSrc(mood);
+    mascot.setAttribute('data-mood', mood);
+    mascot.hidden = false;
+    mascot.classList.remove('pop'); void mascot.offsetWidth; mascot.classList.add('pop');
     setGo(T.next, true, 'i-redo');
     var winRow = $('.res.win', results);
     var colors = winners.map(function (w) { return COLORS[w.m.k]; }).concat(['#C8FF3D', '#FFFFFF']);

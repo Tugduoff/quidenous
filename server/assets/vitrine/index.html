@@ -27,8 +27,8 @@
 <link rel="manifest" href="/manifest.json">
 <link rel="preload" href="/vitrine/bricolage-800.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="/vitrine/inter-400.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="/vitrine/site.css?v=2">
-<script src="/vitrine/site.js?v=2" defer></script>
+<link rel="stylesheet" href="/vitrine/site.css?v=3">
+<script src="/vitrine/site.js?v=3" defer></script>
 </head>
 <body>
 <svg class="sprite" aria-hidden="true" focusable="false">
@@ -70,6 +70,7 @@
   <div class="hero-glow" aria-hidden="true"></div>
   <div class="hero-copy">
     <h1 id="hero-title" class="wordmark">qui de nous<span class="qmark" data-burst>?</span></h1>
+    <img class="band" src="/vitrine/mascots/band.svg?v=1" width="842" height="243" alt="" decoding="async">
     <div class="ticker"><span class="tag">De nous · #<span data-ticker-n>14</span></span><p class="ticker-q" data-ticker>Qui se ferait virer d'un mariage&nbsp;?</p><button class="ticker-btn" type="button" data-ticker-next aria-label="Une autre question"><svg class="ic"><use href="#i-redo"/></svg></button></div>
     <p class="pitch"><span class="muted">Tes potes votent.</span> Le verdict tombe.</p>
     <div class="ctas">
@@ -106,7 +107,10 @@
       <span class="switch" aria-hidden="true"></span>
       <span class="bet-text"><b>Miser 10 jetons</b> sur mon choix</span>
     </label>
-    <p class="verdict" data-demo-verdict aria-live="polite"></p>
+    <div class="verdict-row">
+      <img class="verdict-mascot" width="84" height="84" alt="" data-demo-mascot hidden>
+      <p class="verdict" data-demo-verdict aria-live="polite"></p>
+    </div>
     <button class="btn btn-lime btn-block" type="button" data-demo-go disabled>Choisis quelqu'un</button>
     <p class="demo-note">Jetons fictifs. Rien à acheter.</p>
   </div>
@@ -151,7 +155,8 @@
 </section>
 
 <section id="modes" class="modes" aria-labelledby="modes-title">
-  <div class="section-head">
+  <div class="section-head with-mascot">
+    <img class="head-mascot" src="/vitrine/mascots/pave-think.svg?v=1" width="181" height="169" alt="" loading="lazy" decoding="async">
     <h2 id="modes-title">Trois façons de jouer</h2>
   </div>
   <div class="mode-grid">
@@ -175,7 +180,10 @@
 
 <section class="final" aria-labelledby="final-title">
   <div class="final-glow" aria-hidden="true"></div>
-  <h2 id="final-title">Bon, alors : qui de nous<span class="lime">?</span></h2>
+  <div class="final-head">
+    <img class="head-mascot" src="/vitrine/mascots/zeste-accuse.svg?v=1" width="166" height="168" alt="" loading="lazy" decoding="async">
+    <h2 id="final-title">Bon, alors : qui de nous<span class="lime">?</span></h2>
+  </div>
   <div class="final-row">
     <div class="ctas">
       <a class="btn btn-lime" href="/beta"><svg class="ic"><use href="#i-phone"/></svg>Rejoindre la bêta Android</a>

@@ -42,8 +42,9 @@ const TRACKING: [&str; 9] = [
     "fbclid", "gclid", "gbraid", "wbraid", "msclkid", "igshid", "mc_cid", "mc_eid", "ref",
 ];
 
-/// The page's files: (path under `/vitrine/`, content type, bytes).
-const FILES: [(&str, &str, &[u8]); 16] = [
+/// The page's files: (path under `/vitrine/`, content type, bytes). The mascots are drawn by
+/// `assets/vitrine/mascots/build.mjs`; the demo's verdict loads four of them from `site.js`.
+const FILES: [(&str, &str, &[u8]); 21] = [
     (
         "site.css",
         "text/css; charset=utf-8",
@@ -123,6 +124,31 @@ const FILES: [(&str, &str, &[u8]); 16] = [
         "shots/08-streaks-tripot.webp",
         "image/webp",
         include_bytes!("../assets/vitrine/shots/08-streaks-tripot.webp"),
+    ),
+    (
+        "mascots/band.svg",
+        "image/svg+xml",
+        include_bytes!("../assets/vitrine/mascots/band.svg"),
+    ),
+    (
+        "mascots/zeste-accuse.svg",
+        "image/svg+xml",
+        include_bytes!("../assets/vitrine/mascots/zeste-accuse.svg"),
+    ),
+    (
+        "mascots/paillette-celebrate.svg",
+        "image/svg+xml",
+        include_bytes!("../assets/vitrine/mascots/paillette-celebrate.svg"),
+    ),
+    (
+        "mascots/paillette-sad.svg",
+        "image/svg+xml",
+        include_bytes!("../assets/vitrine/mascots/paillette-sad.svg"),
+    ),
+    (
+        "mascots/pave-think.svg",
+        "image/svg+xml",
+        include_bytes!("../assets/vitrine/mascots/pave-think.svg"),
     ),
 ];
 

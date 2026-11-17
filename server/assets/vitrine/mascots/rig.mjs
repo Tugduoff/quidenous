@@ -1,0 +1,453 @@
+// Vendored copy of the Petons rig source ("la bande": Zeste, Bulle, Pavé, Paillette, Roupi), from the
+// mascot design repo (a2/petons/rig.mjs), the same rig the app ports. Only the board-only exports (INFO, ROLES,
+// partSvg) were dropped; keep the rest in sync with the source rather than editing it here.
+// build.mjs (next to this file) turns it into the showcase page's SVGs.
+//
+// A · Petons: the same five friends as La Bande, re-proportioned into a chunky toy family.
+// Squat bodies, tiny stubby legs ("petons"), bigger eyes with a big highlight, a heavier ink line, short arms.
+//
+// Every character = a BODY (fixed silhouette + anchors) + shared PARTS (eyes, brows, mouth, arms, legs, props).
+// Parts are authored once, in local coordinates:
+//   - face parts around the face centre (0,0), eyes at x = ±20, mouth at y ≈ 16..33;
+//   - arm AND leg parts for a RIGHT socket (+x = outward, +y = down); the left socket uses the same part mirrored;
+//   - top props (zzz, "?") around the body's `prop` anchor; sparkles in absolute 200×200 space.
+// A leg part may carry `lift` (whole body moves up for a hop, down for a sit): the legs decide the stance.
+// Colour tokens ('ink', 'body', 'shade', 'cheek', 'white', 'acc2') are resolved per character.
+
+export const INK = '#121216';
+export const WHITE = '#FFFFFF';
+export const GROUND = 187; // feet rest here; tilt / squash pivot
+
+// ---------- tiny element helpers (plain {t, ...attrs} objects) ----------
+const P = (d, o = {}) => ({ t: 'path', d, ...o });
+const C = (cx, cy, r, o = {}) => ({ t: 'circle', cx, cy, r, ...o });
+const E = (cx, cy, rx, ry, o = {}) => ({ t: 'ellipse', cx, cy, rx, ry, ...o });
+const LW = 5.5; // face line weight (A: 4.5)
+const line = (d, sw = LW) => P(d, { fill: 'none', stroke: 'ink', sw, cap: 'round', join: 'round' });
+// An outlined tube: ink stroke, then a narrower stroke in `inner` colour on top (arms, legs, stems, letters).
+const tube = (d, w = 22, inner = 'body', outline = 5.5) => [
+  P(d, { fill: 'none', stroke: 'ink', sw: w, cap: 'round', join: 'round' }),
+  P(d, { fill: 'none', stroke: inner, sw: w - 2 * outline, cap: 'round', join: 'round' }),
+];
+// Joint: the inner colour of a limb tube, redrawn OVER the body outline where the limb leaves the body, so limbs
+// grow out of one continuous silhouette (no ink gap, which on dark backgrounds made hands and feet look detached).
+// Supports 'M x y Q x y x y' and 'M x y L x y'. axis/lo/hi = the stretch of the curve to redraw (local coords).
+function joint(d, w, inner, outline, axis, lo, hi) {
+  const n = d.match(/-?[\d.]+/g).map(Number);
+  const [p0, p1, p2] = n.length === 6 ? [[n[0], n[1]], [n[2], n[3]], [n[4], n[5]]] : [[n[0], n[1]], null, [n[2], n[3]]];
+  const c = p1 ?? [(p0[0] + p2[0]) / 2, (p0[1] + p2[1]) / 2];
+  const at = (t) => [0, 1].map((i) => (1 - t) ** 2 * p0[i] + 2 * (1 - t) * t * c[i] + t * t * p2[i]);
+  const k = axis === 'x' ? 0 : 1;
+  const ts = [];
+  for (let t = 0; t <= 1.0001; t += 0.01) if (at(t)[k] >= lo && at(t)[k] <= hi) ts.push(t);
+  if (!ts.length) return [];
+  const [t0, t1] = [ts[0], ts[ts.length - 1]];
+  const a = at(t0), b = at(t1);
+  const m = [0, 1].map((i) => (1 - t0) * (1 - t1) * p0[i] + ((1 - t0) * t1 + t0 * (1 - t1)) * c[i] + t0 * t1 * p2[i]);
+  const f = (v) => +v.toFixed(2);
+  return [P(`M${f(a[0])} ${f(a[1])}Q${f(m[0])} ${f(m[1])} ${f(b[0])} ${f(b[1])}`, { fill: 'none', stroke: inner, sw: w - 2 * outline, cap: 'round' })];
+}
+const armJoint = (d) => joint(d, 22, 'body', 5.5, 'x', -4, 9);
+const legJoint = (d, w = 20) => joint(d, w, 'shade', 5.5, 'y', 3, 14);
+const mitt = (x, y, r = 12.5) => C(x, y, r, { fill: 'body', stroke: 'ink', sw: 5.5 });
+const foot = (x, y, rx = 14, ry = 8.5, rot = 0) => E(x, y, rx, ry, { fill: 'shade', stroke: 'ink', sw: 5.5, ...(rot ? { transform: `rotate(${rot} ${x} ${y})` } : {}) });
+const star = (cx, cy, r, fill, sw = 3.6) =>
+  P(`M${cx} ${cy - r}Q${cx + r * 0.18} ${cy - r * 0.18} ${cx + r} ${cy}Q${cx + r * 0.18} ${cy + r * 0.18} ${cx} ${cy + r}Q${cx - r * 0.18} ${cy + r * 0.18} ${cx - r} ${cy}Q${cx - r * 0.18} ${cy - r * 0.18} ${cx} ${cy - r}Z`, {
+    fill,
+    stroke: 'ink',
+    sw,
+    join: 'round',
+  });
+const drop = (x, y, h, fill = '#BDEBFF') =>
+  P(`M${x} ${y}C${x + h * 0.36} ${y + h * 0.55} ${x + h * 0.45} ${y + h * 0.82} ${x} ${y + h}C${x - h * 0.45} ${y + h * 0.82} ${x - h * 0.36} ${y + h * 0.55} ${x} ${y}Z`, {
+    fill,
+    stroke: 'ink',
+    sw: 4,
+    join: 'round',
+  });
+// Both eyes from one recipe (x = -20 left eye, +20 right; side = -1 left, +1 right).
+const EX = 20;
+// Sole seen from the front when sitting: an egg, wide at the toes, splayed outward.
+export const sole = (x, y, rot) => {
+  const transform = `translate(${x} ${y}) rotate(${rot})`;
+  return [
+    P('M0 -15C9 -15 12.5 -7 11.5 1C10.5 9 6 13 0 13C-6 13 -10.5 9 -11.5 1C-12.5 -7 -9 -15 0 -15Z', { fill: 'shade', stroke: 'ink', sw: 5.5, join: 'round', transform }),
+    P('M0 -1C4.5 -1 6 2 5.5 5C5 8 3 9 0 9C-3 9 -5 8 -5.5 5C-6 2 -4.5 -1 0 -1Z', { fill: 'body', transform }),
+    C(-5, -8.5, 2.4, { fill: 'body', transform }),
+    C(0, -10, 2.4, { fill: 'body', transform }),
+    C(5, -8.5, 2.4, { fill: 'body', transform }),
+  ];
+};
+const both = (f) => [...f(-EX, -1), ...f(EX, 1)];
+
+// ---------- BODIES: silhouette + anchors (face, arm sockets, LEG sockets, prop anchor) ----------
+// All bodies sit on the same baseline: body bottom ≈ 166, leg sockets at y = 158, feet on GROUND (187).
+export const BODIES = {
+  zeste: {
+    name: 'Zeste',
+    color: '#C8FF3D',
+    shade: '#9FD61A',
+    cheek: '#FF8FA8',
+    acc2: '#7BB300',
+    shape: 'haricot',
+    // short bean (A: 144 tall, here 108)
+    d: 'M100 58C132 58 150 80 152 108C154 134 156 152 146 160C138 166 120 166 100 166C80 166 62 166 54 160C44 152 46 134 48 108C50 80 68 58 100 58Z',
+    gloss: 'M62 106Q63 86 76 74',
+    face: { x: 100, y: 106, s: 1 },
+    arms: { L: { x: 50, y: 128 }, R: { x: 150, y: 128 } },
+    legs: { L: { x: 81, y: 158 }, R: { x: 119, y: 158 } },
+    prop: { x: 148, y: 50 },
+    shadow: 50,
+    back: [...tube('M100 62C98 50 101 41 110 37C119 33 128 39 126 48C124 55 117 56 113 52', 15, 'acc2', 4.8)],
+    front: [],
+    faceExtras: [],
+  },
+  bulle: {
+    name: 'Bulle',
+    color: '#5AC8FA',
+    shade: '#2FA6E0',
+    cheek: '#FF8FC0',
+    acc2: '#2FA6E0',
+    shape: 'boule',
+    // wide puff with a tuft
+    d: 'M100 68C140 68 168 92 168 121C168 151 142 166 100 166C58 166 32 151 32 121C32 92 60 68 100 68Z',
+    gloss: 'M48 114Q50 94 66 82',
+    face: { x: 100, y: 118, s: 1 },
+    arms: { L: { x: 36, y: 134 }, R: { x: 164, y: 134 } },
+    legs: { L: { x: 79, y: 158 }, R: { x: 121, y: 158 } },
+    prop: { x: 156, y: 62 },
+    shadow: 58,
+    back: [
+      P('M86 74C82 62 87 52 97 50C94 57 96 63 101 69C102 59 109 52 119 53C113 58 112 65 115 74Z', {
+        fill: 'body',
+        stroke: 'ink',
+        sw: 6.5,
+        join: 'round',
+      }),
+    ],
+    front: [],
+    faceExtras: [],
+  },
+  pave: {
+    name: 'Pavé',
+    color: '#FFB547',
+    shade: '#F08F1F',
+    cheek: '#FF7A5C',
+    acc2: '#F08F1F',
+    shape: 'pavé',
+    // squat block, very round corners
+    d: 'M68 72H132C155 72 162 82 163 102L164 142C164 160 156 166 136 166H64C44 166 36 160 36 142L37 102C38 82 45 72 68 72Z',
+    gloss: 'M50 124V104Q50 88 62 84',
+    face: { x: 100, y: 116, s: 1 },
+    arms: { L: { x: 39, y: 138 }, R: { x: 161, y: 138 } },
+    legs: { L: { x: 77, y: 158 }, R: { x: 123, y: 158 } },
+    prop: { x: 158, y: 56 },
+    shadow: 60,
+    back: [...tube('M94 74C88 64 94 54 106 54C102 59 104 64 110 68', 14, 'body', 4.8)],
+    front: [],
+    // round glasses: lenses under the eyes, frames over them
+    faceUnder: [
+      { t: 'rect', x: -36, y: -16, width: 32, height: 30, rx: 12, fill: 'white', opacity: 0.5 },
+      { t: 'rect', x: 4, y: -16, width: 32, height: 30, rx: 12, fill: 'white', opacity: 0.5 },
+    ],
+    faceExtras: [
+      P('M-36 -4L-43 -7M36 -4L43 -7M-5 -4Q0 -9 5 -4', { fill: 'none', stroke: 'ink', sw: 5, cap: 'round' }),
+      { t: 'rect', x: -36, y: -16, width: 32, height: 30, rx: 12, fill: 'none', stroke: 'ink', sw: 5 },
+      { t: 'rect', x: 4, y: -16, width: 32, height: 30, rx: 12, fill: 'none', stroke: 'ink', sw: 5 },
+    ],
+  },
+  paillette: {
+    name: 'Paillette',
+    color: '#FF6DB5',
+    shade: '#E8479A',
+    cheek: '#FF3F8C',
+    acc2: '#E8479A',
+    shape: 'goutte',
+    // squat drop with a flicked tip
+    d: 'M126 34C120 50 100 62 82 74C58 90 38 108 38 132C38 154 62 166 100 166C138 166 162 154 162 132C162 108 151 92 139 79C129 67 121 52 126 34Z',
+    gloss: 'M54 126Q56 106 70 94',
+    face: { x: 100, y: 126, s: 1 },
+    arms: { L: { x: 41, y: 142 }, R: { x: 159, y: 142 } },
+    legs: { L: { x: 80, y: 158 }, R: { x: 120, y: 158 } },
+    prop: { x: 158, y: 64 },
+    shadow: 56,
+    back: [],
+    front: [],
+    // lashes + beauty mark: the drama queen
+    faceExtras: [
+      P('M-26 -10L-30 -17M-29.5 -4.5L-36.5 -8M26 -10L30 -17M29.5 -4.5L36.5 -8', { fill: 'none', stroke: 'ink', sw: 4.4, cap: 'round' }),
+      C(31, 22, 2.8, { fill: 'ink' }),
+    ],
+  },
+  roupi: {
+    name: 'Roupi',
+    color: '#B48CFF',
+    shade: '#9367F0',
+    cheek: '#F08CE0',
+    acc2: '#5EF2B0',
+    shape: 'dôme',
+    // wide low dome + menthe nightcap
+    d: 'M26 150C26 112 58 86 100 86C142 86 174 112 174 150C174 160 168 166 158 166H42C32 166 26 160 26 150Z',
+    gloss: 'M40 140Q42 120 56 108',
+    face: { x: 100, y: 133, s: 0.86 },
+    arms: { L: { x: 30, y: 142 }, R: { x: 170, y: 142 } },
+    legs: { L: { x: 73, y: 158 }, R: { x: 127, y: 158 } },
+    prop: { x: 46, y: 62 },
+    shadow: 66,
+    back: [],
+    front: [
+      P('M60 100C60 76 76 54 100 46C122 38 148 38 162 54C170 63 168 76 162 82C158 70 148 64 138 68C141 78 142 90 141 100C120 90 80 90 60 100Z', {
+        fill: 'acc2',
+        stroke: 'ink',
+        sw: 6.5,
+        join: 'round',
+      }),
+      ...tube('M56 102Q100 82 145 102', 20, 'white', 5.5),
+      C(164, 84, 11.5, { fill: 'white', stroke: 'ink', sw: 5.5 }),
+    ],
+    faceExtras: [],
+  },
+};
+
+export const CAST = Object.keys(BODIES);
+
+// ---------- PARTS: one shared library ----------
+const hi = (x, y = -4.8, r = 4.4) => [C(x - 3.2, y, r, { fill: 'white' }), C(x + 3.8, y + 9.4, 1.9, { fill: 'white' })];
+
+const arm = (d, rest) => ({ z: 'back', els: [...tube(d), ...rest], joint: armJoint(d) });
+const leg = (d, rest, lift = 0, w = 20) => ({ z: 'back', lift, els: [...tube(d, w, 'shade'), ...rest], joint: legJoint(d, w) });
+
+export const PARTS = {
+  eyes: {
+    open: both((x) => [E(x, 0, 10, 12.5, { fill: 'ink' }), ...hi(x)]),
+    // half-lidded (bored / smug / sleepy-happy)
+    lazy: both((x) => [P(`M${x - 9.85} -1A10 12.5 0 0 0 ${x + 9.85} -1Z`, { fill: 'ink' }), C(x - 3, 3.5, 2.6, { fill: 'white' }), line(`M${x - 12} -2L${x + 12} -2`, 6)]),
+    // suspicious: lid slanted down toward the nose
+    squint: both((x, s) => [
+      P(`M${x - 9.85} 2A10 12.5 0 0 0 ${x + 9.85} 2Z`, { fill: 'ink' }),
+      C(x - 3 * s, 6, 2.4, { fill: 'white' }),
+      line(s < 0 ? `M${x - 12} -3L${x + 11} 4` : `M${x - 11} 4L${x + 12} -3`, 6),
+    ]),
+    closed: both((x) => [line(`M${x - 10} 0Q${x} 10 ${x + 10} 0`, 6)]),
+    happy: both((x) => [line(`M${x - 10} 5Q${x} -11 ${x + 10} 5`, 6.2)]),
+    side: both((x) => [E(x + 5, -1, 9.5, 12, { fill: 'ink' }), C(x + 2, -5.5, 4, { fill: 'white' }), C(x + 8.6, 3.6, 1.7, { fill: 'white' })]),
+    wide: both((x) => [C(x, -1, 13, { fill: 'white', stroke: 'ink', sw: 5 }), C(x + 1, 0, 5.6, { fill: 'ink' }), C(x - 0.8, -2, 1.8, { fill: 'white' })]),
+    teary: both((x) => [E(x, 0, 10, 12.5, { fill: 'ink' }), C(x - 3, -4.5, 5, { fill: 'white' }), C(x + 3.6, 4.6, 2.7, { fill: 'white' })]),
+    stars: both((x) => [star(x, 0, 13, 'ink', 3.6)]),
+  },
+  brows: {
+    none: [],
+    up: both((x) => [line(`M${x - 9} -23Q${x} -31 ${x + 9} -23`)]),
+    sus: [line('M-31 -26L-12 -19'), line('M12 -27Q21 -35 30 -27')],
+    sad: [line('M-30 -19L-12 -26'), line('M12 -26L30 -19')],
+    think: [line('M-30 -22L-12 -21'), line('M11 -28Q20 -36 30 -29')],
+    worried: [line('M-31 -21Q-22 -23 -13 -29'), line('M13 -29Q22 -23 31 -21')],
+  },
+  mouth: {
+    smile: [line('M-11 17Q0 29 11 17')],
+    grin: [
+      P('M-14 15L14 15Q14 33 0 33Q-14 33 -14 15Z', { fill: 'ink', stroke: 'ink', sw: 3.5, join: 'round' }),
+      P('M-8 28.5Q0 22 8 28.5Q5 32 0 32Q-5 32 -8 28.5Z', { fill: '#FF7A9A' }),
+    ],
+    smirk: [line('M-10 22Q3 25 12 15')],
+    o: [E(0, 22, 5, 6, { fill: 'ink' })],
+    gasp: [E(0, 23, 7, 9, { fill: 'ink' })],
+    frown: [line('M-10 26Q0 16 10 26')],
+    wail: [
+      P('M-14 31Q-13 15 0 15Q13 15 14 31Z', { fill: 'ink', stroke: 'ink', sw: 3.5, join: 'round' }),
+      P('M-8 31Q0 25 8 31Z', { fill: '#FF7A9A' }),
+    ],
+    hmm: [line('M-3 22L11 19')],
+    wobble: [line('M-12 23Q-8 18.5 -4 23T4 23T12 23', 5)],
+  },
+  // One side only, for the RIGHT socket. Shorter than A (stubby toy arms). `joint` = redrawn over the body outline.
+  arms: {
+    rest: arm('M-8 -2Q2 4 5 12', [mitt(6, 15)]),
+    wave: arm('M-8 0Q8 -2 12 -18', [mitt(13, -22)]),
+    up: arm('M-8 0Q8 -8 11 -26', [mitt(12, -30)]),
+    point: arm('M-8 0Q4 -2 10 -6', [...tube('M19 -10L32 -16', 15, 'body', 4.6), mitt(13, -8)]),
+    aim: arm('M-8 0Q4 2 10 8', [...tube('M19 14L29 23', 15, 'body', 4.6), mitt(13, 10)]),
+    droop: arm('M-8 0Q0 8 2 14', [mitt(2, 17)]),
+    finger: arm('M-8 2Q12 6 12 -6', [...tube('M13 -14L14 -27', 15, 'body', 4.6), mitt(12, -9)]),
+    hands: arm('M-8 0Q8 -2 9 -14', [mitt(9, -18, 13.5)]),
+    none: { z: 'back', els: [], joint: [] },
+  },
+  // NEW: legs, one side only, for the RIGHT leg socket (hip). `lift` moves the whole body (- = up, + = down).
+  legs: {
+    stand: leg('M0 -6L2 13', [foot(5, 21)]),
+    // planted wide (accusing, sure of themselves)
+    wide: leg('M0 -6L8 13', [foot(12, 21)]),
+    // pigeon-toed (shy, sad)
+    shy: leg('M0 -6L-2 13', [foot(-1, 21, 13.5, 8.5, -18)]),
+    // toes up, heel down: tapping (thinking)
+    tap: leg('M0 -6L3 11', [foot(9, 16, 13.5, 8, -24)]),
+    // on tiptoe: body up a little, feet pointing down
+    tiptoe: leg('M0 -6L1 15', [foot(2, 24, 9.5, 10.5)], -6),
+    // jump: body high, feet kicked outward, the shadow stays on the ground
+    hop: leg('M0 -4Q4 8 10 13', [foot(14, 18, 12.5, 8, 28)], -15),
+    // startled jump: feet hanging together under the body
+    dangle: leg('M0 -4L-2 13', [foot(-2, 20, 11, 8, -14)], -11, 18),
+    // sitting on the ground: body lowered, soles facing us, splayed outward
+    sit: { z: 'front', lift: 13, els: sole(2, 2, 28), joint: [] },
+    none: { z: 'back', lift: 0, els: [], joint: [] },
+  },
+  props: {
+    none: { at: 'prop', els: [] },
+    zzz: {
+      at: 'prop',
+      els: [
+        ...tube('M-4 6H8L-4 20H8', 9.5, 'white', 3.2),
+        ...tube('M16 -14H25L16 -3H25', 8.5, 'white', 3),
+        ...tube('M32 -30H39L32 -22H39', 7.5, 'white', 2.8),
+      ],
+    },
+    ask: {
+      at: 'prop',
+      els: [
+        C(-14, 26, 4.5, { fill: '#C8FF3D', stroke: 'ink', sw: 3.6 }),
+        C(-4, 14, 6.5, { fill: '#C8FF3D', stroke: 'ink', sw: 4 }),
+        C(16, -6, 19, { fill: '#C8FF3D', stroke: 'ink', sw: 5 }),
+        P('M9.5 -10.5Q9.5 -18 16.5 -18Q23.5 -18 23.5 -11.5Q23.5 -6 16.5 -4V0', { fill: 'none', stroke: 'ink', sw: 5, cap: 'round', join: 'round' }),
+        C(16.5, 6.5, 3, { fill: 'ink' }),
+      ],
+    },
+    sparkles: {
+      at: 'abs',
+      els: [star(24, 48, 14, '#FFB547'), star(178, 40, 12, '#FF6DB5'), star(16, 108, 10, '#5AC8FA'), star(186, 110, 10, '#C8FF3D'), star(150, 14, 9, '#B48CFF')],
+    },
+    tear: { at: 'face', els: [drop(-29, 9, 16)] },
+    tears: { at: 'face', els: [drop(-29, 9, 18), drop(29, 9, 18)] },
+    sweat: { at: 'face', els: [drop(46, -34, 19)] },
+  },
+};
+
+// ---------- MOODS: part names (+ a small whole-body transform). Legs pick the stance. ----------
+export const MOODS = {
+  happy: { eyes: 'open', brows: 'none', mouth: 'smile', arms: ['rest', 'wave'], legs: ['stand', 'stand'] },
+  accuse: { eyes: 'squint', brows: 'sus', mouth: 'smirk', arms: ['rest', 'point'], legs: ['wide', 'wide'], tilt: 4, dx: -10 },
+  sleepy: { eyes: 'closed', brows: 'none', mouth: 'o', arms: ['droop', 'droop'], legs: ['sit', 'sit'], prop: 'zzz', tilt: -4, squash: [1.04, 0.96] },
+  celebrate: { eyes: 'happy', brows: 'up', mouth: 'grin', arms: ['up', 'up'], legs: ['hop', 'hop'], prop: 'sparkles' },
+  sad: { eyes: 'teary', brows: 'sad', mouth: 'frown', arms: ['droop', 'droop'], legs: ['shy', 'shy'], prop: 'tear', squash: [1.04, 0.96] },
+  think: { eyes: 'side', brows: 'think', mouth: 'hmm', arms: ['rest', 'finger'], legs: ['stand', 'tap'], prop: 'ask' },
+  // extra: the one everybody points at (jumps out of their skin)
+  caught: { eyes: 'wide', brows: 'worried', mouth: 'wobble', arms: ['hands', 'hands'], legs: ['dangle', 'dangle'], prop: 'sweat' },
+};
+export const MOOD_KEYS = ['happy', 'accuse', 'sleepy', 'celebrate', 'sad', 'think'];
+
+// Personality = a few part swaps on top of the shared moods.
+export const QUIRKS = {
+  zeste: { accuse: { mouth: 'grin', brows: 'up' }, happy: { mouth: 'grin' } },
+  bulle: { happy: { arms: ['rest', 'rest'], eyes: 'side', legs: ['shy', 'shy'] }, accuse: { eyes: 'side', mouth: 'wobble', brows: 'worried', tilt: 2, legs: ['shy', 'shy'] } },
+  pave: { happy: { mouth: 'smirk', arms: ['rest', 'finger'], eyes: 'lazy' }, think: { mouth: 'smirk', eyes: 'lazy', brows: 'up' } },
+  paillette: {
+    sad: { mouth: 'wail', prop: 'tears', arms: ['up', 'up'], eyes: 'closed', legs: ['sit', 'sit'], squash: [1, 1] },
+    celebrate: { eyes: 'stars' },
+    accuse: { mouth: 'gasp', brows: 'up', eyes: 'open', legs: ['tiptoe', 'tiptoe'] },
+  },
+  roupi: {
+    happy: { eyes: 'closed', legs: ['sit', 'sit'] },
+    accuse: { eyes: 'lazy', tilt: 2, legs: ['sit', 'sit'] },
+    celebrate: { eyes: 'lazy', arms: ['rest', 'up'], legs: ['tiptoe', 'tiptoe'] },
+    think: { eyes: 'closed', prop: 'zzz', legs: ['sit', 'sit'] },
+  },
+};
+
+export function resolve(who, mood) {
+  const base = typeof mood === 'string' ? { ...MOODS[mood], ...(QUIRKS[who]?.[mood] ?? {}) } : { ...MOODS.happy, ...mood };
+  const m = { brows: 'none', prop: 'none', tilt: 0, dx: 0, squash: [1, 1], legs: ['stand', 'stand'], ...base };
+  if (m.lift === undefined) {
+    const [a, b] = m.legs.map((k) => PARTS.legs[k].lift);
+    m.lift = Math.abs(a) >= Math.abs(b) ? a : b;
+  }
+  return m;
+}
+
+// ---------- compose: parts -> SVG string ----------
+const ATTR = { sw: 'stroke-width', cap: 'stroke-linecap', join: 'stroke-linejoin' };
+const fmt = (n) => (typeof n === 'number' ? +n.toFixed(2) : n);
+
+function el(e, pal) {
+  const { t, ...a } = e;
+  const out = Object.entries(a)
+    .map(([k, v]) => {
+      if (k === 'fill' || k === 'stroke') v = pal[v] ?? v;
+      return `${ATTR[k] ?? k}="${fmt(v)}"`;
+    })
+    .join(' ');
+  return `<${t} ${out}/>`;
+}
+
+const g = (tr, els, pal) => `<g transform="${tr}">${els.map((e) => el(e, pal)).join('')}</g>`;
+export const BODY_SW = 7.5; // A: 5.5
+
+/**
+ * compose('zeste', 'accuse') or compose('roupi', { eyes: 'lazy', arms: ['point', 'rest'], legs: ['sit', 'sit'] }).
+ * opts.uid: unique id prefix; opts.size: width/height; opts.mono: silhouette test; opts.noShadow; opts.bare (no face).
+ */
+export function compose(who, mood = 'happy', opts = {}) {
+  const b = BODIES[who];
+  const m = resolve(who, mood);
+  const uid = opts.uid ?? `${who}-${typeof mood === 'string' ? mood : 'x'}`;
+  const mono = opts.mono;
+  const pal = mono
+    ? { ink: INK, body: INK, shade: INK, cheek: INK, white: INK, acc2: INK, [INK]: INK }
+    : { ink: INK, body: b.color, shade: b.shade, cheek: b.cheek, white: WHITE, acc2: b.acc2 };
+  const recol = (els) => (mono ? els.map((e) => ({ ...e, ...(e.fill && e.fill !== 'none' ? { fill: INK } : {}), ...(e.stroke ? { stroke: INK } : {}) })) : els);
+
+  const limb = (group, sockets, names) =>
+    ['L', 'R'].map((side, i) => {
+      const part = PARTS[group][names[i]];
+      const s = sockets[side];
+      const tr = `translate(${s.x} ${s.y})${side === 'L' ? ' scale(-1 1)' : ''}`;
+      return { z: part.z, svg: g(tr, recol(part.els), pal), joint: part.joint?.length ? g(tr, recol(part.joint), pal) : '' };
+    });
+  const arms = limb('arms', b.arms, m.arms);
+  const legs = limb('legs', b.legs, m.legs);
+  const layer = (list, z) => list.filter((a) => a.z === z).map((a) => a.svg).join('');
+
+  const f = b.face;
+  const faceT = `translate(${f.x} ${f.y}) scale(${f.s})`;
+  const prop = PARTS.props[m.prop];
+  const propSvg =
+    prop.at === 'face'
+      ? g(faceT, recol(prop.els), pal)
+      : prop.at === 'prop'
+        ? g(`translate(${b.prop.x} ${b.prop.y})`, recol(prop.els), pal)
+        : '';
+  const absProp = prop.at === 'abs' ? g('translate(0 0)', recol(prop.els), pal) : '';
+  const face = [
+    ...(mono ? [] : [E(-34, 14, 8.5, 5, { fill: 'cheek', opacity: 0.85 }), E(34, 14, 8.5, 5, { fill: 'cheek', opacity: 0.85 })]),
+    ...(b.faceUnder ?? []),
+    ...PARTS.eyes[m.eyes],
+    ...b.faceExtras,
+    ...PARTS.brows[m.brows],
+    ...PARTS.mouth[m.mouth],
+  ];
+  const [sx, sy] = m.squash;
+  const bodyT = `translate(${m.dx} ${m.lift}) translate(100 ${GROUND}) rotate(${m.tilt}) scale(${sx} ${sy}) translate(-100 -${GROUND})`;
+  const clip = `${uid}-clip`;
+  const bodyFill = mono
+    ? `<path d="${b.d}" fill="${INK}"/>`
+    : `<clipPath id="${clip}"><path d="${b.d}"/></clipPath>` +
+      `<path d="${b.d}" fill="${b.shade}"/>` +
+      `<g clip-path="url(#${clip})"><path d="${b.d}" fill="${b.color}" transform="translate(-10 -9)"/></g>` +
+      `<path d="${b.gloss}" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round" opacity="0.75"/>`;
+  const inner =
+    g('translate(0 0)', recol(b.back), pal) +
+    layer(legs, 'back') +
+    layer(arms, 'back') +
+    bodyFill +
+    `<path d="${b.d}" fill="none" stroke="${INK}" stroke-width="${BODY_SW}" stroke-linejoin="round"/>` +
+    (mono ? '' : [...legs, ...arms].map((l) => l.joint).join('')) +
+    g('translate(0 0)', recol(b.front), pal) +
+    (mono || opts.bare ? '' : g(faceT, face, pal)) +
+    layer(legs, 'front') +
+    layer(arms, 'front') +
+    propSvg;
+  // The shadow stays on the ground: smaller and lighter when the body is in the air.
+  const air = m.lift < 0;
+  const shadow = opts.noShadow
+    ? ''
+    : `<ellipse cx="${100 + m.dx}" cy="${GROUND + 1}" rx="${fmt(b.shadow * sx * (air ? 0.7 : 1))}" ry="${air ? 5.5 : 7}" fill="${INK}" opacity="${air ? 0.11 : 0.16}"/>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"${opts.size ? ` width="${opts.size}" height="${opts.size}"` : ''}>${shadow}<g transform="${bodyT}">${inner}</g>${absProp}</svg>`;
+}

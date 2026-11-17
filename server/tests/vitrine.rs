@@ -99,6 +99,7 @@ async fn every_file_the_pages_use_is_served() {
                 "webp" => "image/webp",
                 "jpg" => "image/jpeg",
                 "png" => "image/png",
+                "svg" => "image/svg+xml",
                 other => panic!("{url}: unexpected .{other}"),
             };
             assert!(kind.starts_with(want), "{url}: {kind}");
@@ -109,8 +110,24 @@ async fn every_file_the_pages_use_is_served() {
             seen += 1;
         }
     }
-    // Both pages: CSS, JS, fonts, icon, og image and the eight store screenshots (two in the hero).
-    assert!(seen >= 2 * 15, "{seen}");
+    // Both pages: CSS, JS, fonts, icon, og image, the eight store screenshots (two in the hero) and
+    // the mascots (the band in the hero, one beside two section titles).
+    assert!(seen >= 2 * 18, "{seen}");
+    // The demo's verdict mascots, only named in site.js.
+    let (_, _, js) = get(&app, "/vitrine/site.js", None).await;
+    let js = String::from_utf8(js).unwrap();
+    for name in [
+        "paillette-celebrate",
+        "pave-think",
+        "paillette-sad",
+        "zeste-accuse",
+    ] {
+        assert!(js.contains(&format!("'{name}'")), "{name}");
+        let url = format!("/vitrine/mascots/{name}.svg");
+        let (s, h, _) = get(&app, &url, None).await;
+        assert_eq!(s, StatusCode::OK, "{url}");
+        assert_eq!(h["content-type"], "image/svg+xml", "{url}");
+    }
     let (s, _, _) = get(&app, "/vitrine/../src/lib.rs", None).await;
     assert_ne!(s, StatusCode::OK);
     let (s, _, _) = get(&app, "/vitrine/nope.css", None).await;
