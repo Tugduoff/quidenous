@@ -289,7 +289,7 @@ export default function Profile() {
         })}
       </View>
 
-      {error && <Text style={{ fontFamily: t.font.semibold, color: t.tag }}>{error}</Text>}
+      {error && <Text style={{ fontFamily: t.font.semibold, color: t.tagInk }}>{error}</Text>}
 
       <Pressable accessibilityRole="button" onPress={() => setLangOpen(true)}>
         <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16 }}>

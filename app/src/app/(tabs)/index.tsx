@@ -35,7 +35,7 @@ import { SecureCard } from '@/components/secure-card';
 import { Tip } from '@/components/tip';
 import { NextGate } from '@/components/next-gate';
 import { NoQuestions, SoloInvite } from '@/components/vote-empty';
-import { askConfirm, Avatar, AvatarStack, Button, Card, ConfirmModal, Dialog, Display, Logo, PressableScale, Tag } from '@/components/ui';
+import { askConfirm, Avatar, AvatarStack, Button, Card, ConfirmModal, Dialog, Display, Logo, PressableScale, Tag, TAG_BG } from '@/components/ui';
 import { api, ApiError, type Member, type Round } from '@/lib/api';
 import { authError, useFeatures } from '@/lib/auth';
 import { showToast } from '@/components/toast';
@@ -125,7 +125,7 @@ function InboxButton() {
             height: 18,
             paddingHorizontal: 4,
             borderRadius: 9,
-            backgroundColor: t.tag,
+            backgroundColor: TAG_BG,
             alignItems: 'center',
             justifyContent: 'center',
           }}>

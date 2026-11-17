@@ -44,7 +44,7 @@ const delayLabel = (s: number) =>
 /** A small titled block: grey header with its icon (red for the danger zone), the rows in a card. */
 function Section({ title, Icon, danger, children }: { title: string; Icon: LucideIcon; danger?: boolean; children: ReactNode }) {
   const t = useTheme();
-  const color = danger ? t.tag : t.mut;
+  const color = danger ? t.tagInk : t.mut;
   return (
     <View style={{ gap: 8 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginLeft: 4 }}>
@@ -75,7 +75,7 @@ function Row({
   const t = useTheme();
   const body = (
     <>
-      <Text numberOfLines={1} style={{ flexShrink: 0, maxWidth: '70%', fontFamily: t.font.semibold, fontSize: 15, color: danger ? t.tag : t.txt }}>
+      <Text numberOfLines={1} style={{ flexShrink: 0, maxWidth: '70%', fontFamily: t.font.semibold, fontSize: 15, color: danger ? t.tagInk : t.txt }}>
         {label}
       </Text>
       <View style={{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
@@ -84,7 +84,7 @@ function Row({
             {value}
           </Text>
         )}
-        {right ?? (onPress && <ChevronRight size={18} color={danger ? t.tag : t.mut} />)}
+        {right ?? (onPress && <ChevronRight size={18} color={danger ? t.tagInk : t.mut} />)}
       </View>
     </>
   );
@@ -420,7 +420,7 @@ function Settings({ group }: { group: Group }) {
 
       <Section title={tr('room.settings.danger')} Icon={TriangleAlert} danger>
         {others.length > 0 && <Row label={tr('room.settings.handOver')} danger onPress={() => setDialog('owner')} />}
-        <Row label={tr('room.settings.delete')} danger onPress={remove} right={<Trash2 size={18} color={t.tag} />} />
+        <Row label={tr('room.settings.delete')} danger onPress={remove} right={<Trash2 size={18} color={t.tagInk} />} />
       </Section>
 
       <NameDialog

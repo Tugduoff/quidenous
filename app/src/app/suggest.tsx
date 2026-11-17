@@ -91,7 +91,7 @@ function Compose({ left }: { left: number | undefined }) {
           <Toggle icon={Trophy} label={tr('community.compose.ranking')} value={rank} onChange={setRank} />
           <View style={{ flex: 1 }} />
           {left != null && (
-            <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: t.font.semibold, fontSize: 13, color: out ? t.tag : t.mut }}>
+            <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: t.font.semibold, fontSize: 13, color: out ? t.tagInk : t.mut }}>
               {tr('community.compose.left', { left, max: SUGGESTIONS_PER_DAY })}
             </Text>
           )}
@@ -115,7 +115,7 @@ function Compose({ left }: { left: number | undefined }) {
       {note && (
         <Animated.Text
           entering={motion.enter}
-          style={{ marginLeft: 4, fontFamily: t.font.semibold, fontSize: 14, color: note.error ? t.tag : t.accInk }}>
+          style={{ marginLeft: 4, fontFamily: t.font.semibold, fontSize: 14, color: note.error ? t.tagInk : t.accInk }}>
           {note.text}
         </Animated.Text>
       )}
@@ -202,7 +202,7 @@ function VoteStack() {
           <ThumbsUp size={24} color={t.accTxt} />
         </RoundButton>
       </View>
-      {error && <Text style={{ alignSelf: 'center', fontFamily: t.font.semibold, fontSize: 14, color: t.tag }}>{error}</Text>}
+      {error && <Text style={{ alignSelf: 'center', fontFamily: t.font.semibold, fontSize: 14, color: t.tagInk }}>{error}</Text>}
     </View>
   );
 }

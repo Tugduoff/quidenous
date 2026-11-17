@@ -69,7 +69,7 @@ export function Countdown({ ms, total, big }: { ms: number | null; total: number
           fontFamily: t.font.display,
           fontSize: big ? 88 : 30,
           lineHeight: big ? 96 : 34,
-          color: urgent ? t.tag : t.txt,
+          color: urgent ? t.tagInk : t.txt,
           fontVariant: ['tabular-nums'],
         }}>
         {s ?? ''}

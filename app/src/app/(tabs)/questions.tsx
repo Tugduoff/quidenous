@@ -335,7 +335,7 @@ export default function QuestionsScreen() {
                     </Pressable>
                   )}
                   {(sameItems || addError) && (
-                    <Text numberOfLines={1} style={{ flex: 1, textAlign: 'right', fontFamily: t.font.regular, fontSize: 13, color: t.tag }}>
+                    <Text numberOfLines={1} style={{ flex: 1, textAlign: 'right', fontFamily: t.font.regular, fontSize: 13, color: t.tagInk }}>
                       {sameItems ? tr('questions.sameItems') : addError}
                     </Text>
                   )}
@@ -462,7 +462,7 @@ export default function QuestionsScreen() {
                     color: t.txt,
                   }}>
                   {tidy(l.text)}
-                  {l.problem && <Text style={{ color: t.tag }}>{`  · ${tr(`questions.problem.${l.problem}`)}`}</Text>}
+                  {l.problem && <Text style={{ color: t.tagInk }}>{`  · ${tr(`questions.problem.${l.problem}`)}`}</Text>}
                 </Text>
                 {!!l.items?.length && (
                   <Text numberOfLines={1} style={{ fontFamily: t.font.regular, fontSize: 13, lineHeight: 18, color: t.mut }}>

@@ -157,7 +157,7 @@ export default function PackEditScreen() {
       tabs={false}
       footer={
         <>
-          {note && <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.tag, textAlign: 'center' }}>{note}</Text>}
+          {note && <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.tagInk, textAlign: 'center' }}>{note}</Text>}
           {!note && questions.length < PACK_MIN && (
             <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.mut, textAlign: 'center' }}>
               {tr('packs.minHint', { count: questions.length, min: PACK_MIN })}

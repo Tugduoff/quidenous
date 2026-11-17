@@ -146,7 +146,7 @@ export default function PlayScreen() {
               </Pressable>
             );
           })}
-          {error && <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.tag, marginLeft: 4 }}>{error}</Text>}
+          {error && <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.tagInk, marginLeft: 4 }}>{error}</Text>}
         </View>
       )}
 

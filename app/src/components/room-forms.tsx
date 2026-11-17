@@ -154,7 +154,7 @@ export function RoomForms({
     </>
   );
 
-  const errorLine = error && <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.tag, marginLeft: 4 }}>{error}</Text>;
+  const errorLine = error && <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.tagInk, marginLeft: 4 }}>{error}</Text>;
 
   if (picking && vibes)
     return (

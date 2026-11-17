@@ -8,7 +8,7 @@ import { RoomInvites } from '@/components/invite';
 import { RoomForms } from '@/components/room-forms';
 import { QueryState } from '@/components/query-state';
 import { Screen } from '@/components/screen';
-import { Card, Display } from '@/components/ui';
+import { Card, Display, TAG_BG } from '@/components/ui';
 import { type RoomSummary } from '@/lib/api';
 import { pendingJoinCode, setPendingCode, useFeatures } from '@/lib/auth';
 import { useT } from '@/lib/i18n';
@@ -80,7 +80,7 @@ export default function RoomsScreen() {
                     height: 22,
                     paddingHorizontal: 6,
                     borderRadius: 11,
-                    backgroundColor: t.tag,
+                    backgroundColor: TAG_BG,
                     alignItems: 'center',
                     justifyContent: 'center',
                   }}>

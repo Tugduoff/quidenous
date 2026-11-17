@@ -222,8 +222,8 @@ function Menu({ party, visible, onClose }: { party: Party; visible: boolean; onC
       accessibilityRole="button"
       onPress={onPress}
       style={{ flexDirection: 'row', alignItems: 'center', gap: 12, height: 48, paddingHorizontal: 14, borderRadius: 14, backgroundColor: t.card2 }}>
-      <Icon size={18} color={danger ? t.tag : t.txt} />
-      <Text style={{ flex: 1, fontFamily: t.font.semibold, fontSize: 15, color: danger ? t.tag : t.txt }}>{label}</Text>
+      <Icon size={18} color={danger ? t.tagInk : t.txt} />
+      <Text style={{ flex: 1, fontFamily: t.font.semibold, fontSize: 15, color: danger ? t.tagInk : t.txt }}>{label}</Text>
     </Pressable>
   );
   return (

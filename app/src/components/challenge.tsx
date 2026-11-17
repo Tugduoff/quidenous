@@ -109,7 +109,7 @@ function ChallengeDialog({ round, onDone }: { round: Round; onDone: () => void }
         </Text>
         {link.isPending && <ActivityIndicator color={t.mut} />}
       </PressableScale>
-      {error && <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.tag }}>{error}</Text>}
+      {error && <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.tagInk }}>{error}</Text>}
     </>
   );
 }

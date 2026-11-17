@@ -227,7 +227,7 @@ export default function PackScreen() {
           </View>
         )}
         {pack.mine && pack.status === 'removed' && !!pack.removed_reason && (
-          <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.tag }}>
+          <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.tagInk }}>
             {tr('packs.removedReason', { reason: pack.removed_reason })}
           </Text>
         )}
@@ -400,7 +400,7 @@ function ReportDialog({ visible, onClose, onSent, id }: { visible: boolean; onCl
         />
       )}
       {send.isError && !(send.error instanceof ApiError && send.error.status === 409) && (
-        <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.tag }}>{tr('common.failed')}</Text>
+        <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.tagInk }}>{tr('common.failed')}</Text>
       )}
       <DialogActions confirmLabel={tr('packs.report')} onConfirm={() => send.mutate()} onCancel={onClose} busy={send.isPending} disabled={!reason} />
     </Dialog>

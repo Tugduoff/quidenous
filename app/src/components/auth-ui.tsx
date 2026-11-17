@@ -237,7 +237,7 @@ export function TextLink({ children, onPress, disabled, style }: { children: str
 export function ErrorText({ children }: { children: string | null }) {
   const t = useTheme();
   if (!children) return null;
-  return <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.tag, marginLeft: 4 }}>{children}</Text>;
+  return <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.tagInk, marginLeft: 4 }}>{children}</Text>;
 }
 
 /** "Renvoyer" waits a bit between two emails: seconds left, and a way to start the wait. */

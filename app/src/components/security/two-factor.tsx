@@ -140,7 +140,7 @@ export function TwoFactorSection({ account }: { account: Account }) {
       {resetAt != null && (
         // Asked by e-mail at sign-in (2FA lost): if that wasn't me, this is where it stops.
         <Row
-          icon={<Clock size={20} color={t.tag} />}
+          icon={<Clock size={20} color={t.tagInk} />}
           title={tr('security.twoFactor.resetPending')}
           sub={tr('security.twoFactor.resetOn', {
             when: dateFormat({ weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(resetAt * 1000)),

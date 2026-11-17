@@ -66,7 +66,7 @@ function Line({
         <Text numberOfLines={1} style={{ fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>
           {title}
         </Text>
-        {!!sub && <Text numberOfLines={1} style={{ fontFamily: warn ? t.font.semibold : t.font.regular, fontSize: 13, color: warn ? t.tag : t.mut }}>{sub}</Text>}
+        {!!sub && <Text numberOfLines={1} style={{ fontFamily: warn ? t.font.semibold : t.font.regular, fontSize: 13, color: warn ? t.tagInk : t.mut }}>{sub}</Text>}
       </View>
       {right}
     </View>
