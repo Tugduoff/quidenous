@@ -67,7 +67,8 @@ function useFrameSize(width: number, height: number) {
     h = MAX_H;
     w = Math.max(MIN_W, h * ratio);
   }
-  return { width: Math.round(w), height: Math.round(h) };
+  // Never wider than the bubble it sits in (narrower than the screen share on small phones): the height follows.
+  return { width: Math.round(w), maxWidth: '100%' as const, aspectRatio: w / h };
 }
 
 /** A photo or GIF at chat size, rounded; `children` float over it (the time, a spinner). */
