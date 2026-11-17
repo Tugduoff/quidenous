@@ -131,6 +131,14 @@ impl Config {
                 "JOIN_CODE is the public default BANDE-42: a fresh database's first room would get it; set JOIN_CODE",
             );
         }
+        if self.updates_publish_token.is_some() && self.updates_certificate.is_none() {
+            out.push(
+                "UPDATES_CERTIFICATE is not set: over-the-air updates are published without a signature check (set it to the code signing certificate the apps embed)",
+            );
+        }
+        if self.client_errors_webhook.is_none() {
+            out.push("CLIENT_ERRORS_WEBHOOK is not set: app crash reports only go to the log");
+        }
         out
     }
 }

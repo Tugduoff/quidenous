@@ -168,13 +168,77 @@ Rolling back a failed deploy by hand: `docker compose stop quidenous && deploy/b
 ```bash
 docker compose ps        # healthy?
 docker compose logs -f
-curl -s http://127.0.0.1:8080/api/version   # {"version":"0.31.0","sha":"…"} of the running build
+curl -s http://127.0.0.1:8080/api/version   # {"version":"0.31.0","sha":"<40 hex>"} of the running build
 ```
 
-`GET /api/health` answers `200 ok` only when SQLite answers (`SELECT 1` within 2 s) and the disk holding `DATA_DIR` has at least 100 MB free; otherwise `503 {"error":"database"}` or `{"error":"disk_full"}` (and an `ERROR` log line). Docker only marks the container unhealthy: point an outside uptime monitor (Uptime Kuma, healthchecks.io, UptimeRobot) at `https://your.domain/api/health` to get alerted.
+`GET /api/version` reports what the binary was built from, baked in at compile time by `server/build.rs`: `version` is the build's `QUIDENOUS_VERSION` (the Docker build arg `VERSION`), else `expo.version` in `app/app.json` (a tag's app.json holds its release); `sha` is the build's `QUIDENOUS_GIT_SHA` (build arg `GIT_SHA`), else `git rev-parse HEAD` of the checkout. A value the build could not find falls back to the same variable at runtime, then `dev`.
+
+`GET /api/health` answers `200 ok` only when SQLite answers (`SELECT 1` within 2 s) and the disk holding `DATA_DIR` has at least 100 MB free; otherwise `503 {"error":"database"}` or `{"error":"disk_full"}` (and an `ERROR` log line). Docker only marks the container unhealthy: an outside monitor alerts you (see [Uptime monitoring](#uptime-monitoring)).
 
 `docker stop` / a deploy sends SIGTERM: the server stops accepting connections and lets requests in flight finish (`init: true` in the compose file makes sure the signal reaches it); live sockets close and the apps reconnect to the new container.
 
-At start-up the server logs a `WARN` line for each unsafe or missing production setting (`AUTH_REQUIRED` off, `ADMIN_USER_IDS` unset, placeholder `VAPID_SUBJECT`, default `JOIN_CODE`, a room still using the public code `BANDE-42`).
+At start-up the server logs a `WARN` line for each unsafe or missing production setting (`AUTH_REQUIRED` off, `ADMIN_USER_IDS` unset, placeholder `VAPID_SUBJECT`, default `JOIN_CODE`, a room still using the public code `BANDE-42`, `UPDATES_CERTIFICATE` unset while OTA publishing is on, `CLIENT_ERRORS_WEBHOOK` unset).
+
+App crash reports (`POST /api/client-errors`) are always logged; at most 3 an hour from one IP and 30 an hour in all are also posted to `CLIENT_ERRORS_WEBHOOK`, so one client can't drown out the others.
 
 Then send the URL to the group: Android → Chrome menu "Install app"; iPhone → Safari, Share → "Add to Home Screen".
+
+## Production without Docker (LXC/systemd)
+
+The production instance runs the binary under systemd in an LXC (settings in `/etc/qdn/env`), not this compose file. Build from a **git checkout of the tag**, so `build.rs` reads the tag's commit and its `app/app.json`:
+
+```bash
+git fetch --tags && git -c advice.detachedHead=false checkout --detach v0.36.0
+cd server && cargo build --release --locked      # bakes version 0.36.0 and the tag's commit into the binary
+```
+
+From a source archive (no `.git`), pass both to the build: `QUIDENOUS_VERSION=0.36.0 QUIDENOUS_GIT_SHA=<the tag's commit> cargo build --release --locked`. Values baked in win over `QUIDENOUS_VERSION`/`QUIDENOUS_GIT_SHA` in the unit's environment. After the restart, check what runs:
+
+```bash
+curl -s https://<domain>/api/version   # {"version":"0.36.0","sha":"<git rev-list -n1 v0.36.0>"}
+```
+
+The release tooling waits for `/api/version` to report the tag's commit before publishing the over-the-air update, so a build that says `dev` (or an older commit) holds the OTA back. Gate the build on CI with `deploy/wait-green.sh <sha>` (see Update) and keep the previous binary and web folder to roll back.
+
+Backups: `deploy/backup.sh` works without Docker: with `DATA_DIR=<the data folder>` it snapshots the database with the host's `python3` (`VACUUM INTO`, safe while the server runs), then copies off-host as described in [Backup](#backup). Run it nightly from a systemd timer or cron in the LXC, with an off-host destination: Proxmox backups on the same machine don't survive a disk failure.
+
+## Uptime monitoring
+
+Run the check from a machine **outside** the homelab (another server, a VPS, a Raspberry Pi elsewhere), so a dead LXC, host or connection is noticed too.
+
+[`deploy/uptime-check.sh`](uptime-check.sh) GETs `/api/health` (10 s timeout) and posts to a Discord webhook after **2 failures in a row** (a 5-minute blip doesn't page anyone), then once when it answers `ok` again. Needs `bash` and `curl`. Every 5 minutes with systemd (as any user; the state file goes to `~/.local/state/quidenous-uptime` unless `UPTIME_STATE` is set):
+
+```ini
+# /etc/systemd/system/quidenous-uptime.service
+[Unit]
+Description=Quidenous uptime check
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=monitor
+Environment=UPTIME_URL=https://your.domain
+# DISCORD_WEBHOOK=https://discord.com/api/webhooks/... (kept out of the unit file)
+EnvironmentFile=/etc/quidenous-uptime.env
+ExecStart=/opt/quidenous/uptime-check.sh
+
+# /etc/systemd/system/quidenous-uptime.timer
+[Unit]
+Description=Quidenous uptime check every 5 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+
+[Install]
+WantedBy=timers.target
+```
+
+```bash
+sudo install -m 755 deploy/uptime-check.sh /opt/quidenous/uptime-check.sh
+sudo systemctl daemon-reload && sudo systemctl enable --now quidenous-uptime.timer
+journalctl -u quidenous-uptime   # failed checks are logged here
+```
+
+Or a hosted free monitor: [UptimeRobot](https://uptimerobot.com)'s free plan (checked 2026-11: 5-minute interval, keyword monitors, e-mail alerts, and Discord among its 5 free integrations). Add a **Keyword** monitor on `https://your.domain/api/health`, interval 5 min, alert when the keyword `ok` is **not** present (a `503` body doesn't contain it), and send alerts to e-mail or a Discord webhook.

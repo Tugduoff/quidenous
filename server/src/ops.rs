@@ -126,19 +126,24 @@ pub async fn version_gate(State(state): State<AppState>, req: Request, next: Nex
 
 // ---------- GET /api/version ----------
 
-/// `QUIDENOUS_VERSION` / `QUIDENOUS_GIT_SHA` (baked into the image by the Dockerfile's build
-/// args), `dev` when unset.
+/// Release and commit of this binary: baked in at compile time by `build.rs` (the build's
+/// `QUIDENOUS_VERSION`, else app/app.json's version; the build's `QUIDENOUS_GIT_SHA`, else the
+/// checkout's HEAD), else the runtime `QUIDENOUS_VERSION` / `QUIDENOUS_GIT_SHA`, else `dev`.
 fn build_info() -> &'static Value {
     static INFO: OnceLock<Value> = OnceLock::new();
     INFO.get_or_init(|| {
-        let var = |name| {
-            std::env::var(name)
-                .ok()
+        let var = |baked: Option<&str>, name| {
+            baked
+                .map(str::to_owned)
+                .or_else(|| std::env::var(name).ok())
                 .map(|v| v.trim().to_owned())
                 .filter(|v| !v.is_empty())
                 .unwrap_or_else(|| "dev".into())
         };
-        json!({ "version": var("QUIDENOUS_VERSION"), "sha": var("QUIDENOUS_GIT_SHA") })
+        json!({
+            "version": var(option_env!("QDN_BUILD_VERSION"), "QUIDENOUS_VERSION"),
+            "sha": var(option_env!("QDN_BUILD_SHA"), "QUIDENOUS_GIT_SHA"),
+        })
     })
 }
 
@@ -221,6 +226,11 @@ async fn client_error(
         "app error"
     );
     if let Some(url) = state.config.client_errors_webhook.clone()
+        && state
+            .auth
+            .limits
+            .hit_ip(&limits::CLIENT_ERROR_WEBHOOK_IP, ip)
+            .is_ok()
         && state
             .auth
             .limits

@@ -521,6 +521,7 @@ fn unsafe_production_settings_are_warned_about() {
         join_code: "bande-42".into(),
         vapid_private_key: Some("key".into()),
         vapid_subject: quidenous_server::config::DEFAULT_VAPID_SUBJECT.into(),
+        updates_publish_token: Some("token".into()),
         ..Config::default()
     };
     let warnings = unsafe_config.warnings().join("\n");
@@ -529,6 +530,8 @@ fn unsafe_production_settings_are_warned_about() {
         "ADMIN_USER_IDS",
         "VAPID_SUBJECT",
         "JOIN_CODE",
+        "UPDATES_CERTIFICATE",
+        "CLIENT_ERRORS_WEBHOOK",
     ] {
         assert!(warnings.contains(var), "{var}: {warnings}");
     }
@@ -538,7 +541,17 @@ fn unsafe_production_settings_are_warned_about() {
         vapid_subject: "mailto:me@my.domain".into(),
         auth_required: true,
         admin_user_ids: vec![1],
+        updates_publish_token: Some("token".into()),
+        updates_certificate: Some("certificate.pem".into()),
+        client_errors_webhook: Some("https://discord.com/api/webhooks/1/x".into()),
         ..Config::default()
     };
     assert!(safe.warnings().is_empty(), "{:?}", safe.warnings());
+    // Without a publish token there is nothing to sign.
+    let no_ota = Config {
+        updates_publish_token: None,
+        updates_certificate: None,
+        ..safe
+    };
+    assert!(no_ota.warnings().is_empty(), "{:?}", no_ota.warnings());
 }
