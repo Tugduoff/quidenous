@@ -1,4 +1,5 @@
 pub mod accounts;
+pub mod anonymous;
 pub mod auth;
 pub mod avatar;
 pub mod config;

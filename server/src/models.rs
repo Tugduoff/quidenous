@@ -61,6 +61,8 @@ pub struct RoundRow {
     pub kind: String,
     /// Choose questions: the items, a JSON array (`questions.items`).
     pub items: Option<String>,
+    /// Votes counted, never shown per voter (decided when it opened, see `anonymous`).
+    pub anonymous: bool,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -107,6 +109,8 @@ pub struct RoundView {
     pub my_choices: Option<Vec<Choice>>,
     /// Choose questions, once closed: per person what the others guessed, and who guessed best.
     pub choose: Option<ChooseResult>,
+    /// Anonymous votes: `result` has counts only (empty `voter_ids`), see `anonymous`.
+    pub anonymous: bool,
 }
 
 /// A wire: `member_id` goes to item number `item`.
@@ -174,6 +178,7 @@ pub struct HistoryItem {
     pub vote_count: i64,
     pub pinned: bool,
     pub kind: String,
+    pub anonymous: bool,
 }
 
 #[derive(Clone, Debug, Serialize, sqlx::FromRow)]
@@ -185,6 +190,8 @@ pub struct QueuedQuestion {
     /// Choose questions: the items, JSON-encoded in the database, an array in the API.
     #[serde(serialize_with = "items_array")]
     pub items: Option<String>,
+    /// Asks for anonymous votes (applies when the room's rule is `per_question`).
+    pub anonymous: bool,
 }
 
 /// `questions.items` (a JSON array) as stored.

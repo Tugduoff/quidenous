@@ -290,7 +290,7 @@ pub async fn get(
     let questions: Vec<Value> = stored_questions(&state.db, id)
         .await?
         .into_iter()
-        .map(|q| json!({ "text": q.text, "kind": q.kind, "items": q.items }))
+        .map(|q| json!({ "text": q.text, "kind": q.kind, "items": q.items, "anonymous": q.anonymous }))
         .collect();
     let mut out = item(&state, row, me).await?;
     out["questions"] = json!(questions);
@@ -305,6 +305,9 @@ pub struct QuestionIn {
     /// A choose question's answers (2 to 4).
     #[serde(default)]
     items: Option<Vec<String>>,
+    /// Anonymous votes (absent from apps before `anonymous_votes`: kept as it was).
+    #[serde(default)]
+    anonymous: Option<bool>,
 }
 
 /// A pack question: `pick` | `rank` | `choose` (with its answers).
@@ -313,6 +316,8 @@ pub struct PackQuestion {
     pub text: String,
     pub kind: String,
     pub items: Option<Vec<String>>,
+    /// Anonymous votes once installed (pick and ranking only, see `anonymous`).
+    pub anonymous: bool,
 }
 
 /// A pack's questions in order.
@@ -320,18 +325,19 @@ async fn stored_questions<'e, E: sqlx::SqliteExecutor<'e>>(
     db: E,
     id: i64,
 ) -> AppResult<Vec<PackQuestion>> {
-    let rows: Vec<(String, String, Option<String>)> = sqlx::query_as(
-        "SELECT text, kind, items FROM pack_questions WHERE pack_id = ? ORDER BY position",
+    let rows: Vec<(String, String, Option<String>, bool)> = sqlx::query_as(
+        "SELECT text, kind, items, anonymous FROM pack_questions WHERE pack_id = ? ORDER BY position",
     )
     .bind(id)
     .fetch_all(db)
     .await?;
     Ok(rows
         .into_iter()
-        .map(|(text, kind, items)| PackQuestion {
+        .map(|(text, kind, items, anonymous)| PackQuestion {
             text,
             kind,
             items: items.and_then(|i| serde_json::from_str(&i).ok()),
+            anonymous,
         })
         .collect())
 }
@@ -394,6 +400,7 @@ fn from_file(file: &crate::packfile::PackFile) -> Vec<PackQuestion> {
             text: l.text.clone(),
             kind: l.kind.to_owned(),
             items: l.items.clone(),
+            anonymous: l.anonymous,
         })
         .collect()
 }
@@ -417,7 +424,14 @@ fn from_list(list: Vec<QuestionIn>, known: &[PackQuestion]) -> Vec<PackQuestion>
                     .and_then(|k| k.items.clone()),
                 _ => None,
             };
+            // An app that doesn't know the flag keeps what the pack had for this question.
+            let anonymous = q.anonymous.unwrap_or_else(|| {
+                known
+                    .iter()
+                    .any(|k| k.anonymous && k.text.to_lowercase() == text.to_lowercase())
+            });
             PackQuestion {
+                anonymous: crate::anonymous::wanted(kind, anonymous),
                 text,
                 kind: kind.to_owned(),
                 items,
@@ -456,13 +470,14 @@ async fn insert_questions(
 ) -> AppResult<()> {
     for (i, q) in questions.iter().enumerate() {
         sqlx::query(
-            "INSERT INTO pack_questions (pack_id, position, text, kind, items) VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO pack_questions (pack_id, position, text, kind, items, anonymous) VALUES (?, ?, ?, ?, ?, ?)",
         )
         .bind(id)
         .bind(i as i64)
         .bind(&q.text)
         .bind(&q.kind)
         .bind(q.items.as_ref().map(|i| serde_json::to_string(i).unwrap_or_default()))
+        .bind(q.anonymous)
         .execute(&mut **tx)
         .await?;
     }
@@ -562,17 +577,18 @@ pub async fn publish(
         (None, Some(file)) => from_file(file),
         (None, None) => match current_room(&state, user, &headers).await? {
             Some(room) => {
-                let rows: Vec<(String, String, Option<String>)> = sqlx::query_as(
-                    "SELECT text, kind, items FROM questions WHERE group_id = ? ORDER BY id",
+                let rows: Vec<(String, String, Option<String>, bool)> = sqlx::query_as(
+                    "SELECT text, kind, items, anonymous FROM questions WHERE group_id = ? ORDER BY id",
                 )
                 .bind(room)
                 .fetch_all(&state.db)
                 .await?;
                 rows.into_iter()
-                    .map(|(text, kind, items)| PackQuestion {
+                    .map(|(text, kind, items, anonymous)| PackQuestion {
                         text,
                         kind,
                         items: items.and_then(|i| serde_json::from_str(&i).ok()),
+                        anonymous,
                     })
                     .collect()
             }
@@ -733,13 +749,19 @@ pub async fn install(
         }
         // Choose questions arrive as real choose questions (with their answers).
         sqlx::query(
-            "INSERT INTO questions (group_id, text, author_id, kind, origin, items) VALUES (?, ?, ?, ?, 'pack', ?)",
+            "INSERT INTO questions (group_id, text, author_id, kind, origin, items, anonymous) \
+             VALUES (?, ?, ?, ?, 'pack', ?, ?)",
         )
         .bind(me.group_id)
         .bind(&q.text)
         .bind(me.id)
         .bind(&q.kind)
-        .bind(q.items.as_ref().map(|i| serde_json::to_string(i).unwrap_or_default()))
+        .bind(
+            q.items
+                .as_ref()
+                .map(|i| serde_json::to_string(i).unwrap_or_default()),
+        )
+        .bind(q.anonymous)
         .execute(&mut *tx)
         .await?;
         added += 1;

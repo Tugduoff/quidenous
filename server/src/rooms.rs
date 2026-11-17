@@ -430,6 +430,8 @@ pub struct SettingsBody {
     next_delay: Option<i64>,
     /// `fr` | `en`: the deck its next questions come from.
     language: Option<String>,
+    /// `never` | `per_question` | `always` (see `anonymous`).
+    anonymous_votes: Option<String>,
 }
 
 /// Owner only: rename, turn majority skip/removal on or off, who can add questions, vibe, pacing,
@@ -462,9 +464,14 @@ pub async fn update(
     {
         return Err(AppError::BadRequest("bad_setting"));
     }
+    let anonymous = body
+        .anonymous_votes
+        .as_deref()
+        .map(crate::anonymous::clean_mode)
+        .transpose()?;
     let pacing = body.owner_next.is_some() || body.next_delay.is_some();
-    // A party runs its own pace (taps and the owner, see `party`).
-    if pacing && crate::game::party(&state.db, room).await?.is_some() {
+    // A party runs its own pace (taps and the owner, see `party`), and is never anonymous.
+    if (pacing || anonymous.is_some()) && crate::game::party(&state.db, room).await?.is_some() {
         return Err(AppError::BadRequest("bad_setting"));
     }
     let mut tx = crate::db::write_tx(&state.db).await?;
@@ -491,6 +498,9 @@ pub async fn update(
             .bind(room)
             .execute(&mut *tx)
             .await?;
+    }
+    if let Some(mode) = anonymous {
+        crate::anonymous::set_mode(&mut tx, room, mode).await?;
     }
     tx.commit().await?;
     state.live.send(room, Event::RoomUpdated);

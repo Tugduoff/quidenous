@@ -41,6 +41,8 @@ Any other line starting with `#` is a comment (ignored).
 3. **Who would choose what**: the line starts with `[choose]` (or `[choix]`), then the question, then 2 to 4 answers separated by `|`. Everyone picks an answer and guesses the others'.
    `[choose] Your ideal dinner? | Pizza | Sushi | Fondue`
 
+Option: `[anonymous]` (or `[anonyme]`) before a "which of us" or ranking question makes its votes anonymous (only the totals are shown), for questions nobody would dare answer openly. It combines: `[rank] [anonymous] …`. Keep it for a few questions.
+
 ## Limits (otherwise the line or the pack is refused)
 
 - Question: 8 to 200 characters (aim for under 100).

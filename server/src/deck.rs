@@ -89,7 +89,8 @@ pub fn parse_line(line: &str) -> (&str, &'static str) {
 
 /// A line's leading tags, in any order: `[classement]` / `[rank]` make it a ranking question,
 /// `[choix]` / `[choose]` a choose question (its text stops at the first `|`),
-/// known vibe tags (`[famille]`) are returned. The first unknown `[…]` is part of the question.
+/// known vibe tags (`[famille]`) are returned, `[anonyme]` / `[anonymous]` is dropped (see
+/// [`tagged_anonymous`]). The first unknown `[…]` is part of the question.
 pub fn parse_tagged(line: &str) -> (&str, &'static str, Vec<String>) {
     let mut rest = line.trim();
     let mut kind = "pick";
@@ -105,7 +106,7 @@ pub fn parse_tagged(line: &str) -> (&str, &'static str, Vec<String>) {
             if !tags.contains(&tag) {
                 tags.push(tag);
             }
-        } else {
+        } else if !is_anonymous_tag(&tag) {
             break;
         }
         rest = after[end + 1..].trim_start();
@@ -114,6 +115,30 @@ pub fn parse_tagged(line: &str) -> (&str, &'static str, Vec<String>) {
         rest = rest.split('|').next().unwrap_or_default().trim_end();
     }
     (rest, kind, tags)
+}
+
+fn is_anonymous_tag(tag: &str) -> bool {
+    tag == "anonyme" || tag == "anonymous"
+}
+
+/// Does the line carry `[anonyme]` / `[anonymous]` among its leading tags (anonymous votes,
+/// docs/ANONYMOUS.md)? It combines with the others: `[classement] [anonyme] Classe-nous…`.
+pub fn tagged_anonymous(line: &str) -> bool {
+    let mut rest = line.trim();
+    while let Some(after) = rest.strip_prefix('[') {
+        let Some(end) = after.find(']') else { break };
+        let tag = after[..end].trim().to_lowercase();
+        if is_anonymous_tag(&tag) {
+            return true;
+        }
+        let known = ["classement", "rank", "choix", "choose"].contains(&tag.as_str())
+            || crate::vibes::is_tag(&tag);
+        if !known {
+            break;
+        }
+        rest = after[end + 1..].trim_start();
+    }
+    false
 }
 
 /// Items of a choose question: 2 to 4, each 1 to 40 characters.
@@ -202,12 +227,13 @@ pub async fn import_room(db: &SqlitePool, room: i64, text: &str) -> sqlx::Result
             continue;
         }
         sqlx::query(
-            "INSERT INTO questions (group_id, text, kind, origin, items) VALUES (?, ?, ?, 'import', ?)",
+            "INSERT INTO questions (group_id, text, kind, origin, items, anonymous) VALUES (?, ?, ?, 'import', ?, ?)",
         )
         .bind(room)
         .bind(text)
         .bind(kind)
         .bind(items)
+        .bind(crate::anonymous::wanted(kind, tagged_anonymous(line)))
         .execute(&mut *tx)
         .await?;
         added += 1;
@@ -239,6 +265,14 @@ mod tests {
             )
         );
         assert_eq!(parse_tagged("[PS] Qui ?"), ("[PS] Qui ?", "pick", vec![]));
+        assert_eq!(
+            parse_tagged("[anonyme] [classement] Classe-nous."),
+            ("Classe-nous.", "rank", vec![])
+        );
+        assert!(tagged_anonymous("[Classement] [Anonymous] Rank us."));
+        assert!(tagged_anonymous("[anonyme] Qui ?"));
+        assert!(!tagged_anonymous("[PS] [anonyme] Qui ?"));
+        assert!(!tagged_anonymous("Qui ? [anonyme]"));
         assert_eq!(
             parse_tagged("[choix] [boulot] Qui prendrait quoi ? | Pizza | Sushi "),
             ("Qui prendrait quoi ?", "choose", vec!["boulot".to_owned()])

@@ -41,6 +41,8 @@ Règle 16+ : `# 16+: oui` si le pack contient des questions osées. Un pack de c
 3. **Qui choisirait quoi** : la ligne commence par `[choix]`, puis la question, puis 2 à 4 réponses séparées par `|`. Chacun choisit sa réponse et devine celles des autres.
    `[choix] Ton dîner idéal ? | Pizza | Sushi | Raclette`
 
+Option : `[anonyme]` devant une question « qui de nous » ou un classement rend ses votes anonymes (seuls les totaux sont montrés), pour les questions où personne n'oserait voter à visage découvert. Il se combine : `[classement] [anonyme] …`. À garder pour quelques questions.
+
 ## Limites (sinon la ligne ou le pack est refusé)
 
 - Question : 8 à 200 caractères (vise moins de 100).

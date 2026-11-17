@@ -24,9 +24,10 @@ const TOP = 5;
 /** Only fold the list when that hides at least two rows (hiding a single one saves nothing). */
 const folded = <T,>(rows: T[], all: boolean) => (all || rows.length <= TOP + 1 ? rows : rows.slice(0, TOP));
 
-/** Pick result: one bar per person who got votes (the top 5, then "Voir tout"). */
-export function ResultBars({ result, byId }: { result: Tally[]; byId: Map<number, Member> }) {
+/** Pick result: one bar per person who got votes (the top 5, then "Voir tout"). `anonymous`: counts instead of voters. */
+export function ResultBars({ result, byId, anonymous }: { result: Tally[]; byId: Map<number, Member>; anonymous?: boolean }) {
   const t = useTheme();
+  const tr = useT();
   const [all, setAll] = useState(false);
   const total = result.reduce((n, r) => n + r.count, 0) || 1;
   const top = result[0]?.count ?? 0;
@@ -61,7 +62,11 @@ export function ResultBars({ result, byId }: { result: Tally[]; byId: Map<number
                 )}
               </View>
               {/* Capped so a big group's voters leave room for the name. */}
-              <AvatarStack members={r.voter_ids.map((id) => byId.get(id))} size={24} max={4} />
+              {anonymous ? (
+                <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.txt }}>{tr('anonymous.votes', { count: r.count })}</Text>
+              ) : (
+                <AvatarStack members={r.voter_ids.map((id) => byId.get(id))} size={24} max={4} />
+              )}
               <Text style={{ fontFamily: t.font.display, fontSize: 22, color: t.txt }}>{pct}%</Text>
             </View>
           </Land>

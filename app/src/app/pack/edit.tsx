@@ -5,6 +5,7 @@ import { type ComponentRef, useRef, useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 
+import { AnonymousMark } from '@/components/anonymous';
 import { Chip, PageHeader } from '@/components/pack-card';
 import { Screen } from '@/components/screen';
 import { TemplateLink } from '@/components/template-link';
@@ -50,7 +51,7 @@ export default function PackEditScreen() {
   const { data: group } = useGroup();
   const { data: me } = useCommunityMe();
   // An older server: packs without choose questions, no AI template.
-  const { loaded, packChoose, packTemplate } = useFeatures();
+  const { loaded, packChoose, packTemplate, anonymousVotes } = useFeatures();
 
   const [name, setName] = useState('');
   const [desc, setDesc] = useState('');
@@ -80,7 +81,9 @@ export default function PackEditScreen() {
     setQuestions((qs) =>
       merge(
         qs,
-        queue.custom.filter((q) => packChoose || q.kind !== 'choose').map((q) => ({ text: q.text, kind: q.kind, items: q.items })),
+        queue.custom
+          .filter((q) => packChoose || q.kind !== 'choose')
+          .map((q) => ({ text: q.text, kind: q.kind, items: q.items, anonymous: q.anonymous })),
       ),
     );
   }
@@ -94,7 +97,7 @@ export default function PackEditScreen() {
 
   const add = () => {
     if (!draftOk) return;
-    setQuestions((qs) => merge(qs, [{ text: typed.text, kind: typed.kind, items: typed.items }]));
+    setQuestions((qs) => merge(qs, [{ text: typed.text, kind: typed.kind, items: typed.items, anonymous: typed.anonymous }]));
     setDraft('');
   };
   // A file fills the list, and the pack's name, description, categories, language and 16+ from its header.
@@ -113,7 +116,9 @@ export default function PackEditScreen() {
     setQuestions((qs) =>
       merge(
         qs,
-        lines.filter((l) => !l.problem && (packChoose || l.kind !== 'choose')).map((l) => ({ text: l.text, kind: l.kind, items: l.items })),
+        lines
+          .filter((l) => !l.problem && (packChoose || l.kind !== 'choose'))
+          .map((l) => ({ text: l.text, kind: l.kind, items: l.items, anonymous: l.anonymous })),
       ),
     );
   };
@@ -127,7 +132,12 @@ export default function PackEditScreen() {
     mutationFn: () => {
       const sent = questions
         .filter((q) => packChoose || q.kind !== 'choose')
-        .map((q) => (q.kind === 'choose' ? { text: q.text, kind: q.kind, items: q.items } : { text: q.text, kind: q.kind }));
+        // An older server keeps each question's anonymous flag as it was (not sent).
+        .map((q) =>
+          q.kind === 'choose'
+            ? { text: q.text, kind: q.kind, items: q.items }
+            : { text: q.text, kind: q.kind, ...(anonymousVotes ? { anonymous: !!q.anonymous } : {}) },
+        );
       const body = { name: name.trim(), description: desc.trim(), language, tags, spicy, questions: sent };
       return id != null
         ? api<{ id: number }>(`/packs/${id}`, { method: 'PUT', json: body })
@@ -343,6 +353,7 @@ export default function PackEditScreen() {
                     <Text style={{ fontFamily: t.font.regular, fontSize: 12, lineHeight: 17, color: t.mut }}>{q.items.join(' · ')}</Text>
                   )}
                 </View>
+                {anonymousVotes && q.anonymous && !choose && <AnonymousMark />}
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel={tr('packs.removeQuestion')}
@@ -373,7 +384,7 @@ function merge(list: PackQuestion[], more: PackQuestion[]): PackQuestion[] {
       const items = (q.items ?? []).map((x) => x.trim());
       if (!itemsOk(items)) continue;
       out.push({ text, kind: 'choose', items });
-    } else out.push({ text, kind: q.kind === 'rank' ? 'rank' : 'pick' });
+    } else out.push({ text, kind: q.kind === 'rank' ? 'rank' : 'pick', anonymous: !!q.anonymous });
     seen.add(key);
   }
   return out;

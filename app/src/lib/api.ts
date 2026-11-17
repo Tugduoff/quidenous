@@ -72,9 +72,11 @@ export type Round = {
   /** Choose question, closed: per person what the others guessed and what they took, and who guessed best. */
   choose: ChooseResult | null;
   /** A shared-deck question that came from someone's suggestion: their name (absent from an older server). */
-  suggested_by?: string | null;
+  suggested_by?: string | null;  /** Anonymous votes (docs/ANONYMOUS.md): `result` has counts only, empty `voter_ids` (absent from an older server). */
+  anonymous?: boolean;
 };
 export type QuestionKind = 'pick' | 'rank' | 'choose';
+export type AnonymousMode = 'never' | 'per_question' | 'always';
 /** A wire: this person (`member_id`) takes `items[item]`. */
 export type Choice = { member_id: number; item: number };
 /**
@@ -109,6 +111,8 @@ export type Group = {
     vibe?: string | null;
     owner_next?: boolean;
     next_delay?: number;
+    /** Anonymous votes: never, each question says, or always (absent from an older server). */
+    anonymous_votes?: AnonymousMode;
   };
   /** Pacing between questions: waiting for the owner or the delay, and when the next opens by itself (absent from an older server). */
   pace?: { waiting: boolean; next_open_at: string | null; round_id?: number | null };
@@ -165,6 +169,7 @@ export type HistoryItem = {
   pinned: boolean;
   /** Choose: `winner_ids` are the best guessers, `top_count` their hits. */
   kind: QuestionKind;
+  anonymous?: boolean;
 };
 /**
  * `user_id`: the author's account (null once deleted; absent from an older server).
@@ -332,7 +337,7 @@ export function normalizeStats(raw: Partial<Stats> | null, period: StatsPeriod):
   return s as Stats;
 }
 export type Queue = {
-  custom: { id: number; text: string; author_id: number | null; kind: QuestionKind; items?: string[] | null }[];
+  custom: { id: number; text: string; author_id: number | null; kind: QuestionKind; items?: string[] | null; anonymous?: boolean }[];
   deck_left: number;
 };
 
