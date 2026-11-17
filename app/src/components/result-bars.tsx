@@ -63,7 +63,7 @@ export function ResultBars({ result, byId, anonymous }: { result: Tally[]; byId:
               </View>
               {/* Capped so a big group's voters leave room for the name. */}
               {anonymous ? (
-                <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut }}>{tr('anonymous.votes', { count: r.count })}</Text>
+                <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.txt }}>{tr('anonymous.votes', { count: r.count })}</Text>
               ) : (
                 <AvatarStack members={r.voter_ids.map((id) => byId.get(id))} size={24} max={4} />
               )}

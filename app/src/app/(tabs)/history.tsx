@@ -85,10 +85,16 @@ function HistoryCard({ item, byId, order }: { item: HistoryItem; byId: Map<numbe
           />
           <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 4 }}>
             <Mark size={14} color={winners.length === 1 ? (winner?.color ?? t.mut) : t.mut} style={{ flexShrink: 0, marginTop: 1 }} />
-            <Text numberOfLines={1} style={{ flex: 1, fontFamily: t.font.regular, fontSize: 12, lineHeight: 16, color: t.mut }}>
+            <Text
+              numberOfLines={1}
+              style={{ flex: item.anonymous ? undefined : 1, flexShrink: 1, fontFamily: t.font.regular, fontSize: 12, lineHeight: 16, color: t.mut }}>
               {winners.length ? winners.map((m) => m?.name).join(', ') : choose ? tr('history.nobodyGuessed') : ''}
             </Text>
-            {item.anonymous && <AnonymousMark size={13} />}
+            {item.anonymous && (
+              <View style={{ marginTop: 1.5, marginLeft: 2 }}>
+                <AnonymousMark size={13} />
+              </View>
+            )}
           </View>
         </View>
         {(item.pinned || isMilestone(item.number)) && (
