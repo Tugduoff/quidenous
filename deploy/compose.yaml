@@ -2,10 +2,11 @@ services:
   quidenous:
     build:
       context: ..
-      # Shown by /api/version (deploy.sh sets them; a plain `docker compose build` says "dev").
+      # Shown by /api/version (deploy.sh sets them; a plain `docker compose build` reports app.json's version and
+      # sha "dev").
       args:
-        VERSION: ${QD_VERSION:-dev}
-        GIT_SHA: ${QD_GIT_SHA:-dev}
+        VERSION: ${QD_VERSION:-}
+        GIT_SHA: ${QD_GIT_SHA:-}
     image: quidenous:latest
     # A real PID 1 (docker-init) passes SIGTERM on, so `docker stop` lets requests finish (graceful shutdown).
     init: true

@@ -34,6 +34,8 @@ async fn test_app(webhook: Option<String>) -> (Router, AppState, PathBuf) {
         join_code: "CODE-1".into(),
         vapid_subject: "mailto:test@example.com".into(),
         client_errors_webhook: webhook,
+        // Requests without `x-forwarded-for` still have no IP (no socket in these tests).
+        trust_proxy: true,
         ..Config::default()
     };
     let state = state(config).await.unwrap();
@@ -81,11 +83,43 @@ async fn account(state: &AppState, name: &str) -> String {
 }
 
 #[tokio::test]
-async fn version_says_dev_without_build_info() {
+async fn version_reports_the_release_and_commit_built() {
     let (app, _, _) = test_app(None).await;
     let (status, body) = call(&app, "GET", "/version", None, None).await;
     assert_eq!(status, StatusCode::OK);
-    assert_eq!(body, json!({ "version": "dev", "sha": "dev" }));
+    let manifest = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    // Baked in by build.rs: the build's QUIDENOUS_VERSION, else app/app.json's version.
+    let expected = match option_env!("QUIDENOUS_VERSION").map(str::trim) {
+        Some(v) if !v.is_empty() && v != "dev" => v.trim_start_matches('v').to_owned(),
+        _ => {
+            let app_json: Value = serde_json::from_str(
+                &std::fs::read_to_string(manifest.join("../app/app.json")).unwrap(),
+            )
+            .unwrap();
+            app_json["expo"]["version"].as_str().unwrap().to_owned()
+        }
+    };
+    assert_eq!(body["version"], json!(expected), "{body}");
+    let sha = body["sha"].as_str().unwrap();
+    assert!(
+        sha == "dev" || (sha.len() == 40 && sha.bytes().all(|b| b.is_ascii_hexdigit())),
+        "{sha}"
+    );
+    // Built from a git checkout (CI, a developer's tree): the checkout's HEAD, never a stale one.
+    let head = std::process::Command::new("git")
+        .args(["-c", "safe.directory=*", "rev-parse", "HEAD"])
+        .current_dir(manifest)
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_owned());
+    let sha_set = option_env!("QUIDENOUS_GIT_SHA").is_some_and(|s| !s.trim().is_empty());
+    if let Some(head) = head
+        && !sha_set
+    {
+        assert_eq!(sha, head);
+    }
+    assert_eq!(body.as_object().unwrap().len(), 2, "{body}");
 }
 
 #[tokio::test]
@@ -236,4 +270,65 @@ async fn backup_copies_the_live_database() {
     assert!(names.contains(&"Lou".to_owned()));
     // Never over an existing file.
     assert!(quidenous_server::ops::backup(&url, &dest).await.is_err());
+}
+
+#[tokio::test]
+async fn one_ip_cannot_use_up_the_crash_webhook() {
+    let (tx, mut rx) = mpsc::unbounded_channel::<String>();
+    let hook = Router::new().route(
+        "/hook",
+        axum::routing::post(move |axum::Json(v): axum::Json<Value>| {
+            let tx = tx.clone();
+            async move {
+                tx.send(v["content"].as_str().unwrap_or_default().to_owned())
+                    .unwrap();
+                StatusCode::NO_CONTENT
+            }
+        }),
+    );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move { axum::serve(listener, hook).await.unwrap() });
+    let (app, _, _) = test_app(Some(format!("http://{addr}/hook"))).await;
+
+    let report = |ip: &str, message: &str| {
+        Request::builder()
+            .method("POST")
+            .uri("/api/client-errors")
+            .header("content-type", "application/json")
+            .header("x-forwarded-for", ip)
+            .body(Body::from(json!({ "message": message }).to_string()))
+            .unwrap()
+    };
+    let limit = quidenous_server::accounts::limits::CLIENT_ERROR_WEBHOOK_IP.capacity;
+    // Over its webhook share, one IP's reports are still accepted (and logged), just not forwarded.
+    for n in 0..limit + 2 {
+        let res = app
+            .clone()
+            .oneshot(report("198.51.100.1", &format!("crash {n}")))
+            .await
+            .unwrap();
+        assert_eq!(res.status(), StatusCode::NO_CONTENT);
+    }
+    // Another IP still gets through.
+    let res = app
+        .clone()
+        .oneshot(report("198.51.100.2", "other crash"))
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::NO_CONTENT);
+
+    let mut sent = Vec::new();
+    while let Ok(Some(content)) =
+        tokio::time::timeout(std::time::Duration::from_millis(1500), rx.recv()).await
+    {
+        sent.push(content);
+    }
+    let from_first = sent.iter().filter(|c| c.contains("**crash ")).count();
+    assert_eq!(from_first, limit as usize, "{sent:?}");
+    assert!(
+        sent.iter().any(|c| c.contains("**other crash**")),
+        "{sent:?}"
+    );
+    assert_eq!(sent.len(), limit as usize + 1, "{sent:?}");
 }
