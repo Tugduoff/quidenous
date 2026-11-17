@@ -49,6 +49,9 @@ pub struct Config {
     /// `MIN_APP_VERSION` (`x.y.z`): an app that says it is older (`X-App-Version`) gets
     /// `426 update_required` and asks to update. Unset: every version is served.
     pub min_app_version: Option<String>,
+    /// `KLIPY_API_KEY` (+ `KLIPY_CONTENT_FILTER`, `KLIPY_API_BASE`): GIFs in the chat through Klipy
+    /// (docs/CHAT_MEDIA.md). Absent: no `chat_gifs` feature, the GIF routes answer `404 gifs_off`.
+    pub klipy: Option<Klipy>,
 }
 
 /// `x.y.z` (a leading `v`, a missing part or a `-suffix` tolerated) as numbers to compare.
@@ -60,6 +63,30 @@ pub fn parse_version(v: &str) -> Option<(u64, u64, u64)> {
     let minor = parts.next().unwrap_or(Some(0))?;
     let patch = parts.next().unwrap_or(Some(0))?;
     parts.next().is_none().then_some((major, minor, patch))
+}
+
+#[derive(Clone)]
+pub struct Klipy {
+    /// Goes in the URL path of every Klipy call: never logged.
+    pub api_key: String,
+    /// `KLIPY_CONTENT_FILTER`: `off`, `low` (default, about PG-13), `medium` or `high`.
+    pub content_filter: String,
+    /// `KLIPY_API_BASE`: `https://api.klipy.com` unless set (tests point it at a mock).
+    pub api_base: String,
+    /// `KLIPY_MEDIA_HOSTS`: origins (`scheme://host[:port]`, comma-separated) GIF files may come from
+    /// besides `https://static*.klipy.com`. Leave unset in production: for tests and local mocks.
+    pub media_hosts: Vec<String>,
+}
+
+/// Never the key.
+impl std::fmt::Debug for Klipy {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Klipy")
+            .field("api_base", &self.api_base)
+            .field("content_filter", &self.content_filter)
+            .field("media_hosts", &self.media_hosts)
+            .finish_non_exhaustive()
+    }
 }
 
 pub const DEFAULT_REPORT_EMAIL: &str = "contact@coflop.fr";
@@ -223,6 +250,25 @@ impl Config {
                 .unwrap_or_default(),
             live_recheck: None,
             min_app_version: var("MIN_APP_VERSION"),
+            klipy: var("KLIPY_API_KEY").map(|api_key| Klipy {
+                api_key,
+                content_filter: var("KLIPY_CONTENT_FILTER")
+                    .map(|f| f.to_ascii_lowercase())
+                    .filter(|f| ["off", "low", "medium", "high"].contains(&f.as_str()))
+                    .unwrap_or_else(|| "low".into()),
+                api_base: var("KLIPY_API_BASE")
+                    .map(|u| u.trim_end_matches('/').to_owned())
+                    .unwrap_or_else(|| "https://api.klipy.com".into()),
+                media_hosts: var("KLIPY_MEDIA_HOSTS")
+                    .map(|hosts| {
+                        hosts
+                            .split(',')
+                            .map(|h| h.trim().trim_end_matches('/').to_owned())
+                            .filter(|h| !h.is_empty())
+                            .collect()
+                    })
+                    .unwrap_or_default(),
+            }),
         }
     }
 }

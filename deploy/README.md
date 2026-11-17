@@ -36,7 +36,7 @@ Nginx (WebSocket headers are required):
 ```nginx
 server {
     server_name quidenous.example.com;
-    client_max_body_size 10m;            # photo uploads
+    client_max_body_size 10m;            # photo and chat image uploads (8 MB)
     location / {
         proxy_pass http://127.0.0.1:8080;
         proxy_http_version 1.1;
@@ -77,6 +77,10 @@ Traefik: point a router at the service on port 8080; WebSockets work out of the 
 | `AUTH_REQUIRED` | off | `1` = no more anonymous join by first name (`/api/join`, `/api/start` answer `410 sign_in_required`). Off, anyone with a room code can get a session for a legacy (unsecured) account by typing its first name: set it once every phone runs an app with sign-in (0.15+). Warned about at start-up while off |
 | `ADMIN_USER_IDS` | — | Comma-separated account ids (`users.id`, e.g. `1,7`) that moderate community packs and approve suggestions. Unset: nobody can, reported packs wait for review forever (warned about at start-up) |
 | `REPORT_EMAIL` | `contact@coflop.fr` | Where in-app reports (message, member, question) are emailed, through Mailgun. At most 30 emails an hour; every report is also stored in the `reports` table |
+| `KLIPY_API_KEY` | — | GIFs in the chat through [Klipy](https://klipy.com) (free API key from its partner dashboard). Unset: no GIF button in the app. The server searches and proxies every GIF, phones never reach Klipy. See [docs/CHAT_MEDIA.md](../docs/CHAT_MEDIA.md) |
+| `KLIPY_CONTENT_FILTER` | `low` | Klipy's content filter: `off`, `low` (about PG-13), `medium`, `high` |
+| `KLIPY_API_BASE` | `https://api.klipy.com` | Klipy's API (tests point it at a mock) |
+| `KLIPY_MEDIA_HOSTS` | — | Extra origins GIF files may come from (comma-separated `scheme://host[:port]`), besides Klipy's `static*.klipy.com`. Local mocks only: leave unset in production |
 | `UPDATES_PUBLISH_TOKEN` | — | Over-the-air app updates: the token CI uses to publish new JS bundles (same value as the GitHub secret). Without it publishing is off. Uploads are ~5 MB (`client_max_body_size 10m` is enough). See [docs/OTA.md](../docs/OTA.md) |
 | `UPDATES_CERTIFICATE` | — | Path **inside the container** to the OTA code signing certificate, e.g. `/data/ota-certificate.pem` (copy `app/certs/certificate.pem` into `deploy/data/`). Recommended: publishing then refuses unsigned updates and signatures that don't match, so a leaked publish token can't stall updates |
 | `MIN_APP_VERSION` | — | Oldest app version served, e.g. `0.33.0`. Apps send their version (`X-App-Version`, from 0.33); an older one gets `426 update_required` and shows an "Update" screen (over-the-air update first, else the store / APK). Apps from before 0.33 send no version and are not affected. Health, features, version, crash reports and OTA stay open |
@@ -122,7 +126,7 @@ Migrations run automatically at start-up, after a copy of the database (`data/pr
 
 ## Backup
 
-Everything is in `deploy/data/`: `app.db` (SQLite), `photos/`, `updates/` (OTA bundles), `auth.key` (decrypts the 2FA secrets; only when `AUTH_SECRET` is unset) and the Firebase JSON. [`deploy/backup.sh`](backup.sh) takes a consistent snapshot (`VACUUM INTO` through `server --backup`, safe while the server runs), packs the files, copies it **off this host** and prunes old copies. Nightly, as root:
+Everything is in `deploy/data/`: `app.db` (SQLite), `photos/`, `chat/` (chat images, one folder per room), `updates/` (OTA bundles), `auth.key` (decrypts the 2FA secrets; only when `AUTH_SECRET` is unset) and the Firebase JSON. [`deploy/backup.sh`](backup.sh) takes a consistent snapshot (`VACUUM INTO` through `server --backup`, safe while the server runs), packs the files, copies it **off this host** and prunes old copies. Nightly, as root:
 
 ```cron
 30 3 * * * cd /srv/quidenous && deploy/backup.sh >> /var/log/quidenous-backup.log 2>&1

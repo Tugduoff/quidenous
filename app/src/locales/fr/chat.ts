@@ -22,4 +22,26 @@ export const chat = {
     chipHint: 'Appui long : qui a réagi',
     count: { one: '{count} réaction', other: '{count} réactions' },
   },
+  media: {
+    /** The composer's button (screen readers). */
+    attach: 'Envoyer une photo ou un GIF',
+    library: 'Galerie',
+    camera: 'Appareil photo',
+    gif: 'GIF',
+    caption: 'Ajouter une légende',
+    captionLabel: 'Légende',
+    /** Screen readers, on a message. */
+    photoBy: 'Photo de {name}',
+    gifBy: 'GIF de {name}',
+    open: 'Toucher : agrandir',
+    sending: 'Envoi en cours',
+    failed: 'Pas envoyé, toucher pour réessayer',
+    discard: 'Retirer',
+    unreadable: 'Image illisible',
+    /** KLIPY's attribution rule: its name in the search field. */
+    search: 'Rechercher sur KLIPY',
+    noGifs: 'Aucun GIF',
+    share: 'Partager',
+    save: 'Enregistrer',
+  },
 };

@@ -6,7 +6,7 @@
 #   deploy/backup.sh --restore-pre-deploy <tag>   # puts that database back (container stopped; deploy.sh rollback)
 #
 # A snapshot is a directory qd-<UTC date>/ with app.db.gz (a consistent copy: `VACUUM INTO`, safe while the server
-# runs) and files.tar.gz (auth.key, photos/, updates/, the Firebase JSON). Run as root (the data dir belongs to the
+# runs) and files.tar.gz (auth.key, photos/, chat/ (chat images), updates/, the Firebase JSON). Run as root (the data dir belongs to the
 # container's uid 10001).
 #
 # Env (or deploy/backup.env):
@@ -95,7 +95,7 @@ trap 'rm -rf "$snap"' EXIT
 snapshot_db "$snap/app.db"
 gzip -9 "$snap/app.db"
 files=()
-for f in auth.key photos updates; do
+for f in auth.key photos chat updates; do
   if [ "$f" = updates ] && [ "${BACKUP_SKIP_UPDATES:-}" = 1 ]; then continue; fi
   if [ -e "$data/$f" ]; then files+=("$f"); fi
 done

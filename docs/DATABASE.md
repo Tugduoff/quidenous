@@ -41,4 +41,4 @@ Rolling back to an older server after a migration: the old binary refuses a data
 
 ## Not pruned (product decision)
 
-Nothing deletes old `inbox`, `messages`, `shares`, `nudges`, `party_*` rows, guest users, session tokens or guest photos yet: how long to keep people's content is a product decision. OTA bundles are pruned per runtime version (5 kept), but folders of old runtime versions stay. Unused leftovers kept in the schema: tables `ratings`, `member_tokens`, column `members.token_hash` (still filled with a throwaway hash on every new seat).
+Nothing deletes old `inbox`, `messages` (chat images under `DATA_DIR/chat/` go with their message, account or room: `docs/CHAT_MEDIA.md`), `shares`, `nudges`, `party_*` rows, guest users, session tokens or guest photos yet: how long to keep people's content is a product decision. OTA bundles are pruned per runtime version (5 kept), but folders of old runtime versions stay. Unused leftovers kept in the schema: tables `ratings`, `member_tokens`, column `members.token_hash` (still filled with a throwaway hash on every new seat).

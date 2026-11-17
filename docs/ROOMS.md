@@ -54,6 +54,10 @@ Feature `chat_reactions`. Any member reacts to a chat message under a finished q
 - A change sends live `message_reacted` `{round_id, message_id}` to the room; no inbox entry, no push.
 - Reactions go with their message (deleted by its author, the owner or an admin) and with a deleted account (theirs, and those on their messages). A message hidden by reports keeps them (an admin dismissing the reports shows it back as it was); seats that leave or are removed keep theirs, like their messages.
 
+## Chat images and GIFs
+
+Features `chat_images` (always) and `chat_gifs` (with `KLIPY_API_KEY`): photos and GIFs in the chat, with an optional caption. Routes, limits, signed URLs and retention: [CHAT_MEDIA.md](CHAT_MEDIA.md). Reactions, deletion, reports and blocks work on them as on text.
+
 ## Invite preview
 
 `GET /api/rooms/preview?code=` (no account, limited per IP to 30 looks per 10 minutes, feature `room_preview`) is what an invite link shows before joining: `{name, member_count, names}` with up to 3 first names (owner first). No ids, no photos. Unknown codes, deleted rooms and party codes answer `404 bad_code`. The app shows it on the sign-in landing and above the join field; an invite link opened while signed in goes to the room list with the code filled in.
@@ -87,6 +91,8 @@ In-memory token buckets (same limiter as the auth limits in `docs/AUTH.md`, rule
 | --- | --- |
 | Wrong codes: `POST /rooms/join`, signed-in `/join` and `/parties/join`, `POST /friends`, the big screen (`/parties/screen/{code}`, `/live?screen=`) | 10 / hour per account, 20 / 10 min per IP. Only codes that don't exist count (a right code gives its token back), so a party joining from one Wi-Fi is not slowed down |
 | Chat messages | 15 / minute and 300 / hour per account |
+| Chat images (`POST /rounds/{id}/messages/image`) | on top of the chat limits: 20 / hour and 100 / day per account; 8 MB (`413 too_large`) |
+| GIF searches (`GET /gifs`) | 60 / minute per account |
 | Chat reactions (added or taken back) | 60 / minute and 600 / hour per account |
 | @mentions | more than 5 people in one message counts as `@tous` and shares its 10-minute cooldown (during it, a plain message for everyone) |
 | New rooms and parties | 20 / day per account; 20 rooms owned at a time (`429 too_many_rooms`; a room handed over or deleted frees its place) |

@@ -625,6 +625,8 @@ async fn delete_room(state: &AppState, room: i64) -> AppResult<()> {
     .bind(room)
     .execute(&state.db)
     .await?;
+    // Nobody can open its chat any more: its images go now (rooms are never restored).
+    crate::media::remove_room(state, room).await;
     state.live.send(room, Event::RoomDeleted);
     Ok(())
 }

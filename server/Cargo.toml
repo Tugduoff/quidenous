@@ -15,7 +15,7 @@ futures = "0.3.34"
 hex = "0.4.3"
 hkdf = "0.13.0"
 hmac = "0.13"
-image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "webp"] }
+image = { version = "0.25.10", default-features = false, features = ["gif", "jpeg", "png", "webp"] }
 jsonwebtoken = { version = "11.1.0", features = ["rust_crypto"] }
 libc = "0.2"
 p256 = { version = "0.14.0", features = ["ecdh", "ecdsa"] }
