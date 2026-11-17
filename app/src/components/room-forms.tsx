@@ -119,8 +119,9 @@ export function RoomForms({
   );
   const joinForm = (
     <>
-      {!!initialCode && <InvitePreview code={initialCode} />}
+      {/* The invite's room under the "join" label: not one of my rooms. */}
       <Text style={[label, joinFirst ? undefined : { marginTop: 8 }]}>{tr('room.join.title')}</Text>
+      {!!initialCode && <InvitePreview code={initialCode} />}
       <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 8, padding: 6, paddingLeft: 16 }}>
         <TextInput
           accessibilityLabel={tr('room.invite.code')}
