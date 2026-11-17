@@ -2551,16 +2551,32 @@ async fn push_unsubscribe(
     Ok(Json(json!({ "ok": true })))
 }
 
+/// The oldest result I missed, plus how many I missed (`unseen_count`) and the newest of them
+/// (`unseen_last_id`): marking that one seen skips them all.
+#[derive(Serialize)]
+struct UnseenView {
+    #[serde(flatten)]
+    round: RoundView,
+    unseen_count: usize,
+    unseen_last_id: i64,
+}
+
 async fn unseen_round(
     State(state): State<AppState>,
     Me(me): Me,
     headers: axum::http::HeaderMap,
-) -> AppResult<Json<Option<RoundView>>> {
+) -> AppResult<Json<Option<UnseenView>>> {
     let Some(round) = game::unseen_round(&state.db, &me).await? else {
         return Ok(Json(None));
     };
+    let ids = game::unseen_ids(&state.db, &me).await?;
     let view = game::view(&state.db, round, me.id).await?;
-    Ok(Json(Some(for_client(&state, &headers, me.id, view).await?)))
+    let round = for_client(&state, &headers, me.id, view).await?;
+    Ok(Json(Some(UnseenView {
+        unseen_count: ids.len().max(1),
+        unseen_last_id: ids.first().copied().unwrap_or(round.id),
+        round,
+    })))
 }
 
 async fn mark_seen(

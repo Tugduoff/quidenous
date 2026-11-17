@@ -61,6 +61,7 @@ export const vote: Messages['vote'] = {
   pin: 'Pin',
   unpin: 'Unpin',
   next: 'Next',
+  skipAll: { label: 'Skip all', a11y: { one: 'Skip {count} result', other: 'Skip all {count} results' } },
   gate: {
     nextIn: 'Next question in {time}',
     waitingOwner: 'Waiting for the owner',

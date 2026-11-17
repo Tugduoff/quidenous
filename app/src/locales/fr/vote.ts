@@ -64,6 +64,8 @@ export const vote = {
   pin: 'Épingler',
   unpin: 'Désépingler',
   next: 'Suivante',
+  /** Back after days away, several results waiting: mark them all seen, on to today's question. */
+  skipAll: { label: 'Tout passer', a11y: { one: 'Passer {count} résultat', other: 'Passer les {count} résultats' } },
   gate: {
     nextIn: 'Prochaine question dans {time}',
     waitingOwner: 'En attente du propriétaire',

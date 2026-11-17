@@ -35,9 +35,13 @@ export const useGroup = () =>
 export const useCurrentRound = () =>
   useQuery({ queryKey: keys.current, queryFn: () => api<Round | null>('/round/current') });
 
-/** A finished question I voted on but have not seen the result of (I was away when it closed). */
+/**
+ * A finished question I voted on but have not seen the result of (I was away when it closed): the oldest, with how many
+ * are waiting and the newest of them (marking that one seen skips them all). Both absent from an older server.
+ */
+export type UnseenRound = Round & { unseen_count?: number; unseen_last_id?: number };
 export const useUnseenRound = () =>
-  useQuery({ queryKey: keys.unseen, queryFn: () => api<Round | null>('/round/unseen') });
+  useQuery({ queryKey: keys.unseen, queryFn: () => api<UnseenRound | null>('/round/unseen') });
 
 export const useRound = (id: number | null) =>
   useQuery({ queryKey: keys.round(id ?? 0), queryFn: () => api<Round>(`/rounds/${id}`), enabled: id != null });

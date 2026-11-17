@@ -87,6 +87,21 @@ pub async fn unseen_round(
     .await?)
 }
 
+/// Every finished question I voted on whose result I have not seen, newest first (ids): how many, and
+/// the one to mark seen to catch up at once (`seen_round` only moves forward).
+pub async fn unseen_ids(db: &SqlitePool, me: &crate::models::MemberRow) -> AppResult<Vec<i64>> {
+    Ok(sqlx::query_scalar(
+        "SELECT r.id FROM rounds r WHERE r.group_id = ? AND r.closed_at IS NOT NULL AND r.number > ? \
+         AND EXISTS (SELECT 1 FROM votes v WHERE v.round_id = r.id AND v.voter_id = ?) \
+         ORDER BY r.number DESC",
+    )
+    .bind(me.group_id)
+    .bind(me.seen_round)
+    .bind(me.id)
+    .fetch_all(db)
+    .await?)
+}
+
 pub async fn round(db: &SqlitePool, group_id: i64, round_id: i64) -> AppResult<RoundRow> {
     sqlx::query_as::<_, RoundRow>(round_select!("WHERE r.group_id = ? AND r.id = ?"))
         .bind(group_id)
