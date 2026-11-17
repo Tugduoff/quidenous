@@ -8,7 +8,8 @@ export const community = {
     placeholder: 'Qui de nous…',
     placeholderRank: 'Classe-nous du plus… au moins…',
     send: 'Envoyer la proposition',
-    left: { zero: "Plus aucune aujourd'hui", one: "{count} restante aujourd'hui", other: "{count} restantes aujourd'hui" },
+    /** Suggestions left today (the day is implied: "aujourd'hui" doesn't fit beside the switch at 360). */
+    left: { zero: 'Plus aucune', one: '{count} restante', other: '{count} restantes' },
     sent: 'Envoyée, place au vote',
   },
   vote: {

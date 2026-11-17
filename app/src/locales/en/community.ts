@@ -8,7 +8,7 @@ export const community: Messages['community'] = {
     placeholder: 'Which of us…',
     placeholderRank: 'Rank us from most… to least…',
     send: 'Send suggestion',
-    left: { zero: 'None left today', one: '{count} left today', other: '{count} left today' },
+    left: { zero: 'None left', one: '{count} left today', other: '{count} left today' },
     sent: 'Sent, now up for a vote',
   },
   vote: {
