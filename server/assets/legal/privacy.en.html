@@ -1,7 +1,7 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><style>body{font-family:Inter,system-ui,sans-serif;max-width:680px;margin:0 auto;padding:32px 20px 64px;line-height:1.6;color:#121216;background:#F5F5F0}h1{font-size:30px;line-height:1.2}h2{font-size:19px;margin-top:28px}a{color:#4F7D00}@media(prefers-color-scheme:dark){body{background:#0E0E12;color:#EDEDF0}a{color:#C8FF3D}}.lang{margin:0;text-align:right;font-size:14px}</style><title>Privacy · qui de nous ?</title></head><body>
 <p class="lang"><a href="/privacy" hreflang="fr" lang="fr">Français</a></p>
 <h1>Privacy policy</h1>
-<p>Last updated: 16 November 2026 (terms version 1). This page explains what data the <strong>qui de nous ?</strong> app uses, why, for how long, and how to delete it.</p>
+<p>Last updated: 17 November 2026 (terms version 1). This page explains what data the <strong>qui de nous ?</strong> app uses, why, for how long, and how to delete it.</p>
 <h2>Controller</h2>
 <!-- To be completed by the publisher: legal name and postal address. -->
 <p>The publisher of qui de nous ? (coflop), reachable at <a href="mailto:contact@coflop.fr">contact@coflop.fr</a> for any question about your data.</p>
@@ -10,7 +10,13 @@
 <li><strong>Your profile</strong>: first name, colour, drawn avatar or photo if you add one (cropped, with metadata such as location removed), friend code.</li>
 <li><strong>Your account</strong>, if you create one: e-mail address, password (stored only as an irreversible hash), two-factor settings, language, when you accepted the terms.</li>
 <li><strong>Sign in with Google or Discord</strong>, if you use it: your account ID with that service, your verified e-mail address and your name. We never receive your password and access nothing else.</li>
-<li><strong>The game</strong>: rooms, questions you add, votes, rankings, messages, reactions, published packs, question suggestions, friends.</li>
+<li><strong>The game</strong>: rooms, questions you add, votes (anonymous or not), rankings, messages, reactions, published packs, question suggestions, friends.</li>
+<li><strong>Chat photos</strong>: the photos you send in a room's chat are stored on our server. They are re-encoded (1600 px at most), which removes metadata such as location; an animated GIF sent from your phone is kept as is (that format has no location).</li>
+<li><strong>GIFs</strong>: for a GIF picked from the search, we store its ID and address at KLIPY with your message. The text of your searches (GIFs or packs) is not stored.</li>
+<li><strong>Le Tripot</strong>: your bets, winnings and chip balance in each room. The chips are fictional and worth nothing: there is nothing to buy, nothing to cash out or trade, and no real money involved. Everyone gets 100 chips at the start of each month and 20 more for their first vote of the day in a room. A room's owner can turn the Tripot off.</li>
+<li><strong>The global question</strong>: your vote on the question of the day asked to every room of 3 people or more.</li>
+<li><strong>Streaks</strong>: worked out from your votes, not stored separately; we only keep the day the last "Streak at risk" reminder was sent.</li>
+<li><strong>Time zone</strong>: how far your phone's clock is from universal time (for example +1 h), not your location. It is used to respect your quiet hours, count the days of your streaks and send the evening reminder at the right time. It is shown to no one.</li>
 <li><strong>Moderation</strong>: the reports you send (reason, details, a copy of the reported content) and the people you block.</li>
 <li><strong>Technical</strong>: sign-in sessions (device type, last used), push notification tokens, server logs, error reports when an app screen crashes (technical message, screen, version, platform, account ID). The app does not store your IP address: it is only used, in memory, to limit abuse.</li>
 </ul>
@@ -24,7 +30,11 @@
 </ul>
 <h2>Who sees what</h2>
 <ul>
-<li><strong>Members of your rooms</strong> see your profile and what you do in the room (votes, depending on the room's rules, messages).</li>
+<li><strong>Members of your rooms</strong> see your profile and what you do in the room: your votes once the question is over (except on anonymous questions), your messages, photos and GIFs, your streaks, your Tripot chip balance.</li>
+<li><strong>Anonymous votes</strong>: on an anonymous question, the result only shows totals, to everyone, the room's owner included. People see who voted, not for whom. The server keeps your vote to count it, but no screen or feature of the app shows it to anyone, admins included.</li>
+<li><strong>Chat photos</strong>: only members who can read that chat see them, through links that expire after 12 hours at most.</li>
+<li><strong>Le Tripot</strong>: while the question is open, everyone only sees the pot, the number of bettors and their own bet. Once it is over, the room's members see the winners with their stake and winnings; losers and their bets are never shown.</li>
+<li><strong>Global question</strong>: your room sees how many votes each person got, not who voted for whom. Other rooms only see anonymous percentages computed over 5 rooms or more, never a name, a room or a member.</li>
 <li><strong>Share links</strong>: when someone shares a question, a result or a stat, anyone with the link sees a card with the room's name, the question and, for a result or a stat, the first names and drawn avatars of the people in it (never a photo, never the votes). These links expire after 90 days, are kept out of search engines, and whoever made them (or the room's owner) can delete them in Profile &gt; My links.</li>
 <li><strong>Public packs and creator pages</strong>: a pack you publish is visible to everyone, with your name; your creator page (name, photo or avatar, packs) is visible to signed-in users. 16+ packs are only shown to people who confirmed their age.</li>
 <li><strong>Question suggestions</strong> are shown to other players with your first name.</li>
@@ -35,24 +45,27 @@
 <ul>
 <li><strong>Mailgun</strong> (Sinch): sends the account e-mails. Depending on the configuration, its servers are in the European Union or in the United States; in the latter case the transfer is covered by the EU–US Data Privacy Framework and standard contractual clauses.</li>
 <li><strong>Google</strong>: Sign in with Google if you use it, and Firebase Cloud Messaging for notifications on Android.</li>
+<li><strong>KLIPY</strong> (Kikliko, Inc., United States): the chat's GIF search. When you search for a GIF, our server, not your phone, asks KLIPY: it sends the text of your search, the language (French or English), a filter level and an opaque ID, different from your account ID, that can't be traced back to you. KLIPY gets neither your IP address (only our server's), nor your name, nor your e-mail, and the images go through our server too. According to its <a href="https://klipy.com/support/privacy-policy">privacy policy</a>, KLIPY may use searches to improve its service and for its advertising statistics. If you don't search for GIFs, nothing is sent to KLIPY.</li>
 <li><strong>Discord</strong>: Sign in with Discord if you use it, and a private team channel that receives the app's error reports.</li>
 <li><strong>Apple, Google, Mozilla</strong>: your phone's or browser's notification services, if you turn notifications on.</li>
 <li><strong>GitHub</strong> (Microsoft): only in the Android version installed outside the Play Store, to check for and download updates (GitHub then sees your IP address).</li>
 </ul>
 <h2>How long we keep it</h2>
 <ul>
-<li><strong>Account and game content</strong>: as long as your account exists. When you delete it, your personal data is erased right away (profile, e-mail, photo, messages, sessions, notifications, friends, the share links you made and the stat cards you appear on); room history keeps your votes, anonymised.</li>
+<li><strong>Account and game content</strong>: as long as your account exists. When you delete it, your personal data is erased right away (profile, e-mail, photo, messages, sessions, notifications, friends, the share links you made and the stat cards you appear on); room history keeps your votes, Tripot bets and global question votes, anonymised.</li>
+<li><strong>Chat photos</strong>: until their message is deleted (by you, the room's owner or moderation), your account is deleted or the room is deleted; they then stay in the backups for 30 days at most.</li>
+<li><strong>GIF and pack searches</strong>: not kept (used for the search, then forgotten).</li>
 <li><strong>Party guest accounts</strong> (no e-mail): erased automatically 30 days after their last party ends.</li>
 <li><strong>Sign-in sessions</strong>: until you sign out, revoke them (Profile &gt; Security) or delete the account; a session unused for 180 days ends on its own.</li>
 <li><strong>Codes sent by e-mail</strong>: valid for a few minutes up to 30 minutes, erased a day after they expire.</li>
 <li><strong>Share links</strong>: 90 days (links made before November 2026 stay valid until deleted).</li>
 <li><strong>Reports</strong>: kept to handle the report and spot repeated abuse; if the reported person deletes their account, their name is removed from them.</li>
 <li><strong>Deleted rooms</strong>: no longer accessible to anyone; their content stays in the database until the accounts involved are deleted, or on request.</li>
-<li><strong>Backups</strong>: copies of the database kept for 30 days at most, then overwritten.</li>
+<li><strong>Backups</strong>: copies of the database and the photos kept for 30 days at most, then overwritten.</li>
 <li><strong>Server logs</strong>: size-capped (30 MB in all), the oldest dropped as new ones come in.</li>
 </ul>
 <h2>Your rights</h2>
-<p>You can access, correct, export or delete your data, restrict its use and object to it. To delete your account: in the app (Profile &gt; Security &gt; Delete my account) or on the <a href="/en/delete-account">Delete my account</a> page. For anything else (including a copy of your data), write to us at <a href="mailto:contact@coflop.fr">contact@coflop.fr</a>; we answer within a month. You can also complain to your data protection authority (in France, the CNIL: cnil.fr).</p>
+<p>You can access, correct, export or delete your data, restrict its use and object to it. To delete your account: in the app (Profile &gt; Security &gt; Delete my account) or on the <a href="/en/delete-account">Delete my account</a> page, which also explains how to delete only some of your data (messages, photos, questions, packs, links…) and keep your account. For anything else (including a copy of your data), write to us at <a href="mailto:contact@coflop.fr">contact@coflop.fr</a>; we answer within a month. You can also complain to your data protection authority (in France, the CNIL: cnil.fr).</p>
 <h2>Age</h2>
 <p>The app is for people aged 16 and over: everyone confirms it when accepting the terms. 16+ packs ask for one more confirmation.</p>
 <h2>Changes</h2>

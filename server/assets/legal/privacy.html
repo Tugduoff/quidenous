@@ -1,7 +1,7 @@
 <!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><style>body{font-family:Inter,system-ui,sans-serif;max-width:680px;margin:0 auto;padding:32px 20px 64px;line-height:1.6;color:#121216;background:#F5F5F0}h1{font-size:30px;line-height:1.2}h2{font-size:19px;margin-top:28px}a{color:#4F7D00}@media(prefers-color-scheme:dark){body{background:#0E0E12;color:#EDEDF0}a{color:#C8FF3D}}.lang{margin:0;text-align:right;font-size:14px}</style><title>Confidentialité · qui de nous ?</title></head><body>
 <p class="lang"><a href="/en/privacy" hreflang="en" lang="en">English</a></p>
 <h1>Politique de confidentialité</h1>
-<p>Dernière mise à jour : 16 novembre 2026 (version 1 des conditions). Cette page explique quelles données l'app <strong>qui de nous ?</strong> utilise, pourquoi, combien de temps, et comment les supprimer.</p>
+<p>Dernière mise à jour : 17 novembre 2026 (version 1 des conditions). Cette page explique quelles données l'app <strong>qui de nous ?</strong> utilise, pourquoi, combien de temps, et comment les supprimer.</p>
 <h2>Responsable du traitement</h2>
 <!-- À compléter par l'éditeur : nom (ou raison sociale) et adresse postale. -->
 <p>L'éditeur de qui de nous ? (coflop), joignable à <a href="mailto:contact@coflop.fr">contact@coflop.fr</a> pour toute question sur tes données.</p>
@@ -10,7 +10,13 @@
 <li><strong>Ton profil</strong> : prénom, couleur, avatar dessiné ou photo si tu en ajoutes une (recadrée, sans métadonnées comme la position), code ami.</li>
 <li><strong>Ton compte</strong>, si tu en crées un : adresse e-mail, mot de passe (stocké uniquement sous forme chiffrée irréversible), réglages de double authentification, langue, date d'acceptation des conditions.</li>
 <li><strong>Connexion avec Google ou Discord</strong>, si tu l'utilises : l'identifiant de ton compte chez ce service, ton adresse e-mail vérifiée et ton nom. Nous ne recevons jamais ton mot de passe et n'accédons à rien d'autre.</li>
-<li><strong>Le jeu</strong> : salons, questions ajoutées, votes, classements, messages, réactions, packs publiés, propositions de questions, amis.</li>
+<li><strong>Le jeu</strong> : salons, questions ajoutées, votes (anonymes ou non), classements, messages, réactions, packs publiés, propositions de questions, amis.</li>
+<li><strong>Photos du chat</strong> : les photos que tu envoies dans le chat d'un salon sont stockées sur notre serveur. Elles sont réencodées (1600 px au plus), ce qui retire les métadonnées comme la position ; un GIF animé envoyé depuis ton téléphone est gardé tel quel (ce format n'a pas de position).</li>
+<li><strong>GIF</strong> : pour un GIF choisi dans la recherche, nous enregistrons avec ton message son identifiant et son adresse chez KLIPY. Le texte de tes recherches (GIF ou packs) n'est pas enregistré.</li>
+<li><strong>Le Tripot</strong> : tes mises, tes gains et ton solde de jetons dans chaque salon. Ce sont des jetons fictifs, sans aucune valeur : il n'y a rien à acheter, rien à encaisser ni à échanger, et aucun argent réel n'est en jeu. Chacun reçoit 100 jetons au début de chaque mois et 20 de plus au premier vote du jour dans un salon. Le propriétaire d'un salon peut désactiver le Tripot.</li>
+<li><strong>La question du monde</strong> : ton vote à la question du jour posée à tous les salons de 3 personnes ou plus.</li>
+<li><strong>Séries</strong> : elles sont calculées à partir de tes votes, pas enregistrées à part ; nous gardons seulement le jour du dernier rappel « Série en danger » envoyé.</li>
+<li><strong>Fuseau horaire</strong> : le décalage de l'heure de ton téléphone par rapport à l'heure universelle (par exemple +1 h), pas ta position. Il sert à respecter tes heures calmes, à compter les jours de tes séries et à envoyer le rappel du soir à la bonne heure. Il n'est montré à personne.</li>
 <li><strong>Modération</strong> : les signalements que tu envoies (motif, détails, copie du contenu signalé) et les personnes que tu bloques.</li>
 <li><strong>Technique</strong> : sessions de connexion (type d'appareil, date de dernière utilisation), jetons de notification push, journaux techniques du serveur, rapports d'erreur quand un écran de l'app plante (message technique, écran, version, plateforme, identifiant de compte). Ton adresse IP n'est pas enregistrée par l'app : elle sert seulement, en mémoire, à limiter les abus.</li>
 </ul>
@@ -24,7 +30,11 @@
 </ul>
 <h2>Qui voit quoi</h2>
 <ul>
-<li><strong>Les membres de tes salons</strong> voient ton profil et ce que tu fais dans le salon (votes selon les règles du salon, messages).</li>
+<li><strong>Les membres de tes salons</strong> voient ton profil et ce que tu fais dans le salon : tes votes une fois la question terminée (sauf sur les questions anonymes), tes messages, photos et GIF, tes séries, ton solde de jetons du Tripot.</li>
+<li><strong>Votes anonymes</strong> : sur une question anonyme, le résultat ne montre que les totaux, à tout le monde, propriétaire du salon compris. On voit qui a voté, pas pour qui. Le serveur garde ton vote pour le compter, mais aucun écran ni aucune fonction de l'app ne le montre, à personne, administrateurs compris.</li>
+<li><strong>Photos du chat</strong> : seuls les membres qui peuvent lire ce chat les voient, par des liens qui expirent au bout de 12 heures au plus.</li>
+<li><strong>Le Tripot</strong> : pendant la question, chacun ne voit que le pot, le nombre de parieurs et sa propre mise. Une fois la question terminée, les membres du salon voient les gagnants avec leur mise et leurs gains ; les perdants et leurs mises ne sont jamais montrés.</li>
+<li><strong>Question du monde</strong> : ton salon voit combien de voix chacun a reçu, sans savoir qui a voté pour qui. Les autres salons ne voient que des pourcentages anonymes calculés sur 5 salons au moins, jamais un nom, un salon ou un membre.</li>
 <li><strong>Liens de partage</strong> : quand quelqu'un partage une question, un résultat ou une stat, toute personne qui a le lien voit une carte avec le nom du salon, la question et, pour un résultat ou une stat, les prénoms et avatars dessinés des personnes concernées (jamais de photo, ni le détail des votes). Ces liens expirent au bout de 90 jours, ne sont pas indexés par les moteurs de recherche, et la personne qui les a créés (ou le propriétaire du salon) peut les supprimer dans Profil &gt; Mes liens.</li>
 <li><strong>Packs publics et pages créateur</strong> : un pack que tu publies est visible par tous, avec ton nom ; ta page créateur (nom, photo ou avatar, packs) est visible par les utilisateurs connectés. Les packs 16+ ne sont visibles que par les personnes qui l'ont confirmé.</li>
 <li><strong>Propositions de questions</strong> : elles sont montrées aux autres joueurs avec ton prénom.</li>
@@ -35,24 +45,27 @@
 <ul>
 <li><strong>Mailgun</strong> (Sinch) : envoi des e-mails de compte. Selon la configuration, ses serveurs sont dans l'Union européenne ou aux États-Unis ; dans ce dernier cas, le transfert est encadré par le Data Privacy Framework UE–États-Unis et les clauses contractuelles types.</li>
 <li><strong>Google</strong> : connexion avec Google si tu l'utilises, et Firebase Cloud Messaging pour les notifications sur Android.</li>
+<li><strong>KLIPY</strong> (Kikliko, Inc., États-Unis) : la recherche de GIF du chat. Quand tu cherches un GIF, c'est notre serveur, pas ton téléphone, qui interroge KLIPY : il lui envoie le texte de ta recherche, la langue (français ou anglais), un niveau de filtre et un identifiant opaque, différent de ton identifiant de compte, qui ne permet pas de remonter jusqu'à toi. KLIPY ne reçoit ni ton adresse IP (seulement celle de notre serveur), ni ton nom, ni ton e-mail, et les images passent elles aussi par notre serveur. Selon sa <a href="https://klipy.com/support/privacy-policy">politique de confidentialité</a>, KLIPY peut utiliser les recherches pour améliorer son service et pour ses statistiques publicitaires. Si tu ne cherches pas de GIF, rien n'est envoyé à KLIPY.</li>
 <li><strong>Discord</strong> : connexion avec Discord si tu l'utilises, et un canal privé de l'équipe qui reçoit les rapports d'erreur de l'app.</li>
 <li><strong>Apple, Google, Mozilla</strong> : les services de notification de ton téléphone ou de ton navigateur, si tu actives les notifications.</li>
 <li><strong>GitHub</strong> (Microsoft) : seulement dans la version Android installée hors Play Store, pour vérifier et télécharger les mises à jour (GitHub voit alors ton adresse IP).</li>
 </ul>
 <h2>Durées de conservation</h2>
 <ul>
-<li><strong>Compte et contenu de jeu</strong> : tant que ton compte existe. À sa suppression, tes données personnelles sont effacées tout de suite (profil, e-mail, photo, messages, sessions, notifications, amis, liens de partage que tu as créés et cartes de stats où tu apparais) ; l'historique des salons garde tes votes, anonymisés.</li>
+<li><strong>Compte et contenu de jeu</strong> : tant que ton compte existe. À sa suppression, tes données personnelles sont effacées tout de suite (profil, e-mail, photo, messages, sessions, notifications, amis, liens de partage que tu as créés et cartes de stats où tu apparais) ; l'historique des salons garde tes votes, mises du Tripot et votes à la question du monde, anonymisés.</li>
+<li><strong>Photos du chat</strong> : jusqu'à la suppression de leur message (par toi, le propriétaire du salon ou la modération), de ton compte ou du salon ; elles restent ensuite au plus 30 jours dans les sauvegardes.</li>
+<li><strong>Recherches de GIF et de packs</strong> : pas conservées (utilisées pour la recherche, puis oubliées).</li>
 <li><strong>Comptes invités d'une soirée</strong> (sans e-mail) : effacés automatiquement 30 jours après la fin de leur dernière soirée.</li>
 <li><strong>Sessions de connexion</strong> : jusqu'à la déconnexion, leur révocation (Profil &gt; Sécurité) ou la suppression du compte ; une session inutilisée pendant 180 jours se ferme d'elle-même.</li>
 <li><strong>Codes envoyés par e-mail</strong> : valables de quelques minutes à 30 minutes, effacés un jour après leur expiration.</li>
 <li><strong>Liens de partage</strong> : 90 jours (les liens créés avant novembre 2026 restent valables jusqu'à leur suppression).</li>
 <li><strong>Signalements</strong> : conservés pour traiter le signalement et repérer les abus répétés ; si la personne signalée supprime son compte, son nom en est retiré.</li>
 <li><strong>Salons supprimés</strong> : plus accessibles à personne ; leur contenu reste dans la base jusqu'à la suppression des comptes concernés ou sur demande.</li>
-<li><strong>Sauvegardes</strong> : copies de la base conservées 30 jours au plus, puis écrasées.</li>
+<li><strong>Sauvegardes</strong> : copies de la base et des photos conservées 30 jours au plus, puis écrasées.</li>
 <li><strong>Journaux techniques</strong> : taille limitée (30 Mo au total), les plus anciens effacés au fil de l'eau.</li>
 </ul>
 <h2>Tes droits</h2>
-<p>Tu peux consulter, corriger, exporter ou supprimer tes données, limiter leur traitement et t'y opposer. Pour supprimer ton compte : dans l'app (Profil &gt; Sécurité &gt; Supprimer mon compte) ou sur la page <a href="/delete-account">Supprimer mon compte</a>. Pour le reste (dont une copie de tes données), écris-nous : <a href="mailto:contact@coflop.fr">contact@coflop.fr</a>, nous répondons sous un mois. Tu peux aussi saisir la CNIL (cnil.fr).</p>
+<p>Tu peux consulter, corriger, exporter ou supprimer tes données, limiter leur traitement et t'y opposer. Pour supprimer ton compte : dans l'app (Profil &gt; Sécurité &gt; Supprimer mon compte) ou sur la page <a href="/delete-account">Supprimer mon compte</a>, qui explique aussi comment supprimer seulement certaines données (messages, photos, questions, packs, liens…) en gardant ton compte. Pour le reste (dont une copie de tes données), écris-nous : <a href="mailto:contact@coflop.fr">contact@coflop.fr</a>, nous répondons sous un mois. Tu peux aussi saisir la CNIL (cnil.fr).</p>
 <h2>Âge</h2>
 <p>L'app est réservée aux personnes de 16 ans et plus : chacun le confirme en acceptant les conditions. Les packs « 16+ » demandent une confirmation de plus.</p>
 <h2>Changements</h2>
