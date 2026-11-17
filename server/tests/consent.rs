@@ -354,6 +354,20 @@ async fn adding_a_friend_to_a_room_is_an_invitation() {
     )
     .await;
     assert_eq!((s, &b["room_id"]), (StatusCode::OK, &json!(room)), "{b}");
+    let bob_seat = b["member_id"].clone();
+    // A late second tap (after the first one is done): the same seat, not a 404.
+    let (s, b) = call(
+        &app,
+        "POST",
+        &format!("/invites/{id}/accept"),
+        Some(&bob),
+        None,
+        None,
+    )
+    .await;
+    assert_eq!((s, &b["member_id"]), (StatusCode::OK, &bob_seat), "{b}");
+    let (_, inv) = call(&app, "GET", "/invites", Some(&bob), None, None).await;
+    assert_eq!(inv["invites"], json!([]));
     let (_, g) = call(&app, "GET", "/group", Some(&bob), Some(room), None).await;
     assert_eq!(g["members"].as_array().unwrap().len(), 2);
     let (s, r) = call(&app, "GET", "/round/current", Some(&ana), Some(room), None).await;
@@ -410,6 +424,33 @@ async fn adding_a_friend_to_a_room_is_an_invitation() {
         (StatusCode::GONE, Some("invite_gone"))
     );
     let _ = cyd_room;
+
+    // Bob left: his accepted invitation answers no more, and Ana can invite him back (his seat back).
+    let (s, _) = call(
+        &app,
+        "POST",
+        &format!("/invites/{id}/accept"),
+        Some(&bob),
+        None,
+        None,
+    )
+    .await;
+    assert_eq!(s, StatusCode::NOT_FOUND);
+    let (s, b) = invite(ana.clone()).await;
+    assert_eq!((s, &b["invited"]), (StatusCode::OK, &json!(true)), "{b}");
+    let (_, inv) = call(&app, "GET", "/invites", Some(&bob), None, None).await;
+    assert_eq!(inv["invites"][0]["room_id"], room, "{inv}");
+    let again = inv["invites"][0]["id"].as_i64().unwrap();
+    let (s, b) = call(
+        &app,
+        "POST",
+        &format!("/invites/{again}/accept"),
+        Some(&bob),
+        None,
+        None,
+    )
+    .await;
+    assert_eq!((s, &b["member_id"]), (StatusCode::OK, &bob_seat), "{b}");
 }
 
 #[tokio::test]
