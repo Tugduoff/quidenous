@@ -136,9 +136,9 @@ pub fn choose_items(line: &str) -> Option<Vec<String>> {
     clean_items(items)
 }
 
-/// Trimmed items, when there are 2 to 4 of them, each 1 to 40 characters, no two alike (case-insensitive).
+/// Cleaned items (one line, nothing invisible), when there are 2 to 4 of them, each 1 to 40 characters, no two alike (case-insensitive).
 pub fn clean_items(items: Vec<String>) -> Option<Vec<String>> {
-    let items: Vec<String> = items.into_iter().map(|i| i.trim().to_owned()).collect();
+    let items: Vec<String> = items.iter().map(|i| crate::text::line(i)).collect();
     let mut seen = std::collections::HashSet::new();
     let ok = (ITEMS_MIN..=ITEMS_MAX).contains(&items.len())
         && items

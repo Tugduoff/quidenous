@@ -35,6 +35,7 @@ export const questions = {
   imported: '+{added}',
   importedSkipped: '+{added} · {skipped} déjà là',
   importFailed: 'Import raté',
+  importTooMany: '500 questions max par import',
   shuffled: 'Mélangé',
   shuffleFailed: 'Mélange raté',
   moveUp: 'Monter',

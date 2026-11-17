@@ -405,6 +405,7 @@ async fn many_mentions_count_as_everyone_and_share_its_cooldown() {
 async fn room_creation_is_capped_per_day() {
     let (app, _) = setup().await;
     let (ana, _) = join(&app, "Ana").await;
+    let mut first = None;
     for i in 0..19 {
         let (s, b) = call(
             &app,
@@ -415,9 +416,15 @@ async fn room_creation_is_capped_per_day() {
         )
         .await;
         assert_eq!(s, StatusCode::OK, "{b}");
+        first = first.or(b["id"].as_i64());
     }
     // Parties count too.
     create_party(&app, &ana).await;
+    // Deleting a room frees a seat under the owned-rooms cap (tests/rails.rs) but gives no
+    // creation back: the daily quota answers.
+    let first = first.expect("room id");
+    let (s, b) = call(&app, "DELETE", &format!("/rooms/{first}"), Some(&ana), None).await;
+    assert!(s.is_success(), "{b}");
     let (s, b) = call(
         &app,
         "POST",

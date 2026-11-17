@@ -26,9 +26,11 @@ const fn rule(name: &'static str, capacity: u32, minutes: u64) -> Rule {
     }
 }
 
-pub const EMAIL_IP: Rule = rule("email_ip", 20, 10);
-pub const SIGNUP_IP: Rule = rule("signup_ip", 5, 60);
-pub const LOGIN_IP: Rule = rule("login_ip", 10, 10);
+// Per-IP rules are loose: a mobile carrier puts hundreds of phones behind one IPv4 (CGNAT), a
+// venue's Wi-Fi a whole party. The per-account rules below stop guessing.
+pub const EMAIL_IP: Rule = rule("email_ip", 40, 10);
+pub const SIGNUP_IP: Rule = rule("signup_ip", 30, 60);
+pub const LOGIN_IP: Rule = rule("login_ip", 30, 10);
 /// Wrong passwords for one e-mail from one IP (a success gives its token back); refills one every 3 min.
 pub const LOGIN_ACCOUNT_IP: Rule = rule("login_ip_account", 5, 15);
 /// Wrong passwords for one e-mail from anywhere: looser, so one IP (at most 20 an hour through the
@@ -44,8 +46,9 @@ pub const RESET_ACCOUNT: Rule = rule("reset_account", 10, 60);
 pub const VERIFY_SEND_ACCOUNT: Rule = rule("verify_send_account", 5, 60);
 pub const OAUTH_IP: Rule = rule("oauth_ip", 20, 10);
 pub const LEGACY_IP: Rule = rule("legacy_ip", 10, 60);
-/// Joining a party without an account: a whole party shares one Wi-Fi.
-pub const PARTY_GUEST_IP: Rule = rule("party_guest_ip", 30, 60);
+/// Joining a party without an account: a whole party shares one Wi-Fi (three full parties an hour,
+/// `party::MAX_PLAYERS` each).
+pub const PARTY_GUEST_IP: Rule = rule("party_guest_ip", 120, 60);
 /// The public invite preview (`GET /api/rooms/preview`): enough for a few links, too few to scan codes.
 pub const ROOM_PREVIEW_IP: Rule = rule("room_preview_ip", 30, 10);
 pub const DELETE_SEND_IP: Rule = rule("delete_send_ip", 5, 60);
@@ -243,11 +246,13 @@ mod tests {
     #[test]
     fn buckets_empty_then_say_when_to_retry() {
         let l = Limiter::default();
-        for _ in 0..5 {
+        // Drain the bucket whatever its size, then the wait is about one token's refill time.
+        for _ in 0..SIGNUP_IP.capacity {
             l.hit(&SIGNUP_IP, "1.2.3.4").unwrap();
         }
+        let one_token = SIGNUP_IP.period.as_secs() / u64::from(SIGNUP_IP.capacity);
         match l.hit(&SIGNUP_IP, "1.2.3.4") {
-            Err(AppError::RateLimited(s)) => assert!((1..=720).contains(&s), "{s}"),
+            Err(AppError::RateLimited(s)) => assert!((1..=one_token).contains(&s), "{s}"),
             other => panic!("{other:?}"),
         }
         l.hit(&SIGNUP_IP, "5.6.7.8").unwrap();
@@ -256,7 +261,7 @@ mod tests {
             l.hit(&LOGIN_ACCOUNT_IP, "a@b.c").unwrap();
             l.refund(&LOGIN_ACCOUNT_IP, "a@b.c");
         }
-        for _ in 0..5 {
+        for _ in 0..LOGIN_ACCOUNT_IP.capacity {
             l.hit(&LOGIN_ACCOUNT_IP, "a@b.c").unwrap();
         }
         assert!(l.hit(&LOGIN_ACCOUNT_IP, "a@b.c").is_err());

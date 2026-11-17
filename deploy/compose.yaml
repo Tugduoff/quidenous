@@ -7,6 +7,8 @@ services:
         VERSION: ${QD_VERSION:-dev}
         GIT_SHA: ${QD_GIT_SHA:-dev}
     image: quidenous:latest
+    # A real PID 1 (docker-init) passes SIGTERM on, so `docker stop` lets requests finish (graceful shutdown).
+    init: true
     container_name: quidenous
     restart: unless-stopped
     env_file: .env

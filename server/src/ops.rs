@@ -1,11 +1,13 @@
-//! Operations: build version, app crash reports, database snapshots.
+//! Operations: health check, build version, oldest app served, app crash reports, database snapshots.
 
 use std::{path::Path, sync::OnceLock, time::Duration};
 
 use axum::{
     Json, Router,
-    extract::{DefaultBodyLimit, State},
+    extract::{DefaultBodyLimit, Request, State},
     http::{HeaderMap, StatusCode},
+    middleware::Next,
+    response::{IntoResponse, Response},
     routing::{get, post},
 };
 use serde::Deserialize;
@@ -24,10 +26,102 @@ const STACK_MAX: usize = 4000;
 const FIELD_MAX: usize = 100;
 
 pub fn router() -> Router<AppState> {
-    Router::new().route("/version", get(version)).route(
-        "/client-errors",
-        post(client_error).layer(DefaultBodyLimit::max(CLIENT_ERROR_MAX)),
+    Router::new()
+        .route("/health", get(health))
+        .route("/version", get(version))
+        .route(
+            "/client-errors",
+            post(client_error).layer(DefaultBodyLimit::max(CLIENT_ERROR_MAX)),
+        )
+}
+
+// ---------- GET /api/health ----------
+
+/// Less free space than this where the data lives: unhealthy (SQLite and photo writes would fail).
+pub const DISK_MIN: u64 = 100 * 1024 * 1024;
+
+/// `200 ok` when the database answers (within 2 s) and the data disk has room; `503
+/// {"error": "database" | "disk_full"}` otherwise. Docker's HEALTHCHECK (`server --health`), the
+/// deploy script and an outside uptime monitor read it.
+async fn health(State(state): State<AppState>) -> Response {
+    let db = tokio::time::timeout(
+        Duration::from_secs(2),
+        sqlx::query_scalar::<_, i64>("SELECT 1").fetch_one(&state.db),
     )
+    .await;
+    if !matches!(db, Ok(Ok(1))) {
+        tracing::error!(?db, "health: the database does not answer");
+        return unhealthy("database");
+    }
+    if let Some(free) = free_bytes(&state.config.data_dir)
+        && free < DISK_MIN
+    {
+        tracing::error!(free, "health: the data disk is almost full");
+        return unhealthy("disk_full");
+    }
+    "ok".into_response()
+}
+
+fn unhealthy(what: &str) -> Response {
+    (
+        StatusCode::SERVICE_UNAVAILABLE,
+        Json(json!({ "error": what })),
+    )
+        .into_response()
+}
+
+/// Bytes an unprivileged process can still write on the file system holding `dir`.
+#[cfg(unix)]
+fn free_bytes(dir: &Path) -> Option<u64> {
+    use std::os::unix::ffi::OsStrExt;
+    let path = std::ffi::CString::new(dir.as_os_str().as_bytes()).ok()?;
+    // SAFETY: statvfs only writes into `stat`, a plain C struct (all zeroes is a valid value), and
+    // reads `path`, a NUL-terminated string that outlives the call.
+    let mut stat: libc::statvfs = unsafe { std::mem::zeroed() };
+    let ok = unsafe { libc::statvfs(path.as_ptr(), &mut stat) } == 0;
+    #[allow(clippy::useless_conversion)] // the field types differ between Linux and macOS
+    ok.then(|| u64::from(stat.f_bavail).saturating_mul(u64::from(stat.f_frsize)))
+}
+
+#[cfg(not(unix))]
+fn free_bytes(_: &Path) -> Option<u64> {
+    None
+}
+
+// ---------- X-App-Version / 426 ----------
+
+/// Answers `426 {"error": "update_required", "min_version"}` to an app older than
+/// `MIN_APP_VERSION` (its `X-App-Version` header; no header, as from a browser or an app from
+/// before the header, goes through). What an outdated app needs still works: health, features,
+/// version, crash reports and over-the-air updates (the way out for most of them).
+pub async fn version_gate(State(state): State<AppState>, req: Request, next: Next) -> Response {
+    let min = state
+        .config
+        .min_app_version
+        .as_deref()
+        .and_then(crate::config::parse_version);
+    let path = req.uri().path();
+    let open = !path.starts_with("/api/")
+        || matches!(
+            path.trim_start_matches("/api/").split('/').next(),
+            Some("health" | "features" | "version" | "client-errors" | "updates")
+        );
+    let too_old = req
+        .headers()
+        .get("x-app-version")
+        .and_then(|v| v.to_str().ok())
+        .and_then(crate::config::parse_version)
+        .zip(min)
+        .is_some_and(|(app, min)| app < min);
+    if too_old && !open {
+        let min = state.config.min_app_version.as_deref().unwrap_or_default();
+        return (
+            StatusCode::UPGRADE_REQUIRED,
+            Json(json!({ "error": "update_required", "min_version": min.trim() })),
+        )
+            .into_response();
+    }
+    next.run(req).await
 }
 
 // ---------- GET /api/version ----------

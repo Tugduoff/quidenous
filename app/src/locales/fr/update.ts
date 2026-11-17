@@ -17,4 +17,7 @@ export const update = {
   ready: 'Nouvelle version prête',
   restart: 'Relancer',
   hide: 'Masquer',
+  requiredTitle: 'Mise à jour nécessaire',
+  requiredBody: "Cette version de l'app n'est plus prise en charge.",
+  requiredAction: 'Mettre à jour',
 };

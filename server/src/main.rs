@@ -83,7 +83,9 @@ async fn main() -> quidenous_server::anyhow_free::Result<()> {
         listener,
         app(state).into_make_service_with_connect_info::<std::net::SocketAddr>(),
     )
+    .with_graceful_shutdown(shutdown())
     .await?;
+    tracing::info!("stopped");
     Ok(())
 }
 
@@ -168,4 +170,29 @@ async fn seed_packs(args: &[String]) -> quidenous_server::anyhow_free::Result<()
         std::process::exit(2);
     }
     Ok(())
+}
+
+/// Resolves on SIGTERM (`docker stop`, a deploy) or Ctrl-C: the server stops taking connections
+/// and lets requests in flight finish (Docker's 10 s grace period bounds the wait). Live sockets
+/// just close: the apps reconnect to the new container.
+async fn shutdown() {
+    let term = async {
+        #[cfg(unix)]
+        match tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()) {
+            Ok(mut s) => {
+                s.recv().await;
+            }
+            Err(e) => {
+                tracing::warn!(error = %e, "no SIGTERM handler");
+                std::future::pending::<()>().await;
+            }
+        }
+        #[cfg(not(unix))]
+        std::future::pending::<()>().await;
+    };
+    tokio::select! {
+        _ = tokio::signal::ctrl_c() => {}
+        () = term => {}
+    }
+    tracing::info!("shutting down: finishing requests in flight");
 }

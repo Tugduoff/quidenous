@@ -158,7 +158,8 @@ fn clean_timer(timer: i64) -> AppResult<i64> {
 
 /// A party name: 0-40 characters; empty = "Soirée de <host>".
 fn clean_party_name(name: Option<&str>, lang: Lang, host: &str) -> AppResult<String> {
-    let name = name.map(str::trim).unwrap_or("");
+    let name = crate::text::line(name.unwrap_or(""));
+    let name = name.as_str();
     if name.chars().count() > NAME_MAX {
         return Err(AppError::BadRequest("bad_room_name"));
     }
@@ -917,7 +918,7 @@ async fn join(
         (None, _) => {
             let (name, color) = guest.unwrap_or_default();
             let user: i64 = sqlx::query_scalar(
-                "INSERT INTO users (name, color, friend_code, guest) VALUES (?, ?, upper(hex(randomblob(4))), 1) RETURNING id",
+                "INSERT INTO users (name, color, friend_code, guest) VALUES (?, ?, upper(hex(randomblob(5))), 1) RETURNING id",
             )
             .bind(&name)
             .bind(&color)

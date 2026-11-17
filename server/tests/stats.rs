@@ -124,14 +124,15 @@ async fn play(app: &Router, votes: &[(&str, i64)]) -> i64 {
     id
 }
 
-/// Adds a ranking question and everyone ranks in the given order.
-async fn play_rank(app: &Router, tokens: &[&str], order: &[i64]) -> i64 {
+/// Adds a ranking question (each text once: a room refuses a duplicate) and everyone ranks in the
+/// given order.
+async fn play_rank(app: &Router, tokens: &[&str], text: &str, order: &[i64]) -> i64 {
     let (s, b) = call(
         app,
         "POST",
         "/questions",
         Some(tokens[0]),
-        Some(json!({ "text": "Classe-nous du plus fêtard au plus sage", "kind": "rank" })),
+        Some(json!({ "text": text, "kind": "rank" })),
     )
     .await;
     assert_eq!(s, StatusCode::OK, "{b}");
@@ -588,8 +589,20 @@ async fn ranking_positions_make_podium_and_red_lantern() {
     let m = members(&app, &["Ana", "Bob", "Cyd"]).await;
     let tokens: Vec<&str> = m.iter().map(|x| x.0.as_str()).collect();
     let (a, b, c) = (m[0].1, m[1].1, m[2].1);
-    let r1 = play_rank(&app, &tokens, &[a, b, c]).await;
-    play_rank(&app, &tokens, &[a, c, b]).await;
+    let r1 = play_rank(
+        &app,
+        &tokens,
+        "Classe-nous du plus fêtard au plus sage",
+        &[a, b, c],
+    )
+    .await;
+    play_rank(
+        &app,
+        &tokens,
+        "Classe-nous du plus bavard au plus discret",
+        &[a, c, b],
+    )
+    .await;
     let s = stats(&app, &m[0].0, "").await;
     assert_eq!(
         s["best_rank"],

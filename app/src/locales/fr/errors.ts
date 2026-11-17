@@ -47,4 +47,9 @@ export const errors = {
   alone: "Personne d'autre dans le salon pour l'instant",
   disabled: 'Le propriétaire a désactivé cette option',
   time_up: 'Trop tard, le temps est écoulé',
+  // Limits
+  room_full: 'Salon complet (50 personnes max)',
+  too_many_rooms: 'Tu as déjà 20 salons',
+  question_exists: 'Déjà dans ce salon',
+  update_required: "Mets l'app à jour",
 };

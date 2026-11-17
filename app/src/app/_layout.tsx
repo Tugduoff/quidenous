@@ -17,6 +17,7 @@ import { TermsGate } from '@/components/terms';
 import { ToastHost } from '@/components/toast';
 import { ConfirmHost } from '@/components/ui';
 import { OtaToast, UpdateDialog } from '@/components/update';
+import { UpdateRequired } from '@/components/update-required';
 import { pendingJoinCode, pendingPlayToken, setPendingCode } from '@/lib/auth';
 import { presetJoinCode } from '@/lib/api';
 import { useLang } from '@/lib/i18n';
@@ -153,6 +154,7 @@ function Root() {
       <ConfirmHost />
       <UpdateDialog />
       {stage === 'in' && <OtaToast />}
+      <UpdateRequired />
       <ToastHost />
     </ThemeProvider>
   );

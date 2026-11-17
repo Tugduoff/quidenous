@@ -62,7 +62,7 @@ Traefik: point a router at the service on port 8080; WebSockets work out of the 
 | `RUST_LOG` | `info` | `debug` to troubleshoot |
 | `VAPID_PRIVATE_KEY` | — | Web Push key (iPhone/Android web app). Generate once: `docker compose run --rm quidenous server --gen-vapid` |
 | `VAPID_SUBJECT` | `mailto:admin@example.com` | Contact sent to push services, e.g. `mailto:you@domain`. Set it: the default is a placeholder (warned about at start-up) |
-| `FCM_SERVICE_ACCOUNT_FILE` | — | Android app notifications: path **inside the container** to the Firebase service account JSON, e.g. `/data/firebase.json` (put the file in `deploy/data/`) |
+| `FCM_SERVICE_ACCOUNT_FILE` | — | Android app notifications: path **inside the container** to the Firebase service account JSON, e.g. `/data/firebase.json` (put the file in `deploy/data/`). A file that can't be read or parsed doesn't stop the server: it logs an `ERROR` and Android push stays off (same for an invalid `VAPID_PRIVATE_KEY` and web push) |
 | `AUTH_SECRET` | generated into `data/auth.key` | 32+ random bytes (`openssl rand -hex 32`): encrypts 2FA secrets, keys code hashes. Set it, keep it out of backups, never change it (2FA secrets and recovery codes depend on it) |
 | `PUBLIC_URL` | — | `https://your.domain` (no trailing slash). Needed for Google / Discord sign-in. Also the only web origin allowed to call the API cross-origin (CORS; without it any origin is, for local development), and an `https://` one turns on HSTS |
 | `CORS_ORIGINS` | — | Other web origins allowed to call the API, comma-separated (e.g. `http://localhost:8081` to point a dev web app at this server). The phone apps need none |
@@ -79,6 +79,7 @@ Traefik: point a router at the service on port 8080; WebSockets work out of the 
 | `REPORT_EMAIL` | `contact@coflop.fr` | Where in-app reports (message, member, question) are emailed, through Mailgun. At most 30 emails an hour; every report is also stored in the `reports` table |
 | `UPDATES_PUBLISH_TOKEN` | — | Over-the-air app updates: the token CI uses to publish new JS bundles (same value as the GitHub secret). Without it publishing is off. Uploads are ~5 MB (`client_max_body_size 10m` is enough). See [docs/OTA.md](../docs/OTA.md) |
 | `UPDATES_CERTIFICATE` | — | Path **inside the container** to the OTA code signing certificate, e.g. `/data/ota-certificate.pem` (copy `app/certs/certificate.pem` into `deploy/data/`). Recommended: publishing then refuses unsigned updates and signatures that don't match, so a leaked publish token can't stall updates |
+| `MIN_APP_VERSION` | — | Oldest app version served, e.g. `0.33.0`. Apps send their version (`X-App-Version`, from 0.33); an older one gets `426 update_required` and shows an "Update" screen (over-the-air update first, else the store / APK). Apps from before 0.33 send no version and are not affected. Health, features, version, crash reports and OTA stay open |
 | `CLIENT_ERRORS_WEBHOOK` | — | Discord webhook URL (channel → Integrations → Webhooks): app crashes caught by the app's error screen are posted there (30 an hour at most). Without it they are only logged (`app error`, level WARN) |
 
 Accounts, 2FA and sign-in details: [docs/AUTH.md](../docs/AUTH.md).
@@ -165,6 +166,10 @@ docker compose ps        # healthy?
 docker compose logs -f
 curl -s http://127.0.0.1:8080/api/version   # {"version":"0.31.0","sha":"…"} of the running build
 ```
+
+`GET /api/health` answers `200 ok` only when SQLite answers (`SELECT 1` within 2 s) and the disk holding `DATA_DIR` has at least 100 MB free; otherwise `503 {"error":"database"}` or `{"error":"disk_full"}` (and an `ERROR` log line). Docker only marks the container unhealthy: point an outside uptime monitor (Uptime Kuma, healthchecks.io, UptimeRobot) at `https://your.domain/api/health` to get alerted.
+
+`docker stop` / a deploy sends SIGTERM: the server stops accepting connections and lets requests in flight finish (`init: true` in the compose file makes sure the signal reaches it); live sockets close and the apps reconnect to the new container.
 
 At start-up the server logs a `WARN` line for each unsafe or missing production setting (`AUTH_REQUIRED` off, `ADMIN_USER_IDS` unset, placeholder `VAPID_SUBJECT`, default `JOIN_CODE`, a room still using the public code `BANDE-42`).
 

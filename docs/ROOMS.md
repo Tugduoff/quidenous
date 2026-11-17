@@ -78,14 +78,19 @@ In-memory token buckets (same limiter as the auth limits in `docs/AUTH.md`, rule
 | Wrong codes: `POST /rooms/join`, signed-in `/join` and `/parties/join`, `POST /friends`, the big screen (`/parties/screen/{code}`, `/live?screen=`) | 10 / hour per account, 20 / 10 min per IP. Only codes that don't exist count (a right code gives its token back), so a party joining from one Wi-Fi is not slowed down |
 | Chat messages | 15 / minute and 300 / hour per account |
 | @mentions | more than 5 people in one message counts as `@tous` and shares its 10-minute cooldown (during it, a plain message for everyone) |
-| New rooms and parties | 20 / day per account |
+| New rooms and parties | 20 / day per account; 20 rooms owned at a time (`429 too_many_rooms`; a room handed over or deleted frees its place) |
+| Room size | 50 people (`409 room_full` on join by code, first-name join, a returning leaver, an invitation sent or accepted); parties: 40 players |
 | `POST /rooms/{id}/add` (invitations) | 30 / hour per account |
 | Friend requests sent (`POST /friends`, `POST /friends/{id}`) | 30 / hour per account; accepting is free |
-| `POST /questions` | 60 / hour per account |
+| `POST /questions` | 60 / hour per account; `409 question_exists` when the room already has it waiting or was already asked it (built-in deck included) |
 | `POST /questions/import` | 10 / hour per account, 500 questions per import (`400 too_many_questions`), 1 MB body |
 | `PUT /me/photo` | 10 / hour per account, 12 MB, 8000 px a side at most (decoded off the async threads); stored under a 128-bit random name |
 | `POST /push/subscribe` | 30 / hour per account, 10 devices per account (the least recently registered go), Web Push endpoints on a known push service only (below) |
 | Live sockets | 8 per account, 64 per IP, 2000 in all (`429 too_many_sockets`); 256-byte messages, only `here` / `away` (anything else closes the socket); a ping every 30 s, closed after 75 s without an answer; every minute the socket checks that its session and seat still exist (closed after a sign-out, a removal or a room deletion; also right after `member_removed` for its own seat and `room_deleted`) |
+
+**What people type** (`server/src/text.rs`): first names, room and party names, pack names and descriptions, questions (added, imported, in packs, suggested), choose items and chat messages lose invisible characters (zero-width spaces, bidi overrides and isolates, word joiners, BOM, soft hyphens, Hangul fillers, blank Braille, control characters; the zero-width joiner stays for emoji). Line breaks and runs of spaces become one space, except in chat messages, which keep their lines with at most one blank line in a row. Nothing visible left: the usual `bad_name` / `bad_room_name` / `bad_question` / `bad_message`. "The same question" compares texts that way and case-insensitively beyond ASCII (`ÉTÉ` = `été`), against the room's own questions and the built-in ones it was already asked; a built-in question the room added by hand is left to that copy (never asked twice).
+
+**Friend codes** are 10 hex digits (40 bits) for accounts made from 0.33; older 8-digit codes keep working. Guessing them is limited like any code (above) and a hit only sends a request.
 
 Push devices belong to the session that registered them (`push_subscriptions.token_hash`, `0030`): signing out, revoking a session, "sign out the others", a password reset or deleting the account removes them (a trigger on `user_tokens`). Devices registered before `0030` stay with the account's only session, or, when it had several, go as soon as any of its sessions ends (the app registers again at its next start). `POST /push/unsubscribe` removes the endpoint from any of my rooms. Web Push endpoints must be https on `fcm.googleapis.com`, `*.push.services.mozilla.com`, `*.push.apple.com` or `*.notify.windows.com` (1 KB at most); stored ones elsewhere are dropped at the next push. Push requests time out after 10 s. FCM tokens are dropped on `UNREGISTERED` / 404, and on `INVALID_ARGUMENT` only when FCM says the token itself is invalid.
 

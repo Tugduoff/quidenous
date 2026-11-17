@@ -1,6 +1,7 @@
 import { Platform } from 'react-native';
 
 import { deviceHeader } from './device';
+import { appVersion } from './update';
 
 /** Same origin on web (served by the Rust server); on phones, the build URL or the one typed at join. */
 export const DEFAULT_API_URL =
@@ -325,10 +326,17 @@ export const setOnSignedOut = (f: (() => void) | null) => {
   onSignedOut = f;
 };
 
+/** Called when the server no longer serves this version of the app (`426 update_required`, see `MIN_APP_VERSION`). */
+let onUpdateRequired: (() => void) | null = null;
+export const setOnUpdateRequired = (f: (() => void) | null) => {
+  onUpdateRequired = f;
+};
+
 async function fail(res: Response, sentToken: boolean): Promise<never> {
   const data = await res.json().catch(() => null);
   const code = data?.error ?? 'unknown';
   if (res.status === 401 && code === 'unauthorized' && sentToken) onSignedOut?.();
+  if (res.status === 426) onUpdateRequired?.();
   const retry = Number(data?.retry_after ?? res.headers.get('retry-after')) || undefined;
   throw new ApiError(res.status, code, retry);
 }
@@ -384,7 +392,13 @@ async function fetchWithin(url: string, init: RequestInit, ms: number): Promise<
 /** `room`: this call is about another room than the current one (`X-Room` for it alone). */
 export async function api<T>(path: string, init: RequestInit & { json?: unknown; room?: number } = {}): Promise<T> {
   // `x-kinds`: this app answers choose questions (an older one gets them as a plain pick).
-  const headers: Record<string, string> = { ...deviceHeader(), 'x-kinds': 'choose', ...(init.headers as Record<string, string>) };
+  // `x-app-version`: a server that no longer serves it answers 426 (the app asks to update).
+  const headers: Record<string, string> = {
+    ...deviceHeader(),
+    'x-kinds': 'choose',
+    'x-app-version': appVersion(),
+    ...(init.headers as Record<string, string>),
+  };
   if (token) headers.authorization = `Bearer ${token}`;
   const target = init.room ?? room;
   if (target != null) headers['x-room'] = String(target);
@@ -412,6 +426,7 @@ export async function apiUpload<T>(path: string, form: FormData, method = 'PUT')
     method,
     headers: {
       'x-kinds': 'choose',
+      'x-app-version': appVersion(),
       ...(token ? { authorization: `Bearer ${token}`, ...(room != null ? { 'x-room': String(room) } : {}) } : {}),
     },
     body: form,

@@ -46,6 +46,20 @@ pub struct Config {
     pub cors_origins: Vec<String>,
     /// How often open live sockets re-check their session and seat (tests shorten it; 60 s when unset).
     pub live_recheck: Option<std::time::Duration>,
+    /// `MIN_APP_VERSION` (`x.y.z`): an app that says it is older (`X-App-Version`) gets
+    /// `426 update_required` and asks to update. Unset: every version is served.
+    pub min_app_version: Option<String>,
+}
+
+/// `x.y.z` (a leading `v`, a missing part or a `-suffix` tolerated) as numbers to compare.
+pub fn parse_version(v: &str) -> Option<(u64, u64, u64)> {
+    let v = v.trim().trim_start_matches('v');
+    let v = v.split(['-', '+']).next()?;
+    let mut parts = v.split('.').map(|p| p.parse::<u64>().ok());
+    let major = parts.next()??;
+    let minor = parts.next().unwrap_or(Some(0))?;
+    let patch = parts.next().unwrap_or(Some(0))?;
+    parts.next().is_none().then_some((major, minor, patch))
 }
 
 pub const DEFAULT_REPORT_EMAIL: &str = "contact@coflop.fr";
@@ -77,6 +91,13 @@ impl Config {
             out.push(
                 "VAPID_SUBJECT is the placeholder mailto:admin@example.com: set a contact address (mailto:you@your.domain)",
             );
+        }
+        if self
+            .min_app_version
+            .as_deref()
+            .is_some_and(|v| parse_version(v).is_none())
+        {
+            out.push("MIN_APP_VERSION is not a version (x.y.z): every app version is served");
         }
         if self.join_code.eq_ignore_ascii_case(DEFAULT_JOIN_CODE) {
             out.push(
@@ -201,6 +222,7 @@ impl Config {
                 })
                 .unwrap_or_default(),
             live_recheck: None,
+            min_app_version: var("MIN_APP_VERSION"),
         }
     }
 }
