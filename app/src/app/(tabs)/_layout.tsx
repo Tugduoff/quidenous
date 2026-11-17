@@ -68,8 +68,9 @@ export default function TabsLayout() {
           <TabSwipe
             onSwipe={(dir) => {
               const to = TABS[TABS.findIndex((s) => s.name === state.routes[state.index]?.name) + dir];
-              const route = to && state.routes.find((r) => r.name === to.name);
-              if (route) navigation.navigate(route.name, route.params);
+              // Only the tabs opened so far are in `routes`; `routeNames` has them all.
+              if (!to || !state.routeNames.includes(to.name)) return;
+              navigation.navigate(to.name, state.routes.find((r) => r.name === to.name)?.params);
             }}>
             {children}
           </TabSwipe>

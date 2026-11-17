@@ -2,7 +2,14 @@ import * as Haptics from 'expo-haptics';
 import type { ReactNode } from 'react';
 import { useLayoutEffect, useRef } from 'react';
 import { Platform, View } from 'react-native';
-import { GestureDetector, GestureHandlerRootView, GestureStateManager, PointerType, usePanGesture } from 'react-native-gesture-handler';
+import {
+  GestureDetector,
+  GestureHandlerRootView,
+  GestureStateManager,
+  type PanGestureConfig,
+  PointerType,
+  usePanGesture,
+} from 'react-native-gesture-handler';
 import { useSharedValue } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 
@@ -33,6 +40,12 @@ export function TabSwipe({ onSwipe, children }: { onSwipe: (dir: 1 | -1) => void
   // Where and when the finger came down; `on` once it's a swipe (then only letting go matters).
   const start = useSharedValue({ x: 0, y: 0, at: 0, on: false });
   const pan = usePanGesture({
+    // Web: the browser keeps vertical scrolling, text selection and the long-press menu. In the gesture's config, not
+    // as the detector's props: gesture handler 3.3 resets those once the gesture is set up (its config type leaves
+    // them out, hence the cast below, but they're what the detector hands over; ignored on native).
+    touchAction: 'pan-y',
+    userSelect: 'auto',
+    enableContextMenu: true,
     manualActivation: true,
     onTouchesDown: (e) => {
       'worklet';
@@ -66,11 +79,10 @@ export function TabSwipe({ onSwipe, children }: { onSwipe: (dir: 1 | -1) => void
       const flung = Math.abs(x) > ACTIVE_X * 2 && Math.abs(e.velocityX) > FLING && Math.sign(x) === Math.sign(e.velocityX);
       if (Math.abs(x) > DISTANCE || flung) scheduleOnRN(go, x < 0 ? 1 : -1);
     },
-  });
+  } as PanGestureConfig);
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      {/* Web: the browser keeps vertical scrolling, text selection and the long-press menu. */}
-      <GestureDetector gesture={pan} touchAction="pan-y" userSelect="auto" enableContextMenu>
+      <GestureDetector gesture={pan}>
         <View style={{ flex: 1 }}>{children}</View>
       </GestureDetector>
     </GestureHandlerRootView>
