@@ -10,8 +10,8 @@ export const vote = {
     group: 'Groupe',
     profile: 'Profil',
   },
-  /** The tag over the question. */
-  kind: { result: 'Résultat', rank: 'Classement', custom: 'De nous', pick: 'Dilemme', choose: 'Qui choisit quoi' },
+  /** A question's kind, one name everywhere (ballot tag, Questions, packs, suggestions); `custom` is where it comes from (our own), not a kind. */
+  kind: { result: 'Résultat', rank: 'Classement', custom: 'De nous', pick: 'Qui de nous', choose: 'Choix' },
   linkCopied: 'Lien copié',
   shareResult: 'Partager le résultat',
   shareQuestion: 'Partager la question',
@@ -64,6 +64,8 @@ export const vote = {
   pin: 'Épingler',
   unpin: 'Désépingler',
   next: 'Suivante',
+  /** Back after days away, several results waiting: mark them all seen, on to today's question. */
+  skipAll: { label: 'Tout passer', a11y: { one: 'Passer {count} résultat', other: 'Passer les {count} résultats' } },
   gate: {
     nextIn: 'Prochaine question dans {time}',
     waitingOwner: 'En attente du propriétaire',

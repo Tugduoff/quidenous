@@ -7,6 +7,8 @@ export const auth = {
   password: 'Mot de passe',
   /** A new password: "Mot de passe (8 min.)". */
   newPassword: 'Mot de passe ({min} min.)',
+  /** Under a new password while it is too short. */
+  minLength: '{min} caractères minimum',
   validate: 'Valider',
   resend: 'Renvoyer',
   resendIn: 'Renvoyer ({count} s)',

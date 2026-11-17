@@ -315,14 +315,14 @@ export default function PackEditScreen() {
                 {/* A choose question stays one; the others switch between pick and ranking. */}
                 {choose ? (
                   <View
-                    accessibilityLabel={tr('questions.choosingLabel')}
+                    accessibilityLabel={tr('vote.kind.choose')}
                     style={{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: t.accSoft }}>
                     <Cable size={16} color={t.accInk} />
                   </View>
                 ) : (
                   <Pressable
                     accessibilityRole="switch"
-                    accessibilityLabel={tr('packs.ranking')}
+                    accessibilityLabel={tr('vote.kind.rank')}
                     accessibilityState={{ checked: rank }}
                     hitSlop={4}
                     onPress={() => setQuestions((qs) => qs.map((x, j) => (j === i ? { ...x, kind: rank ? 'pick' : 'rank' } : x)))}

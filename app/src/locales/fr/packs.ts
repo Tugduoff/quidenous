@@ -86,7 +86,6 @@ export const packs = {
   template: 'Modèle pour IA',
   clearAll: 'Tout effacer',
   clearAsk: { one: 'Effacer la question ?', other: 'Effacer les {count} questions ?' },
-  ranking: 'Classement',
   removeQuestion: 'Retirer',
   publish: 'Publier',
   save: 'Enregistrer',

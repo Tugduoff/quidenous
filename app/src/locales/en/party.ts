@@ -43,6 +43,7 @@ export const party: Messages['party'] = {
     nobody: 'Nobody voted',
     next: 'Next',
     nextA11y: 'Next, {count} of {needed}',
+    needed: { one: '{count} player needed to move on', other: '{count} players needed to move on' },
     react: 'React with {emoji}',
   },
   memory: {
@@ -76,6 +77,9 @@ export const party: Messages['party'] = {
     color: 'Your colour',
     colorA11y: 'Colour {n}',
     go: 'Join',
+    as: 'As {name}',
+    other: 'Another code',
+    open: 'Open the app',
     account: 'I have an account',
   },
   screen: {

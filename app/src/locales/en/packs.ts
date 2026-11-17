@@ -82,7 +82,6 @@ export const packs: Messages['packs'] = {
   template: 'AI template',
   clearAll: 'Clear all',
   clearAsk: { one: 'Clear the question?', other: 'Clear all {count} questions?' },
-  ranking: 'Ranking',
   removeQuestion: 'Remove',
   publish: 'Publish',
   save: 'Save',

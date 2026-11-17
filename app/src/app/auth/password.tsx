@@ -1,6 +1,6 @@
 import { Redirect, router } from 'expo-router';
 import { type ComponentRef, useRef, useState } from 'react';
-import { TextInput } from 'react-native';
+import { Text, TextInput } from 'react-native';
 
 import { AuthScreen, ErrorText, Field, PasswordField, TextLink } from '@/components/auth-ui';
 import { TermsCheck } from '@/components/terms';
@@ -9,9 +9,11 @@ import { auth, authError, flow, PASSWORD_MIN, useFeatures } from '@/lib/auth';
 import { useT } from '@/lib/i18n';
 import { useSession } from '@/lib/session';
 import { useFinishSignIn } from '@/lib/sign-in';
+import { useTheme } from '@/lib/theme';
 
 /** Step 2: the password. Signs in when the email has an account, else signs up (first name + password). */
 export default function PasswordStep() {
+  const t = useTheme();
   const tr = useT();
   const { signIn } = useSession();
   const finish = useFinishSignIn();
@@ -74,6 +76,12 @@ export default function PasswordStep() {
         returnKeyType="go"
         onSubmitEditing={submit}
       />
+      {/* Why "Créer mon compte" stays grey: the password is still too short. */}
+      {!existing && password.length > 0 && password.length < PASSWORD_MIN && (
+        <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut, marginLeft: 4, marginTop: -4 }}>
+          {tr('auth.minLength', { min: PASSWORD_MIN })}
+        </Text>
+      )}
       {!existing && <TermsCheck value={terms} onChange={setTerms} />}
       <ErrorText>{error}</ErrorText>
       {existing && canEmail && <TextLink onPress={() => router.push('/auth/forgot')}>{tr('auth.signIn.forgot')}</TextLink>}

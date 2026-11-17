@@ -7,9 +7,9 @@ export const community = {
     label: 'Une question pour tout le monde',
     placeholder: 'Qui de nous…',
     placeholderRank: 'Classe-nous du plus… au moins…',
-    ranking: 'Classement',
     send: 'Envoyer la proposition',
-    left: "{left}/{max} aujourd'hui",
+    /** Suggestions left today (the day is implied: "aujourd'hui" doesn't fit beside the switch at 360). */
+    left: { zero: 'Plus aucune', one: '{count} restante', other: '{count} restantes' },
     sent: 'Envoyée, place au vote',
   },
   vote: {

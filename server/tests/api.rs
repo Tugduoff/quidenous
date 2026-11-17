@@ -357,6 +357,65 @@ async fn nudges_and_unseen_results() {
 }
 
 #[tokio::test]
+async fn unseen_results_can_be_skipped_at_once() {
+    let app = test_app().await;
+    let (tug, tug_id) = join(&app, "Tugdual").await;
+    let (louis, louis_id) = join(&app, "Louis").await;
+
+    // Three questions finish while Tug is away (he voted on each before leaving the app).
+    let mut ids = vec![];
+    for _ in 0..3 {
+        let (_, round) = call(&app, "GET", "/round/current", Some(&tug), None).await;
+        ids.push(round["id"].as_i64().unwrap());
+        for (who, target) in [(&tug, louis_id), (&louis, tug_id)] {
+            let (status, _) = call(
+                &app,
+                "POST",
+                "/round/current/vote",
+                Some(who),
+                Some(json!({ "target_id": target })),
+            )
+            .await;
+            assert_eq!(status, StatusCode::OK);
+        }
+    }
+
+    // The oldest comes first, with how many are waiting and the newest of them.
+    let (_, unseen) = call(&app, "GET", "/round/unseen", Some(&tug), None).await;
+    assert_eq!(unseen["id"].as_i64(), Some(ids[0]));
+    assert_eq!(unseen["unseen_count"].as_i64(), Some(3));
+    assert_eq!(unseen["unseen_last_id"].as_i64(), Some(ids[2]));
+
+    // One seen: two left.
+    call(
+        &app,
+        "POST",
+        &format!("/rounds/{}/seen", ids[0]),
+        Some(&tug),
+        None,
+    )
+    .await;
+    let (_, unseen) = call(&app, "GET", "/round/unseen", Some(&tug), None).await;
+    assert_eq!(unseen["id"].as_i64(), Some(ids[1]));
+    assert_eq!(unseen["unseen_count"].as_i64(), Some(2));
+
+    // Marking the newest seen skips them all; Louis's own recaps are untouched.
+    let (status, _) = call(
+        &app,
+        "POST",
+        &format!("/rounds/{}/seen", ids[2]),
+        Some(&tug),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let (_, unseen) = call(&app, "GET", "/round/unseen", Some(&tug), None).await;
+    assert!(unseen.is_null());
+    let (_, theirs) = call(&app, "GET", "/round/unseen", Some(&louis), None).await;
+    assert_eq!(theirs["unseen_count"].as_i64(), Some(3));
+}
+
+#[tokio::test]
 async fn questions_can_be_imported_in_bulk() {
     let app = test_app().await;
     let (tug, _) = join(&app, "Tugdual").await;

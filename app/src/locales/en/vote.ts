@@ -10,7 +10,7 @@ export const vote: Messages['vote'] = {
     group: 'Group',
     profile: 'Profile',
   },
-  kind: { result: 'Result', rank: 'Ranking', custom: 'From us', pick: 'Dilemma', choose: 'Who picks what' },
+  kind: { result: 'Result', rank: 'Ranking', custom: 'From us', pick: 'Which of us', choose: 'Who gets what' },
   linkCopied: 'Link copied',
   shareResult: 'Share the result',
   shareQuestion: 'Share the question',
@@ -61,6 +61,7 @@ export const vote: Messages['vote'] = {
   pin: 'Pin',
   unpin: 'Unpin',
   next: 'Next',
+  skipAll: { label: 'Skip all', a11y: { one: 'Skip {count} result', other: 'Skip all {count} results' } },
   gate: {
     nextIn: 'Next question in {time}',
     waitingOwner: 'Waiting for the owner',

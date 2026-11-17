@@ -225,38 +225,46 @@ export function NextButton({ round, owner, busy, onPress }: { round: PartyRound;
   const solid = owner;
   const ink = solid ? t.accTxt : t.txt;
   return (
-    <PressableScale
-      accessibilityRole="button"
-      accessibilityLabel={tr('party.reveal.nextA11y', { count: taps, needed })}
-      accessibilityState={{ selected: mine, busy: !!busy }}
-      disabled={busy}
-      onPress={onPress}
-      style={{
-        height: 58,
-        borderRadius: 999,
-        overflow: 'hidden',
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 10,
-        backgroundColor: solid ? t.acc : t.card2,
-        borderWidth: 2,
-        borderColor: mine ? t.accInk : 'transparent',
-      }}>
-      {!solid && (
-        <Animated.View
-          style={[
-            { position: 'absolute', left: 0, top: 0, bottom: 0, width: '100%', backgroundColor: t.acc, opacity: 0.45, transformOrigin: 'left' },
-            bar,
-          ]}
-        />
+    <>
+      <PressableScale
+        accessibilityRole="button"
+        accessibilityLabel={tr('party.reveal.nextA11y', { count: taps, needed })}
+        accessibilityState={{ selected: mine, busy: !!busy }}
+        disabled={busy}
+        onPress={onPress}
+        style={{
+          height: 58,
+          borderRadius: 999,
+          overflow: 'hidden',
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 10,
+          backgroundColor: solid ? t.acc : t.card2,
+          borderWidth: 2,
+          borderColor: mine ? t.accInk : 'transparent',
+        }}>
+        {!solid && (
+          <Animated.View
+            style={[
+              { position: 'absolute', left: 0, top: 0, bottom: 0, width: '100%', backgroundColor: t.acc, opacity: 0.45, transformOrigin: 'left' },
+              bar,
+            ]}
+          />
+        )}
+        {mine && <Check size={20} color={ink} />}
+        <Text style={{ fontFamily: t.font.bold, fontSize: 17, color: ink }}>{tr('party.reveal.next')}</Text>
+        <Text style={{ fontFamily: t.font.display, fontSize: 16, color: ink, opacity: 0.7, fontVariant: ['tabular-nums'] }}>
+          {taps}/{needed}
+        </Text>
+      </PressableScale>
+      {/* The owner's tap is enough; everyone else learns how many it takes. */}
+      {!solid && needed > 1 && (
+        <Text style={{ textAlign: 'center', fontFamily: t.font.semibold, fontSize: 13, color: t.mut }}>
+          {tr('party.reveal.needed', { count: needed })}
+        </Text>
       )}
-      {mine && <Check size={20} color={ink} />}
-      <Text style={{ fontFamily: t.font.bold, fontSize: 17, color: ink }}>{tr('party.reveal.next')}</Text>
-      <Text style={{ fontFamily: t.font.display, fontSize: 16, color: ink, opacity: 0.7, fontVariant: ['tabular-nums'] }}>
-        {taps}/{needed}
-      </Text>
-    </PressableScale>
+    </>
   );
 }
 

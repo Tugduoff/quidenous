@@ -8,6 +8,7 @@ import {
   Eye,
   EyeOff,
   ChevronDown,
+  ChevronsRight,
   Inbox,
   Moon,
   Pin,
@@ -200,9 +201,13 @@ export default function VoteScreen() {
 
   // Recap first: a question I voted on finished while I was away (or with my vote).
   if (unseen.data) {
-    const seen = () => api(`/rounds/${unseen.data!.id}/seen`, { method: 'POST' }).finally(() => qc.invalidateQueries({ queryKey: keys.unseen }));
+    const seenUpTo = (id: number) => api(`/rounds/${id}/seen`, { method: 'POST' }).finally(() => qc.invalidateQueries({ queryKey: keys.unseen }));
+    const seen = () => seenUpTo(unseen.data!.id);
     const gate = held === unseen.data.id && group.data ? <NextGate group={group.data} onLaunched={seen} /> : undefined;
-    return <Result key={unseen.data.id} roundId={unseen.data.id} byId={byId} onNext={seen} gate={gate} />;
+    // Back after days away: skip the pile of results straight to today's question (`seen_round` only moves forward).
+    const { unseen_count: count = 1, unseen_last_id: last } = unseen.data;
+    const skip = !gate && count >= 2 && last != null ? { count, onPress: () => seenUpTo(last) } : undefined;
+    return <Result key={unseen.data.id} roundId={unseen.data.id} byId={byId} onNext={seen} gate={gate} skip={skip} />;
   }
   // Alone in the room: invite first (an older room may still have a question open, nobody else would vote on it).
   // Someone joining refreshes the room (live event), and this turns into the question by itself.
@@ -829,6 +834,7 @@ export function Result({
   onNext,
   onBack,
   gate,
+  skip,
 }: {
   roundId: number;
   byId: Map<number, Member>;
@@ -836,6 +842,8 @@ export function Result({
   onBack?: () => void;
   /** Shown instead of "Suivante" while a paced room waits for its next question. */
   gate?: ReactNode;
+  /** Several results waiting: "Tout passer" next to "Suivante" marks them all seen. */
+  skip?: { count: number; onPress: () => void };
 }) {
   const t = useTheme();
   const tr = useT();
@@ -854,13 +862,37 @@ export function Result({
     setTimeout(() => scroll.current?.scrollToEnd({ animated: true }), 300);
   };
   const header = onBack ? <BackHeader onBack={onBack} round={round ?? undefined} /> : <Header />;
+  const nextButton = onNext && (
+    <Button onPress={onNext} style={skip && { flex: 1 }}>
+      <Text style={{ fontFamily: t.font.bold, fontSize: 17, color: t.accTxt }}>{tr('vote.next')}</Text>
+      <ArrowRight size={20} color={t.accTxt} />
+    </Button>
+  );
   const next =
     gate ??
-    (onNext && (
-      <Button onPress={onNext}>
-        <Text style={{ fontFamily: t.font.bold, fontSize: 17, color: t.accTxt }}>{tr('vote.next')}</Text>
-        <ArrowRight size={20} color={t.accTxt} />
-      </Button>
+    (skip && nextButton ? (
+      <View style={{ flexDirection: 'row', gap: 10 }}>
+        <PressableScale
+          accessibilityRole="button"
+          accessibilityLabel={tr('vote.skipAll.a11y', { count: skip.count })}
+          onPress={skip.onPress}
+          style={{
+            height: 58,
+            borderRadius: 999,
+            paddingHorizontal: 18,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 6,
+            backgroundColor: t.card2,
+          }}>
+          <ChevronsRight size={18} color={t.txt} />
+          <Text style={{ fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>{tr('vote.skipAll.label')}</Text>
+          <Text style={{ fontFamily: t.font.display, fontSize: 15, color: t.mut, fontVariant: ['tabular-nums'] }}>{skip.count}</Text>
+        </PressableScale>
+        {nextButton}
+      </View>
+    ) : (
+      nextButton
     ));
   // Not loaded (or failed): "Suivante" stays, so an unseen result never blocks the next question.
   if (!round?.result && !round?.choose)

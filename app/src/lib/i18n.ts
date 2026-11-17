@@ -111,15 +111,21 @@ function plural(p: Plural, n: number, l: Lang) {
 }
 
 /**
+ * French typography for display: a no-break space before ? ! : ; » and after «, so the mark never wraps onto its own line.
+ * Any run of spaces (or an existing no-break space) collapses to one. `t` applies it to every French string.
+ */
+export const tidy = (s: string) => s.replace(/\s+([?!:;»])/g, '\u00a0$1').replace(/«\s+/g, '«\u00a0');
+
+/**
  * The text for `key` in the current language, `{name}` placeholders filled from `params`.
  * Plural keys need `count` (also usable as `{count}`). Falls back to French, then to the key.
  */
 export function t(key: TKey, params?: Params): string {
   let v = lookup(TABLES[lang], key);
   if (v == null) v = lookup(fr, key);
-  if (typeof v === 'string') return fill(v, params);
-  if (v && typeof v === 'object' && 'other' in v) return fill(plural(v as Plural, Number(params?.count ?? 0), lang), params);
-  return key;
+  const s = typeof v === 'string' ? v : v && typeof v === 'object' && 'other' in v ? plural(v as Plural, Number(params?.count ?? 0), lang) : null;
+  if (s == null) return key;
+  return lang === 'fr' ? tidy(fill(s, params)) : fill(s, params);
 }
 
 /** One `t` per language: a new function when the language changes, so memoised (React Compiler) text is recomputed. */

@@ -44,6 +44,8 @@ export const party = {
     nobody: 'Personne n’a voté',
     next: 'Suivante',
     nextA11y: 'Suivante, {count} sur {needed}',
+    /** Under "Suivante" (not for the owner, whose tap is enough): how many taps open the next question. */
+    needed: { one: 'Il faut {count} joueur pour passer', other: 'Il faut {count} joueurs pour passer' },
     react: 'Réagir avec {emoji}',
   },
   memory: {
@@ -78,6 +80,11 @@ export const party = {
     colorA11y: 'Couleur {n}',
     go: 'Rejoindre',
     account: "J'ai un compte",
+    /** Signed in: which account joins. */
+    as: 'En tant que {name}',
+    /** A bad or ended link: try another code, or just open the app. */
+    other: 'Un autre code',
+    open: "Ouvrir l'app",
   },
   screen: {
     join: 'Pour jouer',

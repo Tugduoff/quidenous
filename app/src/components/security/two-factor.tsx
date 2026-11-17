@@ -89,6 +89,7 @@ export function TwoFactorSection({ account }: { account: Account }) {
       <Section title={tr('security.twoFactor.title')}>
         {mode === 'setup' && setup ? (
           <>
+            <Text style={{ fontFamily: t.font.regular, fontSize: 14, lineHeight: 20, color: t.mut }}>{tr('security.twoFactor.scan')}</Text>
             <View style={{ alignSelf: 'center', padding: 12, borderRadius: 16, backgroundColor: '#fff' }}>
               <QRCode value={setup.otpauth_url} size={native ? 150 : 176} color="#121216" backgroundColor="#fff" />
             </View>

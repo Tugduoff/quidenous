@@ -74,6 +74,7 @@ export const security: Messages['security'] = {
     copyKey: 'Copy the key',
     shareKey: 'Share the key',
     openApp: 'Open the authenticator app',
+    scan: 'Scan the QR code with your authenticator app, then enter the code',
     enable: 'Turn on',
     disable: 'Turn off',
     on: 'On',
