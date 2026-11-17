@@ -255,6 +255,8 @@ async fn only_visible_messages_of_my_room_under_a_closed_question() {
     for t in [&bob, &ana] {
         let (s, _) = react(&app, "POST", t, room, carls, "👍").await;
         assert_eq!(s, StatusCode::OK);
+        // Reactions list in time order (ms): the same millisecond would order them by member.
+        tokio::time::sleep(std::time::Duration::from_millis(5)).await;
     }
     let bob_user = user_of(&app, &ana, room, bob_id).await;
     let (s, _) = call(
