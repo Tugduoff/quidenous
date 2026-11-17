@@ -384,6 +384,15 @@ export function ChatInput({ roundId, onFocus, onSent }: { roundId: number; onFoc
   const [closed, setClosed] = useState<number | null>(null);
   const [highlight, setHighlight] = useState({ key: '', i: 0 });
 
+  // The web's textarea keeps its height as the text grows or shrinks: fit it to the text (min/max height still apply).
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const el = input.current as unknown as HTMLTextAreaElement | null;
+    if (!el?.style) return;
+    el.style.height = '0px';
+    el.style.height = `${el.scrollHeight}px`;
+  }, [text]);
+
   const others = members.filter((m) => m.id !== me?.id);
   const caret = sel ? Math.min(sel.end, text.length) : text.length;
   const typing = !sel || sel.start === sel.end ? activeMention(text, caret) : null;
@@ -535,6 +544,8 @@ export function ChatInput({ roundId, onFocus, onSent }: { roundId: number; onFoc
           onSelectionChange={(e) => setSel(e.nativeEvent.selection)}
           onFocus={onFocus}
           multiline
+          // A textarea is two rows tall by default on the web: one row, grown with the text below.
+          rows={1}
           maxLength={MAX}
           {...enter}
           onKeyPress={onKeyPress}
