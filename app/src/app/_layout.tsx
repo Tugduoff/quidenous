@@ -20,6 +20,7 @@ import { OtaToast, UpdateDialog } from '@/components/update';
 import { UpdateRequired } from '@/components/update-required';
 import { pendingJoinCode, pendingPlayToken, setPendingCode } from '@/lib/auth';
 import { presetJoinCode } from '@/lib/api';
+import { installGlobalErrorHandlers } from '@/lib/crash-report';
 import { useLang } from '@/lib/i18n';
 import { useLive } from '@/lib/live';
 import { useLock } from '@/lib/lock';
@@ -36,6 +37,8 @@ import { useUpdateCheck } from '@/lib/update';
 export { ErrorBoundary } from '@/components/error-boundary';
 
 SplashScreen.preventAutoHideAsync();
+// Errors outside rendering (event handlers, rejected promises) are reported too (release builds only).
+installGlobalErrorHandlers();
 
 function Root() {
   const { ready, token, room, roomless, verifying } = useSession();
