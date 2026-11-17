@@ -91,7 +91,7 @@ function RoomPill() {
         onLongPress={secret.onLongPress}
         hitSlop={6}
         style={{ flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', maxWidth: '100%' }}>
-        <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: t.font.semibold, fontSize: 14, color: t.mut, maxWidth: 160 }}>
+        <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: t.font.semibold, fontSize: 14, color: t.mut }}>
           {group.name}
         </Text>
         <ChevronDown size={14} color={t.mut} />
@@ -165,7 +165,7 @@ function HeaderBar() {
   const tr = useT();
   const { me } = useSession();
   return (
-    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
       <View style={{ gap: 4, flexShrink: 1 }}>
         <Logo />
         <RoomPill />
