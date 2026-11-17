@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { Text, View } from 'react-native';
 
+import { Mascot } from '@/components/mascot';
 import { QueryState } from '@/components/query-state';
 import { Screen } from '@/components/screen';
 import { StreakRecords } from '@/components/streaks';
@@ -56,7 +57,9 @@ export default function StatsScreen() {
     return (
       <Screen>
         {header}
-        <Text style={{ marginTop: 40, textAlign: 'center', fontFamily: t.font.semibold, fontSize: 16, lineHeight: 22, color: t.mut }}>
+        {/* The calm before the storm: Roupi enjoys it. */}
+        <Mascot who="roupi" mood="happy" size={128} style={{ marginTop: 32, alignSelf: 'center' }} />
+        <Text style={{ marginTop: 4, textAlign: 'center', fontFamily: t.font.semibold, fontSize: 16, lineHeight: 22, color: t.mut }}>
           {tr(EMPTY[period])}
         </Text>
       </Screen>

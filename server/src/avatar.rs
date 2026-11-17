@@ -369,6 +369,16 @@ mod tests {
     }
 
     #[test]
+    fn the_app_draws_the_mascots_from_the_same_parts() {
+        // The mascots (app/scripts/mascot-parts.mjs) are kept here for share cards; regenerate both from app/.
+        assert!(
+            include_str!("../assets/mascot.json")
+                == include_str!("../../app/src/lib/mascot-parts.json"),
+            "server/assets/mascot.json and app/src/lib/mascot-parts.json differ"
+        );
+    }
+
+    #[test]
     fn validation() {
         let p = parts();
         let zero = spec_with(usize::MAX, "");

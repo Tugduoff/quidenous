@@ -1,8 +1,8 @@
 import * as Updates from 'expo-updates';
-import { RefreshCw } from 'lucide-react-native';
 import { useState, useSyncExternalStore } from 'react';
 import { Linking, Platform, StyleSheet, Text, View } from 'react-native';
 
+import { Mascot } from '@/components/mascot';
 import { Button } from '@/components/ui';
 import { setOnUpdateRequired } from '@/lib/api';
 import { useT } from '@/lib/i18n';
@@ -70,9 +70,8 @@ export function UpdateRequired() {
   };
   return (
     <View style={[StyleSheet.absoluteFill, { backgroundColor: t.bg, alignItems: 'center', justifyContent: 'center', padding: 32, gap: 16 }]}>
-      <View style={{ width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center', backgroundColor: t.accSoft }}>
-        <RefreshCw size={28} color={t.accInk} />
-      </View>
+      {/* Pavé knows: there's a newer version. */}
+      <Mascot who="pave" mood="think" size={136} />
       <Text style={{ fontFamily: t.font.bold, fontSize: 22, color: t.txt, textAlign: 'center' }}>{tr('update.requiredTitle')}</Text>
       <Text style={{ fontFamily: t.font.regular, fontSize: 15, lineHeight: 21, color: t.mut, textAlign: 'center' }}>{tr('update.requiredBody')}</Text>
       <Button onPress={go} loading={busy} style={{ alignSelf: 'stretch', marginTop: 8 }}>

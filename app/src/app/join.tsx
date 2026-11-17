@@ -8,6 +8,7 @@ import { BrandIcon } from '@/components/brand-icons';
 import { InvitePreview } from '@/components/invite-preview';
 import { QueryState } from '@/components/query-state';
 import { LegacyJoin } from '@/components/legacy-join';
+import { MascotBand } from '@/components/mascot-band';
 import { Screen } from '@/components/screen';
 import { Button, Logo } from '@/components/ui';
 import { authError, isLinked, isReauth, pendingJoinCode, PROVIDER_NAMES, setPendingCode, useFeatures, type Provider } from '@/lib/auth';
@@ -80,6 +81,8 @@ function Welcome({ providers }: { providers: Provider[] }) {
         <Logo size={44} />
         <Text style={{ fontFamily: t.font.regular, fontSize: 16, lineHeight: 22, color: t.mut }}>{tr('auth.tagline')}</Text>
       </View>
+      {/* "Personne n'est à l'abri": the whole band points at Bulle. */}
+      <MascotBand max={invite ? 340 : 460} style={{ marginTop: invite ? 4 : 40 }} />
       {invite && <InvitePreview code={invite} />}
     </Screen>
   );

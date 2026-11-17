@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Animated, { FadeIn, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 
+import { Mascot } from '@/components/mascot';
 import { Dialog, DialogTitle } from '@/components/ui';
 import { useLang, useT } from '@/lib/i18n';
 import { milestone as describe, PREVIEW_AT, playPreview, SPECIAL_NUMBERS, STREAK_PREVIEW, streakMilestone, tier, usePreview } from '@/lib/milestones';
@@ -71,6 +72,7 @@ export function Celebration({ count, onDone, frozen, streak }: { count: number; 
           <View style={[StyleSheet.absoluteFill, { backgroundColor: reduced ? t.bg : scene.bg, opacity: reduced ? 0.96 : (scene.dim ?? 0.96) }]} />
           {reduced ? (
             <View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center', padding: 32, gap: 8 }]}>
+              {streak && <Mascot who="paillette" mood="celebrate" size={120} />}
               <BigNumber value={count} size={numberSize(count)} color={t.accInk} font={t.font.display} />
               <Text style={{ fontFamily: t.font.display, fontSize: 28, letterSpacing: -0.5, color: t.txt }}>{m.unit ?? tr('celebration.questions')}</Text>
               <Text style={{ fontFamily: t.font.semibold, fontSize: 16, lineHeight: 22, color: t.mut, textAlign: 'center', maxWidth: 290 }}>

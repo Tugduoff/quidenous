@@ -6,6 +6,7 @@ import { Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 
 import { AddFriends, InviteCard } from '@/components/invite';
+import { Mascot } from '@/components/mascot';
 import { Button, Card, Display, PressableScale } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { useFeatures } from '@/lib/auth';
@@ -21,9 +22,13 @@ export function SoloInvite() {
   const tr = useT();
   return (
     <Animated.View entering={motion.enter} style={{ gap: 16 }}>
-      <View style={{ gap: 6 }}>
-        <Display size={30}>{tr('vote.solo.title')}</Display>
-        <Text style={{ fontFamily: t.font.regular, fontSize: 15, lineHeight: 21, color: t.mut }}>{tr('vote.solo.body')}</Text>
+      {/* Zeste, the instigator, waves the friends in. */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <View style={{ flex: 1, gap: 6 }}>
+          <Display size={30}>{tr('vote.solo.title')}</Display>
+          <Text style={{ fontFamily: t.font.regular, fontSize: 15, lineHeight: 21, color: t.mut }}>{tr('vote.solo.body')}</Text>
+        </View>
+        <Mascot who="zeste" mood="happy" size={96} />
       </View>
       <InviteCard qrSize={208} rotate={false} />
       <AddFriends onlyIfAny />
@@ -88,7 +93,13 @@ export function NoQuestions() {
 
   return (
     <Animated.View entering={motion.enter} style={{ gap: 16 }}>
-      <Display size={30}>{tr('vote.empty.title')}</Display>
+      {/* Pavé, the know-it-all, wonders what to ask next. */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <View style={{ flex: 1 }}>
+          <Display size={30}>{tr('vote.empty.title')}</Display>
+        </View>
+        <Mascot who="pave" mood="think" size={96} />
+      </View>
       {locked ? (
         <>
           <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16 }}>
