@@ -41,6 +41,7 @@ pub fn router() -> Router<AppState> {
     Router::new()
         // What this server can do, so apps (and release scripts) can tell a deploy has landed.
         .route("/features", get(features))
+        .route("/donate", get(donate))
         .route("/vibes", get(crate::vibes::list))
         // Build version (`/api/version`) and app crash reports (`/api/client-errors`).
         .merge(crate::ops::router())
@@ -278,8 +279,23 @@ async fn features(State(state): State<AppState>) -> Json<Value> {
     if state.config.klipy.is_some() {
         f.push("chat_gifs");
     }
+    if state.config.donation_url.is_some() {
+        // "Buy us a coffee": the page is `GET /api/donate` (docs/DONATE.md).
+        f.push("donate");
+    }
     f.extend(crate::accounts::features(&state));
     Json(json!(f))
+}
+
+/// The donation page (`DONATION_URL`), opened in the browser by the apps allowed to show it
+/// (docs/DONATE.md). `404` when unset.
+async fn donate(State(state): State<AppState>) -> AppResult<Json<Value>> {
+    let url = state
+        .config
+        .donation_url
+        .as_deref()
+        .ok_or(AppError::NotFound)?;
+    Ok(Json(json!({ "url": url })))
 }
 
 /// Gate for the anonymous ways in (`/join` without a token, `/start`).
