@@ -25,4 +25,8 @@ export const admin: Messages['admin'] = {
   suspendBody: 'Signed out everywhere and unable to sign in again.',
   eraseTitle: "Erase {name}'s account?",
   eraseBody: 'Their messages and account are deleted. This cannot be undone.',
+  selected: {
+    removeTitle: { one: 'Remove {count} pack?', other: 'Remove {count} packs?' },
+    rejectTitle: { one: 'Reject {count} suggestion?', other: 'Reject {count} suggestions?' },
+  },
 };

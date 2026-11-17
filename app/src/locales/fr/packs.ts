@@ -87,6 +87,8 @@ export const packs = {
   clearAll: 'Tout effacer',
   clearAsk: { one: 'Effacer la question ?', other: 'Effacer les {count} questions ?' },
   removeQuestion: 'Retirer',
+  /** Several questions selected in the list (components/selection.tsx). */
+  removeQuestions: { one: 'Retirer {count} question ?', other: 'Retirer {count} questions ?' },
   publish: 'Publier',
   save: 'Enregistrer',
   errors: {
@@ -100,6 +102,14 @@ export const packs = {
 
   /** My packs. */
   mineNone: 'Aucun pack publié',
+  /** My packs, several selected (components/selection.tsx). */
+  mineSelected: {
+    delete: { one: 'Supprimer {count} pack ?', other: 'Supprimer {count} packs ?' },
+    deleteBody: 'Ils disparaissent de la communauté. Les questions déjà ajoutées aux salons restent.',
+    deleted: { one: '{count} pack supprimé', other: '{count} packs supprimés' },
+    addHere: 'Ajouter au salon',
+    added: { one: '{count} pack ajouté à {room}', other: '{count} packs ajoutés à {room}' },
+  },
 
   /** A creator's page. */
   creatorPacks: 'Ses packs',

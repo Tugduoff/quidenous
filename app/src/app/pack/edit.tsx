@@ -8,6 +8,7 @@ import Animated from 'react-native-reanimated';
 import { AnonymousMark } from '@/components/anonymous';
 import { Chip, PageHeader } from '@/components/pack-card';
 import { Screen } from '@/components/screen';
+import { type BatchAction, confirmBatch, SelectableRow, SelectButton, SelectionBar, SelectionHeader, useSelection } from '@/components/selection';
 import { TemplateLink } from '@/components/template-link';
 import { askConfirm, Button, Card, Display, PressableScale, Segmented, Toggle } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
@@ -91,6 +92,9 @@ export default function PackEditScreen() {
   const spicy = spicyPick || tags.includes('pimente');
   const language: Lang = lang ?? group?.language ?? getLang();
   const keyOf = (text: string) => text.trim().toLowerCase();
+  // Several questions at once (hold one, or the button by the count): remove them, or switch them to a ranking.
+  const sel = useSelection(questions.map((q) => keyOf(q.text)));
+  const picked = questions.filter((q) => sel.has(keyOf(q.text)) && q.kind !== 'choose');
   // `[classement] …` and (on a server that takes them) `[choix] Question | A | B` typed by hand.
   const typed = splitTag(draft);
   const draftOk = [...typed.text].length >= MIN && (typed.kind !== 'choose' || (packChoose && itemsOk(typed.items ?? [])));
@@ -125,6 +129,22 @@ export default function PackEditScreen() {
   const clearAll = async () => {
     if (await askConfirm(tr('packs.clearAsk', { count: questions.length }), undefined, tr('packs.clearAll'))) setQuestions([]);
   };
+  const removePicked = async () => {
+    const gone = new Set(sel.selected);
+    if (!(await confirmBatch(tr('packs.removeQuestions', { count: gone.size }), tr('packs.removeQuestion')))) return;
+    setQuestions((qs) => qs.filter((q) => !gone.has(keyOf(q.text))));
+    sel.cancel();
+  };
+  // All the ticked ones already a ranking: back to a pick; otherwise all become rankings. Choose questions stay as they are.
+  const rankPicked = () => {
+    const to = picked.every((q) => q.kind === 'rank') ? 'pick' : 'rank';
+    const on = new Set(picked.map((q) => keyOf(q.text)));
+    setQuestions((qs) => qs.map((q) => (on.has(keyOf(q.text)) ? { ...q, kind: to } : q)));
+  };
+  const actions: BatchAction[] = [
+    { icon: Trophy, label: tr('vote.kind.rank'), disabled: !picked.length, onPress: rankPicked },
+    { icon: Trash2, label: tr('packs.removeQuestion'), tone: 'danger', onPress: removePicked },
+  ];
   const toggleTag = (tag: PackTag) => setTags((l) => (l.includes(tag) ? l.filter((x) => x !== tag) : l.length < MAX_TAGS ? [...l, tag] : l));
 
   const save = useMutation({
@@ -166,17 +186,21 @@ export default function PackEditScreen() {
     <Screen
       tabs={false}
       footer={
-        <>
-          {note && <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.tagInk, textAlign: 'center' }}>{note}</Text>}
-          {!note && questions.length < PACK_MIN && (
-            <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.mut, textAlign: 'center' }}>
-              {tr('packs.minHint', { count: questions.length, min: PACK_MIN })}
-            </Text>
-          )}
-          <Button disabled={!name.trim() || questions.length < PACK_MIN || (id != null && !seeded)} loading={save.isPending} onPress={() => save.mutate()}>
-            {tr(id != null ? 'packs.save' : 'packs.publish')}
-          </Button>
-        </>
+        sel.on ? (
+          <SelectionBar sel={sel} actions={actions} />
+        ) : (
+          <>
+            {note && <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.tagInk, textAlign: 'center' }}>{note}</Text>}
+            {!note && questions.length < PACK_MIN && (
+              <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.mut, textAlign: 'center' }}>
+                {tr('packs.minHint', { count: questions.length, min: PACK_MIN })}
+              </Text>
+            )}
+            <Button disabled={!name.trim() || questions.length < PACK_MIN || (id != null && !seeded)} loading={save.isPending} onPress={() => save.mutate()}>
+              {tr(id != null ? 'packs.save' : 'packs.publish')}
+            </Button>
+          </>
+        )
       }>
       <PageHeader fallback="/packs" />
       <Display size={30}>{tr(id != null ? 'packs.editTitle' : 'packs.newTitle')}</Display>
@@ -238,69 +262,78 @@ export default function PackEditScreen() {
         })}
       </View>
 
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
-        <Text style={[label, { flex: 1 }]}>{tr('packs.questions', { count: questions.length })}</Text>
-        {questions.length > 0 && (
+      {sel.on ? (
+        <SelectionHeader sel={sel} />
+      ) : (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
+          <Text style={[label, { flex: 1 }]}>{tr('packs.questions', { count: questions.length })}</Text>
+          {questions.length > 0 && <SelectButton size={32} onPress={() => sel.start()} />}
+          {questions.length > 0 && (
+            <PressableScale
+              accessibilityRole="button"
+              accessibilityLabel={tr('packs.clearAll')}
+              onPress={clearAll}
+              hitSlop={4}
+              style={{ width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card }}>
+              <Trash2 size={15} color={t.txt} />
+            </PressableScale>
+          )}
           <PressableScale
             accessibilityRole="button"
-            accessibilityLabel={tr('packs.clearAll')}
-            onPress={clearAll}
-            hitSlop={4}
-            style={{ width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card }}>
-            <Trash2 size={15} color={t.txt} />
+            onPress={importFile}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 6,
+              height: 32,
+              paddingHorizontal: 12,
+              borderRadius: t.radius.pill,
+              backgroundColor: t.card,
+            }}>
+            <FileUp size={15} color={t.txt} />
+            <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.txt }}>{tr('packs.fromFile')}</Text>
           </PressableScale>
-        )}
-        <PressableScale
-          accessibilityRole="button"
-          onPress={importFile}
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 6,
-            height: 32,
-            paddingHorizontal: 12,
-            borderRadius: t.radius.pill,
-            backgroundColor: t.card,
-          }}>
-          <FileUp size={15} color={t.txt} />
-          <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.txt }}>{tr('packs.fromFile')}</Text>
-        </PressableScale>
-      </View>
+        </View>
+      )}
       {/* What a file's header can fill in, and the format for an AI to write one. */}
-      <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginTop: -8, paddingHorizontal: 4 }}>
-        <Text style={{ flex: 1, fontFamily: t.font.regular, fontSize: 12, lineHeight: 17, color: t.mut }}>{tr('packs.fileHeader')}</Text>
-        {packTemplate && <TemplateLink style={{ marginTop: 1 }} />}
-      </View>
-      <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 8, padding: 8, paddingLeft: 14, marginTop: -6 }}>
-        <TextInput
-          accessibilityLabel={tr('packs.addQuestion')}
-          placeholder={tr('packs.addQuestion')}
-          placeholderTextColor={t.mut}
-          value={draft}
-          onChangeText={setDraft}
-          maxLength={MAX}
-          returnKeyType="done"
-          submitBehavior="submit"
-          onSubmitEditing={add}
-          style={{ flex: 1, minWidth: 0, height: 40, fontFamily: t.font.regular, fontSize: 16, color: t.txt }}
-        />
-        <PressableScale
-          accessibilityRole="button"
-          accessibilityLabel={tr('common.add')}
-          disabled={!draftOk}
-          onPress={add}
-          hitSlop={4}
-          style={{
-            width: 40,
-            height: 40,
-            borderRadius: 20,
-            alignItems: 'center',
-            justifyContent: 'center',
-            backgroundColor: draftOk ? t.acc : t.card2,
-          }}>
-          <Plus size={20} color={draftOk ? t.accTxt : t.mut} />
-        </PressableScale>
-      </Card>
+      {!sel.on && (
+        <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginTop: -8, paddingHorizontal: 4 }}>
+          <Text style={{ flex: 1, fontFamily: t.font.regular, fontSize: 12, lineHeight: 17, color: t.mut }}>{tr('packs.fileHeader')}</Text>
+          {packTemplate && <TemplateLink style={{ marginTop: 1 }} />}
+        </View>
+      )}
+      {!sel.on && (
+        <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 8, padding: 8, paddingLeft: 14, marginTop: -6 }}>
+          <TextInput
+            accessibilityLabel={tr('packs.addQuestion')}
+            placeholder={tr('packs.addQuestion')}
+            placeholderTextColor={t.mut}
+            value={draft}
+            onChangeText={setDraft}
+            maxLength={MAX}
+            returnKeyType="done"
+            submitBehavior="submit"
+            onSubmitEditing={add}
+            style={{ flex: 1, minWidth: 0, height: 40, fontFamily: t.font.regular, fontSize: 16, color: t.txt }}
+          />
+          <PressableScale
+            accessibilityRole="button"
+            accessibilityLabel={tr('common.add')}
+            disabled={!draftOk}
+            onPress={add}
+            hitSlop={4}
+            style={{
+              width: 40,
+              height: 40,
+              borderRadius: 20,
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: draftOk ? t.acc : t.card2,
+            }}>
+            <Plus size={20} color={draftOk ? t.accTxt : t.mut} />
+          </PressableScale>
+        </Card>
+      )}
 
       {questions.length > 0 && (
         <Card style={{ paddingVertical: 4 }}>
@@ -313,55 +346,57 @@ export default function PackEditScreen() {
                 entering={motion.enter}
                 exiting={motion.exit}
                 layout={motion.layout}
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: 6,
-                  paddingLeft: 6,
-                  paddingRight: 6,
-                  borderTopWidth: i ? 1 : 0,
-                  borderColor: t.line,
-                }}>
-                {/* A choose question stays one; the others switch between pick and ranking. */}
-                {choose ? (
-                  <View
-                    accessibilityLabel={tr('vote.kind.choose')}
-                    style={{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: t.accSoft }}>
-                    <Cable size={16} color={t.accInk} />
-                  </View>
-                ) : (
+                // Selecting: the checkbox in line with the add field's text, not against the card's edge.
+                style={{ paddingLeft: sel.on ? 14 : 0, borderTopWidth: i ? 1 : 0, borderColor: t.line }}>
+                <SelectableRow sel={sel} id={keyOf(q.text)} label={tidy(q.text)}>
+                  {/* The hold selects; the toggle and the cross inside keep their own taps. */}
                   <Pressable
-                    accessibilityRole="switch"
-                    accessibilityLabel={tr('vote.kind.rank')}
-                    accessibilityState={{ checked: rank }}
-                    hitSlop={4}
-                    onPress={() => setQuestions((qs) => qs.map((x, j) => (j === i ? { ...x, kind: rank ? 'pick' : 'rank' } : x)))}
-                    style={{
-                      width: 36,
-                      height: 36,
-                      borderRadius: 18,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      backgroundColor: rank ? t.accSoft : 'transparent',
-                    }}>
-                    <Trophy size={16} color={rank ? t.accInk : t.mut} style={{ opacity: rank ? 1 : 0.5 }} />
+                    accessible={false}
+                    onLongPress={() => sel.start(keyOf(q.text))}
+                    delayLongPress={400}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 6, paddingRight: 6 }}>
+                    {/* A choose question stays one; the others switch between pick and ranking. */}
+                    {choose ? (
+                      <View
+                        accessibilityLabel={tr('vote.kind.choose')}
+                        style={{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: t.accSoft }}>
+                        <Cable size={16} color={t.accInk} />
+                      </View>
+                    ) : (
+                      <Pressable
+                        accessibilityRole="switch"
+                        accessibilityLabel={tr('vote.kind.rank')}
+                        accessibilityState={{ checked: rank }}
+                        hitSlop={4}
+                        onPress={() => setQuestions((qs) => qs.map((x, j) => (j === i ? { ...x, kind: rank ? 'pick' : 'rank' } : x)))}
+                        style={{
+                          width: 36,
+                          height: 36,
+                          borderRadius: 18,
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          backgroundColor: rank ? t.accSoft : 'transparent',
+                        }}>
+                        <Trophy size={16} color={rank ? t.accInk : t.mut} style={{ opacity: rank ? 1 : 0.5 }} />
+                      </Pressable>
+                    )}
+                    <View style={{ flex: 1, paddingVertical: 10, gap: 2 }}>
+                      <Text style={{ fontFamily: t.font.regular, fontSize: 14, lineHeight: 20, color: t.txt }}>{tidy(q.text)}</Text>
+                      {choose && !!q.items?.length && (
+                        <Text style={{ fontFamily: t.font.regular, fontSize: 12, lineHeight: 17, color: t.mut }}>{q.items.join(' · ')}</Text>
+                      )}
+                    </View>
+                    {anonymousVotes && q.anonymous && !choose && <AnonymousMark />}
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={tr('packs.removeQuestion')}
+                      hitSlop={4}
+                      onPress={() => setQuestions((qs) => qs.filter((_, j) => j !== i))}
+                      style={{ width: 36, height: 36, alignItems: 'center', justifyContent: 'center' }}>
+                      <X size={16} color={t.mut} />
+                    </Pressable>
                   </Pressable>
-                )}
-                <View style={{ flex: 1, paddingVertical: 10, gap: 2 }}>
-                  <Text style={{ fontFamily: t.font.regular, fontSize: 14, lineHeight: 20, color: t.txt }}>{tidy(q.text)}</Text>
-                  {choose && !!q.items?.length && (
-                    <Text style={{ fontFamily: t.font.regular, fontSize: 12, lineHeight: 17, color: t.mut }}>{q.items.join(' · ')}</Text>
-                  )}
-                </View>
-                {anonymousVotes && q.anonymous && !choose && <AnonymousMark />}
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={tr('packs.removeQuestion')}
-                  hitSlop={4}
-                  onPress={() => setQuestions((qs) => qs.filter((_, j) => j !== i))}
-                  style={{ width: 36, height: 36, alignItems: 'center', justifyContent: 'center' }}>
-                  <X size={16} color={t.mut} />
-                </Pressable>
+                </SelectableRow>
               </Animated.View>
             );
           })}

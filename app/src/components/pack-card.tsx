@@ -60,11 +60,28 @@ export function Stat({ icon: Icon, value, on, label }: { icon: typeof Heart; val
  * One pack in a list: name with its marks, author and size, description, likes and installs, "Installé" when in this room.
  * `roomLang`: a pack in another language gets a tag. `withStatus`: my packs, with their moderation status.
  */
-export function PackCard({ pack: p, roomLang, withStatus }: { pack: PackItem; roomLang?: string; withStatus?: boolean }) {
+export function PackCard({
+  pack: p,
+  roomLang,
+  withStatus,
+  onLongPress,
+}: {
+  pack: PackItem;
+  roomLang?: string;
+  withStatus?: boolean;
+  /** Held: start selecting (my packs). */
+  onLongPress?: () => void;
+}) {
   const t = useTheme();
   const tr = useT();
   return (
-    <PressableScale scale={0.98} accessibilityRole="button" accessibilityLabel={p.name} onPress={() => router.push(`/pack/${p.id}`)}>
+    <PressableScale
+      scale={0.98}
+      accessibilityRole="button"
+      accessibilityLabel={p.name}
+      onPress={() => router.push(`/pack/${p.id}`)}
+      onLongPress={onLongPress}
+      delayLongPress={400}>
       <Card style={{ padding: 16, gap: 6 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: t.font.bold, fontSize: 17, color: t.txt }}>

@@ -1,12 +1,14 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { Ban, Check, Eye, Lightbulb, type LucideIcon, MessageCircle, MessageSquareQuote, Trash2, User, UserX, X } from 'lucide-react-native';
-import { useState } from 'react';
-import { Text, TextInput, View } from 'react-native';
+import { type ReactNode, useState } from 'react';
+import { Pressable, Text, TextInput, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 
 import { MiniTag, PageHeader } from '@/components/pack-card';
 import { Screen } from '@/components/screen';
+import { confirmBatch, eachOf, type Selection, SelectableRow, SelectButton, SelectionBar, SelectionHeader, useSelection } from '@/components/selection';
+import { showToast } from '@/components/toast';
 import { askConfirm, Card, ConfirmModal, Display, PressableScale, QuestionText } from '@/components/ui';
 import { api } from '@/lib/api';
 import { dateFormat, useT } from '@/lib/i18n';
@@ -29,6 +31,11 @@ import { useTheme } from '@/lib/theme';
 /** The built-in deck's tones a suggestion can join (none picked: the server files it under `potes`). */
 const DECK_TAGS: PackTag[] = ['potes', 'pimente', 'boulot', 'famille'];
 const isReason = (r: string | null): r is ReportReason => !!r && (REPORT_REASONS as string[]).includes(r);
+/** A report's id in its list (a message and a member can share a number). */
+const reportKey = (r: ReviewReport) => `${r.kind}:${r.id}`;
+const post = (path: string, json: unknown = {}) => api(`/admin${path}`, { method: 'POST', json });
+
+type Batch = 'dismiss' | 'approvePacks' | 'removePacks' | 'approveSuggestions' | 'rejectSuggestions';
 
 /** Admins: reported messages, members, questions and suggestions; packs sent to review by reports (approve or remove with a reason), suggestions voted up (approve or reject). */
 export default function AdminScreen() {
@@ -37,17 +44,30 @@ export default function AdminScreen() {
   const qc = useQueryClient();
   const { data: me } = useCommunityMe();
   const { data: review } = useReview(!!me?.admin);
-  const [removing, setRemoving] = useState<number | null>(null);
+  // A pack, or the selected ones ('batch'), waiting for a reason to be removed.
+  const [removing, setRemoving] = useState<number | 'batch' | null>(null);
   const [reason, setReason] = useState('');
+  // Several items of one list at a time (hold a card, or the section's button); starting one list leaves the others.
+  const reportSel = useSelection(review?.reports?.map(reportKey));
+  const packSel = useSelection(review?.packs.map((p) => p.id));
+  const sugSel = useSelection(review?.suggestions.map((s) => s.id));
+  const startIn =
+    <K,>(sel: Selection<K>) =>
+    (id?: K) => {
+      reportSel.cancel();
+      packSel.cancel();
+      sugSel.cancel();
+      sel.start(id);
+    };
+  const [running, setRunning] = useState<Batch | null>(null);
 
   const act = useMutation({
     meta: { quiet: true },
-    mutationFn: ({ path, json }: { path: string; json?: unknown; drop: { pack?: number; suggestion?: number } }) =>
-      api(`/admin${path}`, { method: 'POST', json: json ?? {} }),
+    mutationFn: ({ path, json }: { path: string; json?: unknown; drop: { pack?: number; suggestion?: number } }) => post(path, json),
     onSuccess: (_, { drop }) => {
       qc.setQueryData<Review>(
         packKeys.review,
-        (r) => r && { packs: r.packs.filter((p) => p.id !== drop.pack), suggestions: r.suggestions.filter((s) => s.id !== drop.suggestion) },
+        (r) => r && { ...r, packs: r.packs.filter((p) => p.id !== drop.pack), suggestions: r.suggestions.filter((s) => s.id !== drop.suggestion) },
       );
       if (drop.pack) qc.invalidateQueries({ queryKey: packKeys.all });
       setRemoving(null);
@@ -69,12 +89,90 @@ export default function AdminScreen() {
       return;
     close.mutate({ report, action });
   };
+  /**
+   * No batch endpoint: the single actions' calls on the selected ones, 3 at a time. The done ones leave the list
+   * (as after a single action); the failed ones stay ticked, to try again.
+   */
+  const runBatch = async <K,>(what: Batch, sel: Selection<K>, one: (id: K) => Promise<unknown>, drop: (r: Review, done: Set<K>) => Review) => {
+    const ids = sel.selected;
+    setRunning(what);
+    const done = await eachOf(ids, one);
+    setRunning(null);
+    if (done.length) qc.setQueryData<Review>(packKeys.review, (r) => r && drop(r, new Set(done)));
+    if (done.length && (what === 'approvePacks' || what === 'removePacks')) qc.invalidateQueries({ queryKey: packKeys.all });
+    if (done.length < ids.length) {
+      showToast(tr('common.select.partial', { done: done.length, count: ids.length }));
+      // Some may have been handled by someone else meanwhile: the list as it is now.
+      qc.invalidateQueries({ queryKey: packKeys.review });
+    } else sel.cancel();
+  };
+  const dropPacks = (r: Review, done: Set<number>): Review => ({ ...r, packs: r.packs.filter((p) => !done.has(p.id)) });
+  const dropSuggestions = (r: Review, done: Set<number>): Review => ({ ...r, suggestions: r.suggestions.filter((s) => !done.has(s.id)) });
+  const dismissPicked = () => {
+    const byKey = new Map(review?.reports?.map((r) => [reportKey(r), r]));
+    runBatch(
+      'dismiss',
+      reportSel,
+      (key) => {
+        const r = byKey.get(key);
+        return r ? api('/admin/reports', { method: 'POST', json: { kind: r.kind, id: r.id, action: 'dismiss' } }) : Promise.reject(new Error('gone'));
+      },
+      (r, done) => ({ ...r, reports: r.reports?.filter((x) => !done.has(reportKey(x))) }),
+    );
+  };
+  const removePicked = async () => {
+    const why = reason.trim();
+    await runBatch('removePacks', packSel, (id) => post(`/packs/${id}/remove`, { reason: why }), dropPacks);
+    setRemoving(null);
+    setReason('');
+  };
+  const rejectPicked = async () => {
+    if (!(await confirmBatch(tr('admin.selected.rejectTitle', { count: sugSel.count }), tr('admin.reject')))) return;
+    runBatch('rejectSuggestions', sugSel, (id) => post(`/suggestions/${id}/reject`), dropSuggestions);
+  };
+  const busy = act.isPending || close.isPending || !!running;
+  const footer = reportSel.on ? (
+    <SelectionBar
+      sel={reportSel}
+      actions={[{ icon: Check, label: tr('admin.dismiss'), busy: running === 'dismiss', disabled: busy, onPress: dismissPicked }]}
+    />
+  ) : packSel.on ? (
+    <SelectionBar
+      sel={packSel}
+      actions={[
+        { icon: X, label: tr('admin.remove'), tone: 'danger', busy: running === 'removePacks', disabled: busy, onPress: () => setRemoving('batch') },
+        {
+          icon: Check,
+          label: tr('admin.approve'),
+          tone: 'acc',
+          busy: running === 'approvePacks',
+          disabled: busy,
+          onPress: () => runBatch('approvePacks', packSel, (id) => post(`/packs/${id}/approve`), dropPacks),
+        },
+      ]}
+    />
+  ) : sugSel.on ? (
+    <SelectionBar
+      sel={sugSel}
+      actions={[
+        { icon: X, label: tr('admin.reject'), tone: 'danger', busy: running === 'rejectSuggestions', disabled: busy, onPress: rejectPicked },
+        {
+          icon: Check,
+          label: tr('admin.approve'),
+          tone: 'acc',
+          busy: running === 'approveSuggestions',
+          disabled: busy,
+          // Without deck tones: the server files them under `potes`.
+          onPress: () => runBatch('approveSuggestions', sugSel, (id) => post(`/suggestions/${id}/approve`), dropSuggestions),
+        },
+      ]}
+    />
+  ) : undefined;
   const empty = review && !review.packs.length && !review.suggestions.length && !review.reports?.length;
-  const section = { fontFamily: t.font.semibold, fontSize: 13, color: t.mut, marginLeft: 4, marginTop: 4 };
   const day = dateFormat({ day: 'numeric', month: 'short' });
 
   return (
-    <Screen tabs={false}>
+    <Screen tabs={false} footer={footer}>
       <PageHeader fallback="/packs" />
       <Display size={30}>{tr('admin.title')}</Display>
       {(empty || me?.admin === false) && (
@@ -82,70 +180,90 @@ export default function AdminScreen() {
       )}
       {(act.isError || close.isError) && <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.tagInk }}>{tr('common.failed')}</Text>}
 
-      {!!review?.reports?.length && <Text style={section}>{tr('admin.reported')}</Text>}
+      {!!review?.reports?.length && <SectionTitle title={tr('admin.reported')} sel={reportSel} onStart={startIn(reportSel)} />}
       {review?.reports?.map((r, i) => (
         <Animated.View key={`r${r.kind}${r.id}`} entering={motion.stagger(i)} exiting={motion.exit} layout={motion.layout}>
-          <ReportCard report={r} busy={close.isPending} onAct={(action) => decide(r, action)} />
+          <SelectableRow sel={reportSel} id={reportKey(r)} label={r.content}>
+            <Hold onHold={() => startIn(reportSel)(reportKey(r))}>
+              <ReportCard report={r} busy={close.isPending || !!running} onAct={(action) => decide(r, action)} />
+            </Hold>
+          </SelectableRow>
         </Animated.View>
       ))}
 
-      {!!review?.packs.length && <Text style={section}>{tr('admin.packs')}</Text>}
+      {!!review?.packs.length && <SectionTitle title={tr('admin.packs')} sel={packSel} onStart={startIn(packSel)} />}
       {review?.packs.map((p, i) => (
         <Animated.View key={`p${p.id}`} entering={motion.stagger(i)} exiting={motion.exit} layout={motion.layout}>
-          <Card style={{ padding: 16, gap: 8 }}>
-            <PressableScale scale={0.98} accessibilityRole="button" onPress={() => router.push(`/pack/${p.id}`)} style={{ gap: 2 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: t.font.bold, fontSize: 17, color: t.txt }}>
-                  {p.name}
-                </Text>
-                {p.spicy && <MiniTag label={tr('packs.spicy')} tone="hot" />}
-              </View>
-              <Text numberOfLines={1} style={{ fontFamily: t.font.regular, fontSize: 13, color: t.mut }}>
-                {tr('packs.byline', { count: p.count, author: p.author })}
-              </Text>
-            </PressableScale>
-            <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.tagInk }}>{tr('admin.reports', { count: p.reports.length })}</Text>
-            {p.reports.map((r, j) => (
-              <Text key={j} style={{ fontFamily: t.font.regular, fontSize: 13, lineHeight: 18, color: t.txt }}>
-                <Text style={{ fontFamily: t.font.semibold }}>{isReason(r.reason) ? tr(`packs.reasons.${r.reason}`) : '—'}</Text>
-                {r.details ? ` · ${r.details}` : ''}
-                <Text style={{ color: t.mut }}>{` · ${day.format(new Date(r.created_at))}`}</Text>
-              </Text>
-            ))}
-            <Actions
-              busy={act.isPending}
-              onReject={() => setRemoving(p.id)}
-              rejectLabel={tr('admin.remove')}
-              onApprove={() => act.mutate({ path: `/packs/${p.id}/approve`, drop: { pack: p.id } })}
-            />
-          </Card>
+          <SelectableRow sel={packSel} id={p.id} label={p.name}>
+            <Hold onHold={() => startIn(packSel)(p.id)}>
+              <Card style={{ padding: 16, gap: 8 }}>
+                <PressableScale
+                  scale={0.98}
+                  accessibilityRole="button"
+                  onPress={() => router.push(`/pack/${p.id}`)}
+                  onLongPress={() => startIn(packSel)(p.id)}
+                  delayLongPress={400}
+                  style={{ gap: 2 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: t.font.bold, fontSize: 17, color: t.txt }}>
+                      {p.name}
+                    </Text>
+                    {p.spicy && <MiniTag label={tr('packs.spicy')} tone="hot" />}
+                  </View>
+                  <Text numberOfLines={1} style={{ fontFamily: t.font.regular, fontSize: 13, color: t.mut }}>
+                    {tr('packs.byline', { count: p.count, author: p.author })}
+                  </Text>
+                </PressableScale>
+                <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.tagInk }}>{tr('admin.reports', { count: p.reports.length })}</Text>
+                {p.reports.map((r, j) => (
+                  <Text key={j} style={{ fontFamily: t.font.regular, fontSize: 13, lineHeight: 18, color: t.txt }}>
+                    <Text style={{ fontFamily: t.font.semibold }}>{isReason(r.reason) ? tr(`packs.reasons.${r.reason}`) : '—'}</Text>
+                    {r.details ? ` · ${r.details}` : ''}
+                    <Text style={{ color: t.mut }}>{` · ${day.format(new Date(r.created_at))}`}</Text>
+                  </Text>
+                ))}
+                <Actions
+                  busy={act.isPending || !!running}
+                  onReject={() => setRemoving(p.id)}
+                  rejectLabel={tr('admin.remove')}
+                  onApprove={() => act.mutate({ path: `/packs/${p.id}/approve`, drop: { pack: p.id } })}
+                />
+              </Card>
+            </Hold>
+          </SelectableRow>
         </Animated.View>
       ))}
 
-      {!!review?.suggestions.length && <Text style={section}>{tr('admin.suggestions')}</Text>}
+      {!!review?.suggestions.length && <SectionTitle title={tr('admin.suggestions')} sel={sugSel} onStart={startIn(sugSel)} />}
       {review?.suggestions.map((s, i) => (
         <Animated.View key={`s${s.id}`} entering={motion.stagger(i)} exiting={motion.exit} layout={motion.layout}>
-          <SuggestionCard
-            text={s.text}
-            rank={s.kind === 'rank'}
-            meta={tr('admin.votes', { up: s.up, down: s.down, author: s.author })}
-            lang={s.lang}
-            busy={act.isPending}
-            onReject={() => act.mutate({ path: `/suggestions/${s.id}/reject`, drop: { suggestion: s.id } })}
-            onApprove={(tags) => act.mutate({ path: `/suggestions/${s.id}/approve`, json: tags.length ? { tags } : {}, drop: { suggestion: s.id } })}
-          />
+          <SelectableRow sel={sugSel} id={s.id} label={s.text}>
+            <Hold onHold={() => startIn(sugSel)(s.id)}>
+              <SuggestionCard
+                text={s.text}
+                rank={s.kind === 'rank'}
+                meta={tr('admin.votes', { up: s.up, down: s.down, author: s.author })}
+                lang={s.lang}
+                busy={act.isPending || !!running}
+                onReject={() => act.mutate({ path: `/suggestions/${s.id}/reject`, drop: { suggestion: s.id } })}
+                onApprove={(tags) => act.mutate({ path: `/suggestions/${s.id}/approve`, json: tags.length ? { tags } : {}, drop: { suggestion: s.id } })}
+              />
+            </Hold>
+          </SelectableRow>
         </Animated.View>
       ))}
 
       <ConfirmModal
         visible={removing != null}
-        title={tr('admin.removeTitle')}
+        title={removing === 'batch' ? tr('admin.selected.removeTitle', { count: packSel.count }) : tr('admin.removeTitle')}
         confirmLabel={tr('admin.remove')}
-        busy={act.isPending}
+        busy={act.isPending || running === 'removePacks'}
         confirmDisabled={!reason.trim()}
         onCancel={() => setRemoving(null)}
         onConfirm={() =>
-          removing != null && act.mutate({ path: `/packs/${removing}/remove`, json: { reason: reason.trim() }, drop: { pack: removing } })
+          removing === 'batch'
+            ? removePicked()
+            : removing != null && act.mutate({ path: `/packs/${removing}/remove`, json: { reason: reason.trim() }, drop: { pack: removing } })
         }>
         <TextInput
           accessibilityLabel={tr('admin.reason')}
@@ -167,6 +285,27 @@ export default function AdminScreen() {
         />
       </ConfirmModal>
     </Screen>
+  );
+}
+
+/** A section's title and its "Sélectionner"; while selecting in it, the count, all / none and leave. */
+function SectionTitle<K>({ title, sel, onStart }: { title: string; sel: Selection<K>; onStart: () => void }) {
+  const t = useTheme();
+  if (sel.on) return <SelectionHeader sel={sel} />;
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
+      <Text style={{ flex: 1, fontFamily: t.font.semibold, fontSize: 13, color: t.mut, marginLeft: 4 }}>{title}</Text>
+      <SelectButton size={32} onPress={() => onStart()} />
+    </View>
+  );
+}
+
+/** A hold on a card (outside its buttons, which keep their own taps) starts selecting. */
+function Hold({ onHold, children }: { onHold: () => void; children: ReactNode }) {
+  return (
+    <Pressable accessible={false} onLongPress={onHold} delayLongPress={400}>
+      {children}
+    </Pressable>
   );
 }
 

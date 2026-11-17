@@ -83,6 +83,7 @@ export const packs: Messages['packs'] = {
   clearAll: 'Clear all',
   clearAsk: { one: 'Clear the question?', other: 'Clear all {count} questions?' },
   removeQuestion: 'Remove',
+  removeQuestions: { one: 'Remove {count} question?', other: 'Remove {count} questions?' },
   publish: 'Publish',
   save: 'Save',
   errors: {
@@ -95,6 +96,13 @@ export const packs: Messages['packs'] = {
   },
 
   mineNone: 'No packs published',
+  mineSelected: {
+    delete: { one: 'Delete {count} pack?', other: 'Delete {count} packs?' },
+    deleteBody: 'They leave the community. Questions already added to rooms stay.',
+    deleted: { one: '{count} pack deleted', other: '{count} packs deleted' },
+    addHere: 'Add to room',
+    added: { one: '{count} pack added to {room}', other: '{count} packs added to {room}' },
+  },
 
   creatorPacks: 'Their packs',
 };
