@@ -911,7 +911,14 @@ async fn simultaneous_creates_respect_the_caps() {
     );
     assert_eq!(owned().await, max);
 
-    // Packs: 8 published, then 4 at once for the last 2 places.
+    // Packs (a verified e-mail publishes): 8 published, then 4 at once for the last 2 places.
+    sqlx::query(
+        "UPDATE users SET email = 'ana@example.com', email_verified_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
+    )
+    .bind(ana_id)
+    .execute(&state.db)
+    .await
+    .unwrap();
     let pack = |i: usize| {
         let questions: Vec<Value> = (0..5)
             .map(|q| json!({ "text": format!("Pack {i}, question numéro {q} ?"), "kind": "pick" }))
