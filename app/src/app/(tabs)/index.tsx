@@ -28,6 +28,7 @@ import { ChallengeButton, Challenges } from '@/components/challenge';
 import { useSecretPicker } from '@/components/celebration';
 import { ChatInput, ChatMessages } from '@/components/chat';
 import { ChooseBallot, ChooseResult, myRealChoice } from '@/components/choose';
+import { GlobalCard } from '@/components/global';
 import { BIG_GROUP, gridColumns, MemberGrid, MemberTile } from '@/components/member-grid';
 import { RankResult, ResultBars, ResultSummary } from '@/components/result-bars';
 import { QueryState } from '@/components/query-state';
@@ -158,6 +159,7 @@ function Header() {
     <>
       <HeaderBar />
       <SecureCard />
+      <GlobalCard />
     </>
   );
 }

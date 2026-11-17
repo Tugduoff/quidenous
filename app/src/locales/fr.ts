@@ -27,6 +27,7 @@ import { legal } from './fr/legal';
 import { community } from './fr/community';
 import { admin } from './fr/admin';
 import { party } from './fr/party';
+import { globalQuestion } from './fr/global';
 
 export const fr = {
   common,
@@ -57,6 +58,7 @@ export const fr = {
   community,
   admin,
   party,
+  globalQuestion,
 };
 
 /** The shape every language follows (strings widened, same keys). */

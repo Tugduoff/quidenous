@@ -28,6 +28,7 @@ import { legal } from './en/legal';
 import { community } from './en/community';
 import { admin } from './en/admin';
 import { party } from './en/party';
+import { globalQuestion } from './en/global';
 
 export const en: Messages = {
   common,
@@ -58,4 +59,5 @@ export const en: Messages = {
   community,
   admin,
   party,
+  globalQuestion,
 };
