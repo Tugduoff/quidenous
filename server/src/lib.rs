@@ -187,11 +187,17 @@ pub fn app(state: AppState) -> Router {
                 axum::response::Html(include_str!("../assets/legal/terms.html"))
             }),
         )
-        // The Android beta (Play closed test): join the Google Group, opt in, install. Bilingual.
+        // The Android beta (Play closed test): join the Google Group, opt in, install. French; /en/beta in English.
         .route(
             "/beta",
             axum::routing::get(|| async {
                 axum::response::Html(include_str!("../assets/legal/beta.html"))
+            }),
+        )
+        .route(
+            "/en/beta",
+            axum::routing::get(|| async {
+                axum::response::Html(include_str!("../assets/legal/beta.en.html"))
             }),
         )
         // The same three pages in English.
