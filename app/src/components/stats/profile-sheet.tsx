@@ -3,8 +3,10 @@ import { ChevronRight, X } from 'lucide-react-native';
 import { type ReactNode, useRef } from 'react';
 import { Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native';
 
+import { MedalDisc, MemberTitle, tierName } from '@/components/title-chip';
 import { Avatar, Dialog, PressableScale, QuestionText } from '@/components/ui';
 import type { Member, MemberStats, QuestionRef } from '@/lib/api';
+import { useMemberBadges } from '@/lib/badges';
 import { useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 
@@ -77,6 +79,26 @@ function Question({ q, line, onPress }: { q: QuestionRef; line: string; onPress:
   );
 }
 
+/** Someone's earned badges (the highest tier of each), as small medals. Nothing on a server without badges. */
+function TheirBadges({ id, open }: { id: number; open: boolean }) {
+  const tr = useT();
+  const { data } = useMemberBadges(id, open);
+  if (!data?.badges?.length) return null;
+  return (
+    <Block title={tr('badges.theirs')}>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+        {data.badges
+          .filter((b) => b.tier > 0)
+          .map((b) => (
+            <View key={b.key} accessible accessibilityLabel={tr('badges.a11y.medal', { name: b.name, tier: tierName(b.tier as 1 | 2 | 3, tr) })}>
+              <MedalDisc icon={b.icon} tier={b.tier} size={36} />
+            </View>
+          ))}
+      </View>
+    </Block>
+  );
+}
+
 /** One person's period: their titles, numbers, fans, crushes, best and worst moments. Tapping someone else switches to them. */
 export function ProfileSheet({
   profile,
@@ -118,6 +140,7 @@ export function ProfileSheet({
               <Text style={{ fontFamily: t.font.regular, fontSize: 13, color: t.mut }}>
                 {tr('stats.profile.played', { count: p.present })}
               </Text>
+              <MemberTitle id={p.member_id} />
             </View>
             <Pressable
               accessibilityRole="button"
@@ -164,6 +187,8 @@ export function ProfileSheet({
                 })}
             </View>
           )}
+
+          <TheirBadges id={p.member_id} open={!!profile} />
 
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
             <Mini value={pct(p.win_rate, 1)} label={tr('stats.profile.wins', { count: p.wins })} />

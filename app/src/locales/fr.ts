@@ -33,6 +33,8 @@ import { anonymous } from './fr/anonymous';
 import { tripot } from './fr/tripot';
 import { reactions } from './fr/reactions';
 import { said } from './fr/said';
+import { badges } from './fr/badges';
+import { wrapped } from './fr/wrapped';
 
 export const fr = {
   common,
@@ -69,6 +71,8 @@ export const fr = {
   tripot,
   reactions,
   said,
+  badges,
+  wrapped,
 };
 
 /** The shape every language follows (strings widened, same keys). */

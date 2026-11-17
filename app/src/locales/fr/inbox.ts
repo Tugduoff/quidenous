@@ -15,6 +15,8 @@ export const inbox = {
     friendRequest: "Demande d'ami",
     invite: 'Invitation',
     owner: 'Propriétaire',
+    badge: 'Nouveau titre',
+    wrapped: 'Ton année',
     other: 'Notification',
   },
 };

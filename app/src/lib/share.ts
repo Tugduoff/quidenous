@@ -124,17 +124,24 @@ export async function shareText(message: string): Promise<'shared' | 'copied' | 
  * On the web, when the browser can share files, the card itself goes out as a picture (with the link in the text).
  */
 export async function shareStory(period: StatsPeriod, story: Story): Promise<'shared' | 'copied' | 'failed'> {
+  return shareCard(
+    () => api<{ token: string; path: string }>('/stats/share', { method: 'POST', json: { period, key: story.key, tz: -new Date().getTimezoneOffset() } }),
+    t('share.story', { title: story.title, line: story.line }),
+  );
+}
+
+/**
+ * Share a card the server freezes into a public link (`snapshot` asks for it): asked first the very first time, then
+ * the picture itself where the browser can share files, else the text with the link (the app's address if it failed).
+ */
+export async function shareCard(snapshot: () => Promise<{ path: string }>, text: string): Promise<'shared' | 'copied' | 'failed'> {
   if (!(await confirmPublic())) return 'failed';
   let link: string | null = null;
   try {
-    const r = await api<{ token: string; path: string }>('/stats/share', {
-      method: 'POST',
-      json: { period, key: story.key, tz: -new Date().getTimezoneOffset() },
-    });
+    const r = await snapshot();
     link = `${appUrl()}${r.path}`;
     queryClient.invalidateQueries({ queryKey: myLinksKey });
   } catch {}
-  const text = t('share.story', { title: story.title, line: story.line });
   if (link && Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.canShare && typeof File !== 'undefined') {
     try {
       const blob = await (await fetch(`${link}/card.png`)).blob();

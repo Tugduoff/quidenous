@@ -165,6 +165,10 @@ export function useFeatures() {
     resultReactions: on.has('result_reactions'),
     /** « Qui a dit ça ? » questions: write, guess who wrote what (docs/SAID.md). */
     said: on.has('said'),
+    /** Badges earned from play and one shown as a title (`/badges`, `/titles`, `PUT /me/title`). */
+    badges: on.has('badges'),
+    /** « Ton année qui de nous »: story cards of the year (`/wrapped`, `POST /wrapped/share`). */
+    wrapped: on.has('wrapped'),
   };
 }
 
