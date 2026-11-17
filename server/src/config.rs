@@ -73,8 +73,8 @@ pub struct Klipy {
     pub content_filter: String,
     /// `KLIPY_API_BASE`: `https://api.klipy.com` unless set (tests point it at a mock).
     pub api_base: String,
-    /// Origins (`scheme://host[:port]`) GIF files may come from besides `https://static*.klipy.com`
-    /// (tests only: the mock's address).
+    /// `KLIPY_MEDIA_HOSTS`: origins (`scheme://host[:port]`, comma-separated) GIF files may come from
+    /// besides `https://static*.klipy.com`. Leave unset in production: for tests and local mocks.
     pub media_hosts: Vec<String>,
 }
 
@@ -259,7 +259,15 @@ impl Config {
                 api_base: var("KLIPY_API_BASE")
                     .map(|u| u.trim_end_matches('/').to_owned())
                     .unwrap_or_else(|| "https://api.klipy.com".into()),
-                media_hosts: Vec::new(),
+                media_hosts: var("KLIPY_MEDIA_HOSTS")
+                    .map(|hosts| {
+                        hosts
+                            .split(',')
+                            .map(|h| h.trim().trim_end_matches('/').to_owned())
+                            .filter(|h| !h.is_empty())
+                            .collect()
+                    })
+                    .unwrap_or_default(),
             }),
         }
     }

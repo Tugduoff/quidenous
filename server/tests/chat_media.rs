@@ -1031,4 +1031,118 @@ async fn gifs_through_klipy() {
             "{why}"
         );
     }
+
+    // A retry with the same client key: the GIF already posted, not a second one.
+    let gif = |key: &str| {
+        json!({
+            "id": items[0]["id"], "url": items[0]["url"], "width": 220, "height": 180,
+            "client_key": key,
+        })
+    };
+    let path = format!("/rounds/{round}/messages/gif");
+    let (s, first) = call(
+        &app,
+        "POST",
+        &path,
+        Some(&ana),
+        Some(room),
+        Some(gif("g-1")),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{first}");
+    let (s, again) = call(
+        &app,
+        "POST",
+        &path,
+        Some(&ana),
+        Some(room),
+        Some(gif("g-1")),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{again}");
+    assert_eq!(first["id"], again["id"]);
+    assert_eq!(again["kind"], "gif");
+    let (_, other) = call(
+        &app,
+        "POST",
+        &path,
+        Some(&ana),
+        Some(room),
+        Some(gif("g-2")),
+    )
+    .await;
+    assert_ne!(first["id"], other["id"]);
+}
+
+/// Photos follow the text rules: a retry with the same `client_key` is posted (and stored) once,
+/// captions are cleaned like text messages.
+#[tokio::test]
+async fn image_retries_post_once_and_captions_are_cleaned() {
+    let (app, state) = setup_with(None).await;
+    let ([ana, bob, _], _, round, room) = chat_in(&app).await;
+    let img = png(40, 30);
+    let caption = "\n\nsalut\u{200B}\n\n\n\nça va ?\n";
+    let send = async |key: &str| {
+        let fields: [(&str, Option<&str>, &[u8]); 3] = [
+            ("image", Some("p.png"), &img),
+            ("caption", None, caption.as_bytes()),
+            ("client_key", None, key.as_bytes()),
+        ];
+        post_image_with(&app, &ana, room, round, &fields).await
+    };
+    let (s, first) = send("i-1").await;
+    assert_eq!(s, StatusCode::OK, "{first}");
+    assert_eq!(first["caption"], "salut\n\nça va ?");
+    let (s, again) = send("i-1").await;
+    assert_eq!(s, StatusCode::OK, "{again}");
+    assert_eq!(first["id"], again["id"]);
+    assert_eq!(again["kind"], "image");
+    assert_eq!(chat_files(&state, room).len(), 1);
+    // Another key is another message; someone else's key is theirs.
+    let (_, other) = send("i-2").await;
+    assert_ne!(first["id"], other["id"]);
+    let (s, bobs) = post_image_with(
+        &app,
+        &bob,
+        room,
+        round,
+        &[
+            ("image", Some("p.png"), &img[..]),
+            ("client_key", None, b"i-1"),
+        ],
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{bobs}");
+    assert_ne!(first["id"], bobs["id"]);
+    assert_eq!(chat_files(&state, room).len(), 3);
+    // A blank caption is none; an oversized key is refused.
+    let (s, m) = post_image_with(
+        &app,
+        &ana,
+        room,
+        round,
+        &[
+            ("image", Some("p.png"), &img[..]),
+            ("caption", None, " \n\u{200B} ".as_bytes()),
+        ],
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{m}");
+    assert_eq!(m["caption"], Value::Null);
+    let long = "k".repeat(65);
+    let (s, b) = post_image_with(
+        &app,
+        &ana,
+        room,
+        round,
+        &[
+            ("image", Some("p.png"), &img[..]),
+            ("client_key", None, long.as_bytes()),
+        ],
+    )
+    .await;
+    assert_eq!(
+        (s, b["error"].as_str()),
+        (StatusCode::BAD_REQUEST, Some("bad_message"))
+    );
 }
