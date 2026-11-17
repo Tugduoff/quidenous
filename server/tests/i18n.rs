@@ -730,6 +730,8 @@ async fn legal_pages_in_english() {
         ("/privacy", "/en/privacy"),
         ("/terms", "/en/terms"),
         ("/delete-account", "/en/delete-account"),
+        ("/beta", "/en/beta"),
+        ("/en/beta", "/beta"),
     ] {
         let (s, html) = request(&t.app, "GET", path, None, None, None).await;
         assert_eq!(s, StatusCode::OK, "{path}");

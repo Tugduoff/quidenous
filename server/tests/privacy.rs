@@ -113,6 +113,11 @@ async fn share_links_expire_are_listed_reused_and_revoked() {
     // The welcome and legal pages stay indexable; robots.txt keeps crawlers out of private paths.
     let (_, robots, _) = page(&app, "/privacy").await;
     assert!(robots.is_none());
+    // The Android beta page links the three steps of the Play closed test.
+    let (s, _, html) = page(&app, "/beta").await;
+    assert_eq!(s, StatusCode::OK);
+    assert!(html.contains("groups.google.com/g/quidenous-testers"));
+    assert!(html.contains("play.google.com/apps/testing/com.tugduoff.quidenous"));
     let (s, _, txt) = page(&app, "/robots.txt").await;
     assert_eq!(s, StatusCode::OK);
     assert!(txt.contains("Disallow: /api/") && txt.contains("Disallow: /play"));
