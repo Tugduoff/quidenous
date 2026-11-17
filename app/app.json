@@ -27,7 +27,7 @@
         "android.permission.WRITE_EXTERNAL_STORAGE"
       ],
       "googleServicesFile": "./google-services.json",
-      "versionCode": 65
+      "versionCode": 66
     },
     "web": {
       "output": "single",
