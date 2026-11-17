@@ -1,6 +1,11 @@
 name: android
 on:
   workflow_dispatch:
+    inputs:
+      gate:
+        description: Run the release gate like a tag build (waits up to 90 min for check and app on this commit)
+        type: boolean
+        default: false
   push:
     branches: [main]
     # Path filters don't apply to tags: every v* tag builds, and only tag builds publish OTA updates, because
@@ -163,12 +168,48 @@ jobs:
         if: always() && runner.environment == 'self-hosted'
         run: rm -f app/google-services.json app/android/app/google-services.json "$RUNNER_TEMP"/upload.p12
         working-directory: ${{ github.workspace }}
-  # Publishes the OTA updates of a tag build (a manual run only checks they pack: --out, nothing published). A failure
-  # here turns the run red without touching the APK above.
-  ota:
-    needs: apk
+  # Release gate: a tag's OTA update waits for the server tests (`check`, server.yml) and the app check (`app`, app.yml:
+  # tsc, version == tag, versionCode goes up) on this very commit. They run in other workflows, so this polls them with
+  # deploy/wait-green.sh (latest run of each, 90 min at most: `check` may queue behind `apk` on the Mac). Red, or not
+  # done in time: this job turns red and `ota` publishes nothing. A manual run only prints their state, unless started
+  # with gate=true (then it waits and fails like a tag build).
+  gate:
     if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    timeout-minutes: 95
+    permissions:
+      contents: read
+      checks: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: deploy
+      - name: check and app green on this commit
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REQUIRED_CHECKS: check app
+          GATED: ${{ (startsWith(github.ref, 'refs/tags/v') || inputs.gate) && '1' || '' }}
+        run: |
+          if [ -z "$GATED" ]; then
+            deploy/wait-green.sh "$GITHUB_SHA" || echo "::notice::not gated (manual run): a tag build would wait for check and app"
+            exit 0
+          fi
+          rc=0
+          deploy/wait-green.sh "$GITHUB_SHA" --wait 5400 || rc=$?
+          case "$rc" in
+            0) ;;
+            1) echo "::error title=Release gate::check or app failed on $GITHUB_SHA: no OTA update. Re-run the failed job then this run's failed jobs, or push a new tag"; exit 1 ;;
+            *) echo "::error title=Release gate::check and app not green on $GITHUB_SHA after 90 min: re-run this run's failed jobs once they are"; exit 1 ;;
+          esac
+  # Publishes the OTA updates of a tag build (a manual run only checks they pack: --out, nothing published), in this
+  # order: tag -> `check` + `app` green (gate) and `apk` built -> production runs the tag -> OTA published. A failure
+  # here turns the run red without touching the APK above.
+  ota:
+    needs: [apk, gate]
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    # Up to 90 min waiting for production, then the upload.
+    timeout-minutes: 100
     environment: ota
     defaults:
       run:
@@ -184,7 +225,40 @@ jobs:
         with:
           name: ota-bundles
           path: app/ota
+      # New JS must never meet the old server (routes or fields it doesn't have yet): wait until production runs this tag
+      # (GET /api/version reports its commit or its version), every 30 s for up to 90 min. Production already on a newer
+      # version: this tag is superseded, that newer tag's build publishes, nothing to do here. A manual run with gate=true
+      # asks once and only prints what a tag build would do.
+      - name: Production runs this tag
+        id: prod
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.gate
+        env:
+          TAG: ${{ startsWith(github.ref, 'refs/tags/v') && '1' || '' }}
+        run: |
+          if [ -n "$TAG" ]; then want="${GITHUB_REF_NAME#v}"; wait=5400; else want=$(jq -r .version ota/apk/expo-config.json); wait=0; fi
+          deadline=$(($(date +%s) + wait))
+          while :; do
+            body=$(curl -fsS -m 10 https://qdn.coflop.fr/api/version 2>/dev/null || true)
+            version=$(jq -r '.version // empty' <<<"$body" 2>/dev/null || true)
+            sha=$(jq -r '.sha // empty' <<<"$body" 2>/dev/null || true)
+            if [ "$version" = "$want" ] || { [[ "$sha" =~ ^[0-9a-f]{7,40}$ ]] && [[ "$GITHUB_SHA" == "$sha"* ]]; }; then
+              echo "production runs $want (${sha:-?})"
+              exit 0
+            fi
+            if [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] && [ "$(printf '%s\n%s\n' "$want" "$version" | sort -V | tail -n1)" = "$version" ]; then
+              echo "::notice title=OTA update not published::production already runs $version, newer than $want: superseded"
+              if [ -n "$TAG" ]; then echo "superseded=1" >>"$GITHUB_OUTPUT"; fi
+              exit 0
+            fi
+            echo "production runs ${version:-?} (${sha:-?}), waiting for $want"
+            [ "$(date +%s)" -lt "$deadline" ] || break
+            sleep 30
+          done
+          if [ -z "$TAG" ]; then echo "::notice::manual run: a tag build would wait for production to run $want"; exit 0; fi
+          echo "::error title=OTA update not published::production doesn't run $want after 90 min: re-run this job once it does (GET https://qdn.coflop.fr/api/version)"
+          exit 1
       - name: Publish
+        if: steps.prod.outputs.superseded != '1'
         env:
           TAG: ${{ startsWith(github.ref, 'refs/tags/v') && '1' || '' }}
           UPDATES_PUBLISH_TOKEN: ${{ secrets.UPDATES_PUBLISH_TOKEN }}

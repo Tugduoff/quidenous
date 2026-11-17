@@ -18,6 +18,7 @@ mockups/fonts/*
 !mockups/fonts/Bricolage_Grotesque_wght_800.ttf
 # deploy/deploy.sh and deploy/backup.sh state and settings on the server
 deploy/.deployed
+deploy/.ci-red
 deploy/.deploy.lock
 deploy/backups/
 deploy/*.env

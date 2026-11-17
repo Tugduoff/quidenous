@@ -44,8 +44,15 @@ if [ -z "${1:-}" ] && [ -n "$current" ]; then
 fi
 sha="$(git rev-list -n1 "$tag")"
 
-# H2: never deploy a commit whose CI is red or still running (next run tries again).
-if ! "$here/wait-green.sh" "$sha"; then
+# H2: never deploy a commit whose CI is red or still running (next run tries again). Red (exit 1) is said once per
+# tag (marker .ci-red next to .deployed), still running (exit 2) stays silent.
+gate=0
+"$here/wait-green.sh" "$sha" || gate=$?
+if [ "$gate" -ne 0 ]; then
+  if [ "$gate" -eq 1 ] && [ "$(cat "$here/.ci-red" 2>/dev/null || true)" != "$tag" ]; then
+    echo "$tag" >"$here/.ci-red"
+    notify "Quidenous $tag not deployed: CI failed on $sha (re-run the failed job or push a new tag)"
+  fi
   exit 0
 fi
 
