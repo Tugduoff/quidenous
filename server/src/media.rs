@@ -38,9 +38,14 @@ pub const UPLOAD_BODY_MAX: usize = IMAGE_MAX + 64 * 1024;
 /// Longest side of a stored photo (larger ones are scaled down).
 const MAX_SIDE: u32 = 1600;
 const JPEG_QUALITY: u8 = 85;
-/// Pixels on either side, and memory, decoding may take (decompression bombs).
-const DECODE_MAX_SIDE: u32 = 12_000;
-const DECODE_MAX_ALLOC: u64 = 256 * 1024 * 1024;
+/// Pixels on either side, and memory, any image decode may take (decompression bombs). The app
+/// scales photos down before sending them (1600 px in the chat, less for a profile photo).
+const DECODE_MAX_SIDE: u32 = 4096;
+const DECODE_MAX_ALLOC: u64 = 64 * 1024 * 1024;
+/// Image decodes (chat and profile photos) running at once, server-wide: each may take
+/// [`DECODE_MAX_ALLOC`] and its resize, so a burst of uploads can't run the host out of memory.
+const DECODES_AT_ONCE: usize = 2;
+static DECODES: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(DECODES_AT_ONCE);
 /// Signed URLs expire on a 6-hour grid, 6 to 12 hours ahead: the same URL all along a stretch
 /// of time, so the app's image cache keeps working.
 const URL_PERIOD: u64 = 6 * 3600;
@@ -96,10 +101,6 @@ struct Processed {
 /// orientation) and at most [`MAX_SIDE`] wide and high; nothing of the original file but its
 /// pixels survives. A GIF is kept as it is (animated; GIF has no EXIF) once its first frame decodes.
 fn process(bytes: Vec<u8>, format: Format) -> AppResult<Processed> {
-    let mut limits = image::Limits::default();
-    limits.max_image_width = Some(DECODE_MAX_SIDE);
-    limits.max_image_height = Some(DECODE_MAX_SIDE);
-    limits.max_alloc = Some(DECODE_MAX_ALLOC);
     let mut reader = ImageReader::with_format(
         Cursor::new(bytes.as_slice()),
         match format {
@@ -109,7 +110,7 @@ fn process(bytes: Vec<u8>, format: Format) -> AppResult<Processed> {
             Format::Gif => ImageFormat::Gif,
         },
     );
-    reader.limits(limits);
+    reader.limits(decode_limits());
     if format == Format::Gif {
         let first = reader.decode()?;
         let (width, height) = (first.width(), first.height());
@@ -144,6 +145,33 @@ fn process(bytes: Vec<u8>, format: Format) -> AppResult<Processed> {
         width: image.width(),
         height: image.height(),
     })
+}
+
+/// The limits every decode of an uploaded image runs with.
+pub(crate) fn decode_limits() -> image::Limits {
+    let mut limits = image::Limits::default();
+    limits.max_image_width = Some(DECODE_MAX_SIDE);
+    limits.max_image_height = Some(DECODE_MAX_SIDE);
+    limits.max_alloc = Some(DECODE_MAX_ALLOC);
+    limits
+}
+
+/// Runs an image decode (and its resize, encode) on a blocking thread, [`DECODES_AT_ONCE`] at most
+/// server-wide; the others wait their turn. The slot stays taken until the work is done, even if
+/// the request is dropped meanwhile.
+pub(crate) async fn decode<T: Send + 'static>(
+    work: impl FnOnce() -> AppResult<T> + Send + 'static,
+) -> AppResult<T> {
+    let slot = DECODES
+        .acquire()
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+    tokio::task::spawn_blocking(move || {
+        let _slot = slot;
+        work()
+    })
+    .await
+    .map_err(|e| AppError::Internal(e.to_string()))?
 }
 
 /// A body over the route's limit is `413 too_large`; any other broken upload `400 bad_upload`.
@@ -202,6 +230,16 @@ pub(crate) async fn upload(
     mut multipart: Multipart,
 ) -> AppResult<Json<MessageRow>> {
     let round = crate::routes::chat_round(&state, &me, id).await?;
+    // Charged before the body is read (a retry gives it back below): a flood of uploads costs
+    // its sender, not the server's memory.
+    let user = me.user_id;
+    if let Some(user) = user {
+        crate::quotas::hit_user(&state, &crate::quotas::CHAT_IMAGE_USER, user)?;
+        if let Err(e) = crate::quotas::hit_user(&state, &crate::quotas::CHAT_IMAGE_DAY_USER, user) {
+            crate::quotas::refund_user(&state, &crate::quotas::CHAT_IMAGE_USER, user);
+            return Err(e);
+        }
+    }
     let (mut image, mut caption, mut mentions, mut everyone) = (None, None, Vec::new(), false);
     let mut key = None;
     while let Some(field) = multipart.next_field().await.map_err(upload_error)? {
@@ -229,16 +267,14 @@ pub(crate) async fn upload(
     let key = crate::routes::client_key(key.as_deref())?;
     // A retry of an upload whose answer was lost: the image already posted.
     if let Some(posted) = crate::routes::retried(&state, &me, key.as_deref()).await? {
+        if let Some(user) = user {
+            crate::quotas::refund_user(&state, &crate::quotas::CHAT_IMAGE_USER, user);
+            crate::quotas::refund_user(&state, &crate::quotas::CHAT_IMAGE_DAY_USER, user);
+        }
         return Ok(Json(posted));
     }
     crate::routes::chat_quota(&state, &me)?;
-    if let Some(user) = me.user_id {
-        crate::quotas::hit_user(&state, &crate::quotas::CHAT_IMAGE_USER, user)?;
-        crate::quotas::hit_user(&state, &crate::quotas::CHAT_IMAGE_DAY_USER, user)?;
-    }
-    let image = tokio::task::spawn_blocking(move || process(image.to_vec(), format))
-        .await
-        .map_err(|e| AppError::Internal(e.to_string()))??;
+    let image = decode(move || process(image.to_vec(), format)).await?;
     // A 128-bit random name in the room's directory.
     let file = format!("{}.{}", random_hex(16), image.ext);
     let dir = room_dir(&state.config.data_dir, me.group_id);
@@ -400,6 +436,8 @@ pub async fn serve(
 
 #[cfg(test)]
 mod tests {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
     use super::*;
 
     #[test]
@@ -451,5 +489,26 @@ mod tests {
         ] {
             assert_eq!(file_path(dir, 3, Some(bad)), None, "{bad}");
         }
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn decodes_run_a_couple_at_a_time() {
+        static RUNNING: AtomicUsize = AtomicUsize::new(0);
+        static MOST: AtomicUsize = AtomicUsize::new(0);
+        let tasks: Vec<_> = (0..8)
+            .map(|_| {
+                tokio::spawn(decode(|| {
+                    let now = RUNNING.fetch_add(1, Ordering::SeqCst) + 1;
+                    MOST.fetch_max(now, Ordering::SeqCst);
+                    std::thread::sleep(std::time::Duration::from_millis(30));
+                    RUNNING.fetch_sub(1, Ordering::SeqCst);
+                    Ok(())
+                }))
+            })
+            .collect();
+        for task in tasks {
+            task.await.unwrap().unwrap();
+        }
+        assert_eq!(MOST.load(Ordering::SeqCst), DECODES_AT_ONCE);
     }
 }

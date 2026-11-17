@@ -26,9 +26,9 @@ Same rules as text: a finished question of my room only (`400 round_open` while 
 | `mentions` | optional JSON array of member ids, e.g. `[12,15]` |
 | `everyone` | optional, `1` for `@tous` |
 
-- The type comes from the file's first bytes, never its name or declared type: JPEG, PNG, WebP or GIF; anything else (text, SVG, HEIC…) or an image that doesn't decode is `400 bad_image`. Over 8 MB: `413 too_large`. Decoding is limited to 12000 px a side and 256 MB (decompression bombs), off the async threads.
+- The type comes from the file's first bytes, never its name or declared type: JPEG, PNG, WebP or GIF; anything else (text, SVG, HEIC…) or an image that doesn't decode is `400 bad_image`. Over 8 MB: `413 too_large`. Decoding is limited to 4096 px a side and 64 MB (decompression bombs; the app sends 1600 px), off the async threads, and at most 2 image decodes run at once server-wide (chat and profile photos together; the others wait).
 - Metadata is gone by construction: JPEG and WebP are decoded, turned upright (EXIF orientation), scaled to 1600 px on the longest side at most and re-encoded as JPEG (quality 85); a WebP with transparency and a PNG become a PNG the same way. A GIF is kept byte for byte (animated; GIF has no EXIF) once its first frame decodes.
-- Limits on top of the chat ones: 20 images / hour and 100 / day per account (`429 rate_limited`).
+- Limits on top of the chat ones: 20 images / hour and 100 / day per account (`429 rate_limited`), taken before the body is read (a retry with the same `client_key` gives them back).
 - Stored as `DATA_DIR/chat/<room id>/<128-bit random hex>.<jpg|png|gif>`; `media` keeps the file name, size and type.
 
 ### Signed URLs

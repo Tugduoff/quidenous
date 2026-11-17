@@ -34,7 +34,7 @@ pub async fn member_in_room_by_hash(
         "SELECT m.* FROM user_tokens t JOIN users u ON u.id = t.user_id \
          JOIN members m ON m.user_id = u.id AND m.removed_at IS NULL \
          JOIN groups g ON g.id = m.group_id AND g.deleted_at IS NULL \
-         WHERE t.token_hash = ?1 AND (?2 IS NULL OR m.group_id = ?2) \
+         WHERE t.token_hash = ?1 AND u.suspended_at IS NULL AND (?2 IS NULL OR m.group_id = ?2) \
          ORDER BY (m.group_id = u.last_group_id) DESC, m.id DESC LIMIT 1",
     )
     .bind(hash)
@@ -65,12 +65,16 @@ pub async fn user_for_token(state: &AppState, token: &str) -> Result<i64, AppErr
     user_for_hash(state, &hash_token(token)).await
 }
 
+/// A suspended account's token is no session (`suspend` deletes them; one issued meanwhile too).
 async fn user_for_hash(state: &AppState, hash: &str) -> Result<i64, AppError> {
-    let user = sqlx::query_scalar("SELECT user_id FROM user_tokens WHERE token_hash = ?")
-        .bind(hash)
-        .fetch_optional(&state.db)
-        .await?
-        .ok_or(AppError::Unauthorized)?;
+    let user = sqlx::query_scalar(
+        "SELECT t.user_id FROM user_tokens t JOIN users u ON u.id = t.user_id \
+         WHERE t.token_hash = ? AND u.suspended_at IS NULL",
+    )
+    .bind(hash)
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or(AppError::Unauthorized)?;
     crate::accounts::touch(state, hash).await;
     Ok(user)
 }

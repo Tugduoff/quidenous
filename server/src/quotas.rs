@@ -56,11 +56,16 @@ pub const PHOTO_USER: Rule = per("photo_user", 10, HOUR);
 /// Push device registrations (the app sends its device at every start).
 pub const PUSH_USER: Rule = per("push_user", 30, HOUR);
 
+/// Tickets (`POST /auth/ticket`, one per socket connection or CSV link) per account...
+pub const TICKET_USER: Rule = per("ticket_user", 60, 10 * MINUTE);
+/// ...and per IP (a whole venue shares one Wi-Fi).
+pub const TICKET_IP: Rule = per("ticket_ip", 600, 10 * MINUTE);
+
 /// Questions in one import at most.
 pub const IMPORT_LINES: usize = 500;
 
 /// Every rule above, so the limiter can prune their buckets.
-pub const RULES: [Rule; 16] = [
+pub const RULES: [Rule; 18] = [
     CODE_MISS_USER,
     CODE_MISS_IP,
     CHAT_USER,
@@ -77,11 +82,18 @@ pub const RULES: [Rule; 16] = [
     IMPORT_USER,
     PHOTO_USER,
     PUSH_USER,
+    TICKET_USER,
+    TICKET_IP,
 ];
 
 /// One token from an account's bucket.
 pub fn hit_user(state: &AppState, rule: &Rule, user: i64) -> AppResult<()> {
     state.auth.limits.hit(rule, &user.to_string())
+}
+
+/// Gives a token back to an account's bucket (the charged work turned out not to be needed).
+pub fn refund_user(state: &AppState, rule: &Rule, user: i64) {
+    state.auth.limits.refund(rule, &user.to_string());
 }
 
 /// A code lookup in progress: the miss is counted up front (so parallel guesses can't slip

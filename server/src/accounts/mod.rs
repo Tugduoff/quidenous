@@ -440,6 +440,20 @@ where
     .unwrap_or(false))
 }
 
+/// An admin suspended it (reports): it gets no session, by any way in (`403 suspended`).
+pub async fn is_suspended<'e, E>(db: E, user_id: i64) -> AppResult<bool>
+where
+    E: sqlx::Executor<'e, Database = sqlx::Sqlite>,
+{
+    Ok(
+        sqlx::query_scalar("SELECT suspended_at IS NOT NULL FROM users WHERE id = ?")
+            .bind(user_id)
+            .fetch_optional(db)
+            .await?
+            .unwrap_or(false),
+    )
+}
+
 /// The account columns the auth endpoints need.
 #[derive(sqlx::FromRow)]
 pub(crate) struct Account {

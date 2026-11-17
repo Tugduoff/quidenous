@@ -36,6 +36,7 @@ export const errors = {
   not_author: "Ce n'est pas à toi",
   not_pinner: "Seul qui l'a épinglé (ou le créateur) peut le retirer",
   too_many_pins: "Trop d'épingles dans ce salon",
+  password_reset_recent: 'Mot de passe réinitialisé il y a moins de 7 jours : réessaie plus tard',
   suspended: 'Ce compte est suspendu',
   party_locked: 'La soirée est fermée',
   removed: 'Tu as été retiré de ce salon',

@@ -589,7 +589,21 @@ async fn photos_get_long_names_size_limits_and_a_rate_limit() {
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::BAD_REQUEST);
-    for _ in 0..8 {
+    // At most 4096 px on a side, really decoded (the app sends 512 px).
+    let res = app
+        .clone()
+        .oneshot(photo_request(&ana, &png(4097, 1)))
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::BAD_REQUEST);
+    // Charged before the body is read: a broken upload costs its token too.
+    let res = app
+        .clone()
+        .oneshot(photo_request(&ana, b"not an image"))
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::BAD_REQUEST);
+    for _ in 0..6 {
         let res = app
             .clone()
             .oneshot(photo_request(&ana, &png(8, 8)))

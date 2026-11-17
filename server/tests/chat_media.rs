@@ -403,6 +403,13 @@ async fn image_types_and_sizes() {
         (StatusCode::BAD_REQUEST, Some("bad_caption"))
     );
 
+    // At most 4096 px on a side (the app sends 1600).
+    let (s, b) = post_image(&app, &ana, room, round, &png(4097, 2)).await;
+    assert_eq!(
+        (s, b["error"].as_str()),
+        (StatusCode::BAD_REQUEST, Some("bad_image"))
+    );
+
     // Over 8 MB: 413, whether the body fits the route's limit or not.
     let mut big = b"\xFF\xD8\xFF\xE0".to_vec();
     big.resize(8 * 1024 * 1024 + 1, 0);
