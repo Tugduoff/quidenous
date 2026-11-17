@@ -1,6 +1,6 @@
 Qui de nous finirait dans une émission de télé-réalité ? Qui arrive en retard même à son propre anniversaire ? Pose la question, tes potes votent, le verdict tombe.
 
-qui de nous ? est un jeu entre amis, dans des salons privés. Pas de fil public, pas d'inconnus : juste ta bande et une question à la fois.
+qui de nous ? est un jeu entre amis, dans des salons privés. Pas de fil public, pas d'inconnus dans ton salon : juste ta bande et une question à la fois.
 
 COMMENT ÇA MARCHE
 - Crée un salon et invite ta bande avec un code, un lien ou un QR code.
@@ -9,44 +9,49 @@ COMMENT ÇA MARCHE
 - Le résultat tombe : qui l'emporte, avec quel score, et qui a voté pour qui. Assume.
 - La question suivante se débloque. À votre rythme : une par jour ou dix d'affilée.
 
-DEUX FAÇONS DE JOUER
+TROIS FAÇONS DE JOUER
 - « Qui de nous… » : un seul nom, le plus de votes gagne.
-- « Classe-nous… » : tu classes tout le monde du premier au dernier, les points font le podium.
+- « Classe-nous… » : tu classes tout le monde, les points font le podium.
+- « Qui choisirait quoi ? » : pizza ou sushi ? Tu donnes ton choix, tu devines celui des autres, et on voit qui connaît le mieux la bande.
+
+LES SÉRIES
+Vote chaque jour pour faire grimper ta série : une flamme à côté de ton nom, une série pour tout le salon, une fête à 7, 30 et 100 jours, un rappel le soir quand ta série est en danger.
+
+LE TRIPOT
+Parie sur qui va l'emporter, avec des jetons fictifs : 100 au début du mois, 20 de plus au premier vote de la journée, et le pot revient à ceux qui ont misé sur le gagnant. Les jetons n'ont aucune valeur : rien à acheter, rien à encaisser, aucun argent réel. Juste la gloire du podium du mois. Le propriétaire du salon peut le désactiver.
+
+LA QUESTION DU MONDE
+Chaque jour, la même question dans tous les salons. Tu votes pour quelqu'un de ton salon, puis tu découvres les autres salons en chiffres anonymes : où tout le monde a choisi la même personne, où c'est le propriétaire qui prend, qui s'est choisi soi-même…
+
+LES SOIRÉES
+Pour jouer ensemble au même endroit : tes invités scannent le QR code et rejoignent sans compte. Compte à rebours, révélation en grand (même sur la télé), réactions, et à la fin vous pouvez continuer en salon.
+
+VOTES ANONYMES
+Pour les questions que personne n'assumerait : seuls les totaux s'affichent, jamais qui a voté pour qui. Le propriétaire choisit : jamais, au choix ou toujours.
 
 ÇA RÉAGIT
-- Un chat sous chaque résultat pour contester, se justifier ou en remettre une couche.
-- Relance ceux qui traînent d'un tap.
-- Quelqu'un ne répond plus ? Si la majorité est d'accord, on n'attend plus son vote.
+- Un chat sous chaque résultat pour contester, se justifier ou en remettre une couche, avec photos, GIF, réactions et mentions.
+- Relance ceux qui traînent d'un tap. Quelqu'un ne répond plus ? Si la majorité est d'accord, on avance sans lui.
 
 L'HISTORIQUE ET LES STATS
-- Tous les résultats passés, jour par jour. Épingle les meilleurs, exporte tout si tu veux.
-- Des stats qui balancent : la star du salon, la collection de couronnes, le narcisse qui vote pour soi, la gâchette facile, celui que tout le monde attend, le relou officiel des relances, le crush…
-- Partage une question ou un résultat avec une jolie carte.
+- Tous les résultats passés, jour par jour. Épingle les meilleurs, partage-les en jolie carte.
+- Des stats qui balancent : la star du salon, la collection de couronnes, le narcisse qui vote pour soi, le relou des relances, le crush… Plus les records de séries et le classement du Tripot.
 
 TES QUESTIONS
-- Plus de 150 questions pour démarrer, en mode choix ou classement.
-- Écris les vôtres : elles passent avant les autres.
-- Importe une liste depuis un fichier, mélange la file d'attente.
-- Des packs de questions créés par la communauté, à installer en un tap. Publie les tiens.
+- Plus de 250 questions pour démarrer : Entre potes, Famille, Boulot, et Pimenté pour les 16 ans et plus.
+- Écris les vôtres : elles passent avant les autres. Change l'ordre d'un glisser, mélange, importe une liste depuis un fichier.
+- Des packs créés par la communauté, à installer en un tap. Publie les tiens. Les packs 16+ ne s'affichent que si tu le demandes.
 
-NOTIFICATIONS
-Nouvelle question, résultat, message, relance : tu sais quand ça bouge, sans spam.
-
-PLUSIEURS SALONS, UN SEUL COMPTE
-La coloc, la famille, les collègues : passe d'un salon à l'autre en un geste. Ajoute tes amis avec leur code ami.
-
-UN COMPTE BIEN PROTÉGÉ
-- Connexion par e-mail et mot de passe, Google ou Discord.
-- Double authentification (application d'authentification et codes de secours).
-- Liste de tes appareils connectés, déconnexion à distance.
-- Verrouillage de l'app par empreinte ou code du téléphone.
-- Suppression du compte directement dans l'app.
+ET AUSSI
+- Notifications réglables (nouvelle question, résultat, message, série en danger), avec des heures calmes.
+- Plusieurs salons avec un seul compte : la coloc, la famille, les collègues. Ajoute tes amis avec leur code ami.
+- Connexion par e-mail, Google ou Discord, double authentification, verrouillage par empreinte, suppression du compte dans l'app.
 
 UN ENDROIT SAIN
-Le propriétaire du salon gère les règles et les membres. Tu peux signaler un message, une question ou une personne, et bloquer quelqu'un.
+Le propriétaire gère les règles et les membres. Tu peux signaler un message, une photo, une question, un pack ou une personne, et bloquer quelqu'un. Les signalements arrivent directement à l'équipe.
 
 Gratuit, sans pub, sans achats intégrés. Tes données servent à faire tourner le jeu, point.
 
-Thème clair ou sombre, à toi de voir.
+En français ou en anglais, thème clair ou sombre. Réservé aux 16 ans et plus.
 
 Bon, alors : qui de nous ?
