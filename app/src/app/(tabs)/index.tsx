@@ -30,6 +30,7 @@ import { ChatInput, ChatMessages } from '@/components/chat';
 import { ChooseBallot, ChooseResult, myRealChoice } from '@/components/choose';
 import { GlobalCard } from '@/components/global';
 import { BIG_GROUP, gridColumns, MemberGrid, MemberTile } from '@/components/member-grid';
+import { AnonymousBadge } from '@/components/anonymous';
 import { RankResult, ResultBars, ResultSummary } from '@/components/result-bars';
 import { QueryState } from '@/components/query-state';
 import { Screen } from '@/components/screen';
@@ -282,7 +283,10 @@ function Question({ round, result }: { round: Round; result?: boolean }) {
   return (
     <Animated.View entering={fresh ? motion.question : undefined} style={{ gap: 14 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Tag label={`${tr(kindLabel(round, result))} · #${round.number}`} tone={result ? 'acc' : 'tag'} />
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 }}>
+          <Tag label={`${tr(kindLabel(round, result))} · #${round.number}`} tone={result ? 'acc' : 'tag'} />
+          {round.anonymous && <AnonymousBadge />}
+        </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           {result && <ChallengeButton round={round} />}
           <PressableScale
@@ -953,7 +957,7 @@ export function Result({
         ) : round.ranking ? (
           <RankResult ranking={round.ranking} byId={byId} mine={round.my_ranking} />
         ) : (
-          <ResultBars result={round.result ?? []} byId={byId} />
+          <ResultBars result={round.result ?? []} byId={byId} anonymous={round.anonymous} />
         )}
       </View>
       <Challenges roundId={round.id} />

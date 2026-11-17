@@ -373,8 +373,11 @@ struct RoundCalc {
     rank: bool,
     opened: f64,
     closed: f64,
-    /// (voter, target, unix time), in vote order.
+    /// (voter, target, unix time), in vote order. An anonymous question's targets are blanked
+    /// ([`HIDDEN`]) once its tally is counted: it adds to votes cast and received, never to
+    /// who-votes-for-whom (pairs, self votes, twins, contrarian, kingmaker, loyal, the graph).
     votes: Vec<(i64, i64, f64)>,
+    anonymous: bool,
     /// (target, votes), most voted first, then by id.
     tally: Vec<(i64, i64)>,
     /// Ranking questions: (member, points, average position).
@@ -408,7 +411,10 @@ impl RoundCalc {
     }
 }
 
-type RoundRow = (i64, i64, String, String, f64, f64);
+type RoundRow = (i64, i64, String, String, f64, f64, bool);
+
+/// The target of a vote on an anonymous question, once counted (no member has id 0).
+const HIDDEN: i64 = 0;
 type MemberRowT = (i64, String, f64, bool, bool);
 
 /// [`for_group_in`] French.
@@ -467,6 +473,7 @@ pub async fn compute(
         unix!("r.opened_at"),
         ", ",
         unix!("r.closed_at"),
+        ", r.anonymous",
         // Choose questions stay out of the stats for now (their votes then drop out too).
         " FROM rounds r JOIN questions q ON q.id = r.question_id WHERE q.kind <> 'choose' AND ",
         in_period!(),
@@ -584,20 +591,23 @@ impl Calc {
         let current: HashSet<i64> = current_ids.iter().copied().collect();
         let mut rounds: Vec<RoundCalc> = round_rows
             .into_iter()
-            .map(|(id, number, text, kind, opened, closed)| RoundCalc {
-                id,
-                number,
-                text,
-                rank: kind == "rank",
-                opened,
-                closed,
-                votes: Vec::new(),
-                tally: Vec::new(),
-                points: Vec::new(),
-                winners: Vec::new(),
-                messages: 0,
-                chatters: HashSet::new(),
-            })
+            .map(
+                |(id, number, text, kind, opened, closed, anonymous)| RoundCalc {
+                    anonymous,
+                    id,
+                    number,
+                    text,
+                    rank: kind == "rank",
+                    opened,
+                    closed,
+                    votes: Vec::new(),
+                    tally: Vec::new(),
+                    points: Vec::new(),
+                    winners: Vec::new(),
+                    messages: 0,
+                    chatters: HashSet::new(),
+                },
+            )
             .collect();
         let index: HashMap<i64, usize> =
             rounds.iter().enumerate().map(|(i, r)| (r.id, i)).collect();
@@ -627,6 +637,11 @@ impl Calc {
             }
             r.tally = tally.into_iter().collect();
             r.tally.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+            if r.anonymous {
+                for v in &mut r.votes {
+                    v.1 = HIDDEN;
+                }
+            }
             // Ranking questions are won on points; ties count for everyone tied.
             r.winners = if r.rank && !r.points.is_empty() {
                 let best = r.points.iter().map(|p| p.1).max().unwrap_or(0);
@@ -716,13 +731,17 @@ impl Calc {
             if r.votes.len() > 1 && r.tally.len() == 1 {
                 s.unanimous += 1;
             }
+            for &(target, n) in &r.tally {
+                *received.entry(target).or_default() += n;
+            }
             for &(voter, target, at) in &r.votes {
-                *received.entry(target).or_default() += 1;
                 *cast.entry(voter).or_default() += 1;
-                if voter == target {
-                    *selfish.entry(voter).or_default() += 1;
+                if !r.anonymous {
+                    if voter == target {
+                        *selfish.entry(voter).or_default() += 1;
+                    }
+                    *pairs.entry((voter, target)).or_default() += 1;
                 }
-                *pairs.entry((voter, target)).or_default() += 1;
                 delays.entry(voter).or_default().push(at - r.opened);
                 let hour = local_hour(at, self.tz);
                 heatmap[weekday(local_day(at, self.tz))][hour] += 1;
@@ -736,7 +755,7 @@ impl Calc {
                 *last.entry(last_vote.0).or_default() += 1;
                 s.seconds_waiting_last += (last_vote.2 - before.2).max(0.0).round() as i64;
             }
-            if !r.rank && r.votes.len() >= 3 {
+            if !r.rank && !r.anonymous && r.votes.len() >= 3 {
                 for &(voter, target, _) in &r.votes {
                     let e = against.entry(voter).or_default();
                     e.0 += 1;
@@ -759,7 +778,7 @@ impl Calc {
             let voters: Vec<(i64, i64)> = r
                 .votes
                 .iter()
-                .filter(|v| cur.contains(&v.0))
+                .filter(|v| !r.anonymous && cur.contains(&v.0))
                 .map(|v| (v.0, v.1))
                 .collect();
             for (i, a) in voters.iter().enumerate() {

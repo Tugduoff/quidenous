@@ -16,6 +16,7 @@ import {
 import { type ReactNode, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, Text, TextInput, View } from 'react-native';
 
+import { AnonymousSetting } from '@/components/anonymous';
 import { BackButton, ErrorText } from '@/components/auth-ui';
 import { QueryState } from '@/components/query-state';
 import { Screen } from '@/components/screen';
@@ -375,6 +376,10 @@ function Settings({ group }: { group: Group }) {
           label={tr('room.settings.kickVote')}
           right={<Toggle label="" a11y={tr('room.settings.kickVote')} value={s.kick_vote} onChange={(v) => save.mutate({ kick_vote: v })} />}
         />
+        {/* Never for a party (its reveal is on a shared screen); absent from an older server. */}
+        {features.anonymousVotes && group.kind !== 'party' && s.anonymous_votes && (
+          <AnonymousSetting value={s.anonymous_votes} onChange={(v) => save.mutate({ anonymous_votes: v })} />
+        )}
       </Section>
 
       <Section title={tr('room.settings.questions')} Icon={MessageCircleQuestion}>

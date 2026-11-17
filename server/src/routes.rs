@@ -263,6 +263,7 @@ async fn features(State(state): State<AppState>) -> Json<Value> {
         // The global question of the day (docs/GLOBAL_QUESTION.md).
         "global_question",
         "streaks",
+        "anonymous_votes",
     ];
     if state.config.klipy.is_some() {
         f.push("chat_gifs");
@@ -722,6 +723,8 @@ async fn group(State(state): State<AppState>, Me(me): Me) -> AppResult<Json<Valu
         "kick_needed": kick_needed,
         "votes": votes,
     });
+    out["settings"]["anonymous_votes"] =
+        json!(crate::anonymous::mode(&state.db, me.group_id).await?);
     if kind == "party" {
         out["ends_at"] = json!(ends_at);
         out["over"] = json!(over);
@@ -817,7 +820,7 @@ struct HistoryQuery {
 
 macro_rules! history_select {
     () => {
-        "SELECT r.id, r.number, q.text, r.closed_at, p.round_id IS NOT NULL, q.kind FROM rounds r \
+        "SELECT r.id, r.number, q.text, r.closed_at, p.round_id IS NOT NULL, q.kind, r.anonymous FROM rounds r \
          JOIN questions q ON q.id = r.question_id LEFT JOIN pins p ON p.round_id = r.id"
     };
 }
@@ -854,14 +857,14 @@ async fn pinned_history(
     Ok(Json(history_items(&state.db, rounds).await?))
 }
 
-type HistoryRow = (i64, i64, String, String, bool, String);
+type HistoryRow = (i64, i64, String, String, bool, String, bool);
 
 async fn history_items(
     db: &sqlx::SqlitePool,
     rounds: Vec<HistoryRow>,
 ) -> AppResult<Vec<HistoryItem>> {
     let mut items = Vec::with_capacity(rounds.len());
-    for (id, number, question, closed_at, pinned, kind) in rounds {
+    for (id, number, question, closed_at, pinned, kind, anonymous) in rounds {
         let tallies = game::tallies(db, id).await?;
         let top_count = tallies.first().map_or(0, |t| t.count);
         // Choose questions: the winners are the best guessers (none when nobody guessed right).
@@ -882,6 +885,7 @@ async fn history_items(
                 vote_count: tallies.iter().map(|t| t.count).sum(),
                 pinned,
                 kind,
+                anonymous,
             });
             continue;
         }
@@ -903,6 +907,7 @@ async fn history_items(
                 vote_count: tallies.iter().map(|t| t.count).sum(),
                 pinned,
                 kind,
+                anonymous,
             });
             continue;
         }
@@ -920,6 +925,7 @@ async fn history_items(
             vote_count: tallies.iter().map(|t| t.count).sum(),
             pinned,
             kind,
+            anonymous,
         });
     }
     Ok(items)
@@ -1059,6 +1065,10 @@ async fn export_history(
                 tallies
                     .iter()
                     .map(|t| {
+                        // An anonymous question: counts only (its tallies carry no voters).
+                        if t.voter_ids.is_empty() {
+                            return format!("{} ({})", name(t.target_id), t.count);
+                        }
                         let voters: Vec<String> = t.voter_ids.iter().map(|v| name(*v)).collect();
                         i18n::csv_votes(lang, &name(t.target_id), t.count, &voters.join(", "))
                     })
@@ -1507,6 +1517,9 @@ struct QuestionBody {
     kind: Option<String>,
     /// Choose questions: 2 to 4 items.
     items: Option<Vec<String>>,
+    /// Anonymous votes on it (pick and ranking only; the room's rule decides, see `anonymous`).
+    #[serde(default)]
+    anonymous: bool,
 }
 
 async fn add_question(
@@ -1544,14 +1557,15 @@ async fn add_question(
         return Err(AppError::Conflict("question_exists"));
     }
     let question = sqlx::query_as::<_, QueuedQuestion>(
-        "INSERT INTO questions (group_id, text, author_id, kind, items) VALUES (?, ?, ?, ?, ?) \
-         RETURNING id, text, author_id, kind, items",
+        "INSERT INTO questions (group_id, text, author_id, kind, items, anonymous) VALUES (?, ?, ?, ?, ?, ?) \
+         RETURNING id, text, author_id, kind, items, anonymous",
     )
     .bind(me.group_id)
     .bind(text)
     .bind(me.id)
     .bind(kind)
     .bind(items)
+    .bind(crate::anonymous::wanted(kind, body.anonymous))
     .fetch_one(&mut *tx)
     .await?;
     let opened = game::ensure_open_round(&mut tx, me.group_id).await?;
@@ -1733,7 +1747,7 @@ async fn clear_queue(State(state): State<AppState>, Me(me): Me) -> AppResult<Jso
 
 async fn queue(State(state): State<AppState>, Me(me): Me) -> AppResult<Json<Value>> {
     let custom: Vec<QueuedQuestion> = sqlx::query_as(concat!(
-        "SELECT q.id, q.text, q.author_id, q.kind, q.items FROM questions q WHERE q.group_id = ?1 AND ",
+        "SELECT q.id, q.text, q.author_id, q.kind, q.items, q.anonymous FROM questions q WHERE q.group_id = ?1 AND ",
         game::unused!(),
         " ORDER BY COALESCE(q.sort_key, q.id), q.id"
     ))
@@ -2733,14 +2747,15 @@ async fn import_questions(
     // `[classement]` lines become ranking questions, `[choix] … | A | B` choose questions (skipped
     // when their items are not valid); the length rule applies to the question itself.
     let lines: Vec<String> = body.text.lines().map(crate::text::line).collect();
-    let valid: Vec<(&str, &str, Option<String>)> = lines
+    let valid: Vec<(&str, &str, Option<String>, bool)> = lines
         .iter()
         .filter(|l| !l.is_empty() && !l.starts_with('#'))
         .map(|l| {
             let (text, kind) = crate::deck::parse_line(l);
-            (text, kind, crate::deck::items_json(l))
+            let anonymous = crate::anonymous::wanted(kind, crate::deck::tagged_anonymous(l));
+            (text, kind, crate::deck::items_json(l), anonymous)
         })
-        .filter(|(text, kind, items)| {
+        .filter(|(text, kind, items, _)| {
             (QUESTION_MIN..=QUESTION_MAX).contains(&text.chars().count())
                 && (*kind != "choose" || items.is_some())
         })
@@ -2757,7 +2772,7 @@ async fn import_questions(
     let mut added: u64 = 0;
     {
         let mut tx = crate::db::write_tx(&state.db).await?;
-        for (text, kind, items) in &valid {
+        for (text, kind, items, anonymous) in &valid {
             if game::same_question(&mut tx, me.group_id, text)
                 .await?
                 .is_some()
@@ -2765,13 +2780,15 @@ async fn import_questions(
                 continue;
             }
             sqlx::query(
-                "INSERT INTO questions (group_id, text, author_id, kind, origin, items) VALUES (?, ?, ?, ?, 'import', ?)",
+                "INSERT INTO questions (group_id, text, author_id, kind, origin, items, anonymous) \
+                 VALUES (?, ?, ?, ?, 'import', ?, ?)",
             )
             .bind(me.group_id)
             .bind(text)
             .bind(me.id)
             .bind(kind)
             .bind(items)
+            .bind(anonymous)
             .execute(&mut *tx)
             .await?;
             added += 1;

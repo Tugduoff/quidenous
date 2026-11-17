@@ -153,6 +153,8 @@ export function useFeatures() {
     chatGifs: on.has('chat_gifs'),
     /** Days in a row with a vote (`/streaks`, `day_streaks` in /stats, the "streak" push; docs/STREAKS.md). */
     streaks: on.has('streaks'),
+    /** Anonymous votes: the room rule, per-question flag, counts-only results (docs/ANONYMOUS.md). */
+    anonymousVotes: on.has('anonymous_votes'),
   };
 }
 

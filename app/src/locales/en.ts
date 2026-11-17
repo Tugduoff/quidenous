@@ -30,6 +30,7 @@ import { admin } from './en/admin';
 import { party } from './en/party';
 import { globalQuestion } from './en/global';
 import { streaks } from './en/streaks';
+import { anonymous } from './en/anonymous';
 
 export const en: Messages = {
   common,
@@ -62,4 +63,5 @@ export const en: Messages = {
   party,
   globalQuestion,
   streaks,
+  anonymous,
 };

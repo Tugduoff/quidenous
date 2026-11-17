@@ -15,7 +15,7 @@ macro_rules! round_select {
     ($where:literal) => {
         concat!(
             "SELECT r.id, r.group_id, r.question_id, r.number, r.opened_at, r.closed_at, q.text, ",
-            "(q.group_id IS NOT NULL) AS custom, q.kind, q.items FROM rounds r JOIN questions q ON q.id = r.question_id ",
+            "(q.group_id IS NOT NULL) AS custom, q.kind, q.items, r.anonymous FROM rounds r JOIN questions q ON q.id = r.question_id ",
             $where
         )
     };
@@ -273,6 +273,7 @@ pub async fn ensure_open_round(
     .bind(party.map(|p| p.timer))
     .fetch_one(&mut **tx)
     .await?;
+    crate::anonymous::decide(tx, id).await?;
     if party.is_some() {
         sqlx::query(
             "INSERT INTO party_players (round_id, member_id) \
@@ -714,7 +715,10 @@ pub async fn close_party_round(
     Ok(vec![Event::RoundClosed { round_id }, Event::RoomUpdated])
 }
 
+/// Votes per person, most voted first. An anonymous question's tallies carry no voter ids: this is
+/// the one place results read who voted for whom (`anonymous`).
 pub async fn tallies(db: &SqlitePool, round_id: i64) -> AppResult<Vec<Tally>> {
+    let anonymous = crate::anonymous::is_anonymous(db, round_id).await?;
     let rows: Vec<(i64, i64)> = sqlx::query_as(
         "SELECT target_id, voter_id FROM votes WHERE round_id = ? ORDER BY created_at",
     )
@@ -736,6 +740,11 @@ pub async fn tallies(db: &SqlitePool, round_id: i64) -> AppResult<Vec<Tally>> {
         }
     }
     tallies.sort_by(|a, b| b.count.cmp(&a.count).then(a.target_id.cmp(&b.target_id)));
+    if anonymous {
+        for t in &mut tallies {
+            t.voter_ids.clear();
+        }
+    }
     Ok(tallies)
 }
 
@@ -830,6 +839,7 @@ pub async fn view(db: &SqlitePool, round: RoundRow, me: i64) -> AppResult<RoundV
     .fetch_optional(db)
     .await?;
     Ok(RoundView {
+        anonymous: round.anonymous,
         id: round.id,
         number: round.number,
         question: round.text,

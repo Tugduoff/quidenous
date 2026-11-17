@@ -14,13 +14,17 @@ export type DraftProblem = 'short' | 'long' | 'duplicate' | 'items';
 
 export type DraftKind = 'pick' | 'rank' | 'choose';
 
-/** `line` is what gets sent (tag included); `text` is the question as people will see it; `items` a choose line's items. */
+/**
+ * `line` is what gets sent (tag included); `text` is the question as people will see it; `items` a choose line's items;
+ * `anonymous`: `[anonyme]` / `[anonymous]` on a pick or ranking line (docs/ANONYMOUS.md).
+ */
 export type DraftLine = {
   line: string;
   text: string;
   rank: boolean;
   kind: DraftKind;
   items: string[] | null;
+  anonymous: boolean;
   selected: boolean;
   problem: DraftProblem | null;
 };
@@ -31,23 +35,26 @@ const VIBE_TAGS = ['potes', 'famille', 'boulot', 'pimente'];
 /**
  * Same rule as the server (`deck::parse_tagged`): leading tags in any order, `[classement]` / `[rank]` make a ranking
  * question, `[choix]` / `[choose]` a choose question (`[choix] Qui prendrait quoi ? | A | B`: the question stops at the
- * first `|`, each other part is an item), vibe tags are dropped; the first unknown `[…]` is part of the question.
+ * first `|`, each other part is an item), `[anonyme]` / `[anonymous]` asks for anonymous votes (never on a choose
+ * question), vibe tags are dropped; the first unknown `[…]` is part of the question.
  */
-export function splitTag(line: string): { text: string; rank: boolean; kind: DraftKind; items: string[] | null } {
+export function splitTag(line: string): { text: string; rank: boolean; kind: DraftKind; items: string[] | null; anonymous: boolean } {
   let rest = line.trim();
   let kind: DraftKind = 'pick';
+  let anonymous = false;
   for (;;) {
     const m = /^\[([^\]]*)\]/.exec(rest);
     if (!m) break;
     const tag = m[1].trim().toLowerCase();
     if (tag === 'classement' || tag === 'rank') kind = 'rank';
     else if (tag === 'choix' || tag === 'choose') kind = 'choose';
+    else if (tag === 'anonyme' || tag === 'anonymous') anonymous = true;
     else if (!VIBE_TAGS.includes(tag)) break;
     rest = rest.slice(m[0].length).trimStart();
   }
-  if (kind !== 'choose') return { text: rest, rank: kind === 'rank', kind, items: null };
+  if (kind !== 'choose') return { text: rest, rank: kind === 'rank', kind, items: null, anonymous };
   const [text, ...parts] = rest.split('|');
-  return { text: text.trim(), rank: false, kind, items: parts.map((p) => p.trim()).filter(Boolean) };
+  return { text: text.trim(), rank: false, kind, items: parts.map((p) => p.trim()).filter(Boolean), anonymous: false };
 }
 
 /** 2 to 4 items, each 1 to 40 characters, no two alike (case-insensitive). */
@@ -72,13 +79,13 @@ export function parseQuestions(content: string): DraftLine[] {
     .map((l) => l.trim())
     .filter((l) => l && !l.startsWith('#'))
     .map((line) => {
-      const { text, rank, kind, items } = splitTag(line);
+      const { text, rank, kind, items, anonymous } = splitTag(line);
       const len = [...text].length;
       const key = text.toLowerCase();
       const problem: DraftProblem | null =
         len < MIN ? 'short' : len > MAX ? 'long' : seen.has(key) ? 'duplicate' : items && !itemsOk(items) ? 'items' : null;
       seen.add(key);
-      return { line, text, rank, kind, items, selected: !problem, problem };
+      return { line, text, rank, kind, items, anonymous, selected: !problem, problem };
     });
 }
 

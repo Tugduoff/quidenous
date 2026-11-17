@@ -5,6 +5,7 @@ import { type ComponentRef, useEffect, useRef, useState } from 'react';
 import { Platform, Pressable, type ScrollView, Text, TextInput, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 
+import { AnonymousMark, AnonymousToggle } from '@/components/anonymous';
 import { ModerationDialog, type ModTarget } from '@/components/moderation';
 import { ReorderList, useScrollTracker } from '@/components/reorder-list';
 import { QueryState } from '@/components/query-state';
@@ -40,6 +41,8 @@ export default function QuestionsScreen() {
   // A choose question ("Choix"): the question and its 2 to 4 items.
   const [choose, setChoose] = useState(false);
   const [items, setItems] = useState<string[]>(['', '']);
+  // Anonymous votes on it (the room's rule is "per question"); `[anonyme]` typed by hand works too.
+  const [anon, setAnon] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
   const { me } = useSession();
   const features = useFeatures();
@@ -60,6 +63,8 @@ export default function QuestionsScreen() {
   const typedChoose = typed.kind === 'choose' && features.choose;
   const kind: QuestionKind = choose || typedChoose ? 'choose' : rank || typed.rank ? 'rank' : 'pick';
   const chosenItems = choose ? items.map((i) => i.trim()) : (typed.items ?? []);
+  const perQuestion = features.anonymousVotes && group?.settings.anonymous_votes === 'per_question';
+  const anonymous = perQuestion && kind !== 'choose' && (anon || typed.anonymous);
   const sameItems = new Set(chosenItems.filter(Boolean).map((i) => i.toLowerCase())).size < chosenItems.filter(Boolean).length;
   const add = useMutation({
     // A bad list of answers shows under it; any other failure in a toast.
@@ -67,13 +72,14 @@ export default function QuestionsScreen() {
     mutationFn: () =>
       api('/questions', {
         method: 'POST',
-        json: kind === 'choose' ? { text: typed.text, kind, items: chosenItems } : { text: typed.text, kind },
+        json: kind === 'choose' ? { text: typed.text, kind, items: chosenItems } : { text: typed.text, kind, ...(anonymous ? { anonymous } : {}) },
       }),
     onSuccess: () => {
       setText('');
       setRank(false);
       setChoose(false);
       setItems(['', '']);
+      setAnon(false);
       setAddError(null);
       qc.invalidateQueries({ queryKey: keys.queue });
       qc.invalidateQueries({ queryKey: keys.current });
@@ -212,6 +218,8 @@ export default function QuestionsScreen() {
           </Text>
         )}
       </View>
+      {/* Its votes will be anonymous (the room's rule leaves it to each question). */}
+      {perQuestion && q.anonymous && <AnonymousMark />}
       {/* Its author or the room owner can take it out before it's asked. */}
       {canDelete(q) && (
         <Pressable
@@ -370,22 +378,26 @@ export default function QuestionsScreen() {
               </View>
             )}
             {/* The next question: about us, a ranking (everyone, first to last), or a choose (who'd take which item). */}
-            <View style={{ paddingHorizontal: 10 }}>
-              <Segmented
-                fill
-                label={tr('questions.kind')}
-                value={rank ? 'rank' : choose ? 'choose' : 'pick'}
-                onChange={(k) => {
-                  setRank(k === 'rank');
-                  setChoose(k === 'choose');
-                  setAddError(null);
-                }}
-                options={[
-                  { id: 'pick', name: tr('vote.kind.pick') },
-                  { id: 'rank', name: tr('vote.kind.rank') },
-                  ...(features.choose ? [{ id: 'choose' as const, name: tr('vote.kind.choose') }] : []),
-                ]}
-              />
+            <View style={{ paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <View style={{ flex: 1 }}>
+                <Segmented
+                  fill
+                  label={tr('questions.kind')}
+                  value={rank ? 'rank' : choose ? 'choose' : 'pick'}
+                  onChange={(k) => {
+                    setRank(k === 'rank');
+                    setChoose(k === 'choose');
+                    setAddError(null);
+                  }}
+                  options={[
+                    { id: 'pick', name: tr('vote.kind.pick') },
+                    { id: 'rank', name: tr('vote.kind.rank') },
+                    ...(features.choose ? [{ id: 'choose' as const, name: tr('vote.kind.choose') }] : []),
+                  ]}
+                />
+              </View>
+              {/* A choose question is never anonymous: who took what is its whole point. */}
+              {perQuestion && kind !== 'choose' && <AnonymousToggle value={anonymous} onChange={setAnon} />}
             </View>
           </Card>
           {/* Or many at once. */}
@@ -466,6 +478,11 @@ export default function QuestionsScreen() {
               </View>
               {l.rank && <Trophy size={14} color={t.accInk} style={{ marginTop: 3 }} />}
               {l.kind === 'choose' && <Cable size={14} color={t.accInk} style={{ marginTop: 3 }} />}
+              {l.anonymous && features.anonymousVotes && (
+                <View style={{ marginTop: 3 }}>
+                  <AnonymousMark />
+                </View>
+              )}
               <View style={{ flex: 1 }}>
                 <Text
                   style={{

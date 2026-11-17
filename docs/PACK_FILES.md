@@ -50,6 +50,11 @@ ignored; when a key repeats, the last one wins.
 - `[classement] …` (or `[rank]`) is a ranking question.
 - `[choix] Question | A | B | C` (or `[choose]`) is a "qui choisirait quoi" question with 2 to 4 answers
   (docs/CHOOSE.md).
+- `[anonyme]` (or `[anonymous]`) asks for anonymous votes on a pick or ranking question (docs/ANONYMOUS.md); it
+  combines with the others in any order (`[classement] [anonyme] …`) and is dropped on a choose question.
+  `pack_questions.anonymous` (migration 0045) keeps it, `GET /api/packs/{id}` lists `questions[].anonymous`,
+  `POST`/`PUT` accept `anonymous` (absent: an older app keeps what the pack had), installing carries it onto the
+  room's questions.
 
 Limits: question 8 to 200 characters; answers 1 to 40 characters, 2 to 4, no two alike; 5 to 300 questions per pack,
 no duplicates (case-insensitive). Lines that break them are left out.

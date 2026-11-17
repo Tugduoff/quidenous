@@ -5,6 +5,7 @@ import { ActivityIndicator, Pressable, SectionList, Text, View } from 'react-nat
 import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AnonymousMark } from '@/components/anonymous';
 import { QueryState } from '@/components/query-state';
 import { Avatar, AvatarStack, avatarStackWidth, Display, PressableScale, QuestionText } from '@/components/ui';
 import type { HistoryItem, Member } from '@/lib/api';
@@ -87,6 +88,7 @@ function HistoryCard({ item, byId, order }: { item: HistoryItem; byId: Map<numbe
             <Text numberOfLines={1} style={{ flex: 1, fontFamily: t.font.regular, fontSize: 12, lineHeight: 16, color: t.mut }}>
               {winners.length ? winners.map((m) => m?.name).join(', ') : choose ? tr('history.nobodyGuessed') : ''}
             </Text>
+            {item.anonymous && <AnonymousMark size={13} />}
           </View>
         </View>
         {(item.pinned || isMilestone(item.number)) && (

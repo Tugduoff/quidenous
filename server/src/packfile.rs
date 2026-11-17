@@ -27,6 +27,8 @@ pub struct Line {
     pub kind: &'static str,
     /// A choose line's answers, when they hold (2 to 4, 1 to 40 characters, distinct); `None` otherwise.
     pub items: Option<Vec<String>>,
+    /// `[anonyme]` / `[anonymous]` on a pick or ranking line (docs/ANONYMOUS.md).
+    pub anonymous: bool,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
@@ -127,6 +129,7 @@ pub fn parse(content: &str) -> PackFile {
             text: text.to_owned(),
             kind,
             items: deck::choose_items(line),
+            anonymous: crate::anonymous::wanted(kind, deck::tagged_anonymous(line)),
         });
     }
     if out.header.categories.contains(&crate::packs::SPICY_TAG) {
@@ -230,6 +233,18 @@ mod tests {
             Some(vec!["Canapé".into(), "Cuisine".into()])
         );
         assert_eq!(fr.lines[3].items, None);
+        assert!(fr.lines.iter().all(|l| !l.anonymous));
+
+        let anon = parse(
+            "[anonyme] Qui ?
+[classement] [anonymous] Rank us.
+[choix] [anonyme] Quoi ? | A | B
+",
+        );
+        let flags: Vec<_> = anon.lines.iter().map(|l| (l.kind, l.anonymous)).collect();
+        // Choose questions are never anonymous: the tag is dropped.
+        assert_eq!(flags, [("pick", true), ("rank", true), ("choose", false)]);
+        assert_eq!(anon.lines[1].text, "Rank us.");
 
         let en = parse(
             "# title: Love hot takes\n# category: Spicy 16+, party\n# lang: en\n# 16+: no\nWho?\n",
