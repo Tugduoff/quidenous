@@ -14,16 +14,24 @@ export function useRoomGone() {
   const qc = useQueryClient();
   const { setRoom, noRoomLeft } = useSession();
   return async () => {
-    await setRoom(null);
-    clearRoomData(qc);
+    // Requests stop naming the room at once; the room on screen only changes once the next one is known, so the
+    // live socket and `/me` aren't asked again for no room right before the "join or create" screen.
+    setApiRoom(null);
     const rooms = await api<{ id: number }[]>('/rooms').catch(() => null);
     // From a page deep in the stack (the room's settings): back to the bottom first.
     if (router.canDismiss()) router.dismissAll();
     if (rooms?.length) {
       await setRoom(rooms[0].id);
+      clearRoomData(qc);
       router.replace('/');
-    } else if (rooms) await noRoomLeft();
-    else router.replace('/rooms');
+    } else if (rooms) {
+      await noRoomLeft();
+      clearRoomData(qc);
+    } else {
+      await setRoom(null);
+      clearRoomData(qc);
+      router.replace('/rooms');
+    }
   };
 }
 
