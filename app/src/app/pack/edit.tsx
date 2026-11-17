@@ -279,6 +279,7 @@ export default function PackEditScreen() {
           accessibilityLabel={tr('common.add')}
           disabled={!draftOk}
           onPress={add}
+          hitSlop={4}
           style={{
             width: 40,
             height: 40,

@@ -113,6 +113,7 @@ export function InstallScreen({ onClose }: { onClose?: () => void }) {
           accessibilityRole="button"
           accessibilityLabel={tr('common.close')}
           onPress={onClose}
+          hitSlop={4}
           style={{ alignSelf: 'flex-end', width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card }}>
           <X size={20} color={t.txt} />
         </Pressable>

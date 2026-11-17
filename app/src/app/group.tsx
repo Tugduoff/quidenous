@@ -271,6 +271,7 @@ export default function GroupScreen() {
           accessibilityRole="button"
           accessibilityLabel={tr('common.back')}
           onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
+          hitSlop={4}
           style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card }}>
           <ChevronLeft size={22} color={t.txt} />
         </Pressable>

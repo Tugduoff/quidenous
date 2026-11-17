@@ -136,6 +136,7 @@ function BackToRooms() {
       accessibilityRole="button"
       accessibilityLabel={tr('common.back')}
       onPress={() => router.replace('/rooms')}
+      hitSlop={4}
       style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card }}>
       <ChevronLeft size={22} color={t.txt} />
     </Pressable>
@@ -166,6 +167,7 @@ function Header({ party }: { party: Party }) {
         accessibilityRole="button"
         accessibilityLabel={tr('party.menu.a11y')}
         onPress={() => setMenu(true)}
+        hitSlop={4}
         style={[{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card }, t.shadow]}>
         <Ellipsis size={20} color={t.txt} />
       </PressableScale>
@@ -380,6 +382,7 @@ function ScreenLink({ code }: { code: string }) {
           setCopied(true);
           setTimeout(() => setCopied(false), 1800);
         }}
+        hitSlop={4}
         style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card2 }}>
         {copied ? <Check size={18} color={t.accInk} /> : <Share2 size={18} color={t.txt} />}
       </PressableScale>
@@ -387,6 +390,7 @@ function ScreenLink({ code }: { code: string }) {
         accessibilityRole="link"
         accessibilityLabel={tr('party.lobby.openScreen')}
         onPress={() => Linking.openURL(url).catch(() => {})}
+        hitSlop={4}
         style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card2 }}>
         <ExternalLink size={18} color={t.txt} />
       </PressableScale>
