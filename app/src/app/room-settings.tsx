@@ -17,6 +17,7 @@ import { type ReactNode, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, Text, TextInput, View } from 'react-native';
 
 import { BackButton, ErrorText } from '@/components/auth-ui';
+import { QueryState } from '@/components/query-state';
 import { Screen } from '@/components/screen';
 import { showToast } from '@/components/toast';
 import { askConfirm, Avatar, Button, Card, Dialog, DialogActions, DialogTitle, Display, PressableScale, Segmented, Toggle } from '@/components/ui';
@@ -455,7 +456,8 @@ function Settings({ group }: { group: Group }) {
 export default function RoomSettings() {
   const t = useTheme();
   const tr = useT();
-  const { data: group } = useGroup();
+  const groupQuery = useGroup();
+  const group = groupQuery.data;
   const owner = group?.my_role === 'owner';
   // Not (or no longer) the owner: nothing to see here.
   useEffect(() => {
@@ -475,7 +477,7 @@ export default function RoomSettings() {
           </Text>
         )}
       </View>
-      {!group ? <ActivityIndicator color={t.mut} style={{ marginTop: 24 }} /> : owner ? <Settings group={group} /> : null}
+      {!group ? <QueryState query={groupQuery} /> : owner ? <Settings group={group} /> : null}
     </Screen>
   );
 }

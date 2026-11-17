@@ -4,8 +4,10 @@ import { Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 
 import { PackCard, PageHeader, Stat } from '@/components/pack-card';
+import { QueryState } from '@/components/query-state';
 import { Screen } from '@/components/screen';
 import { Avatar, Display } from '@/components/ui';
+import { isNotFound } from '@/lib/api';
 import { useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
 import { useCreator } from '@/lib/packs';
@@ -17,12 +19,17 @@ export default function CreatorScreen() {
   const t = useTheme();
   const tr = useT();
   const id = Number(useLocalSearchParams<{ id: string }>().id);
-  const { data: creator, isError } = useCreator(id);
+  const query = useCreator(id);
+  const creator = query.data;
   const { data: group } = useGroup();
   return (
     <Screen tabs={false}>
       <PageHeader fallback="/packs" />
-      {isError && <Text style={{ fontFamily: t.font.regular, fontSize: 15, color: t.mut }}>{tr('packs.none')}</Text>}
+      {isNotFound(query.error) ? (
+        <Text style={{ fontFamily: t.font.regular, fontSize: 15, color: t.mut }}>{tr('packs.creatorNotFound')}</Text>
+      ) : (
+        <QueryState query={query} />
+      )}
       {creator && (
         <>
           <Animated.View entering={motion.enter} style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>

@@ -9,6 +9,7 @@ import { scheduleOnRN } from 'react-native-worklets';
 
 import { BackButton } from '@/components/auth-ui';
 import { ModerationDialog, type ModTarget } from '@/components/moderation';
+import { QueryState } from '@/components/query-state';
 import { Screen } from '@/components/screen';
 import { Card, Display, PressableScale, QuestionText, Toggle } from '@/components/ui';
 import {
@@ -132,7 +133,8 @@ const SWIPE = 110;
 function VoteStack() {
   const t = useTheme();
   const tr = useT();
-  const { data, isFetching, refetch } = useNextSuggestions();
+  const next = useNextSuggestions();
+  const { data, isFetching, refetch } = next;
   const vote = useVoteSuggestion();
   const voting = useIsMutating({ mutationKey: VOTE_KEY });
   const [gone, setGone] = useState<Set<number>>(() => new Set());
@@ -160,9 +162,8 @@ function VoteStack() {
   };
 
   const label = { fontFamily: t.font.bold, fontSize: 18, color: t.txt } as const;
-  if (!data) return null;
-  if (!top)
-    return null;
+  if (!data) return <QueryState query={next} />;
+  if (!top) return null;
   const press = (value: SuggestionVote) => !fly && setFly({ id: top.id, value });
   return (
     <View style={{ gap: 14, marginTop: 6 }}>

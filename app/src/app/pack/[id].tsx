@@ -6,9 +6,10 @@ import { Text, TextInput, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 
 import { IconButton, MiniTag, PageHeader, Stat, StatusBadge } from '@/components/pack-card';
+import { QueryState } from '@/components/query-state';
 import { Screen } from '@/components/screen';
 import { askConfirm, Card, Dialog, DialogActions, DialogTitle, Display, PressableScale, QuestionText } from '@/components/ui';
-import { api, ApiError } from '@/lib/api';
+import { api, ApiError, isNotFound } from '@/lib/api';
 import { useT } from '@/lib/i18n';
 import { motion, usePop } from '@/lib/motion';
 import {
@@ -34,7 +35,8 @@ export default function PackScreen() {
   const tr = useT();
   const qc = useQueryClient();
   const id = Number(useLocalSearchParams<{ id: string }>().id);
-  const { data: pack, isError } = usePackDetail(id);
+  const detail = usePackDetail(id);
+  const pack = detail.data;
   const { data: group } = useGroup();
   const { data: rooms } = useRooms();
   const { data: me } = useCommunityMe();
@@ -103,7 +105,11 @@ export default function PackScreen() {
     return (
       <Screen tabs={false}>
         <PageHeader fallback="/packs" />
-        {isError && <Text style={{ fontFamily: t.font.regular, fontSize: 15, color: t.mut }}>{tr('packs.none')}</Text>}
+        {isNotFound(detail.error) ? (
+          <Text style={{ fontFamily: t.font.regular, fontSize: 15, color: t.mut }}>{tr('packs.notFound')}</Text>
+        ) : (
+          <QueryState query={detail} />
+        )}
       </Screen>
     );
 

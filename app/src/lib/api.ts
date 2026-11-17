@@ -345,6 +345,9 @@ export class ApiError extends Error {
   }
 }
 
+/** The server says this thing doesn't exist (or no longer): no point retrying. */
+export const isNotFound = (e: unknown) => e instanceof ApiError && e.status === 404;
+
 /** Called when the server no longer knows my token (signed out from another device): back to the welcome screen. */
 let onSignedOut: (() => void) | null = null;
 export const setOnSignedOut = (f: (() => void) | null) => {
