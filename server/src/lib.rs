@@ -38,6 +38,7 @@ pub mod text;
 pub mod tripot;
 pub mod updates;
 pub mod vibes;
+pub mod vitrine;
 pub mod web;
 
 use std::sync::Arc;
@@ -229,11 +230,16 @@ pub fn app(state: AppState) -> Router {
             axum::routing::get(|| async { packfile::template_response(i18n::Lang::En) }),
         )
         .nest_service("/photos", photos);
-    if let Some(web) = &state.config.web_dir {
+    let web_app = state.config.web_dir.as_ref().map(|web| {
         let csp = web::app_csp(web, state.config.public_url.as_deref());
         let csp = axum::http::HeaderValue::from_str(&csp)
             .unwrap_or(axum::http::HeaderValue::from_static(web::BASE_CSP));
-        app = app.fallback_service(web::app_files(web, csp));
+        (web.clone(), csp)
+    });
+    // The showcase at `/` and `/en`; people who play still land in the app (see vitrine.rs).
+    app = app.merge(vitrine::router(web_app.clone()));
+    if let Some((web, csp)) = web_app {
+        app = app.fallback_service(web::app_files(&web, csp));
     }
     let headers = web::Headers::new(&state.config);
     app.layer(axum::middleware::from_fn_with_state(

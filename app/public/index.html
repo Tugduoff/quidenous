@@ -58,6 +58,16 @@
           document.querySelectorAll('meta[name="theme-color"]').forEach(function (m) { m.setAttribute('content', bg); });
         }
       } catch (e) {}
+      // `/` shows the showcase page to visitors: this cookie tells the server this browser plays (signed in, or the
+      // installed app), so `/` opens the app right away (server/src/vitrine.rs). Signed out in a browser: dropped.
+      try {
+        var plays =
+          !!localStorage.getItem('qdn.token') ||
+          window.matchMedia('(display-mode: standalone)').matches ||
+          navigator.standalone === true;
+        document.cookie = 'qdn_app=' + (plays ? '1; max-age=31536000' : '; max-age=0') + '; path=/; samesite=lax' +
+          (location.protocol === 'https:' ? '; secure' : '');
+      } catch (e) {}
     </script>
   </head>
 

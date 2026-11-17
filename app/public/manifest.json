@@ -1,7 +1,8 @@
 {
   "name": "qui de nous ?",
   "short_name": "qui de nous ?",
-  "start_url": "/",
+  "id": "/",
+  "start_url": "/?source=pwa",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
