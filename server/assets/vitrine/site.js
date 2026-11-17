@@ -36,13 +36,13 @@
       }
     : {
         questions: [
-          "Qui se ferait virer d'un mariage ?", "Qui mourrait en premier dans un film d'horreur ?",
-          'Qui survivrait le plus longtemps à une apocalypse zombie ?', 'Qui ferait exploser la cuisine en faisant des pâtes ?',
-          'Qui serait le pire espion ?', "Qui deviendrait influenceur s'il le pouvait ?",
-          'Qui arrive en retard même à son propre anniversaire ?', 'Qui finirait dans une émission de télé-réalité ?',
-          'Qui tricherait pour gagner un jeu de société ?', 'Qui irait sur Mars sans billet de retour ?',
-          'Qui resterait en pyjama tout le dimanche ?', 'Qui serait le dernier debout à une soirée ?',
-          "Qui lancerait un podcast que personne n'a demandé ?", 'Qui se perdrait même avec un GPS ?'
+          "Qui se ferait virer d'un mariage\u00a0?", "Qui mourrait en premier dans un film d'horreur\u00a0?",
+          'Qui survivrait le plus longtemps à une apocalypse zombie\u00a0?', 'Qui ferait exploser la cuisine en faisant des pâtes\u00a0?',
+          'Qui serait le pire espion\u00a0?', "Qui deviendrait influenceur s'il le pouvait\u00a0?",
+          'Qui arrive en retard même à son propre anniversaire\u00a0?', 'Qui finirait dans une émission de télé-réalité\u00a0?',
+          'Qui tricherait pour gagner un jeu de société\u00a0?', 'Qui irait sur Mars sans billet de retour\u00a0?',
+          'Qui resterait en pyjama tout le dimanche\u00a0?', 'Qui serait le dernier debout à une soirée\u00a0?',
+          "Qui lancerait un podcast que personne n'a demandé\u00a0?", 'Qui se perdrait même avec un GPS\u00a0?'
         ],
         tag: 'De nous · #',
         choose: "Choisis quelqu'un",
