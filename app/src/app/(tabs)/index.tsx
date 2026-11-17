@@ -40,6 +40,7 @@ import { Tip } from '@/components/tip';
 import { BetRow, TripotResult } from '@/components/tripot';
 import { NextGate } from '@/components/next-gate';
 import { NoQuestions, SoloInvite } from '@/components/vote-empty';
+import { Mascot } from '@/components/mascot';
 import { askConfirm, Avatar, AvatarStack, Button, Card, ConfirmModal, Dialog, Display, Logo, PressableScale, Tag, TAG_BG } from '@/components/ui';
 import { api, ApiError, type Member, type Round } from '@/lib/api';
 import { authError, useFeatures } from '@/lib/auth';
@@ -719,6 +720,8 @@ function Waiting({ round, byId, members }: { round: Round; byId: Map<number, Mem
       {/* Who's in, who we're waiting for. A card (not Card) that animates its height as people leave the list. */}
       <Animated.View layout={motion.layout} style={[{ backgroundColor: t.card, borderRadius: t.radius.card, padding: 16, gap: 14 }, t.shadow]}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          {/* Roupi dozes while the others take their time (not when there's a whole grid of faces to show). */}
+          {pending.length > 0 && pending.length <= BIG_WAIT && <Mascot who="roupi" mood="sleepy" size={56} style={{ marginVertical: -8, marginLeft: -6 }} />}
           <Text style={{ flex: 1, fontFamily: t.font.bold, fontSize: 15, color: t.txt }}>
             {tr('vote.waiting.voted', { count: done, done, total: round.member_count })}
           </Text>

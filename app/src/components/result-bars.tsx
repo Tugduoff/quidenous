@@ -17,6 +17,7 @@ import { BOUNCE, EASE } from '@/lib/motion';
 import { ordinal } from '@/lib/text';
 import { useTheme } from '@/lib/theme';
 
+import { Mascot } from './mascot';
 import { Avatar, AvatarStack, PressableScale } from './ui';
 
 /** Rows shown before "Voir tout": a big group's result stays one screen tall. */
@@ -236,6 +237,12 @@ export function ResultSummary({
       </Text>
       {tied > 0 && <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut }}>+{tied}</Text>}
       <Text style={{ marginLeft: 'auto', fontFamily: t.font.display, fontSize: 18, color: t.txt }}>{score}</Text>
+      {/* A reaction sticker: Zeste points at the winner, Paillette cheers the best guesser, Pavé wonders when nobody saw it coming. */}
+      {choose ? (
+        <Mascot who={nobody ? 'pave' : 'paillette'} mood={nobody ? 'think' : 'celebrate'} prop="none" size={40} style={{ marginVertical: -6 }} />
+      ) : (
+        <Mascot who="zeste" mood="accuse" size={40} style={{ marginVertical: -6, transform: [{ scaleX: -1 }] }} />
+      )}
       <ChevronUp size={18} color={t.mut} />
     </PressableScale>
   );

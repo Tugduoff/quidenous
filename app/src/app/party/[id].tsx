@@ -21,6 +21,7 @@ import { ActivityIndicator, Linking, Platform, Pressable, Text, useWindowDimensi
 import Animated from 'react-native-reanimated';
 
 import { copyText, ErrorText, SoftButton } from '@/components/auth-ui';
+import { Mascot } from '@/components/mascot';
 import { BIG_GROUP, gridColumns, MemberGrid, MemberTile } from '@/components/member-grid';
 import { Countdown, JoinQr, NextButton, PlayerChips, Reactions, VotedLine, WinnerReveal } from '@/components/party';
 import { ResultBars } from '@/components/result-bars';
@@ -637,9 +638,13 @@ function Memory({ party }: { party: Party }) {
         )
       }>
       <Header party={party} />
-      <View style={{ gap: 6 }}>
-        <Display size={34}>{tr('party.over')}</Display>
-        <Text style={{ fontFamily: t.font.semibold, fontSize: 15, color: t.mut }}>{tr('party.memory.played', { count: party.played })}</Text>
+      {/* Paillette hops the party out. */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <View style={{ flex: 1, gap: 6 }}>
+          <Display size={34}>{tr('party.over')}</Display>
+          <Text style={{ fontFamily: t.font.semibold, fontSize: 15, color: t.mut }}>{tr('party.memory.played', { count: party.played })}</Text>
+        </View>
+        <Mascot who="paillette" mood="celebrate" size={104} />
       </View>
       {memory.isLoading && <ActivityIndicator color={t.mut} style={{ marginTop: 16 }} />}
       {memory.data?.map((h, i) => {

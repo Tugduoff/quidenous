@@ -1,6 +1,7 @@
-import { CloudOff, RotateCw } from 'lucide-react-native';
+import { RotateCw } from 'lucide-react-native';
 import { ActivityIndicator, Text, View, type ViewStyle } from 'react-native';
 
+import { Mascot } from '@/components/mascot';
 import { PressableScale } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { useT } from '@/lib/i18n';
@@ -20,8 +21,9 @@ export function QueryState({ query, style }: { query: Query; style?: ViewStyle }
   if (!query.isError) return null;
   const offline = !(query.error instanceof ApiError);
   return (
-    <View accessibilityRole="alert" style={[{ alignItems: 'center', gap: 12, paddingVertical: 24 }, style]}>
-      <CloudOff size={28} color={t.mut} />
+    <View accessibilityRole="alert" style={[{ alignItems: 'center', gap: 10, paddingVertical: 16 }, style]}>
+      {/* Paillette takes it hard: on the floor, in tears. */}
+      <Mascot who="paillette" mood="sad" size={104} />
       <Text style={{ fontFamily: t.font.semibold, fontSize: 15, color: t.mut, textAlign: 'center' }}>
         {tr(offline ? 'common.offline' : 'common.loadFailed')}
       </Text>

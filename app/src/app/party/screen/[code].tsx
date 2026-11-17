@@ -4,6 +4,8 @@ import { useEffect } from 'react';
 import { ActivityIndicator, ScrollView, Text, useWindowDimensions, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 
+import { Mascot } from '@/components/mascot';
+import { MascotBand } from '@/components/mascot-band';
 import { Countdown, JoinQr, PlayerChips, Reactions, VotedLine, WinnerReveal } from '@/components/party';
 import { ResultBars } from '@/components/result-bars';
 import { CodeText, Display, Logo, Tag } from '@/components/ui';
@@ -105,12 +107,15 @@ function Stage({ party, unit, wide }: { party: Party; unit: number; wide: boolea
   if (party.phase === 'over')
     return (
       <Animated.View entering={motion.enter} style={{ gap: 16 }}>
+        <Mascot who="paillette" mood="celebrate" size={big(240)} style={{ marginLeft: -big(24) }} />
         <Display size={big(96)}>{tr('party.over')}</Display>
         <Text style={{ fontFamily: t.font.semibold, fontSize: big(32), color: t.mut }}>{tr('party.memory.played', { count: party.played })}</Text>
       </Animated.View>
     );
   return (
     <View style={{ gap: 28 }}>
+      {/* The lobby: the whole band, pointing at whoever is next. */}
+      <MascotBand max={big(760)} style={{ alignItems: 'flex-start' }} />
       <Display size={big(80)}>{party.players.length < 2 ? tr('party.screen.waiting') : tr('party.screen.ready')}</Display>
       <PlayerChips players={party.players} big />
     </View>

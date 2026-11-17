@@ -30,6 +30,8 @@ jobs:
             app:
               - "app/**"
               - ".github/workflows/app.yml"
+              # the mascot parts check also covers the server copy
+              - "server/assets/mascot.json"
   app:
     needs: changes
     # Always runs (`!cancelled()`: also when `changes` was skipped or failed), and a PR that doesn't touch the app
@@ -60,6 +62,10 @@ jobs:
         if: needs.changes.outputs.app != 'false'
       - run: npx tsc --noEmit
         if: needs.changes.outputs.app != 'false'
+      # The mascots' parts JSON (app and server copies) is generated: it must match scripts/mascot-parts.mjs.
+      - name: Mascot parts up to date
+        if: needs.changes.outputs.app != 'false'
+        run: node scripts/mascot-parts.mjs --check
       # A t() (or date/number format) computed when a module loads stays in the first language (docs/I18N.md).
       - name: No translation at module load
         if: needs.changes.outputs.app != 'false'

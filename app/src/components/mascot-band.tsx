@@ -1,0 +1,49 @@
+// The group shot: the whole band points at Bulle, who jumps out of their skin ("personne n'est à l'abri").
+// The only place where several mascots share a screen.
+import { memo, useState } from 'react';
+import { type StyleProp, View, type ViewStyle } from 'react-native';
+
+import { Mascot } from '@/components/mascot';
+import type { Pose, Who } from '@/lib/mascot';
+
+// [who, pose, size, left, bottom, z] in a 850 × 270 stage: legs do half the acting.
+const CAST: [Who, Pose | 'caught', number, number, number, number][] = [
+  ['pave', { eyes: 'squint', brows: 'sus', mouth: 'smirk', arms: ['rest', 'point'], legs: ['wide', 'wide'], tilt: 4, dx: -10 }, 225, 0, 6, 6],
+  ['zeste', { eyes: 'squint', brows: 'up', mouth: 'grin', arms: ['rest', 'aim'], legs: ['wide', 'wide'], tilt: 6, dx: -8 }, 200, 140, 74, 4],
+  ['bulle', 'caught', 260, 280, 10, 3],
+  ['paillette', { eyes: 'open', brows: 'up', mouth: 'gasp', arms: ['aim', 'rest'], legs: ['tiptoe', 'tiptoe'], tilt: -6, dx: 8 }, 200, 485, 74, 4],
+  ['roupi', { eyes: 'lazy', mouth: 'smirk', arms: ['point', 'rest'], legs: ['sit', 'sit'], tilt: -2, dx: 10 }, 225, 625, 6, 6],
+];
+const W = 850;
+const H = 270;
+
+/** The five friends, about a third as tall as wide: `width` px, or as wide as its container (at most `max`). */
+export const MascotBand = memo(function MascotBand({ width, max = 460, style }: { width?: number; max?: number; style?: StyleProp<ViewStyle> }) {
+  const [measured, setMeasured] = useState(0);
+  const w = width ?? Math.min(measured, max);
+  const k = w / W;
+  return (
+    <View
+      onLayout={width ? undefined : (e) => setMeasured(Math.round(e.nativeEvent.layout.width))}
+      style={[width ? { width } : { alignSelf: 'stretch', alignItems: 'center' }, { height: (width ?? Math.min(measured || max, max)) * (H / W) }, style]}
+      pointerEvents="none"
+      aria-hidden
+      importantForAccessibility="no-hide-descendants"
+      accessibilityElementsHidden>
+      {w > 0 && (
+        <View style={{ width: w, height: H * k }}>
+          {CAST.map(([who, mood, size, left, bottom, z]) => (
+            <Mascot
+              key={who}
+              who={who}
+              mood={mood}
+              size={size * k}
+              motion={mood === 'caught' ? 'caught' : 'accuse'}
+              style={{ position: 'absolute', left: left * k, bottom: bottom * k, zIndex: z }}
+            />
+          ))}
+        </View>
+      )}
+    </View>
+  );
+});
