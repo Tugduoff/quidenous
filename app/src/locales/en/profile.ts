@@ -38,4 +38,8 @@ export const profile: Messages['profile'] = {
   notifications: 'Notifications',
   security: 'Security',
   signOut: 'Sign out',
+  donate: {
+    title: 'Buy us a coffee ☕',
+    line: 'The app is free, with no ads and no tracking, made by friends. A coffee helps pay for the server.',
+  },
 };

@@ -38,4 +38,9 @@ export const profile = {
   notifications: 'Notifications',
   security: 'Sécurité',
   signOut: 'Se déconnecter',
+  /** Discreet footer link to the donation page (web and sideloaded APK only, docs/DONATE.md). */
+  donate: {
+    title: 'Offrir un café ☕',
+    line: 'L\'app est gratuite, sans pub ni pistage, faite entre amis. Un café aide à payer le serveur.',
+  },
 };

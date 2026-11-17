@@ -133,6 +133,8 @@ export function useFeatures() {
     reorder: on.has('reorder'),
     /** Choose questions (wire people to items). */
     choose: on.has('choose'),
+    /** A "buy us a coffee" page (`/donate`, docs/DONATE.md); shown only on the web and the sideloaded APK. */
+    donate: on.has('donate'),
     /** Change e-mail, 2FA reset by e-mail, `email_failed` (docs/AUTH.md). */
     accountRecovery: on.has('account_recovery'),
     /** Deleting chat messages, removing asked questions, reports an admin reviews, locking a party. */
