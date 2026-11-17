@@ -46,4 +46,10 @@ export const questions: Messages['questions'] = {
   deleteQuestion: 'Delete question',
   deleteTitle: 'Delete this question?',
   deleteBody: '“{text}”\nIt’ll never be asked.',
+  moveFirst: 'To the top',
+  moveLast: 'To the end',
+  movedFirst: { one: '{count} moved to the top', other: '{count} moved to the top' },
+  movedLast: { one: '{count} moved to the end', other: '{count} moved to the end' },
+  deleteSelectedTitle: { one: 'Delete this question?', other: 'Delete {count} questions?' },
+  deleteSelectedOthers: { one: "{count} other isn't yours and stays.", other: "{count} others aren't yours and stay." },
 };

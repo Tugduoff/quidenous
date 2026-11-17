@@ -62,6 +62,10 @@ Pack item (lists, creator page, mine):
   not when `removed`/`deleted` (`403 pack_removed`). Changed questions → `version + 1`, `updated_at`. Same validation as publish.
   A pack an admin approved after reports (`approved_at`, migration 0033) goes back to `review` when its name, description or questions change.
 - `DELETE /packs/{id}` → author: `status = 'deleted'`.
+- `POST /packs/delete { ids: [id] }` → `{ deleted: [id], skipped: [{ id, error: "not_author" }] }` (feature `batch_delete`):
+  several of my packs in one transaction, each like `DELETE /packs/{id}` (one in review keeps `deleted_in_review`; one already
+  deleted counts as deleted). Partial success: someone else's or a missing pack is skipped (`not_author`) and the rest still goes;
+  both lists in request order, a repeated id counted once. 100 ids at most (`400 too_many`).
 - `GET /packs/mine` → my packs that are not `deleted` (public, review, removed with its reason), newest first.
 - `POST /packs/{id}/install` → `{ added, skipped, installed: true }`. Into the `X-Room` room (questions_by rule as before).
   Public packs (or the author's own). Counts once per room: `pack_installs` insert-or-ignore, `installs` recounted.

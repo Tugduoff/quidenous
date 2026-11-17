@@ -48,4 +48,12 @@ export const questions = {
   deleteQuestion: 'Supprimer la question',
   deleteTitle: 'Supprimer cette question ?',
   deleteBody: '« {text} »\nElle ne sera jamais posée.',
+  /** Several ticked questions: the selection's bar, then the status line. */
+  moveFirst: 'En premier',
+  moveLast: 'En dernier',
+  movedFirst: { one: '{count} question remontée', other: '{count} questions remontées' },
+  movedLast: { one: '{count} question mise à la fin', other: '{count} questions mises à la fin' },
+  deleteSelectedTitle: { one: 'Supprimer cette question\u00a0?', other: 'Supprimer {count} questions\u00a0?' },
+  /** Ticked, but someone else's: the batch delete leaves them. */
+  deleteSelectedOthers: { one: "{count} autre n'est pas à toi, elle reste.", other: '{count} autres ne sont pas à toi, elles restent.' },
 };

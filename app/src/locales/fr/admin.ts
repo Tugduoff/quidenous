@@ -24,4 +24,9 @@ export const admin = {
   suspendBody: 'Déconnecté partout, et plus de connexion possible.',
   eraseTitle: 'Effacer le compte de {name} ?',
   eraseBody: 'Ses messages et son compte sont supprimés. Irréversible.',
+  /** Several items of a list selected (components/selection.tsx). */
+  selected: {
+    removeTitle: { one: 'Retirer {count} pack ?', other: 'Retirer {count} packs ?' },
+    rejectTitle: { one: 'Refuser {count} suggestion ?', other: 'Refuser {count} suggestions ?' },
+  },
 };

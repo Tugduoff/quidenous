@@ -36,4 +36,13 @@ export const common: Messages['common'] = {
   members: { one: '{count} member', other: '{count} members' },
   /** In place of the name of someone whose account was deleted. */
   deletedAccount: 'Deleted account',
+  select: {
+    start: 'Select',
+    count: { one: '{count} selected', other: '{count} selected' },
+    all: 'Select all',
+    none: 'Deselect all',
+    cancel: 'Cancel selection',
+    item: 'Select {name}',
+    partial: '{done} of {count} done, try again for the rest',
+  },
 };

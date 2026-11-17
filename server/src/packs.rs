@@ -36,6 +36,12 @@ const LIST_MAX: i64 = 50;
 const DETAILS_MAX: usize = 500;
 /// `removed_reason` of a pack its author deleted while it was in review.
 const DELETED_IN_REVIEW: &str = "deleted_in_review";
+/// The author deletes a pack: `?1` DELETED_IN_REVIEW, `?2` the pack, `?3` the author. Deleted while
+/// in review: remembered (see `publish`).
+const DELETE_SQL: &str = "UPDATE packs SET removed_reason = CASE WHEN status = 'review' THEN ?1 ELSE removed_reason END, \
+     status = 'deleted' WHERE id = ?2 AND author_id = ?3";
+/// Most ids in one `POST /packs/delete`.
+const DELETE_MANY_MAX: usize = 100;
 const REASON_MAX: usize = 500;
 pub const MAX_TAGS: usize = 3;
 const REPORT_REASONS: [&str; 4] = ["offensive", "sexual", "spam", "other"];
@@ -976,20 +982,45 @@ pub async fn delete(
     UserId(me): UserId,
     Path(id): Path<i64>,
 ) -> AppResult<Json<Value>> {
-    // Deleted while in review: remembered (see `publish`).
-    let done = sqlx::query(
-        "UPDATE packs SET removed_reason = CASE WHEN status = 'review' THEN ?1 ELSE removed_reason END, \
-         status = 'deleted' WHERE id = ?2 AND author_id = ?3",
-    )
-    .bind(DELETED_IN_REVIEW)
-    .bind(id)
-    .bind(me)
-    .execute(&state.db)
-    .await?;
+    let done = sqlx::query(DELETE_SQL)
+        .bind(DELETED_IN_REVIEW)
+        .bind(id)
+        .bind(me)
+        .execute(&state.db)
+        .await?;
     if done.rows_affected() == 0 {
         return Err(AppError::Forbidden("not_author"));
     }
     Ok(Json(json!({ "ok": true })))
+}
+
+/// The author deletes several of their packs in one transaction, each like `DELETE /packs/{id}`
+/// (one already deleted counts as deleted). Someone else's or a missing one is skipped
+/// (`not_author`) and the rest still goes: `{deleted: [id], skipped: [{id, error}]}`, both in
+/// request order; 100 ids at most (`400 too_many`).
+pub async fn delete_many(
+    State(state): State<AppState>,
+    UserId(me): UserId,
+    Json(body): Json<crate::routes::IdsBody>,
+) -> AppResult<Json<Value>> {
+    let ids = body.distinct(DELETE_MANY_MAX)?;
+    let (mut deleted, mut skipped) = (Vec::new(), Vec::new());
+    let mut tx = crate::db::write_tx(&state.db).await?;
+    for id in ids {
+        let done = sqlx::query(DELETE_SQL)
+            .bind(DELETED_IN_REVIEW)
+            .bind(id)
+            .bind(me)
+            .execute(&mut *tx)
+            .await?;
+        if done.rows_affected() == 0 {
+            skipped.push(json!({ "id": id, "error": "not_author" }));
+        } else {
+            deleted.push(id);
+        }
+    }
+    tx.commit().await?;
+    Ok(Json(json!({ "deleted": deleted, "skipped": skipped })))
 }
 
 /// A creator's page: who they are and their public packs. 404 if none (unless it's me).

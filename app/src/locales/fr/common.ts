@@ -39,4 +39,16 @@ export const common = {
   members: { one: '{count} membre', other: '{count} membres' },
   /** In place of the name of someone whose account was deleted. */
   deletedAccount: 'Compte supprimé',
+  /** Picking several items of a list to act on them at once (components/selection.tsx). */
+  select: {
+    start: 'Sélectionner',
+    count: { one: '{count} sélectionné', other: '{count} sélectionnés' },
+    all: 'Tout sélectionner',
+    none: 'Tout désélectionner',
+    cancel: 'Annuler la sélection',
+    /** Screen readers, on a row while selecting. */
+    item: 'Sélectionner {name}',
+    /** After a batch action where some items could not be done. */
+    partial: '{done} sur {count} faits, réessaie pour le reste',
+  },
 };

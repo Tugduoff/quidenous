@@ -34,6 +34,8 @@ const PHOTO_UPLOAD_MAX: usize = 12 * 1024 * 1024;
 const IMPORT_MAX: usize = 1024 * 1024;
 /// More people than this named in one message counts as @tous.
 const MENTIONS_MAX: usize = 5;
+/// Most ids in one `POST /questions/delete`.
+const DELETE_QUESTIONS_MAX: usize = 200;
 
 pub fn router() -> Router<AppState> {
     Router::new()
@@ -110,6 +112,7 @@ pub fn router() -> Router<AppState> {
         )
         .route("/questions", post(add_question))
         .route("/questions/queue", get(queue).delete(clear_queue))
+        .route("/questions/delete", post(delete_questions))
         .route("/questions/shuffle", post(shuffle_questions))
         .route("/questions/order", post(order_questions))
         .route("/questions/ask", post(ask_questions))
@@ -127,6 +130,7 @@ pub fn router() -> Router<AppState> {
             get(crate::packs::list).post(crate::packs::publish),
         )
         .route("/packs/mine", get(crate::packs::mine))
+        .route("/packs/delete", post(crate::packs::delete_many))
         .route(
             "/packs/{id}",
             get(crate::packs::get)
@@ -268,6 +272,8 @@ async fn features(State(state): State<AppState>) -> Json<Value> {
         "anonymous_votes",
         // Le Tripot: bets with chips worth nothing (docs/TRIPOT.md).
         "tripot",
+        // Several questions or packs deleted in one request (`POST /questions/delete`, `/packs/delete`).
+        "batch_delete",
     ];
     if state.config.klipy.is_some() {
         f.push("chat_gifs");
@@ -1718,6 +1724,87 @@ async fn delete_question(
         .live
         .send(me.group_id, Event::QuestionAdded { question_id: id });
     Ok(Json(json!({ "ok": true })))
+}
+
+/// The body of a batch request: `POST /questions/delete`, `POST /packs/delete`.
+#[derive(Deserialize)]
+pub struct IdsBody {
+    ids: Vec<i64>,
+}
+
+impl IdsBody {
+    /// The ids, each once in request order: `400 too_many` past `max` (counted before removing doubles).
+    pub fn distinct(&self, max: usize) -> AppResult<Vec<i64>> {
+        if self.ids.len() > max {
+            return Err(AppError::BadRequest("too_many"));
+        }
+        let mut seen = std::collections::HashSet::new();
+        Ok(self
+            .ids
+            .iter()
+            .copied()
+            .filter(|id| seen.insert(*id))
+            .collect())
+    }
+}
+
+/// Deletes several questions not asked yet in one go, each by the rule of `DELETE /questions/{id}`
+/// (its author or the owner). The others are skipped and the rest still goes: `not_found` (none
+/// such in this room), `already_asked` (asked or open: retiring stays one by one), `not_author`.
+/// `{deleted: [id], skipped: [{id, error}]}`, both in request order; 200 ids at most (`400 too_many`).
+async fn delete_questions(
+    State(state): State<AppState>,
+    Me(me): Me,
+    Json(body): Json<IdsBody>,
+) -> AppResult<Json<Value>> {
+    let ids = body.distinct(DELETE_QUESTIONS_MAX)?;
+    let ids_json = serde_json::to_string(&ids).unwrap_or_else(|_| "[]".into());
+    // Checked and deleted in one write transaction: a vote can't open one of them in between.
+    let mut tx = crate::db::write_tx(&state.db).await?;
+    let rows: Vec<(i64, Option<i64>, bool)> = sqlx::query_as(concat!(
+        "SELECT q.id, q.author_id, ",
+        game::unused!(),
+        " FROM questions q WHERE q.group_id = ?1 AND q.id IN (SELECT value FROM json_each(?2))"
+    ))
+    .bind(me.group_id)
+    .bind(&ids_json)
+    .fetch_all(&mut *tx)
+    .await?;
+    let found: std::collections::HashMap<i64, (Option<i64>, bool)> =
+        rows.into_iter().map(|(id, a, u)| (id, (a, u))).collect();
+    let (mut deleted, mut skipped) = (Vec::new(), Vec::new());
+    for id in ids {
+        let error = match found.get(&id) {
+            None => Some("not_found"),
+            Some((_, false)) => Some("already_asked"),
+            Some((author, true)) if *author != Some(me.id) && me.role != "owner" => {
+                Some("not_author")
+            }
+            Some(_) => None,
+        };
+        match error {
+            Some(error) => skipped.push(json!({ "id": id, "error": error })),
+            None => deleted.push(id),
+        }
+    }
+    if !deleted.is_empty() {
+        let deleted_json = serde_json::to_string(&deleted).unwrap_or_else(|_| "[]".into());
+        // Challenges waiting on them go with them.
+        for sql in [
+            "DELETE FROM challenges WHERE question_id IN (SELECT value FROM json_each(?))",
+            "DELETE FROM questions WHERE id IN (SELECT value FROM json_each(?))",
+        ] {
+            sqlx::query(sql)
+                .bind(&deleted_json)
+                .execute(&mut *tx)
+                .await?;
+        }
+        tx.commit().await?;
+        state
+            .live
+            .send(me.group_id, Event::QuestionAdded { question_id: 0 });
+    }
+    Ok(Json(json!({ "deleted": deleted, "skipped": skipped })))
 }
 
 /// Owner only: deletes every upcoming question of the room (the ones `GET /questions/queue` lists:

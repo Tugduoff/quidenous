@@ -1,15 +1,16 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Cable, Check, FileUp, Lightbulb, ListX, Lock, MessageCircleQuestion, Package, Plus, Shuffle, Trash2, Trophy, X } from 'lucide-react-native';
+import { ArrowDownToLine, ArrowUpToLine, Cable, Check, FileUp, Lightbulb, ListX, Lock, MessageCircleQuestion, Package, Plus, Shuffle, Trash2, Trophy, X } from 'lucide-react-native';
 import { type ComponentRef, useEffect, useRef, useState } from 'react';
 import { Platform, Pressable, type ScrollView, Text, TextInput, View } from 'react-native';
-import Animated from 'react-native-reanimated';
+import Animated, { LayoutAnimationConfig } from 'react-native-reanimated';
 
 import { AnonymousMark, AnonymousToggle } from '@/components/anonymous';
 import { ModerationDialog, type ModTarget } from '@/components/moderation';
 import { ReorderList, useScrollTracker } from '@/components/reorder-list';
 import { QueryState } from '@/components/query-state';
 import { Screen } from '@/components/screen';
+import { confirmBatch, SelectableRow, SelectButton, SelectionBar, SelectionHeader, useSelection } from '@/components/selection';
 import { TemplateLink } from '@/components/template-link';
 import { Tip } from '@/components/tip';
 import { askConfirm, Avatar, Card, ConfirmModal, Display, PressableScale, QuestionText, Segmented, Toggle } from '@/components/ui';
@@ -191,6 +192,55 @@ export default function QuestionsScreen() {
   const sortable = canReorder && !locked && (data?.custom.length ?? 0) > 1;
   const othersQuestion = (q: Queue['custom'][number]) => q.author_id != null && q.author_id !== me?.id;
   const canDelete = (q: Queue['custom'][number]) => q.author_id === me?.id || group?.my_role === 'owner';
+  // Several at once: "Sélectionner" in the header (a hold already drags or reports), tick, then move or delete them.
+  // Without reordering on the server, only the questions I can delete can be ticked.
+  const canMove = canReorder && !locked;
+  const canDeleteMany = features.batchDelete && !locked;
+  const canSelect = canMove || canDeleteMany;
+  const selectable = data?.custom.filter((q) => canMove || canDelete(q)).map((q) => q.id);
+  const sel = useSelection(selectable);
+  const { cancel: leaveSelection } = sel;
+  // The room just locked its questions: back to the plain list.
+  useEffect(() => {
+    if (!canSelect) leaveSelection();
+  }, [canSelect, leaveSelection]);
+  // The ticked ones first or last, the others keep their order.
+  const moveSelected = (first: boolean) => {
+    if (!data || !sel.count) return;
+    const picked = new Set(sel.selected);
+    const rest = data.custom.map((q) => q.id).filter((id) => !picked.has(id));
+    const count = sel.count;
+    reordered(first ? [...sel.selected, ...rest] : [...rest, ...sel.selected]);
+    sel.cancel();
+    setImported(tr(first ? 'questions.movedFirst' : 'questions.movedLast', { count }));
+  };
+  const removeMany = useMutation({
+    meta: { quiet: true },
+    mutationFn: (ids: number[]) =>
+      api<{ deleted: number[]; skipped: { id: number; error: string }[] }>('/questions/delete', { method: 'POST', json: { ids } }),
+    onSuccess: (res, ids) =>
+      setImported(
+        res.skipped.length
+          ? tr('common.select.partial', { done: res.deleted.length, count: ids.length })
+          : tr('questions.cleared', { count: res.deleted.length }),
+      ),
+    onError: () => setImported(tr('common.failed')),
+    // Either way the outcome shows in the header's status line, which the selection hides.
+    onSettled: () => {
+      sel.cancel();
+      qc.invalidateQueries({ queryKey: keys.queue });
+      qc.invalidateQueries({ queryKey: keys.current });
+    },
+  });
+  // Someone else's question can be ticked to move it, not to delete it.
+  const mineSelected = sel.selected.filter((id) => data?.custom.some((q) => q.id === id && canDelete(q)));
+  const askDeleteSelected = async () => {
+    const count = mineSelected.length;
+    const others = sel.count - count;
+    if (!count) return;
+    const message = others ? tr('questions.deleteSelectedOthers', { count: others }) : undefined;
+    if (await confirmBatch(tr('questions.deleteSelectedTitle', { count }), tr('common.delete'), message)) removeMany.mutate(mineSelected);
+  };
   const rowActions = (q: Queue['custom'][number]) => [
     ...(othersQuestion(q) ? [{ name: 'report', label: tr('moderation.reportQuestion') }] : []),
     ...(canDelete(q) ? [{ name: 'delete', label: tr('questions.deleteQuestion') }] : []),
@@ -245,7 +295,35 @@ export default function QuestionsScreen() {
       scroller={scroller}
       onScroll={tracker.onScroll}
       onContentSizeChange={tracker.onContentSizeChange}
-      scrollEnabled={Platform.OS === 'web' || !dragging}>
+      scrollEnabled={Platform.OS === 'web' || !dragging}
+      // Only while selecting: the Screen keeps a padded strip for any footer.
+      footer={
+        sel.on ? (
+          <SelectionBar
+            sel={sel}
+            actions={[
+              ...(canMove
+                ? [
+                    { icon: ArrowUpToLine, label: tr('questions.moveFirst'), onPress: () => moveSelected(true) },
+                    { icon: ArrowDownToLine, label: tr('questions.moveLast'), onPress: () => moveSelected(false) },
+                  ]
+                : []),
+              ...(canDeleteMany
+                ? [
+                    {
+                      icon: Trash2,
+                      label: tr('common.delete'),
+                      tone: 'danger' as const,
+                      onPress: askDeleteSelected,
+                      disabled: !mineSelected.length,
+                      busy: removeMany.isPending,
+                    },
+                  ]
+                : []),
+            ]}
+          />
+        ) : undefined
+      }>
       <Display size={30}>{tr('questions.title')}</Display>
       {locked ? (
         <Card
@@ -275,7 +353,8 @@ export default function QuestionsScreen() {
           <BulkButton label={tr('community.entry')} icon={<Lightbulb size={16} color={t.txt} />} onPress={() => router.push('/suggest')} />
         </View>
       )}
-      {locked ? null : (
+      {/* While selecting, the list is all there is. */}
+      {locked || sel.on ? null : (
         <>
           <Tip id="questions" text={tr('questions.tip')} />
           {/* Write one: the add button beside the text, the kind under it, in the same card. */}
@@ -419,7 +498,7 @@ export default function QuestionsScreen() {
           {features.packTemplate && <TemplateLink style={{ alignSelf: 'center', marginTop: -6 }} />}
         </>
       )}
-      {draft && (
+      {draft && !sel.on && (
         <Card style={{ padding: 16, gap: 12 }}>
           <View
             style={{
@@ -550,88 +629,110 @@ export default function QuestionsScreen() {
           </View>
         </Card>
       )}
-      {/* What's coming: count, last action, shuffle. */}
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 }}>
-        <Text style={{ fontFamily: t.font.bold, fontSize: 18, color: t.txt }}>{tr('questions.upcoming')}</Text>
-        <View style={{ paddingHorizontal: 8, height: 22, borderRadius: 11, justifyContent: 'center', backgroundColor: t.card2 }}>
-          <Text style={{ fontFamily: t.font.semibold, fontSize: 12, color: t.mut }}>{data?.custom.length ?? 0}</Text>
+      {/* What's coming: count, last action, shuffle, select; while selecting, how many are ticked. */}
+      {sel.on ? (
+        <View style={{ marginTop: 6 }}>
+          <SelectionHeader sel={sel} />
         </View>
-        <Text numberOfLines={1} style={{ flex: 1, fontFamily: t.font.regular, fontSize: 13, color: t.mut }}>
-          {imported ?? ''}
-        </Text>
-        {!locked && (data?.custom.length ?? 0) > 1 && (
-          <PressableScale
-            accessibilityRole="button"
-            accessibilityLabel={tr('questions.shuffleUpcoming')}
-            disabled={shuffle.isPending}
-            onPress={() => shuffle.mutate()}
-            hitSlop={8}
-            style={{
-              width: 36,
-              height: 36,
-              borderRadius: 18,
-              alignItems: 'center',
-              justifyContent: 'center',
-              backgroundColor: t.accSoft,
-              opacity: shuffle.isPending ? 0.5 : 1,
-            }}>
-            <Shuffle size={18} color={t.accInk} />
-          </PressableScale>
-        )}
-        {clearQueue && group?.my_role === 'owner' && (data?.custom.length ?? 0) > 0 && (
-          <PressableScale
-            accessibilityRole="button"
-            accessibilityLabel={tr('questions.clearQueue')}
-            disabled={clear.isPending}
-            onPress={askClear}
-            hitSlop={8}
-            style={{
-              width: 36,
-              height: 36,
-              borderRadius: 18,
-              alignItems: 'center',
-              justifyContent: 'center',
-              backgroundColor: t.card2,
-              opacity: clear.isPending ? 0.5 : 1,
-            }}>
-            <ListX size={18} color={t.mut} />
-          </PressableScale>
-        )}
-      </View>
-      <QueryState query={queue} />
-      {/* Hold a question to drag it elsewhere; held and let go on someone else's: report it. */}
-      {sortable && data ? (
-        <ReorderList
-          items={data.custom}
-          render={row}
-          isNew={isNew}
-          scroller={scroller}
-          tracker={tracker}
-          onDragChange={setDragging}
-          onReorder={reordered}
-          onStill={(id) => {
-            const q = data.custom.find((x) => x.id === id);
-            if (q && othersQuestion(q)) setToReport({ kind: 'question', id });
-          }}
-        />
       ) : (
-        // Deleting one closes the gap and shuffling slides every card to its new place.
-        data?.custom.map((q) => (
-          <Animated.View key={q.id} entering={isNew(q.id) ? motion.enter : undefined} exiting={motion.exit} layout={motion.layout}>
-            <Pressable
-              delayLongPress={400}
-              onLongPress={othersQuestion(q) ? () => setToReport({ kind: 'question', id: q.id }) : undefined}
-              // Screen readers can't long-press: the report (and the delete button inside the row) as actions.
-              accessibilityActions={rowActions(q)}
-              onAccessibilityAction={(e) => {
-                if (e.nativeEvent.actionName === 'report') setToReport({ kind: 'question', id: q.id });
-                if (e.nativeEvent.actionName === 'delete') setToDelete(q);
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 }}>
+          <Text style={{ fontFamily: t.font.bold, fontSize: 18, color: t.txt }}>{tr('questions.upcoming')}</Text>
+          <View style={{ paddingHorizontal: 8, height: 22, borderRadius: 11, justifyContent: 'center', backgroundColor: t.card2 }}>
+            <Text style={{ fontFamily: t.font.semibold, fontSize: 12, color: t.mut }}>{data?.custom.length ?? 0}</Text>
+          </View>
+          <Text numberOfLines={1} style={{ flex: 1, fontFamily: t.font.regular, fontSize: 13, color: t.mut }}>
+            {imported ?? ''}
+          </Text>
+          {!locked && (data?.custom.length ?? 0) > 1 && (
+            <PressableScale
+              accessibilityRole="button"
+              accessibilityLabel={tr('questions.shuffleUpcoming')}
+              disabled={shuffle.isPending}
+              onPress={() => shuffle.mutate()}
+              hitSlop={8}
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 18,
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: t.accSoft,
+                opacity: shuffle.isPending ? 0.5 : 1,
               }}>
-              {row(q)}
-            </Pressable>
-          </Animated.View>
-        ))
+              <Shuffle size={18} color={t.accInk} />
+            </PressableScale>
+          )}
+          {clearQueue && group?.my_role === 'owner' && (data?.custom.length ?? 0) > 0 && (
+            <PressableScale
+              accessibilityRole="button"
+              accessibilityLabel={tr('questions.clearQueue')}
+              disabled={clear.isPending}
+              onPress={askClear}
+              hitSlop={8}
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 18,
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: t.card2,
+                opacity: clear.isPending ? 0.5 : 1,
+              }}>
+              <ListX size={18} color={t.mut} />
+            </PressableScale>
+          )}
+          {canSelect && !!selectable?.length && <SelectButton size={36} onPress={() => sel.start()} />}
+        </View>
       )}
+      <QueryState query={queue} />
+      {/* Hold a question to drag it elsewhere; held and let go on someone else's: report it.
+          Selecting swaps it for the plain list (and back) at once: the old list's rows don't fade out. */}
+      {sortable && data && !sel.on ? (
+        <LayoutAnimationConfig skipExiting>
+          <View>
+            <ReorderList
+              items={data.custom}
+              render={row}
+              isNew={isNew}
+              scroller={scroller}
+              tracker={tracker}
+              onDragChange={setDragging}
+              onReorder={reordered}
+              onStill={(id) => {
+                const q = data.custom.find((x) => x.id === id);
+                if (q && othersQuestion(q)) setToReport({ kind: 'question', id });
+              }}
+            />
+          </View>
+        </LayoutAnimationConfig>
+      ) : data ? (
+        <LayoutAnimationConfig skipExiting>
+          <View style={{ gap: 16 }}>
+            {/* Deleting one closes the gap and shuffling slides every card to its new place. */}
+            {data.custom.map((q) => (
+              <Animated.View key={q.id} entering={isNew(q.id) ? motion.enter : undefined} exiting={motion.exit} layout={motion.layout}>
+                {sel.on ? (
+                  <SelectableRow sel={sel} id={q.id} label={tidy(q.text)} disabled={!selectable?.includes(q.id)}>
+                    {row(q)}
+                  </SelectableRow>
+                ) : (
+                  <Pressable
+                    delayLongPress={400}
+                    onLongPress={othersQuestion(q) ? () => setToReport({ kind: 'question', id: q.id }) : undefined}
+                    // Screen readers can't long-press: the report (and the delete button inside the row) as actions.
+                    accessibilityActions={rowActions(q)}
+                    onAccessibilityAction={(e) => {
+                      if (e.nativeEvent.actionName === 'report') setToReport({ kind: 'question', id: q.id });
+                      if (e.nativeEvent.actionName === 'delete') setToDelete(q);
+                    }}>
+                    {row(q)}
+                  </Pressable>
+                )}
+              </Animated.View>
+            ))}
+          </View>
+        </LayoutAnimationConfig>
+      ) : null}
       <ModerationDialog target={toReport} onClose={() => setToReport(null)} />
       <ConfirmModal
         visible={!!toDelete}
