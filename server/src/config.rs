@@ -52,6 +52,24 @@ pub struct Config {
     /// `KLIPY_API_KEY` (+ `KLIPY_CONTENT_FILTER`, `KLIPY_API_BASE`): GIFs in the chat through Klipy
     /// (docs/CHAT_MEDIA.md). Absent: no `chat_gifs` feature, the GIF routes answer `404 gifs_off`.
     pub klipy: Option<Klipy>,
+    /// `DONATION_URL`: an `https://` page where people can buy the team a coffee (docs/DONATE.md).
+    /// Set: `donate` in `/api/features` and `GET /api/donate` gives the URL. Not https: ignored, warned.
+    pub donation_url: Option<String>,
+    /// `DONATION_URL` was set but rejected (warned about at start-up).
+    pub donation_url_rejected: bool,
+}
+
+/// A donation page URL the app may open: `https://host...`, no spaces or control characters, at most
+/// 2048 bytes. Anything else is `None`.
+pub fn donation_url(raw: &str) -> Option<String> {
+    let raw = raw.trim();
+    let rest = raw.strip_prefix("https://")?;
+    let host = rest.split(['/', '?', '#']).next()?;
+    let ok = raw.len() <= 2048
+        && !host.is_empty()
+        && !host.contains('@')
+        && !raw.chars().any(|c| c.is_whitespace() || c.is_control());
+    ok.then(|| raw.to_owned())
 }
 
 /// `x.y.z` (a leading `v`, a missing part or a `-suffix` tolerated) as numbers to compare.
@@ -136,6 +154,11 @@ impl Config {
                 "UPDATES_CERTIFICATE is not set: over-the-air updates are published without a signature check (set it to the code signing certificate the apps embed)",
             );
         }
+        if self.donation_url_rejected {
+            out.push(
+                "DONATION_URL is not an https:// URL: ignored, the app shows no donation link",
+            );
+        }
         if self.client_errors_webhook.is_none() {
             out.push("CLIENT_ERRORS_WEBHOOK is not set: app crash reports only go to the log");
         }
@@ -210,7 +233,11 @@ impl Config {
             }),
             _ => None,
         };
+        let donation_raw = var("DONATION_URL");
+        let donation_url = donation_raw.as_deref().and_then(donation_url);
         Self {
+            donation_url_rejected: donation_raw.is_some() && donation_url.is_none(),
+            donation_url,
             port: env::var("PORT")
                 .ok()
                 .and_then(|p| p.parse().ok())
