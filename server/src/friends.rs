@@ -389,6 +389,14 @@ pub async fn add_to_room(
         _ => {}
     }
     crate::rooms::seat_free(&state.db, room).await?;
+    // An invitation they accepted before (kept for a double tap, `accept_invite`) gives way to this one.
+    sqlx::query(
+        "DELETE FROM room_invites WHERE group_id = ? AND user_id = ? AND member_id IS NOT NULL",
+    )
+    .bind(room)
+    .bind(other)
+    .execute(&state.db)
+    .await?;
     let new = sqlx::query(
         "INSERT OR IGNORE INTO room_invites (group_id, user_id, from_id) VALUES (?, ?, ?)",
     )
@@ -443,7 +451,7 @@ pub async fn invites(State(state): State<AppState>, UserId(me): UserId) -> AppRe
          (SELECT COUNT(*) FROM members m WHERE m.group_id = i.group_id AND m.removed_at IS NULL), \
          i.created_at, u.id, u.name, u.color, u.photo, u.avatar \
          FROM room_invites i JOIN groups g ON g.id = i.group_id JOIN users u ON u.id = i.from_id \
-         WHERE i.user_id = ? AND ",
+         WHERE i.user_id = ? AND i.member_id IS NULL AND ",
         invite_valid!(),
         " ORDER BY i.id DESC"
     ))
@@ -469,18 +477,11 @@ pub async fn accept_invite(
     Account(me): Account,
     Path(id): Path<i64>,
 ) -> AppResult<Json<Value>> {
-    // Which room, read first: a double tap's second request finds the invitation already used.
-    let room: i64 =
-        sqlx::query_scalar("SELECT group_id FROM room_invites WHERE id = ? AND user_id = ?")
-            .bind(id)
-            .bind(me)
-            .fetch_optional(&state.db)
-            .await?
-            .ok_or(AppError::NotFound)?;
-    // Everything else checked in the write transaction.
+    // All in the write transaction, the invitation included: a double tap's second request waits for the first one
+    // and then finds the invitation accepted (not gone: it keeps the seat it gave, for this answer).
     let mut tx = crate::db::write_tx(&state.db).await?;
-    let invite: Option<(i64, bool)> = sqlx::query_as(concat!(
-        "SELECT i.from_id, ",
+    let invite: Option<(i64, i64, Option<i64>, bool)> = sqlx::query_as(concat!(
+        "SELECT i.group_id, i.from_id, i.member_id, ",
         invite_valid!(),
         " FROM room_invites i WHERE i.id = ? AND i.user_id = ?"
     ))
@@ -488,6 +489,24 @@ pub async fn accept_invite(
     .bind(me)
     .fetch_optional(&mut *tx)
     .await?;
+    let Some((room, from, accepted, valid)) = invite else {
+        return Err(AppError::NotFound);
+    };
+    if let Some(member_id) = accepted {
+        // Already accepted (the first tap): the same answer, as long as I still sit in that room.
+        let seated: bool = sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM members m JOIN groups g ON g.id = m.group_id \
+             WHERE m.id = ? AND m.removed_at IS NULL AND g.deleted_at IS NULL)",
+        )
+        .bind(member_id)
+        .fetch_one(&mut *tx)
+        .await?;
+        return if seated {
+            Ok(Json(json!({ "room_id": room, "member_id": member_id })))
+        } else {
+            Err(AppError::NotFound)
+        };
+    }
     let existing: Option<(i64, Option<String>, bool)> = sqlx::query_as(
         "SELECT id, removed_at, left_by_self FROM members WHERE group_id = ? AND user_id = ?",
     )
@@ -495,16 +514,13 @@ pub async fn accept_invite(
     .bind(me)
     .fetch_optional(&mut *tx)
     .await?;
-    let Some((from, valid)) = invite else {
-        // The first tap already took the seat: the same answer.
-        return match existing {
-            Some((member_id, None, _)) => {
-                Ok(Json(json!({ "room_id": room, "member_id": member_id })))
-            }
-            _ => Err(AppError::NotFound),
-        };
-    };
     let drop_invite = || sqlx::query("DELETE FROM room_invites WHERE id = ?").bind(id);
+    // Accepted: kept with its seat, for a second tap.
+    let accept = |member_id: i64| {
+        sqlx::query("UPDATE room_invites SET member_id = ? WHERE id = ?")
+            .bind(member_id)
+            .bind(id)
+    };
     if !valid {
         drop_invite().execute(&mut *tx).await?;
         tx.commit().await?;
@@ -520,7 +536,7 @@ pub async fn accept_invite(
     .await?;
     let member_id = match existing {
         Some((member_id, None, _)) => {
-            drop_invite().execute(&mut *tx).await?;
+            accept(member_id).execute(&mut *tx).await?;
             tx.commit().await?;
             return Ok(Json(json!({ "room_id": room, "member_id": member_id })));
         }
@@ -560,7 +576,7 @@ pub async fn accept_invite(
             .await?
         }
     };
-    drop_invite().execute(&mut *tx).await?;
+    accept(member_id).execute(&mut *tx).await?;
     sqlx::query("UPDATE users SET last_group_id = ? WHERE id = ?")
         .bind(room)
         .bind(me)
@@ -599,7 +615,7 @@ pub async fn room_invites(
 ) -> AppResult<Json<Value>> {
     seat(&state, me, room).await?;
     let ids: Vec<i64> = sqlx::query_scalar(concat!(
-        "SELECT i.user_id FROM room_invites i WHERE i.group_id = ? AND ",
+        "SELECT i.user_id FROM room_invites i WHERE i.group_id = ? AND i.member_id IS NULL AND ",
         invite_valid!(),
         " ORDER BY i.id"
     ))
