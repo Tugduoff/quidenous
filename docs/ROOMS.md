@@ -47,7 +47,7 @@ Settings per room: majority skip on/off, majority removal on/off, who can add or
 
 ## Chat reactions
 
-Feature `chat_reactions`. Any member reacts to a chat message under a finished question with one of ❤️ 😂 😮 😢 👍 🔥 (a bare `❤` counts as `❤️`; anything else `400 bad_emoji`), once per emoji (`message_reactions`, `0038`).
+Feature `chat_reactions`. Any member reacts to a chat message under a finished question with one of ❤️ 😂 😮 😢 👍 🔥 (a bare `❤` counts as `❤️`; anything else `400 bad_emoji`), once per emoji (`message_reactions`, `0039`).
 
 - `POST /messages/{id}/reactions` `{emoji}` adds mine, `DELETE` with the same body takes it back; both idempotent and both answer `{message_id, reactions}`. `404 not_found` for a message of another room, under an open question, hidden by reports, or by someone I blocked.
 - Every message (`GET /rounds/{id}/messages`, the `POST` answer) carries `reactions: [{emoji, count, mine, members}]`: emojis in the order above, only those used, `members` oldest first, without the people I blocked.
