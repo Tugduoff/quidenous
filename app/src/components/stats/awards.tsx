@@ -18,6 +18,8 @@ type UnitKey = 'votes' | 'wins' | 'nightVotes' | 'messages' | 'nudges' | 'questi
 
 const n = (v: number, unit: UnitKey) => ({ big: int(v), unit: t(`stats.unit.${unit}`, { count: v }) });
 const quip = (key: string) => t(`stats.quip.${key}` as TKey);
+/** "Léa Martin" → "Léa": two names fit on the award's one line. */
+const first = (name: string) => name.trim().split(/\s+/)[0] || name;
 
 /** Single-person awards: the figure and its unit, from its value (and total, for ratios). */
 const SOLO: Record<string, (a: Award) => { big: string; unit: string }> = {
@@ -60,7 +62,7 @@ export function awardGroups(s: Stats, name: Name) {
       ? {
           key,
           ids: [d.voter_id, d.target_id],
-          who: t('stats.forWhom', { a: name(d.voter_id), b: name(d.target_id) }),
+          who: t('stats.forWhom', { a: first(name(d.voter_id)), b: first(name(d.target_id)) }),
           big: unit(d)[0],
           unit: unit(d)[1],
           quip: quip(key),
@@ -71,7 +73,7 @@ export function awardGroups(s: Stats, name: Name) {
       ? {
           key: 'twins',
           ids: [p.a_id, p.b_id],
-          who: t('stats.pair', { a: name(p.a_id), b: name(p.b_id) }),
+          who: t('stats.pair', { a: first(name(p.a_id)), b: first(name(p.b_id)) }),
           big: `${p.value}/${p.total}`,
           unit: t('stats.unit.sameVotes'),
           quip: quip('twins'),
@@ -150,7 +152,9 @@ function AwardCard({ item, byId, onOpen, index }: { item: Item; byId: Map<number
         <View style={{ flex: 1, gap: 3 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
             <Icon size={13} color={tint} strokeWidth={2.5} />
-            <Caps size={11}>{title}</Caps>
+            <Caps size={11} lines={2}>
+              {title}
+            </Caps>
           </View>
           <Text numberOfLines={1} style={{ fontFamily: t.font.bold, fontSize: 16, color: t.txt }}>
             {item.who}
@@ -193,7 +197,9 @@ function QuestionCard({ k, q, index }: { k: string; q: QuestionRef; index: numbe
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           <Icon size={13} color={t.accInk} strokeWidth={2.5} />
           <View style={{ flex: 1 }}>
-            <Caps size={11}>{awardTitle(k)}</Caps>
+            <Caps size={11} lines={2}>
+              {awardTitle(k)}
+            </Caps>
           </View>
           <Text style={{ fontFamily: t.font.semibold, fontSize: 12, color: t.mut }}>#{q.number}</Text>
           <ChevronRight size={16} color={t.mut} />
