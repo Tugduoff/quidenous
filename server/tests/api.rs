@@ -1017,6 +1017,18 @@ async fn owner_powers_and_settings() {
     assert_eq!(s, StatusCode::OK);
     let (_, g) = call(&app, "GET", "/group", Some(&ana), None).await;
     assert_eq!(g["my_role"], "member");
+    // A late second tap of the same hand-over (the first one already committed) is a no-op, not a 403.
+    let (s, b) = call(
+        &app,
+        "POST",
+        &format!("/rooms/{room}/owner"),
+        Some(&ana),
+        Some(json!({ "member_id": bob_id })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{b}");
+    let (_, g) = call(&app, "GET", "/group", Some(&bob), None).await;
+    assert_eq!(g["my_role"], "owner");
     // Delete: gone for everyone.
     let (s, _) = call(&app, "DELETE", &format!("/rooms/{room}"), Some(&ana), None).await;
     assert_eq!(s, StatusCode::FORBIDDEN);
