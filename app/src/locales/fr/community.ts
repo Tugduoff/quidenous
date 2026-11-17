@@ -7,9 +7,8 @@ export const community = {
     label: 'Une question pour tout le monde',
     placeholder: 'Qui de nous…',
     placeholderRank: 'Classe-nous du plus… au moins…',
-    ranking: 'Classement',
     send: 'Envoyer la proposition',
-    left: "{left}/{max} aujourd'hui",
+    left: { zero: "Plus aucune aujourd'hui", one: "{count} restante aujourd'hui", other: "{count} restantes aujourd'hui" },
     sent: 'Envoyée, place au vote',
   },
   vote: {

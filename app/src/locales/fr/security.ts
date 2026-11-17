@@ -77,6 +77,8 @@ export const security = {
     copyKey: 'Copier la clé',
     shareKey: 'Partager la clé',
     openApp: "Ouvrir l'app d'authentification",
+    /** Above the QR code while setting it up. */
+    scan: "Scanne le QR avec ton appli d'authentification, puis entre le code",
     enable: 'Activer',
     disable: 'Désactiver',
     on: 'Activée',

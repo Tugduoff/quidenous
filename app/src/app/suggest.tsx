@@ -17,7 +17,6 @@ import {
   type Suggestion,
   SUGGESTION_MAX,
   SUGGESTION_MIN,
-  SUGGESTIONS_PER_DAY,
   type SuggestionVote,
   useMySuggestions,
   useNextSuggestions,
@@ -88,11 +87,11 @@ function Compose({ left }: { left: number | undefined }) {
           style={{ minHeight: 76, padding: 16, paddingBottom: 6, fontFamily: t.font.regular, fontSize: 16, color: t.txt, textAlignVertical: 'top' }}
         />
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingLeft: 16, paddingRight: 10 }}>
-          <Toggle icon={Trophy} label={tr('community.compose.ranking')} value={rank} onChange={setRank} />
+          <Toggle icon={Trophy} label={tr('vote.kind.rank')} value={rank} onChange={setRank} />
           <View style={{ flex: 1 }} />
           {left != null && (
             <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: t.font.semibold, fontSize: 13, color: out ? t.tagInk : t.mut }}>
-              {tr('community.compose.left', { left, max: SUGGESTIONS_PER_DAY })}
+              {tr('community.compose.left', { count: left })}
             </Text>
           )}
           <PressableScale

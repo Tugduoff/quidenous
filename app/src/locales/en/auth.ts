@@ -6,6 +6,7 @@ export const auth: Messages['auth'] = {
   emailLabel: 'Email',
   name: 'First name',
   password: 'Password',
+  minLength: 'At least {min} characters',
   newPassword: 'Password ({min} min.)',
   validate: 'Confirm',
   resend: 'Resend',
