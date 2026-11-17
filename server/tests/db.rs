@@ -229,6 +229,15 @@ async fn hot_lookups_use_indexes_and_writes_sync_less() {
             "SELECT COUNT(*) FROM inbox WHERE member_id = 1 AND read_at IS NULL",
             "inbox_unread",
         ),
+        // Erasing an account, the guest purge.
+        (
+            "DELETE FROM messages WHERE member_id IN (SELECT id FROM members WHERE user_id = 1)",
+            "messages_member",
+        ),
+        (
+            "DELETE FROM inbox WHERE actor_id IN (SELECT id FROM members WHERE user_id = 1)",
+            "inbox_actor",
+        ),
     ] {
         let p = plan(sql).await;
         assert!(p.contains(index), "{sql}: {p}");
@@ -410,4 +419,63 @@ async fn the_csv_export_dates_questions_in_the_readers_time_zone() {
     .await;
     assert_eq!(s, StatusCode::OK);
     assert_eq!(date(export(&app, &a, None).await), "2026-01-02");
+}
+
+/// The hourly prune keeps the inbox bounded: 90 days, and a seat's latest 200 entries.
+#[tokio::test]
+async fn the_inbox_is_pruned_by_age_and_per_seat() {
+    let (app, state) = setup().await;
+    let (_, ana) = join(&app, "Ana").await;
+    let (_, bob) = join(&app, "Bob").await;
+    let add = |member: i64, n: i64, age: &'static str| {
+        let db = state.db.clone();
+        async move {
+            sqlx::query(
+                "WITH RECURSIVE k(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM k WHERE i < ?2) \
+                 INSERT INTO inbox (member_id, kind, text, created_at) \
+                 SELECT ?1, 'nudge', 'x' || i, strftime('%Y-%m-%dT%H:%M:%fZ', 'now', ?3) FROM k",
+            )
+            .bind(member)
+            .bind(n)
+            .bind(age)
+            .execute(&db)
+            .await
+            .unwrap();
+        }
+    };
+    sqlx::query("DELETE FROM inbox")
+        .execute(&state.db)
+        .await
+        .unwrap();
+    // Ana: 5 entries from 100 days ago, 3 recent. Bob: 250 recent.
+    add(ana, 5, "-100 days").await;
+    add(ana, 3, "-1 day").await;
+    add(bob, 250, "-1 hour").await;
+    let newest_bob: i64 = sqlx::query_scalar("SELECT MAX(id) FROM inbox WHERE member_id = ?")
+        .bind(bob)
+        .fetch_one(&state.db)
+        .await
+        .unwrap();
+    let pruned = quidenous_server::inbox::prune(&state.db).await.unwrap();
+    assert_eq!(pruned, 5 + 50);
+    let count = |member: i64| {
+        let db = state.db.clone();
+        async move {
+            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM inbox WHERE member_id = ?")
+                .bind(member)
+                .fetch_one(&db)
+                .await
+                .unwrap()
+        }
+    };
+    assert_eq!(count(ana).await, 3);
+    assert_eq!(count(bob).await, 200);
+    // The newest ones stay.
+    let kept: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM inbox WHERE id = ?")
+        .bind(newest_bob)
+        .fetch_one(&state.db)
+        .await
+        .unwrap();
+    assert_eq!(kept, 1);
+    assert_eq!(quidenous_server::inbox::prune(&state.db).await.unwrap(), 0);
 }

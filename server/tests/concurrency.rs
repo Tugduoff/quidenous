@@ -327,8 +327,21 @@ async fn deleting_the_question_that_is_opening_is_clean() {
         assert_eq!(results[0].0, StatusCode::OK, "{}", results[0].1);
         let (_, opened) = open_round(&state, room).await.unwrap();
         match results[1].0 {
-            // The owner may remove an asked question too: it is then retired (kept in history), not deleted.
-            StatusCode::OK if results[1].1["retired"] == true => assert_eq!(opened, qid),
+            // The owner may remove an asked question too: it is then retired (kept in history), not
+            // deleted, and its open question closes with no result: the next one is open.
+            StatusCode::OK if results[1].1["retired"] == true => {
+                assert_ne!(opened, qid);
+                let (closed, votes): (bool, i64) = sqlx::query_as(
+                    "SELECT r.closed_at IS NOT NULL, (SELECT COUNT(*) FROM votes v WHERE v.round_id = r.id) \
+                     FROM rounds r WHERE r.group_id = ? AND r.question_id = ?",
+                )
+                .bind(room)
+                .bind(qid)
+                .fetch_one(&state.db)
+                .await
+                .unwrap();
+                assert_eq!((closed, votes), (true, 0));
+            }
             StatusCode::OK => assert_ne!(opened, qid),
             StatusCode::CONFLICT => {
                 assert_eq!(results[1].1["error"], "already_asked");

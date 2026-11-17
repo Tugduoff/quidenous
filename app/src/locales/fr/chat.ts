@@ -3,6 +3,8 @@ export const chat = {
   count: { one: '{count} message', other: '{count} messages' },
   longPressHint: 'Appui long : signaler ou bloquer',
   longPressOwnHint: 'Appui long : supprimer',
+  /** Under a message hidden by reports (only its room owner sees it). */
+  hidden: 'Masqué après signalements',
   seeProfile: 'Voir son profil',
   mention: 'Mentionner {name}',
   mentionAll: 'Mentionner tout le salon',

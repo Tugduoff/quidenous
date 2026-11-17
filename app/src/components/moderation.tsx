@@ -1,4 +1,4 @@
-import { Ban, Check, Flag, type LucideIcon, Trash2 } from 'lucide-react-native';
+import { Ban, Check, Eye, Flag, type LucideIcon, Trash2 } from 'lucide-react-native';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
@@ -14,9 +14,18 @@ const RED = '#FF3B5C';
 /**
  * What was long-pressed: a message, a member or a question, and the person behind it when they can be blocked.
  * `onDelete`: I may delete it (my own message, or any message of a room I own). `own`: nothing to report or block.
+ * `onRestore`: a message hidden by reports, in a room I own: I may bring it back.
  * `anchor`: the menu floats next to it instead of the middle of the screen.
  */
-export type ModTarget = { kind: ReportKind; id: number; person?: Blocked; onDelete?: () => Promise<unknown>; own?: boolean; anchor?: Anchor };
+export type ModTarget = {
+  kind: ReportKind;
+  id: number;
+  person?: Blocked;
+  onDelete?: () => Promise<unknown>;
+  onRestore?: () => Promise<unknown>;
+  own?: boolean;
+  anchor?: Anchor;
+};
 
 type Step = 'menu' | 'report' | 'block' | 'delete' | 'done';
 
@@ -48,7 +57,7 @@ export function ModerationDialog({
   const [error, setError] = useState<string | null>(null);
   if (target && target !== shown) {
     setShown(target);
-    setStep(header ? 'menu' : target.own ? 'delete' : target.person || target.onDelete ? 'menu' : 'report');
+    setStep(header || target.onRestore ? 'menu' : target.own ? 'delete' : target.person || target.onDelete ? 'menu' : 'report');
     setReason(null);
     setDetails('');
     setError(null);
@@ -102,6 +111,19 @@ export function ModerationDialog({
       {step === 'menu' && (
         <>
           {header && shown ? header(shown) : <DialogTitle title={person?.name ?? what} />}
+          {!!shown?.onRestore && (
+            <Action
+              icon={Eye}
+              label={tr('moderation.restore')}
+              disabled={busy}
+              onPress={() =>
+                run(async () => {
+                  await shown.onRestore?.();
+                  onClose();
+                })
+              }
+            />
+          )}
           {!shown?.own && <Action icon={Flag} label={tr('moderation.report')} onPress={() => setStep('report')} />}
           {!!shown?.onDelete && <Action icon={Trash2} label={tr('moderation.delete')} danger onPress={() => setStep('delete')} />}
           {!person ? null : blocked ? (

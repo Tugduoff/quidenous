@@ -107,3 +107,17 @@ pub async fn room_id(app: &Router, token: &str) -> i64 {
     let (_, g) = call(app, "GET", "/group", Some(token), None, None).await;
     g["id"].as_i64().unwrap()
 }
+
+/// Every account so far counts as trusted for moderation (docs/AUTH.md, "Reports"): a verified
+/// e-mail (a made-up one when it has none) and made two days ago. Join helpers make legacy
+/// accounts, which can't publish, like, report packs or suggest any more.
+pub async fn trust_all(state: &AppState) {
+    sqlx::query(
+        "UPDATE users SET email = COALESCE(email, 'user' || id || '@example.test'), \
+         email_verified_at = COALESCE(email_verified_at, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')), \
+         created_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-2 days') WHERE deleted_at IS NULL",
+    )
+    .execute(&state.db)
+    .await
+    .unwrap();
+}

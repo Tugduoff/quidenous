@@ -537,13 +537,14 @@ pub const AWAY_AFTER: i64 = 3;
 pub const QUORUM_HOURS: i64 = 24;
 
 /// Members who are away: the last [`AWAY_AFTER`] questions of the room closed without their vote
-/// (closed since they joined). The room stops waiting for them until they vote again. Rooms only.
+/// (closed since they joined; a removed question nobody could answer doesn't count). The room
+/// stops waiting for them until they vote again. Rooms only.
 pub async fn away(tx: &mut Transaction<'_, Sqlite>, group_id: i64) -> AppResult<Vec<i64>> {
     Ok(sqlx::query_scalar(
         "SELECT m.id FROM members m WHERE m.group_id = ?1 AND m.removed_at IS NULL \
          AND (SELECT kind FROM groups WHERE id = ?1) = 'room' \
          AND (SELECT COUNT(*) FROM rounds r WHERE r.group_id = ?1 AND r.closed_at IS NOT NULL \
-              AND r.closed_at >= m.created_at \
+              AND r.closed_at >= m.created_at AND EXISTS (SELECT 1 FROM votes x WHERE x.round_id = r.id) \
               AND r.number > COALESCE((SELECT MAX(r2.number) FROM votes v JOIN rounds r2 ON r2.id = v.round_id \
                                        WHERE v.voter_id = m.id AND r2.group_id = ?1), 0)) >= ?2 \
          ORDER BY m.id",
@@ -628,6 +629,41 @@ pub async fn close_if_done(
         } else if let Some(next) = ensure_open_round(tx, group_id).await? {
             events.push(Event::RoundOpened { round_id: next });
         }
+    }
+    Ok(events)
+}
+
+/// Closes an open question with no result (its question was removed): every vote, ballot and
+/// skip on it goes, then the next question opens (a party pauses for its reveal, as at a deadline).
+/// A room never counts such a question as missed (see [`away`]).
+pub async fn drop_round(
+    tx: &mut Transaction<'_, Sqlite>,
+    group_id: i64,
+    round_id: i64,
+) -> AppResult<Vec<Event>> {
+    for sql in [
+        "DELETE FROM votes WHERE round_id = ?",
+        "DELETE FROM rankings WHERE round_id = ?",
+        "DELETE FROM choices WHERE round_id = ?",
+        "DELETE FROM skips WHERE round_id = ?",
+    ] {
+        sqlx::query(sql).bind(round_id).execute(&mut **tx).await?;
+    }
+    if party(&mut **tx, group_id).await?.is_some() {
+        return close_party_round(tx, group_id, round_id, None).await;
+    }
+    let done = sqlx::query(
+        "UPDATE rounds SET closed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ? AND closed_at IS NULL",
+    )
+    .bind(round_id)
+    .execute(&mut **tx)
+    .await?;
+    if done.rows_affected() == 0 {
+        return Ok(Vec::new());
+    }
+    let mut events = vec![Event::RoundClosed { round_id }];
+    if let Some(next) = ensure_open_round(tx, group_id).await? {
+        events.push(Event::RoundOpened { round_id: next });
     }
     Ok(events)
 }

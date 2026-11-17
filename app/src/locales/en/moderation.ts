@@ -16,4 +16,5 @@ export const moderation: Messages['moderation'] = {
   delete: 'Delete',
   deleteTitle: 'Delete this message?',
   deleteConfirm: 'Delete',
+  restore: 'Restore',
 };

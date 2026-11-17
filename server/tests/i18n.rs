@@ -610,6 +610,7 @@ async fn rooms_draw_the_deck_of_their_language() {
 async fn packs_keep_their_language() {
     let t = setup().await;
     let (ana, _) = join(&t.app, "Ana").await;
+    common::trust_all(&t.state).await;
     let file = "Who has the most plants?\nWho would be the worst astronaut?\nWho cries at ads?\nWho always loses their keys?\nWho sings off key?\n";
     let (s, b) = call(
         &t.app,

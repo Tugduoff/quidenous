@@ -52,7 +52,7 @@ pub async fn purge(state: &AppState) -> AppResult<usize> {
     purge_at(state, &now).await
 }
 
-/// The hourly purge (first run right away), with the idle sessions.
+/// The hourly purge (first run right away), with the idle sessions and the inbox.
 pub fn spawn_purger(state: AppState) {
     tokio::spawn(async move {
         let mut tick = tokio::time::interval(EVERY);
@@ -63,6 +63,12 @@ pub fn spawn_purger(state: AppState) {
                 Ok(0) => {}
                 Ok(n) => tracing::info!(purged = n, "guest purge"),
                 Err(e) => tracing::warn!(error = ?e, "guest purge"),
+            }
+            // Same hourly round: the inbox stays bounded (docs/DATABASE.md).
+            match crate::inbox::prune(&state.db).await {
+                Ok(0) => {}
+                Ok(n) => tracing::info!(deleted = n, "inbox pruned"),
+                Err(e) => tracing::warn!(error = ?e, "inbox prune"),
             }
             // Same hourly round: sessions unused for 180 days (see docs/AUTH.md).
             match crate::accounts::purge_idle_sessions(&state).await {

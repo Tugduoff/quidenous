@@ -100,6 +100,7 @@ pub async fn create(
     crate::auth::Account(me): crate::auth::Account,
     Json(body): Json<CreateBody>,
 ) -> AppResult<Json<Value>> {
+    crate::packs::require_verified(&state, me).await?;
     let text = &crate::text::line(&body.text);
     if !(TEXT_MIN..=TEXT_MAX).contains(&text.chars().count()) {
         return Err(AppError::BadRequest("bad_question"));
@@ -185,6 +186,7 @@ pub async fn vote(
     if !(-1..=1).contains(&body.value) {
         return Err(AppError::BadRequest("bad_vote"));
     }
+    crate::packs::require_verified(&state, me).await?;
     let mut tx = crate::db::write_tx(&state.db).await?;
     let (author, status): (i64, String) =
         sqlx::query_as("SELECT user_id, status FROM suggestions WHERE id = ?")
@@ -208,16 +210,20 @@ pub async fn vote(
     .bind(body.value)
     .execute(&mut *tx)
     .await?;
-    let (up, down): (i64, i64) = sqlx::query_as(
-        "SELECT COALESCE(SUM(value = 1), 0), COALESCE(SUM(value = -1), 0) \
-         FROM suggestion_votes WHERE suggestion_id = ?",
-    )
+    // Shown: every vote. Rejecting for good (no admin involved) takes trusted voters only.
+    let (up, down, trusted_up, trusted_down): (i64, i64, i64, i64) = sqlx::query_as(concat!(
+        "SELECT COALESCE(SUM(value = 1), 0), COALESCE(SUM(value = -1), 0), \
+         COALESCE(SUM(value = 1 AND trusted), 0), COALESCE(SUM(value = -1 AND trusted), 0) \
+         FROM (SELECT v.value, ",
+        crate::moderation::trusted!("v.user_id"),
+        " AS trusted FROM suggestion_votes v WHERE v.suggestion_id = ?)"
+    ))
     .bind(id)
     .fetch_one(&mut *tx)
     .await?;
     let status = if qualifies(up, down) {
         "queued"
-    } else if down - up >= SCORE_REJECT {
+    } else if trusted_down - trusted_up >= SCORE_REJECT {
         "rejected"
     } else {
         "voting"

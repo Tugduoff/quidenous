@@ -375,6 +375,7 @@ async fn challenges_from_a_question_only_share_show_room_names_only() {
 async fn spicy_packs_stay_off_the_public_page() {
     let (app, state) = setup().await;
     let (ana, _) = join(&app, "Ana").await;
+    common::trust_all(&state).await;
     let questions: Vec<Value> = (0..5)
         .map(|i| json!({ "text": format!("Qui oserait le défi numéro {i} ?") }))
         .collect();

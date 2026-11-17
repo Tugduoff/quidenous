@@ -68,6 +68,7 @@ async fn a_pack_file_carries_its_header_and_choose_questions() {
     let (app, state) = setup().await;
     let (_admin, _) = common::join(&app, "Admin").await;
     let (ana, _) = common::join(&app, "Ana").await;
+    common::trust_all(&state).await;
 
     let (s, f) = common::call(&app, "GET", "/features", None, None, None).await;
     assert_eq!(s, StatusCode::OK);
@@ -284,9 +285,10 @@ async fn a_pack_file_carries_its_header_and_choose_questions() {
 
 #[tokio::test]
 async fn admins_have_no_pack_limit_and_publish_into_the_selection() {
-    let (app, _) = setup().await;
+    let (app, state) = setup().await;
     let (admin, _) = common::join(&app, "Admin").await;
     let (ana, _) = common::join(&app, "Ana").await;
+    common::trust_all(&state).await;
     let questions = |p: &str| -> Vec<Value> {
         (0..5)
             .map(|i| json!({ "text": format!("{p} question numéro {i} ?"), "kind": "pick" }))
