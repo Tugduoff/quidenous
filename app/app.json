@@ -2,7 +2,7 @@
   "expo": {
     "name": "qui de nous ?",
     "slug": "quidenous",
-    "version": "0.35.0",
+    "version": "0.36.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "quidenous",
@@ -27,7 +27,7 @@
         "android.permission.WRITE_EXTERNAL_STORAGE"
       ],
       "googleServicesFile": "./google-services.json",
-      "versionCode": 61
+      "versionCode": 62
     },
     "web": {
       "output": "single",
