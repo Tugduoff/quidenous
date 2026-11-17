@@ -321,6 +321,8 @@ async fn join(
         return Err(AppError::Forbidden("guest_account"));
     }
     let mut tx = crate::db::write_tx(&state.db).await?;
+    // Its owner may have left it alone (and deleted it) since the lookup.
+    crate::rooms::still_open(&mut *tx, group_id).await?;
     let existing = match signed_in {
         Some(user_id) => {
             sqlx::query_as::<_, MemberRow>(
@@ -2369,8 +2371,15 @@ pub(crate) async fn post_chat(
     };
     let rest: Vec<i64> = others.into_iter().filter(|m| !pinged.contains(m)).collect();
     let said = Text::same(message.text);
-    crate::inbox::to_members(&state.db, &rest, "message", Some(id), Some(me.id), &said).await?;
-    crate::inbox::to_members(&state.db, &pinged, "mention", Some(id), Some(me.id), &said).await?;
+    // The message is stored: from here on, failures are logged (an error would make the app
+    // retry, and the retry answers the stored message without telling anyone).
+    for (to, kind) in [(&rest, "message"), (&pinged, "mention")] {
+        if let Err(e) =
+            crate::inbox::to_members(&state.db, to, kind, Some(id), Some(me.id), &said).await
+        {
+            tracing::warn!(round_id = id, kind, error = ?e, "chat inbox failed");
+        }
+    }
     state.live.send(
         me.group_id,
         Event::MessagePosted {
@@ -2594,7 +2603,8 @@ async fn nudge(
     if inserted.rows_affected() == 0 {
         return Err(AppError::Conflict("already_nudged"));
     }
-    crate::inbox::to_member(
+    // The nudge is stored (a retry gets 409 `already_nudged`): an inbox failure is only logged.
+    if let Err(e) = crate::inbox::to_member(
         &state.db,
         body.member_id,
         "nudge",
@@ -2602,7 +2612,10 @@ async fn nudge(
         Some(me.id),
         &Text::by(|l| i18n::nudge(l, &me.name)),
     )
-    .await?;
+    .await
+    {
+        tracing::warn!(round_id = round.id, error = ?e, "nudge inbox failed");
+    }
     state.live.send(me.group_id, Event::InboxChanged);
     state.push.notify_member(
         state.db.clone(),

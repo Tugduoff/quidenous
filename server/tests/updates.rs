@@ -1048,3 +1048,28 @@ async fn runtimes_idle_for_months_are_removed_but_the_latest_four_stay() {
     assert_eq!(left, [RV, "old-0", "old-1", "recent"]);
     assert_eq!(served(&app, RV, "android").await, Some(uuid(1000)));
 }
+
+/// The new update is live: an old one that can't be removed doesn't turn the publish into an error.
+#[cfg(unix)]
+#[tokio::test]
+async fn a_failed_prune_does_not_fail_the_publish() {
+    use std::os::unix::fs::PermissionsExt;
+    let (app, dir) = test_app(Some(TOKEN)).await;
+    for n in 1..=5 {
+        let (archive, _) = update_archive(RV, "android", &manifest_body(RV, &uuid(n)));
+        assert_eq!(
+            publish(&app, Some(TOKEN), archive).await.0,
+            StatusCode::CREATED
+        );
+    }
+    // The oldest, due to go with the next publish, can't be emptied (not as root: root ignores modes).
+    let oldest = dir.join("updates").join(RV).join(uuid(1));
+    let mode = |m| std::fs::set_permissions(&oldest, std::fs::Permissions::from_mode(m)).unwrap();
+    mode(0o555);
+    let (archive, _) = update_archive(RV, "android", &manifest_body(RV, &uuid(6)));
+    let (status, body) = publish(&app, Some(TOKEN), archive).await;
+    mode(0o755);
+    assert_eq!(status, StatusCode::CREATED, "{body}");
+    assert_eq!(body["id"], uuid(6));
+    assert_eq!(served(&app, RV, "android").await, Some(uuid(6)));
+}

@@ -1153,3 +1153,22 @@ async fn image_retries_post_once_and_captions_are_cleaned() {
         (StatusCode::BAD_REQUEST, Some("bad_message"))
     );
 }
+
+/// The image message is stored: an inbox failure afterwards doesn't fail the upload, and the
+/// image stays on disk (it isn't removed from under its message).
+#[tokio::test]
+async fn an_image_posted_while_the_inbox_fails_keeps_its_file() {
+    let (app, state) = setup_with(None).await;
+    let ([ana, ..], _, round, room) = chat_in(&app).await;
+    sqlx::query(
+        "CREATE TRIGGER inbox_broken BEFORE INSERT ON inbox BEGIN SELECT RAISE(ABORT, 'disk full'); END",
+    )
+    .execute(&state.db)
+    .await
+    .unwrap();
+    let (s, b) = post_image(&app, &ana, room, round, &png(40, 30)).await;
+    assert_eq!(s, StatusCode::OK, "{b}");
+    let id = b["id"].as_i64().unwrap();
+    assert!(find(&messages(&app, &ana, room, round).await, id).is_some());
+    assert_eq!(chat_files(&state, room).len(), 1);
+}

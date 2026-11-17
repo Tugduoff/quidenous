@@ -431,3 +431,665 @@ async fn one_failing_room_does_not_stop_the_pacing_tick() {
     .unwrap();
     assert_eq!(waiting, [(broken, true), (other, false)]);
 }
+
+// ---------- checks inside the write transaction (joins, invitations, transfers, leaves, caps) ----------
+
+/// Runs these calls at the same time (each on its own task), with or without a token.
+async fn same_time(
+    app: &Router,
+    calls: Vec<(&'static str, String, Option<String>, Option<Value>)>,
+) -> Vec<(StatusCode, Value)> {
+    let tasks: Vec<_> = calls
+        .into_iter()
+        .map(|(method, path, token, body)| {
+            let app = app.clone();
+            tokio::spawn(
+                async move { call(&app, method, &path, token.as_deref(), None, body).await },
+            )
+        })
+        .collect();
+    let mut out = Vec::new();
+    for t in tasks {
+        out.push(t.await.unwrap());
+    }
+    out
+}
+
+async fn user_of(state: &AppState, member: i64) -> i64 {
+    sqlx::query_scalar("SELECT user_id FROM members WHERE id = ?")
+        .bind(member)
+        .fetch_one(&state.db)
+        .await
+        .unwrap()
+}
+
+async fn code_of(state: &AppState, room: i64) -> String {
+    sqlx::query_scalar("SELECT join_code FROM groups WHERE id = ?")
+        .bind(room)
+        .fetch_one(&state.db)
+        .await
+        .unwrap()
+}
+
+/// A room of `token`'s: its id.
+async fn new_room(app: &Router, token: &str, name: &str) -> i64 {
+    let (s, b) = call(
+        app,
+        "POST",
+        "/rooms",
+        Some(token),
+        None,
+        Some(json!({ "name": name })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{b}");
+    b["id"].as_i64().unwrap()
+}
+
+async fn seats(state: &AppState, room: i64, user: i64) -> i64 {
+    sqlx::query_scalar("SELECT COUNT(*) FROM members WHERE group_id = ? AND user_id = ?")
+        .bind(room)
+        .bind(user)
+        .fetch_one(&state.db)
+        .await
+        .unwrap()
+}
+
+async fn owners(state: &AppState, room: i64) -> Vec<i64> {
+    sqlx::query_scalar(
+        "SELECT id FROM members WHERE group_id = ? AND role = 'owner' AND removed_at IS NULL",
+    )
+    .bind(room)
+    .fetch_all(&state.db)
+    .await
+    .unwrap()
+}
+
+async fn friend_code(app: &Router, token: &str) -> Value {
+    let (_, f) = call(app, "GET", "/friends", Some(token), None, None).await;
+    f["code"].clone()
+}
+
+async fn add_friend(app: &Router, token: &str, code: &Value) -> (StatusCode, Value) {
+    call(
+        app,
+        "POST",
+        "/friends",
+        Some(token),
+        None,
+        Some(json!({ "code": code })),
+    )
+    .await
+}
+
+fn twice(
+    method: &'static str,
+    path: String,
+    token: &str,
+    body: Option<Value>,
+) -> Vec<(&'static str, String, Option<String>, Option<Value>)> {
+    vec![(method, path, Some(token.to_owned()), body); 2]
+}
+
+/// A double tap on "Rejoindre" (room code, party code) or "Accepter" (an invitation): one seat,
+/// and both taps get the same answer instead of a 500.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn double_taps_on_a_join_take_one_seat() {
+    let (app, state) = setup().await;
+    let (ana, _) = join(&app, "Ana").await;
+    let (bob, bob_m) = join(&app, "Bob").await;
+    let (carl, carl_m) = join(&app, "Carl").await;
+    let (bob_id, carl_id) = (user_of(&state, bob_m).await, user_of(&state, carl_m).await);
+
+    // Room code.
+    let room = new_room(&app, &ana, "Cousins").await;
+    let code = code_of(&state, room).await;
+    let taps = same_time(
+        &app,
+        twice(
+            "POST",
+            "/rooms/join".into(),
+            &bob,
+            Some(json!({ "code": code })),
+        ),
+    )
+    .await;
+    for (s, b) in &taps {
+        assert_eq!((*s, &b["id"]), (StatusCode::OK, &json!(room)), "{b}");
+    }
+    assert_eq!(seats(&state, room, bob_id).await, 1);
+
+    // Party code, signed in: the same seat both times.
+    let (s, party) = call(&app, "POST", "/parties", Some(&ana), None, Some(json!({}))).await;
+    assert_eq!(s, StatusCode::OK, "{party}");
+    let taps = same_time(
+        &app,
+        twice(
+            "POST",
+            "/parties/join".into(),
+            &bob,
+            Some(json!({ "code": party["code"] })),
+        ),
+    )
+    .await;
+    for (s, b) in &taps {
+        assert_eq!(*s, StatusCode::OK, "{b}");
+    }
+    assert_eq!(taps[0].1["member_id"], taps[1].1["member_id"]);
+    let party = party["id"].as_i64().unwrap();
+    assert_eq!(seats(&state, party, bob_id).await, 1);
+
+    // An invitation.
+    add_friend(&app, &ana, &friend_code(&app, &carl).await).await;
+    let (s, b) = add_friend(&app, &carl, &friend_code(&app, &ana).await).await;
+    assert_eq!(s, StatusCode::OK, "{b}");
+    let (s, b) = call(
+        &app,
+        "POST",
+        &format!("/rooms/{room}/add"),
+        Some(&ana),
+        None,
+        Some(json!({ "user_id": carl_id })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{b}");
+    let (_, inv) = call(&app, "GET", "/invites", Some(&carl), None, None).await;
+    let id = inv["invites"][0]["id"].as_i64().unwrap();
+    let taps = same_time(
+        &app,
+        twice("POST", format!("/invites/{id}/accept"), &carl, None),
+    )
+    .await;
+    for (s, b) in &taps {
+        assert_eq!((*s, &b["room_id"]), (StatusCode::OK, &json!(room)), "{b}");
+    }
+    assert_eq!(taps[0].1["member_id"], taps[1].1["member_id"]);
+    assert_eq!(seats(&state, room, carl_id).await, 1);
+}
+
+/// Guests scanning the QR code together can't push a party past 40 players, nor share a name.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn guests_at_once_cannot_beat_the_party_cap_or_share_a_name() {
+    let (app, state) = setup().await;
+    let (ana, _) = join(&app, "Ana").await;
+    let guest = |code: &Value, name: String| {
+        (
+            "POST",
+            "/parties/join".to_owned(),
+            None,
+            Some(json!({ "code": code, "name": name, "color": "#5BC8FF" })),
+        )
+    };
+    let (_, party) = call(&app, "POST", "/parties", Some(&ana), None, Some(json!({}))).await;
+    let id = party["id"].as_i64().unwrap();
+    let max = quidenous_server::party::MAX_PLAYERS;
+    // The owner and 36 guests: 3 seats left for 6 guests.
+    for i in 0..max - 4 {
+        let (s, b) = same_time(&app, vec![guest(&party["code"], format!("G{i}"))]).await[0].clone();
+        assert_eq!(s, StatusCode::OK, "{b}");
+    }
+    let results = same_time(
+        &app,
+        (0..6)
+            .map(|i| guest(&party["code"], format!("Late {i}")))
+            .collect(),
+    )
+    .await;
+    let mut statuses: Vec<(StatusCode, Option<&str>)> = results
+        .iter()
+        .map(|(s, b)| (*s, b["error"].as_str()))
+        .collect();
+    statuses.sort();
+    assert_eq!(
+        statuses,
+        [
+            (StatusCode::OK, None),
+            (StatusCode::OK, None),
+            (StatusCode::OK, None),
+            (StatusCode::CONFLICT, Some("party_full")),
+            (StatusCode::CONFLICT, Some("party_full")),
+            (StatusCode::CONFLICT, Some("party_full")),
+        ]
+    );
+    let players: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM members WHERE group_id = ? AND removed_at IS NULL",
+    )
+    .bind(id)
+    .fetch_one(&state.db)
+    .await
+    .unwrap();
+    assert_eq!(players, max);
+
+    // Four "Léa" at once: one gets in.
+    let (_, party) = call(&app, "POST", "/parties", Some(&ana), None, Some(json!({}))).await;
+    let results = same_time(
+        &app,
+        ["Léa", "LÉA", "léa", "Léa"]
+            .into_iter()
+            .map(|n| guest(&party["code"], n.to_owned()))
+            .collect(),
+    )
+    .await;
+    let mut statuses: Vec<(StatusCode, Option<&str>)> = results
+        .iter()
+        .map(|(s, b)| (*s, b["error"].as_str()))
+        .collect();
+    statuses.sort();
+    assert_eq!(
+        statuses,
+        [
+            (StatusCode::OK, None),
+            (StatusCode::CONFLICT, Some("name_taken")),
+            (StatusCode::CONFLICT, Some("name_taken")),
+            (StatusCode::CONFLICT, Some("name_taken")),
+        ]
+    );
+}
+
+/// Two transfers at once (to Bob and to Carl) leave one owner; a double tap on the same transfer
+/// answers ok twice.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn transfers_at_once_leave_one_owner() {
+    let (app, state) = setup().await;
+    let (ana, ana_m) = join(&app, "Ana").await;
+    let (bob, _) = join(&app, "Bob").await;
+    let (carl, _) = join(&app, "Carl").await;
+    let room = new_room(&app, &ana, "Cousins").await;
+    let code = code_of(&state, room).await;
+    let mut seat = std::collections::HashMap::new();
+    for (t, user) in [(&bob, "bob"), (&carl, "carl")] {
+        let (s, b) = call(
+            &app,
+            "POST",
+            "/rooms/join",
+            Some(t),
+            None,
+            Some(json!({ "code": code })),
+        )
+        .await;
+        assert_eq!(s, StatusCode::OK, "{b}");
+        let id: i64 = sqlx::query_scalar(
+            "SELECT m.id FROM members m JOIN user_tokens t ON t.user_id = m.user_id \
+             WHERE m.group_id = ? AND t.token_hash = ?",
+        )
+        .bind(room)
+        .bind(quidenous_server::auth::hash_token(t))
+        .fetch_one(&state.db)
+        .await
+        .unwrap();
+        seat.insert(user, (id, t.clone()));
+    }
+    let path = format!("/rooms/{room}/owner");
+    let results = same_time(
+        &app,
+        ["bob", "carl"]
+            .into_iter()
+            .map(|u| {
+                (
+                    "POST",
+                    path.clone(),
+                    Some(ana.clone()),
+                    Some(json!({ "member_id": seat[u].0 })),
+                )
+            })
+            .collect(),
+    )
+    .await;
+    let mut statuses: Vec<StatusCode> = results.iter().map(|r| r.0).collect();
+    statuses.sort();
+    assert_eq!(
+        statuses,
+        [StatusCode::OK, StatusCode::FORBIDDEN],
+        "{results:?}"
+    );
+    let now = owners(&state, room).await;
+    assert_eq!(now.len(), 1);
+    let (_, new_owner) = seat.values().find(|(id, _)| *id == now[0]).unwrap();
+
+    // The new owner taps "hand over to Ana" twice.
+    let ana_seat: i64 = sqlx::query_scalar(
+        "SELECT id FROM members WHERE group_id = ? AND user_id = (SELECT user_id FROM members WHERE id = ?)",
+    )
+    .bind(room)
+    .bind(ana_m)
+    .fetch_one(&state.db)
+    .await
+    .unwrap();
+    let results = same_time(
+        &app,
+        twice(
+            "POST",
+            path,
+            new_owner,
+            Some(json!({ "member_id": ana_seat })),
+        ),
+    )
+    .await;
+    for (s, b) in &results {
+        assert_eq!(*s, StatusCode::OK, "{b}");
+    }
+    assert_eq!(owners(&state, room).await, [ana_seat]);
+}
+
+/// The owner, alone, leaves (the room is deleted) while someone joins with the code: either the
+/// join lands first and the room is handed over, or it finds the room gone. Never a seat in a
+/// deleted room.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn an_owner_leaving_alone_and_a_join_at_once() {
+    let (app, state) = setup().await;
+    let (ana, _) = join(&app, "Ana").await;
+    let (bob, bob_m) = join(&app, "Bob").await;
+    let bob_id = user_of(&state, bob_m).await;
+    for i in 0..6 {
+        let room = new_room(&app, &ana, &format!("R{i}")).await;
+        let code = code_of(&state, room).await;
+        let results = same_time(
+            &app,
+            vec![
+                (
+                    "POST",
+                    format!("/rooms/{room}/leave"),
+                    Some(ana.clone()),
+                    None,
+                ),
+                (
+                    "POST",
+                    "/rooms/join".into(),
+                    Some(bob.clone()),
+                    Some(json!({ "code": code })),
+                ),
+            ],
+        )
+        .await;
+        let (left, joined) = (&results[0], &results[1]);
+        assert_eq!(left.0, StatusCode::OK, "{left:?}");
+        let deleted: bool =
+            sqlx::query_scalar("SELECT deleted_at IS NOT NULL FROM groups WHERE id = ?")
+                .bind(room)
+                .fetch_one(&state.db)
+                .await
+                .unwrap();
+        let bob_seated: bool = sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM members WHERE group_id = ? AND user_id = ? AND removed_at IS NULL)",
+        )
+        .bind(room)
+        .bind(bob_id)
+        .fetch_one(&state.db)
+        .await
+        .unwrap();
+        assert_eq!(left.1["deleted"], json!(deleted));
+        if deleted {
+            assert!(!bob_seated);
+            assert_eq!(
+                (joined.0, joined.1["error"].as_str()),
+                (StatusCode::BAD_REQUEST, Some("bad_code"))
+            );
+        } else {
+            assert!(bob_seated);
+            assert_eq!(joined.0, StatusCode::OK, "{joined:?}");
+            assert_eq!(owners(&state, room).await.len(), 1);
+        }
+    }
+}
+
+/// Rooms created and packs published at the same moment can't beat their caps.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn simultaneous_creates_respect_the_caps() {
+    let (app, state) = setup().await;
+    let (ana, ana_m) = join(&app, "Ana").await;
+    let ana_id = user_of(&state, ana_m).await;
+    let owned = || async {
+        sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM members m JOIN groups g ON g.id = m.group_id AND g.deleted_at IS NULL \
+             AND g.kind = 'room' WHERE m.user_id = ? AND m.role = 'owner' AND m.removed_at IS NULL",
+        )
+        .bind(ana_id)
+        .fetch_one(&state.db)
+        .await
+        .unwrap()
+    };
+    // One room short of the cap (filled directly: the daily creation quota is the same size).
+    let max = 20;
+    for i in owned().await..max - 1 {
+        let room: i64 =
+            sqlx::query_scalar("INSERT INTO groups (name, join_code) VALUES (?, ?) RETURNING id")
+                .bind(format!("F{i}"))
+                .bind(format!("FILL{i}"))
+                .fetch_one(&state.db)
+                .await
+                .unwrap();
+        sqlx::query(
+            "INSERT INTO members (group_id, name, color, token_hash, user_id, role) \
+             VALUES (?, 'Ana', '#FF5C8A', ?, ?, 'owner')",
+        )
+        .bind(room)
+        .bind(format!("fill-{i}"))
+        .bind(ana_id)
+        .execute(&state.db)
+        .await
+        .unwrap();
+    }
+    let results = same_time(
+        &app,
+        (0..3)
+            .map(|i| {
+                (
+                    "POST",
+                    "/rooms".to_owned(),
+                    Some(ana.clone()),
+                    Some(json!({ "name": format!("New {i}") })),
+                )
+            })
+            .collect(),
+    )
+    .await;
+    let mut statuses: Vec<(StatusCode, Option<&str>)> = results
+        .iter()
+        .map(|(s, b)| (*s, b["error"].as_str()))
+        .collect();
+    statuses.sort();
+    assert_eq!(
+        statuses,
+        [
+            (StatusCode::OK, None),
+            (StatusCode::TOO_MANY_REQUESTS, Some("too_many_rooms")),
+            (StatusCode::TOO_MANY_REQUESTS, Some("too_many_rooms")),
+        ]
+    );
+    assert_eq!(owned().await, max);
+
+    // Packs: 8 published, then 4 at once for the last 2 places.
+    let pack = |i: usize| {
+        let questions: Vec<Value> = (0..5)
+            .map(|q| json!({ "text": format!("Pack {i}, question numéro {q} ?"), "kind": "pick" }))
+            .collect();
+        (
+            "POST",
+            "/packs".to_owned(),
+            Some(ana.clone()),
+            Some(json!({ "name": format!("Pack {i}"), "questions": questions })),
+        )
+    };
+    for i in 0..8 {
+        let (s, b) = same_time(&app, vec![pack(i)]).await[0].clone();
+        assert_eq!(s, StatusCode::OK, "{b}");
+    }
+    let results = same_time(&app, (8..12).map(pack).collect()).await;
+    let mut statuses: Vec<(StatusCode, Option<&str>)> = results
+        .iter()
+        .map(|(s, b)| (*s, b["error"].as_str()))
+        .collect();
+    statuses.sort();
+    assert_eq!(
+        statuses,
+        [
+            (StatusCode::OK, None),
+            (StatusCode::OK, None),
+            (StatusCode::CONFLICT, Some("too_many_packs")),
+            (StatusCode::CONFLICT, Some("too_many_packs")),
+        ]
+    );
+    let packs: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM packs WHERE author_id = ?")
+        .bind(ana_id)
+        .fetch_one(&state.db)
+        .await
+        .unwrap();
+    assert_eq!(packs, 10);
+}
+
+// ---------- side effects after a commit ----------
+
+async fn break_inbox(state: &AppState) {
+    sqlx::query(
+        "CREATE TRIGGER inbox_broken BEFORE INSERT ON inbox BEGIN SELECT RAISE(ABORT, 'disk full'); END",
+    )
+    .execute(&state.db)
+    .await
+    .unwrap();
+}
+
+/// A chat message, a nudge, a friend request and a room invitation are stored: an inbox failure
+/// afterwards is logged, the request succeeds (no retry posting the message twice).
+#[tokio::test]
+async fn stored_messages_nudges_and_requests_succeed_even_if_the_inbox_fails() {
+    let (app, state) = setup().await;
+    let (ana, _) = join(&app, "Ana").await;
+    let (bob, bob_m) = join(&app, "Bob").await;
+    let (closed, _) = open_round(&state, room_id(&app, &ana).await).await.unwrap();
+    for t in [&ana, &bob] {
+        let (s, b) = call(
+            &app,
+            "POST",
+            "/round/current/vote",
+            Some(t),
+            None,
+            Some(json!({ "target_id": bob_m })),
+        )
+        .await;
+        assert_eq!(s, StatusCode::OK, "{b}");
+    }
+    break_inbox(&state).await;
+
+    let (s, b) = call(
+        &app,
+        "POST",
+        &format!("/rounds/{closed}/messages"),
+        Some(&ana),
+        None,
+        Some(json!({ "text": "Bien vu" })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{b}");
+    let messages: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM messages WHERE round_id = ?")
+        .bind(closed)
+        .fetch_one(&state.db)
+        .await
+        .unwrap();
+    assert_eq!(messages, 1);
+
+    let nudge = || {
+        call(
+            &app,
+            "POST",
+            "/round/current/nudge",
+            Some(&ana),
+            None,
+            Some(json!({ "member_id": bob_m })),
+        )
+    };
+    let (s, b) = nudge().await;
+    assert_eq!(s, StatusCode::OK, "{b}");
+    let (s, b) = nudge().await;
+    assert_eq!(
+        (s, b["error"].as_str()),
+        (StatusCode::CONFLICT, Some("already_nudged"))
+    );
+
+    let (s, b) = add_friend(&app, &ana, &friend_code(&app, &bob).await).await;
+    assert_eq!(s, StatusCode::OK, "{b}");
+    let requests: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM friend_requests")
+        .fetch_one(&state.db)
+        .await
+        .unwrap();
+    assert_eq!(requests, 1);
+    let (s, b) = add_friend(&app, &bob, &friend_code(&app, &ana).await).await;
+    assert_eq!(s, StatusCode::OK, "{b}");
+    let room = new_room(&app, &ana, "Cousins").await;
+    let (s, b) = call(
+        &app,
+        "POST",
+        &format!("/rooms/{room}/add"),
+        Some(&ana),
+        None,
+        Some(json!({ "user_id": user_of(&state, bob_m).await })),
+    )
+    .await;
+    assert_eq!((s, &b["invited"]), (StatusCode::OK, &json!(true)), "{b}");
+    let invites: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM room_invites WHERE group_id = ?")
+        .bind(room)
+        .fetch_one(&state.db)
+        .await
+        .unwrap();
+    assert_eq!(invites, 1);
+}
+
+/// Room settings are checked first and saved together: a bad field saves nothing, and a pacing
+/// failure after the save doesn't turn it into an error.
+#[tokio::test]
+async fn room_settings_are_saved_together() {
+    let (app, state) = setup().await;
+    let (ana, _) = join(&app, "Ana").await;
+    let room = new_room(&app, &ana, "Cousins").await;
+    let path = format!("/rooms/{room}");
+    let settings = |body: Value| call(&app, "PATCH", &path, Some(&ana), None, Some(body));
+    sqlx::query("UPDATE groups SET vibe = 'old' WHERE id = ?")
+        .bind(room)
+        .execute(&state.db)
+        .await
+        .unwrap();
+    let saved = || async {
+        sqlx::query_as::<_, (String, bool, i64, Option<String>)>(
+            "SELECT name, kick_vote, next_delay, vibe FROM groups WHERE id = ?",
+        )
+        .bind(room)
+        .fetch_one(&state.db)
+        .await
+        .unwrap()
+    };
+    let before = saved().await;
+    let (s, b) =
+        settings(json!({ "name": "Nouveau", "kick_vote": !before.1, "questions_by": "nope" }))
+            .await;
+    assert_eq!(
+        (s, b["error"].as_str()),
+        (StatusCode::BAD_REQUEST, Some("bad_setting"))
+    );
+    let (s, _) = settings(json!({ "name": "Nouveau", "next_delay": 7 })).await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    assert_eq!(saved().await, before);
+
+    // Waiting for its next question, and the pacing update after the save fails.
+    sqlx::query("UPDATE groups SET paused_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?")
+        .bind(room)
+        .execute(&state.db)
+        .await
+        .unwrap();
+    sqlx::query(
+        "CREATE TRIGGER pacing_broken BEFORE UPDATE OF next_open_at ON groups \
+         BEGIN SELECT RAISE(ABORT, 'boom'); END",
+    )
+    .execute(&state.db)
+    .await
+    .unwrap();
+    let (s, b) =
+        settings(json!({ "name": "Nouveau", "kick_vote": !before.1, "next_delay": 3600 })).await;
+    assert_eq!(s, StatusCode::OK, "{b}");
+    assert_eq!(
+        saved().await,
+        ("Nouveau".to_owned(), !before.1, 3600, before.3.clone())
+    );
+    // "" still clears the vibe.
+    let (s, _) = settings(json!({ "vibe": "" })).await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(saved().await.3, None);
+}

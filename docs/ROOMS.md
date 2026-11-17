@@ -37,11 +37,11 @@ Status: design, 2026-11-11. Built in phases so the live group never breaks and o
 | Remove a question already asked | owner (`DELETE /questions/{id}` → `{ok, retired: true}`, or `DELETE /rounds/{id}/question` from its result): the text becomes "Question retirée" / "Question removed" everywhere (history, stats, shares); built-in deck questions can't (`409 deck_question`). Not asked yet: its author or the owner, deleted as before |
 | Clear the question queue | owner (`DELETE /questions/queue` → `{deleted}`, `403 owner_only` otherwise, feature `clear_queue`): every upcoming question of the room (what `GET /questions/queue` lists) goes, like `DELETE /questions/{id}` one by one; the deck, questions already asked and the open one stay. Live `question_added` (`question_id: 0`) |
 | Unpin a result | whoever pinned it, or the owner (`403 not_pinner`); 100 pins per room at most (`409 too_many_pins`) |
-| Hand over ownership, delete the room | owner |
+| Hand over ownership, delete the room | owner; two hand-overs at once leave one owner (the second gets `403 owner_only`), the same one twice answers ok twice |
 | Leave | anyone; an owner leaving hands over to the oldest member, or deletes the room if alone. The app then opens another of my rooms, or the join / create screen when none is left |
 | Come back | someone who left: with the invite code (or an invitation), same seat and history. Someone removed: only with an invitation from the owner |
 
-A majority is more than half of the other members (the target doesn't count), and never one person alone. Whenever an owner seat ends (leaving, removal, account deletion) the oldest remaining member becomes owner; rooms left without one are repaired at startup. People who left stay in `/group` as `former` (flagged `left`) so the history, awards and chat keep their name and photo.
+A majority is more than half of the other members (the target doesn't count), and never one person alone. Whenever an owner seat ends (leaving, removal, account deletion) the oldest remaining member becomes owner; rooms left without one are repaired at startup. Joins (code, party code, invitation) are checked in their write transaction: a double tap gets the same seat twice, simultaneous joins can't beat the room or party cap or share a guest name, and a join racing the last member's leave either lands first (the room is handed over) or finds it deleted (`400 bad_code`). People who left stay in `/group` as `former` (flagged `left`) so the history, awards and chat keep their name and photo.
 
 Settings per room: majority skip on/off, majority removal on/off, who can add or import questions (everyone / owner), pacing (below). In the app they live on the owner's "Paramètres du salon" screen (gear on the room page).
 

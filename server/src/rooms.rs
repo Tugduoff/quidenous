@@ -59,6 +59,21 @@ pub(crate) async fn seat_free<'e, E: sqlx::SqliteExecutor<'e>>(db: E, room: i64)
     Ok(())
 }
 
+/// `400 bad_code` when the room was deleted in the meantime (its owner left it alone just before):
+/// checked in the write transaction that takes a seat, so nobody joins a deleted room.
+pub(crate) async fn still_open<'e, E: sqlx::SqliteExecutor<'e>>(db: E, room: i64) -> AppResult<()> {
+    let open: bool = sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM groups WHERE id = ? AND deleted_at IS NULL)",
+    )
+    .bind(room)
+    .fetch_one(db)
+    .await?;
+    if !open {
+        return Err(AppError::BadRequest("bad_code"));
+    }
+    Ok(())
+}
+
 fn clean_room_name(name: &str) -> AppResult<String> {
     let name = crate::text::line(name);
     if name.is_empty() || name.chars().count() > ROOM_NAME_MAX {
@@ -181,6 +196,17 @@ fn clean_vibe(vibe: Option<&str>) -> AppResult<Option<&'static str>> {
     }
 }
 
+/// How many live rooms (not parties) this account owns.
+async fn owned_rooms<'e, E: sqlx::SqliteExecutor<'e>>(db: E, user: i64) -> AppResult<i64> {
+    Ok(sqlx::query_scalar(
+        "SELECT COUNT(*) FROM members m JOIN groups g ON g.id = m.group_id AND g.deleted_at IS NULL \
+         AND g.kind = 'room' WHERE m.user_id = ? AND m.role = 'owner' AND m.removed_at IS NULL",
+    )
+    .bind(user)
+    .fetch_one(db)
+    .await?)
+}
+
 /// A new room, me as its owner.
 pub async fn create(
     State(state): State<AppState>,
@@ -189,14 +215,7 @@ pub async fn create(
 ) -> AppResult<Json<Value>> {
     let name = clean_room_name(&body.name)?;
     let vibe = clean_vibe(body.vibe.as_deref())?;
-    let owned: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM members m JOIN groups g ON g.id = m.group_id AND g.deleted_at IS NULL \
-         AND g.kind = 'room' WHERE m.user_id = ? AND m.role = 'owner' AND m.removed_at IS NULL",
-    )
-    .bind(user)
-    .fetch_one(&state.db)
-    .await?;
-    if owned >= OWNED_MAX {
+    if owned_rooms(&state.db, user).await? >= OWNED_MAX {
         return Err(AppError::TooMany("too_many_rooms"));
     }
     crate::quotas::hit_user(&state, &crate::quotas::ROOM_CREATE_USER, user)?;
@@ -205,6 +224,10 @@ pub async fn create(
         None => Lang::Fr,
     };
     let mut tx = crate::db::write_tx(&state.db).await?;
+    // Again in the write transaction: rooms created at the same moment can't beat the cap.
+    if owned_rooms(&mut *tx, user).await? >= OWNED_MAX {
+        return Err(AppError::TooMany("too_many_rooms"));
+    }
     let mut room_id = None;
     // Codes are unique: retry on the (rare) clash.
     for _ in 0..5 {
@@ -276,17 +299,20 @@ pub async fn join(
     if kind != "party" && crate::auth::is_guest(&state.db, user).await? {
         return Err(AppError::Forbidden("guest_account"));
     }
+    // Checked in the write transaction: a double tap finds the seat the first one took, and a
+    // join can't beat the cap or land in a room its owner is deleting.
+    let mut tx = crate::db::write_tx(&state.db).await?;
+    still_open(&mut *tx, room_id).await?;
     let existing =
         sqlx::query_as::<_, MemberRow>("SELECT * FROM members WHERE group_id = ? AND user_id = ?")
             .bind(room_id)
             .bind(user)
-            .fetch_optional(&state.db)
+            .fetch_optional(&mut *tx)
             .await?;
     // A party: not once it is over, and not beyond its player cap.
     if kind == "party" {
-        crate::party::may_take_seat(&state, room_id, existing.as_ref()).await?;
+        crate::party::may_take_seat(&mut tx, room_id, existing.as_ref()).await?;
     }
-    let mut tx = crate::db::write_tx(&state.db).await?;
     if kind == "room" && existing.as_ref().is_none_or(|m| m.removed_at.is_some()) {
         seat_free(&mut *tx, room_id).await?;
     }
@@ -415,80 +441,69 @@ pub async fn update(
     Json(body): Json<SettingsBody>,
 ) -> AppResult<Json<Value>> {
     let me = owner_seat(&state, user, room).await?;
+    // Everything checked first, then written in one transaction: never half applied.
     let language = body.language.as_deref().map(clean_language).transpose()?;
-    if let Some(name) = &body.name {
-        let name = clean_room_name(name)?;
-        sqlx::query("UPDATE groups SET name = ? WHERE id = ?")
-            .bind(name)
-            .bind(room)
-            .execute(&state.db)
-            .await?;
+    let name = body.name.as_deref().map(clean_room_name).transpose()?;
+    if body
+        .questions_by
+        .as_deref()
+        .is_some_and(|v| v != "everyone" && v != "owner")
+    {
+        return Err(AppError::BadRequest("bad_setting"));
     }
-    if let Some(v) = body.skip_vote {
-        sqlx::query("UPDATE groups SET skip_vote = ? WHERE id = ?")
-            .bind(v)
-            .bind(room)
-            .execute(&state.db)
-            .await?;
-    }
-    if let Some(v) = body.kick_vote {
-        sqlx::query("UPDATE groups SET kick_vote = ? WHERE id = ?")
-            .bind(v)
-            .bind(room)
-            .execute(&state.db)
-            .await?;
-    }
-    if let Some(v) = &body.questions_by {
-        if v != "everyone" && v != "owner" {
-            return Err(AppError::BadRequest("bad_setting"));
-        }
-        sqlx::query("UPDATE groups SET questions_by = ? WHERE id = ?")
-            .bind(v)
-            .bind(room)
-            .execute(&state.db)
-            .await?;
-    }
-    if let Some(v) = &body.vibe {
-        sqlx::query("UPDATE groups SET vibe = ? WHERE id = ?")
-            .bind(clean_vibe(Some(v))?)
-            .bind(room)
-            .execute(&state.db)
-            .await?;
-    }
-    if let Some(v) = language {
-        sqlx::query("UPDATE groups SET language = ? WHERE id = ?")
-            .bind(v.as_str())
-            .bind(room)
-            .execute(&state.db)
-            .await?;
-    }
+    let vibe = body
+        .vibe
+        .as_deref()
+        .map(|v| clean_vibe(Some(v)))
+        .transpose()?;
     if body
         .next_delay
         .is_some_and(|d| !crate::pacing::DELAYS.contains(&d))
     {
         return Err(AppError::BadRequest("bad_setting"));
     }
+    let pacing = body.owner_next.is_some() || body.next_delay.is_some();
     // A party runs its own pace (taps and the owner, see `party`).
-    if (body.owner_next.is_some() || body.next_delay.is_some())
-        && crate::game::party(&state.db, room).await?.is_some()
-    {
+    if pacing && crate::game::party(&state.db, room).await?.is_some() {
         return Err(AppError::BadRequest("bad_setting"));
     }
-    if body.owner_next.is_some() || body.next_delay.is_some() {
-        sqlx::query(
-            "UPDATE groups SET owner_next = COALESCE(?, owner_next), next_delay = COALESCE(?, next_delay) WHERE id = ?",
-        )
-        .bind(body.owner_next)
-        .bind(body.next_delay)
-        .bind(room)
-        .execute(&state.db)
-        .await?;
-        crate::pacing::settings_changed(&state, room).await?;
+    let mut tx = crate::db::write_tx(&state.db).await?;
+    sqlx::query(
+        "UPDATE groups SET name = COALESCE(?, name), skip_vote = COALESCE(?, skip_vote), \
+         kick_vote = COALESCE(?, kick_vote), questions_by = COALESCE(?, questions_by), \
+         language = COALESCE(?, language), owner_next = COALESCE(?, owner_next), \
+         next_delay = COALESCE(?, next_delay) WHERE id = ?",
+    )
+    .bind(name)
+    .bind(body.skip_vote)
+    .bind(body.kick_vote)
+    .bind(&body.questions_by)
+    .bind(language.map(|l| l.as_str()))
+    .bind(body.owner_next)
+    .bind(body.next_delay)
+    .bind(room)
+    .execute(&mut *tx)
+    .await?;
+    // "" clears the vibe: not a COALESCE.
+    if let Some(v) = vibe {
+        sqlx::query("UPDATE groups SET vibe = ? WHERE id = ?")
+            .bind(v)
+            .bind(room)
+            .execute(&mut *tx)
+            .await?;
     }
+    tx.commit().await?;
     state.live.send(room, Event::RoomUpdated);
+    // The settings are saved: what follows from them logs its failures (the scheduler and the
+    // next request catch up), never turns the saved change into an error.
+    if pacing && let Err(e) = crate::pacing::settings_changed(&state, room).await {
+        tracing::warn!(room, error = ?e, "pacing after a settings change");
+    }
     // A room that ran out of questions has a whole new deck after a vibe or language change.
-    if body.vibe.is_some() || language.is_some() {
-        crate::pacing::open_if_idle(&state, room, Some(me.id)).await?;
+    if (body.vibe.is_some() || language.is_some())
+        && let Err(e) = crate::pacing::open_if_idle(&state, room, Some(me.id)).await
+    {
+        tracing::warn!(room, error = ?e, "opening a question after a settings change");
     }
     Ok(Json(json!({ "ok": true })))
 }
@@ -554,19 +569,37 @@ pub async fn transfer(
 ) -> AppResult<Json<Value>> {
     let me = owner_seat(&state, user, room).await?;
     let mut tx = crate::db::write_tx(&state.db).await?;
+    // Still the owner when it runs: two transfers at once can't leave two owners.
+    let stepped_down = sqlx::query(
+        "UPDATE members SET role = 'member' WHERE id = ? AND role = 'owner' AND removed_at IS NULL",
+    )
+    .bind(me.id)
+    .execute(&mut *tx)
+    .await?;
+    if stepped_down.rows_affected() == 0 {
+        // A double tap: the first one already handed the room to them.
+        let done: bool = sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM members WHERE id = ? AND group_id = ? AND role = 'owner' AND removed_at IS NULL)",
+        )
+        .bind(body.member_id)
+        .bind(room)
+        .fetch_one(&mut *tx)
+        .await?;
+        if done {
+            return Ok(Json(json!({ "ok": true })));
+        }
+        return Err(AppError::Forbidden("owner_only"));
+    }
     let moved = sqlx::query("UPDATE members SET role = 'owner' WHERE id = ? AND group_id = ? AND removed_at IS NULL AND id != ?")
         .bind(body.member_id)
         .bind(room)
         .bind(me.id)
         .execute(&mut *tx)
         .await?;
+    // Dropping the transaction rolls my step down back.
     if moved.rows_affected() == 0 {
         return Err(AppError::NotFound);
     }
-    sqlx::query("UPDATE members SET role = 'member' WHERE id = ?")
-        .bind(me.id)
-        .execute(&mut *tx)
-        .await?;
     tx.commit().await?;
     state.live.send(room, Event::RoomUpdated);
     Ok(Json(json!({ "ok": true })))
@@ -587,21 +620,28 @@ pub async fn leave(
 /// longest-standing active member (see `remove_member`); alone, the room is deleted. `true` = room deleted.
 pub(crate) async fn leave_seat(state: &AppState, me: &MemberRow) -> AppResult<bool> {
     let room = me.group_id;
-    if me.role == "owner" {
-        let others: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM members WHERE group_id = ? AND removed_at IS NULL AND id != ?",
-        )
-        .bind(room)
-        .bind(me.id)
-        .fetch_one(&state.db)
-        .await?;
-        if others == 0 {
-            delete_room(state, room).await?;
-            return Ok(true);
-        }
+    // Counted in the write transaction: a join at the same moment either counts here (the room
+    // stays, handed over) or finds the room deleted (`still_open`).
+    let mut tx = crate::db::write_tx(&state.db).await?;
+    let alone: bool = sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM members WHERE id = ?1 AND role = 'owner' AND removed_at IS NULL) \
+         AND NOT EXISTS (SELECT 1 FROM members WHERE group_id = ?2 AND removed_at IS NULL AND id != ?1)",
+    )
+    .bind(me.id)
+    .bind(room)
+    .fetch_one(&mut *tx)
+    .await?;
+    if alone {
+        mark_deleted(&mut *tx, room).await?;
+        tx.commit().await?;
+        room_deleted(state, room).await;
+        return Ok(true);
     }
     // Already removed (a vote landed first): that removal stands.
-    if remove_member(state, room, me.id, me.id, true).await? {
+    let removal = crate::routes::take_seat(&mut tx, room, me.id, true).await?;
+    tx.commit().await?;
+    if let Some(removal) = removal {
+        crate::routes::announce_removal(state, me.id, removal).await;
         state.live.send(room, Event::RoomUpdated);
     }
     Ok(false)
@@ -619,16 +659,26 @@ pub async fn delete(
 }
 
 async fn delete_room(state: &AppState, room: i64) -> AppResult<()> {
+    mark_deleted(&state.db, room).await?;
+    room_deleted(state, room).await;
+    Ok(())
+}
+
+async fn mark_deleted<'e, E: sqlx::SqliteExecutor<'e>>(db: E, room: i64) -> AppResult<()> {
     sqlx::query(
         "UPDATE groups SET deleted_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
     )
     .bind(room)
-    .execute(&state.db)
+    .execute(db)
     .await?;
+    Ok(())
+}
+
+/// After the deletion committed.
+async fn room_deleted(state: &AppState, room: i64) {
     // Nobody can open its chat any more: its images go now (rooms are never restored).
     crate::media::remove_room(state, room).await;
     state.live.send(room, Event::RoomDeleted);
-    Ok(())
 }
 
 /// Shape of a member in the room view: the public card plus their role.
