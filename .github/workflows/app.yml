@@ -31,6 +31,7 @@ jobs:
       # A t() (or date/number format) computed when a module loads stays in the first language (docs/I18N.md).
       - name: No translation at module load
         run: node scripts/check-i18n-module-t.mjs
+      # On a tag this job gates the OTA update: android.yml's `gate` waits for it (and server.yml's `check`) to be green.
       - name: Version matches the tag, versionCode goes up
         if: startsWith(github.ref, 'refs/tags/v')
         run: |

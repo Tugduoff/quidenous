@@ -8,6 +8,7 @@
 # Required checks: $REQUIRED_CHECKS (space-separated job names), default "check app apk": the server tests
 # (server.yml), the app type check (app.yml) and the Android build (android.yml). Several runs of a check on the same
 # commit (main push + tag push, a re-run): the most recent one counts, so a red tag run blocks even if main was green.
+# A skipped run (the weekly scheduled server.yml run skips `check`) only counts when the check never really ran.
 #
 # Env: GITHUB_REPOSITORY (default Tugduoff/quidenous), GITHUB_TOKEN (optional, public repo: raises the API rate
 # limit from 60 to 5000 requests an hour). Needs curl and python3.
@@ -32,13 +33,14 @@ status() {
     REQUIRED="$required" python3 -I -c '
 import json, os, sys
 want = os.environ["REQUIRED"].split()
-latest = {}
+latest, skipped = {}, {}
 for run in json.load(sys.stdin)["check_runs"]:
     name = run["name"]
-    if name in want and (run.get("started_at") or "") >= (latest.get(name, {}).get("started_at") or ""):
-        latest[name] = run
+    pick = skipped if run.get("conclusion") == "skipped" else latest
+    if name in want and (run.get("started_at") or "") >= (pick.get(name, {}).get("started_at") or ""):
+        pick[name] = run
 for name in want:
-    run = latest.get(name)
+    run = latest.get(name) or skipped.get(name)
     print(name, run["status"], run.get("conclusion") or "-") if run else print(name, "missing", "-")
 '
 }
