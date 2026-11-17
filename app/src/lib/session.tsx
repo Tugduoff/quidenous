@@ -1,17 +1,16 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { createContext, type PropsWithChildren, useContext, useEffect, useState } from 'react';
 
+import { forgetWidget } from '@/widget/task';
+
 import { API_URL, api, ApiError, apiRoom, presetRoom, setApiRoom, setApiToken, setApiUrl, setOnSignedOut, type Member } from './api';
 import { auth, flow, pendingJoinCode, setPendingCode, type SessionResult } from './auth';
 import { deviceHeader } from './device';
 import { adoptAccountLang, loadLang, syncLang } from './i18n';
 import { introAtSignIn, introAtStart, introFinish, introForget } from './intro-sync';
 import { clearRoomData } from './query-client';
-import { storage } from './storage';
+import { ROOM_KEY, SERVER_KEY, storage, TOKEN_KEY } from './storage';
 
-const TOKEN_KEY = 'qdn.token';
-const SERVER_KEY = 'qdn.server';
-const ROOM_KEY = 'qdn.room';
 /** Set while the account is in no room: the next start asks for the room list instead of a `/me` known to fail. */
 const ROOMLESS_KEY = 'qdn.roomless';
 
@@ -228,6 +227,8 @@ export function SessionProvider({ children }: PropsWithChildren) {
     await storage.remove(ROOM_KEY);
     await storage.remove(ROOMLESS_KEY);
     await introForget();
+    // The home-screen widget forgets its token too, and shows "signed out" (the session is gone from storage first).
+    forgetWidget().catch(() => {});
     setApiRoom(null);
     setRoomState(null);
     setApiToken(null);

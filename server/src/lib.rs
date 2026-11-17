@@ -44,6 +44,7 @@ pub mod updates;
 pub mod vibes;
 pub mod vitrine;
 pub mod web;
+pub mod widget;
 pub mod wrapped;
 
 use std::sync::Arc;
