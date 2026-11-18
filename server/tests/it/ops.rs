@@ -1,6 +1,8 @@
 use quidenous_server::platform::ids::UserId;
 use std::path::PathBuf;
 
+use crate::common;
+
 use axum::{
     Router,
     body::Body,
@@ -12,20 +14,8 @@ use serde_json::{Value, json};
 use tokio::sync::mpsc;
 use tower::ServiceExt;
 
-fn temp_dir() -> PathBuf {
-    static NEXT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
-    let nanos = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_nanos();
-    let n = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    let dir = std::env::temp_dir().join(format!("qdn-ops-test-{}-{nanos}-{n}", std::process::id()));
-    std::fs::create_dir_all(&dir).unwrap();
-    dir
-}
-
 async fn test_app(webhook: Option<String>) -> (Router, AppState, PathBuf) {
-    let dir = temp_dir();
+    let dir = common::temp_dir("qdn-ops-test");
     let config = Config {
         database_url: format!("sqlite://{}?mode=rwc", dir.join("test.db").display()),
         data_dir: dir.clone(),

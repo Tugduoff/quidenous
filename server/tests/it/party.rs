@@ -12,8 +12,7 @@ use serde_json::{Value, json};
 use tower::ServiceExt;
 
 async fn setup() -> (Router, AppState) {
-    let dir = std::env::temp_dir().join(format!("qdn-party-{}", common::unique()));
-    std::fs::create_dir_all(&dir).unwrap();
+    let dir = common::temp_dir("qdn-party");
     let config = Config {
         database_url: format!("sqlite://{}?mode=rwc", dir.join("test.db").display()),
         data_dir: dir,

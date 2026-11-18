@@ -1,5 +1,7 @@
 use std::path::PathBuf;
 
+use crate::common;
+
 use axum::{
     Router,
     body::{Body, Bytes},
@@ -14,6 +16,7 @@ use tower::ServiceExt;
 
 const TOKEN: &str = "secret";
 const RV: &str = "1.0.0";
+const OUTSIDE_THE_UPLOAD: &str = "/tmp/qdn-escape.txt";
 const SIG: &str = "sig=\"c2lnbmF0dXJl\", keyid=\"main\"";
 
 async fn test_app(token: Option<&str>) -> (Router, PathBuf) {
@@ -21,7 +24,7 @@ async fn test_app(token: Option<&str>) -> (Router, PathBuf) {
 }
 
 async fn test_app_with(token: Option<&str>, certificate: Option<&str>) -> (Router, PathBuf) {
-    let dir = std::env::temp_dir().join(format!("qdn-ota-test-{}", rand_suffix()));
+    let dir = common::temp_dir("qdn-ota-test");
     let config = Config {
         port: 0,
         database_url: format!("sqlite://{}?mode=rwc", dir.join("test.db").display()),
@@ -38,16 +41,6 @@ async fn test_app_with(token: Option<&str>, certificate: Option<&str>) -> (Route
     };
     std::fs::create_dir_all(&dir).unwrap();
     (app(state(config).await.unwrap()), dir)
-}
-
-fn rand_suffix() -> String {
-    static NEXT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
-    let nanos = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_nanos();
-    let n = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    format!("{}-{nanos}-{n}", std::process::id())
 }
 
 async fn send(app: &Router, req: Request<Body>) -> (StatusCode, HeaderMap, Bytes) {
@@ -580,7 +573,7 @@ async fn bad_archives_are_refused() {
     ));
     cases.push((
         "absolute path",
-        tarball(vec![Entry::File("/tmp/qdn-escape.txt", b"x".to_vec())]),
+        tarball(vec![Entry::File(OUTSIDE_THE_UPLOAD, b"x".to_vec())]),
         "unsafe_path_in_archive",
     ));
     cases.push((
@@ -606,7 +599,7 @@ async fn bad_archives_are_refused() {
         assert_eq!(body["error"], code, "{what}");
         assert!(!leftover_tmp(&dir), "{what}");
     }
-    assert!(!std::env::temp_dir().join("qdn-escape.txt").exists());
+    assert!(!std::path::Path::new(OUTSIDE_THE_UPLOAD).exists());
     assert_eq!(served(&app, RV, "android").await, None);
     assert_eq!(
         admin(&app, "GET", "/updates", Some(TOKEN)).await.1,

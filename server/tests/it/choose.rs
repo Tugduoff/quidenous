@@ -6,8 +6,7 @@ use quidenous_server::{AppState, app, platform::config::Config, state};
 use serde_json::{Value, json};
 
 async fn test_app(keep_deck: bool) -> (Router, AppState) {
-    let suffix = common::unique();
-    let dir = std::env::temp_dir().join(format!("qdn-choose-{suffix}"));
+    let dir = common::temp_dir("qdn-choose");
     let config = Config {
         port: 0,
         database_url: format!("sqlite://{}?mode=rwc", dir.join("test.db").display()),

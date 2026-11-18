@@ -1,4 +1,6 @@
-use std::sync::Arc;
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, OnceLock};
+use std::time::Duration;
 
 use axum::Router;
 use quidenous_server::{
@@ -15,13 +17,50 @@ pub(crate) fn unique() -> String {
     format!("{}-{nanos}-{n}", std::process::id())
 }
 
-pub(crate) fn temp_dir(prefix: &str) -> std::path::PathBuf {
-    let dir = std::env::temp_dir().join(format!("{prefix}-{}", unique()));
+const RUN_FOLDERS: &str = "qdn-it";
+const ABANDONED_AFTER: Duration = Duration::from_secs(3600);
+
+fn run_folder() -> &'static Path {
+    static FOLDER: OnceLock<PathBuf> = OnceLock::new();
+    FOLDER.get_or_init(|| {
+        #[expect(clippy::disallowed_methods)]
+        let runs = std::env::temp_dir().join(RUN_FOLDERS);
+        remove_finished_runs(&runs);
+        let folder = runs.join(std::process::id().to_string());
+        std::fs::create_dir_all(&folder).unwrap();
+        folder
+    })
+}
+
+fn remove_finished_runs(runs: &Path) {
+    let Ok(folders) = std::fs::read_dir(runs) else {
+        return;
+    };
+    for folder in folders.flatten().filter(run_is_over) {
+        let _ = std::fs::remove_dir_all(folder.path());
+    }
+}
+
+fn run_is_over(folder: &std::fs::DirEntry) -> bool {
+    let processes = Path::new("/proc");
+    if processes.join("self").exists() {
+        return !processes.join(folder.file_name()).exists();
+    }
+    folder
+        .metadata()
+        .and_then(|folder| folder.modified())
+        .ok()
+        .and_then(|written| written.elapsed().ok())
+        .is_some_and(|idle| idle > ABANDONED_AFTER)
+}
+
+pub(crate) fn temp_dir(prefix: &str) -> PathBuf {
+    let dir = run_folder().join(format!("{prefix}-{}", unique()));
     std::fs::create_dir_all(&dir).unwrap();
     dir
 }
 
-pub(crate) fn config(dir: &std::path::Path) -> Config {
+pub(crate) fn config(dir: &Path) -> Config {
     Config {
         database_url: format!("sqlite://{}?mode=rwc", dir.join("test.db").display()),
         data_dir: dir.to_path_buf(),

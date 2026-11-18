@@ -331,8 +331,7 @@ async fn a_room_never_loses_its_owner() {
 
 #[tokio::test]
 async fn rooms_without_an_owner_are_repaired_at_startup() {
-    let dir = std::env::temp_dir().join(format!("qdn-test-{}", common::unique()));
-    std::fs::create_dir_all(&dir).unwrap();
+    let dir = common::temp_dir("qdn-test");
     let config = || Config {
         port: 0,
         database_url: format!("sqlite://{}?mode=rwc", dir.join("test.db").display()),

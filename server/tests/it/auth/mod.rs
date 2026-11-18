@@ -37,12 +37,7 @@ const PUBLIC_URL: &str = "https://qdn.test";
 const PASSWORD: &str = "velo-rouge-du-dimanche";
 
 fn base_config() -> Config {
-    let dir = std::env::temp_dir().join(format!(
-        "qdn-auth-test-{}-{}",
-        std::process::id(),
-        common::unique()
-    ));
-    std::fs::create_dir_all(&dir).unwrap();
+    let dir = common::temp_dir("qdn-auth-test");
     Config {
         database_url: format!("sqlite://{}?mode=rwc", dir.join("test.db").display()),
         data_dir: dir,

@@ -52,7 +52,13 @@ check_server() {
   step "server: clippy"
   cargo clippy --all-targets --locked -- -D warnings
   step "server: tests"
-  cargo test --locked
+  local test_scratch
+  test_scratch="$(mktemp -d)"
+  TMPDIR="$test_scratch" cargo test --locked || {
+    rm -rf "$test_scratch"
+    return 1
+  }
+  rm -rf "$test_scratch"
 }
 
 export_web() {
