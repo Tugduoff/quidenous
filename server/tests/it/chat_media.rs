@@ -14,7 +14,7 @@ use axum::{
     http::{HeaderMap, Request, StatusCode, header},
 };
 use http_body_util::BodyExt;
-use quidenous_server::{AppState, app, config::Klipy, state};
+use quidenous_server::{AppState, app, platform::config::Klipy, state};
 use serde_json::{Value, json};
 use tower::ServiceExt;
 
@@ -464,7 +464,7 @@ async fn chat_rules_and_tokens() {
     let forged = format!("/api/media/{payload}.{flipped}{}", &mac[1..]);
     let expired = format!(
         "/api/media/{}",
-        quidenous_server::media::sign(&state, "chat media", &format!("{id}.1000"))
+        quidenous_server::chat::media::sign(&state, "chat media", &format!("{id}.1000"))
     );
     let (_, t) = call(
         &app,
@@ -475,10 +475,11 @@ async fn chat_rules_and_tokens() {
         Some(json!({ "text": "texte" })),
     )
     .await;
-    let text_url = quidenous_server::media::image_url(&state, t["id"].as_i64().unwrap(), false);
+    let text_url =
+        quidenous_server::chat::media::image_url(&state, t["id"].as_i64().unwrap(), false);
     let other_id = format!(
         "/api/media/{}",
-        quidenous_server::media::sign(&state, "klipy media", &format!("{id}.99999999999"))
+        quidenous_server::chat::media::sign(&state, "klipy media", &format!("{id}.99999999999"))
     );
     for bad in [
         forged,
@@ -572,7 +573,7 @@ async fn blocks_reports_and_deletions() {
     .await;
     assert_eq!(s, StatusCode::NOT_FOUND);
     // An admin reviewing the report still sees it.
-    let review = quidenous_server::media::image_url(&state, rid, true);
+    let review = quidenous_server::chat::media::image_url(&state, rid, true);
     let (s, _, _) = raw(&app, "GET", &review, None, None, None, Vec::new()).await;
     assert_eq!(s, StatusCode::OK);
 
@@ -681,10 +682,10 @@ async fn image_quota() {
         .await
         .unwrap();
     // The chat limit (15 a minute) comes first in a burst: use up the hourly image one directly.
-    for _ in 0..quidenous_server::quotas::CHAT_IMAGE_USER.capacity {
-        quidenous_server::quotas::hit_user(
+    for _ in 0..quidenous_server::platform::quotas::CHAT_IMAGE_USER.capacity {
+        quidenous_server::platform::quotas::hit_user(
             &state,
-            &quidenous_server::quotas::CHAT_IMAGE_USER,
+            &quidenous_server::platform::quotas::CHAT_IMAGE_USER,
             user,
         )
         .unwrap();
@@ -911,7 +912,7 @@ async fn gifs_through_klipy() {
     let sign = |url: &str| {
         format!(
             "/api/gifs/media/{}",
-            quidenous_server::media::sign(&state, "klipy media", url)
+            quidenous_server::chat::media::sign(&state, "klipy media", url)
         )
     };
     for (bad, why) in [
@@ -922,7 +923,7 @@ async fn gifs_through_klipy() {
         (
             format!(
                 "/api/gifs/media/{}",
-                quidenous_server::media::sign(
+                quidenous_server::chat::media::sign(
                     &state,
                     "chat media",
                     &format!("{base}/files/md.webp")

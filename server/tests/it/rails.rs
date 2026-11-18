@@ -52,7 +52,7 @@ async fn raw(
 #[tokio::test]
 async fn a_room_seats_fifty_people() {
     let (app, state) = setup().await;
-    let max = quidenous_server::rooms::MEMBERS_MAX;
+    let max = quidenous_server::rooms::rooms::MEMBERS_MAX;
     let mut first = None;
     for i in 0..max {
         let (token, _) = join(&app, &format!("P{i}")).await;
@@ -114,7 +114,7 @@ async fn an_account_owns_twenty_rooms_at_most() {
     let (app, _) = setup().await;
     // Owner of the env room already.
     let (tug, _) = join(&app, "Tug").await;
-    let max = quidenous_server::rooms::OWNED_MAX;
+    let max = quidenous_server::rooms::rooms::OWNED_MAX;
     for i in 1..max {
         let (s, b) = call(
             &app,

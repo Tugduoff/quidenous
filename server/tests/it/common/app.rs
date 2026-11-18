@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use axum::Router;
 use quidenous_server::{
-    AppState, accounts::MemoryMailer, app, config::Config, state, state_with_mailer,
+    AppState, accounts::MemoryMailer, app, platform::config::Config, state, state_with_mailer,
 };
 
 pub fn unique() -> String {

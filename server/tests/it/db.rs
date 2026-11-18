@@ -12,7 +12,7 @@ use axum::{
 };
 use http_body_util::BodyExt;
 use quidenous_server::{
-    db::{MIGRATOR, write_tx},
+    platform::db::{MIGRATOR, write_tx},
     state,
 };
 use serde_json::json;
@@ -173,7 +173,9 @@ async fn a_migration_that_ran_but_was_not_recorded_is_repaired() {
 async fn an_unrun_migration_is_not_marked_applied() {
     let dir = common::temp_dir("qdn-db");
     let old = old_database(&dir, 26).await;
-    let repaired = quidenous_server::db::repair_unrecorded(&old).await.unwrap();
+    let repaired = quidenous_server::platform::db::repair_unrecorded(&old)
+        .await
+        .unwrap();
     assert_eq!(repaired, 0);
     assert_eq!(recorded(&old).await.last(), Some(&26));
 }
@@ -356,7 +358,7 @@ async fn a_closed_question_is_not_announced_twice() {
     }
     // Re-checking the closed question (a late skip or removal) has nothing to say.
     let mut tx = write_tx(&state.db).await.unwrap();
-    let events = quidenous_server::game::close_if_done(&mut tx, room, round)
+    let events = quidenous_server::rounds::game::close_if_done(&mut tx, room, round)
         .await
         .unwrap();
     tx.commit().await.unwrap();
@@ -456,7 +458,9 @@ async fn the_inbox_is_pruned_by_age_and_per_seat() {
         .fetch_one(&state.db)
         .await
         .unwrap();
-    let pruned = quidenous_server::inbox::prune(&state.db).await.unwrap();
+    let pruned = quidenous_server::chat::inbox::prune(&state.db)
+        .await
+        .unwrap();
     assert_eq!(pruned, 5 + 50);
     let count = |member: i64| {
         let db = state.db.clone();
@@ -477,5 +481,10 @@ async fn the_inbox_is_pruned_by_age_and_per_seat() {
         .await
         .unwrap();
     assert_eq!(kept, 1);
-    assert_eq!(quidenous_server::inbox::prune(&state.db).await.unwrap(), 0);
+    assert_eq!(
+        quidenous_server::chat::inbox::prune(&state.db)
+            .await
+            .unwrap(),
+        0
+    );
 }

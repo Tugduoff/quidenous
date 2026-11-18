@@ -5,7 +5,7 @@ use crate::common::{next_event, serve};
 use crate::common::{call, join, room_id, setup};
 use axum::http::StatusCode;
 use futures::SinkExt;
-use quidenous_server::live::Event;
+use quidenous_server::realtime::live::Event;
 use serde_json::json;
 use tokio_tungstenite::tungstenite::{Message, client::IntoClientRequest};
 
@@ -74,7 +74,7 @@ async fn the_live_socket_relays_my_rooms_events() {
 }
 
 async fn room_member(state: &quidenous_server::AppState, token: &str) -> i64 {
-    quidenous_server::auth::member_in_room(state, token, None)
+    quidenous_server::accounts::auth::member_in_room(state, token, None)
         .await
         .unwrap()
         .id

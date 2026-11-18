@@ -1,4 +1,4 @@
-use quidenous_server::{app, config::Config, state};
+use quidenous_server::{app, platform::config::Config, state};
 use tracing_subscriber::EnvFilter;
 
 /// `server --health`: exit 0 when the local API answers (Docker HEALTHCHECK, no curl in the image).
@@ -22,7 +22,7 @@ fn health(port: u16) -> std::process::ExitCode {
 #[tokio::main]
 async fn main() -> quidenous_server::anyhow_free::Result<()> {
     if std::env::args().any(|a| a == "--gen-vapid") {
-        let (private, public) = quidenous_server::push::generate_vapid();
+        let (private, public) = quidenous_server::realtime::push::generate_vapid();
         println!("VAPID_PRIVATE_KEY={private}\n# public key: {public}");
         return Ok(());
     }
@@ -43,7 +43,8 @@ async fn main() -> quidenous_server::anyhow_free::Result<()> {
     if let Some(i) = args.iter().position(|a| a == "--backup") {
         let dest = args.get(i + 1).ok_or("usage: server --backup <file.db>")?;
         let config = Config::from_env();
-        quidenous_server::ops::backup(&config.database_url, std::path::Path::new(dest)).await?;
+        quidenous_server::platform::ops::backup(&config.database_url, std::path::Path::new(dest))
+            .await?;
         println!("database copied to {dest}");
         return Ok(());
     }
@@ -68,17 +69,17 @@ async fn main() -> quidenous_server::anyhow_free::Result<()> {
             .and_then(|r| r.parse().ok())
             .ok_or(USAGE)?;
         let text = tokio::fs::read_to_string(path).await?;
-        let added = quidenous_server::deck::import_room(&state.db, room, &text)
+        let added = quidenous_server::community::deck::import_room(&state.db, room, &text)
             .await?
             .ok_or_else(|| format!("no room {room}"))?;
         println!("{added} new questions imported into room {room}");
         return Ok(());
     }
-    quidenous_server::pacing::spawn_scheduler(state.clone());
+    quidenous_server::rooms::pacing::spawn_scheduler(state.clone());
     quidenous_server::party::spawn_sweeper(state.clone());
-    quidenous_server::guests::spawn_purger(state.clone());
-    quidenous_server::streaks::spawn_reminder(state.clone());
-    quidenous_server::badges::spawn_sweeper(state.clone());
+    quidenous_server::accounts::guests::spawn_purger(state.clone());
+    quidenous_server::insights::streaks::spawn_reminder(state.clone());
+    quidenous_server::insights::badges::spawn_sweeper(state.clone());
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", port)).await?;
     tracing::info!(port, "qui de nous ? server listening");
     axum::serve(
@@ -94,7 +95,7 @@ async fn main() -> quidenous_server::anyhow_free::Result<()> {
 /// `server seed-packs <dir> --author-id <id> [--featured] [--dry-run]`: publishes the pack files of a
 /// folder (docs/PACK_FILES.md). Safe to run again: packs the author already has are skipped.
 async fn seed_packs(args: &[String]) -> quidenous_server::anyhow_free::Result<()> {
-    use quidenous_server::packs::SeedAction;
+    use quidenous_server::community::packs::SeedAction;
     const USAGE: &str =
         "usage: server seed-packs <dir> --author-id <user id> [--featured] [--dry-run]";
     let dir = args.first().filter(|a| !a.starts_with("--")).ok_or(USAGE)?;
@@ -123,7 +124,7 @@ async fn seed_packs(args: &[String]) -> quidenous_server::anyhow_free::Result<()
         "author: {} (account {author})",
         name.as_deref().unwrap_or("?")
     );
-    let outcomes = quidenous_server::packs::seed_dir(
+    let outcomes = quidenous_server::community::packs::seed_dir(
         &db,
         std::path::Path::new(dir),
         author,

@@ -5,7 +5,7 @@ use crate::common;
 
 use crate::common::{call, setup};
 use axum::{Router, http::StatusCode};
-use quidenous_server::{AppState, guests};
+use quidenous_server::{AppState, accounts::guests};
 use serde_json::{Value, json};
 
 /// A newcomer with a room of their own (`/start`): (token, user id, room id).

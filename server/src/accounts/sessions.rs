@@ -9,7 +9,7 @@ use serde_json::{Value, json};
 use super::{Session, not_claimed, revoke_sessions};
 use crate::{
     AppState,
-    error::{AppError, AppResult},
+    platform::error::{AppError, AppResult},
 };
 
 /// A session's public id: the first 16 hex characters of its token hash.

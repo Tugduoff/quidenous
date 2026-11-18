@@ -3,7 +3,7 @@
 
 use crate::common::{call, join, room_id, setup};
 use axum::{Router, http::StatusCode};
-use quidenous_server::{AppState, flow, game, pacing, party};
+use quidenous_server::{AppState, party, rooms::flow, rooms::pacing, rounds::game};
 use serde_json::{Value, json};
 
 async fn current(app: &Router, token: &str) -> Value {

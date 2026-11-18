@@ -290,7 +290,7 @@ async fn chat_list_keeps_the_latest_messages() {
 
 #[tokio::test]
 async fn notification_settings_filter_pushes() {
-    use quidenous_server::push::{Kind, Target};
+    use quidenous_server::realtime::push::{Kind, Target};
     // 2026-11-12 00:00 UTC.
     const MIDNIGHT: u64 = 1_794_441_600;
     let noon = MIDNIGHT + 12 * 3600;
@@ -457,7 +457,7 @@ async fn notification_settings_filter_pushes() {
 
 #[tokio::test]
 async fn chat_mentions_are_validated_and_ping_through_the_chat_switch() {
-    use quidenous_server::push::{Kind, Target};
+    use quidenous_server::realtime::push::{Kind, Target};
     // 2026-11-12 12:00 UTC.
     const NOON: u64 = 1_794_441_600 + 12 * 3600;
     let (app, state) = setup().await;

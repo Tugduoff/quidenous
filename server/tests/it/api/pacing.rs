@@ -143,11 +143,16 @@ async fn a_delay_opens_the_next_question_through_the_scheduler() {
     assert_eq!(s, StatusCode::FORBIDDEN);
 
     // Not yet: the scheduler leaves it alone.
-    assert_eq!(quidenous_server::pacing::open_due(&state).await.unwrap(), 0);
+    assert_eq!(
+        quidenous_server::rooms::pacing::open_due(&state)
+            .await
+            .unwrap(),
+        0
+    );
     let in_59 = db_now_plus(&state, "+59 minutes").await;
     assert!(in_59 < deadline);
     assert_eq!(
-        quidenous_server::pacing::open_due_at(&state, &in_59)
+        quidenous_server::rooms::pacing::open_due_at(&state, &in_59)
             .await
             .unwrap(),
         0
@@ -156,7 +161,7 @@ async fn a_delay_opens_the_next_question_through_the_scheduler() {
     // Past the deadline (e.g. the first tick after a restart): it opens.
     let later = db_now_plus(&state, "+2 hours").await;
     assert_eq!(
-        quidenous_server::pacing::open_due_at(&state, &later)
+        quidenous_server::rooms::pacing::open_due_at(&state, &later)
             .await
             .unwrap(),
         1
@@ -166,7 +171,7 @@ async fn a_delay_opens_the_next_question_through_the_scheduler() {
     assert_eq!(g["pace"]["waiting"], false);
     assert!(g["pace"]["next_open_at"].is_null());
     assert_eq!(
-        quidenous_server::pacing::open_due_at(&state, &later)
+        quidenous_server::rooms::pacing::open_due_at(&state, &later)
             .await
             .unwrap(),
         0,
@@ -235,7 +240,7 @@ async fn owner_and_delay_together() {
     assert_eq!(s, StatusCode::OK);
     assert_eq!(current_number(&app, &bob).await, Some(2));
     assert_eq!(
-        quidenous_server::pacing::open_due_at(&state, &later)
+        quidenous_server::rooms::pacing::open_due_at(&state, &later)
             .await
             .unwrap(),
         0
@@ -245,7 +250,7 @@ async fn owner_and_delay_together() {
     close_round(&app, &[&ana, &bob], bob_id).await;
     assert_eq!(current_number(&app, &bob).await, None);
     assert_eq!(
-        quidenous_server::pacing::open_due_at(&state, &later)
+        quidenous_server::rooms::pacing::open_due_at(&state, &later)
             .await
             .unwrap(),
         1
@@ -268,9 +273,12 @@ async fn owner_and_delay_together() {
     assert!(g["pace"]["next_open_at"].is_null());
     // (Past 24 h with the owner unseen it would open anyway: see flow.rs and tests/flow.rs.)
     assert_eq!(
-        quidenous_server::pacing::open_due_at(&state, &db_now_plus(&state, "+20 hours").await)
-            .await
-            .unwrap(),
+        quidenous_server::rooms::pacing::open_due_at(
+            &state,
+            &db_now_plus(&state, "+20 hours").await
+        )
+        .await
+        .unwrap(),
         0
     );
     assert_eq!(current_number(&app, &bob).await, None);

@@ -16,9 +16,9 @@ use serde_json::{Value, json};
 use super::{ClientIp, Session};
 use crate::{
     AppState,
-    auth::{hash_token, new_token},
-    error::{AppError, AppResult},
-    quotas::{TICKET_IP, TICKET_USER},
+    accounts::auth::{hash_token, new_token},
+    platform::error::{AppError, AppResult},
+    platform::quotas::{TICKET_IP, TICKET_USER},
 };
 
 pub const TICKET_TTL: Duration = Duration::from_secs(60);
@@ -110,7 +110,7 @@ pub async fn create(
     Json(body): Json<TicketBody>,
 ) -> AppResult<Json<Value>> {
     state.auth.limits.hit_ip(&TICKET_IP, ip)?;
-    crate::quotas::hit_user(&state, &TICKET_USER, session.user_id)?;
+    crate::platform::quotas::hit_user(&state, &TICKET_USER, session.user_id)?;
     let ticket = state
         .auth
         .tickets

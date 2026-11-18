@@ -6,9 +6,8 @@ use crate::common::{Socket, connect, next_event, serve};
 use crate::common::{call, join, room_id, setup};
 use axum::{Router, http::StatusCode};
 use quidenous_server::{
-    AppState,
-    live::{Event, GroupEvent},
-    party,
+    AppState, party,
+    realtime::live::{Event, GroupEvent},
 };
 use serde_json::{Value, json};
 
@@ -321,7 +320,7 @@ async fn thirty_taps_per_person_and_result() {
 
     // The room heard exactly the counted taps (coalesced: wait for the trailing event); a daily room
     // gets no `party_updated`.
-    tokio::time::sleep(quidenous_server::live::RESULT_REACT_GAP * 3).await;
+    tokio::time::sleep(quidenous_server::realtime::live::RESULT_REACT_GAP * 3).await;
     let (taps, party) = heard(&mut rx);
     assert_eq!(
         taps,
@@ -488,7 +487,7 @@ async fn party_guests_react_and_older_apps_still_toggle() {
     );
 
     // Live: the counted taps, and `party_updated` for older apps.
-    tokio::time::sleep(quidenous_server::live::RESULT_REACT_GAP * 3).await;
+    tokio::time::sleep(quidenous_server::realtime::live::RESULT_REACT_GAP * 3).await;
     let (taps, party) = heard(&mut rx);
     let host_id = p["me"]["member_id"].as_i64().unwrap();
     assert_eq!(

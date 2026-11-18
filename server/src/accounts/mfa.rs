@@ -12,8 +12,8 @@ use super::{
 };
 use crate::{
     AppState,
-    error::{AppError, AppResult},
-    i18n::Notice,
+    platform::error::{AppError, AppResult},
+    platform::i18n::Notice,
 };
 
 const RECOVERY_COUNT: usize = 10;
@@ -82,7 +82,7 @@ async fn new_recovery_codes(state: &AppState, user_id: i64) -> AppResult<Vec<Str
     let codes: Vec<String> = (0..RECOVERY_COUNT)
         .map(|_| crypto::recovery_code())
         .collect();
-    let mut tx = crate::db::write_tx(&state.db).await?;
+    let mut tx = crate::platform::db::write_tx(&state.db).await?;
     sqlx::query("DELETE FROM recovery_codes WHERE user_id = ?")
         .bind(user_id)
         .execute(&mut *tx)
@@ -274,7 +274,7 @@ pub async fn regenerate(
 
 /// 2FA off: secret, pending set-up, recovery codes and a pending reset go.
 async fn remove_2fa(state: &AppState, user_id: i64) -> AppResult<()> {
-    let mut tx = crate::db::write_tx(&state.db).await?;
+    let mut tx = crate::platform::db::write_tx(&state.db).await?;
     sqlx::query(
         "UPDATE users SET totp_secret = NULL, totp_pending = NULL, totp_last_step = NULL, \
          mfa_reset_at = NULL WHERE id = ?",
@@ -359,7 +359,7 @@ pub async fn reset_send(
         None,
     )
     .await?;
-    let lang = crate::i18n::of_user(&state.db, acct.id).await?;
+    let lang = crate::platform::i18n::of_user(&state.db, acct.id).await?;
     // The caller passed the first step: no need to hide whether this address gets the mail.
     if let Err(e) = state
         .auth

@@ -9,7 +9,7 @@ use axum::{
     body::Body,
     http::{Request, StatusCode},
 };
-use quidenous_server::{AppState, app, config::Config, flow, party, state};
+use quidenous_server::{AppState, app, party, platform::config::Config, rooms::flow, state};
 use serde_json::{Value, json};
 use tower::ServiceExt;
 
@@ -818,7 +818,9 @@ mod parties {
         guests: &[&str],
     ) -> (i64, String, Vec<(String, i64)>) {
         // `setup` left only pick questions: the said ones come back, the rest goes.
-        quidenous_server::deck::seed(&state.db).await.unwrap();
+        quidenous_server::community::deck::seed(&state.db)
+            .await
+            .unwrap();
         sqlx::query("DELETE FROM questions WHERE group_id IS NULL AND kind <> 'said'")
             .execute(&state.db)
             .await

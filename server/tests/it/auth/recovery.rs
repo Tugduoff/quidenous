@@ -656,7 +656,7 @@ async fn a_password_reset_by_email_holds_off_a_2fa_reset_for_a_week() {
 async fn tickets_are_capped_per_session_account_and_ip() {
     use quidenous_server::{
         accounts::tickets::MAX_PER_SESSION,
-        quotas::{TICKET_IP, TICKET_USER},
+        platform::quotas::{TICKET_IP, TICKET_USER},
     };
     let t = setup().await;
     let (ana, _) = signup(&t, "ana@example.com", "Ana").await;

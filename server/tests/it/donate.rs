@@ -7,7 +7,7 @@ use crate::common::call;
 use axum::http::StatusCode;
 use quidenous_server::{
     app,
-    config::{Config, donation_url},
+    platform::config::{Config, donation_url},
     state,
 };
 

@@ -11,8 +11,8 @@ use std::{
 use futures::future::BoxFuture;
 
 use crate::{
-    config::Mailgun,
-    i18n::{self, Lang},
+    platform::config::Mailgun,
+    platform::i18n::{self, Lang},
 };
 
 #[derive(Clone, Debug)]

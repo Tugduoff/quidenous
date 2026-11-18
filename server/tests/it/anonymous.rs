@@ -242,7 +242,7 @@ async fn a_round_keeps_what_was_decided_when_it_opened() {
         .unwrap();
     // Opened under "always": anonymous, though the question didn't ask.
     let mut tx = room.state.db.begin().await.unwrap();
-    let opened = quidenous_server::game::ensure_open_round(&mut tx, room.id)
+    let opened = quidenous_server::rounds::game::ensure_open_round(&mut tx, room.id)
         .await
         .unwrap()
         .unwrap();

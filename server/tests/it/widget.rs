@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use crate::common::{call, join, room_id, setup};
 use axum::http::StatusCode;
-use quidenous_server::push::WIDGET_PING;
+use quidenous_server::realtime::push::WIDGET_PING;
 use serde_json::{Value, json};
 
 /// A widget token minted from this session (with an FCM token or not).
@@ -242,7 +242,7 @@ async fn questions_opening_and_closing_ping_the_widgets_of_the_room() {
 
 #[test]
 fn the_ping_is_silent_collapsed_and_low_priority() {
-    let m = quidenous_server::push::widget_ping_message("tok", 7);
+    let m = quidenous_server::realtime::push::widget_ping_message("tok", 7);
     assert!(
         m["message"].get("notification").is_none(),
         "data only: nothing shows"

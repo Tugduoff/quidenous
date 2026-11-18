@@ -12,13 +12,14 @@ use serde_json::{Value, json};
 
 use crate::{
     AppState,
-    auth::{Me, hash_token, new_token},
-    error::{AppError, AppResult},
-    game,
-    i18n::{self, Text},
-    live::Event,
-    models::{HistoryItem, Member, MemberRow, QueuedQuestion, RoundView},
-    push::{Kind, Notification},
+    accounts::auth::{Me, hash_token, new_token},
+    platform::error::{AppError, AppResult},
+    platform::i18n::{self, Text},
+    realtime::live::Event,
+    realtime::push::{Kind, Notification},
+    rooms::model::{Member, MemberRow},
+    rounds::game,
+    rounds::model::{HistoryItem, QueuedQuestion, RoundView},
 };
 
 pub(crate) const COLORS: [&str; 8] = [
@@ -42,11 +43,11 @@ pub fn router() -> Router<AppState> {
         // What this server can do, so apps (and release scripts) can tell a deploy has landed.
         .route("/features", get(features))
         .route("/donate", get(donate))
-        .route("/vibes", get(crate::vibes::list))
+        .route("/vibes", get(crate::rooms::vibes::list))
         // Build version (`/api/version`) and app crash reports (`/api/client-errors`).
-        .merge(crate::ops::router())
+        .merge(crate::platform::ops::router())
         // The home-screen widget's read and its narrow token (docs/WIDGET.md).
-        .merge(crate::widget::router())
+        .merge(crate::realtime::widget::router())
         .nest("/auth", crate::accounts::router())
         .route("/join", post(join))
         .route("/me", get(me).put(update_me))
@@ -57,12 +58,12 @@ pub fn router() -> Router<AppState> {
         .route("/me/avatar", put(set_avatar))
         .route(
             "/me/locale",
-            get(crate::i18n::get_locale).put(crate::i18n::put_locale),
+            get(crate::platform::i18n::get_locale).put(crate::platform::i18n::put_locale),
         )
         .route("/group", get(group))
         .route("/round/current", get(current_round))
         .route("/round/current/vote", post(vote))
-        .route("/round/current/answer", post(crate::said::answer))
+        .route("/round/current/answer", post(crate::rounds::said::answer))
         .route("/round/unseen", get(unseen_round))
         .route("/round/current/nudge", post(nudge))
         .route("/round/current/skip/{member_id}", put(skip).delete(unskip))
@@ -72,32 +73,32 @@ pub fn router() -> Router<AppState> {
         .route("/rounds/{id}/pin", put(pin).delete(unpin))
         .route(
             "/rounds/{id}/question",
-            axum::routing::delete(crate::moderation::retire_round_question),
+            axum::routing::delete(crate::community::moderation::retire_round_question),
         )
-        .route("/rounds/{id}/share", post(crate::share::create))
+        .route("/rounds/{id}/share", post(crate::insights::share::create))
         .route("/rounds/{id}/messages", get(messages).post(post_message))
         // Images and GIFs in the chat (docs/CHAT_MEDIA.md).
         .route(
             "/rounds/{id}/messages/image",
-            post(crate::media::upload).layer(axum::extract::DefaultBodyLimit::max(
-                crate::media::UPLOAD_BODY_MAX,
+            post(crate::chat::media::upload).layer(axum::extract::DefaultBodyLimit::max(
+                crate::chat::media::UPLOAD_BODY_MAX,
             )),
         )
-        .route("/rounds/{id}/messages/gif", post(crate::gifs::post))
-        .route("/media/{token}", get(crate::media::serve))
-        .route("/gifs", get(crate::gifs::search))
-        .route("/gifs/media/{token}", get(crate::gifs::proxy))
+        .route("/rounds/{id}/messages/gif", post(crate::chat::gifs::post))
+        .route("/media/{token}", get(crate::chat::media::serve))
+        .route("/gifs", get(crate::chat::gifs::search))
+        .route("/gifs/media/{token}", get(crate::chat::gifs::proxy))
         .route(
             "/messages/{id}/reactions",
-            post(crate::reactions::add).delete(crate::reactions::remove),
+            post(crate::chat::reactions::add).delete(crate::chat::reactions::remove),
         )
         .route(
             "/rounds/{id}/messages/{message_id}",
-            axum::routing::delete(crate::moderation::delete_message),
+            axum::routing::delete(crate::community::moderation::delete_message),
         )
         .route(
             "/rounds/{id}/messages/{message_id}/restore",
-            post(crate::moderation::restore_message),
+            post(crate::community::moderation::restore_message),
         )
         .route("/inbox", get(inbox))
         .route("/inbox/read", post(read_inbox))
@@ -105,23 +106,29 @@ pub fn router() -> Router<AppState> {
         .route("/history/pinned", get(pinned_history))
         .route("/history/export", get(export_history))
         .route("/stats", get(stats))
-        .route("/streaks", get(crate::streaks::get))
-        .route("/tripot", get(crate::tripot::board))
+        .route("/streaks", get(crate::insights::streaks::get))
+        .route("/tripot", get(crate::rounds::tripot::board))
         // Titles & badges (docs/BADGES.md) and the Wrapped (docs/WRAPPED.md).
-        .route("/badges", get(crate::badges::list))
-        .route("/me/title", put(crate::badges::set_title))
-        .route("/titles", get(crate::badges::titles))
-        .route("/members/{member_id}/badges", get(crate::badges::member))
-        .route("/wrapped", get(crate::wrapped::get))
-        .route("/wrapped/share", post(crate::wrapped::share))
-        .route("/today", get(crate::today::get))
-        .route("/intro", get(crate::intro::get).post(crate::intro::done))
-        .route("/rounds/{id}/bet", post(crate::tripot::bet))
-        .route("/stats/share", post(crate::share::create_stat))
-        .route("/shares", get(crate::share::mine))
+        .route("/badges", get(crate::insights::badges::list))
+        .route("/me/title", put(crate::insights::badges::set_title))
+        .route("/titles", get(crate::insights::badges::titles))
+        .route(
+            "/members/{member_id}/badges",
+            get(crate::insights::badges::member),
+        )
+        .route("/wrapped", get(crate::insights::wrapped::get))
+        .route("/wrapped/share", post(crate::insights::wrapped::share))
+        .route("/today", get(crate::insights::today::get))
+        .route(
+            "/intro",
+            get(crate::accounts::intro::get).post(crate::accounts::intro::done),
+        )
+        .route("/rounds/{id}/bet", post(crate::rounds::tripot::bet))
+        .route("/stats/share", post(crate::insights::share::create_stat))
+        .route("/shares", get(crate::insights::share::mine))
         .route(
             "/shares/{token}",
-            axum::routing::delete(crate::share::revoke),
+            axum::routing::delete(crate::insights::share::revoke),
         )
         .route("/questions", post(add_question))
         .route("/questions/queue", get(queue).delete(clear_queue))
@@ -134,110 +141,147 @@ pub fn router() -> Router<AppState> {
             "/questions/import",
             post(import_questions).layer(axum::extract::DefaultBodyLimit::max(IMPORT_MAX)),
         )
-        .route("/rooms", get(crate::rooms::list).post(crate::rooms::create))
-        .route("/rooms/join", post(crate::rooms::join))
-        .route("/rooms/preview", get(crate::rooms::preview))
-        .route("/start", post(crate::rooms::start))
+        .route(
+            "/rooms",
+            get(crate::rooms::rooms::list).post(crate::rooms::rooms::create),
+        )
+        .route("/rooms/join", post(crate::rooms::rooms::join))
+        .route("/rooms/preview", get(crate::rooms::rooms::preview))
+        .route("/start", post(crate::rooms::rooms::start))
         .route(
             "/packs",
-            get(crate::packs::list).post(crate::packs::publish),
+            get(crate::community::packs::list).post(crate::community::packs::publish),
         )
-        .route("/packs/mine", get(crate::packs::mine))
-        .route("/packs/delete", post(crate::packs::delete_many))
+        .route("/packs/mine", get(crate::community::packs::mine))
+        .route("/packs/delete", post(crate::community::packs::delete_many))
         .route(
             "/packs/{id}",
-            get(crate::packs::get)
-                .put(crate::packs::edit)
-                .delete(crate::packs::delete),
+            get(crate::community::packs::get)
+                .put(crate::community::packs::edit)
+                .delete(crate::community::packs::delete),
         )
-        .route("/packs/{id}/install", post(crate::packs::install))
-        .route("/packs/{id}/report", post(crate::packs::report))
+        .route(
+            "/packs/{id}/install",
+            post(crate::community::packs::install),
+        )
+        .route("/packs/{id}/report", post(crate::community::packs::report))
         .route(
             "/packs/{id}/like",
-            post(crate::packs::like).delete(crate::packs::unlike),
+            post(crate::community::packs::like).delete(crate::community::packs::unlike),
         )
-        .route("/creators/{user_id}", get(crate::packs::creator))
+        .route("/creators/{user_id}", get(crate::community::packs::creator))
         .route(
             "/community/me",
-            get(crate::packs::community_me).put(crate::packs::set_community_me),
+            get(crate::community::packs::community_me)
+                .put(crate::community::packs::set_community_me),
         )
-        .route("/admin/review", get(crate::packs::review))
-        .route("/admin/packs/{id}/approve", post(crate::packs::approve))
-        .route("/admin/packs/{id}/remove", post(crate::packs::remove))
-        .route("/admin/packs/{id}/feature", post(crate::packs::feature))
+        .route("/admin/review", get(crate::community::packs::review))
+        .route(
+            "/admin/packs/{id}/approve",
+            post(crate::community::packs::approve),
+        )
+        .route(
+            "/admin/packs/{id}/remove",
+            post(crate::community::packs::remove),
+        )
+        .route(
+            "/admin/packs/{id}/feature",
+            post(crate::community::packs::feature),
+        )
         .route(
             "/admin/suggestions/{id}/approve",
-            post(crate::suggestions::approve),
+            post(crate::community::suggestions::approve),
         )
         .route(
             "/admin/suggestions/{id}/reject",
-            post(crate::suggestions::reject),
+            post(crate::community::suggestions::reject),
         )
-        .route("/suggestions", post(crate::suggestions::create))
-        .route("/suggestions/next", get(crate::suggestions::next))
-        .route("/suggestions/mine", get(crate::suggestions::mine))
-        .route("/suggestions/{id}/vote", post(crate::suggestions::vote))
+        .route("/suggestions", post(crate::community::suggestions::create))
+        .route(
+            "/suggestions/next",
+            get(crate::community::suggestions::next),
+        )
+        .route(
+            "/suggestions/mine",
+            get(crate::community::suggestions::mine),
+        )
+        .route(
+            "/suggestions/{id}/vote",
+            post(crate::community::suggestions::vote),
+        )
         .route(
             "/play/{token}",
-            get(crate::play::get).post(crate::play::play),
+            get(crate::rounds::play::get).post(crate::rounds::play::play),
         )
-        .route("/rounds/{id}/challenge", post(crate::play::challenge))
-        .route("/rounds/{id}/challenges", get(crate::play::challenges))
-        .route("/rooms/{id}/add", post(crate::friends::add_to_room))
-        .route("/rooms/{id}/invites", get(crate::friends::room_invites))
+        .route(
+            "/rounds/{id}/challenge",
+            post(crate::rounds::play::challenge),
+        )
+        .route(
+            "/rounds/{id}/challenges",
+            get(crate::rounds::play::challenges),
+        )
+        .route("/rooms/{id}/add", post(crate::rooms::friends::add_to_room))
+        .route(
+            "/rooms/{id}/invites",
+            get(crate::rooms::friends::room_invites),
+        )
         .route(
             "/rooms/{id}/invites/{user_id}",
-            axum::routing::delete(crate::friends::cancel_room_invite),
+            axum::routing::delete(crate::rooms::friends::cancel_room_invite),
         )
-        .route("/invites", get(crate::friends::invites))
+        .route("/invites", get(crate::rooms::friends::invites))
         .route(
             "/invites/{id}",
-            axum::routing::delete(crate::friends::decline_invite),
+            axum::routing::delete(crate::rooms::friends::decline_invite),
         )
-        .route("/invites/{id}/accept", post(crate::friends::accept_invite))
+        .route(
+            "/invites/{id}/accept",
+            post(crate::rooms::friends::accept_invite),
+        )
         .merge(crate::party::router())
-        .merge(crate::global::router())
+        .merge(crate::rounds::global::router())
         .route(
             "/friends",
-            get(crate::friends::list).post(crate::friends::add),
+            get(crate::rooms::friends::list).post(crate::rooms::friends::add),
         )
         .route(
             "/friends/{user_id}",
-            post(crate::friends::keep).delete(crate::friends::remove),
+            post(crate::rooms::friends::keep).delete(crate::rooms::friends::remove),
         )
         .route(
             "/rooms/{id}",
-            axum::routing::patch(crate::rooms::update).delete(crate::rooms::delete),
+            axum::routing::patch(crate::rooms::rooms::update).delete(crate::rooms::rooms::delete),
         )
-        .route("/rooms/{id}/code", post(crate::rooms::rotate_code))
-        .route("/rooms/{id}/owner", post(crate::rooms::transfer))
-        .route("/rooms/{id}/leave", post(crate::rooms::leave))
-        .route("/rooms/{id}/next", post(crate::pacing::launch))
+        .route("/rooms/{id}/code", post(crate::rooms::rooms::rotate_code))
+        .route("/rooms/{id}/owner", post(crate::rooms::rooms::transfer))
+        .route("/rooms/{id}/leave", post(crate::rooms::rooms::leave))
+        .route("/rooms/{id}/next", post(crate::rooms::pacing::launch))
         .route(
             "/rooms/{id}/members/{member_id}",
-            axum::routing::delete(crate::rooms::force_remove),
+            axum::routing::delete(crate::rooms::rooms::force_remove),
         )
-        .route("/reports", post(crate::moderation::report))
-        .route("/admin/reports", post(crate::moderation::act))
-        .route("/blocks", get(crate::moderation::list_blocks))
+        .route("/reports", post(crate::community::moderation::report))
+        .route("/admin/reports", post(crate::community::moderation::act))
+        .route("/blocks", get(crate::community::moderation::list_blocks))
         .route(
             "/blocks/{user_id}",
-            put(crate::moderation::block).delete(crate::moderation::unblock),
+            put(crate::community::moderation::block).delete(crate::community::moderation::unblock),
         )
         .route("/live", get(live))
         .route(
             "/notifications",
-            get(crate::notifications::get).put(crate::notifications::put),
+            get(crate::rooms::notifications::get).put(crate::rooms::notifications::put),
         )
         .route(
             "/rooms/{id}/mute",
-            put(crate::notifications::mute).delete(crate::notifications::unmute),
+            put(crate::rooms::notifications::mute).delete(crate::rooms::notifications::unmute),
         )
         .route("/push/config", get(push_config))
         .route("/push/subscribe", post(push_subscribe))
         .route("/push/unsubscribe", post(push_unsubscribe))
-        .merge(crate::updates::router())
-        .merge(crate::reactions::router())
+        .merge(crate::site::updates::router())
+        .merge(crate::chat::reactions::router())
 }
 
 async fn features(State(state): State<AppState>) -> Json<Value> {
@@ -337,7 +381,7 @@ pub(crate) fn legacy_gate(state: &AppState, ip: Option<std::net::IpAddr>) -> App
 
 /// A first name: one line, no invisible characters, 1 to 24 characters.
 pub(crate) fn clean_name(name: &str) -> AppResult<String> {
-    let name = crate::text::line(name);
+    let name = crate::platform::text::line(name);
     if name.is_empty() || name.chars().count() > NAME_MAX {
         return Err(AppError::BadRequest("bad_name"));
     }
@@ -363,10 +407,10 @@ async fn join(
     let name = clean_name(&body.name)?;
     // Already signed in: the same account joins one more room.
     let signed_in = match bearer {
-        Some(t) => Some(crate::auth::user_for_token(&state, t).await?),
+        Some(t) => Some(crate::accounts::auth::user_for_token(&state, t).await?),
         None => None,
     };
-    let attempt = crate::quotas::code_attempt(&state, signed_in, ip)?;
+    let attempt = crate::platform::quotas::code_attempt(&state, signed_in, ip)?;
     // Parties have their own way in (`POST /parties/join`); a deleted room takes nobody.
     let group_id: i64 = sqlx::query_scalar(
         "SELECT id FROM groups WHERE join_code = ? AND kind = 'room' AND deleted_at IS NULL",
@@ -378,13 +422,13 @@ async fn join(
     attempt.found();
     // A party guest plays in parties only.
     if let Some(user) = signed_in
-        && crate::auth::is_guest(&state.db, user).await?
+        && crate::accounts::auth::is_guest(&state.db, user).await?
     {
         return Err(AppError::Forbidden("guest_account"));
     }
-    let mut tx = crate::db::write_tx(&state.db).await?;
+    let mut tx = crate::platform::db::write_tx(&state.db).await?;
     // Its owner may have left it alone (and deleted it) since the lookup.
-    crate::rooms::still_open(&mut *tx, group_id).await?;
+    crate::rooms::rooms::still_open(&mut *tx, group_id).await?;
     let existing = match signed_in {
         Some(user_id) => {
             sqlx::query_as::<_, MemberRow>(
@@ -428,7 +472,7 @@ async fn join(
     let rejoined = existing.as_ref().is_some_and(|m| m.removed_at.is_some());
     let joined = existing.is_none();
     if joined || rejoined {
-        crate::rooms::seat_free(&mut *tx, group_id).await?;
+        crate::rooms::rooms::seat_free(&mut *tx, group_id).await?;
     }
     let member = match existing {
         Some(member) => {
@@ -565,7 +609,7 @@ async fn upload_photo(
 ) -> AppResult<Json<Member>> {
     // Charged before the body is read: a flood of uploads costs its sender, not the server's memory.
     if let Some(user) = me.user_id {
-        crate::quotas::hit_user(&state, &crate::quotas::PHOTO_USER, user)?;
+        crate::platform::quotas::hit_user(&state, &crate::platform::quotas::PHOTO_USER, user)?;
     }
     let mut bytes = None;
     while let Some(field) = multipart
@@ -595,7 +639,7 @@ async fn upload_photo(
         .run(move || -> AppResult<()> {
             let mut reader =
                 image::ImageReader::new(std::io::Cursor::new(bytes)).with_guessed_format()?;
-            reader.limits(crate::media::decode_limits());
+            reader.limits(crate::chat::media::decode_limits());
             let image = reader.decode()?.resize_to_fill(
                 PHOTO_SIZE,
                 PHOTO_SIZE,
@@ -606,7 +650,7 @@ async fn upload_photo(
         })
         .await?;
     // A photo replaces the drawn avatar.
-    let mut tx = crate::db::write_tx(&state.db).await?;
+    let mut tx = crate::platform::db::write_tx(&state.db).await?;
     sqlx::query("UPDATE users SET photo = ?, avatar = NULL WHERE id = ?")
         .bind(&file)
         .bind(me.user_id)
@@ -661,7 +705,10 @@ async fn set_avatar(
     Json(body): Json<AvatarBody>,
 ) -> AppResult<Json<Member>> {
     let avatar = body.avatar;
-    if avatar.as_deref().is_some_and(|a| !crate::avatar::valid(a)) {
+    if avatar
+        .as_deref()
+        .is_some_and(|a| !crate::accounts::avatar::valid(a))
+    {
         return Err(AppError::BadRequest("bad_avatar"));
     }
     if let Some(avatar) = &avatar {
@@ -751,7 +798,10 @@ async fn group(State(state): State<AppState>, Me(me): Me) -> AppResult<Json<Valu
         .collect();
     let kick_needed = game::majority(members.len() as i64);
     let votes = game::votes_possible(members.len() as i64);
-    let members: Vec<Value> = members.iter().map(crate::rooms::member_with_role).collect();
+    let members: Vec<Value> = members
+        .iter()
+        .map(crate::rooms::rooms::member_with_role)
+        .collect();
     // People who left keep their name and photo in the history, awards and chat.
     let former: Vec<Value> = former
         .iter()
@@ -770,7 +820,7 @@ async fn group(State(state): State<AppState>, Me(me): Me) -> AppResult<Json<Valu
         "kind": kind,
         "settings": { "skip_vote": skip_vote, "kick_vote": kick_vote, "questions_by": questions_by, "vibe": vibe,
                       "owner_next": owner_next, "next_delay": next_delay, "language": language },
-        "pace": crate::pacing::view(&state, me.group_id).await?,
+        "pace": crate::rooms::pacing::view(&state, me.group_id).await?,
         "members": members,
         "former": former,
         "kicks": kicks,
@@ -778,9 +828,10 @@ async fn group(State(state): State<AppState>, Me(me): Me) -> AppResult<Json<Valu
         "votes": votes,
     });
     out["settings"]["anonymous_votes"] =
-        json!(crate::anonymous::mode(&state.db, me.group_id).await?);
+        json!(crate::rooms::anonymous::mode(&state.db, me.group_id).await?);
     if kind == "room" {
-        out["settings"]["tripot"] = json!(crate::tripot::enabled(&state.db, me.group_id).await?);
+        out["settings"]["tripot"] =
+            json!(crate::rounds::tripot::enabled(&state.db, me.group_id).await?);
     }
     if kind == "party" {
         out["ends_at"] = json!(ends_at);
@@ -826,9 +877,9 @@ struct VoteBody {
     /// Ranking questions: every member, first to last.
     ranking: Option<Vec<i64>>,
     /// Choose questions: every member wired to an item.
-    choices: Option<Vec<crate::models::Choice>>,
+    choices: Option<Vec<crate::rounds::model::Choice>>,
     /// Said questions: every answer but mine matched to its author.
-    guesses: Option<Vec<crate::said::Guess>>,
+    guesses: Option<Vec<crate::rounds::said::Guess>>,
 }
 
 async fn vote(
@@ -863,7 +914,7 @@ pub(crate) async fn after_vote(state: &AppState, group_id: i64, actor: i64, even
     for event in &events {
         state.live.send(group_id, event.clone());
     }
-    crate::said::announce(state, group_id, Some(actor), &events).await;
+    crate::rounds::said::announce(state, group_id, Some(actor), &events).await;
     if closed {
         notify_round(state, group_id, Some(actor), opened, true).await;
     }
@@ -936,9 +987,9 @@ async fn history_items(
         let top_count = tallies.first().map_or(0, |t| t.count);
         // Said questions: the top scorers (none when nobody scored, or it closed before any guessing).
         if kind == "said" {
-            let (winner_ids, top_count) = crate::said::result(db, id)
+            let (winner_ids, top_count) = crate::rounds::said::result(db, id)
                 .await?
-                .map(|r| crate::said::winners(&r))
+                .map(|r| crate::rounds::said::winners(&r))
                 .unwrap_or_default();
             items.push(HistoryItem {
                 id,
@@ -1044,11 +1095,11 @@ async fn member_from_query(
             .tickets
             .redeem(ticket, purpose)
             .ok_or(AppError::Unauthorized)?;
-        let me = crate::auth::member_in_room_by_hash(state, &hash, room).await?;
+        let me = crate::accounts::auth::member_in_room_by_hash(state, &hash, room).await?;
         return Ok((me, hash));
     }
     let token = token.ok_or(AppError::Unauthorized)?;
-    let me = crate::auth::member_in_room(state, token, room).await?;
+    let me = crate::accounts::auth::member_in_room(state, token, room).await?;
     Ok((me, hash_token(token)))
 }
 
@@ -1079,14 +1130,14 @@ async fn export_history(
     let name = |id: i64| names.get(&id).cloned().unwrap_or_else(|| "?".into());
     // Dates in the reader's time zone: a question closed at 00:30 in Paris is dated that day.
     let tz = match q.tz.as_deref() {
-        Some(tz) => crate::stats::parse_tz(Some(tz)),
+        Some(tz) => crate::insights::stats::parse_tz(Some(tz)),
         None => {
             let saved: Option<i64> =
                 sqlx::query_scalar("SELECT tz_offset FROM notification_prefs WHERE user_id = ?")
                     .bind(me.user_id)
                     .fetch_optional(&state.db)
                     .await?;
-            saved.map_or(0, crate::stats::clamp_tz)
+            saved.map_or(0, crate::insights::stats::clamp_tz)
         }
     };
     let rounds: Vec<(i64, i64, String, String, String)> = sqlx::query_as(
@@ -1112,12 +1163,12 @@ async fn export_history(
         // A ranking question is won on points (the podium), not on who came first most often;
         // a choose question by the best guessers.
         let said = if kind == "said" {
-            crate::said::result(&state.db, id).await?
+            crate::rounds::said::result(&state.db, id).await?
         } else {
             None
         };
         let (winners, top, detail): (Vec<String>, i64, Vec<String>) = if let Some(result) = said {
-            let (ids, top) = crate::said::winners(&result);
+            let (ids, top) = crate::rounds::said::winners(&result);
             (
                 ids.into_iter().map(name).collect(),
                 top,
@@ -1267,7 +1318,7 @@ async fn skip(
     room_allows(&state, me.group_id, "skip_vote").await?;
     enough_for_votes(&state, me.group_id).await?;
     // Checked in the write transaction: a vote can't close the question in between.
-    let mut tx = crate::db::write_tx(&state.db).await?;
+    let mut tx = crate::platform::db::write_tx(&state.db).await?;
     let round_id: i64 =
         sqlx::query_scalar("SELECT id FROM rounds WHERE group_id = ? AND closed_at IS NULL")
             .bind(me.group_id)
@@ -1277,7 +1328,7 @@ async fn skip(
     // Not done yet (on a said question still writing: not written).
     let waiting: Option<i64> = sqlx::query_scalar(concat!(
         "SELECT id FROM members m WHERE m.id = ?1 AND m.group_id = ?2 AND m.removed_at IS NULL AND NOT ",
-        crate::said::done!("?3", "m.id")
+        crate::rounds::said::done!("?3", "m.id")
     ))
     .bind(member_id)
     .bind(me.group_id)
@@ -1337,7 +1388,7 @@ async fn after_round_change(
     for event in &events {
         state.live.send(group_id, event.clone());
     }
-    crate::said::announce(state, group_id, Some(actor), &events).await;
+    crate::rounds::said::announce(state, group_id, Some(actor), &events).await;
     if closed {
         notify_round(state, group_id, Some(actor), opened, true).await;
     }
@@ -1358,7 +1409,7 @@ async fn kick(
     enough_for_votes(&state, me.group_id).await?;
     // The vote, the count and the removal in one write transaction: two votes landing together
     // (or a vote and the target leaving) can't both remove the seat.
-    let mut tx = crate::db::write_tx(&state.db).await?;
+    let mut tx = crate::platform::db::write_tx(&state.db).await?;
     let target: Option<String> = sqlx::query_scalar(
         "SELECT role FROM members WHERE id = ? AND group_id = ? AND removed_at IS NULL",
     )
@@ -1463,7 +1514,7 @@ pub(crate) async fn take_seat(
         // Their rank / choose / said ballot goes too: it no longer counts, like their vote; so
         // does their said answer, with the guesses on it.
         game::clear_ballot(tx, round_id, member_id).await?;
-        crate::said::leave(tx, round_id, member_id).await?;
+        crate::rounds::said::leave(tx, round_id, member_id).await?;
         events = game::close_if_done(tx, group_id, round_id).await?;
     }
     Ok(Some(Removal {
@@ -1509,7 +1560,7 @@ pub(crate) async fn remove_member(
     actor: i64,
     left: bool,
 ) -> AppResult<bool> {
-    let mut tx = crate::db::write_tx(&state.db).await?;
+    let mut tx = crate::platform::db::write_tx(&state.db).await?;
     let removal = take_seat(&mut tx, group_id, member_id, left).await?;
     tx.commit().await?;
     match removal {
@@ -1608,14 +1659,19 @@ async fn stats(
     State(state): State<AppState>,
     Me(me): Me,
     Query(q): Query<StatsQuery>,
-) -> AppResult<Json<crate::stats::Stats>> {
-    let period = crate::stats::Period::parse(q.period.as_deref())?;
-    let tz = crate::stats::parse_tz(q.tz.as_deref());
+) -> AppResult<Json<crate::insights::stats::Stats>> {
+    let period = crate::insights::stats::Period::parse(q.period.as_deref())?;
+    let tz = crate::insights::stats::parse_tz(q.tz.as_deref());
     // Story titles and punchlines in the reader's language.
     let lang = i18n::of_member(&state.db, me.id).await?;
-    let mut stats = crate::stats::for_group_in(&state.db, me.group_id, period, tz, lang).await?;
-    stats.day_streaks =
-        crate::streaks::records(&state.db, me.group_id, crate::streaks::now_secs()).await?;
+    let mut stats =
+        crate::insights::stats::for_group_in(&state.db, me.group_id, period, tz, lang).await?;
+    stats.day_streaks = crate::insights::streaks::records(
+        &state.db,
+        me.group_id,
+        crate::insights::streaks::now_secs(),
+    )
+    .await?;
     Ok(Json(stats))
 }
 
@@ -1638,9 +1694,9 @@ async fn add_question(
 ) -> AppResult<Json<QueuedQuestion>> {
     may_add_questions(&state, &me).await?;
     if let Some(user) = me.user_id {
-        crate::quotas::hit_user(&state, &crate::quotas::QUESTION_USER, user)?;
+        crate::platform::quotas::hit_user(&state, &crate::platform::quotas::QUESTION_USER, user)?;
     }
-    let text = &crate::text::line(&body.text);
+    let text = &crate::platform::text::line(&body.text);
     let len = text.chars().count();
     if !(QUESTION_MIN..=QUESTION_MAX).contains(&len) {
         return Err(AppError::BadRequest("bad_question"));
@@ -1652,13 +1708,13 @@ async fn add_question(
         _ => "pick",
     };
     let items = if kind == "choose" {
-        let items = crate::deck::clean_items(body.items.unwrap_or_default())
+        let items = crate::community::deck::clean_items(body.items.unwrap_or_default())
             .ok_or(AppError::BadRequest("bad_items"))?;
         Some(serde_json::to_string(&items).unwrap_or_default())
     } else {
         None
     };
-    let mut tx = crate::db::write_tx(&state.db).await?;
+    let mut tx = crate::platform::db::write_tx(&state.db).await?;
     // Already waiting in this room, or already asked here: once is enough.
     if game::same_question(&mut tx, me.group_id, text)
         .await?
@@ -1675,7 +1731,7 @@ async fn add_question(
     .bind(me.id)
     .bind(kind)
     .bind(items)
-    .bind(crate::anonymous::wanted(kind, body.anonymous))
+    .bind(crate::rooms::anonymous::wanted(kind, body.anonymous))
     .fetch_one(&mut *tx)
     .await?;
     let opened = game::ensure_open_round(&mut tx, me.group_id).await?;
@@ -1701,7 +1757,7 @@ async fn add_question(
 async fn shuffle_questions(State(state): State<AppState>, Me(me): Me) -> AppResult<Json<Value>> {
     use rand::seq::SliceRandom;
     may_add_questions(&state, &me).await?;
-    let mut tx = crate::db::write_tx(&state.db).await?;
+    let mut tx = crate::platform::db::write_tx(&state.db).await?;
     let rows: Vec<(i64, i64)> = sqlx::query_as(concat!(
         "SELECT q.id, COALESCE(q.sort_key, q.id) FROM questions q WHERE q.group_id = ?1 AND ",
         game::unused!(),
@@ -1740,7 +1796,7 @@ async fn order_questions(
     Json(body): Json<OrderBody>,
 ) -> AppResult<Json<Value>> {
     may_add_questions(&state, &me).await?;
-    let mut tx = crate::db::write_tx(&state.db).await?;
+    let mut tx = crate::platform::db::write_tx(&state.db).await?;
     let rows: Vec<(i64, i64)> = sqlx::query_as(concat!(
         "SELECT q.id, COALESCE(q.sort_key, q.id) FROM questions q WHERE q.group_id = ?1 AND ",
         game::unused!(),
@@ -1785,7 +1841,7 @@ async fn delete_question(
     Path(id): Path<i64>,
 ) -> AppResult<Json<Value>> {
     // Checked in the write transaction: a vote can't open this very question in between.
-    let mut tx = crate::db::write_tx(&state.db).await?;
+    let mut tx = crate::platform::db::write_tx(&state.db).await?;
     let row: Option<(Option<i64>, bool)> = sqlx::query_as(concat!(
         "SELECT q.author_id, ",
         game::unused!(),
@@ -1801,7 +1857,7 @@ async fn delete_question(
             return Err(AppError::Conflict("already_asked"));
         }
         drop(tx);
-        crate::moderation::retire_question(&state, id).await?;
+        crate::community::moderation::retire_question(&state, id).await?;
         return Ok(Json(json!({ "ok": true, "retired": true })));
     }
     if author != Some(me.id) && me.role != "owner" {
@@ -1857,7 +1913,7 @@ async fn delete_questions(
     let ids = body.distinct(DELETE_QUESTIONS_MAX)?;
     let ids_json = serde_json::to_string(&ids).unwrap_or_else(|_| "[]".into());
     // Checked and deleted in one write transaction: a vote can't open one of them in between.
-    let mut tx = crate::db::write_tx(&state.db).await?;
+    let mut tx = crate::platform::db::write_tx(&state.db).await?;
     let rows: Vec<(i64, Option<i64>, bool)> = sqlx::query_as(concat!(
         "SELECT q.id, q.author_id, ",
         game::unused!(),
@@ -1911,7 +1967,7 @@ async fn clear_queue(State(state): State<AppState>, Me(me): Me) -> AppResult<Jso
         return Err(AppError::Forbidden("owner_only"));
     }
     // One write transaction: a vote can't open one of them in between.
-    let mut tx = crate::db::write_tx(&state.db).await?;
+    let mut tx = crate::platform::db::write_tx(&state.db).await?;
     let ids: Vec<i64> = sqlx::query_scalar(concat!(
         "SELECT q.id FROM questions q WHERE q.group_id = ?1 AND ",
         game::unused!()
@@ -1957,7 +2013,7 @@ struct LiveQuery {
     room: Option<i64>,
     /// A party's code: the big screen follows that party without an account.
     screen: Option<String>,
-    /// Events this app understands beyond the old ones, comma-separated (`crate::live::OptIns`).
+    /// Events this app understands beyond the old ones, comma-separated (`crate::realtime::live::OptIns`).
     events: Option<String>,
     /// `1`: also a compact `room_activity` for the account's other rooms (docs/TODAY.md).
     others: Option<String>,
@@ -2063,10 +2119,10 @@ async fn live(
         .live
         .take_socket(watcher.user_id(), ip)
         .ok_or(AppError::TooMany("too_many_sockets"))?;
-    let opt_ins = crate::live::OptIns::parse(q.events.as_deref());
+    let opt_ins = crate::realtime::live::OptIns::parse(q.events.as_deref());
     let others = match (q.others.as_deref(), watcher.user_id()) {
         (Some("1" | "true"), Some(user)) => {
-            Some(crate::today::OtherRooms::open(&state.db, user, group_id).await?)
+            Some(crate::insights::today::OtherRooms::open(&state.db, user, group_id).await?)
         }
         _ => None,
     };
@@ -2078,9 +2134,9 @@ async fn relay(
     state: AppState,
     group_id: i64,
     watcher: Watcher,
-    opt_ins: crate::live::OptIns,
-    mut others: Option<crate::today::OtherRooms>,
-    _slot: crate::live::SocketSlot,
+    opt_ins: crate::realtime::live::OptIns,
+    mut others: Option<crate::insights::today::OtherRooms>,
+    _slot: crate::realtime::live::SocketSlot,
 ) {
     use std::time::Instant;
     let mut rx = state.live.subscribe();
@@ -2095,7 +2151,9 @@ async fn relay(
     let mut close: Option<&'static str> = None;
     loop {
         // The next trailing `room_activity` of another room, if one waits.
-        let due = others.as_ref().and_then(crate::today::OtherRooms::next_due);
+        let due = others
+            .as_ref()
+            .and_then(crate::insights::today::OtherRooms::next_due);
         tokio::select! {
             event = rx.recv() => match event {
                 Ok(e) if e.group_id == group_id && opt_ins.wants(&e.event) => {
@@ -2109,7 +2167,7 @@ async fn relay(
                 Ok(e) => {
                     let room = others.as_mut().and_then(|o| o.hear(e.group_id, &e.event, Instant::now()));
                     if let Some(room) = room
-                        && socket.send(Message::Text(crate::today::activity_frame(room).into())).await.is_err()
+                        && socket.send(Message::Text(crate::insights::today::activity_frame(room).into())).await.is_err()
                     {
                         break;
                     }
@@ -2164,7 +2222,7 @@ async fn relay(
                 let rooms = others.as_mut().map(|o| o.due(Instant::now())).unwrap_or_default();
                 let mut sent = true;
                 for room in rooms {
-                    sent = socket.send(Message::Text(crate::today::activity_frame(room).into())).await.is_ok();
+                    sent = socket.send(Message::Text(crate::insights::today::activity_frame(room).into())).await.is_ok();
                     if !sent { break; }
                 }
                 if !sent { break; }
@@ -2195,15 +2253,15 @@ pub(crate) async fn notify_round(
 ) {
     // Badges the question that closed may have earned (background, logs its errors).
     if closed {
-        crate::badges::after_close(state, group_id);
+        crate::insights::badges::after_close(state, group_id);
     }
     if let Err(e) = try_notify_round(state, group_id, skip, opened, closed).await {
         tracing::warn!(group_id, error = ?e, "round notification failed");
     }
     if opened.is_some() {
-        crate::flow::deck_low(state, group_id).await;
+        crate::rooms::flow::deck_low(state, group_id).await;
     } else if closed {
-        crate::flow::deck_empty(state, group_id).await;
+        crate::rooms::flow::deck_empty(state, group_id).await;
     }
 }
 
@@ -2216,7 +2274,7 @@ async fn try_notify_round(
 ) -> AppResult<()> {
     // Home-screen widgets show this room's state: they refresh (parties too).
     if opened.is_some() || closed {
-        crate::widget::ping_room(state, group_id).await;
+        crate::realtime::widget::ping_room(state, group_id).await;
     }
     // Parties happen in the same place: no push, no inbox for their questions and results.
     if game::party(&state.db, group_id).await?.is_some() {
@@ -2272,7 +2330,7 @@ async fn try_notify_round(
         .bind(group_id)
         .fetch_one(&state.db)
         .await?;
-        crate::inbox::to_group(
+        crate::chat::inbox::to_group(
             &state.db,
             group_id,
             skip,
@@ -2283,7 +2341,7 @@ async fn try_notify_round(
         )
         .await?;
     } else if let Some(round_id) = opened {
-        crate::inbox::to_group(
+        crate::chat::inbox::to_group(
             &state.db,
             group_id,
             skip,
@@ -2313,7 +2371,7 @@ pub(crate) struct MessageDb {
     everyone: bool,
     kind: String,
     caption: Option<String>,
-    /// As stored (`crate::media`): turned into short-lived URLs for the reader.
+    /// As stored (`crate::chat::media`): turned into short-lived URLs for the reader.
     media: Option<String>,
     /// Hidden by reports (only its room owner gets it, to restore it).
     #[sqlx(default)]
@@ -2345,10 +2403,10 @@ pub(crate) struct MessageRow {
     kind: String,
     /// Image and GIF: the author's words under it.
     caption: Option<String>,
-    /// Image and GIF: where to load it (`crate::media::payload`), null for text.
+    /// Image and GIF: where to load it (`crate::chat::media::payload`), null for text.
     media: Option<Value>,
-    /// Emojis on it, as the reader sees them (`crate::reactions::for_messages`).
-    reactions: Vec<crate::reactions::Reaction>,
+    /// Emojis on it, as the reader sees them (`crate::chat::reactions::for_messages`).
+    reactions: Vec<crate::chat::reactions::Reaction>,
     /// Hidden by reports: only the room owner gets it (`true`), and may restore it.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     hidden: bool,
@@ -2356,10 +2414,10 @@ pub(crate) struct MessageRow {
 
 impl MessageRow {
     fn new(state: &AppState, m: MessageDb) -> Self {
-        let mut media = crate::media::payload(state, m.id, &m.kind, m.media.as_deref());
+        let mut media = crate::chat::media::payload(state, m.id, &m.kind, m.media.as_deref());
         // A hidden photo loads for its owner only through a review link.
         if let (true, Some(media)) = (m.hidden && m.kind == "image", media.as_mut()) {
-            media["url"] = json!(crate::media::image_url(state, m.id, true));
+            media["url"] = json!(crate::chat::media::image_url(state, m.id, true));
         }
         Self {
             id: m.id,
@@ -2407,7 +2465,7 @@ async fn messages(
     .fetch_all(&state.db)
     .await?;
     let ids: Vec<i64> = rows.iter().map(|m| m.id).collect();
-    let mut reactions = crate::reactions::for_messages(&state.db, &me, &ids).await?;
+    let mut reactions = crate::chat::reactions::for_messages(&state.db, &me, &ids).await?;
     Ok(Json(
         rows.into_iter()
             .rev()
@@ -2481,7 +2539,7 @@ async fn post_message(
 ) -> AppResult<Json<MessageRow>> {
     let round = chat_round(&state, &me, id).await?;
     // Hidden characters dropped, one blank line in a row at most.
-    let text = crate::text::lines(&body.text);
+    let text = crate::platform::text::lines(&body.text);
     if text.is_empty() || text.chars().count() > MESSAGE_MAX {
         return Err(AppError::BadRequest("bad_message"));
     }
@@ -2509,7 +2567,7 @@ pub(crate) async fn chat_round(
     state: &AppState,
     me: &MemberRow,
     id: i64,
-) -> AppResult<crate::models::RoundRow> {
+) -> AppResult<crate::rounds::model::RoundRow> {
     let round = game::round(&state.db, me.group_id, id).await?;
     if round.closed_at.is_none() {
         return Err(AppError::BadRequest("round_open"));
@@ -2520,16 +2578,18 @@ pub(crate) async fn chat_round(
 /// The chat limits every message (text, image, GIF) counts against.
 pub(crate) fn chat_quota(state: &AppState, me: &MemberRow) -> AppResult<()> {
     if let Some(user) = me.user_id {
-        crate::quotas::hit_user(state, &crate::quotas::CHAT_USER, user)?;
-        crate::quotas::hit_user(state, &crate::quotas::CHAT_HOUR_USER, user)?;
+        crate::platform::quotas::hit_user(state, &crate::platform::quotas::CHAT_USER, user)?;
+        crate::platform::quotas::hit_user(state, &crate::platform::quotas::CHAT_HOUR_USER, user)?;
     }
     Ok(())
 }
 
-/// A caption under an image or a GIF: normalised like a text message (`crate::text::lines`),
+/// A caption under an image or a GIF: normalised like a text message (`crate::platform::text::lines`),
 /// none if empty, `400 bad_caption` if too long.
 pub(crate) fn clean_caption(raw: Option<&str>) -> AppResult<Option<String>> {
-    let caption = raw.map(crate::text::lines).filter(|c| !c.is_empty());
+    let caption = raw
+        .map(crate::platform::text::lines)
+        .filter(|c| !c.is_empty());
     if caption
         .as_ref()
         .is_some_and(|c| c.chars().count() > MESSAGE_MAX)
@@ -2543,10 +2603,10 @@ pub(crate) fn clean_caption(raw: Option<&str>) -> AppResult<Option<String>> {
 pub(crate) struct NewMessage {
     /// `text`, `image` or `gif`.
     pub kind: &'static str,
-    /// The text; for media, the fallback (`crate::media::fallback`) older apps, the inbox and pushes show.
+    /// The text; for media, the fallback (`crate::chat::media::fallback`) older apps, the inbox and pushes show.
     pub text: String,
     pub caption: Option<String>,
-    /// Media JSON as stored (`crate::media`).
+    /// Media JSON as stored (`crate::chat::media`).
     pub media: Option<Value>,
     /// Member ids named in the text or caption; only current members of the room other than me are kept.
     pub mentions: Vec<i64>,
@@ -2568,7 +2628,7 @@ pub(crate) struct Posted {
 pub(crate) async fn post_chat(
     state: &AppState,
     me: &MemberRow,
-    round: &crate::models::RoundRow,
+    round: &crate::rounds::model::RoundRow,
     message: NewMessage,
 ) -> AppResult<Posted> {
     let id = round.id;
@@ -2647,7 +2707,7 @@ pub(crate) async fn post_chat(
     // retry, and the retry answers the stored message without telling anyone).
     for (to, kind) in [(&rest, "message"), (&pinged, "mention")] {
         if let Err(e) =
-            crate::inbox::to_members(&state.db, to, kind, Some(id), Some(me.id), &said).await
+            crate::chat::inbox::to_members(&state.db, to, kind, Some(id), Some(me.id), &said).await
         {
             tracing::warn!(round_id = id, kind, error = ?e, "chat inbox failed");
         }
@@ -2694,7 +2754,7 @@ pub(crate) async fn post_chat(
 }
 
 async fn inbox(State(state): State<AppState>, Me(me): Me) -> AppResult<Json<Value>> {
-    let (items, unread) = crate::inbox::list(&state.db, &me).await?;
+    let (items, unread) = crate::chat::inbox::list(&state.db, &me).await?;
     Ok(Json(json!({ "items": items, "unread": unread })))
 }
 
@@ -2724,7 +2784,7 @@ enum SubscribeBody {
 }
 
 /// Registers this device for pushes, tied to this session (signing out removes it). Web Push
-/// endpoints must be on a known push service; at most [`crate::push::MAX_DEVICES`] per account,
+/// endpoints must be on a known push service; at most [`crate::realtime::push::MAX_DEVICES`] per account,
 /// the oldest go first.
 async fn push_subscribe(
     State(state): State<AppState>,
@@ -2738,25 +2798,27 @@ async fn push_subscribe(
             p256dh,
             auth,
         } => {
-            if !crate::push::web_endpoint_allowed(&endpoint) {
+            if !crate::realtime::push::web_endpoint_allowed(&endpoint) {
                 return Err(AppError::BadRequest("bad_endpoint"));
             }
-            if !crate::push::key_ok(&p256dh, 128) || !crate::push::key_ok(&auth, 64) {
+            if !crate::realtime::push::key_ok(&p256dh, 128)
+                || !crate::realtime::push::key_ok(&auth, 64)
+            {
                 return Err(AppError::BadRequest("bad_keys"));
             }
             ("web", endpoint, Some(p256dh), Some(auth))
         }
         SubscribeBody::Fcm { token } => {
-            if !crate::push::fcm_token_ok(&token) {
+            if !crate::realtime::push::fcm_token_ok(&token) {
                 return Err(AppError::BadRequest("bad_endpoint"));
             }
             ("fcm", token, None, None)
         }
     };
     let user = me.user_id.ok_or(AppError::Unauthorized)?;
-    crate::quotas::hit_user(&state, &crate::quotas::PUSH_USER, user)?;
+    crate::platform::quotas::hit_user(&state, &crate::platform::quotas::PUSH_USER, user)?;
     let token_hash = crate::accounts::bearer(&headers).map(hash_token);
-    let mut tx = crate::db::write_tx(&state.db).await?;
+    let mut tx = crate::platform::db::write_tx(&state.db).await?;
     sqlx::query(
         "INSERT INTO push_subscriptions (member_id, user_id, kind, endpoint, p256dh, auth, token_hash) \
          VALUES (?, ?, ?, ?, ?, ?, ?) \
@@ -2779,7 +2841,7 @@ async fn push_subscribe(
          (SELECT id FROM push_subscriptions WHERE user_id = ?1 ORDER BY created_at DESC, id DESC LIMIT ?2)",
     )
     .bind(user)
-    .bind(crate::push::MAX_DEVICES)
+    .bind(crate::realtime::push::MAX_DEVICES)
     .execute(&mut *tx)
     .await?;
     tx.commit().await?;
@@ -2872,7 +2934,7 @@ async fn nudge(
     // Not done yet (on a said question still writing: not written).
     let target: Option<i64> = sqlx::query_scalar(concat!(
         "SELECT id FROM members m WHERE m.id = ?1 AND m.group_id = ?2 AND m.removed_at IS NULL AND NOT ",
-        crate::said::done!("?3", "m.id")
+        crate::rounds::said::done!("?3", "m.id")
     ))
     .bind(body.member_id)
     .bind(me.group_id)
@@ -2894,7 +2956,7 @@ async fn nudge(
         return Err(AppError::Conflict("already_nudged"));
     }
     // The nudge is stored (a retry gets 409 `already_nudged`): an inbox failure is only logged.
-    if let Err(e) = crate::inbox::to_member(
+    if let Err(e) = crate::chat::inbox::to_member(
         &state.db,
         body.member_id,
         "nudge",
@@ -2949,7 +3011,7 @@ async fn ask_questions(State(state): State<AppState>, Me(me): Me) -> AppResult<J
         return Err(AppError::Conflict("already_asked"));
     }
     let title = Text::by(|l| i18n::ask_questions(l, &me.name));
-    crate::inbox::to_member(&state.db, owner, "ask", None, Some(me.id), &title).await?;
+    crate::chat::inbox::to_member(&state.db, owner, "ask", None, Some(me.id), &title).await?;
     state.live.send(me.group_id, Event::InboxChanged);
     state.push.notify_member(
         state.db.clone(),
@@ -2982,14 +3044,15 @@ async fn import_questions(
     may_add_questions(&state, &me).await?;
     // `[classement]` lines become ranking questions, `[choix] … | A | B` choose questions (skipped
     // when their items are not valid); the length rule applies to the question itself.
-    let lines: Vec<String> = body.text.lines().map(crate::text::line).collect();
+    let lines: Vec<String> = body.text.lines().map(crate::platform::text::line).collect();
     let valid: Vec<(&str, &str, Option<String>, bool)> = lines
         .iter()
         .filter(|l| !l.is_empty() && !l.starts_with('#'))
         .map(|l| {
-            let (text, kind) = crate::deck::parse_line(l);
-            let anonymous = crate::anonymous::wanted(kind, crate::deck::tagged_anonymous(l));
-            (text, kind, crate::deck::items_json(l), anonymous)
+            let (text, kind) = crate::community::deck::parse_line(l);
+            let anonymous =
+                crate::rooms::anonymous::wanted(kind, crate::community::deck::tagged_anonymous(l));
+            (text, kind, crate::community::deck::items_json(l), anonymous)
         })
         .filter(|(text, kind, items, _)| {
             (QUESTION_MIN..=QUESTION_MAX).contains(&text.chars().count())
@@ -2997,17 +3060,17 @@ async fn import_questions(
         })
         .collect();
     // One write transaction per import: keep it short.
-    if valid.len() > crate::quotas::IMPORT_LINES {
+    if valid.len() > crate::platform::quotas::IMPORT_LINES {
         return Err(AppError::BadRequest("too_many_questions"));
     }
     if let Some(user) = me.user_id {
-        crate::quotas::hit_user(&state, &crate::quotas::IMPORT_USER, user)?;
+        crate::platform::quotas::hit_user(&state, &crate::platform::quotas::IMPORT_USER, user)?;
     }
     // Imports belong to this room only (asked before the shared deck, in file order),
     // never to the deck every room draws from.
     let mut added: u64 = 0;
     {
-        let mut tx = crate::db::write_tx(&state.db).await?;
+        let mut tx = crate::platform::db::write_tx(&state.db).await?;
         for (text, kind, items, anonymous) in &valid {
             if game::same_question(&mut tx, me.group_id, text)
                 .await?
@@ -3031,7 +3094,7 @@ async fn import_questions(
         }
         tx.commit().await?;
     }
-    let mut tx = crate::db::write_tx(&state.db).await?;
+    let mut tx = crate::platform::db::write_tx(&state.db).await?;
     let opened = game::ensure_open_round(&mut tx, me.group_id).await?;
     tx.commit().await?;
     if let Some(round_id) = opened {

@@ -12,8 +12,8 @@ use super::{
 };
 use crate::{
     AppState,
-    error::{AppError, AppResult},
-    models::MemberRow,
+    platform::error::{AppError, AppResult},
+    rooms::model::MemberRow,
 };
 
 /// What a deleted account and its seats are called from now on.
@@ -88,7 +88,7 @@ pub async fn send(
             None,
         )
         .await?;
-        let lang = crate::i18n::of_user(&state.db, acct.id).await?;
+        let lang = crate::platform::i18n::of_user(&state.db, acct.id).await?;
         // In the background: the answer takes the same time whether the account exists or not.
         let mailer = state.auth.mailer.clone();
         tokio::spawn(async move {
@@ -152,7 +152,7 @@ pub(crate) async fn erase(state: &AppState, user_id: i64) -> AppResult<()> {
             break;
         }
         for seat in &seats {
-            crate::rooms::leave_seat(state, seat).await?;
+            crate::rooms::rooms::leave_seat(state, seat).await?;
         }
     }
     let photos: Vec<String> = sqlx::query_scalar(
@@ -175,7 +175,7 @@ pub(crate) async fn erase(state: &AppState, user_id: i64) -> AppResult<()> {
         .fetch_optional(&state.db)
         .await?
         .flatten();
-    let mut tx = crate::db::write_tx(&state.db).await?;
+    let mut tx = crate::platform::db::write_tx(&state.db).await?;
     for sql in [
         // Reactions on their messages go with them (cascade); theirs on others' messages here.
         "DELETE FROM message_reactions WHERE member_id IN (SELECT id FROM members WHERE user_id = ?1)",
@@ -267,10 +267,10 @@ pub(crate) async fn erase(state: &AppState, user_id: i64) -> AppResult<()> {
     let files = images
         .into_iter()
         .filter_map(|(room, media)| {
-            crate::media::file_path(&state.config.data_dir, room, media.as_deref())
+            crate::chat::media::file_path(&state.config.data_dir, room, media.as_deref())
         })
         .collect();
-    crate::media::remove_files(files).await;
+    crate::chat::media::remove_files(files).await;
     tracing::info!(user_id, "account deleted");
     Ok(())
 }

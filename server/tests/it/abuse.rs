@@ -12,7 +12,7 @@ use axum::{
 };
 use futures::{SinkExt, StreamExt};
 use http_body_util::BodyExt;
-use quidenous_server::{AppState, app, config::Config, state};
+use quidenous_server::{AppState, app, platform::config::Config, state};
 use serde_json::{Value, json};
 use tokio_tungstenite::tungstenite::{Message, client::IntoClientRequest};
 use tower::ServiceExt;
@@ -627,7 +627,7 @@ fn web_device(endpoint: &str) -> Value {
 }
 
 async fn devices(state: &AppState, user_of_token: &str) -> Vec<String> {
-    let user = quidenous_server::auth::user_for_token(state, user_of_token)
+    let user = quidenous_server::accounts::auth::user_for_token(state, user_of_token)
         .await
         .unwrap();
     sqlx::query_scalar("SELECT endpoint FROM push_subscriptions WHERE user_id = ? ORDER BY id")
@@ -781,7 +781,7 @@ async fn revoking_the_other_sessions_removes_their_push_subscriptions() {
         .await;
     }
     // A device registered before sessions were recorded with it.
-    let user = quidenous_server::auth::user_for_token(&state, &ana)
+    let user = quidenous_server::accounts::auth::user_for_token(&state, &ana)
         .await
         .unwrap();
     sqlx::query("INSERT INTO push_subscriptions (member_id, user_id, kind, endpoint) SELECT id, user_id, 'fcm', 'legacy' FROM members WHERE user_id = ? LIMIT 1")
@@ -1052,7 +1052,7 @@ async fn live_sockets_are_capped_per_account_and_per_ip() {
     let (a, _) = join(&app, "Ana").await;
     let addr = serve(app.clone()).await;
     let mut open = Vec::new();
-    for _ in 0..quidenous_server::live::SOCKETS_PER_USER {
+    for _ in 0..quidenous_server::realtime::live::SOCKETS_PER_USER {
         open.push(connect(addr, &format!("token={a}")).await.unwrap());
     }
     assert_eq!(
@@ -1082,8 +1082,8 @@ async fn live_sockets_are_capped_per_account_and_per_ip() {
     let mut open = Vec::new();
     let ip = Some("203.0.113.50");
     'outer: for t in &tokens {
-        for _ in 0..quidenous_server::live::SOCKETS_PER_USER {
-            if open.len() == quidenous_server::live::SOCKETS_PER_IP {
+        for _ in 0..quidenous_server::realtime::live::SOCKETS_PER_USER {
+            if open.len() == quidenous_server::realtime::live::SOCKETS_PER_IP {
                 break 'outer;
             }
             open.push(connect_from(addr, &format!("token={t}"), ip).await.unwrap());

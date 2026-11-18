@@ -27,9 +27,9 @@ use super::{
 };
 use crate::{
     AppState,
-    config::{Config, OAuthClient, OAuthEndpoints},
-    error::{AppError, AppResult},
-    i18n::Notice,
+    platform::config::{Config, OAuthClient, OAuthEndpoints},
+    platform::error::{AppError, AppResult},
+    platform::i18n::Notice,
     routes::COLORS,
 };
 
@@ -715,7 +715,7 @@ async fn resolve(
         .take(24)
         .collect();
     let color = COLORS[rand::rng().random_range(0..COLORS.len())];
-    let mut tx = crate::db::write_tx(db).await?;
+    let mut tx = crate::platform::db::write_tx(db).await?;
     let user: i64 = sqlx::query_scalar(
         "INSERT INTO users (name, color, friend_code, email, email_verified_at) \
          VALUES (?, ?, upper(hex(randomblob(5))), ?, CASE WHEN ? IS NULL THEN NULL ELSE strftime('%Y-%m-%dT%H:%M:%fZ', 'now') END) \

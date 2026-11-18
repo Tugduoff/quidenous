@@ -8,7 +8,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crate::error::AppError;
+use crate::platform::error::AppError;
 
 #[derive(Clone, Copy, Debug)]
 pub struct Rule {
@@ -239,7 +239,7 @@ fn rule_by_name(name: &str) -> Option<Rule> {
         CLIENT_ERROR_WEBHOOK,
     ]
     .into_iter()
-    .chain(crate::quotas::RULES)
+    .chain(crate::platform::quotas::RULES)
     .find(|r| r.name == name)
 }
 

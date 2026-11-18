@@ -7,7 +7,7 @@ use crate::common::{call, join, room_id, setup};
 use axum::http::StatusCode;
 use quidenous_server::{
     AppState,
-    streaks::{self, DAY, Room, Streak},
+    insights::streaks::{self, DAY, Room, Streak},
 };
 use serde_json::{Value, json};
 
@@ -554,7 +554,7 @@ async fn the_evening_reminder_goes_once_to_those_about_to_lose_a_streak() {
     assert_eq!(body["off"], json!(["streak"]));
 }
 
-async fn wait_for_push(state: &AppState) -> quidenous_server::push::Sent {
+async fn wait_for_push(state: &AppState) -> quidenous_server::realtime::push::Sent {
     for _ in 0..100 {
         if let Some(p) = state
             .push

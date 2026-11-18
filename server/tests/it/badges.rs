@@ -7,7 +7,7 @@ use crate::common::{call, join, room_id, setup, unique};
 use axum::{Router, http::StatusCode};
 use quidenous_server::{
     AppState,
-    badges::{self, CATALOGUE, RoomCache, Streaks},
+    insights::badges::{self, CATALOGUE, RoomCache, Streaks},
 };
 use serde_json::{Value, json};
 
@@ -747,7 +747,7 @@ async fn the_sweep_evaluates_active_accounts() {
         .execute(&w.state.db)
         .await
         .unwrap();
-    let now = quidenous_server::streaks::now_secs();
+    let now = quidenous_server::insights::streaks::now_secs();
     let s = badges::sweep_at(&w.state, now).await.unwrap();
     assert_eq!(s.evaluated, 4);
     assert_eq!(

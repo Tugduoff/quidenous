@@ -7,7 +7,7 @@ use axum::{
     http::{Request, StatusCode},
 };
 use http_body_util::BodyExt;
-use quidenous_server::{app, config::Config, state};
+use quidenous_server::{app, platform::config::Config, state};
 use serde_json::{Value, json};
 use tower::ServiceExt;
 
@@ -126,8 +126,8 @@ fn deck_with(tag: &str) -> Vec<String> {
 /// Accounts whose devices a push to the room would reach (sorted), at `now` (unix seconds).
 async fn audience(
     state: &quidenous_server::AppState,
-    target: quidenous_server::push::Target,
-    kinds: &[quidenous_server::push::Kind],
+    target: quidenous_server::realtime::push::Target,
+    kinds: &[quidenous_server::realtime::push::Kind],
     now: u64,
 ) -> Vec<i64> {
     let mut users: Vec<i64> = state

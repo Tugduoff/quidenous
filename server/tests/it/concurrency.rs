@@ -432,7 +432,9 @@ async fn one_failing_room_does_not_stop_the_pacing_tick() {
     .execute(&state.db)
     .await
     .unwrap();
-    let released = quidenous_server::pacing::open_due(&state).await.unwrap();
+    let released = quidenous_server::rooms::pacing::open_due(&state)
+        .await
+        .unwrap();
     assert_eq!(released, 1);
     let waiting: Vec<(i64, bool)> = sqlx::query_as(
         "SELECT id, next_open_at IS NOT NULL FROM groups WHERE id IN (?, ?) ORDER BY id",
@@ -718,7 +720,7 @@ async fn transfers_at_once_leave_one_owner() {
              WHERE m.group_id = ? AND t.token_hash = ?",
         )
         .bind(room)
-        .bind(quidenous_server::auth::hash_token(t))
+        .bind(quidenous_server::accounts::auth::hash_token(t))
         .fetch_one(&state.db)
         .await
         .unwrap();

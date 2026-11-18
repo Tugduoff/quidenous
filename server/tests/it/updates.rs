@@ -9,7 +9,7 @@ use axum::{
 };
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use http_body_util::BodyExt;
-use quidenous_server::{app, config::Config, state};
+use quidenous_server::{app, platform::config::Config, state};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use tower::ServiceExt;

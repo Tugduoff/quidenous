@@ -4,7 +4,7 @@
 
 use crate::common::{call, join, setup};
 use axum::{Router, http::StatusCode};
-use quidenous_server::{AppState, global, i18n::Lang, models::MemberRow};
+use quidenous_server::{AppState, platform::i18n::Lang, rooms::model::MemberRow, rounds::global};
 use serde_json::{Value, json};
 
 /// A room in `lang` with `names` (the first one owns it, then they join in order): its id and,

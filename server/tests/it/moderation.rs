@@ -7,7 +7,7 @@ use crate::common;
 
 use crate::common::{call, join, room_id, temp_dir, trust_all};
 use axum::{Router, http::StatusCode};
-use quidenous_server::{AppState, app, config::Config, state};
+use quidenous_server::{AppState, app, platform::config::Config, state};
 use serde_json::{Value, json};
 
 /// A fresh server where account 1 (the first to join) is the admin.

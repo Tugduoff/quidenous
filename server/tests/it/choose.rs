@@ -4,7 +4,7 @@ use crate::common;
 use crate::common::call_with_kinds as call_with;
 
 use axum::{Router, http::StatusCode};
-use quidenous_server::{AppState, app, config::Config, state};
+use quidenous_server::{AppState, app, platform::config::Config, state};
 use serde_json::{Value, json};
 
 /// A fresh server; `keep_deck: false` leaves only the deck's pick questions (so the first,

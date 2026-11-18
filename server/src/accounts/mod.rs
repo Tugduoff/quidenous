@@ -1,8 +1,12 @@
 //! Accounts you can sign in to: email + password, Google / Discord, 2FA, sessions. See docs/AUTH.md.
 //! A session is still a bearer token in `user_tokens`; legacy token-only accounts keep working.
 
+pub mod auth;
+pub mod avatar;
 pub mod crypto;
 pub mod delete;
+pub mod guests;
+pub mod intro;
 pub mod limits;
 pub mod mail;
 mod mfa;
@@ -29,9 +33,9 @@ use serde_json::{Value, json};
 
 use crate::{
     AppState,
-    auth::hash_token,
-    config::Config,
-    error::{AppError, AppResult},
+    accounts::auth::hash_token,
+    platform::config::Config,
+    platform::error::{AppError, AppResult},
 };
 
 pub use crypto::{totp_code, totp_match};
@@ -250,7 +254,7 @@ impl FromRequestParts<AppState> for Session {
         state: &AppState,
     ) -> Result<Self, Self::Rejection> {
         let token = bearer(&parts.headers).ok_or(AppError::Unauthorized)?;
-        let user_id = crate::auth::user_for_token(state, token).await?;
+        let user_id = crate::accounts::auth::user_for_token(state, token).await?;
         label(state, token, &parts.headers).await;
         Ok(Session {
             user_id,
@@ -345,7 +349,7 @@ pub async fn issue_token(
     user_id: i64,
     device: Option<&str>,
 ) -> AppResult<String> {
-    let token = crate::auth::new_token();
+    let token = crate::accounts::auth::new_token();
     sqlx::query(
         "INSERT INTO user_tokens (token_hash, user_id, device, last_used_at) \
          VALUES (?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))",
@@ -591,7 +595,7 @@ pub(crate) async fn revoke_sessions(
 
 /// A short e-mail about a security change to the account's address, if it is verified (an
 /// unverified one may be someone else's). In the background: never slows or fails the request.
-pub(crate) fn notify(state: &AppState, user_id: i64, notice: crate::i18n::Notice) {
+pub(crate) fn notify(state: &AppState, user_id: i64, notice: crate::platform::i18n::Notice) {
     let state = state.clone();
     tokio::spawn(async move {
         let row: Option<(Option<String>, bool)> =
@@ -604,7 +608,7 @@ pub(crate) fn notify(state: &AppState, user_id: i64, notice: crate::i18n::Notice
         let Some((Some(email), true)) = row else {
             return;
         };
-        let lang = crate::i18n::of_user(&state.db, user_id)
+        let lang = crate::platform::i18n::of_user(&state.db, user_id)
             .await
             .unwrap_or_default();
         notify_address(&state, email, lang, notice).await;
@@ -615,8 +619,8 @@ pub(crate) fn notify(state: &AppState, user_id: i64, notice: crate::i18n::Notice
 pub(crate) async fn notify_address(
     state: &AppState,
     to: String,
-    lang: crate::i18n::Lang,
-    notice: crate::i18n::Notice,
+    lang: crate::platform::i18n::Lang,
+    notice: crate::platform::i18n::Notice,
 ) {
     if let Err(e) = state
         .auth
@@ -776,7 +780,7 @@ pub(crate) mod codes {
     use super::crypto::{constant_eq, now_unix};
     use crate::{
         AppState,
-        error::{AppError, AppResult},
+        platform::error::{AppError, AppResult},
     };
 
     pub const VERIFY_TTL: u64 = 15 * 60;
@@ -870,7 +874,7 @@ pub(crate) mod codes {
         data: Option<Value>,
     ) -> AppResult<()> {
         let now = now_unix() as i64;
-        let mut tx = crate::db::write_tx(&state.db).await?;
+        let mut tx = crate::platform::db::write_tx(&state.db).await?;
         // Old rows are of no use a day after they expired.
         sqlx::query("DELETE FROM auth_codes WHERE expires_at < ?")
             .bind(now - 86_400)

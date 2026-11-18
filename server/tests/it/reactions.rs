@@ -5,7 +5,7 @@ use crate::common::messages;
 
 use crate::common::{call, join, room_id, setup};
 use axum::{Router, http::StatusCode};
-use quidenous_server::{AppState, live::GroupEvent};
+use quidenous_server::{AppState, realtime::live::GroupEvent};
 use serde_json::{Value, json};
 
 /// Ana, Bob and Carl in the env room, the first question closed. (tokens, member ids, round, room)

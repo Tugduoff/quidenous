@@ -12,8 +12,8 @@ use super::{
 };
 use crate::{
     AppState,
-    error::{AppError, AppResult},
-    i18n::Notice,
+    platform::error::{AppError, AppResult},
+    platform::i18n::Notice,
     routes::{COLORS, clean_name},
 };
 
@@ -51,7 +51,7 @@ pub(super) async fn send_verify(state: &AppState, user_id: i64, email: &str) -> 
         None,
     )
     .await?;
-    let lang = crate::i18n::of_user(&state.db, user_id).await?;
+    let lang = crate::platform::i18n::of_user(&state.db, user_id).await?;
     let mailer = &state.auth.mailer;
     match mailer.send(mail::verify_email(email, &code, lang)).await {
         Ok(()) if mailer.configured() => Ok(Sent::Yes),
@@ -109,7 +109,7 @@ pub async fn signup(
     let locale = body
         .locale
         .as_deref()
-        .and_then(crate::i18n::Lang::parse)
+        .and_then(crate::platform::i18n::Lang::parse)
         .map(|l| l.as_str());
     let user_id: i64 = sqlx::query_scalar(
         "INSERT INTO users (name, color, friend_code, email, password_hash, locale) \
@@ -195,7 +195,7 @@ pub async fn forgot(
             None,
         )
         .await?;
-        let lang = crate::i18n::of_user(&state.db, acct.id).await?;
+        let lang = crate::platform::i18n::of_user(&state.db, acct.id).await?;
         // In the background: the answer takes the same time whether the account exists or not.
         let mailer = state.auth.mailer.clone();
         tokio::spawn(async move {
@@ -232,7 +232,7 @@ pub async fn reset(
         .filter(|a| Some(a.id) == row.user_id)
         .ok_or(AppError::BadRequest("bad_code"))?;
     let hash = state.auth.hasher.hash(&body.password).await?;
-    let mut tx = crate::db::write_tx(&state.db).await?;
+    let mut tx = crate::platform::db::write_tx(&state.db).await?;
     // A pending 2FA reset stops too (its codes with it): someone who knew the old password may
     // have asked for it. And none can start for a while (`mfa::RESET_AFTER_PASSWORD_RESET`):
     // with the mailbox alone, a password reset then a 2FA reset by e-mail would beat 2FA.
@@ -319,7 +319,7 @@ pub async fn account_info(state: &AppState, user_id: i64) -> AppResult<Value> {
         "providers": providers,
         "secured": secured,
         // A party guest: plays in its party only (no rooms, friends, packs…) until secured.
-        "guest": crate::auth::is_guest(&state.db, user_id).await?,
+        "guest": crate::accounts::auth::is_guest(&state.db, user_id).await?,
         // Accepted the current terms (and said they are 16 or over): else the app asks once.
         "terms": terms.is_some_and(|v| v >= TERMS_VERSION),
     }))
@@ -547,7 +547,7 @@ pub async fn change_email(
         None,
     )
     .await?;
-    let lang = crate::i18n::of_user(&state.db, acct.id).await?;
+    let lang = crate::platform::i18n::of_user(&state.db, acct.id).await?;
     if let Err(e) = state
         .auth
         .mailer
@@ -609,7 +609,7 @@ pub async fn confirm_email(
         .execute(&state.db)
         .await?;
     if acct.email_verified_at.is_some() {
-        let lang = crate::i18n::of_user(&state.db, acct.id).await?;
+        let lang = crate::platform::i18n::of_user(&state.db, acct.id).await?;
         let notice = Notice::EmailChanged {
             new: mail::mask_email(&email),
             contact: state.config.report_email().to_owned(),

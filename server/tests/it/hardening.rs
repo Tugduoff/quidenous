@@ -11,7 +11,7 @@ use axum::{
     http::{Request, StatusCode},
 };
 use http_body_util::BodyExt;
-use quidenous_server::{AppState, app, config::Config, state};
+use quidenous_server::{AppState, app, platform::config::Config, state};
 use serde_json::{Value, json};
 use tower::ServiceExt;
 
@@ -475,11 +475,11 @@ async fn the_cli_import_fills_one_room() {
     let file = "# comment\nQui chante le plus faux ?\n[classement] Classe-nous du plus drôle au moins drôle.\n\
                 [choix] Qui prendrait quoi ? | Thé | Café\n[choix] Sans choix valides ? | Seul\nqui chante le plus faux ?\n";
     let db = &state.db;
-    let added = quidenous_server::deck::import_room(db, other, file)
+    let added = quidenous_server::community::deck::import_room(db, other, file)
         .await
         .unwrap();
     assert_eq!(added, Some(3));
-    let again = quidenous_server::deck::import_room(db, other, file)
+    let again = quidenous_server::community::deck::import_room(db, other, file)
         .await
         .unwrap();
     assert_eq!(again, Some(0), "duplicates skipped");
@@ -508,7 +508,7 @@ async fn the_cli_import_fills_one_room() {
         .unwrap();
     assert_eq!(in_first, 0, "nothing lands in room #1");
     assert_eq!(
-        quidenous_server::deck::import_room(db, 9999, file)
+        quidenous_server::community::deck::import_room(db, 9999, file)
             .await
             .unwrap(),
         None
@@ -520,7 +520,7 @@ fn unsafe_production_settings_are_warned_about() {
     let unsafe_config = Config {
         join_code: "bande-42".into(),
         vapid_private_key: Some("key".into()),
-        vapid_subject: quidenous_server::config::DEFAULT_VAPID_SUBJECT.into(),
+        vapid_subject: quidenous_server::platform::config::DEFAULT_VAPID_SUBJECT.into(),
         updates_publish_token: Some("token".into()),
         ..Config::default()
     };

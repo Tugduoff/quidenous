@@ -2,7 +2,7 @@
 
 use crate::common::{call, join, room_id, setup};
 use axum::{Router, http::StatusCode};
-use quidenous_server::{AppState, tripot};
+use quidenous_server::{AppState, rounds::tripot};
 use serde_json::{Value, json};
 
 struct Room {

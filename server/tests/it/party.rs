@@ -9,7 +9,7 @@ use axum::{
     http::{Request, StatusCode},
 };
 use http_body_util::BodyExt;
-use quidenous_server::{AppState, app, config::Config, party, state};
+use quidenous_server::{AppState, app, party, platform::config::Config, state};
 use serde_json::{Value, json};
 use tower::ServiceExt;
 
@@ -918,7 +918,7 @@ async fn deleted_accounts_read_in_the_readers_language() {
 /// after the gap, instead of one per tap to every phone. Other parties and other events are not held back.
 #[tokio::test]
 async fn party_updates_are_coalesced() {
-    use quidenous_server::live::{Event, Live, PARTY_UPDATE_GAP};
+    use quidenous_server::realtime::live::{Event, Live, PARTY_UPDATE_GAP};
 
     let live = Live::new();
     let mut rx = live.subscribe();

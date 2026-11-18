@@ -1,59 +1,34 @@
 pub mod accounts;
-pub mod anonymous;
-pub mod auth;
-pub mod avatar;
-pub mod badges;
-pub mod config;
-pub mod db;
-pub mod deck;
-pub mod error;
-pub mod flow;
-pub mod friends;
-pub mod game;
-pub mod gifs;
-pub mod global;
-pub mod guests;
-pub mod i18n;
-pub mod inbox;
-pub mod intro;
-pub mod live;
-pub mod media;
-pub mod models;
-pub mod moderation;
-pub mod notifications;
-pub mod ops;
-pub mod pacing;
-pub mod packfile;
-pub mod packs;
+pub mod chat;
+pub mod community;
+pub mod insights;
 pub mod party;
-pub mod play;
-pub mod push;
-pub mod quotas;
-pub mod reactions;
+pub mod platform;
+pub mod realtime;
 pub mod rooms;
+pub mod rounds;
 pub mod routes;
-pub mod said;
-pub mod share;
-pub mod stats;
-pub mod streaks;
-pub mod suggestions;
-pub mod text;
-pub mod today;
-pub mod tripot;
-pub mod updates;
-pub mod vibes;
-pub mod vitrine;
-pub mod web;
-pub mod widget;
-pub mod wrapped;
+pub mod site;
+
+pub use platform::config;
 
 use std::sync::Arc;
+
+use crate::{
+    chat::media,
+    community::{deck, packfile},
+    insights::share,
+    platform::{db, error, i18n, ops, web},
+    realtime::push,
+    rounds::game,
+    site::{updates, vitrine},
+};
 
 use axum::Router;
 use sqlx::SqlitePool;
 use tower_http::{services::ServeDir, trace::TraceLayer};
 
-use crate::{config::Config, live::Live, push::Push};
+use crate::{platform::config::Config, realtime::live::Live, realtime::push::Push};
 
 #[derive(Clone)]
 pub struct AppState {

@@ -1,0 +1,174 @@
+//! In-app notifications: one row per recipient, read all at once from the inbox screen.
+//! The text is stored in the recipient's language (`users.locale`) at the time it is written.
+
+use serde::Serialize;
+use sqlx::SqlitePool;
+
+use crate::{platform::error::AppResult, platform::i18n::Text, rooms::model::MemberRow};
+
+/// The recipient's language (`u` = their account): `?en` when English, else `?fr`.
+macro_rules! text_for {
+    ($fr:literal, $en:literal) => {
+        concat!(
+            "CASE WHEN u.locale = 'en' THEN ?",
+            $en,
+            " ELSE ?",
+            $fr,
+            " END"
+        )
+    };
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct InboxItem {
+    pub id: i64,
+    pub kind: String,
+    pub round_id: Option<i64>,
+    pub actor_id: Option<i64>,
+    pub text: String,
+    pub created_at: String,
+    pub read: bool,
+    /// The room this entry belongs to (an inbox is per seat): a tap opens it.
+    #[sqlx(default)]
+    pub room_id: i64,
+}
+
+/// One entry for every active member of the group, except `skip` (usually whoever caused it).
+pub async fn to_group(
+    db: &SqlitePool,
+    group_id: i64,
+    skip: Option<i64>,
+    kind: &str,
+    round_id: Option<i64>,
+    actor_id: Option<i64>,
+    text: &Text,
+) -> AppResult<()> {
+    sqlx::query(concat!(
+        "INSERT INTO inbox (member_id, kind, round_id, actor_id, text) SELECT m.id, ?1, ?2, ?3, ",
+        text_for!("4", "5"),
+        " FROM members m LEFT JOIN users u ON u.id = m.user_id \
+         WHERE m.group_id = ?6 AND m.removed_at IS NULL AND m.id IS NOT ?7"
+    ))
+    .bind(kind)
+    .bind(round_id)
+    .bind(actor_id)
+    .bind(&text.fr)
+    .bind(&text.en)
+    .bind(group_id)
+    .bind(skip)
+    .execute(db)
+    .await?;
+    Ok(())
+}
+
+/// One entry for each of these members (ids of one room's seats; removed seats are skipped).
+pub async fn to_members(
+    db: &SqlitePool,
+    member_ids: &[i64],
+    kind: &str,
+    round_id: Option<i64>,
+    actor_id: Option<i64>,
+    text: &Text,
+) -> AppResult<()> {
+    if member_ids.is_empty() {
+        return Ok(());
+    }
+    sqlx::query(concat!(
+        "INSERT INTO inbox (member_id, kind, round_id, actor_id, text) SELECT m.id, ?1, ?2, ?3, ",
+        text_for!("4", "5"),
+        " FROM members m LEFT JOIN users u ON u.id = m.user_id \
+         WHERE m.id IN (SELECT value FROM json_each(?6)) AND m.removed_at IS NULL"
+    ))
+    .bind(kind)
+    .bind(round_id)
+    .bind(actor_id)
+    .bind(&text.fr)
+    .bind(&text.en)
+    .bind(serde_json::to_string(member_ids).unwrap_or_else(|_| "[]".into()))
+    .execute(db)
+    .await?;
+    Ok(())
+}
+
+pub async fn to_member(
+    db: &SqlitePool,
+    member_id: i64,
+    kind: &str,
+    round_id: Option<i64>,
+    actor_id: Option<i64>,
+    text: &Text,
+) -> AppResult<()> {
+    sqlx::query(concat!(
+        "INSERT INTO inbox (member_id, kind, round_id, actor_id, text) SELECT m.id, ?2, ?3, ?4, ",
+        text_for!("5", "6"),
+        " FROM members m LEFT JOIN users u ON u.id = m.user_id WHERE m.id = ?1"
+    ))
+    .bind(member_id)
+    .bind(kind)
+    .bind(round_id)
+    .bind(actor_id)
+    .bind(&text.fr)
+    .bind(&text.en)
+    .execute(db)
+    .await?;
+    Ok(())
+}
+
+/// Hides entries caused by someone the reader blocked (`?1` = reader's account).
+macro_rules! not_blocked {
+    () => {
+        "NOT EXISTS (SELECT 1 FROM members a JOIN blocks b ON b.blocked_id = a.user_id \
+         WHERE a.id = inbox.actor_id AND b.user_id = ?1)"
+    };
+}
+pub(crate) use not_blocked;
+
+/// Latest 50 entries, newest first, and how many are unread; nothing from people I blocked.
+pub async fn list(db: &SqlitePool, me: &MemberRow) -> AppResult<(Vec<InboxItem>, i64)> {
+    let mut items = sqlx::query_as::<_, InboxItem>(concat!(
+        "SELECT id, kind, round_id, actor_id, text, created_at, read_at IS NOT NULL AS read \
+         FROM inbox WHERE member_id = ?2 AND ",
+        not_blocked!(),
+        " ORDER BY id DESC LIMIT 50"
+    ))
+    .bind(me.user_id)
+    .bind(me.id)
+    .fetch_all(db)
+    .await?;
+    for item in &mut items {
+        item.room_id = me.group_id;
+    }
+    let unread: i64 = sqlx::query_scalar(concat!(
+        "SELECT COUNT(*) FROM inbox WHERE member_id = ?2 AND read_at IS NULL AND ",
+        not_blocked!()
+    ))
+    .bind(me.user_id)
+    .bind(me.id)
+    .fetch_one(db)
+    .await?;
+    Ok((items, unread))
+}
+
+/// Days an inbox entry is kept.
+pub const KEEP_DAYS: i64 = 90;
+/// Entries kept per seat at most (the inbox shows the latest 50).
+pub const KEEP_PER_MEMBER: i64 = 200;
+
+/// Keeps the inbox bounded (hourly, with the guest purge): entries older than [`KEEP_DAYS`] go,
+/// read or not, and so does everything past a seat's latest [`KEEP_PER_MEMBER`]. Returns how many.
+pub async fn prune(db: &SqlitePool) -> AppResult<u64> {
+    let old = sqlx::query(
+        "DELETE FROM inbox WHERE created_at < strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-' || ? || ' days')",
+    )
+    .bind(KEEP_DAYS)
+    .execute(db)
+    .await?;
+    let extra = sqlx::query(
+        "DELETE FROM inbox WHERE id IN (SELECT id FROM \
+           (SELECT id, ROW_NUMBER() OVER (PARTITION BY member_id ORDER BY id DESC) AS n FROM inbox) WHERE n > ?)",
+    )
+    .bind(KEEP_PER_MEMBER)
+    .execute(db)
+    .await?;
+    Ok(old.rows_affected() + extra.rows_affected())
+}

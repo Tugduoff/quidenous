@@ -12,10 +12,10 @@ use axum::{
 use http_body_util::BodyExt;
 use quidenous_server::{
     AppState, app,
-    config::{Config, WrappedWindow},
+    insights::streaks::{DAY, now_secs},
+    insights::wrapped,
+    platform::config::{Config, WrappedWindow},
     state,
-    streaks::{DAY, now_secs},
-    wrapped,
 };
 use serde_json::{Value, json};
 use tower::ServiceExt;

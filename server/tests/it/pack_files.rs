@@ -11,10 +11,10 @@ use axum::{
 use http_body_util::BodyExt;
 use quidenous_server::{
     AppState, app,
-    config::Config,
-    i18n::Lang,
-    packfile,
-    packs::{self, SeedAction},
+    community::packfile,
+    community::packs::{self, SeedAction},
+    platform::config::Config,
+    platform::i18n::Lang,
     state,
 };
 use serde_json::{Value, json};

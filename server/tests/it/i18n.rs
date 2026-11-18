@@ -12,7 +12,9 @@ use axum::{
     http::{Request, StatusCode},
 };
 use http_body_util::BodyExt;
-use quidenous_server::{AppState, accounts::MemoryMailer, app, config::Config, state_with_mailer};
+use quidenous_server::{
+    AppState, accounts::MemoryMailer, app, platform::config::Config, state_with_mailer,
+};
 use serde_json::{Value, json};
 use tower::ServiceExt;
 
@@ -176,7 +178,10 @@ async fn locale_round_trip_and_validation() {
 }
 
 /// Waits a little for the background senders until the recorded pushes satisfy `ok`.
-async fn wait_for(state: &AppState, ok: impl Fn(&[quidenous_server::push::Sent]) -> bool) -> bool {
+async fn wait_for(
+    state: &AppState,
+    ok: impl Fn(&[quidenous_server::realtime::push::Sent]) -> bool,
+) -> bool {
     for _ in 0..100 {
         if ok(&state.push.recorded()) {
             return true;
@@ -224,7 +229,7 @@ async fn push_and_inbox_speak_each_recipients_language() {
     assert_eq!(s, StatusCode::OK);
     let has = |user: i64, title: &str| {
         let title = title.to_owned();
-        move |sent: &[quidenous_server::push::Sent]| {
+        move |sent: &[quidenous_server::realtime::push::Sent]| {
             sent.iter()
                 .any(|p| p.user_id == Some(user) && p.title == title)
         }

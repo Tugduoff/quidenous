@@ -368,7 +368,7 @@ async fn drawn_avatars_replace_photos_and_follow_the_account() {
     let (bob, _) = join(&app, "Bob").await;
     let (_, f) = call(&app, "GET", "/features", None, None).await;
     assert!(f.as_array().unwrap().contains(&json!("avatars")));
-    let presets = quidenous_server::avatar::presets();
+    let presets = quidenous_server::accounts::avatar::presets();
     assert!(presets.len() >= 20, "about twenty ready-made avatars");
     let spec = presets[0].clone();
     let fields = spec.split('.').count();
@@ -537,7 +537,7 @@ async fn share_cards_draw_avatars() {
     let app = test_app().await;
     let (a, a_id) = join(&app, "Ana").await;
     let (b, _) = join(&app, "Bob").await;
-    let spec = quidenous_server::avatar::presets()[3].clone();
+    let spec = quidenous_server::accounts::avatar::presets()[3].clone();
     call(
         &app,
         "PUT",

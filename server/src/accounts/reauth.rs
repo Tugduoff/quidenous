@@ -14,7 +14,7 @@ use super::{
 };
 use crate::{
     AppState,
-    error::{AppError, AppResult},
+    platform::error::{AppError, AppResult},
 };
 
 /// The sign-in failure budgets for one password check: per (e-mail, IP), strict, so one attacker

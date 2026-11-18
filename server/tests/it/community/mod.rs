@@ -11,7 +11,7 @@ use axum::{
     http::{Request, StatusCode},
 };
 use http_body_util::BodyExt;
-use quidenous_server::{accounts::MemoryMailer, app, config::Config, state_with_mailer};
+use quidenous_server::{accounts::MemoryMailer, app, platform::config::Config, state_with_mailer};
 use serde_json::{Value, json};
 use tower::ServiceExt;
 

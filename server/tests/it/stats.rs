@@ -744,13 +744,13 @@ async fn bench_stats_on_a_big_room() {
     assert_eq!(s["questions"], 400);
     check_stories(&s);
     for period in [
-        quidenous_server::stats::Period::All,
-        quidenous_server::stats::Period::Month,
+        quidenous_server::insights::stats::Period::All,
+        quidenous_server::insights::stats::Period::Month,
     ] {
         let runs = 10;
         let t = std::time::Instant::now();
         for _ in 0..runs {
-            quidenous_server::stats::for_group(&st.db, group, period, 60)
+            quidenous_server::insights::stats::for_group(&st.db, group, period, 60)
                 .await
                 .unwrap();
         }

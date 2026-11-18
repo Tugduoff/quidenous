@@ -17,7 +17,7 @@ use rand::{Rng, RngExt};
 use sha2::Sha256;
 use tokio::sync::Semaphore;
 
-use crate::error::{AppError, AppResult};
+use crate::platform::error::{AppError, AppResult};
 
 /// Keys derived from `AUTH_SECRET` (or `DATA_DIR/auth.key`).
 pub struct Keys {

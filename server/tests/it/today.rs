@@ -9,7 +9,9 @@ use std::str::FromStr;
 use crate::common::{call, join, room_id, setup};
 use axum::{Router, http::StatusCode};
 use futures::StreamExt;
-use quidenous_server::{AppState, db::MIGRATOR, live::Event, state, tripot};
+use quidenous_server::{
+    AppState, platform::db::MIGRATOR, realtime::live::Event, rounds::tripot, state,
+};
 use serde_json::{Value, json};
 use sqlx::{
     SqlitePool,
@@ -70,7 +72,7 @@ async fn enter(app: &Router, token: &str, code: &str) {
 
 /// My seat in a room.
 async fn seat(state: &AppState, token: &str, room: i64) -> i64 {
-    quidenous_server::auth::member_in_room(state, token, Some(room))
+    quidenous_server::accounts::auth::member_in_room(state, token, Some(room))
         .await
         .unwrap()
         .id
@@ -511,7 +513,7 @@ async fn unread_chat_per_room_without_blocked_people() {
     assert_eq!(line(&app, &bob, main).await["unread"], 1);
 
     // Blocked: Cyd's message no longer counts.
-    let cyd_user = quidenous_server::auth::member_in_room(&state, &cyd, Some(main))
+    let cyd_user = quidenous_server::accounts::auth::member_in_room(&state, &cyd, Some(main))
         .await
         .unwrap()
         .user_id

@@ -8,7 +8,7 @@ use axum::{
     http::{Request, StatusCode},
 };
 use http_body_util::BodyExt;
-use quidenous_server::{AppState, app, config::Config, state};
+use quidenous_server::{AppState, app, platform::config::Config, state};
 use serde_json::{Value, json};
 use tokio::sync::mpsc;
 use tower::ServiceExt;
@@ -258,7 +258,9 @@ async fn backup_copies_the_live_database() {
     account(&state, "Lou").await;
     let url = format!("sqlite://{}", dir.join("test.db").display());
     let dest = dir.join("snapshot.db");
-    quidenous_server::ops::backup(&url, &dest).await.unwrap();
+    quidenous_server::platform::ops::backup(&url, &dest)
+        .await
+        .unwrap();
     // The copy opens on its own and has the data.
     let copy = quidenous_server::connect(&format!("sqlite://{}", dest.display()))
         .await
@@ -269,7 +271,11 @@ async fn backup_copies_the_live_database() {
         .unwrap();
     assert!(names.contains(&"Lou".to_owned()));
     // Never over an existing file.
-    assert!(quidenous_server::ops::backup(&url, &dest).await.is_err());
+    assert!(
+        quidenous_server::platform::ops::backup(&url, &dest)
+            .await
+            .is_err()
+    );
 }
 
 #[tokio::test]

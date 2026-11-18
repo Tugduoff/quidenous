@@ -21,7 +21,7 @@ use http_body_util::BodyExt;
 use quidenous_server::{
     accounts::{MemoryMailer, totp_code},
     app,
-    config::{Config, OAuthClient, OAuthEndpoints},
+    platform::config::{Config, OAuthClient, OAuthEndpoints},
     state, state_with_mailer,
 };
 use serde_json::{Value, json};
