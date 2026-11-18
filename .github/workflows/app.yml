@@ -27,7 +27,7 @@ jobs:
               - "scripts/**"
               - "check"
               - ".github/workflows/app.yml"
-              - "server/assets/mascot.json"
+              - "server/assets/**"
   app:
     needs: changes
     if: ${{ !cancelled() }}

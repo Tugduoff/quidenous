@@ -42,7 +42,7 @@ check_repo() {
 check_server() {
   cd "$repo/server"
   step "server: no comments"
-  node "$repo/scripts/comments.mjs" server
+  node "$repo/scripts/comments.mjs" server/src server/tests server/build.rs server/Cargo.toml server/clippy.toml
   step "server: file size budgets"
   node "$repo/scripts/budgets.mjs"
   step "server: migrations are append-only"
@@ -64,7 +64,7 @@ export_web() {
 check_app() {
   cd "$repo/app"
   step "app: no comments"
-  node "$repo/scripts/comments.mjs" app scripts
+  node "$repo/scripts/comments.mjs" app scripts server/assets
   step "app: types"
   npx tsc --noEmit
   step "app: lint"
