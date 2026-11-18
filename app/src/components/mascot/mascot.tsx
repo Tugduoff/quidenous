@@ -5,18 +5,13 @@
 // breathing, blinking, hops and prop motion from it with its own phase, so idle loops cost no JS and no re-render.
 // The clock only ticks while at least one live mascot is mounted.
 import { useIsFocused } from 'expo-router';
-import { memo, useEffect, useId, useRef } from 'react';
+import { memo, useId } from 'react';
 import { type StyleProp, View, type ViewStyle } from 'react-native';
 import Animated, {
-  cancelAnimation,
-  Easing,
-  makeMutable,
-  ReduceMotion,
   useAnimatedProps,
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
-  withRepeat,
   withSequence,
   withSpring,
   withTiming,
@@ -25,21 +20,8 @@ import Svg, { Circle, ClipPath, Defs, Ellipse, G, Path, Rect } from 'react-nativ
 
 import { compose, type Composed, type Group, GROUND, type Mood, type Pose, type Prop, type Shape, type Who } from '@/lib/utils/mascot';
 import { useScheme } from '@/lib/theme';
-
-// ---------- the shared clock ----------
-/** Every period below divides it, so the loop has no seam. */
-const LOOP = 120;
-const clock = makeMutable(0);
-let users = 0;
-function startClock() {
-  if (users++ > 0) return;
-  clock.value = 0;
-  clock.value = withRepeat(withTiming(LOOP, { duration: LOOP * 1000, easing: Easing.linear, reduceMotion: ReduceMotion.Never }), -1, false);
-}
-function stopClock() {
-  if (--users > 0) return;
-  cancelAnimation(clock);
-}
+import { mascotClock, useMascotClock } from '@/lib/hooks/use-mascot-clock';
+import { useOnChange } from '@/lib/hooks/use-on-change';
 
 /** Focused screen, or true outside the route tree (the root error boundary). */
 function useFocusedSafe() {
@@ -114,26 +96,14 @@ export const Mascot = memo(function Mascot({ who, mood = 'happy', size = 96, ani
   const focused = useFocusedSafe();
   const live = (animate ?? size >= 40) && !reduced && focused;
 
-  const on = useSharedValue(live ? 1 : 0);
-  useEffect(() => {
-    on.value = live ? 1 : 0;
-    if (!live) return;
-    startClock();
-    return stopClock;
-  }, [live, on]);
+  const on = useMascotClock(live);
 
   // Mood change: a quick squash-and-stretch while the parts swap (never on mount).
   const pop = useSharedValue(0);
   const moodKey = typeof mood === 'string' ? mood : JSON.stringify(mood);
-  const first = useRef(true);
-  useEffect(() => {
-    if (first.current) {
-      first.current = false;
-      return;
-    }
-    if (reduced) return;
-    pop.value = withSequence(withTiming(1, { duration: 80 }), withSpring(0, { damping: 9, stiffness: 320, mass: 0.6 }));
-  }, [moodKey, reduced, pop]);
+  useOnChange(moodKey, () => {
+    if (!reduced) pop.set(withSequence(withTiming(1, { duration: 80 }), withSpring(0, { damping: 9, stiffness: 320, mass: 0.6 })));
+  });
 
   const k = size / 200;
   const phase = PHASE[who];
@@ -145,7 +115,7 @@ export const Mascot = memo(function Mascot({ who, mood = 'happy', size = 96, ani
     if (!on.value) {
       return { transform: [{ translateX: 0 }, { translateY: 0 }, { rotate: '0deg' }, { scaleX: 1 + 0.1 * p }, { scaleY: 1 - 0.1 * p }] };
     }
-    const t = clock.value + phase;
+    const t = mascotClock.value + phase;
     let tx = 0;
     let ty = 0;
     let rot = 0;
@@ -187,7 +157,7 @@ export const Mascot = memo(function Mascot({ who, mood = 'happy', size = 96, ani
   // The shadow stays on the ground: smaller and lighter while the body is in the air. Dark mode: a faint light pool.
   const shadowOp = dark ? (c.shadow.air ? 0.05 : 0.07) : c.shadow.air ? 0.11 : 0.16;
   const shadowStyle = useAnimatedStyle(() => {
-    const h = on.value && kind === 'celebrate' ? hop(clock.value + phase) : 0;
+    const h = on.value && kind === 'celebrate' ? hop(mascotClock.value + phase) : 0;
     return { transform: [{ scaleX: 1 - 0.3 * h }, { scaleY: 1 - 0.3 * h }], opacity: shadowOp * (1 - 0.4 * h) };
   });
 
@@ -198,13 +168,13 @@ export const Mascot = memo(function Mascot({ who, mood = 'happy', size = 96, ani
     const n = Math.floor((t + phase * 0.7) / blinkEvery);
     return u < 0.13 || (n % 3 === 0 && u > 0.26 && u < 0.38);
   };
-  const eyesOpen = useAnimatedProps(() => ({ opacity: on.value && blinkT(clock.value) ? 0 : 1 }));
-  const eyesShut = useAnimatedProps(() => ({ opacity: on.value && blinkT(clock.value) ? 1 : 0 }));
+  const eyesOpen = useAnimatedProps(() => ({ opacity: on.value && blinkT(mascotClock.value) ? 0 : 1 }));
+  const eyesShut = useAnimatedProps(() => ({ opacity: on.value && blinkT(mascotClock.value) ? 1 : 0 }));
 
   const propKind = c.prop?.kind;
   const propStyle = useAnimatedStyle(() => {
     if (!on.value || !propKind) return { opacity: 1, transform: [{ translateX: 0 }, { translateY: 0 }, { scale: 1 }, { rotate: '0deg' }] };
-    const t = clock.value + phase;
+    const t = mascotClock.value + phase;
     let tx = 0;
     let ty = 0;
     let s = 1;

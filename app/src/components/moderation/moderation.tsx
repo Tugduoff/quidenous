@@ -1,5 +1,5 @@
 import { Ban, Check, Eye, Flag, type LucideIcon, Trash2 } from 'lucide-react-native';
-import { type ReactNode, useEffect, useRef, useState } from 'react';
+import { type ReactNode, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { useT } from '@/lib/i18n';
 import { REASONS, report, useBlockActions, useBlocks, type Blocked, type ReportKind, type ReportReason } from '@/lib/api/moderation';
@@ -8,6 +8,7 @@ import { type Anchor, Dialog, DialogActions, DialogTitle } from '@/components/ui
 import { Field } from '@/components/ui/field';
 import { ErrorText } from '@/components/ui/text';
 import { authError } from '@/lib/api/errors';
+import { useTimeout } from '@/lib/hooks/use-timeout';
 
 const RED = '#FF3B5C';
 
@@ -80,15 +81,7 @@ export function ModerationDialog({
   }
 
   // "Signalé" for a moment, then the dialog closes by itself.
-  const close = useRef(onClose);
-  useEffect(() => {
-    close.current = onClose;
-  });
-  useEffect(() => {
-    if (step !== 'done') return;
-    const id = setTimeout(() => close.current(), 1200);
-    return () => clearTimeout(id);
-  }, [step]);
+  useTimeout(onClose, step === 'done' ? 1200 : null);
 
   const run = async (f: () => Promise<void>) => {
     if (busy) return;
