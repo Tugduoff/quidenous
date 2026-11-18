@@ -5,7 +5,7 @@ import Animated from 'react-native-reanimated';
 import { t, type TKey, useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
 import { useTheme } from '@/lib/theme';
-import { AWARD_ICONS, awardTitle, Caps, duration, iconFor, int, pct, place, Section } from '@/components/stats/common';
+import { AWARD_ICONS, awardTitle, Caps, duration, int, NamedIcon, pct, place, Section } from '@/components/stats/common';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Avatar, AvatarStack } from '@/components/ui/avatar';
 import { QuestionText } from '@/components/ui/text';
@@ -135,7 +135,6 @@ function AwardCard({ item, byId, onOpen, index }: { item: Item; byId: Map<number
   const t = useTheme();
   useT();
   const title = awardTitle(item.key);
-  const Icon = iconFor(AWARD_ICONS[item.key]);
   const people = item.ids.map((id) => byId.get(id));
   const tint = people.length === 1 ? (people[0]?.color ?? t.accInk) : t.accInk;
   return (
@@ -152,7 +151,7 @@ function AwardCard({ item, byId, onOpen, index }: { item: Item; byId: Map<number
         {people.length === 1 ? <Avatar member={people[0]} size={44} /> : <AvatarStack members={people} size={34} ring={t.card} max={3} />}
         <View style={{ flex: 1, gap: 3 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <Icon size={13} color={tint} strokeWidth={2.5} />
+            <NamedIcon name={AWARD_ICONS[item.key]} size={13} color={tint} strokeWidth={2.5} />
             <Caps size={11} lines={2}>
               {title}
             </Caps>
@@ -187,7 +186,6 @@ const QUESTION_LINE: Record<string, (q: QuestionRef) => string> = {
 function QuestionCard({ k, q, index }: { k: string; q: QuestionRef; index: number }) {
   const t = useTheme();
   useT();
-  const Icon = iconFor(AWARD_ICONS[k]);
   return (
     <Animated.View entering={motion.stagger(index)}>
       <PressableScale
@@ -196,7 +194,7 @@ function QuestionCard({ k, q, index }: { k: string; q: QuestionRef; index: numbe
         onPress={() => router.push(`/round/${q.round_id}`)}
         style={[{ padding: 16, gap: 8, borderRadius: t.radius.card, backgroundColor: t.card }, t.shadow]}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <Icon size={13} color={t.accInk} strokeWidth={2.5} />
+          <NamedIcon name={AWARD_ICONS[k]} size={13} color={t.accInk} strokeWidth={2.5} />
           <View style={{ flex: 1 }}>
             <Caps size={11} lines={2}>
               {awardTitle(k)}

@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { ArrowRight, AtSign, Bell, BellOff, BellRing, Crown, Flame, type LucideIcon, MessageCircle, MessageCircleQuestion, Moon, Sparkles, UserPlus } from 'lucide-react-native';
-import { type ReactNode, useRef, useState } from 'react';
+import { type ReactNode, useState } from 'react';
 import { ActivityIndicator, Linking, Platform, Pressable, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { Screen } from '@/components/ui/screen';
@@ -17,6 +17,7 @@ import { BackButton } from '@/components/ui/back-button';
 import { Section } from '@/components/ui/section';
 import { useFeatures } from '@/lib/api/features';
 import { useDevicePush } from '@/lib/hooks/use-device-push';
+import { useLastNonNull } from '@/lib/hooks/use-last-non-null';
 
 const KINDS: { kind: NotifKind; label: TKey; Icon: LucideIcon }[] = [
   { kind: 'question', label: 'notifications.kinds.question', Icon: Sparkles },
@@ -89,9 +90,7 @@ export default function NotificationsScreen() {
   const [enableFailed, setEnableFailed] = useState(false);
   const [picking, setPicking] = useState<'start' | 'end' | null>(null);
   // The closing dialog keeps showing what it was picking while it fades out.
-  const lastPick = useRef<'start' | 'end'>('start');
-  if (picking) lastPick.current = picking;
-  const which = picking ?? lastPick.current;
+  const which = useLastNonNull(picking) ?? 'start';
 
   // From the cache, not this render: two quick taps both land.
   const set = (patch: Partial<NotifPrefs>) => {

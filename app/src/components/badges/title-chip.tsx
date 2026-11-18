@@ -6,7 +6,7 @@ import Svg, { Circle, Defs, RadialGradient, Stop } from 'react-native-svg';
 import { type TitleChip as Chip, type Tier, useBadges, useMemberTitle, useMyTitle } from '@/lib/api/badges';
 import { type t as translate, useT } from '@/lib/i18n';
 import { useScheme, useTheme } from '@/lib/theme';
-import { iconFor } from '@/components/stats/common';
+import { NamedIcon } from '@/components/stats/common';
 import { Card } from '@/components/ui/card';
 import { useFeatures } from '@/lib/api/features';
 
@@ -35,7 +35,6 @@ export function useTierInk(tier: 1 | 2 | 3) {
 export const MedalDisc = memo(function MedalDisc({ icon, tier, size = 56 }: { icon: string; tier: Tier; size?: number }) {
   const t = useTheme();
   const id = useId().replace(/:/g, '');
-  const Icon = iconFor(icon);
   const glyph = Math.round(size * 0.44);
   if (!tier) {
     return (
@@ -53,7 +52,7 @@ export const MedalDisc = memo(function MedalDisc({ icon, tier, size = 56 }: { ic
           borderColor: t.line,
           borderStyle: 'dashed',
         }}>
-        <Icon size={glyph} color={t.mut} strokeWidth={2} opacity={0.55} />
+        <NamedIcon name={icon} size={glyph} color={t.mut} strokeWidth={2} opacity={0.55} />
         {size >= 40 && (
           <View
             style={{
@@ -92,7 +91,7 @@ export const MedalDisc = memo(function MedalDisc({ icon, tier, size = 56 }: { ic
         {size >= 32 && <Circle cx={r} cy={r} r={r - rim * 2.6} fill="none" stroke="#FFFFFF" strokeOpacity={0.45} strokeWidth={Math.max(1, rim / 2)} />}
       </Svg>
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-        <Icon size={glyph} color={DISC_INK} strokeWidth={2.25} />
+        <NamedIcon name={icon} size={glyph} color={DISC_INK} strokeWidth={2.25} />
       </View>
     </View>
   );

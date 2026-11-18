@@ -6,7 +6,7 @@ import { AnonymousSetting } from '@/components/vote/anonymous';
 import { QueryState } from '@/components/ui/query-state';
 import { Screen } from '@/components/ui/screen';
 import { showToast } from '@/lib/toast';
-import { VibeCards, vibeIcon, vibeName } from '@/components/rooms/vibes';
+import { VibeCards, VibeIcon, vibeName } from '@/components/rooms/vibes';
 import { t as tr, useT } from '@/lib/i18n';
 import { useRoomGone } from '@/lib/hooks/use-switch-room';
 import { useGoBackWhen } from '@/lib/hooks/use-redirect';
@@ -144,7 +144,6 @@ function VibeRow({ value, onChange }: { value: string | null; onChange: (vibe: s
   const [open, setOpen] = useState(false);
   if (!features.vibes || !vibes?.length) return null;
   const current = vibes.find((v) => v.id === value);
-  const Icon = vibeIcon(current?.icon);
   const pick = (v: string | null) => {
     setOpen(false);
     if (v !== value) onChange(v);
@@ -157,7 +156,7 @@ function VibeRow({ value, onChange }: { value: string | null; onChange: (vibe: s
         onPress={() => setOpen(true)}
         right={
           <>
-            {current && <Icon size={16} color={t.accInk} />}
+            {current && <VibeIcon name={current?.icon} size={16} color={t.accInk} />}
             <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: t.font.semibold, fontSize: 14, color: current ? t.txt : t.mut }}>
               {current ? vibeName(current) : tr('room.settings.vibeNone')}
             </Text>

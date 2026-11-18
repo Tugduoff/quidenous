@@ -1,10 +1,11 @@
-import { Beer, Briefcase, Coffee, Flame, Heart, House, type LucideIcon, PartyPopper, Sparkles, Users, Wine } from 'lucide-react-native';
+import { Beer, Briefcase, Coffee, Flame, Heart, House, type LucideIcon, type LucideProps, PartyPopper, Sparkles, Users, Wine } from 'lucide-react-native';
 import { Text, View } from 'react-native';
 import { t as tr, useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { askConfirm } from '@/lib/confirm';
 import type { Vibe } from '@/lib/api/group';
+import { createElement } from 'react';
 
 /** The server names icons in lucide's kebab-case; one this version doesn't know gets sparkles. */
 const ICONS: Record<string, LucideIcon> = {
@@ -22,6 +23,8 @@ const ICONS: Record<string, LucideIcon> = {
 };
 
 export const vibeIcon = (name: string | undefined): LucideIcon => (name && ICONS[name]) || Sparkles;
+
+export const VibeIcon = ({ name, ...props }: LucideProps & { name: string | undefined }) => createElement(vibeIcon(name), props);
 
 /** The server's vibes (server/deck/vibes.json) come in French: the app has them in each language. A newer one keeps the server's text. */
 const KNOWN = ['potes', 'pimente', 'boulot', 'famille'] as const;

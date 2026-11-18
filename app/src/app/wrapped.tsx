@@ -10,7 +10,7 @@ import Svg, { Circle, Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
 import { scheduleOnRN } from 'react-native-worklets';
 import { Mascot } from '@/components/mascot/mascot';
 import { QueryState } from '@/components/ui/query-state';
-import { Caps, iconFor } from '@/components/stats/common';
+import { Caps, NamedIcon } from '@/components/stats/common';
 import { dateFormat, useT } from '@/lib/i18n';
 import { LAYOUT_EASE, SPRING } from '@/lib/motion';
 import { useTheme } from '@/lib/theme';
@@ -127,13 +127,12 @@ const asMember = (p: WrappedCard['people'][number], i: number): Member => ({
 function CardBody({ card, n, total }: { card: WrappedCard; n: number; total: number }) {
   const t = useTheme();
   const tr = useT();
-  const Icon = iconFor(card.icon);
   const big = bigSize(card.big);
   const label = [tr('wrapped.page', { n, total }), card.title, card.question, card.big, card.line].filter(Boolean).join('. ');
   return (
     <View accessible accessibilityLabel={label} style={{ flex: 1, paddingHorizontal: 24, paddingTop: 12, paddingBottom: 8 }}>
       <Animated.View entering={FadeIn.duration(260).reduceMotion(sys)} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-        <Icon size={18} color={INK} strokeWidth={2.5} />
+        <NamedIcon name={card.icon} size={18} color={INK} strokeWidth={2.5} />
         <Caps color={INK} size={13} lines={2}>
           {card.title}
         </Caps>

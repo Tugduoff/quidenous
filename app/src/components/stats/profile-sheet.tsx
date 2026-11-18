@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { ChevronRight, X } from 'lucide-react-native';
-import { type ReactNode, useRef } from 'react';
+import { type ReactNode } from 'react';
 import { Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native';
 import { MedalDisc, MemberTitle, tierName } from '@/components/badges/title-chip';
 import { useMemberBadges } from '@/lib/api/badges';
@@ -13,6 +13,7 @@ import { QuestionText } from '@/components/ui/text';
 import { Dialog } from '@/components/ui/dialog';
 import type { Member } from '@/lib/api/group';
 import type { MemberStats, QuestionRef } from '@/lib/api/stats';
+import { useLastNonNull } from '@/lib/hooks/use-last-non-null';
 
 function Mini({ value, label }: { value: string; label: string }) {
   const t = useTheme();
@@ -117,9 +118,7 @@ export function ProfileSheet({
   const tr = useT();
   const { height } = useWindowDimensions();
   // Keeps the last person on screen while the dialog fades out.
-  const last = useRef(profile);
-  if (profile) last.current = profile;
-  const p = last.current;
+  const p = useLastNonNull(profile);
   const m = p ? byId.get(p.member_id) : undefined;
   const openRound = (id: number) => {
     onClose();

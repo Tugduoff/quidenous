@@ -44,8 +44,9 @@ import {
   Users,
   VolumeX,
   Zap,
+  type LucideProps,
 } from 'lucide-react-native';
-import type { ReactNode } from 'react';
+import { createElement, type ReactNode } from 'react';
 import { Text, View } from 'react-native';
 
 import { formatNumber, t, type TKey } from '@/lib/i18n';
@@ -126,6 +127,8 @@ const ICONS: Record<string, LucideIcon> = {
 };
 
 export const iconFor = (name: string | undefined): LucideIcon => (name && ICONS[name]) || Sparkles;
+
+export const NamedIcon = ({ name, ...props }: LucideProps & { name: string | undefined }) => createElement(iconFor(name), props);
 
 /** Every award key with its icon (docs/STATS.md); titles are `stats.award.<key>`. */
 export const AWARD_ICONS: Record<string, string> = {

@@ -10,7 +10,7 @@ import { useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
 import { shareStory } from '@/lib/device/share';
 import { useTheme } from '@/lib/theme';
-import { AWARD_ICONS, awardTitle, Caps, iconFor } from '@/components/stats/common';
+import { AWARD_ICONS, awardTitle, Caps, NamedIcon } from '@/components/stats/common';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Avatar } from '@/components/ui/avatar';
 import type { Member } from '@/lib/api/group';
@@ -40,7 +40,6 @@ function StoryCard({
   const people = story.member_ids.map((id) => byId.get(id)).filter((m): m is Member => !!m);
   const [a, b] = [people[0]?.color ?? t.acc, people[1]?.color ?? people[0]?.color ?? t.acc];
   const ink = people.length ? INK : t.accTxt;
-  const Icon = iconFor(story.icon);
   const [state, setState] = useState<'idle' | 'busy' | 'copied'>('idle');
   // Measured: on Android a percentage-sized Svg resolves against the padded box and leaves a band uncovered.
   const [box, setBox] = useState({ w: 0, h: 0 });
@@ -71,7 +70,7 @@ function StoryCard({
         </Svg>
       )}
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-        <Icon size={16} color={ink} strokeWidth={2.5} />
+        <NamedIcon name={story.icon} size={16} color={ink} strokeWidth={2.5} />
         <View style={{ flex: 1 }}>
           <Caps color={ink}>{title}</Caps>
         </View>
