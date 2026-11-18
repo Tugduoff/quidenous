@@ -1,10 +1,10 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Check, Share2, X } from 'lucide-react-native';
-import { type ReactNode, useEffect, useRef, useState, useEffectEvent } from 'react';
-import { AccessibilityInfo, ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { type ReactNode, useRef, useState } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { GestureDetector, GestureHandlerRootView, usePanGesture } from 'react-native-gesture-handler';
-import Animated, { cancelAnimation, Easing, FadeIn, FadeInDown, ReduceMotion, type SharedValue, useAnimatedStyle, useReducedMotion, useSharedValue, withSpring, withTiming, ZoomIn } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInDown, ReduceMotion, type SharedValue, useAnimatedStyle, useReducedMotion, useSharedValue, withSpring, ZoomIn } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { scheduleOnRN } from 'react-native-worklets';
@@ -18,6 +18,8 @@ import { shareWrappedCard, useRoomWrappedOk, useWrapped, type Wrapped, type Wrap
 import { Avatar } from '@/components/ui/avatar';
 import type { Member } from '@/lib/api/group';
 import { useFeatures } from '@/lib/api/features';
+import { useAnnounce, useScreenReaderEnabled } from '@/lib/hooks/use-screen-reader';
+import { useStoryProgress } from '@/lib/hooks/use-story-progress';
 
 /** How long a card stays before the next one (auto-advance). */
 const CARD_MS = 6000;
@@ -49,23 +51,6 @@ const bigSize = (s: string) => {
   const fit = s.length <= 12 ? s.length : Math.max(...s.split(' ').map((w) => w.length));
   return Math.min(step, Math.floor(320 / (fit * 0.6)));
 };
-
-/** Whether a screen reader is on: it reads the cards at its own pace (no auto-advance). */
-function useScreenReader() {
-  const [on, setOn] = useState(false);
-  useEffect(() => {
-    let live = true;
-    AccessibilityInfo.isScreenReaderEnabled()
-      .then((v) => live && setOn(v))
-      .catch(() => {});
-    const sub = AccessibilityInfo.addEventListener('screenReaderChanged', setOn);
-    return () => {
-      live = false;
-      sub.remove();
-    };
-  }, []);
-  return on;
-}
 
 /** The card's colours, full screen, with a few big shapes for rhythm (where they sit changes from card to card). */
 function Backdrop({ card, index, year }: { card: WrappedCard; index: number; year: number }) {
@@ -243,12 +228,11 @@ function ShareButton({ w, card }: { w: Wrapped; card: WrappedCard }) {
 function Stories({ w, chrome }: { w: Wrapped; chrome: (ink: string) => ReactNode }) {
   const tr = useT();
   const reduced = useReducedMotion();
-  const reader = useScreenReader();
+  const reader = useScreenReaderEnabled();
   const auto = !reduced && !reader;
   const count = w.cards.length;
   const [index, setIndex] = useState(0);
   const [prev, setPrev] = useState<number | null>(null);
-  const progress = useSharedValue(0);
   const drag = useSharedValue(0);
   // A swipe also ends as a press on the tap zones (the web): that press is ignored.
   const swiped = useRef(false);
@@ -263,39 +247,14 @@ function Stories({ w, chrome }: { w: Wrapped; chrome: (ink: string) => ReactNode
   const advance = () => go(1);
   const close = () => (router.canGoBack() ? router.back() : router.replace('/'));
 
-  // Fill the current bar from where it is; at the end, the next card (the last one just stays).
-  const run = (from: number) => {
-    progress.value = withTiming(1, { duration: CARD_MS * (1 - from), easing: Easing.linear, reduceMotion: ReduceMotion.Never }, (finished) => {
-      'worklet';
-      if (finished) scheduleOnRN(advance);
-    });
-  };
-  const runFromStart = useEffectEvent(() => run(0));
-  useEffect(() => {
-    cancelAnimation(progress);
-    if (!auto) {
-      progress.value = 1;
-      return;
-    }
-    progress.value = 0;
-    if (index < count - 1) runFromStart();
-    else progress.value = withTiming(1, { duration: CARD_MS, easing: Easing.linear, reduceMotion: ReduceMotion.Never });
-  }, [index, auto, count, progress]);
-  useEffect(() => {
-    const card = w.cards[index];
-    if (reader && card) AccessibilityInfo.announceForAccessibility(`${card.title}. ${card.big}. ${card.line}`);
-  }, [index, reader, w.cards]);
+  const story = useStoryProgress({ index, count, auto, cardMs: CARD_MS, onEnd: advance });
+  const { progress, resume } = story;
+  const shown = w.cards[index];
+  useAnnounce(reader && shown ? `${shown.title}. ${shown.big}. ${shown.line}` : null);
 
   const pause = () => {
     swiped.current = false;
-    if (auto) cancelAnimation(progress);
-  };
-  const resume = () => {
-    if (!auto) return;
-    const at = progress.value;
-    if (at >= 1) return;
-    if (index < count - 1) run(at);
-    else progress.value = withTiming(1, { duration: CARD_MS * (1 - at), easing: Easing.linear, reduceMotion: ReduceMotion.Never });
+    story.pause();
   };
   const tap = (d: number) => {
     if (swiped.current) {

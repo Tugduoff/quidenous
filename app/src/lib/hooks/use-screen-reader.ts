@@ -16,3 +16,9 @@ export function useScreenReaderEnabled() {
   }, []);
   return on;
 }
+
+export function useAnnounce(message: string | null) {
+  useEffect(() => {
+    if (message) AccessibilityInfo.announceForAccessibility(message);
+  }, [message]);
+}
