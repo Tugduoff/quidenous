@@ -192,29 +192,33 @@ pub async fn today(db: &SqlitePool, user: i64, now: i64) -> AppResult<Today> {
     let ids: Vec<i64> = seats.iter().map(|s| s.seat).collect();
     let ids_json = serde_json::to_string(&ids).unwrap_or_else(|_| "[]".into());
 
-    let open_q = sqlx::query_as::<_, Open>(
+    // A said question still in its writing phase: written counts as voted (as `said::done!`).
+    let open_q = sqlx::query_as::<_, Open>(concat!(
         "SELECT m.group_id AS room, r.id, r.number, q.text, q.kind, r.anonymous, r.opened_at, \
-                (SELECT COUNT(*) FROM votes v WHERE v.round_id = r.id) AS votes, \
-                EXISTS (SELECT 1 FROM votes v WHERE v.round_id = r.id AND v.voter_id = m.id) AS voted, \
+                (SELECT COUNT(*) FROM votes v WHERE v.round_id = r.id) \
+                + (SELECT COUNT(*) FROM said_answers a WHERE a.round_id = r.id AND r.said_guess_at IS NULL) AS votes, ",
+        crate::said::done!("r.id", "m.id"),
+        " AS voted, \
                 EXISTS (SELECT 1 FROM tripot_bets b WHERE b.round_id = r.id AND b.member_id = m.id) AS bet \
          FROM members m JOIN rounds r ON r.group_id = m.group_id AND r.closed_at IS NULL \
          JOIN questions q ON q.id = r.question_id \
          WHERE m.id IN (SELECT value FROM json_each(?1))",
-    )
+    ))
     .bind(&ids_json)
     .fetch_all(db);
     // As `game::skipped`, for every open question of my rooms: (room, target, skips asked) by
     // people still there, on people still there who haven't voted. The majority is applied below.
-    let skips_q = sqlx::query_as::<_, (i64, i64, i64)>(
+    let skips_q = sqlx::query_as::<_, (i64, i64, i64)>(concat!(
         "SELECT r.group_id, s.target_id, COUNT(*) FROM members me \
          JOIN rounds r ON r.group_id = me.group_id AND r.closed_at IS NULL \
          JOIN skips s ON s.round_id = r.id \
          JOIN members t ON t.id = s.target_id AND t.removed_at IS NULL \
          JOIN members f ON f.id = s.from_id AND f.removed_at IS NULL \
          WHERE me.id IN (SELECT value FROM json_each(?1)) \
-         AND NOT EXISTS (SELECT 1 FROM votes v WHERE v.round_id = s.round_id AND v.voter_id = s.target_id) \
-         GROUP BY r.group_id, s.target_id",
-    )
+         AND NOT ",
+        crate::said::done!("s.round_id", "s.target_id"),
+        " GROUP BY r.group_id, s.target_id",
+    ))
     .bind(&ids_json)
     .fetch_all(db);
     // `game::away`, for my rooms with an open question.
