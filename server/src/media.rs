@@ -45,7 +45,6 @@ const DECODE_MAX_ALLOC: u64 = 64 * 1024 * 1024;
 /// Image decodes (chat and profile photos) running at once, server-wide: each may take
 /// [`DECODE_MAX_ALLOC`] and its resize, so a burst of uploads can't run the host out of memory.
 const DECODES_AT_ONCE: usize = 2;
-static DECODES: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(DECODES_AT_ONCE);
 /// Signed URLs expire on a 6-hour grid, 6 to 12 hours ahead: the same URL all along a stretch
 /// of time, so the app's image cache keeps working.
 const URL_PERIOD: u64 = 6 * 3600;
@@ -159,19 +158,35 @@ pub(crate) fn decode_limits() -> image::Limits {
 /// Runs an image decode (and its resize, encode) on a blocking thread, [`DECODES_AT_ONCE`] at most
 /// server-wide; the others wait their turn. The slot stays taken until the work is done, even if
 /// the request is dropped meanwhile.
-pub(crate) async fn decode<T: Send + 'static>(
-    work: impl FnOnce() -> AppResult<T> + Send + 'static,
-) -> AppResult<T> {
-    let slot = DECODES
-        .acquire()
+#[derive(Clone)]
+pub struct Decodes(std::sync::Arc<tokio::sync::Semaphore>);
+
+impl Default for Decodes {
+    fn default() -> Self {
+        Self(std::sync::Arc::new(tokio::sync::Semaphore::new(
+            DECODES_AT_ONCE,
+        )))
+    }
+}
+
+impl Decodes {
+    pub(crate) async fn run<T: Send + 'static>(
+        &self,
+        work: impl FnOnce() -> AppResult<T> + Send + 'static,
+    ) -> AppResult<T> {
+        let slot = self
+            .0
+            .clone()
+            .acquire_owned()
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        tokio::task::spawn_blocking(move || {
+            let _slot = slot;
+            work()
+        })
         .await
-        .map_err(|e| AppError::Internal(e.to_string()))?;
-    tokio::task::spawn_blocking(move || {
-        let _slot = slot;
-        work()
-    })
-    .await
-    .map_err(|e| AppError::Internal(e.to_string()))?
+        .map_err(|e| AppError::Internal(e.to_string()))?
+    }
 }
 
 /// A body over the route's limit is `413 too_large`; any other broken upload `400 bad_upload`.
@@ -274,7 +289,10 @@ pub(crate) async fn upload(
         return Ok(Json(posted));
     }
     crate::routes::chat_quota(&state, &me)?;
-    let image = decode(move || process(image.to_vec(), format)).await?;
+    let image = state
+        .decodes
+        .run(move || process(image.to_vec(), format))
+        .await?;
     // A 128-bit random name in the room's directory.
     let file = format!("{}.{}", random_hex(16), image.ext);
     let dir = room_dir(&state.config.data_dir, me.group_id);
@@ -495,15 +513,21 @@ mod tests {
     async fn decodes_run_a_couple_at_a_time() {
         static RUNNING: AtomicUsize = AtomicUsize::new(0);
         static MOST: AtomicUsize = AtomicUsize::new(0);
+        let decodes = Decodes::default();
         let tasks: Vec<_> = (0..8)
             .map(|_| {
-                tokio::spawn(decode(|| {
-                    let now = RUNNING.fetch_add(1, Ordering::SeqCst) + 1;
-                    MOST.fetch_max(now, Ordering::SeqCst);
-                    std::thread::sleep(std::time::Duration::from_millis(30));
-                    RUNNING.fetch_sub(1, Ordering::SeqCst);
-                    Ok(())
-                }))
+                let decodes = decodes.clone();
+                tokio::spawn(async move {
+                    decodes
+                        .run(|| {
+                            let now = RUNNING.fetch_add(1, Ordering::SeqCst) + 1;
+                            MOST.fetch_max(now, Ordering::SeqCst);
+                            std::thread::sleep(std::time::Duration::from_millis(30));
+                            RUNNING.fetch_sub(1, Ordering::SeqCst);
+                            Ok(())
+                        })
+                        .await
+                })
             })
             .collect();
         for task in tasks {

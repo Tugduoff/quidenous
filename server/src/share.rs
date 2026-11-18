@@ -768,7 +768,7 @@ pub async fn card_png(State(state): State<AppState>, Path(token): Path<String>) 
     let Ok(card) = load(&state, &token).await else {
         return StatusCode::NOT_FOUND.into_response();
     };
-    png_response(svg(&card)).await
+    png_response(&state.cards, svg(&card)).await
 }
 
 /// Rendered cards kept in memory, by the SHA-256 of their SVG (a changed card is a new entry).
@@ -779,18 +779,27 @@ const CARD_RENDERS: usize = 2;
 
 type CardCache = HashMap<[u8; 32], (Instant, axum::body::Bytes)>;
 
-fn card_cache() -> &'static Mutex<CardCache> {
-    static CACHE: OnceLock<Mutex<CardCache>> = OnceLock::new();
-    CACHE.get_or_init(Mutex::default)
+#[derive(Clone)]
+pub struct Cards {
+    cache: Arc<Mutex<CardCache>>,
+    renders: Arc<tokio::sync::Semaphore>,
+}
+
+impl Default for Cards {
+    fn default() -> Self {
+        Self {
+            cache: Arc::default(),
+            renders: Arc::new(tokio::sync::Semaphore::new(CARD_RENDERS)),
+        }
+    }
 }
 
 /// The PNG of a card SVG: from the cache, else rendered off the async threads (a few at a time).
-pub async fn card(svg: String) -> Option<axum::body::Bytes> {
+pub async fn card(cards: &Cards, svg: String) -> Option<axum::body::Bytes> {
     use sha2::{Digest, Sha256};
-    static RENDERS: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(CARD_RENDERS);
     let key: [u8; 32] = Sha256::digest(svg.as_bytes()).into();
     let cached = |now: Instant| {
-        let cache = card_cache().lock().unwrap_or_else(|e| e.into_inner());
+        let cache = cards.cache.lock().unwrap_or_else(|e| e.into_inner());
         cache
             .get(&key)
             .filter(|(at, _)| now.duration_since(*at) < CARD_TTL)
@@ -799,7 +808,7 @@ pub async fn card(svg: String) -> Option<axum::body::Bytes> {
     if let Some(png) = cached(Instant::now()) {
         return Some(png);
     }
-    let _permit = RENDERS.acquire().await.ok()?;
+    let _permit = cards.renders.acquire().await.ok()?;
     // Someone else may have rendered it while this one waited.
     if let Some(png) = cached(Instant::now()) {
         return Some(png);
@@ -811,7 +820,7 @@ pub async fn card(svg: String) -> Option<axum::body::Bytes> {
             .flatten()?,
     );
     let now = Instant::now();
-    let mut cache = card_cache().lock().unwrap_or_else(|e| e.into_inner());
+    let mut cache = cards.cache.lock().unwrap_or_else(|e| e.into_inner());
     cache.retain(|_, (at, _)| now.duration_since(*at) < CARD_TTL);
     if cache.len() >= CARD_CACHE
         && let Some(oldest) = cache.iter().min_by_key(|(_, (at, _))| *at).map(|(k, _)| *k)
@@ -823,8 +832,8 @@ pub async fn card(svg: String) -> Option<axum::body::Bytes> {
 }
 
 /// Renders a card (or takes it from the cache) and answers it as a PNG.
-async fn png_response(svg: String) -> Response {
-    match card(svg).await {
+async fn png_response(cards: &Cards, svg: String) -> Response {
+    match card(cards, svg).await {
         Some(png) => (
             [
                 (header::CONTENT_TYPE, "image/png"),
@@ -1025,7 +1034,7 @@ pub async fn pack_card_png(State(state): State<AppState>, Path(id): Path<i64>) -
     let Ok(card) = load_pack(&state, id).await else {
         return StatusCode::NOT_FOUND.into_response();
     };
-    png_response(pack_svg(&card)).await
+    png_response(&state.cards, pack_svg(&card)).await
 }
 
 /// `/p/{id}`: a public pack's page (preview tags, card), and "install in a room" in the web app.

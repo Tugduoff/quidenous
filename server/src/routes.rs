@@ -590,19 +590,21 @@ async fn upload_photo(
     let path = dir.join(&file);
     // Decoding and resizing are CPU- and memory-heavy: off the async threads, within size limits,
     // a couple at a time server-wide.
-    crate::media::decode(move || -> AppResult<()> {
-        let mut reader =
-            image::ImageReader::new(std::io::Cursor::new(bytes)).with_guessed_format()?;
-        reader.limits(crate::media::decode_limits());
-        let image = reader.decode()?.resize_to_fill(
-            PHOTO_SIZE,
-            PHOTO_SIZE,
-            image::imageops::FilterType::Lanczos3,
-        );
-        image.to_rgb8().save(path)?;
-        Ok(())
-    })
-    .await?;
+    state
+        .decodes
+        .run(move || -> AppResult<()> {
+            let mut reader =
+                image::ImageReader::new(std::io::Cursor::new(bytes)).with_guessed_format()?;
+            reader.limits(crate::media::decode_limits());
+            let image = reader.decode()?.resize_to_fill(
+                PHOTO_SIZE,
+                PHOTO_SIZE,
+                image::imageops::FilterType::Lanczos3,
+            );
+            image.to_rgb8().save(path)?;
+            Ok(())
+        })
+        .await?;
     // A photo replaces the drawn avatar.
     let mut tx = crate::db::write_tx(&state.db).await?;
     sqlx::query("UPDATE users SET photo = ?, avatar = NULL WHERE id = ?")
@@ -2083,7 +2085,7 @@ async fn relay(
     use std::time::Instant;
     let mut rx = state.live.subscribe();
     let presence = state.push.presence().clone();
-    let connection = crate::push::Presence::connection();
+    let connection = presence.connection();
     let user_id = watcher.user_id();
     let mut ping = tokio::time::interval_at((Instant::now() + WS_PING).into(), WS_PING);
     let every = state.config.live_recheck.unwrap_or(WS_RECHECK);

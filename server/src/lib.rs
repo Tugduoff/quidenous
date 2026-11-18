@@ -62,6 +62,9 @@ pub struct AppState {
     pub config: Arc<Config>,
     pub push: Push,
     pub auth: Arc<accounts::Auth>,
+    pub decodes: media::Decodes,
+    pub cards: share::Cards,
+    pub updates: updates::Publisher,
 }
 
 /// Opens the database and migrates it (see [`db::connect`]).
@@ -151,6 +154,9 @@ pub async fn state_with_mailer(
         config: Arc::new(config),
         push: Push::new(vapid, fcm),
         auth: Arc::new(auth),
+        decodes: media::Decodes::default(),
+        cards: share::Cards::default(),
+        updates: updates::Publisher::default(),
     })
 }
 

@@ -54,8 +54,30 @@ const RUNTIME_IDLE: Duration = Duration::from_secs(120 * 86_400);
 const KEEP_RUNTIMES: usize = 4;
 const JSON_UTF8: &str = "application/json; charset=utf-8";
 
-/// One publish (or delete) at a time: retention and duplicate checks stay simple.
-static PUBLISH: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+#[derive(Clone, Default)]
+pub struct Publisher {
+    one_at_a_time: std::sync::Arc<tokio::sync::Mutex<()>>,
+    clock: PublishClock,
+}
+
+#[derive(Clone, Default)]
+struct PublishClock(std::sync::Arc<AtomicU64>);
+
+impl PublishClock {
+    fn next(&self) -> u64 {
+        let mut last = self.0.load(Ordering::SeqCst);
+        loop {
+            let next = now_millis().max(last + 1);
+            match self
+                .0
+                .compare_exchange(last, next, Ordering::SeqCst, Ordering::SeqCst)
+            {
+                Ok(_) => return next,
+                Err(actual) => last = actual,
+            }
+        }
+    }
+}
 
 pub fn router() -> Router<AppState> {
     Router::new()
@@ -176,19 +198,6 @@ fn now_millis() -> u64 {
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_millis() as u64)
         .unwrap_or(0)
-}
-
-/// Server time in millis, strictly increasing within the process (so "newest" is never a tie).
-fn next_published_at() -> u64 {
-    static LAST: AtomicU64 = AtomicU64::new(0);
-    let mut last = LAST.load(Ordering::SeqCst);
-    loop {
-        let next = now_millis().max(last + 1);
-        match LAST.compare_exchange(last, next, Ordering::SeqCst, Ordering::SeqCst) {
-            Ok(_) => return next,
-            Err(actual) => last = actual,
-        }
-    }
 }
 
 /// `2026-01-31T12:34:56.789Z` from unix millis.
@@ -487,11 +496,13 @@ async fn publish(State(state): State<AppState>, req: Request) -> AppResult<Respo
         None => None,
     };
     let updates = updates_dir(&state);
-    let _guard = PUBLISH.lock().await;
+    let _guard = state.updates.one_at_a_time.lock().await;
     let job = updates.clone();
-    let meta = tokio::task::spawn_blocking(move || store(&job, archive, certificate.as_deref()))
-        .await
-        .map_err(|e| AppError::Internal(format!("publish task: {e}")))??;
+    let clock = state.updates.clock.clone();
+    let meta =
+        tokio::task::spawn_blocking(move || store(&job, archive, certificate.as_deref(), &clock))
+            .await
+            .map_err(|e| AppError::Internal(format!("publish task: {e}")))??;
     // The update is live: a failed clean-up is logged (the next publish retries it), never
     // reported as a failed publish.
     if let Err(e) = retain(&updates.join(&meta.runtime_version), &meta.platform).await {
@@ -733,7 +744,12 @@ fn newest_update_time(runtime_dir: &Path, platform: &str) -> std::io::Result<Opt
 
 /// Unpacks, validates and moves the archive into place. Runs on a blocking thread, under
 /// the publish lock. `certificate`: signatures are required and checked against it.
-fn store(updates: &Path, archive: Bytes, certificate: Option<&[u8]>) -> AppResult<Meta> {
+fn store(
+    updates: &Path,
+    archive: Bytes,
+    certificate: Option<&[u8]>,
+    clock: &PublishClock,
+) -> AppResult<Meta> {
     std::fs::create_dir_all(updates)?;
     let tmp_path = updates.join(format!("{TMP_PREFIX}{}", random_hex(8)));
     let mut tmp = TmpDir(Some(tmp_path.clone()));
@@ -772,7 +788,7 @@ fn store(updates: &Path, archive: Bytes, certificate: Option<&[u8]>) -> AppResul
         verify_signature(cert, sig, &body)?;
     }
 
-    let published_at = next_published_at();
+    let published_at = clock.next();
     let (id, created_at, assets) = match descriptor.kind {
         Kind::Update => {
             let m: Manifest =
@@ -990,7 +1006,7 @@ async fn remove(
         return Err(AppError::NotFound);
     }
     let dir = updates_dir(&state).join(&runtime).join(&id);
-    let _guard = PUBLISH.lock().await;
+    let _guard = state.updates.one_at_a_time.lock().await;
     match tokio::fs::remove_dir_all(&dir).await {
         Ok(()) => {
             tracing::info!(%id, %runtime, "update deleted");
