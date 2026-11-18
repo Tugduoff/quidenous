@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowRight, Check, CircleCheck, Crown, List, Sparkles } from 'lucide-react-native';
-import { type ComponentRef, type ReactNode, useEffect, useMemo, useRef, useState, useEffectEvent } from 'react';
+import { type ComponentRef, type ReactNode, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, Text, useWindowDimensions, View } from 'react-native';
 import { GestureDetector, GestureHandlerRootView, usePanGesture } from 'react-native-gesture-handler';
 import Animated, { FadeIn, ReduceMotion, type SharedValue, useAnimatedProps, useAnimatedScrollHandler, useAnimatedStyle, useSharedValue, withSpring, withTiming, ZoomIn } from 'react-native-reanimated';
@@ -21,6 +21,8 @@ import type { Choice, ChooseResult as ChooseData, Round } from '@/lib/api/rounds
 import { roundKeys, voteCurrent } from '@/lib/api/rounds';
 import { groupKeys } from '@/lib/api/group';
 import { impactHaptic } from '@/lib/device/haptics';
+import { useAnimateOnChange } from '@/lib/hooks/use-animate-on-change';
+import { useOnChange } from '@/lib/hooks/use-on-change';
 
 // "Qui choisirait quoi ?" (docs/CHOOSE.md): wire every member to an item (mine: my real choice, the others: my guesses),
 // then the result person by person.
@@ -210,10 +212,7 @@ function WireBoard({
   const board = useSharedValue<{ itemsX: number; rects: Rect[] }>({ itemsX: 0, rects: [] });
   const full = measured(rects, items.length)?.map((r) => ({ y: stackY + r.y, h: r.h })) ?? null;
   const fullKey = JSON.stringify(full);
-  const publishBoard = useEffectEvent(() => {
-    board.value = { itemsX, rects: full ?? [] };
-  });
-  useEffect(() => publishBoard(), [itemsX, fullKey]);
+  useAnimateOnChange(board, [itemsX, fullKey], () => ({ itemsX, rects: full ?? [] }));
 
   // Tap mode: the person waiting for an item. Dragging: the person whose wire is in hand (their own wire hides).
   const [sel, setSel] = useState<number | null>(null);
@@ -233,11 +232,11 @@ function WireBoard({
   };
   // The live wire goes once the plugged one is on screen (same spot: no flicker).
   const plugged = useRef(false);
-  useEffect(() => {
+  useOnChange(choices, () => {
     if (!plugged.current) return;
     plugged.current = false;
-    dragIdx.value = -1;
-  }, [choices, dragIdx]);
+    dragIdx.set(-1);
+  });
 
   const onStart = (id: number) => {
     setSel(null);
@@ -576,10 +575,8 @@ function Wire({
 }) {
   const ex = useSharedValue(from.x);
   const ey = useSharedValue(from.y);
-  useEffect(() => {
-    ex.value = withSpring(to.x, BOUNCE);
-    ey.value = withSpring(to.y, BOUNCE);
-  }, [to.x, to.y, ex, ey]);
+  useAnimateOnChange(ex, [to.x, to.y], () => withSpring(to.x, BOUNCE));
+  useAnimateOnChange(ey, [to.x, to.y], () => withSpring(to.y, BOUNCE));
   const path = useAnimatedProps(() => ({ d: wirePath(ax, ay - scrollY.value, ex.value, ey.value) }));
   const plug = useAnimatedProps(() => ({ cx: ex.value, cy: ey.value }));
   return (
@@ -748,9 +745,7 @@ function RevealStage({ p, items, byId }: { p: Person; items: string[]; byId: Map
   const ready = !!face && !!who && !!col && !!measuredRows;
   // The wire(s) fly out once everything is measured; the real choice lights up after they land.
   const fly = useSharedValue(0);
-  useEffect(() => {
-    if (ready) fly.value = withTiming(1, { duration: WIRE_MS, easing: EASE, reduceMotion: sys });
-  }, [ready, fly]);
+  useAnimateOnChange(fly, ready, () => (ready ? withTiming(1, { duration: WIRE_MS, easing: EASE, reduceMotion: sys }) : undefined));
   const from = face && who ? { x: who.x + face.x + face.w + 2, y: who.y + face.y + face.h / 2 } : { x: 0, y: 0 };
   return (
     <View style={{ gap: 14 }}>
