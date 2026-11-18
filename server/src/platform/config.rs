@@ -1,5 +1,6 @@
+use crate::platform::env::{self, Var};
 use crate::platform::ids::UserId;
-use std::{env, path::PathBuf};
+use std::path::PathBuf;
 
 #[derive(Clone, Debug, Default)]
 pub struct Config {
@@ -32,6 +33,7 @@ pub struct Config {
     pub donation_url: Option<String>,
     pub donation_url_rejected: bool,
     pub wrapped: WrappedWindow,
+    pub wrapped_rejected: bool,
     pub wrapped_preview: bool,
 }
 
@@ -52,11 +54,14 @@ pub struct WrappedWindow {
     pub until: (u32, u32),
 }
 
+pub const DEFAULT_WRAPPED_FROM: &str = "12-01";
+pub const DEFAULT_WRAPPED_UNTIL: &str = "01-31";
+
 impl Default for WrappedWindow {
     fn default() -> Self {
         Self {
-            from: (12, 1),
-            until: (1, 31),
+            from: parse_month_day(DEFAULT_WRAPPED_FROM).unwrap_or((12, 1)),
+            until: parse_month_day(DEFAULT_WRAPPED_UNTIL).unwrap_or((1, 31)),
         }
     }
 }
@@ -109,54 +114,62 @@ impl Config {
         self.report_email.as_deref().unwrap_or(DEFAULT_REPORT_EMAIL)
     }
 
-    pub fn warnings(&self) -> Vec<&'static str> {
-        let mut out = Vec::new();
-        if !self.auth_required {
-            out.push(
-                "AUTH_REQUIRED is off: anyone with a room code can join by first name (/api/join, /api/start); set AUTH_REQUIRED=1 once every phone runs an app with sign-in",
-            );
-        }
-        if self.admin_user_ids.is_empty() {
-            out.push(
-                "ADMIN_USER_IDS is not set: nobody can approve suggestions or review reported packs",
-            );
-        }
-        if self.vapid_private_key.is_some() && self.vapid_subject == DEFAULT_VAPID_SUBJECT {
-            out.push(
-                "VAPID_SUBJECT is the placeholder mailto:admin@example.com: set a contact address (mailto:you@your.domain)",
-            );
-        }
-        if self
-            .min_app_version
-            .as_deref()
-            .is_some_and(|v| parse_version(v).is_none())
-        {
-            out.push("MIN_APP_VERSION is not a version (x.y.z): every app version is served");
-        }
-        if self.join_code.eq_ignore_ascii_case(DEFAULT_JOIN_CODE) {
-            out.push(
-                "JOIN_CODE is the public default BANDE-42: a fresh database's first room would get it; set JOIN_CODE",
-            );
-        }
-        if self.updates_publish_token.is_some() && self.updates_certificate.is_none() {
-            out.push(
-                "UPDATES_CERTIFICATE is not set: over-the-air updates are published without a signature check (set it to the code signing certificate the apps embed)",
-            );
-        }
-        if self.donation_url_rejected {
-            out.push(
-                "DONATION_URL is not an https:// URL: ignored, the app shows no donation link",
-            );
-        }
-        if var("WRAPPED_FROM").is_some_and(|v| parse_month_day(&v).is_none())
-            || var("WRAPPED_UNTIL").is_some_and(|v| parse_month_day(&v).is_none())
-        {
-            out.push(
-                "WRAPPED_FROM / WRAPPED_UNTIL are not MM-DD days: the Wrapped uses 12-01 to 01-31",
-            );
-        }
-        if self.client_errors_webhook.is_none() {
-            out.push("CLIENT_ERRORS_WEBHOOK is not set: app crash reports only go to the log");
+    pub fn warnings(&self) -> Vec<String> {
+        let checks = [
+            (
+                !self.auth_required,
+                env::AUTH_REQUIRED,
+                "is off: anyone with a room code can join by first name (/api/join, /api/start); set it to 1 once every phone runs an app with sign-in",
+            ),
+            (
+                self.admin_user_ids.is_empty(),
+                env::ADMIN_USER_IDS,
+                "is not set: nobody can approve suggestions or review reported packs",
+            ),
+            (
+                self.vapid_private_key.is_some() && self.vapid_subject == DEFAULT_VAPID_SUBJECT,
+                env::VAPID_SUBJECT,
+                "is the placeholder mailto:admin@example.com: set a contact address (mailto:you@your.domain)",
+            ),
+            (
+                self.min_app_version
+                    .as_deref()
+                    .is_some_and(|v| parse_version(v).is_none()),
+                env::MIN_APP_VERSION,
+                "is not a version (x.y.z): every app version is served",
+            ),
+            (
+                self.join_code.eq_ignore_ascii_case(DEFAULT_JOIN_CODE),
+                env::JOIN_CODE,
+                "is the public default BANDE-42: a fresh database's first room would get it; set it",
+            ),
+            (
+                self.updates_publish_token.is_some() && self.updates_certificate.is_none(),
+                env::UPDATES_CERTIFICATE,
+                "is not set: over-the-air updates are published without a signature check (set it to the code signing certificate the apps embed)",
+            ),
+            (
+                self.donation_url_rejected,
+                env::DONATION_URL,
+                "is not an https:// URL: ignored, the app shows no donation link",
+            ),
+            (
+                self.client_errors_webhook.is_none(),
+                env::CLIENT_ERRORS_WEBHOOK,
+                "is not set: app crash reports only go to the log",
+            ),
+        ];
+        let mut out: Vec<String> = checks
+            .into_iter()
+            .filter(|(on, ..)| *on)
+            .map(|(_, var, why)| format!("{} {why}", var.name))
+            .collect();
+        if self.wrapped_rejected {
+            out.push(format!(
+                "{} / {} are not MM-DD days: the Wrapped uses {DEFAULT_WRAPPED_FROM} to {DEFAULT_WRAPPED_UNTIL}",
+                env::WRAPPED_FROM.name,
+                env::WRAPPED_UNTIL.name
+            ));
         }
         out
     }
@@ -186,34 +199,35 @@ pub struct OAuthEndpoints {
     pub jwks: String,
 }
 
-fn var(name: &str) -> Option<String> {
-    env::var(name)
-        .ok()
-        .map(|v| v.trim().to_owned())
-        .filter(|v| !v.is_empty())
+pub fn port() -> u16 {
+    env::PORT
+        .raw()
+        .and_then(|p| p.parse().ok())
+        .or_else(|| env::PORT.default_value()?.parse().ok())
+        .unwrap_or_default()
 }
 
-fn flag(name: &str) -> bool {
-    matches!(var(name).as_deref(), Some("1" | "true" | "yes"))
-}
-
-fn oauth_client(prefix: &str) -> Option<OAuthClient> {
+fn oauth_client(id: Var, secret: Var) -> Option<OAuthClient> {
     Some(OAuthClient {
-        id: var(&format!("{prefix}_CLIENT_ID"))?,
-        secret: var(&format!("{prefix}_CLIENT_SECRET"))?,
+        id: id.read()?,
+        secret: secret.read()?,
         endpoints: None,
     })
 }
 
 impl Config {
     pub fn from_env() -> Self {
-        let data_dir = PathBuf::from(env::var("DATA_DIR").unwrap_or_else(|_| "data".into()));
-        let mailgun = match (var("MAILGUN_API_KEY"), var("MAILGUN_DOMAIN")) {
+        let data_dir = PathBuf::from(env::DATA_DIR.raw_or_default().unwrap_or_default());
+        let mailgun = match (env::MAILGUN_API_KEY.read(), env::MAILGUN_DOMAIN.read()) {
             (Some(api_key), Some(domain)) => Some(Mailgun {
-                from: var("MAILGUN_FROM")
+                from: env::MAILGUN_FROM
+                    .read()
                     .unwrap_or_else(|| format!("Qui de nous ? <no-reply@{domain}>")),
-                reply_to: var("MAILGUN_REPLY_TO"),
-                base_url: if var("MAILGUN_REGION").is_some_and(|r| r.eq_ignore_ascii_case("eu")) {
+                reply_to: env::MAILGUN_REPLY_TO.read(),
+                base_url: if env::MAILGUN_REGION
+                    .read()
+                    .is_some_and(|r| r.eq_ignore_ascii_case("eu"))
+                {
                     "https://api.eu.mailgun.net".into()
                 } else {
                     "https://api.mailgun.net".into()
@@ -223,46 +237,48 @@ impl Config {
             }),
             _ => None,
         };
-        let donation_raw = var("DONATION_URL");
+        let wrapped = match (
+            env::WRAPPED_FROM.read().as_deref().map(parse_month_day),
+            env::WRAPPED_UNTIL.read().as_deref().map(parse_month_day),
+        ) {
+            (Some(None), _) | (_, Some(None)) => None,
+            (from, until) => Some(WrappedWindow {
+                from: from.flatten().unwrap_or(WrappedWindow::default().from),
+                until: until.flatten().unwrap_or(WrappedWindow::default().until),
+            }),
+        };
+        let donation_raw = env::DONATION_URL.read();
         let donation_url = donation_raw.as_deref().and_then(donation_url);
         Self {
             donation_url_rejected: donation_raw.is_some() && donation_url.is_none(),
             donation_url,
-            port: env::var("PORT")
-                .ok()
-                .and_then(|p| p.parse().ok())
-                .unwrap_or(8080),
-            database_url: env::var("DATABASE_URL").unwrap_or_else(|_| {
+            port: port(),
+            database_url: env::DATABASE_URL.raw().unwrap_or_else(|| {
                 format!("sqlite://{}?mode=rwc", data_dir.join("app.db").display())
             }),
-            web_dir: env::var("WEB_DIR").ok().map(PathBuf::from),
-            group_name: env::var("GROUP_NAME").unwrap_or_else(|_| "La bande".into()),
-            join_code: env::var("JOIN_CODE").unwrap_or_else(|_| DEFAULT_JOIN_CODE.into()),
-            vapid_private_key: env::var("VAPID_PRIVATE_KEY").ok().filter(|v| !v.is_empty()),
-            vapid_subject: env::var("VAPID_SUBJECT")
-                .unwrap_or_else(|_| DEFAULT_VAPID_SUBJECT.into()),
-            fcm_service_account: env::var("FCM_SERVICE_ACCOUNT_FILE").ok().map(PathBuf::from),
+            web_dir: env::WEB_DIR.raw().map(PathBuf::from),
+            group_name: env::GROUP_NAME.raw_or_default().unwrap_or_default(),
+            join_code: env::JOIN_CODE.raw_or_default().unwrap_or_default(),
+            vapid_private_key: env::VAPID_PRIVATE_KEY.raw().filter(|v| !v.is_empty()),
+            vapid_subject: env::VAPID_SUBJECT.raw_or_default().unwrap_or_default(),
+            fcm_service_account: env::FCM_SERVICE_ACCOUNT_FILE.raw().map(PathBuf::from),
             data_dir,
-            auth_secret: var("AUTH_SECRET"),
-            public_url: var("PUBLIC_URL").map(|u| u.trim_end_matches('/').to_owned()),
-            trust_proxy: flag("TRUST_PROXY"),
-            auth_required: flag("AUTH_REQUIRED"),
+            auth_secret: env::AUTH_SECRET.read(),
+            public_url: env::PUBLIC_URL
+                .read()
+                .map(|u| u.trim_end_matches('/').to_owned()),
+            trust_proxy: env::TRUST_PROXY.flag(),
+            auth_required: env::AUTH_REQUIRED.flag(),
             mailgun,
-            google: oauth_client("GOOGLE"),
-            discord: oauth_client("DISCORD"),
-            oauth_redirects: var("OAUTH_REDIRECTS")
-                .map(|v| {
-                    v.split(',')
-                        .map(|s| s.trim().to_owned())
-                        .filter(|s| !s.is_empty())
-                        .collect()
-                })
-                .unwrap_or_default(),
-            report_email: var("REPORT_EMAIL"),
-            updates_publish_token: var("UPDATES_PUBLISH_TOKEN"),
-            updates_certificate: var("UPDATES_CERTIFICATE").map(PathBuf::from),
-            client_errors_webhook: var("CLIENT_ERRORS_WEBHOOK"),
-            admin_user_ids: var("ADMIN_USER_IDS")
+            google: oauth_client(env::GOOGLE_CLIENT_ID, env::GOOGLE_CLIENT_SECRET),
+            discord: oauth_client(env::DISCORD_CLIENT_ID, env::DISCORD_CLIENT_SECRET),
+            oauth_redirects: env::OAUTH_REDIRECTS.list(),
+            report_email: env::REPORT_EMAIL.read(),
+            updates_publish_token: env::UPDATES_PUBLISH_TOKEN.read(),
+            updates_certificate: env::UPDATES_CERTIFICATE.read().map(PathBuf::from),
+            client_errors_webhook: env::CLIENT_ERRORS_WEBHOOK.read(),
+            admin_user_ids: env::ADMIN_USER_IDS
+                .read()
                 .map(|v| {
                     v.split(',')
                         .filter_map(|s| s.trim().parse().ok())
@@ -270,37 +286,27 @@ impl Config {
                         .collect()
                 })
                 .unwrap_or_default(),
-            cors_origins: var("CORS_ORIGINS")
-                .map(|v| {
-                    v.split(',')
-                        .map(|s| s.trim().to_owned())
-                        .filter(|s| !s.is_empty())
-                        .collect()
-                })
-                .unwrap_or_default(),
+            cors_origins: env::CORS_ORIGINS.list(),
             live_recheck: None,
-            min_app_version: var("MIN_APP_VERSION"),
-            wrapped: match (
-                var("WRAPPED_FROM").as_deref().map(parse_month_day),
-                var("WRAPPED_UNTIL").as_deref().map(parse_month_day),
-            ) {
-                (Some(None), _) | (_, Some(None)) => WrappedWindow::default(),
-                (from, until) => WrappedWindow {
-                    from: from.flatten().unwrap_or(WrappedWindow::default().from),
-                    until: until.flatten().unwrap_or(WrappedWindow::default().until),
-                },
-            },
-            wrapped_preview: flag("WRAPPED_PREVIEW"),
-            klipy: var("KLIPY_API_KEY").map(|api_key| Klipy {
+            min_app_version: env::MIN_APP_VERSION.read(),
+            wrapped: wrapped.unwrap_or_default(),
+            wrapped_rejected: wrapped.is_none(),
+            wrapped_preview: env::WRAPPED_PREVIEW.flag(),
+            klipy: env::KLIPY_API_KEY.read().map(|api_key| Klipy {
                 api_key,
-                content_filter: var("KLIPY_CONTENT_FILTER")
+                content_filter: env::KLIPY_CONTENT_FILTER
+                    .read()
                     .map(|f| f.to_ascii_lowercase())
                     .filter(|f| ["off", "low", "medium", "high"].contains(&f.as_str()))
-                    .unwrap_or_else(|| "low".into()),
-                api_base: var("KLIPY_API_BASE")
+                    .or_else(|| env::KLIPY_CONTENT_FILTER.default_value().map(str::to_owned))
+                    .unwrap_or_default(),
+                api_base: env::KLIPY_API_BASE
+                    .read()
                     .map(|u| u.trim_end_matches('/').to_owned())
-                    .unwrap_or_else(|| "https://api.klipy.com".into()),
-                media_hosts: var("KLIPY_MEDIA_HOSTS")
+                    .or_else(|| env::KLIPY_API_BASE.default_value().map(str::to_owned))
+                    .unwrap_or_default(),
+                media_hosts: env::KLIPY_MEDIA_HOSTS
+                    .read()
                     .map(|hosts| {
                         hosts
                             .split(',')

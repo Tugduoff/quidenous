@@ -13,7 +13,7 @@ One container: the Rust API + the web app (served on the same domain). SQLite + 
 ```bash
 git clone git@github.com:Tugduoff/quidenous.git
 cd quidenous/deploy
-cp .env.example .env                 # set JOIN_CODE, ADMIN_USER_IDS, VAPID_SUBJECT (see Config)
+cp .env.example .env                 # set JOIN_CODE, ADMIN_USER_IDS, VAPID_SUBJECT (server env lists them all)
 mkdir -p data && sudo chown 10001:10001 data   # container runs as uid 10001
 docker compose up -d --build         # first build ~5–10 min (Rust + Expo)
 curl -s http://127.0.0.1:8080/api/health       # → ok
@@ -55,37 +55,14 @@ Traefik: point a router at the service on port 8080; WebSockets work out of the 
 
 ## Config (`deploy/.env`)
 
-| Variable | Default | |
-| --- | --- | --- |
-| `JOIN_CODE` | `BANDE-42` | Code of the first room, created when the database is empty. Change it (the default is public). Read on first start only: afterwards the owner gets a new code in the app |
-| `GROUP_NAME` | `La bande` | Name of that first room (first start only) |
-| `RUST_LOG` | `info` | `debug` to troubleshoot |
-| `VAPID_PRIVATE_KEY` | — | Web Push key (iPhone/Android web app). Generate once: `docker compose run --rm quidenous server --gen-vapid` |
-| `VAPID_SUBJECT` | `mailto:admin@example.com` | Contact sent to push services, e.g. `mailto:you@domain`. Set it: the default is a placeholder (warned about at start-up) |
-| `FCM_SERVICE_ACCOUNT_FILE` | — | Android app notifications: path **inside the container** to the Firebase service account JSON, e.g. `/data/firebase.json` (put the file in `deploy/data/`). A file that can't be read or parsed doesn't stop the server: it logs an `ERROR` and Android push stays off (same for an invalid `VAPID_PRIVATE_KEY` and web push) |
-| `AUTH_SECRET` | generated into `data/auth.key` | 32+ random bytes (`openssl rand -hex 32`): encrypts 2FA secrets, keys code hashes. Set it, keep it out of backups, never change it (2FA secrets and recovery codes depend on it) |
-| `PUBLIC_URL` | — | `https://your.domain` (no trailing slash). Needed for Google / Discord sign-in. Also the only web origin allowed to call the API cross-origin (CORS; without it any origin is, for local development), and an `https://` one turns on HSTS |
-| `CORS_ORIGINS` | — | Other web origins allowed to call the API, comma-separated (e.g. `http://localhost:8081` to point a dev web app at this server). The phone apps need none |
-| `TRUST_PROXY` | off | `1` behind the reverse proxy (required there): client IP from the right-most `X-Forwarded-For` entry, last header line (rate limits). Without it every client shares the proxy's IP and the anonymous `/join`, `/start` limits throttle everyone. Never set it when the port is exposed directly |
-| `MAILGUN_API_KEY`, `MAILGUN_DOMAIN` | — | Email (verification and reset codes) through Mailgun. Without them nothing is sent, "forgot password" is off, and the e-mails are only logged (the body with its code at `RUST_LOG=debug`) |
-| `MAILGUN_FROM` | `Qui de nous ? <no-reply@MAILGUN_DOMAIN>` | |
-| `MAILGUN_REGION` | `us` | `eu` for an EU Mailgun account |
-| `MAILGUN_REPLY_TO` | — | `Reply-To` of the automatic e-mails (the sender is a no-reply address), e.g. `contact@your.domain` |
-| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | — | Google sign-in (redirect URI `PUBLIC_URL/api/auth/oauth/google/callback`) |
-| `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET` | — | Discord sign-in (redirect `PUBLIC_URL/api/auth/oauth/discord/callback`) |
-| `OAUTH_REDIRECTS` | — | Extra allowed app redirects, comma-separated URLs compared on scheme, host, port and path prefix (`exp://` alone: Expo Go on a local address only, dev). Leave it unset in production |
-| `AUTH_REQUIRED` | off | `1` = no more anonymous join by first name (`/api/join`, `/api/start` answer `410 sign_in_required`). Off, anyone with a room code can get a session for a legacy (unsecured) account by typing its first name: set it once every phone runs an app with sign-in (0.15+). Warned about at start-up while off |
-| `ADMIN_USER_IDS` | — | Comma-separated account ids (`users.id`, e.g. `1,7`) that moderate community packs and approve suggestions. Unset: nobody can, reported packs wait for review forever (warned about at start-up) |
-| `REPORT_EMAIL` | `contact@coflop.fr` | Where in-app reports (message, member, question) are emailed, through Mailgun. At most 30 emails an hour; every report is also stored in the `reports` table |
-| `KLIPY_API_KEY` | — | GIFs in the chat through [Klipy](https://klipy.com) (free API key from its partner dashboard). Unset: no GIF button in the app. The server searches and proxies every GIF, phones never reach Klipy. See [docs/CHAT_MEDIA.md](../docs/CHAT_MEDIA.md) |
-| `KLIPY_CONTENT_FILTER` | `low` | Klipy's content filter: `off`, `low` (about PG-13), `medium`, `high` |
-| `KLIPY_API_BASE` | `https://api.klipy.com` | Klipy's API (tests point it at a mock) |
-| `KLIPY_MEDIA_HOSTS` | — | Extra origins GIF files may come from (comma-separated `scheme://host[:port]`), besides Klipy's `static*.klipy.com`. Local mocks only: leave unset in production |
-| `UPDATES_PUBLISH_TOKEN` | — | Over-the-air app updates: the token CI uses to publish new JS bundles (same value as the GitHub secret). Without it publishing is off. Uploads are ~5 MB (`client_max_body_size 10m` is enough). See [docs/OTA.md](../docs/OTA.md) |
-| `UPDATES_CERTIFICATE` | — | Path **inside the container** to the OTA code signing certificate, e.g. `/data/ota-certificate.pem` (copy `app/certs/certificate.pem` into `deploy/data/`). Recommended: publishing then refuses unsigned updates and signatures that don't match, so a leaked publish token can't stall updates |
-| `MIN_APP_VERSION` | — | Oldest app version served, e.g. `0.33.0`. Apps send their version (`X-App-Version`, from 0.33); an older one gets `426 update_required` and shows an "Update" screen (over-the-air update first, else the store / APK). Apps from before 0.33 send no version and are not affected. Health, features, version, crash reports and OTA stay open |
-| `CLIENT_ERRORS_WEBHOOK` | — | Discord webhook URL (channel → Integrations → Webhooks): app crashes caught by the app's error screen are posted there (30 an hour at most). Without it they are only logged (`app error`, level WARN) |
-| `DONATION_URL` | — | "Buy us a coffee" page, an `https://` URL (Ko-fi, Buy Me a Coffee, PayPal, Stripe payment link…). Set: a discreet link in the profile screen of the web app and the sideloaded APK only (never the Play or iOS builds: store billing rules). Not https: ignored, warned about at start-up. See [docs/DONATE.md](../docs/DONATE.md) |
+`.env.example` lists the variables a deployment sets; fill them in, then add any optional ones you need. Every variable the server reads, with its default and what it does, is printed by the server itself:
+
+```bash
+docker compose run --rm quidenous server env             # name, default, description
+docker compose run --rm quidenous server env --example   # the contents of .env.example
+```
+
+The table lives in `server/src/platform/env.rs`; a test keeps `.env.example` equal to `server env --example`. Settings that look unsafe for production (`AUTH_REQUIRED` off, no `ADMIN_USER_IDS`, the default `JOIN_CODE` or `VAPID_SUBJECT`, …) are warned about in the log at start-up.
 
 Accounts, 2FA and sign-in details: [docs/AUTH.md](../docs/AUTH.md).
 

@@ -21,23 +21,29 @@ use crate::{
     platform::error::{AppError, AppResult},
 };
 
-use super::*;
+use super::{
+    Descriptor, Directive, JSON_MAX, KEEP, KEEP_RUNTIMES, Kind, Manifest, ManifestAsset, Meta,
+    PUBLISH_MAX, PublishClock, RUNTIME_IDLE, STALE_TMP, TMP_PREFIX, UNPACKED_MAX, authorize,
+    entries, iso_millis, now_millis, updates_dir, valid_id, valid_name, valid_platform,
+    valid_runtime, valid_uuid,
+};
 
 pub(super) async fn publish(State(state): State<AppState>, req: Request) -> AppResult<Response> {
     authorize(&state, req.headers())?;
-    let archive = match axum::body::to_bytes(req.into_body(), PUBLISH_MAX).await {
-        Ok(b) => b,
-        Err(_) => {
-            return Ok((
-                StatusCode::PAYLOAD_TOO_LARGE,
-                Json(json!({ "error": "archive_too_large" })),
-            )
-                .into_response());
-        }
+    let Ok(archive) = axum::body::to_bytes(req.into_body(), PUBLISH_MAX).await else {
+        return Ok((
+            StatusCode::PAYLOAD_TOO_LARGE,
+            Json(json!({ "error": "archive_too_large" })),
+        )
+            .into_response());
     };
     let certificate = match &state.config.updates_certificate {
         Some(path) => Some(tokio::fs::read(path).await.map_err(|e| {
-            AppError::Internal(format!("UPDATES_CERTIFICATE {}: {e}", path.display()))
+            AppError::Internal(format!(
+                "{} {}: {e}",
+                crate::platform::env::UPDATES_CERTIFICATE.name,
+                path.display()
+            ))
         })?),
         None => None,
     };
@@ -210,8 +216,12 @@ pub(super) fn signature_value(header: &str) -> Option<&str> {
 }
 
 pub(super) fn verify_signature(certificate: &[u8], signature: &str, body: &[u8]) -> AppResult<()> {
-    let key = jsonwebtoken::DecodingKey::from_rsa_pem(certificate)
-        .map_err(|e| AppError::Internal(format!("UPDATES_CERTIFICATE unreadable: {e}")))?;
+    let key = jsonwebtoken::DecodingKey::from_rsa_pem(certificate).map_err(|e| {
+        AppError::Internal(format!(
+            "{} unreadable: {e}",
+            crate::platform::env::UPDATES_CERTIFICATE.name
+        ))
+    })?;
     let raw = signature_value(signature)
         .and_then(|s| base64::engine::general_purpose::STANDARD.decode(s).ok())
         .ok_or(AppError::BadRequest("bad_signature"))?;

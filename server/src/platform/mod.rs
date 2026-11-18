@@ -1,5 +1,6 @@
 pub mod config;
 pub mod db;
+pub mod env;
 pub mod error;
 pub mod features;
 pub mod i18n;

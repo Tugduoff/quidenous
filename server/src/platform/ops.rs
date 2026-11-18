@@ -67,7 +67,7 @@ fn free_bytes(dir: &Path) -> Option<u64> {
     use std::os::unix::ffi::OsStrExt;
     let path = std::ffi::CString::new(dir.as_os_str().as_bytes()).ok()?;
     let mut stat: libc::statvfs = unsafe { std::mem::zeroed() };
-    let ok = unsafe { libc::statvfs(path.as_ptr(), &mut stat) } == 0;
+    let ok = unsafe { libc::statvfs(path.as_ptr(), &raw mut stat) } == 0;
     #[allow(clippy::useless_conversion)]
     ok.then(|| u64::from(stat.f_bavail).saturating_mul(u64::from(stat.f_frsize)))
 }
@@ -110,17 +110,17 @@ pub async fn version_gate(State(state): State<AppState>, req: Request, next: Nex
 fn build_info() -> &'static Value {
     static INFO: OnceLock<Value> = OnceLock::new();
     INFO.get_or_init(|| {
-        let var = |baked: Option<&str>, name| {
+        let var = |baked: Option<&str>, var: crate::platform::env::Var| {
             baked
                 .map(str::to_owned)
-                .or_else(|| std::env::var(name).ok())
+                .or_else(|| var.raw())
                 .map(|v| v.trim().to_owned())
                 .filter(|v| !v.is_empty())
                 .unwrap_or_else(|| "dev".into())
         };
         json!({
-            "version": var(option_env!("QDN_BUILD_VERSION"), "QUIDENOUS_VERSION"),
-            "sha": var(option_env!("QDN_BUILD_SHA"), "QUIDENOUS_GIT_SHA"),
+            "version": var(option_env!("QDN_BUILD_VERSION"), crate::platform::env::QUIDENOUS_VERSION),
+            "sha": var(option_env!("QDN_BUILD_SHA"), crate::platform::env::QUIDENOUS_GIT_SHA),
         })
     })
 }
@@ -152,8 +152,8 @@ fn clip(s: &str, max: usize) -> String {
         .collect()
 }
 
-fn clip_opt(s: &Option<String>, max: usize) -> String {
-    s.as_deref().map(|s| clip(s, max)).unwrap_or_default()
+fn clip_opt(s: Option<&str>, max: usize) -> String {
+    s.map(|s| clip(s, max)).unwrap_or_default()
 }
 
 async fn client_error(
@@ -181,11 +181,11 @@ async fn client_error(
     if message.is_empty() {
         return Err(AppError::BadRequest("bad_report"));
     }
-    let stack = clip_opt(&report.stack, STACK_MAX);
-    let component_stack = clip_opt(&report.component_stack, STACK_MAX);
-    let platform = clip_opt(&report.platform, FIELD_MAX);
-    let version = clip_opt(&report.version, FIELD_MAX);
-    let route = clip_opt(&report.route, FIELD_MAX);
+    let stack = clip_opt(report.stack.as_deref(), STACK_MAX);
+    let component_stack = clip_opt(report.component_stack.as_deref(), STACK_MAX);
+    let platform = clip_opt(report.platform.as_deref(), FIELD_MAX);
+    let version = clip_opt(report.version.as_deref(), FIELD_MAX);
+    let route = clip_opt(report.route.as_deref(), FIELD_MAX);
     tracing::warn!(
         user_id = ?user_id,
         %platform,
@@ -224,7 +224,7 @@ async fn client_error(
                 .json(&json!({ "content": content, "allowed_mentions": { "parse": [] } }))
                 .send()
                 .await;
-            if let Err(e) = res.and_then(|r| r.error_for_status()) {
+            if let Err(e) = res.and_then(reqwest::Response::error_for_status) {
                 tracing::warn!(error = %e, "client error webhook failed");
             }
         });

@@ -33,6 +33,10 @@ fn main() {
     }
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "the build script runs before the library and its platform::env table exist"
+)]
 fn build_env(name: &str) -> Option<String> {
     env::var(name)
         .ok()

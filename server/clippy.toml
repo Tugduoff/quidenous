@@ -3,3 +3,7 @@ allow-expect-in-tests = true
 allow-panic-in-tests = true
 allow-dbg-in-tests = true
 allow-print-in-tests = true
+disallowed-methods = [
+  { path = "std::env::var", reason = "declare the variable in platform::env and read it through its Var" },
+  { path = "std::env::var_os", reason = "declare the variable in platform::env and read it through its Var" },
+]

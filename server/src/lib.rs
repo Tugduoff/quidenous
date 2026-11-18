@@ -1,6 +1,7 @@
 pub mod accounts;
 pub mod api;
 pub mod chat;
+pub mod cli;
 pub mod community;
 pub mod insights;
 pub mod party;
@@ -83,7 +84,11 @@ pub async fn state_with_mailer(
     let vapid = config.vapid_private_key.as_ref().and_then(|key| {
         push::Vapid::new(key, config.vapid_subject.clone())
             .inspect_err(|e| {
-                tracing::error!(error = %e, "VAPID_PRIVATE_KEY is not a valid key: web push is OFF");
+                tracing::error!(
+                    error = %e,
+                    "{} is not a valid key: web push is OFF",
+                    platform::env::VAPID_PRIVATE_KEY.name
+                );
             })
             .ok()
     });
@@ -95,7 +100,8 @@ pub async fn state_with_mailer(
                 tracing::error!(
                     file = %path.display(),
                     error = %e,
-                    "FCM_SERVICE_ACCOUNT_FILE can't be used: Android push is OFF"
+                    "{} can't be used: Android push is OFF",
+                    platform::env::FCM_SERVICE_ACCOUNT_FILE.name
                 );
             })
             .ok()

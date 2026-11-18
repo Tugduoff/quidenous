@@ -105,12 +105,10 @@ fn original(state: &AppState, proxied: &str) -> Option<String> {
 
 fn mime_of(url: &str) -> Option<&'static str> {
     let path = url.split(['?', '#']).next()?.to_ascii_lowercase();
-    if path.ends_with(".webp") {
-        Some("image/webp")
-    } else if path.ends_with(".gif") {
-        Some("image/gif")
-    } else {
-        None
+    match path.rsplit_once('.').map(|(_, ext)| ext) {
+        Some("webp") => Some("image/webp"),
+        Some("gif") => Some("image/gif"),
+        _ => None,
     }
 }
 
@@ -215,7 +213,10 @@ pub async fn search(
         params.push(("q", q));
     }
     let url = reqwest::Url::parse_with_params(&base, &params).map_err(|_| {
-        tracing::warn!("KLIPY_API_BASE is not a valid URL");
+        tracing::warn!(
+            "{} is not a valid URL",
+            crate::platform::env::KLIPY_API_BASE.name
+        );
         AppError::Unavailable("gifs_unavailable")
     })?;
     let res = api_client().get(url).send().await.map_err(|e| {

@@ -102,10 +102,7 @@ async fn version_reports_the_release_and_commit_built() {
         "{sha}"
     );
     let baked = option_env!("QDN_BUILD_SHA");
-    let runtime = std::env::var("QUIDENOUS_GIT_SHA")
-        .ok()
-        .map(|v| v.trim().to_owned())
-        .filter(|v| !v.is_empty());
+    let runtime = quidenous_server::platform::env::QUIDENOUS_GIT_SHA.read();
     assert_eq!(
         Some(sha),
         baked.or(runtime.as_deref()).or(Some("dev")),

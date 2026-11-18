@@ -37,7 +37,10 @@ impl Keys {
     pub fn load(secret: Option<&str>, data_dir: &Path) -> std::io::Result<Self> {
         if let Some(secret) = secret {
             if secret.len() < 32 {
-                tracing::warn!("AUTH_SECRET is short: use 32+ random bytes (openssl rand -hex 32)");
+                tracing::warn!(
+                    "{} is short: use 32+ random bytes (openssl rand -hex 32)",
+                    crate::platform::env::AUTH_SECRET.name
+                );
             }
             return Ok(Self::from_secret(secret.as_bytes()));
         }
@@ -50,7 +53,8 @@ impl Keys {
                 write_private(&path, &secret)?;
                 tracing::warn!(
                     path = %path.display(),
-                    "AUTH_SECRET not set: generated a key file. Set AUTH_SECRET and keep it out of backups"
+                    "{0} not set: generated a key file. Set {0} and keep it out of backups",
+                    crate::platform::env::AUTH_SECRET.name
                 );
                 Ok(Self::from_secret(secret.as_bytes()))
             }
@@ -145,7 +149,7 @@ pub fn recovery_code() -> String {
 
 pub fn normalize_recovery(code: &str) -> String {
     code.chars()
-        .filter(|c| c.is_ascii_alphanumeric())
+        .filter(char::is_ascii_alphanumeric)
         .map(|c| c.to_ascii_lowercase())
         .collect()
 }
@@ -207,13 +211,11 @@ impl Hasher {
                 Some(h) => (h.as_str(), true),
                 None => (dummy_hash(), false),
             };
-            let ok = PasswordHash::new(phc)
-                .map(|parsed| {
-                    argon2()
-                        .verify_password(password.as_bytes(), &parsed)
-                        .is_ok()
-                })
-                .unwrap_or(false);
+            let ok = PasswordHash::new(phc).is_ok_and(|parsed| {
+                argon2()
+                    .verify_password(password.as_bytes(), &parsed)
+                    .is_ok()
+            });
             ok && real
         })
         .await
@@ -278,8 +280,7 @@ pub fn totp_match(secret_b32: &str, code: &str, unix_time: u64) -> Option<u64> {
 pub fn now_unix() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0)
+        .map_or(0, |d| d.as_secs())
 }
 
 pub fn pct(s: &str) -> String {
@@ -313,9 +314,9 @@ mod tests {
     fn rfc6238_sha1_vectors() {
         let secret = data_encoding::BASE32_NOPAD.encode(b"12345678901234567890");
         assert_eq!(totp_code(&secret, 59).unwrap(), "287082");
-        assert_eq!(totp_code(&secret, 1111111109).unwrap(), "081804");
-        assert_eq!(totp_code(&secret, 1234567890).unwrap(), "005924");
-        assert_eq!(totp_code(&secret, 2000000000).unwrap(), "279037");
+        assert_eq!(totp_code(&secret, 1_111_111_109).unwrap(), "081804");
+        assert_eq!(totp_code(&secret, 1_234_567_890).unwrap(), "005924");
+        assert_eq!(totp_code(&secret, 2_000_000_000).unwrap(), "279037");
     }
 
     #[test]
