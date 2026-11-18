@@ -304,7 +304,7 @@ async fn a_dev_server_previews_for_everyone() {
     assert_eq!(b["available"], true);
     assert_eq!(b["preview"], true);
     assert_eq!(b["can_preview"], true);
-    assert!(!b["cards"].as_array().unwrap().is_empty());
+    assert!(b["cards"].as_array().is_some_and(|c| !c.is_empty()));
 }
 
 #[tokio::test]

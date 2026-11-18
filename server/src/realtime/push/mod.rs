@@ -140,12 +140,10 @@ impl Recipient {
 
 pub fn in_quiet_hours(start: i64, end: i64, tz_offset: i64, now: u64) -> bool {
     let local = (now as i64 / 60 + tz_offset).rem_euclid(24 * 60);
-    if start == end {
-        false
-    } else if start < end {
-        (start..end).contains(&local)
-    } else {
-        local >= start || local < end
+    match start.cmp(&end) {
+        std::cmp::Ordering::Equal => false,
+        std::cmp::Ordering::Less => (start..end).contains(&local),
+        std::cmp::Ordering::Greater => local >= start || local < end,
     }
 }
 
@@ -197,12 +195,18 @@ impl Push {
     }
 
     pub fn record(&self) {
-        let mut rec = self.recorded.lock().unwrap_or_else(|e| e.into_inner());
+        let mut rec = self
+            .recorded
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         rec.get_or_insert_with(Vec::new);
     }
 
     pub fn recorded(&self) -> Vec<Sent> {
-        let rec = self.recorded.lock().unwrap_or_else(|e| e.into_inner());
+        let rec = self
+            .recorded
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         rec.clone().unwrap_or_default()
     }
 
@@ -278,7 +282,10 @@ impl Push {
                 Err(e) => return tracing::error!(error = %e, "push: load subscriptions"),
             };
             {
-                let mut rec = push.recorded.lock().unwrap_or_else(|e| e.into_inner());
+                let mut rec = push
+                    .recorded
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
                 if let Some(rec) = rec.as_mut() {
                     rec.extend(subs.iter().map(|sub| Sent {
                         user_id: sub.user_id,
@@ -300,7 +307,7 @@ impl Push {
                             .await;
                     }
                     Delivery::Failed(e) => {
-                        tracing::warn!(kind = %sub.kind, error = %e, "push failed")
+                        tracing::warn!(kind = %sub.kind, error = %e, "push failed");
                     }
                 }
             }
@@ -430,7 +437,10 @@ impl Push {
 
     pub fn widget_ping(&self, db: SqlitePool, group_id: RoomId, tokens: Vec<(UserId, String)>) {
         {
-            let mut rec = self.recorded.lock().unwrap_or_else(|e| e.into_inner());
+            let mut rec = self
+                .recorded
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             if let Some(rec) = rec.as_mut() {
                 rec.extend(tokens.iter().map(|(user_id, _)| Sent {
                     user_id: Some(*user_id),

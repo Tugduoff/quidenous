@@ -6,7 +6,7 @@ use std::{
 
 use crate::platform::i18n::Lang;
 
-use super::*;
+use super::{Award, DAY, Stats};
 
 pub(super) fn now() -> f64 {
     SystemTime::now()
@@ -48,10 +48,10 @@ pub(super) fn median(values: &mut [f64]) -> Option<f64> {
     if values.is_empty() {
         return None;
     }
-    values.sort_by(|a, b| a.total_cmp(b));
+    values.sort_by(f64::total_cmp);
     let mid = values.len() / 2;
     Some(if values.len().is_multiple_of(2) {
-        (values[mid - 1] + values[mid]) / 2.0
+        f64::midpoint(values[mid - 1], values[mid])
     } else {
         values[mid]
     })

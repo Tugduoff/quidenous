@@ -258,18 +258,15 @@ async fn served(app: &Router, runtime: &str, platform: &str) -> Option<String> {
     Some(
         v["id"]
             .as_str()
-            .map(str::to_owned)
-            .unwrap_or_else(|| v["type"].as_str().unwrap().to_owned()),
+            .map_or_else(|| v["type"].as_str().unwrap().to_owned(), str::to_owned),
     )
 }
 
 fn leftover_tmp(dir: &std::path::Path) -> bool {
-    std::fs::read_dir(dir.join("updates"))
-        .map(|d| {
-            d.flatten()
-                .any(|e| e.file_name().to_string_lossy().starts_with(".tmp-"))
-        })
-        .unwrap_or(false)
+    std::fs::read_dir(dir.join("updates")).is_ok_and(|d| {
+        d.flatten()
+            .any(|e| e.file_name().to_string_lossy().starts_with(".tmp-"))
+    })
 }
 
 #[tokio::test]

@@ -10,7 +10,7 @@ use crate::{
     realtime::live::Event,
 };
 
-use super::*;
+use super::{ADMIN_LIST_MAX, erase_answer, erase_message, retire_question};
 
 pub(super) async fn resolve(
     tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,

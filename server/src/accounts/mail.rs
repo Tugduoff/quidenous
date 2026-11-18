@@ -112,7 +112,7 @@ impl Mailer for MailgunMailer {
     }
 }
 
-pub const FAILURE_WINDOW: Duration = Duration::from_secs(15 * 60);
+pub const FAILURE_WINDOW: Duration = Duration::from_mins(15);
 
 pub struct Watched {
     inner: Arc<dyn Mailer>,
@@ -132,13 +132,19 @@ impl Watched {
     }
 
     pub fn healthy(&self) -> bool {
-        let failed = self.failed_at.lock().unwrap_or_else(|e| e.into_inner());
+        let failed = self
+            .failed_at
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         failed.is_none_or(|t| t.elapsed() >= FAILURE_WINDOW)
     }
 
     pub async fn send(&self, email: Email) -> Result<(), String> {
         let result = self.inner.send(email).await;
-        *self.failed_at.lock().unwrap_or_else(|e| e.into_inner()) =
+        *self
+            .failed_at
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) =
             result.is_err().then(Instant::now);
         result
     }
@@ -153,7 +159,10 @@ pub struct MemoryMailer {
 
 impl MemoryMailer {
     pub fn last_code(&self, to: &str) -> Option<String> {
-        let sent = self.sent.lock().unwrap_or_else(|e| e.into_inner());
+        let sent = self
+            .sent
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let email = sent.iter().rev().find(|e| e.to == to)?;
         email
             .text
@@ -163,12 +172,18 @@ impl MemoryMailer {
     }
 
     pub fn count(&self, to: &str) -> usize {
-        let sent = self.sent.lock().unwrap_or_else(|e| e.into_inner());
+        let sent = self
+            .sent
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         sent.iter().filter(|e| e.to == to).count()
     }
 
     pub fn notices(&self, to: &str) -> Vec<String> {
-        let sent = self.notices.lock().unwrap_or_else(|e| e.into_inner());
+        let sent = self
+            .notices
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         sent.iter()
             .filter(|e| e.to == to)
             .map(|e| e.subject.clone())
@@ -190,7 +205,9 @@ impl Mailer for MemoryMailer {
         } else {
             &self.sent
         };
-        list.lock().unwrap_or_else(|e| e.into_inner()).push(email);
+        list.lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .push(email);
         Box::pin(async { Ok(()) })
     }
 }

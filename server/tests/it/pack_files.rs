@@ -532,7 +532,7 @@ async fn the_ai_template_is_served_and_its_examples_parse() {
                     && file.header.description.is_some()
                     && file.header.spicy.is_some()
             );
-            assert!(!file.header.categories.is_empty());
+            assert_ne!(file.header.categories, [] as [&str; 0]);
             let (pack, dropped) = packs::pack_from_file(example, false).unwrap();
             assert_eq!(dropped, 0);
             assert_eq!(

@@ -26,14 +26,20 @@ impl Presence {
     }
 
     pub fn here(&self, user_id: UserId, group_id: RoomId, connection: u64) {
-        let mut map = self.seats.lock().unwrap_or_else(|e| e.into_inner());
+        let mut map = self
+            .seats
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         map.entry((user_id, group_id))
             .or_default()
             .insert(connection, Instant::now());
     }
 
     pub fn away(&self, user_id: UserId, group_id: RoomId, connection: u64) {
-        let mut map = self.seats.lock().unwrap_or_else(|e| e.into_inner());
+        let mut map = self
+            .seats
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         if let Some(connections) = map.get_mut(&(user_id, group_id)) {
             connections.remove(&connection);
             if connections.is_empty() {
@@ -43,7 +49,10 @@ impl Presence {
     }
 
     pub fn is_here(&self, user_id: UserId, group_id: RoomId) -> bool {
-        let map = self.seats.lock().unwrap_or_else(|e| e.into_inner());
+        let map = self
+            .seats
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         map.get(&(user_id, group_id))
             .is_some_and(|c| c.values().any(|seen| seen.elapsed() < PRESENCE_TTL))
     }

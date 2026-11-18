@@ -8,7 +8,7 @@ use crate::{
     rounds::game,
 };
 
-use super::*;
+use super::{EMOJIS, load, needed_now};
 
 pub async fn view(state: &AppState, id: RoomId, me: Option<&MemberRow>) -> AppResult<Value> {
     let p = load(state, id).await?;

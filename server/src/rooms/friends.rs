@@ -39,6 +39,17 @@ async fn are_friends(state: &AppState, me: UserId, other: UserId) -> AppResult<b
 
 type PersonRow = (UserId, String, String, Option<String>, Option<String>);
 
+type FriendRow = (
+    UserId,
+    String,
+    String,
+    Option<String>,
+    Option<String>,
+    i64,
+    bool,
+    bool,
+);
+
 fn person((id, name, color, photo, avatar): PersonRow) -> Value {
     json!({ "user_id": id, "name": name, "color": color,
             "photo_url": photo.map(|p| format!("/photos/{p}")), "avatar": avatar })
@@ -49,17 +60,7 @@ pub async fn list(State(state): State<AppState>, Account(me): Account) -> AppRes
         .bind(me)
         .fetch_one(&state.db)
         .await?;
-    type Row = (
-        UserId,
-        String,
-        String,
-        Option<String>,
-        Option<String>,
-        i64,
-        bool,
-        bool,
-    );
-    let rows: Vec<Row> = sqlx::query_as(concat!(
+    let rows: Vec<FriendRow> = sqlx::query_as(concat!(
         "WITH shared AS ( \
              SELECT b.user_id AS uid, COUNT(DISTINCT a.group_id) AS rooms FROM members a \
              JOIN members b ON a.group_id = b.group_id AND b.user_id != a.user_id \

@@ -38,9 +38,12 @@ mod cards;
 mod personal;
 mod room;
 use crate::insights::stats::{first_name, pct};
-use cards::*;
-use personal::*;
-use room::*;
+use cards::{
+    Seat, YearRound, assemble, best_in_year, card, days_text, outro, percent, pick, plural,
+    title_card, top, year_range,
+};
+use personal::personal;
+use room::room;
 
 pub fn days_from_civil(y: i64, m: u32, d: u32) -> i64 {
     let (m, d) = (i64::from(m), i64::from(d));
@@ -313,14 +316,13 @@ pub async fn share(
         .find(|c| c.key == body.key && c.shareable)
         .ok_or(AppError::NotFound)?;
     let lang = crate::platform::i18n::of_user(&state.db, r.user).await?;
-    let (seat, group) = match &r.seat {
-        Some(me) => (me.id, me.group_id),
-        None => {
-            let mut c = state.db.acquire().await?;
-            crate::insights::badges::inbox_seat(&mut c, r.user, None)
-                .await?
-                .ok_or(AppError::NotFound)?
-        }
+    let (seat, group) = if let Some(me) = &r.seat {
+        (me.id, me.group_id)
+    } else {
+        let mut c = state.db.acquire().await?;
+        crate::insights::badges::inbox_seat(&mut c, r.user, None)
+            .await?
+            .ok_or(AppError::NotFound)?
     };
     let label = match &w.room {
         Some(room) => format!("{room} · {}", w.year),

@@ -54,7 +54,10 @@ async fn security_changes_send_a_notice_to_the_verified_email() {
     let n = t.mail.notices.lock().unwrap()[0].clone();
     assert!(n.text.contains("Si ce n'est pas toi"), "{}", n.text);
     assert!(n.html.contains("lang=\"fr\""));
-    assert!(t.mail.notices("bob@example.com").is_empty());
+    assert_eq!(
+        t.mail.notices("bob@example.com"),
+        [] as [std::string::String; 0]
+    );
 }
 
 #[tokio::test]

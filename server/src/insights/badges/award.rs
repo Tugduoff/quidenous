@@ -12,7 +12,7 @@ use crate::{
     realtime::live::Event,
 };
 
-use super::*;
+use super::{CATALOGUE, Metrics, find, inbox_text};
 
 pub(super) struct Seats {
     rooms: Vec<(MemberId, RoomId)>,

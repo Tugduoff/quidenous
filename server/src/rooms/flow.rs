@@ -10,7 +10,7 @@ pub const OWNER_GONE_DAYS: i64 = 7;
 
 pub const OWNER_NEXT_HOURS: i64 = 24;
 
-const TOUCH_EVERY: Duration = Duration::from_secs(10 * 60);
+const TOUCH_EVERY: Duration = Duration::from_mins(10);
 
 pub const EVERY_TICKS: u32 = 15;
 

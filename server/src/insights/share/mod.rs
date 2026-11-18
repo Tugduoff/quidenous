@@ -34,7 +34,7 @@ mod render;
 mod svg;
 pub use pages::*;
 pub use render::*;
-use svg::*;
+use svg::{esc, pack_svg, svg};
 
 #[derive(Deserialize)]
 pub struct ShareBody {
@@ -61,25 +61,24 @@ pub async fn create(
     .bind(lang.as_str())
     .fetch_optional(&state.db)
     .await?;
-    let token = match existing {
-        Some(t) => t,
-        None => {
-            let t = crate::accounts::auth::new_token()[..12].to_owned();
-            sqlx::query(concat!(
-                "INSERT INTO shares (token, round_id, member_id, with_result, lang, expires_at) \
-                 VALUES (?, ?, ?, ?, ?, ",
-                expires_sql!(),
-                ")"
-            ))
-            .bind(&t)
-            .bind(round_id)
-            .bind(me.id)
-            .bind(with_result)
-            .bind(lang.as_str())
-            .execute(&state.db)
-            .await?;
-            t
-        }
+    let token = if let Some(t) = existing {
+        t
+    } else {
+        let t = crate::accounts::auth::new_token()[..12].to_owned();
+        sqlx::query(concat!(
+            "INSERT INTO shares (token, round_id, member_id, with_result, lang, expires_at) \
+             VALUES (?, ?, ?, ?, ?, ",
+            expires_sql!(),
+            ")"
+        ))
+        .bind(&t)
+        .bind(round_id)
+        .bind(me.id)
+        .bind(with_result)
+        .bind(lang.as_str())
+        .execute(&state.db)
+        .await?;
+        t
     };
     Ok(Json(
         json!({ "token": token, "path": format!("/s/{token}") }),
@@ -440,6 +439,7 @@ fn parse_people(json: &str) -> Vec<Person> {
 
 #[cfg(test)]
 mod tests {
+    use super::svg::label_year;
     use super::*;
 
     #[test]

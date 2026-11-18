@@ -22,8 +22,8 @@ use crate::{
 
 mod publish;
 mod serve;
-use publish::*;
-use serve::*;
+use publish::{publish, remove};
+use serve::{asset, entries, list, manifest};
 
 pub const PUBLISH_MAX: usize = 100 * 1024 * 1024;
 const UNPACKED_MAX: u64 = 200 * 1024 * 1024;
@@ -31,7 +31,7 @@ const JSON_MAX: u64 = 8 * 1024 * 1024;
 const KEEP: usize = 5;
 const TMP_PREFIX: &str = ".tmp-";
 const STALE_TMP: Duration = Duration::from_secs(3600);
-const RUNTIME_IDLE: Duration = Duration::from_secs(120 * 86_400);
+const RUNTIME_IDLE: Duration = Duration::from_hours(120 * 24);
 const KEEP_RUNTIMES: usize = 4;
 const JSON_UTF8: &str = "application/json; charset=utf-8";
 
@@ -171,8 +171,7 @@ fn valid_name(s: &str) -> bool {
 fn now_millis() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_millis() as u64)
-        .unwrap_or(0)
+        .map_or(0, |d| d.as_millis() as u64)
 }
 
 fn iso_millis(ms: u64) -> String {
@@ -221,6 +220,8 @@ fn authorize(state: &AppState, headers: &HeaderMap) -> AppResult<()> {
 
 #[cfg(test)]
 mod tests {
+    use super::publish::{entry_path, parse_iso_millis};
+    use super::serve::asset_content_type;
     use super::*;
 
     #[test]

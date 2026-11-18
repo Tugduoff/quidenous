@@ -175,7 +175,7 @@ mod tests {
 
     #[test]
     fn passwords_and_emails_are_checked() {
-        assert!(clean_email(" Ana@Example.COM ").unwrap() == "ana@example.com");
+        assert_eq!(clean_email(" Ana@Example.COM ").unwrap(), "ana@example.com");
         assert!(clean_email("nope").is_err());
         assert!(clean_email("a@b").is_err());
         assert!(check_password("short", None).is_err());

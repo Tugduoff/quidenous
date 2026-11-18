@@ -8,7 +8,7 @@ use p256::{
 };
 use sha2::Sha256;
 
-use super::*;
+use super::{JWT_LIFETIME_SECONDS, RECORD_SIZE};
 
 pub struct Vapid {
     key: SigningKey,

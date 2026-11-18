@@ -428,12 +428,13 @@ async fn first_evaluation_is_silent_then_one_entry_per_badge() {
             .iter()
             .any(|e| e.1 == "Nouveau titre : L'évidence (argent)")
     );
-    assert!(w.evaluate(1).await.is_empty());
-    assert!(
-        badges::evaluate(&w.state, &[w.uid(1)], None)
-            .await
-            .unwrap()
-            .is_empty()
+    assert_eq!(
+        w.evaluate(1).await,
+        [] as [(quidenous_server::platform::ids::UserId, &str, i64); 0]
+    );
+    assert_eq!(
+        badges::evaluate(&w.state, &[w.uid(1)], None).await.unwrap(),
+        [] as [(quidenous_server::platform::ids::UserId, &str, i64); 0]
     );
     assert_eq!(
         w.sql("SELECT COUNT(*) FROM inbox WHERE kind = 'badge'")
@@ -759,11 +760,9 @@ async fn erasing_an_account_erases_its_badges() {
             .await
             .unwrap();
     assert_eq!((title, at), (None, None));
-    assert!(
-        badges::evaluate(&w.state, &[w.uid(1)], None)
-            .await
-            .unwrap()
-            .is_empty()
+    assert_eq!(
+        badges::evaluate(&w.state, &[w.uid(1)], None).await.unwrap(),
+        [] as [(quidenous_server::platform::ids::UserId, &str, i64); 0]
     );
     assert_eq!(w.sql("SELECT COUNT(*) FROM user_badges").await, 0);
 }

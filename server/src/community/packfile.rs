@@ -181,8 +181,7 @@ pub fn template(lang: Lang) -> &'static str {
     TEMPLATES
         .iter()
         .find(|(l, _)| *l == lang)
-        .map(|(_, t)| *t)
-        .unwrap_or(TEMPLATES[0].1)
+        .map_or(TEMPLATES[0].1, |(_, t)| *t)
 }
 
 pub fn template_response(lang: Lang) -> impl axum::response::IntoResponse {

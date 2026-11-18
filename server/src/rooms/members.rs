@@ -107,49 +107,46 @@ pub(crate) async fn join(
     if joined || rejoined {
         crate::rooms::manage::seat_free(&mut *tx, group_id).await?;
     }
-    let member = match existing {
-        Some(member) => {
-            if rejoined {
-                rejoin_seat(&mut tx, member.id).await?;
-            }
-            member
+    let member = if let Some(member) = existing {
+        if rejoined {
+            rejoin_seat(&mut tx, member.id).await?;
         }
-        None => {
-            let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM members WHERE group_id = ?")
-                .bind(group_id)
+        member
+    } else {
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM members WHERE group_id = ?")
+            .bind(group_id)
+            .fetch_one(&mut *tx)
+            .await?;
+        let color = COLORS[count as usize % COLORS.len()];
+        let user_id: UserId = match signed_in {
+            Some(id) => id,
+            None => {
+                sqlx::query_scalar(
+                    "INSERT INTO users (name, color, friend_code) VALUES (?, ?, upper(hex(randomblob(5)))) RETURNING id",
+                )
+                .bind(&name)
+                .bind(color)
+                .fetch_one(&mut *tx)
+                .await?
+            }
+        };
+        let (user_name, photo, avatar): (String, Option<String>, Option<String>) =
+            sqlx::query_as("SELECT name, photo, avatar FROM users WHERE id = ?")
+                .bind(user_id)
                 .fetch_one(&mut *tx)
                 .await?;
-            let color = COLORS[count as usize % COLORS.len()];
-            let user_id: UserId = match signed_in {
-                Some(id) => id,
-                None => {
-                    sqlx::query_scalar(
-                        "INSERT INTO users (name, color, friend_code) VALUES (?, ?, upper(hex(randomblob(5)))) RETURNING id",
-                    )
-                    .bind(&name)
-                    .bind(color)
-                    .fetch_one(&mut *tx)
-                    .await?
-                }
-            };
-            let (user_name, photo, avatar): (String, Option<String>, Option<String>) =
-                sqlx::query_as("SELECT name, photo, avatar FROM users WHERE id = ?")
-                    .bind(user_id)
-                    .fetch_one(&mut *tx)
-                    .await?;
-            sqlx::query_as::<_, MemberRow>(
-                "INSERT INTO members (group_id, name, color, photo, avatar, token_hash, user_id) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING *",
-            )
-            .bind(group_id)
-            .bind(&user_name)
-            .bind(color)
-            .bind(photo)
-            .bind(avatar)
-            .bind(hash_token(&new_token()))
-            .bind(user_id)
-            .fetch_one(&mut *tx)
-            .await?
-        }
+        sqlx::query_as::<_, MemberRow>(
+            "INSERT INTO members (group_id, name, color, photo, avatar, token_hash, user_id) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING *",
+        )
+        .bind(group_id)
+        .bind(&user_name)
+        .bind(color)
+        .bind(photo)
+        .bind(avatar)
+        .bind(hash_token(&new_token()))
+        .bind(user_id)
+        .fetch_one(&mut *tx)
+        .await?
     };
     sqlx::query(
         "UPDATE members SET role = 'owner' WHERE id = ?1 AND NOT EXISTS \
@@ -160,22 +157,21 @@ pub(crate) async fn join(
     .execute(&mut *tx)
     .await?;
     let user_id = member.user_id.ok_or(AppError::Unauthorized)?;
-    let token = match bearer {
-        Some(t) => t.to_owned(),
-        None => {
-            let token = new_token();
-            sqlx::query(
-                "INSERT INTO user_tokens (token_hash, user_id, device, claimed, last_used_at) \
-                 VALUES (?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))",
-            )
-            .bind(hash_token(&token))
-            .bind(user_id)
-            .bind(crate::accounts::device_label(&headers))
-            .bind(!joined)
-            .execute(&mut *tx)
-            .await?;
-            token
-        }
+    let token = if let Some(t) = bearer {
+        t.to_owned()
+    } else {
+        let token = new_token();
+        sqlx::query(
+            "INSERT INTO user_tokens (token_hash, user_id, device, claimed, last_used_at) \
+             VALUES (?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))",
+        )
+        .bind(hash_token(&token))
+        .bind(user_id)
+        .bind(crate::accounts::device_label(&headers))
+        .bind(!joined)
+        .execute(&mut *tx)
+        .await?;
+        token
     };
     sqlx::query("UPDATE users SET last_group_id = ? WHERE id = ?")
         .bind(group_id)

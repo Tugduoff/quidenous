@@ -194,7 +194,7 @@ async fn leaving_is_not_being_removed() {
     assert_eq!(s, StatusCode::OK, "{body}");
     let (members, former) = roster(&app, &ana, room).await;
     assert!(members.iter().any(|m| m.0 == bob_seat && m.2 == "member"));
-    assert!(former.is_empty());
+    assert_eq!(former, [] as [i64; 0]);
 
     let (s, _) = call(
         &app,

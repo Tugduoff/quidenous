@@ -438,7 +438,7 @@ pub async fn update(
     .bind(body.skip_vote)
     .bind(body.kick_vote)
     .bind(&body.questions_by)
-    .bind(language.map(|l| l.as_str()))
+    .bind(language.map(super::super::platform::i18n::Lang::as_str))
     .bind(body.owner_next)
     .bind(body.next_delay)
     .bind(room)

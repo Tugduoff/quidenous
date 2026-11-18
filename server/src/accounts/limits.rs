@@ -125,7 +125,10 @@ impl Limiter {
 
     fn with<T>(&self, rule: &Rule, key: &str, f: impl FnOnce(&mut Bucket) -> T) -> T {
         let now = Instant::now();
-        let mut guard = self.buckets.lock().unwrap_or_else(|e| e.into_inner());
+        let mut guard = self
+            .buckets
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let Buckets { map, pruned } = &mut *guard;
         let due = pruned.is_none_or(|t| now.duration_since(t) > Duration::from_secs(10));
         let prune_above = PRUNE_ABOVE.min(self.cap / 2);

@@ -56,7 +56,7 @@ pub(crate) async fn add_question(
         _ => "pick",
     };
     let items = if kind == "choose" {
-        let items = crate::community::deck::clean_items(body.items.unwrap_or_default())
+        let items = crate::community::deck::clean_items(&body.items.unwrap_or_default())
             .ok_or(AppError::BadRequest("bad_items"))?;
         Some(serde_json::to_string(&items).unwrap_or_default())
     } else {

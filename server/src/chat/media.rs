@@ -162,7 +162,7 @@ impl Decodes {
     }
 }
 
-fn upload_error(e: MultipartError) -> AppError {
+fn upload_error(e: &MultipartError) -> AppError {
     if e.status() == StatusCode::PAYLOAD_TOO_LARGE {
         AppError::TooLarge("too_large")
     } else {
@@ -227,19 +227,19 @@ pub(crate) async fn upload(
     }
     let (mut image, mut caption, mut mentions, mut everyone) = (None, None, Vec::new(), false);
     let mut key = None;
-    while let Some(field) = multipart.next_field().await.map_err(upload_error)? {
+    while let Some(field) = multipart.next_field().await.map_err(|e| upload_error(&e))? {
         match field.name() {
-            Some("image") => image = Some(field.bytes().await.map_err(upload_error)?),
-            Some("caption") => caption = Some(field.text().await.map_err(upload_error)?),
+            Some("image") => image = Some(field.bytes().await.map_err(|e| upload_error(&e))?),
+            Some("caption") => caption = Some(field.text().await.map_err(|e| upload_error(&e))?),
             Some("mentions") => {
-                let text = field.text().await.map_err(upload_error)?;
+                let text = field.text().await.map_err(|e| upload_error(&e))?;
                 mentions = serde_json::from_str(&text).unwrap_or_default();
             }
             Some("everyone") => {
-                let text = field.text().await.map_err(upload_error)?;
+                let text = field.text().await.map_err(|e| upload_error(&e))?;
                 everyone = matches!(text.trim(), "1" | "true");
             }
-            Some("client_key") => key = Some(field.text().await.map_err(upload_error)?),
+            Some("client_key") => key = Some(field.text().await.map_err(|e| upload_error(&e))?),
             _ => {}
         }
     }

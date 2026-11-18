@@ -22,7 +22,7 @@ pub const REMIND_WINDOW: std::ops::Range<i64> = 19 * 60..20 * 60;
 
 pub const LATE: i64 = 20 * 60;
 
-const REMIND_EVERY: std::time::Duration = std::time::Duration::from_secs(5 * 60);
+const REMIND_EVERY: std::time::Duration = std::time::Duration::from_mins(5);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Day {
@@ -114,6 +114,13 @@ pub fn streak(days: &Days, today: i64) -> Streak {
 }
 
 type SeatRow = (MemberId, i64, Option<i64>, bool, Option<i64>);
+
+type RoomParts = (
+    Vec<(RoundId, i64, Option<i64>)>,
+    Vec<SeatRow>,
+    Vec<(MemberId, RoundId, i64)>,
+    Vec<(RoundId, MemberId, i64)>,
+);
 
 impl Room {
     pub async fn load(db: &SqlitePool, group_id: RoomId) -> AppResult<Option<Room>> {
@@ -240,13 +247,7 @@ impl Room {
         let (rounds, all_seats, votes, skips) =
             tokio::try_join!(rounds_q, seats_q, votes_q, skips_q)?;
 
-        type Parts = (
-            Vec<(RoundId, i64, Option<i64>)>,
-            Vec<SeatRow>,
-            Vec<(MemberId, RoundId, i64)>,
-            Vec<(RoundId, MemberId, i64)>,
-        );
-        let mut parts: HashMap<RoomId, Parts> = HashMap::new();
+        let mut parts: HashMap<RoomId, RoomParts> = HashMap::new();
         for (g, id, opened, closed) in rounds {
             parts.entry(g).or_default().0.push((id, opened, closed));
         }

@@ -172,7 +172,7 @@ async fn relay(
                 Err(_) => break,
             },
             incoming = socket.recv() => match incoming {
-                Some(Ok(Message::Close(_))) | None | Some(Err(_)) => break,
+                Some(Ok(Message::Close(_)) | Err(_)) | None => break,
                 Some(Ok(Message::Text(text))) => {
                     heard = Instant::now();
                     match (text.as_str(), user_id) {
@@ -196,7 +196,7 @@ async fn relay(
                     close = Some("idle");
                     break;
                 }
-                if socket.send(Message::Ping(Default::default())).await.is_err() { break; }
+                if socket.send(Message::Ping(axum::body::Bytes::default())).await.is_err() { break; }
             },
             _ = recheck.tick() => {
                 if let Ok(false) = watcher.still_allowed(&state, group_id).await {
@@ -207,7 +207,7 @@ async fn relay(
                     let _ = o.refresh(&state.db).await;
                 }
             },
-            _ = tokio::time::sleep_until(due.unwrap_or_else(Instant::now).into()), if due.is_some() => {
+            () = tokio::time::sleep_until(due.unwrap_or_else(Instant::now).into()), if due.is_some() => {
                 let rooms = others.as_mut().map(|o| o.due(Instant::now())).unwrap_or_default();
                 let mut sent = true;
                 for room in rooms {

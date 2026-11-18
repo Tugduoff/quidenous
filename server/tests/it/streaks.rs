@@ -456,11 +456,9 @@ async fn the_evening_reminder_goes_once_to_those_about_to_lose_a_streak() {
     let sent = wait_for_push(&state).await;
     assert_eq!(sent.title, "Ta série de 3 jours va s'arrêter");
     assert_eq!(sent.body, "Vote dans « Test » avant minuit pour la garder.");
-    assert!(
-        streaks::remind_at(&state, evening + 1200)
-            .await
-            .unwrap()
-            .is_empty()
+    assert_eq!(
+        streaks::remind_at(&state, evening + 1200).await.unwrap(),
+        [] as [quidenous_server::platform::ids::MemberId; 0]
     );
     let stored: Option<i64> =
         sqlx::query_scalar("SELECT streak_reminded FROM members WHERE id = ?")
@@ -473,11 +471,9 @@ async fn the_evening_reminder_goes_once_to_those_about_to_lose_a_streak() {
         .execute(&state.db)
         .await
         .unwrap();
-    assert!(
-        streaks::remind_at(&state, at(0, 20))
-            .await
-            .unwrap()
-            .is_empty()
+    assert_eq!(
+        streaks::remind_at(&state, at(0, 20)).await.unwrap(),
+        [] as [quidenous_server::platform::ids::MemberId; 0]
     );
 
     for from in [bob, cid, dan, eve] {
@@ -489,11 +485,9 @@ async fn the_evening_reminder_goes_once_to_those_about_to_lose_a_streak() {
             .await
             .unwrap();
     }
-    assert!(
-        streaks::remind_at(&state, evening)
-            .await
-            .unwrap()
-            .is_empty()
+    assert_eq!(
+        streaks::remind_at(&state, evening).await.unwrap(),
+        [] as [quidenous_server::platform::ids::MemberId; 0]
     );
     sqlx::query("DELETE FROM skips")
         .execute(&state.db)
@@ -501,11 +495,9 @@ async fn the_evening_reminder_goes_once_to_those_about_to_lose_a_streak() {
         .unwrap();
 
     set_tz(&state, ana, 120).await;
-    assert!(
-        streaks::remind_at(&state, evening)
-            .await
-            .unwrap()
-            .is_empty()
+    assert_eq!(
+        streaks::remind_at(&state, evening).await.unwrap(),
+        [] as [quidenous_server::platform::ids::MemberId; 0]
     );
     assert_eq!(
         streaks::remind_at(&state, evening - 2 * 3600)

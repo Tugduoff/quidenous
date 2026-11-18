@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use tokio::sync::Mutex;
 
-use super::*;
+use super::now_secs;
 
 #[derive(Deserialize)]
 pub(crate) struct ServiceAccount {
@@ -14,6 +14,12 @@ pub(crate) struct ServiceAccount {
 pub struct Fcm {
     pub(crate) account: ServiceAccount,
     token: Mutex<Option<(String, u64)>>,
+}
+
+#[derive(Deserialize)]
+struct TokenResponse {
+    access_token: String,
+    expires_in: u64,
 }
 
 impl Fcm {
@@ -49,11 +55,6 @@ impl Fcm {
             &key,
         )
         .map_err(|e| e.to_string())?;
-        #[derive(Deserialize)]
-        struct TokenResponse {
-            access_token: String,
-            expires_in: u64,
-        }
         let res: TokenResponse = http
             .post(&self.account.token_uri)
             .form(&[

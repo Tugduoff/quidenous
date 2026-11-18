@@ -1,7 +1,7 @@
 use crate::platform::i18n::Lang;
 use crate::platform::ids::{MemberId, RoundId};
 
-use super::*;
+use super::{Award, LINE_MAX, QuestionRef, RoundCalc, Stats, other_drafts, people_drafts};
 
 pub(super) struct Draft {
     pub(crate) key: &'static str,

@@ -19,7 +19,11 @@ use crate::{
     rounds::game,
 };
 
-use super::*;
+use super::{
+    CODE_LEN, DEFAULT_HOURS, DEFAULT_TIMER, HOURS, MAX_PLAYERS, active_players, answer, by_code,
+    check_taps, clean_color, clean_party_name, clean_timer, db_now, end_party, latest_round,
+    not_over, open_next, owned_party, party_of, screen_by_code, view,
+};
 
 pub async fn may_take_seat(
     tx: &mut sqlx::SqliteConnection,
@@ -154,17 +158,16 @@ pub(super) async fn join(
         Some(token) => Some(crate::accounts::auth::user_for_token(&state, token).await?),
         None => None,
     };
-    let guest = match signed_in {
-        Some(_) => None,
-        None => {
-            let name = clean_name(body.name.as_deref().unwrap_or(""))?;
-            let color = clean_color(body.color.as_deref())?;
-            state
-                .auth
-                .limits
-                .hit_ip(&crate::accounts::limits::PARTY_GUEST_IP, ip)?;
-            Some((name, color))
-        }
+    let guest = if signed_in.is_some() {
+        None
+    } else {
+        let name = clean_name(body.name.as_deref().unwrap_or(""))?;
+        let color = clean_color(body.color.as_deref())?;
+        state
+            .auth
+            .limits
+            .hit_ip(&crate::accounts::limits::PARTY_GUEST_IP, ip)?;
+        Some((name, color))
     };
     let attempt = crate::platform::quotas::code_attempt(
         &state,

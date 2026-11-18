@@ -41,7 +41,10 @@ pub struct Tickets {
 impl Tickets {
     fn issue(&self, token_hash: &str, purpose: Purpose) -> AppResult<String> {
         let now = Instant::now();
-        let mut map = self.map.lock().unwrap_or_else(|e| e.into_inner());
+        let mut map = self
+            .map
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let mut mine: Vec<(Instant, String)> = Vec::new();
         map.retain(|key, t| {
             if t.token_hash != token_hash {
@@ -78,7 +81,10 @@ impl Tickets {
     }
 
     pub fn redeem(&self, ticket: &str, purpose: Purpose) -> Option<String> {
-        let mut map = self.map.lock().unwrap_or_else(|e| e.into_inner());
+        let mut map = self
+            .map
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let t = map.remove(&hash_token(ticket))?;
         (t.purpose == purpose && t.expires > Instant::now()).then_some(t.token_hash)
     }

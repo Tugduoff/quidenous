@@ -130,9 +130,10 @@ async fn post_image(
     post_image_with(app, token, room, round, &[("image", Some("p"), image)]).await
 }
 
-fn encode(image: image::DynamicImage, format: image::ImageFormat) -> Vec<u8> {
+fn encode(image: impl Into<image::DynamicImage>, format: image::ImageFormat) -> Vec<u8> {
     let mut out = Vec::new();
     image
+        .into()
         .write_to(&mut std::io::Cursor::new(&mut out), format)
         .unwrap();
     out
@@ -140,7 +141,7 @@ fn encode(image: image::DynamicImage, format: image::ImageFormat) -> Vec<u8> {
 
 fn png(w: u32, h: u32) -> Vec<u8> {
     encode(
-        image::RgbImage::from_pixel(w, h, image::Rgb([200, 80, 40])).into(),
+        image::RgbImage::from_pixel(w, h, image::Rgb([200, 80, 40])),
         image::ImageFormat::Png,
     )
 }
@@ -177,7 +178,7 @@ fn jpeg_with_gps() -> Vec<u8> {
     let image = image::RgbImage::from_fn(2000, 1000, |x, y| {
         image::Rgb([(x % 256) as u8, (y % 256) as u8, 120])
     });
-    let jpeg = encode(image.into(), image::ImageFormat::Jpeg);
+    let jpeg = encode(image, image::ImageFormat::Jpeg);
     let mut out = jpeg[..2].to_vec();
     out.extend(exif_segment());
     out.extend(&jpeg[2..]);
@@ -309,7 +310,7 @@ async fn image_types_and_sizes() {
     assert_eq!(h[header::CONTENT_TYPE], "image/png");
 
     let webp = encode(
-        image::RgbImage::from_pixel(20, 10, image::Rgb([1, 2, 3])).into(),
+        image::RgbImage::from_pixel(20, 10, image::Rgb([1, 2, 3])),
         image::ImageFormat::WebP,
     );
     let (s, m) = post_image(&app, &ana, room, round, &webp).await;
@@ -317,7 +318,7 @@ async fn image_types_and_sizes() {
     assert_eq!(m["media"]["mime"], "image/jpeg");
 
     let gif = encode(
-        image::RgbaImage::from_pixel(12, 9, image::Rgba([9, 9, 9, 255])).into(),
+        image::RgbaImage::from_pixel(12, 9, image::Rgba([9, 9, 9, 255])),
         image::ImageFormat::Gif,
     );
     let (s, m) = post_image(&app, &ana, room, round, &gif).await;
@@ -587,7 +588,7 @@ async fn blocks_reports_and_deletions() {
 
     let (s, b) = call(&app, "DELETE", "/auth/account", Some(&ana), None, None).await;
     assert_eq!(s, StatusCode::OK, "{b}");
-    assert!(chat_files(&state, room).is_empty());
+    assert_eq!(chat_files(&state, room), [] as [std::path::PathBuf; 0]);
     let (s, _, _) = raw(
         &app,
         "GET",
@@ -661,7 +662,7 @@ async fn image_quota() {
     }
     let (s, b) = post_image(&app, &ana, room, round, &png(8, 8)).await;
     assert_eq!(s, StatusCode::TOO_MANY_REQUESTS, "{b}");
-    assert!(chat_files(&state, room).is_empty());
+    assert_eq!(chat_files(&state, room), [] as [std::path::PathBuf; 0]);
     let (s, _) = call(
         &app,
         "POST",

@@ -141,7 +141,7 @@ fn clean_party_name(name: Option<&str>, lang: Lang, host: &str) -> AppResult<Str
 }
 
 fn clean_color(color: Option<&str>) -> AppResult<String> {
-    let color = color.map(str::trim).unwrap_or("");
+    let color = color.map_or("", str::trim);
     let hex = color.strip_prefix('#').unwrap_or("");
     if hex.len() != 6 || !hex.chars().all(|c| c.is_ascii_hexdigit()) {
         return Err(AppError::BadRequest("bad_color"));

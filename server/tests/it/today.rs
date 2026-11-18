@@ -151,10 +151,10 @@ async fn parties_deleted_rooms_and_removed_seats_are_left_out() {
 
     assert_eq!(ids(&today(&app, &ana).await), [main]);
     let mut bob_rooms = ids(&today(&app, &bob).await);
-    bob_rooms.sort();
+    bob_rooms.sort_unstable();
     assert_eq!(bob_rooms, [main, left, bobs]);
     let mut cyd_rooms = ids(&today(&app, &cyd).await);
-    cyd_rooms.sort();
+    cyd_rooms.sort_unstable();
     assert_eq!(cyd_rooms, [main, bobs]);
 
     for room in [main, bobs] {
@@ -168,7 +168,7 @@ async fn parties_deleted_rooms_and_removed_seats_are_left_out() {
         )
         .await;
     }
-    assert!(today(&app, &cyd).await.is_empty());
+    assert_eq!(today(&app, &cyd).await, [] as [serde_json::Value; 0]);
 
     let (s, b) = call(
         &app,
@@ -181,7 +181,7 @@ async fn parties_deleted_rooms_and_removed_seats_are_left_out() {
     .await;
     assert_eq!(s, StatusCode::OK, "{b}");
     let guest = b["token"].as_str().unwrap();
-    assert!(today(&app, guest).await.is_empty());
+    assert_eq!(today(&app, guest).await, [] as [serde_json::Value; 0]);
 }
 
 #[tokio::test]

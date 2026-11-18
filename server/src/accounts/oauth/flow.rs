@@ -21,7 +21,7 @@ use crate::{
     platform::i18n::Notice,
 };
 
-use super::*;
+use super::{Flavor, Identity, Refusal, key_hash, pkce_challenge, provider_name, resolve};
 
 pub async fn providers(State(state): State<AppState>) -> Json<Value> {
     Json(json!(state.auth.oauth.enabled()))

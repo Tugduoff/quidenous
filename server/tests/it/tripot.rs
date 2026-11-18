@@ -528,7 +528,12 @@ async fn open_bets_stay_private() {
     assert_eq!(t["bettors"], 2);
     assert!(t["my_bet"].is_null());
     assert!(t["winners"].is_null());
-    let mut keys: Vec<&str> = t.as_object().unwrap().keys().map(|k| k.as_str()).collect();
+    let mut keys: Vec<&str> = t
+        .as_object()
+        .unwrap()
+        .keys()
+        .map(std::string::String::as_str)
+        .collect();
     keys.sort_unstable();
     assert_eq!(
         keys,

@@ -341,7 +341,7 @@ async fn aggregates_from_five_rooms_without_names() {
 
     for (i, votes) in plan.iter().enumerate() {
         let (id, people) = &rooms[i];
-        for (voter, target) in votes.iter() {
+        for (voter, target) in *votes {
             let (s, b) = vote(&app, &people[*voter].0, *id, people[*target].1).await;
             assert_eq!(s, StatusCode::OK, "{b}");
         }

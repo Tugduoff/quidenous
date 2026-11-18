@@ -36,8 +36,7 @@ pub fn is_tag(tag: &str) -> bool {
 
 pub fn draws(vibe: Option<&str>) -> Vec<String> {
     vibe.and_then(find)
-        .map(|v| v.draws.clone())
-        .unwrap_or_else(|| vec![DEFAULT_TAG.to_owned()])
+        .map_or_else(|| vec![DEFAULT_TAG.to_owned()], |v| v.draws.clone())
 }
 
 pub fn has_tag(stored: Option<&str>, tag: &str) -> bool {

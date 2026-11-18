@@ -4,7 +4,7 @@ use rand::RngExt;
 use crate::accounts::notify;
 use crate::{AppState, platform::error::AppError, platform::i18n::Notice, rooms::members::COLORS};
 
-use super::*;
+use super::{Identity, provider_name};
 
 pub(super) struct Outcome {
     pub(crate) user_id: UserId,

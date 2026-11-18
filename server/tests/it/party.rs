@@ -1066,5 +1066,5 @@ async fn the_big_screen_shows_counts_not_voters() {
     let (_, screen) = call(&app, "GET", &format!("/parties/screen/{code}"), None, None).await;
     let top = &screen["round"]["results"][0];
     assert_eq!(top["votes"], 2, "{screen}");
-    assert!(top["voters"].as_array().unwrap().is_empty());
+    assert_eq!(top["voters"], serde_json::json!([]));
 }

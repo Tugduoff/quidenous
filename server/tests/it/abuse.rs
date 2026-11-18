@@ -793,7 +793,7 @@ async fn unsubscribing_works_from_any_room() {
     )
     .await;
     assert_eq!(r.status, StatusCode::OK);
-    assert!(devices(&state, &ana).await.is_empty());
+    assert_eq!(devices(&state, &ana).await, [] as [std::string::String; 0]);
 }
 
 #[tokio::test]
@@ -961,7 +961,7 @@ async fn closed_within(socket: &mut Socket, ms: u64) -> bool {
     loop {
         match tokio::time::timeout_at(deadline, socket.next()).await {
             Err(_) => return false,
-            Ok(None) | Ok(Some(Err(_))) | Ok(Some(Ok(Message::Close(_)))) => return true,
+            Ok(None | Some(Err(_) | Ok(Message::Close(_)))) => return true,
             Ok(Some(Ok(_))) => {}
         }
     }

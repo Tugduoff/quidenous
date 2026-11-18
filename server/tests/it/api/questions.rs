@@ -217,7 +217,7 @@ async fn upcoming_questions_can_be_shuffled() {
     let (_, after) = call(&app, "GET", "/questions/queue", Some(&ana), None).await;
     let after = ids(&after);
     let mut sorted = after.clone();
-    sorted.sort();
+    sorted.sort_unstable();
     assert_eq!(sorted, before, "same questions, new order");
     let (_, q) = call(
         &app,

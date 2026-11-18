@@ -233,8 +233,7 @@ pub fn svg(spec: &str, id: &str) -> Option<String> {
     let palette = |field: &str| -> &[String] {
         sel.get(field)
             .and_then(|&i| p.palettes.get(field)?.get(i))
-            .map(Vec::as_slice)
-            .unwrap_or(&[])
+            .map_or(&[], Vec::as_slice)
     };
     let colors = Colors {
         skin: palette("skin"),
@@ -244,8 +243,7 @@ pub fn svg(spec: &str, id: &str) -> Option<String> {
     let option = |field: &str| -> &[Shape] {
         sel.get(field)
             .and_then(|&i| p.shapes.get(field)?.get(i))
-            .map(Vec::as_slice)
-            .unwrap_or(&[])
+            .map_or(&[], Vec::as_slice)
     };
     let id = esc(id);
     let mut out = format!(

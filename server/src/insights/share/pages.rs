@@ -11,7 +11,7 @@ use crate::{
     platform::i18n::{self, Lang},
 };
 
-use super::*;
+use super::{Card, H, QuestionCard, W, esc, load};
 
 pub async fn page(
     State(state): State<AppState>,

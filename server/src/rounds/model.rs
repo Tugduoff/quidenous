@@ -130,6 +130,7 @@ pub fn parse_items(items: Option<&str>) -> Option<Vec<String>> {
     items.and_then(|i| serde_json::from_str(i).ok())
 }
 
+#[expect(clippy::ref_option, reason = "serde serialize_with passes &Option")]
 fn items_array<S: Serializer>(items: &Option<String>, s: S) -> Result<S::Ok, S::Error> {
     parse_items(items.as_deref()).serialize(s)
 }

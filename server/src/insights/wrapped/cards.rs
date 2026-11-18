@@ -8,7 +8,7 @@ use crate::{
     platform::i18n::Lang,
 };
 
-use super::*;
+use super::{Card, LINE_MAX, MIN_CARDS, MascotRef, Person, days_from_civil, first_name};
 
 pub(super) fn card(
     key: &'static str,
@@ -35,7 +35,8 @@ pub(super) fn card(
     }
 }
 
-pub(super) fn pick(seed: i64, lines: Vec<String>) -> String {
+pub(super) fn pick(seed: i64, lines: impl AsRef<[String]>) -> String {
+    let lines = lines.as_ref();
     let n = lines.len();
     if n == 0 {
         return String::new();
@@ -225,25 +226,24 @@ pub(super) async fn title_card(
             Some((def, tier))
         })
         .min_by_key(|(_, tier)| -tier);
-    let (def, tier, of_year) = match in_year {
-        Some((def, tier)) => (def, tier, true),
-        None => {
-            let shown: Option<(String, i64)> = sqlx::query_as(
-                "SELECT u.title, (SELECT MAX(tier) FROM user_badges b WHERE b.user_id = u.id AND b.key = u.title) \
-                 FROM users u WHERE u.id = ? AND u.title IS NOT NULL",
-            )
-            .bind(user)
-            .fetch_optional(&state.db)
-            .await?
-            .and_then(|(k, t): (String, Option<i64>)| Some((k, t?)));
-            let Some((key, tier)) = shown else {
-                return Ok(None);
-            };
-            let Some(def) = crate::insights::badges::find(&key) else {
-                return Ok(None);
-            };
-            (def, tier, false)
-        }
+    let (def, tier, of_year) = if let Some((def, tier)) = in_year {
+        (def, tier, true)
+    } else {
+        let shown: Option<(String, i64)> = sqlx::query_as(
+            "SELECT u.title, (SELECT MAX(tier) FROM user_badges b WHERE b.user_id = u.id AND b.key = u.title) \
+             FROM users u WHERE u.id = ? AND u.title IS NOT NULL",
+        )
+        .bind(user)
+        .fetch_optional(&state.db)
+        .await?
+        .and_then(|(k, t): (String, Option<i64>)| Some((k, t?)));
+        let Some((key, tier)) = shown else {
+            return Ok(None);
+        };
+        let Some(def) = crate::insights::badges::find(&key) else {
+            return Ok(None);
+        };
+        (def, tier, false)
     };
     let level = crate::insights::badges::tier_name(tier, lang);
     let lines = if of_year {

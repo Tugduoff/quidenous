@@ -137,7 +137,7 @@ async fn audience(
         .filter_map(|r| r.user_id)
         .map(UserId::raw)
         .collect();
-    users.sort();
+    users.sort_unstable();
     users.dedup();
     users
 }

@@ -6,7 +6,7 @@ use crate::{
 
 pub use mail::Mailer;
 
-use super::*;
+use super::{crypto, mail};
 
 pub async fn is_secured<'e, E>(db: E, user_id: UserId) -> AppResult<bool>
 where

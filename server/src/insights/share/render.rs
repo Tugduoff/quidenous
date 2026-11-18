@@ -13,7 +13,9 @@ use axum::{
 
 use crate::AppState;
 
-use super::*;
+#[cfg(test)]
+use super::Card;
+use super::{H, W, load, load_pack, pack_svg, svg};
 
 pub(super) fn fonts() -> Arc<resvg::usvg::fontdb::Database> {
     static DB: OnceLock<Arc<resvg::usvg::fontdb::Database>> = OnceLock::new();
@@ -74,7 +76,7 @@ pub async fn card_png(State(state): State<AppState>, Path(token): Path<String>) 
 
 pub(super) const CARD_CACHE: usize = 64;
 
-pub(super) const CARD_TTL: Duration = Duration::from_secs(10 * 60);
+pub(super) const CARD_TTL: Duration = Duration::from_mins(10);
 
 pub(super) const CARD_RENDERS: usize = 2;
 
@@ -99,7 +101,10 @@ pub async fn card(cards: &Cards, svg: String) -> Option<axum::body::Bytes> {
     use sha2::{Digest, Sha256};
     let key: [u8; 32] = Sha256::digest(svg.as_bytes()).into();
     let cached = |now: Instant| {
-        let cache = cards.cache.lock().unwrap_or_else(|e| e.into_inner());
+        let cache = cards
+            .cache
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         cache
             .get(&key)
             .filter(|(at, _)| now.duration_since(*at) < CARD_TTL)
@@ -119,7 +124,10 @@ pub async fn card(cards: &Cards, svg: String) -> Option<axum::body::Bytes> {
             .flatten()?,
     );
     let now = Instant::now();
-    let mut cache = cards.cache.lock().unwrap_or_else(|e| e.into_inner());
+    let mut cache = cards
+        .cache
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     cache.retain(|_, (at, _)| now.duration_since(*at) < CARD_TTL);
     if cache.len() >= CARD_CACHE
         && let Some(oldest) = cache.iter().min_by_key(|(_, (at, _))| *at).map(|(k, _)| *k)

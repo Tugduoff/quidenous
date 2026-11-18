@@ -300,15 +300,14 @@ pub(crate) async fn post_chat(
     .bind(me.user_id)
     .fetch_optional(&state.db)
     .await?;
-    let row = match inserted {
-        Some(m) => MessageRow::new(state, m),
-        None => {
-            let key = message.client_key.as_deref().unwrap_or_default();
-            let row = posted_message(state, me.id, key)
-                .await?
-                .ok_or(AppError::Conflict("bad_message"))?;
-            return Ok(Posted { row, fresh: false });
-        }
+    let row = if let Some(m) = inserted {
+        MessageRow::new(state, m)
+    } else {
+        let key = message.client_key.as_deref().unwrap_or_default();
+        let row = posted_message(state, me.id, key)
+            .await?
+            .ok_or(AppError::Conflict("bad_message"))?;
+        return Ok(Posted { row, fresh: false });
     };
     let pinged: Vec<MemberId> = if ring_everyone {
         others.clone()

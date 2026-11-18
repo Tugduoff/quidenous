@@ -18,7 +18,7 @@ use crate::{
 mod flow;
 mod link;
 pub use flow::*;
-use link::*;
+use link::{Refusal, resolve};
 
 fn provider_name(provider: &str) -> String {
     let mut c = provider.chars();

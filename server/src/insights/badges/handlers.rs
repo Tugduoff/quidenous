@@ -16,7 +16,7 @@ use crate::{
     platform::i18n::Lang,
 };
 
-use super::*;
+use super::{CATALOGUE, RoomCache, Streaks, award, find, hint, metrics};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct Badge {
@@ -86,8 +86,7 @@ pub async fn list(
         .map(|(def, progress)| {
             let (tier, earned_at) = held
                 .get(def.key)
-                .map(|(t, at)| (*t, Some(at.clone())))
-                .unwrap_or((0, None));
+                .map_or((0, None), |(t, at)| (*t, Some(at.clone())));
             let maxed = tier >= 3;
             let goal = def.tiers[(tier.clamp(0, 2)) as usize];
             Badge {

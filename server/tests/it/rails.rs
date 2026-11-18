@@ -324,14 +324,14 @@ async fn a_question_is_added_once_whatever_its_case_or_the_deck() {
 
 #[tokio::test]
 async fn friend_codes_are_longer_and_ip_buckets_fit_a_party() {
+    use quidenous_server::accounts::limits::{PARTY_GUEST_IP, SIGNUP_IP};
+    const { assert!(PARTY_GUEST_IP.capacity as i64 >= 2 * quidenous_server::party::MAX_PLAYERS) };
+    const { assert!(SIGNUP_IP.capacity >= 30) };
     let (app, _) = setup().await;
     let (ana, _) = join(&app, "Ana").await;
     let (_, me) = call(&app, "GET", "/friends", Some(&ana), None).await;
     let code = me["code"].as_str().unwrap();
     assert_eq!(code.len(), 10, "{code}");
-    use quidenous_server::accounts::limits::{PARTY_GUEST_IP, SIGNUP_IP};
-    const { assert!(PARTY_GUEST_IP.capacity as i64 >= 2 * quidenous_server::party::MAX_PLAYERS) };
-    const { assert!(SIGNUP_IP.capacity >= 30) };
 }
 
 #[tokio::test]

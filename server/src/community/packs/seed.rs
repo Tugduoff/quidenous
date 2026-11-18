@@ -1,4 +1,7 @@
-use super::*;
+use super::{
+    DESC_MAX, MAX_QUESTIONS, MIN_QUESTIONS, NAME_MAX, NewPack, SPICY_TAG, clean_meta,
+    clean_questions, create_pack, from_file,
+};
 use crate::platform::ids::{PackId, UserId};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -53,7 +56,7 @@ pub(super) fn pack_files(
     out: &mut Vec<std::path::PathBuf>,
 ) -> std::io::Result<()> {
     let mut entries: Vec<_> = std::fs::read_dir(dir)?.collect::<Result<_, _>>()?;
-    entries.sort_by_key(|e| e.path());
+    entries.sort_by_key(std::fs::DirEntry::path);
     for entry in entries {
         let path = entry.path();
         if entry.file_type()?.is_dir() {

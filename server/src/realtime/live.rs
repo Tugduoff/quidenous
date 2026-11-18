@@ -177,7 +177,10 @@ pub struct SocketSlot {
 
 impl Drop for SocketSlot {
     fn drop(&mut self) {
-        let mut c = self.counts.lock().unwrap_or_else(|e| e.into_inner());
+        let mut c = self
+            .counts
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         c.total = c.total.saturating_sub(1);
         if let Some(user) = self.user
             && let Some(n) = c.users.get_mut(&user)
@@ -211,7 +214,10 @@ impl Live {
     }
 
     pub fn mark_active(&self, member_id: MemberId, every: std::time::Duration) -> bool {
-        let mut active = self.active.lock().unwrap_or_else(|e| e.into_inner());
+        let mut active = self
+            .active
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         if active.get(&member_id).is_some_and(|t| t.elapsed() < every) {
             return false;
         }
@@ -224,7 +230,10 @@ impl Live {
 
     pub fn take_socket(&self, user: Option<UserId>, ip: Option<IpAddr>) -> Option<SocketSlot> {
         let ip = ip.map(crate::accounts::limits::ip_key);
-        let mut c = self.sockets.lock().unwrap_or_else(|e| e.into_inner());
+        let mut c = self
+            .sockets
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let full = c.total >= SOCKETS_TOTAL
             || user.is_some_and(|u| c.users.get(&u).copied().unwrap_or(0) >= SOCKETS_PER_USER)
             || ip
@@ -251,7 +260,7 @@ impl Live {
         match event {
             Event::PartyUpdated { round_id } => self.party_updated(group_id, round_id),
             Event::ResultReacted { round_id, taps } => {
-                self.result_reacted(group_id, round_id, taps)
+                self.result_reacted(group_id, round_id, taps);
             }
             event => self.emit(group_id, event),
         }
@@ -263,98 +272,104 @@ impl Live {
 
     fn party_updated(&self, group_id: RoomId, round_id: RoundId) {
         let now = Instant::now();
-        let mut parties = self.party.lock().unwrap_or_else(|e| e.into_inner());
+        let mut parties = self
+            .party
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         parties.retain(|_, t| t.waiting || now.duration_since(t.last) < PARTY_UPDATE_GAP);
         let runtime = tokio::runtime::Handle::try_current();
-        match (parties.get_mut(&group_id), runtime) {
-            (Some(t), Ok(runtime)) => {
-                t.round_id = round_id;
-                if t.waiting {
-                    return;
-                }
-                t.waiting = true;
-                let at = t.last + PARTY_UPDATE_GAP;
-                let live = self.clone();
-                runtime.spawn(async move {
-                    tokio::time::sleep_until(at.into()).await;
-                    let round_id = {
-                        let mut parties = live.party.lock().unwrap_or_else(|e| e.into_inner());
-                        let Some(t) = parties.get_mut(&group_id) else {
-                            return;
-                        };
-                        t.waiting = false;
-                        t.last = Instant::now();
-                        t.round_id
+        if let (Some(t), Ok(runtime)) = (parties.get_mut(&group_id), runtime) {
+            t.round_id = round_id;
+            if t.waiting {
+                return;
+            }
+            t.waiting = true;
+            let at = t.last + PARTY_UPDATE_GAP;
+            let live = self.clone();
+            runtime.spawn(async move {
+                tokio::time::sleep_until(at.into()).await;
+                let round_id = {
+                    let mut parties = live
+                        .party
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner);
+                    let Some(t) = parties.get_mut(&group_id) else {
+                        return;
                     };
-                    live.emit(group_id, Event::PartyUpdated { round_id });
-                });
-            }
-            _ => {
-                parties.insert(
-                    group_id,
-                    PartyThrottle {
-                        last: now,
-                        round_id,
-                        waiting: false,
-                    },
-                );
-                drop(parties);
-                self.emit(group_id, Event::PartyUpdated { round_id });
-            }
+                    t.waiting = false;
+                    t.last = Instant::now();
+                    t.round_id
+                };
+                live.emit(group_id, Event::PartyUpdated { round_id });
+            });
+        } else {
+            parties.insert(
+                group_id,
+                PartyThrottle {
+                    last: now,
+                    round_id,
+                    waiting: false,
+                },
+            );
+            drop(parties);
+            self.emit(group_id, Event::PartyUpdated { round_id });
         }
     }
 
     fn result_reacted(&self, group_id: RoomId, round_id: RoundId, taps: Vec<Tap>) {
         let key = (group_id, round_id);
         let now = Instant::now();
-        let mut rounds = self.reacted.lock().unwrap_or_else(|e| e.into_inner());
+        let mut rounds = self
+            .reacted
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         rounds.retain(|_, t| t.waiting || now.duration_since(t.last) < RESULT_REACT_GAP);
         let runtime = tokio::runtime::Handle::try_current();
-        match (rounds.get_mut(&key), runtime) {
-            (Some(t), Ok(runtime)) => {
-                merge_taps(&mut t.pending, taps);
-                if t.waiting {
-                    return;
-                }
-                t.waiting = true;
-                let at = t.last + RESULT_REACT_GAP;
-                let live = self.clone();
-                runtime.spawn(async move {
-                    tokio::time::sleep_until(at.into()).await;
-                    let taps = {
-                        let mut rounds = live.reacted.lock().unwrap_or_else(|e| e.into_inner());
-                        let Some(t) = rounds.get_mut(&key) else {
-                            return;
-                        };
-                        t.waiting = false;
-                        t.last = Instant::now();
-                        std::mem::take(&mut t.pending)
+        if let (Some(t), Ok(runtime)) = (rounds.get_mut(&key), runtime) {
+            merge_taps(&mut t.pending, taps);
+            if t.waiting {
+                return;
+            }
+            t.waiting = true;
+            let at = t.last + RESULT_REACT_GAP;
+            let live = self.clone();
+            runtime.spawn(async move {
+                tokio::time::sleep_until(at.into()).await;
+                let taps = {
+                    let mut rounds = live
+                        .reacted
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner);
+                    let Some(t) = rounds.get_mut(&key) else {
+                        return;
                     };
-                    if !taps.is_empty() {
-                        live.emit(group_id, Event::ResultReacted { round_id, taps });
-                    }
-                });
-            }
-            _ => {
-                rounds.insert(
-                    key,
-                    ReactThrottle {
-                        last: now,
-                        pending: Vec::new(),
-                        waiting: false,
-                    },
-                );
-                drop(rounds);
-                let mut merged = Vec::new();
-                merge_taps(&mut merged, taps);
-                self.emit(
-                    group_id,
-                    Event::ResultReacted {
-                        round_id,
-                        taps: merged,
-                    },
-                );
-            }
+                    t.waiting = false;
+                    t.last = Instant::now();
+                    std::mem::take(&mut t.pending)
+                };
+                if !taps.is_empty() {
+                    live.emit(group_id, Event::ResultReacted { round_id, taps });
+                }
+            });
+        } else {
+            rounds.insert(
+                key,
+                ReactThrottle {
+                    last: now,
+                    pending: Vec::new(),
+                    waiting: false,
+                },
+            );
+            drop(rounds);
+            let mut merged = Vec::new();
+            merge_taps(&mut merged, taps);
+            self.emit(
+                group_id,
+                Event::ResultReacted {
+                    round_id,
+                    taps: merged,
+                },
+            );
         }
     }
 

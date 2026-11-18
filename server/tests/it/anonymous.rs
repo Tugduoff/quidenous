@@ -134,7 +134,12 @@ fn no_voters(view: &Value) {
     }
     if let Some(ranking) = view["ranking"].as_array() {
         for r in ranking {
-            let mut keys: Vec<&str> = r.as_object().unwrap().keys().map(|k| k.as_str()).collect();
+            let mut keys: Vec<&str> = r
+                .as_object()
+                .unwrap()
+                .keys()
+                .map(std::string::String::as_str)
+                .collect();
             keys.sort_unstable();
             assert_eq!(keys, ["average", "firsts", "member_id", "points"], "{view}");
         }
@@ -599,6 +604,6 @@ async fn a_party_is_never_anonymous() {
         .fetch_all(&state.db)
         .await
         .unwrap();
-    assert!(!rounds.is_empty());
+    assert_ne!(rounds, [] as [bool; 0]);
     assert!(rounds.iter().all(|a| !a));
 }

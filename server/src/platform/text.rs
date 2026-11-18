@@ -30,12 +30,12 @@ pub fn lines(s: &str) -> String {
     let mut out: Vec<String> = Vec::new();
     for l in s.lines() {
         let l = line(l);
-        if l.is_empty() && out.last().is_none_or(|p| p.is_empty()) {
+        if l.is_empty() && out.last().is_none_or(std::string::String::is_empty) {
             continue;
         }
         out.push(l);
     }
-    while out.last().is_some_and(|l| l.is_empty()) {
+    while out.last().is_some_and(std::string::String::is_empty) {
         out.pop();
     }
     out.join("\n")

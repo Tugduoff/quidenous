@@ -102,7 +102,7 @@ pub async fn signup(
         .locale
         .as_deref()
         .and_then(crate::platform::i18n::Lang::parse)
-        .map(|l| l.as_str());
+        .map(super::super::platform::i18n::Lang::as_str);
     let user_id: UserId = sqlx::query_scalar(
         "INSERT INTO users (name, color, friend_code, email, password_hash, locale) \
          VALUES (?, ?, upper(hex(randomblob(5))), ?, ?, ?) RETURNING id",

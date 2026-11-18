@@ -48,7 +48,7 @@ pub async fn migrate(db: &SqlitePool) -> crate::anyhow_free::Result<()> {
         let from = applied.iter().copied().max().unwrap_or_default();
         match backup_before_migrating(db, from).await {
             Ok(Some(path)) => {
-                tracing::info!(path = %path.display(), pending, "database backed up before migrating")
+                tracing::info!(path = %path.display(), pending, "database backed up before migrating");
             }
             Ok(None) => {}
             Err(e) => {
@@ -161,9 +161,10 @@ fn prune_backups(dir: &std::path::Path) {
     let mut backups: Vec<PathBuf> = entries
         .filter_map(|e| e.ok().map(|e| e.path()))
         .filter(|p| {
-            p.file_name()
-                .and_then(|n| n.to_str())
-                .is_some_and(|n| n.starts_with("pre-migrate-") && n.ends_with(".db"))
+            p.extension().is_some_and(|e| e == "db")
+                && p.file_name()
+                    .and_then(|n| n.to_str())
+                    .is_some_and(|n| n.starts_with("pre-migrate-"))
         })
         .collect();
     backups.sort();

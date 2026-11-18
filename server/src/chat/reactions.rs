@@ -59,17 +59,16 @@ pub async fn for_messages<'e, E: SqliteExecutor<'e>>(
             continue;
         };
         let list = by_message.entry(message_id).or_default();
-        let at = match list.iter().position(|r| r.emoji == emoji) {
-            Some(i) => i,
-            None => {
-                list.push(Reaction {
-                    emoji,
-                    count: 0,
-                    mine: false,
-                    members: Vec::new(),
-                });
-                list.len() - 1
-            }
+        let at = if let Some(i) = list.iter().position(|r| r.emoji == emoji) {
+            i
+        } else {
+            list.push(Reaction {
+                emoji,
+                count: 0,
+                mine: false,
+                members: Vec::new(),
+            });
+            list.len() - 1
         };
         let r = &mut list[at];
         r.count += 1;
@@ -219,17 +218,16 @@ pub async fn for_round<'e, E: SqliteExecutor<'e>>(
         let Some(emoji) = clean_result_emoji(&emoji) else {
             continue;
         };
-        let at = match reactions.iter().position(|r| r.emoji == emoji) {
-            Some(i) => i,
-            None => {
-                reactions.push(ResultReaction {
-                    emoji,
-                    count: 0,
-                    mine: 0,
-                    members: Vec::new(),
-                });
-                reactions.len() - 1
-            }
+        let at = if let Some(i) = reactions.iter().position(|r| r.emoji == emoji) {
+            i
+        } else {
+            reactions.push(ResultReaction {
+                emoji,
+                count: 0,
+                mine: 0,
+                members: Vec::new(),
+            });
+            reactions.len() - 1
         };
         let r = &mut reactions[at];
         r.count += count;

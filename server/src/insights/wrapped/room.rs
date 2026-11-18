@@ -10,7 +10,10 @@ use crate::{
     rooms::model::MemberRow,
 };
 
-use super::*;
+use super::{
+    Card, Person, assemble, best_in_year, card, days_from_civil, days_text, first_name, outro, pct,
+    percent, pick, top, year_range,
+};
 
 #[allow(clippy::too_many_lines)]
 pub(super) async fn room(

@@ -10,7 +10,10 @@ use crate::{
     platform::i18n::Lang,
 };
 
-use super::*;
+use super::{
+    Card, Person, Seat, YearRound, assemble, best_in_year, card, days_from_civil, days_text, outro,
+    pct, percent, pick, plural, title_card, top, year_range,
+};
 
 #[allow(clippy::too_many_lines)]
 pub(super) async fn personal(

@@ -187,9 +187,9 @@ fn check_stories(s: &Value) {
             !line.is_empty() && line.chars().count() <= 90,
             "{key}: {line}"
         );
-        assert!(!st["big"].as_str().unwrap().is_empty());
-        assert!(!st["title"].as_str().unwrap().is_empty());
-        assert!(!st["icon"].as_str().unwrap().is_empty());
+        assert_ne!(st["big"].as_str().unwrap(), "");
+        assert_ne!(st["title"].as_str().unwrap(), "");
+        assert_ne!(st["icon"].as_str().unwrap(), "");
         let ids = st["member_ids"].as_array().unwrap();
         assert!(ids.len() <= 2);
         for id in ids {
@@ -620,7 +620,7 @@ async fn stat_stories_can_be_shared_publicly() {
 }
 
 #[tokio::test]
-#[ignore]
+#[ignore = "benchmark: run with --ignored"]
 async fn bench_stats_on_a_big_room() {
     let (app, st) = setup().await;
     let names: Vec<String> = (0..20).map(|i| format!("Membre{i}")).collect();
@@ -737,7 +737,7 @@ async fn bench_stats_on_a_big_room() {
         }
         println!(
             "stats {period:?}: {:.1} ms per call",
-            t.elapsed().as_secs_f64() * 1000.0 / runs as f64
+            t.elapsed().as_secs_f64() * 1000.0 / f64::from(runs)
         );
     }
     let t = std::time::Instant::now();

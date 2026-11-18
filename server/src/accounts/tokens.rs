@@ -16,7 +16,7 @@ use crate::{
     platform::error::{AppError, AppResult},
 };
 
-use super::*;
+use super::{codes, crypto, mfa};
 
 pub struct ClientIp(pub Option<IpAddr>);
 
@@ -42,19 +42,19 @@ pub fn client_ip(
 impl FromRequestParts<AppState> for ClientIp {
     type Rejection = std::convert::Infallible;
 
-    async fn from_request_parts(
+    fn from_request_parts(
         parts: &mut Parts,
         state: &AppState,
-    ) -> Result<Self, Self::Rejection> {
+    ) -> impl Future<Output = Result<Self, Self::Rejection>> + Send {
         let connect = parts
             .extensions
             .get::<ConnectInfo<SocketAddr>>()
             .map(|c| c.0);
-        Ok(ClientIp(client_ip(
+        std::future::ready(Ok(ClientIp(client_ip(
             &parts.headers,
             connect,
             state.config.trust_proxy,
-        )))
+        ))))
     }
 }
 
@@ -98,8 +98,11 @@ pub struct Device(pub Option<String>);
 impl<S: Send + Sync> FromRequestParts<S> for Device {
     type Rejection = std::convert::Infallible;
 
-    async fn from_request_parts(parts: &mut Parts, _: &S) -> Result<Self, Self::Rejection> {
-        Ok(Device(device_label(&parts.headers)))
+    fn from_request_parts(
+        parts: &mut Parts,
+        _: &S,
+    ) -> impl Future<Output = Result<Self, Self::Rejection>> + Send {
+        std::future::ready(Ok(Device(device_label(&parts.headers))))
     }
 }
 
@@ -150,11 +153,15 @@ impl FromRequestParts<AppState> for MaybeSession {
     }
 }
 
-pub(super) const TOUCH_EVERY: Duration = Duration::from_secs(5 * 60);
+pub(super) const TOUCH_EVERY: Duration = Duration::from_mins(5);
 
 pub async fn touch(state: &AppState, token_hash: &str) {
     {
-        let mut touched = state.auth.touched.lock().unwrap_or_else(|e| e.into_inner());
+        let mut touched = state
+            .auth
+            .touched
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         if touched
             .get(token_hash)
             .is_some_and(|t| t.elapsed() < TOUCH_EVERY)
@@ -187,7 +194,7 @@ pub async fn label(state: &AppState, token: &str, headers: &HeaderMap) {
             .auth
             .labelled
             .lock()
-            .unwrap_or_else(|e| e.into_inner());
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         if seen.len() > 10_000 {
             seen.clear();
         }

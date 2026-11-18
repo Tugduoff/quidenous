@@ -6,7 +6,10 @@ use crate::{
     platform::i18n::Lang,
 };
 
-use super::*;
+use super::{
+    CATEGORIES, DESC_MAX, MAX_QUESTIONS, MAX_TAGS, MIN_QUESTIONS, NAME_MAX, PACKS_PER_USER,
+    QUESTION_MAX, QUESTION_MIN,
+};
 
 #[derive(Deserialize)]
 pub struct QuestionIn {
@@ -115,7 +118,7 @@ pub(super) fn from_list(list: Vec<QuestionIn>, known: &[PackQuestion]) -> Vec<Pa
                 _ => "pick",
             };
             let items = match (kind, q.items) {
-                ("choose", Some(items)) => crate::community::deck::clean_items(items),
+                ("choose", Some(items)) => crate::community::deck::clean_items(&items),
                 ("choose", None) => known
                     .iter()
                     .find(|k| k.kind == "choose" && k.text.to_lowercase() == text.to_lowercase())
@@ -146,7 +149,7 @@ pub fn clean_questions(mut questions: Vec<PackQuestion>) -> AppResult<Vec<PackQu
             && (QUESTION_MIN..=QUESTION_MAX).contains(&q.text.chars().count())
             && (q.kind != "choose"
                 || q.items
-                    .clone()
+                    .as_deref()
                     .and_then(crate::community::deck::clean_items)
                     .is_some())
     });

@@ -102,7 +102,7 @@ impl Status {
 struct Seat {
     room: RoomId,
     name: String,
-    seat: MemberId,
+    member: MemberId,
     role: Role,
     muted: bool,
     members: i64,
@@ -140,7 +140,7 @@ pub async fn get(
 
 pub async fn today(db: &SqlitePool, user: UserId, now: i64) -> AppResult<Today> {
     let seats: Vec<Seat> = sqlx::query_as(concat!(
-        "SELECT g.id AS room, g.name, m.id AS seat, m.role, m.muted, \
+        "SELECT g.id AS room, g.name, m.id AS member, m.role, m.muted, \
                 (SELECT COUNT(*) FROM members x WHERE x.group_id = g.id AND x.removed_at IS NULL) AS members, \
                 (g.kind = 'room' AND g.tripot) AS tripot, g.next_open_at, \
                 (g.id IS u.last_group_id) AS last_used, \
@@ -162,7 +162,7 @@ pub async fn today(db: &SqlitePool, user: UserId, now: i64) -> AppResult<Today> 
     if seats.is_empty() {
         return Ok(Today { rooms: Vec::new() });
     }
-    let ids: Vec<MemberId> = seats.iter().map(|s| s.seat).collect();
+    let ids: Vec<MemberId> = seats.iter().map(|s| s.member).collect();
     let ids_json = serde_json::to_string(&ids).unwrap_or_else(|_| "[]".into());
 
     let open_q = sqlx::query_as::<_, Open>(concat!(
@@ -242,7 +242,7 @@ pub async fn today(db: &SqlitePool, user: UserId, now: i64) -> AppResult<Today> 
                 .filter(|&(_, n)| n >= majority)
                 .map(|(target, _)| target)
                 .collect();
-            let skipped_me = not_waited.contains(&s.seat);
+            let skipped_me = not_waited.contains(&s.member);
             not_waited.extend(away_by_room.remove(&s.room).unwrap_or_default());
             let voted = open.as_ref().is_some_and(|o| o.voted);
             let tripot = s.tripot.then(|| TodayTripot {
@@ -259,8 +259,8 @@ pub async fn today(db: &SqlitePool, user: UserId, now: i64) -> AppResult<Today> 
                 _ => Status::Idle,
             };
             let streak = streak_rooms.get(&s.room).and_then(|r| {
-                let days = r.member(s.seat, now).current;
-                let today = r.voted_today(s.seat, now);
+                let days = r.member(s.member, now).current;
+                let today = r.voted_today(s.member, now);
                 (days > 0 || today).then_some(TodayStreak { days, today })
             });
             let activity = std::cmp::max(

@@ -152,10 +152,10 @@ pub fn choose_items(line: &str) -> Option<Vec<String>> {
         .filter(|i| !i.is_empty())
         .map(str::to_owned)
         .collect();
-    clean_items(items)
+    clean_items(&items)
 }
 
-pub fn clean_items(items: Vec<String>) -> Option<Vec<String>> {
+pub fn clean_items(items: &[String]) -> Option<Vec<String>> {
     let items: Vec<String> = items
         .iter()
         .map(|i| crate::platform::text::line(i))

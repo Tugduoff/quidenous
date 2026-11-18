@@ -9,7 +9,7 @@ use crate::{
     },
 };
 
-use super::*;
+use super::{active_count, majority, not_waited, union};
 
 pub async fn tallies(db: &SqlitePool, round_id: RoundId) -> AppResult<Vec<Tally>> {
     let anonymous = crate::rooms::anonymous::is_anonymous(db, round_id).await?;

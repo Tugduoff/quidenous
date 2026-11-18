@@ -185,16 +185,15 @@ pub(crate) async fn export_history(
         .map(|(id, name, user_id)| (id, i18n::member_name(lang, &name, user_id)))
         .collect();
     let name = |id: MemberId| names.get(&id).cloned().unwrap_or_else(|| "?".into());
-    let tz = match q.tz.as_deref() {
-        Some(tz) => crate::insights::stats::parse_tz(Some(tz)),
-        None => {
-            let saved: Option<i64> =
-                sqlx::query_scalar("SELECT tz_offset FROM notification_prefs WHERE user_id = ?")
-                    .bind(me.user_id)
-                    .fetch_optional(&state.db)
-                    .await?;
-            saved.map_or(0, crate::insights::stats::clamp_tz)
-        }
+    let tz = if let Some(tz) = q.tz.as_deref() {
+        crate::insights::stats::parse_tz(Some(tz))
+    } else {
+        let saved: Option<i64> =
+            sqlx::query_scalar("SELECT tz_offset FROM notification_prefs WHERE user_id = ?")
+                .bind(me.user_id)
+                .fetch_optional(&state.db)
+                .await?;
+        saved.map_or(0, crate::insights::stats::clamp_tz)
     };
     let rounds: Vec<(RoundId, i64, String, String, String)> = sqlx::query_as(
         "SELECT r.id, r.number, q.text, strftime('%Y-%m-%d', r.closed_at, ? || ' minutes'), q.kind \

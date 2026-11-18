@@ -161,8 +161,14 @@ async fn three_reporters_hide_a_message_until_an_admin_decides() {
     }
     let (s, _) = report(&app, &dan, "message", rude).await;
     assert_eq!(s, StatusCode::OK);
-    assert!(texts(&app, &dan, round).await.is_empty());
-    assert!(texts(&app, &bob, round).await.is_empty());
+    assert_eq!(
+        texts(&app, &dan, round).await,
+        [] as [std::string::String; 0]
+    );
+    assert_eq!(
+        texts(&app, &bob, round).await,
+        [] as [std::string::String; 0]
+    );
 
     let list = reports(&app, &admin).await;
     assert_eq!(list.len(), 1, "{list:?}");
@@ -178,7 +184,7 @@ async fn three_reporters_hide_a_message_until_an_admin_decides() {
     let (s, b) = act(&app, &admin, "message", rude, "dismiss").await;
     assert_eq!(s, StatusCode::OK, "{b}");
     assert_eq!(texts(&app, &dan, round).await, vec!["dégage"]);
-    assert!(reports(&app, &admin).await.is_empty());
+    assert_eq!(reports(&app, &admin).await, [] as [serde_json::Value; 0]);
     let (s, _) = act(&app, &admin, "message", rude, "dismiss").await;
     assert_eq!(s, StatusCode::NOT_FOUND);
 
@@ -871,7 +877,10 @@ async fn throwaway_reports_dont_hide_and_the_owner_restores() {
     }
     assert_eq!(texts(&app, bob, round).await.len(), 1);
     report(&app, &people[5].0, "message", msg).await;
-    assert!(texts(&app, bob, round).await.is_empty());
+    assert_eq!(
+        texts(&app, bob, round).await,
+        [] as [std::string::String; 0]
+    );
     assert_eq!(inbox_copies().await, 0, "a hidden text leaves the inbox");
 
     let (_, list) = call(

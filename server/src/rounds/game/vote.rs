@@ -7,7 +7,7 @@ use crate::{
     rounds::model::Choice,
 };
 
-use super::*;
+use super::{active_count, close_if_done, party};
 
 pub async fn vote(
     db: &SqlitePool,

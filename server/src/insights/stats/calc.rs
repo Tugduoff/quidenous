@@ -3,7 +3,12 @@ use std::collections::{HashMap, HashSet};
 
 use crate::platform::i18n::{self, Lang};
 
-use super::*;
+use super::{
+    Activity, Award, Count, DAILY_MAX, Duo, Edge, HIDDEN, MAX_STORIES, MIN_VOTES_FOR_SPEED,
+    MemberInfo, MemberRowT, MemberStats, Pair, Period, RankAward, RoundCalc, RoundRow,
+    SECONDS_PER_VOTE, STORIES_PER_MEMBER, Stats, Story, date, drafts, first_name, local_day,
+    local_hour, median, meta, pick_line, ratio_cmp, round1, titles, top, top_ratio, weekday,
+};
 
 pub(super) struct Calc {
     period: Period,
@@ -106,7 +111,7 @@ impl Calc {
                     .map(|p| p.0)
                     .collect()
             } else {
-                let best = r.tally.first().map(|t| t.1).unwrap_or(0);
+                let best = r.tally.first().map_or(0, |t| t.1);
                 r.tally
                     .iter()
                     .filter(|t| t.1 == best && best > 0)
@@ -134,7 +139,7 @@ impl Calc {
 
     pub(crate) fn finish(
         self,
-        nudges: Vec<(MemberId, MemberId)>,
+        nudges: &[(MemberId, MemberId)],
         authors: Vec<(MemberId, i64)>,
         spicy: bool,
         lang: Lang,
@@ -216,8 +221,8 @@ impl Calc {
                         e.1 += 1;
                     }
                 }
-                let top = r.tally.first().map(|t| t.1).unwrap_or(0);
-                let second = r.tally.get(1).map(|t| t.1).unwrap_or(0);
+                let top = r.tally.first().map_or(0, |t| t.1);
+                let second = r.tally.get(1).map_or(0, |t| t.1);
                 if let Some(winner) = r.sole_winner()
                     && top - second == 1
                 {
@@ -253,7 +258,7 @@ impl Calc {
         s.last_voter = top(&last, cur, 1);
         let mut nudged_by: HashMap<MemberId, i64> = HashMap::new();
         let mut nudged: HashMap<MemberId, i64> = HashMap::new();
-        for (from, to) in &nudges {
+        for (from, to) in nudges {
             *nudged_by.entry(*from).or_default() += 1;
             *nudged.entry(*to).or_default() += 1;
         }
@@ -280,7 +285,7 @@ impl Calc {
         }
 
         let mut medians: HashMap<MemberId, i64> = HashMap::new();
-        for (m, d) in delays.iter_mut() {
+        for (m, d) in &mut delays {
             if d.len() >= MIN_VOTES_FOR_SPEED
                 && let Some(v) = median(d)
             {
@@ -628,16 +633,16 @@ impl Calc {
     }
 
     fn name(&self, id: MemberId, lang: Lang) -> String {
-        self.info
-            .get(&id)
-            .map(|m| {
+        self.info.get(&id).map_or_else(
+            || "?".into(),
+            |m| {
                 if m.deleted {
                     i18n::deleted_name(lang).to_owned()
                 } else {
                     first_name(&m.name)
                 }
-            })
-            .unwrap_or_else(|| "?".into())
+            },
+        )
     }
 
     fn stories(&self, s: &Stats, spicy: bool, lang: Lang) -> Vec<Story> {

@@ -1,4 +1,4 @@
-use super::*;
+use super::{Draft, RoundCalc, Stats, Writer, decimal, draft, duration, pct, round_draft};
 
 pub(super) fn other_drafts(w: &Writer, s: &Stats, rounds: &[RoundCalc], d: &mut Vec<Draft>) {
     if let Some(p) = &s.loyal {

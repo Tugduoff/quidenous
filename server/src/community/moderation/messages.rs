@@ -14,7 +14,7 @@ use crate::{
     rooms::access::Owner,
 };
 
-use super::*;
+use super::{drop_inbox_copies, resolve};
 
 pub async fn restore_message(
     State(state): State<AppState>,

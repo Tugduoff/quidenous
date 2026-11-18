@@ -34,11 +34,11 @@ mod format;
 mod other_stories;
 mod people_stories;
 mod stories;
-use calc::*;
+use calc::Calc;
 pub use format::*;
-use other_stories::*;
-use people_stories::*;
-use stories::*;
+use other_stories::other_drafts;
+use people_stories::people_drafts;
+use stories::{Draft, Writer, draft, drafts, pick_line, round_draft};
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize)]
 pub enum Period {
@@ -76,8 +76,7 @@ pub fn clamp_tz(tz: i64) -> i32 {
 
 pub fn parse_tz(tz: Option<&str>) -> i32 {
     tz.and_then(|t| t.trim().parse::<i64>().ok())
-        .map(clamp_tz)
-        .unwrap_or(0)
+        .map_or(0, clamp_tz)
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -417,7 +416,7 @@ pub(crate) async fn compute_range(
         point_rows,
         message_rows,
     )
-    .finish(nudges, authors, spicy, lang))
+    .finish(&nudges, authors, spicy, lang))
 }
 
 #[cfg(test)]

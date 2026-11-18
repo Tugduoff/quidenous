@@ -20,10 +20,7 @@ pub(super) struct PasswordBudget {
 impl PasswordBudget {
     pub fn take(state: &AppState, email: &str, ip: Option<IpAddr>) -> AppResult<Self> {
         let limits = &state.auth.limits;
-        let email_ip = format!(
-            "{email}|{}",
-            ip.map(limits::ip_key).unwrap_or_else(|| "-".into())
-        );
+        let email_ip = format!("{email}|{}", ip.map_or_else(|| "-".into(), limits::ip_key));
         limits.hit(&limits::LOGIN_ACCOUNT_IP, &email_ip)?;
         if let Err(e) = limits.hit(&limits::LOGIN_ACCOUNT, email) {
             limits.refund(&limits::LOGIN_ACCOUNT_IP, &email_ip);

@@ -1,4 +1,4 @@
-use super::*;
+use super::{Draft, Stats, Writer, draft, duration, pct};
 
 pub(super) fn people_drafts(w: &Writer, s: &Stats, d: &mut Vec<Draft>) {
     if let Some(a) = &s.comeback {
