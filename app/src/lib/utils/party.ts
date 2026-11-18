@@ -1,4 +1,5 @@
-import type { PartyRound } from '@/lib/api/party';
+import type { Member } from '@/lib/api/group';
+import type { Party, PartyRound } from '@/lib/api/party';
 import type { Tally } from '@/lib/api/rounds';
 
 /**
@@ -26,3 +27,8 @@ export function stepAt(closedAt: string | null, clock: number, steps: number[], 
   }
   return { step: steps.length, left: null };
 }
+
+/** The party's players by id. */
+export const playersById = (p: Pick<Party, 'players'>) => new Map<number, Member>(p.players.map((m) => [m.id, m]));
+
+export const isPartyOwner = (p: Pick<Party, 'me'>) => p.me?.role === 'owner';
