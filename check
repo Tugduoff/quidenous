@@ -16,9 +16,9 @@ web_build="${QDN_WEB_BUILD:-${TMPDIR:-/tmp}/qdn-web-build}"
 usage() {
   cat <<'USAGE'
 ./check            everything below except smoke: run it before calling a change done
-./check repo       comment ban and file size budgets
-./check server     cargo fmt, clippy (warnings are errors), tests
-./check app        tsc, eslint, knip, generated files, i18n, unit tests, native runtime, web export
+./check repo       comment ban on deploy and CI files, toolchain pins
+./check server     comment ban, file size budgets, cargo fmt, clippy (warnings are errors), tests
+./check app        comment ban, tsc, eslint, knip, generated files, i18n, unit tests, native runtime, web export
 ./check smoke      real server + exported web app driven by Playwright; screenshots in /tmp/qdn-smoke
 
 Machine settings (CARGO_TARGET_DIR, PLAYWRIGHT_DIR, LD_LIBRARY_PATH, PATH) are read from
@@ -32,13 +32,17 @@ step() {
 
 check_repo() {
   step "repo: no comments"
-  node "$repo/scripts/comments.mjs"
-  step "repo: file size budgets"
-  node "$repo/scripts/budgets.mjs"
+  node "$repo/scripts/comments.mjs" check deploy Dockerfile .github .gitignore .dockerignore
+  step "repo: toolchain pins agree"
+  node "$repo/scripts/pins.mjs"
 }
 
 check_server() {
   cd "$repo/server"
+  step "server: no comments"
+  node "$repo/scripts/comments.mjs" server
+  step "server: file size budgets"
+  node "$repo/scripts/budgets.mjs"
   step "server: fmt"
   cargo fmt --check
   step "server: clippy"
@@ -55,6 +59,8 @@ export_web() {
 
 check_app() {
   cd "$repo/app"
+  step "app: no comments"
+  node "$repo/scripts/comments.mjs" app scripts
   step "app: types"
   npx tsc --noEmit
   step "app: lint"

@@ -38,7 +38,12 @@ const SCRIPT_DIRECTIVES = [
   /^\/\/ @generated$/,
   /^\/\/\/ <reference [^>]+\/>$/,
 ];
-const HASH_DIRECTIVES = [/^#!/, /^# syntax=\S+$/, /^# shellcheck (disable|source)=\S+$/, /^# v\d+(\.\d+)*$/];
+const HASH_DIRECTIVES = [
+  /^#!/,
+  /^# syntax=\S+$/,
+  /^# shellcheck (disable|source)=\S+$/,
+  /^# (v\d+(\.\d+)*|master \d{4}-\d{2}-\d{2})$/,
+];
 const RUST_DIRECTIVES = [/^\/\/ @generated$/];
 
 function languageOf(file) {
@@ -191,18 +196,30 @@ function scriptComments(source, file) {
   return [...byStart.values()].sort((a, b) => a.start - b.start);
 }
 
+function hashCommentStart(line) {
+  let quote = null;
+  for (let i = 0; i < line.length; i += 1) {
+    const char = line[i];
+    if (quote) {
+      if (char === '\\' && quote === '"') i += 1;
+      else if (char === quote) quote = null;
+    } else if (char === '"' || char === "'") {
+      quote = char;
+    } else if (char === '#' && (i === 0 || /\s/.test(line[i - 1]))) {
+      return i;
+    }
+  }
+  return -1;
+}
+
 function hashComments(source) {
   const comments = [];
   let offset = 0;
   for (const line of source.split('\n')) {
-    const leading = line.match(/^\s*#/);
-    const trailing = line.match(/\s+# v\d+(\.\d+)*\s*$/);
-    if (leading) {
-      const start = offset + leading[0].length - 1;
-      const text = line.slice(leading[0].length - 1);
-      comments.push({ start, end: offset + line.length, allowed: isAllowed(text, HASH_DIRECTIVES) });
-    } else if (trailing) {
-      comments.push({ start: offset + trailing.index, end: offset + line.length, allowed: true });
+    const start = hashCommentStart(line);
+    if (start !== -1) {
+      const text = line.slice(start);
+      comments.push({ start: offset + start, end: offset + line.length, allowed: isAllowed(text, HASH_DIRECTIVES) });
     }
     offset += line.length + 1;
   }
