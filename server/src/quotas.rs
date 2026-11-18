@@ -37,7 +37,7 @@ pub const CHAT_IMAGE_USER: Rule = per("chat_image_user", 20, HOUR);
 pub const CHAT_IMAGE_DAY_USER: Rule = per("chat_image_day_user", 100, DAY);
 /// GIF searches (each one a Klipy call): typing goes through a 350 ms debounce.
 pub const GIF_SEARCH_USER: Rule = per("gif_search_user", 60, MINUTE);
-/// Chat reactions, added or taken back: a burst, then about one a second...
+/// Chat reactions (added or taken back) and result reactions (a batch of taps): a burst, then about one a second...
 pub const REACT_USER: Rule = per("react_user", 60, MINUTE);
 /// ...and not more than this in an hour.
 pub const REACT_HOUR_USER: Rule = per("react_hour_user", 600, HOUR);

@@ -96,7 +96,7 @@ In-memory token buckets (same limiter as the auth limits in `docs/AUTH.md`, rule
 | Chat messages | 15 / minute and 300 / hour per account |
 | Chat images (`POST /rounds/{id}/messages/image`) | on top of the chat limits: 20 / hour and 100 / day per account; 8 MB (`413 too_large`) |
 | GIF searches (`GET /gifs`) | 60 / minute per account |
-| Chat reactions (added or taken back) | 60 / minute and 600 / hour per account |
+| Chat reactions (added or taken back) and result reactions (`POST /rounds/{id}/reactions`, one batch of taps; docs/REACTIONS.md) | 60 / minute and 600 / hour per account, shared |
 | @mentions | more than 5 people in one message counts as `@tous` and shares its 10-minute cooldown (during it, a plain message for everyone) |
 | New rooms and parties | 20 / day per account; 20 rooms owned at a time (`429 too_many_rooms`; a room handed over or deleted frees its place) |
 | Room size | 50 people (`409 room_full` on join by code, first-name join, a returning leaver, an invitation sent or accepted); parties: 40 players |

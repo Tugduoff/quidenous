@@ -179,6 +179,8 @@ pub(crate) async fn erase(state: &AppState, user_id: i64) -> AppResult<()> {
     for sql in [
         // Reactions on their messages go with them (cascade); theirs on others' messages here.
         "DELETE FROM message_reactions WHERE member_id IN (SELECT id FROM members WHERE user_id = ?1)",
+        // Their taps on results.
+        "DELETE FROM round_reactions WHERE member_id IN (SELECT id FROM members WHERE user_id = ?1)",
         "DELETE FROM messages WHERE member_id IN (SELECT id FROM members WHERE user_id = ?1)",
         // Inbox entries carry message text and names: theirs and the ones they caused.
         "DELETE FROM inbox WHERE member_id IN (SELECT id FROM members WHERE user_id = ?1) \

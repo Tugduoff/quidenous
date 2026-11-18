@@ -6,6 +6,7 @@ import { liveUrl } from './api';
 import { featuresQuery } from './auth';
 import { PARTY_EVENTS, partyKeys } from './party';
 import { keys, refreshHistory } from './queries';
+import { type ReactedEvent, receiveReacted } from './result-reactions';
 import { openSocket } from './ws';
 
 /** While on the screen, the app tells the server every so often, so it sends no push for this room. */
@@ -74,6 +75,9 @@ function touched(event: LiveEvent): QueryKey[] | 'all' {
       return [keys.group, ['round'], ['messages']];
     case 'room_deleted':
       return [keys.group, keys.rooms, keys.current];
+    // Taps on a result: handed to its screen (receiveReacted), never a refetch (they come in bursts).
+    case 'result_reacted':
+      return [];
     default:
       return 'all';
   }
@@ -137,7 +141,8 @@ export function useLive(token: string | null, room: number | null) {
         // A short-lived ticket instead of the token in the URL, when the server has them. Features not known yet
         // (cold start): fetched first; unreachable: no socket this time (retried), never the token by default.
         const features = await qc.ensureQueryData(featuresQuery);
-        return liveUrl(token, features.includes('tickets'));
+        // `result_reacted` only for an app that knows it (an older one would refetch everything on each).
+        return liveUrl(token, features.includes('tickets'), features.includes('result_reactions'));
       },
       {
         onOpen: () => {
@@ -149,6 +154,10 @@ export function useLive(token: string | null, room: number | null) {
         },
         onClose: dropped,
         onEvent: (event) => {
+          if (event.type === 'result_reacted') {
+            receiveReacted(qc, event as ReactedEvent);
+            return;
+          }
           // A party's screen follows every event of its room (the socket only carries the current room's).
           if (PARTY_EVENTS.has(event.type)) invalidate([partyKeys.all]);
           invalidate(touched(event));

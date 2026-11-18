@@ -15,6 +15,8 @@ pub const SOCKETS_TOTAL: usize = 2000;
 
 /// A party's "Suivante" taps and reactions can come in bursts (40 phones): one `PartyUpdated` per party per this gap.
 pub const PARTY_UPDATE_GAP: Duration = Duration::from_millis(500);
+/// Taps on a result come in bursts too: one `ResultReacted` per round right away, then the taps of this gap merged.
+pub const RESULT_REACT_GAP: Duration = Duration::from_millis(300);
 
 /// Something every phone of a group should know about right away.
 #[derive(Clone, Debug, Serialize)]
@@ -80,6 +82,62 @@ pub enum Event {
     TripotUpdated {
         round_id: i64,
     },
+    /// Taps on a revealed result (docs/REACTIONS.md), coalesced per round. Only to sockets opened
+    /// with `events=reactions` (see [`OptIns`]).
+    ResultReacted {
+        round_id: i64,
+        taps: Vec<Tap>,
+    },
+}
+
+/// Someone's taps on one emoji of a result. `user_id` (null once deleted): the app can drop people it blocked.
+#[derive(Clone, Debug, Serialize, PartialEq)]
+pub struct Tap {
+    pub member_id: i64,
+    pub user_id: Option<i64>,
+    pub emoji: String,
+    pub count: i64,
+}
+
+/// Adds `taps` into `into`, one entry per member and emoji.
+fn merge_taps(into: &mut Vec<Tap>, taps: Vec<Tap>) {
+    for tap in taps {
+        match into
+            .iter_mut()
+            .find(|t| t.member_id == tap.member_id && t.emoji == tap.emoji)
+        {
+            Some(t) => t.count += tap.count,
+            None => into.push(tap),
+        }
+    }
+}
+
+/// What a live socket asked for with `?events=` (comma-separated): events older apps don't know
+/// (they refetch everything on an unknown one), so they only go to sockets that want them.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct OptIns {
+    /// `reactions`: `ResultReacted`.
+    pub reactions: bool,
+}
+
+impl OptIns {
+    pub fn parse(raw: Option<&str>) -> Self {
+        let mut o = Self::default();
+        for name in raw.unwrap_or("").split(',') {
+            if name.trim() == "reactions" {
+                o.reactions = true;
+            }
+        }
+        o
+    }
+
+    /// Does a socket with these opt-ins get `event`?
+    pub fn wants(&self, event: &Event) -> bool {
+        match event {
+            Event::ResultReacted { .. } => self.reactions,
+            _ => true,
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -95,10 +153,19 @@ struct PartyThrottle {
     waiting: bool,
 }
 
+/// The last `ResultReacted` sent for a round, and the taps waiting for the gap to pass.
+struct ReactThrottle {
+    last: Instant,
+    pending: Vec<Tap>,
+    waiting: bool,
+}
+
 #[derive(Clone)]
 pub struct Live {
     tx: broadcast::Sender<GroupEvent>,
     party: Arc<Mutex<HashMap<i64, PartyThrottle>>>,
+    /// Per (group, round).
+    reacted: Arc<Mutex<HashMap<(i64, i64), ReactThrottle>>>,
     sockets: Arc<Mutex<SocketCounts>>,
     /// When each seat's `active_at` was last written (see `flow::touch`), to spare the SD card.
     active: Arc<Mutex<HashMap<i64, Instant>>>,
@@ -147,6 +214,7 @@ impl Live {
         Self {
             tx,
             party: Arc::default(),
+            reacted: Arc::default(),
             sockets: Arc::default(),
             active: Arc::default(),
         }
@@ -193,10 +261,13 @@ impl Live {
     }
 
     pub fn send(&self, group_id: i64, event: Event) {
-        if let Event::PartyUpdated { round_id } = event {
-            return self.party_updated(group_id, round_id);
+        match event {
+            Event::PartyUpdated { round_id } => self.party_updated(group_id, round_id),
+            Event::ResultReacted { round_id, taps } => {
+                self.result_reacted(group_id, round_id, taps)
+            }
+            event => self.emit(group_id, event),
         }
-        self.emit(group_id, event);
     }
 
     fn emit(&self, group_id: i64, event: Event) {
@@ -249,6 +320,62 @@ impl Live {
         }
     }
 
+    /// At most one `ResultReacted` per round per `RESULT_REACT_GAP`: the first goes out right away, the
+    /// taps in the gap are merged (per member and emoji) into a single trailing one.
+    fn result_reacted(&self, group_id: i64, round_id: i64, taps: Vec<Tap>) {
+        let key = (group_id, round_id);
+        let now = Instant::now();
+        let mut rounds = self.reacted.lock().unwrap_or_else(|e| e.into_inner());
+        rounds.retain(|_, t| t.waiting || now.duration_since(t.last) < RESULT_REACT_GAP);
+        let runtime = tokio::runtime::Handle::try_current();
+        match (rounds.get_mut(&key), runtime) {
+            (Some(t), Ok(runtime)) => {
+                merge_taps(&mut t.pending, taps);
+                if t.waiting {
+                    return;
+                }
+                t.waiting = true;
+                let at = t.last + RESULT_REACT_GAP;
+                let live = self.clone();
+                runtime.spawn(async move {
+                    tokio::time::sleep_until(at.into()).await;
+                    let taps = {
+                        let mut rounds = live.reacted.lock().unwrap_or_else(|e| e.into_inner());
+                        let Some(t) = rounds.get_mut(&key) else {
+                            return;
+                        };
+                        t.waiting = false;
+                        t.last = Instant::now();
+                        std::mem::take(&mut t.pending)
+                    };
+                    if !taps.is_empty() {
+                        live.emit(group_id, Event::ResultReacted { round_id, taps });
+                    }
+                });
+            }
+            _ => {
+                rounds.insert(
+                    key,
+                    ReactThrottle {
+                        last: now,
+                        pending: Vec::new(),
+                        waiting: false,
+                    },
+                );
+                drop(rounds);
+                let mut merged = Vec::new();
+                merge_taps(&mut merged, taps);
+                self.emit(
+                    group_id,
+                    Event::ResultReacted {
+                        round_id,
+                        taps: merged,
+                    },
+                );
+            }
+        }
+    }
+
     pub fn subscribe(&self) -> broadcast::Receiver<GroupEvent> {
         self.tx.subscribe()
     }
@@ -257,5 +384,141 @@ impl Live {
 impl Default for Live {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn tap(member_id: i64, emoji: &str, count: i64) -> Tap {
+        Tap {
+            member_id,
+            user_id: Some(member_id * 10),
+            emoji: emoji.into(),
+            count,
+        }
+    }
+
+    /// The `ResultReacted` events waiting in `rx`: (group, round, taps).
+    fn reacted(rx: &mut broadcast::Receiver<GroupEvent>) -> Vec<(i64, i64, Vec<Tap>)> {
+        let mut seen = Vec::new();
+        while let Ok(e) = rx.try_recv() {
+            if let Event::ResultReacted { round_id, taps } = e.event {
+                seen.push((e.group_id, round_id, taps));
+            }
+        }
+        seen
+    }
+
+    #[tokio::test]
+    async fn result_taps_are_coalesced_per_round() {
+        let live = Live::new();
+        let mut rx = live.subscribe();
+        // The first goes out right away (its own duplicates merged).
+        live.send(
+            7,
+            Event::ResultReacted {
+                round_id: 1,
+                taps: vec![tap(1, "😂", 2), tap(1, "😂", 1)],
+            },
+        );
+        assert_eq!(reacted(&mut rx), vec![(7, 1, vec![tap(1, "😂", 3)])]);
+        // A burst: held back, other rounds and rooms are not.
+        live.send(
+            7,
+            Event::ResultReacted {
+                round_id: 1,
+                taps: vec![tap(1, "😂", 1)],
+            },
+        );
+        live.send(
+            7,
+            Event::ResultReacted {
+                round_id: 1,
+                taps: vec![tap(2, "🔥", 4), tap(1, "😂", 2)],
+            },
+        );
+        live.send(
+            7,
+            Event::ResultReacted {
+                round_id: 1,
+                taps: vec![tap(2, "🔥", 1)],
+            },
+        );
+        live.send(
+            7,
+            Event::ResultReacted {
+                round_id: 2,
+                taps: vec![tap(1, "👀", 1)],
+            },
+        );
+        live.send(
+            8,
+            Event::ResultReacted {
+                round_id: 1,
+                taps: vec![tap(3, "💀", 1)],
+            },
+        );
+        assert_eq!(
+            reacted(&mut rx),
+            vec![(7, 2, vec![tap(1, "👀", 1)]), (8, 1, vec![tap(3, "💀", 1)])]
+        );
+        // One trailing event with the sums, per member and emoji, in first-seen order.
+        let e = tokio::time::timeout(RESULT_REACT_GAP * 2, rx.recv())
+            .await
+            .expect("a trailing event")
+            .unwrap();
+        let Event::ResultReacted { round_id, taps } = e.event else {
+            panic!("{:?}", e.event);
+        };
+        assert_eq!((e.group_id, round_id), (7, 1));
+        assert_eq!(taps, vec![tap(1, "😂", 3), tap(2, "🔥", 5)]);
+        tokio::time::sleep(RESULT_REACT_GAP * 2).await;
+        assert_eq!(reacted(&mut rx), vec![], "only one trailing event");
+
+        // Quiet for a gap: right away again.
+        live.send(
+            7,
+            Event::ResultReacted {
+                round_id: 1,
+                taps: vec![tap(1, "❤️", 1)],
+            },
+        );
+        assert_eq!(reacted(&mut rx), vec![(7, 1, vec![tap(1, "❤️", 1)])]);
+    }
+
+    #[test]
+    fn without_a_runtime_every_event_goes_out() {
+        let live = Live::new();
+        let mut rx = live.subscribe();
+        for _ in 0..2 {
+            live.send(
+                7,
+                Event::ResultReacted {
+                    round_id: 1,
+                    taps: vec![tap(1, "😂", 1)],
+                },
+            );
+        }
+        assert_eq!(reacted(&mut rx).len(), 2);
+    }
+
+    #[test]
+    fn result_events_need_the_opt_in() {
+        let reacted = Event::ResultReacted {
+            round_id: 1,
+            taps: vec![tap(1, "😂", 1)],
+        };
+        let other = Event::PartyUpdated { round_id: 1 };
+        for raw in [None, Some(""), Some("chat"), Some("reaction")] {
+            let o = OptIns::parse(raw);
+            assert!(!o.wants(&reacted), "{raw:?}");
+            assert!(o.wants(&other), "{raw:?}");
+        }
+        for raw in ["reactions", "x, reactions ", "reactions,later"] {
+            let o = OptIns::parse(Some(raw));
+            assert!(o.wants(&reacted) && o.wants(&other), "{raw}");
+        }
     }
 }

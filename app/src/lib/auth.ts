@@ -161,6 +161,8 @@ export function useFeatures() {
     anonymousVotes: on.has('anonymous_votes'),
     /** Le Tripot: bets with chips worth nothing (`/rounds/{id}/bet`, `/tripot`; docs/TRIPOT.md). */
     tripot: on.has('tripot'),
+    /** Live emoji reactions on results, taps with bursts (`/rounds/{id}/reactions`, `result_reacted`; docs/REACTIONS.md). */
+    resultReactions: on.has('result_reactions'),
   };
 }
 
