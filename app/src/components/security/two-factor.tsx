@@ -3,13 +3,17 @@ import { Clock, Copy, LifeBuoy, Share, ShieldCheck, ShieldOff } from 'lucide-rea
 import { useState } from 'react';
 import { Linking, Platform, Text, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
-
-import { CODE_LENGTH, CodeField, copyText, ErrorText, Field, Pill, Row, Section } from '@/components/auth-ui';
 import { withReauth } from '@/components/security/reauth';
-import { PressableScale, Toggle } from '@/components/ui';
 import { accountKey, auth, authError, type Account } from '@/lib/auth';
 import { dateFormat, useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
+import { PressableScale } from '@/components/ui/pressable-scale';
+import { Toggle } from '@/components/ui/toggle';
+import { CODE_LENGTH, CodeField, Field } from '@/components/ui/field';
+import { ErrorText } from '@/components/ui/text';
+import { Pill } from '@/components/ui/pill';
+import { Row, Section } from '@/components/ui/section';
+import { copyText } from '@/lib/device/clipboard';
 
 const MONO = Platform.select({ ios: 'Menlo', android: 'monospace', default: 'ui-monospace, Menlo, monospace' });
 const native = Platform.OS !== 'web';

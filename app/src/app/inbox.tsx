@@ -1,27 +1,10 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
-import {
-  AtSign,
-  Bell,
-  BellRing,
-  CalendarHeart,
-  ChevronLeft,
-  Crown,
-  DoorOpen,
-  KeyRound,
-  type LucideIcon,
-  Medal,
-  MessageCircle,
-  MessageCircleQuestion,
-  Sparkles,
-  UserPlus,
-} from 'lucide-react-native';
+import { AtSign, Bell, BellRing, CalendarHeart, ChevronLeft, Crown, DoorOpen, KeyRound, type LucideIcon, Medal, MessageCircle, MessageCircleQuestion, Sparkles, UserPlus } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
-
-import { QueryState } from '@/components/query-state';
-import { Screen } from '@/components/screen';
-import { Avatar, Card, Display } from '@/components/ui';
+import { QueryState } from '@/components/ui/query-state';
+import { Screen } from '@/components/ui/screen';
 import { api, type InboxItem } from '@/lib/api';
 import { type TKey, useT } from '@/lib/i18n';
 import { keys, useGroup, useInbox, useMembers } from '@/lib/queries';
@@ -30,6 +13,9 @@ import { useSession } from '@/lib/session';
 import { tidy } from '@/lib/text';
 import { useTheme } from '@/lib/theme';
 import { ago } from '@/lib/time';
+import { Avatar } from '@/components/ui/avatar';
+import { Card } from '@/components/ui/card';
+import { Display } from '@/components/ui/text';
 
 // A kind this version doesn't know (newer server) falls back to a plain bell and title.
 const ICON: Record<string, LucideIcon> = {

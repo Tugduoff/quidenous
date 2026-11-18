@@ -3,14 +3,11 @@ import { Redirect } from 'expo-router';
 import { type ReactNode, useState } from 'react';
 import { ActivityIndicator, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
-
-import { BackButton } from '@/components/auth-ui';
-import { FactRows } from '@/components/global';
-import { gridColumns, MemberGrid, MemberTile } from '@/components/member-grid';
-import { QueryState } from '@/components/query-state';
-import { ResultBars } from '@/components/result-bars';
-import { Screen } from '@/components/screen';
-import { Avatar, Button, Card, Display } from '@/components/ui';
+import { FactRows } from '@/components/global/global';
+import { gridColumns, MemberGrid, MemberTile } from '@/components/vote/member-grid';
+import { QueryState } from '@/components/ui/query-state';
+import { ResultBars } from '@/components/result/result-bars';
+import { Screen } from '@/components/ui/screen';
 import type { Member } from '@/lib/api';
 import { type GlobalCount, type GlobalOpen, useGlobal, useGlobalVote } from '@/lib/global';
 import { useT } from '@/lib/i18n';
@@ -18,6 +15,11 @@ import { motion } from '@/lib/motion';
 import { useMembers } from '@/lib/queries';
 import { tidy } from '@/lib/text';
 import { useTheme } from '@/lib/theme';
+import { Avatar } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Display } from '@/components/ui/text';
+import { BackButton } from '@/components/ui/back-button';
 
 /** The global question of the day (docs/GLOBAL_QUESTION.md): vote for someone of my room, then my room's tally and the aggregates. */
 export default function GlobalScreen() {

@@ -1,52 +1,32 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import {
-  ArrowRight,
-  Bell,
-  BellOff,
-  BellRing,
-  Check,
-  Eye,
-  EyeOff,
-  ChevronDown,
-  ChevronsRight,
-  Inbox,
-  Moon,
-  Pin,
-  RotateCcw,
-  Share2,
-  SkipForward,
-  Users,
-} from 'lucide-react-native';
+import { ArrowRight, Bell, BellOff, BellRing, Check, Eye, EyeOff, ChevronDown, ChevronsRight, Inbox, Moon, Pin, RotateCcw, Share2, SkipForward, Users } from 'lucide-react-native';
 import { Redirect, router } from 'expo-router';
 import { type ComponentRef, type ReactNode, useEffect, useRef, useState } from 'react';
 import { enablePush, pushState, refreshPush, type PushState } from '@/lib/push';
 import { Pressable, type ScrollView, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
-
-import { BackButton } from '@/components/auth-ui';
-import { ChallengeButton, Challenges } from '@/components/challenge';
+import { ChallengeButton, Challenges } from '@/components/community/challenge';
 import { useSecretPicker } from '@/components/celebration';
-import { ChatInput, ChatMessages } from '@/components/chat';
-import { ChooseBallot, ChooseResult, myRealChoice } from '@/components/choose';
-import { SaidResultView, SaidRound } from '@/components/said';
-import { GlobalCard } from '@/components/global';
-import { BIG_GROUP, gridColumns, MemberGrid, MemberTile } from '@/components/member-grid';
-import { AnonymousBadge } from '@/components/anonymous';
-import { RankResult, ResultBars, ResultSummary } from '@/components/result-bars';
-import { LiveReactions } from '@/components/live-reactions';
-import { QueryState } from '@/components/query-state';
-import { Screen } from '@/components/screen';
-import { SecureCard } from '@/components/secure-card';
-import { RoomStreak, StreakBadge } from '@/components/streaks';
-import { Tip } from '@/components/tip';
-import { BetRow, TripotResult } from '@/components/tripot';
-import { NextGate } from '@/components/next-gate';
-import { NoQuestions, SoloInvite } from '@/components/vote-empty';
-import { Mascot } from '@/components/mascot';
-import { askConfirm, Avatar, AvatarStack, Button, Card, ConfirmModal, Dialog, Display, Logo, PressableScale, Tag, TAG_BG } from '@/components/ui';
+import { ChatInput, ChatMessages } from '@/components/chat/chat';
+import { ChooseBallot, ChooseResult, myRealChoice } from '@/components/choose/choose';
+import { SaidResultView, SaidRound } from '@/components/said/said';
+import { GlobalCard } from '@/components/global/global';
+import { BIG_GROUP, gridColumns, MemberGrid, MemberTile } from '@/components/vote/member-grid';
+import { AnonymousBadge } from '@/components/vote/anonymous';
+import { RankResult, ResultBars, ResultSummary } from '@/components/result/result-bars';
+import { LiveReactions } from '@/components/result/live-reactions';
+import { QueryState } from '@/components/ui/query-state';
+import { Screen } from '@/components/ui/screen';
+import { SecureCard } from '@/components/security/secure-card';
+import { RoomStreak, StreakBadge } from '@/components/streaks/streaks';
+import { Tip } from '@/components/ui/tip';
+import { BetRow, TripotResult } from '@/components/tripot/tripot';
+import { NextGate } from '@/components/vote/next-gate';
+import { NoQuestions, SoloInvite } from '@/components/vote/vote-empty';
+import { Mascot } from '@/components/mascot/mascot';
 import { api, ApiError, type Member, type Round } from '@/lib/api';
 import { authError, useFeatures } from '@/lib/auth';
-import { showToast } from '@/components/toast';
+import { showToast } from '@/lib/toast';
 import { getLang, t as translate, useT } from '@/lib/i18n';
 import { EASE, motion, usePop } from '@/lib/motion';
 import { keys, useCurrentRound, useGroup, useInbox, useMembers, useRooms, useRound, useUnseenRound } from '@/lib/queries';
@@ -56,6 +36,15 @@ import { setHideVote, useHideVote } from '@/lib/prefs';
 import { confirmPublic, publicLink, questionMessage, resultMessage, shareText } from '@/lib/share';
 import { useTheme } from '@/lib/theme';
 import { useLandOnToday } from '@/lib/today';
+import { PressableScale } from '@/components/ui/pressable-scale';
+import { Avatar, AvatarStack } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
+import { Tag, TAG_BG } from '@/components/ui/tag';
+import { Card } from '@/components/ui/card';
+import { Display, Logo } from '@/components/ui/text';
+import { askConfirm } from '@/lib/confirm';
+import { ConfirmModal, Dialog } from '@/components/ui/dialog';
+import { BackButton } from '@/components/ui/back-button';
 
 function PushBell() {
   const t = useTheme();

@@ -2,19 +2,19 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Mail } from 'lucide-react-native';
 import { useState } from 'react';
 import { ActivityIndicator, Text, View } from 'react-native';
-
-import { ErrorText, SoftButton } from '@/components/auth-ui';
-import { BrandIcon } from '@/components/brand-icons';
-import { InvitePreview } from '@/components/invite-preview';
-import { QueryState } from '@/components/query-state';
-import { LegacyJoin } from '@/components/legacy-join';
-import { MascotBand } from '@/components/mascot-band';
-import { Screen } from '@/components/screen';
-import { Button, Logo } from '@/components/ui';
+import { BrandIcon } from '@/components/auth/brand-icons';
+import { InvitePreview } from '@/components/rooms/invite-preview';
+import { QueryState } from '@/components/ui/query-state';
+import { LegacyJoin } from '@/components/rooms/legacy-join';
+import { MascotBand } from '@/components/mascot/band';
+import { Screen } from '@/components/ui/screen';
 import { authError, isLinked, isReauth, pendingJoinCode, PROVIDER_NAMES, setPendingCode, useFeatures, type Provider } from '@/lib/auth';
 import { useT } from '@/lib/i18n';
 import { oauth, useFinishSignIn } from '@/lib/sign-in';
 import { useTheme } from '@/lib/theme';
+import { Button } from '@/components/ui/button';
+import { Logo, ErrorText } from '@/components/ui/text';
+import { SoftButton } from '@/components/ui/soft-button';
 
 /** The entry screen. An invite link (`?code=`) is kept for after signing in. An older server keeps the old join screen. */
 export default function Entry() {

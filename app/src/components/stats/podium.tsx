@@ -1,12 +1,12 @@
 import { Crown } from 'lucide-react-native';
 import { Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
-
-import { Avatar, PressableScale } from '@/components/ui';
 import type { Member, MemberStats } from '@/lib/api';
 import { useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
 import { useTheme } from '@/lib/theme';
+import { PressableScale } from '@/components/ui/pressable-scale';
+import { Avatar } from '@/components/ui/avatar';
 
 const STEP = [104, 78, 60];
 const FACE = [60, 48, 44];

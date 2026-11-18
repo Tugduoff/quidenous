@@ -3,17 +3,19 @@ import { router } from 'expo-router';
 import { PartyPopper } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { Text, TextInput, View } from 'react-native';
-
-import { BackButton, ErrorText } from '@/components/auth-ui';
-import { Screen } from '@/components/screen';
-import { Button, Card, Display, Segmented } from '@/components/ui';
-import { VibeCards } from '@/components/vibes';
+import { Screen } from '@/components/ui/screen';
+import { VibeCards } from '@/components/rooms/vibes';
 import { useFeatures } from '@/lib/auth';
 import { getLang, useT } from '@/lib/i18n';
 import { HOURS, partyApi, partyError, TIMERS } from '@/lib/party';
 import { useVibes } from '@/lib/queries';
 import { useSwitchRoom } from '@/lib/rooms';
 import { useTheme } from '@/lib/theme';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Display, ErrorText } from '@/components/ui/text';
+import { Segmented } from '@/components/ui/segmented';
+import { BackButton } from '@/components/ui/back-button';
 
 /** `/party/new`: name (optional), vibe, how long the party lasts and the time per question. Then its lobby. */
 export default function NewParty() {

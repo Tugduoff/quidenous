@@ -1,60 +1,39 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
-import {
-  Check,
-  ChevronLeft,
-  ChevronRight,
-  Copy,
-  Ellipsis,
-  ExternalLink,
-  Hourglass,
-  Lock,
-  LockOpen,
-  LogOut,
-  Monitor,
-  Share2,
-  Square,
-  UserPlus,
-} from 'lucide-react-native';
+import { Check, ChevronLeft, ChevronRight, Copy, Ellipsis, ExternalLink, Hourglass, Lock, LockOpen, LogOut, Monitor, Share2, Square, UserPlus } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Linking, Platform, Pressable, Text, useWindowDimensions, View } from 'react-native';
 import Animated from 'react-native-reanimated';
-
-import { copyText, ErrorText, SoftButton } from '@/components/auth-ui';
-import { Mascot } from '@/components/mascot';
-import { LiveReactions } from '@/components/live-reactions';
-import { BIG_GROUP, gridColumns, MemberGrid, MemberTile } from '@/components/member-grid';
-import { Countdown, JoinQr, NextButton, PlayerChips, Reactions, VotedLine, WinnerReveal } from '@/components/party';
-import { PartySaidResult, PartySaidVoting, saidBoardKey } from '@/components/party-said';
-import { ResultBars } from '@/components/result-bars';
-import { Screen } from '@/components/screen';
-import { showToast } from '@/components/toast';
-import { askConfirm, Avatar, Button, Card, CodeText, Dialog, DialogTitle, Display, PressableScale, Segmented, Tag } from '@/components/ui';
+import { Mascot } from '@/components/mascot/mascot';
+import { LiveReactions } from '@/components/result/live-reactions';
+import { BIG_GROUP, gridColumns, MemberGrid, MemberTile } from '@/components/vote/member-grid';
+import { Countdown, JoinQr, NextButton, PlayerChips, Reactions, VotedLine, WinnerReveal } from '@/components/party/party';
+import { PartySaidResult, PartySaidVoting, saidBoardKey } from '@/components/party/said';
+import { ResultBars } from '@/components/result/result-bars';
+import { Screen } from '@/components/ui/screen';
+import { showToast } from '@/lib/toast';
 import { api, ApiError, type HistoryItem, type Member, setApiRoom } from '@/lib/api';
 import { useFeatures } from '@/lib/auth';
 import { dateFormat, useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
 import { useMembers } from '@/lib/queries';
-import {
-  type Party,
-  partyApi,
-  partyKeys,
-  partyError,
-  partyJoinLink,
-  partyScreenLink,
-  type PartyRound,
-  tallies,
-  TIMERS,
-  useCountdown,
-  useParty,
-  useRefetchAtZero,
-  useSetParty,
-} from '@/lib/party';
+import { type Party, partyApi, partyKeys, partyError, partyJoinLink, partyScreenLink, type PartyRound, tallies, TIMERS, useCountdown, useParty, useRefetchAtZero, useSetParty } from '@/lib/party';
 import { tidy } from '@/lib/text';
 import { useRoomGone, useSwitchRoom } from '@/lib/rooms';
 import { useSession } from '@/lib/session';
 import { shareText } from '@/lib/share';
 import { useTheme } from '@/lib/theme';
+import { PressableScale } from '@/components/ui/pressable-scale';
+import { Avatar } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
+import { Tag } from '@/components/ui/tag';
+import { Card } from '@/components/ui/card';
+import { CodeText, Display, ErrorText } from '@/components/ui/text';
+import { Segmented } from '@/components/ui/segmented';
+import { askConfirm } from '@/lib/confirm';
+import { Dialog, DialogTitle } from '@/components/ui/dialog';
+import { SoftButton } from '@/components/ui/soft-button';
+import { copyText } from '@/lib/device/clipboard';
 
 /** `/party/[id]`: the whole party on one screen, following its phase (lobby, question, result, memory). */
 export default function PartyScreen() {

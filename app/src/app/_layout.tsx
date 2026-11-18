@@ -9,15 +9,13 @@ import * as SystemUI from 'expo-system-ui';
 import { Fragment, type ReactNode, useEffect, useRef, useState } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 import { useReducedMotion } from 'react-native-reanimated';
-
-import { AppLock } from '@/components/app-lock';
+import { AppLock } from '@/components/security/app-lock';
 import { CelebrationPreview } from '@/components/celebration';
-import { InstallBanner, InstallScreen, installMode } from '@/components/install';
-import { TermsGate } from '@/components/terms';
-import { ToastHost } from '@/components/toast';
-import { ConfirmHost } from '@/components/ui';
-import { OtaToast, UpdateDialog } from '@/components/update';
-import { UpdateRequired } from '@/components/update-required';
+import { InstallBanner, InstallScreen, installMode } from '@/components/update/install';
+import { TermsGate } from '@/components/auth/terms';
+import { ToastHost } from '@/components/ui/toast';
+import { OtaToast, UpdateDialog } from '@/components/update/update';
+import { UpdateRequired } from '@/components/update/update-required';
 import { pendingJoinCode, pendingPlayToken, setPendingCode } from '@/lib/auth';
 import { presetJoinCode } from '@/lib/api';
 import { installGlobalErrorHandlers } from '@/lib/crash-report';
@@ -33,9 +31,10 @@ import { useWidgetSync } from '@/widget/task';
 import { SessionProvider, useSession } from '@/lib/session';
 import { useScheme, useTheme, useThemeLoaded } from '@/lib/theme';
 import { useUpdateCheck } from '@/lib/update';
+import { ConfirmHost } from '@/components/ui/confirm';
 
 // A screen that crashes shows "Something went wrong / Retry" and reports the error (POST /api/client-errors).
-export { ErrorBoundary } from '@/components/error-boundary';
+export { ErrorBoundary } from '@/components/ui/error-boundary';
 
 SplashScreen.preventAutoHideAsync();
 // Errors outside rendering (event handlers, rejected promises) are reported too (release builds only).

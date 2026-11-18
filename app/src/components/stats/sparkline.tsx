@@ -1,13 +1,11 @@
 import { useState } from 'react';
 import { Text, View } from 'react-native';
 import Svg, { Circle, Defs, LinearGradient, Path, Stop } from 'react-native-svg';
-
-import { Card } from '@/components/ui';
 import type { Activity } from '@/lib/api';
 import { dateFormat, useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
-
 import { dec, int } from '@/components/stats/common';
+import { Card } from '@/components/ui/card';
 
 const HEIGHT = 72;
 const PAD = 4;

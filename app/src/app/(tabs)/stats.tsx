@@ -1,12 +1,11 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { Text, View } from 'react-native';
-
-import { Mascot } from '@/components/mascot';
-import { QueryState } from '@/components/query-state';
-import { Screen } from '@/components/screen';
-import { StreakRecords } from '@/components/streaks';
-import { TripotBoard } from '@/components/tripot';
+import { Mascot } from '@/components/mascot/mascot';
+import { QueryState } from '@/components/ui/query-state';
+import { Screen } from '@/components/ui/screen';
+import { StreakRecords } from '@/components/streaks/streaks';
+import { TripotBoard } from '@/components/tripot/tripot';
 import { Awards } from '@/components/stats/awards';
 import { Section } from '@/components/stats/common';
 import { Heatmap } from '@/components/stats/heatmap';
@@ -17,12 +16,12 @@ import { ProfileSheet } from '@/components/stats/profile-sheet';
 import { Sparkline } from '@/components/stats/sparkline';
 import { StoryCarousel } from '@/components/stats/story-carousel';
 import { VoteMatrix } from '@/components/stats/vote-matrix';
-import { Display } from '@/components/ui';
-import { WrappedBanner } from '@/components/wrapped-entry';
+import { WrappedBanner } from '@/components/wrapped/entry';
 import type { StatsPeriod, Story } from '@/lib/api';
 import { type TKey, useT } from '@/lib/i18n';
 import { useMembers, useStats } from '@/lib/queries';
 import { useTheme } from '@/lib/theme';
+import { Display } from '@/components/ui/text';
 
 const EMPTY: Record<StatsPeriod, TKey> = {
   '7d': 'stats.empty.week',

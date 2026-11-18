@@ -3,35 +3,16 @@ import { File as FsFile } from 'expo-file-system';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
-import {
-  Bell,
-  Camera,
-  Check,
-  ChevronRight,
-  Images,
-  Languages,
-  type LucideIcon,
-  LogOut,
-  Moon,
-  Pencil,
-  ShieldCheck,
-  Smile,
-  Sun,
-  SunMoon,
-  Users,
-} from 'lucide-react-native';
+import { Bell, Camera, Check, ChevronRight, Images, Languages, type LucideIcon, LogOut, Moon, Pencil, ShieldCheck, Smile, Sun, SunMoon, Users } from 'lucide-react-native';
 import { useState } from 'react';
 import { ActivityIndicator, Linking, Platform, Pressable, Text, TextInput, View } from 'react-native';
-
-import { BackButton } from '@/components/auth-ui';
-import { MyLinksRow } from '@/components/my-links';
-import { Screen } from '@/components/screen';
-import { MyStreak } from '@/components/streaks';
+import { MyLinksRow } from '@/components/share/my-links';
+import { Screen } from '@/components/ui/screen';
+import { MyStreak } from '@/components/streaks/streaks';
 import { useSignOut } from '@/components/security/devices';
-import { BadgesRow, MyTitle } from '@/components/title-chip';
-import { Avatar, Button, Card, Dialog, DialogTitle, Display } from '@/components/ui';
-import { VersionLine } from '@/components/update';
-import { WrappedRow } from '@/components/wrapped-entry';
+import { BadgesRow, MyTitle } from '@/components/badges/title-chip';
+import { VersionLine } from '@/components/update/update';
+import { WrappedRow } from '@/components/wrapped/entry';
 import { api, API_URL, ApiError, apiUpload, type Member } from '@/lib/api';
 import { useAccount, useFeatures } from '@/lib/auth';
 import { useDonateUrl } from '@/lib/donate';
@@ -39,6 +20,12 @@ import { type LangPref, setLangPref, type TKey, useLang, useT } from '@/lib/i18n
 import { keys } from '@/lib/queries';
 import { useSession } from '@/lib/session';
 import { ACCENTS, setAccent, setThemePref, useAccent, useTheme, useThemePref, type Accent, type ThemePref } from '@/lib/theme';
+import { Avatar } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Display } from '@/components/ui/text';
+import { Dialog, DialogTitle } from '@/components/ui/dialog';
+import { BackButton } from '@/components/ui/back-button';
 
 const PHOTO_WIDTH = 512;
 const THEMES: { pref: ThemePref; Icon: typeof Sun; label: TKey }[] = [

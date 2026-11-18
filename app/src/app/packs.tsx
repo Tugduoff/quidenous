@@ -4,17 +4,18 @@ import { Flame, Library, Plus, Search, ShieldCheck, X } from 'lucide-react-nativ
 import { useState } from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import Animated from 'react-native-reanimated';
-
-import { Chip, IconButton, PackCard, PageHeader } from '@/components/pack-card';
-import { QueryState } from '@/components/query-state';
-import { Screen } from '@/components/screen';
-import { askConfirm, Card, Display } from '@/components/ui';
+import { Chip, IconButton, PackCard, PageHeader } from '@/components/packs/pack-card';
+import { QueryState } from '@/components/ui/query-state';
+import { Screen } from '@/components/ui/screen';
 import { api } from '@/lib/api';
 import { useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
 import { type CommunityMe, PACK_TAGS, type PackSort, type PackTag, packKeys, TAG_ICONS, useCommunityMe, usePackList } from '@/lib/packs';
 import { useGroup } from '@/lib/queries';
 import { useTheme } from '@/lib/theme';
+import { Card } from '@/components/ui/card';
+import { Display } from '@/components/ui/text';
+import { askConfirm } from '@/lib/confirm';
 
 const SORTS: PackSort[] = ['trending', 'new', 'liked', 'featured'];
 

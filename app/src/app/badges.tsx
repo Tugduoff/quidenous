@@ -2,20 +2,23 @@ import { Check, X } from 'lucide-react-native';
 import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
-
-import { BackButton } from '@/components/auth-ui';
-import { Mascot } from '@/components/mascot';
-import { QueryState } from '@/components/query-state';
-import { Screen } from '@/components/screen';
+import { Mascot } from '@/components/mascot/mascot';
+import { QueryState } from '@/components/ui/query-state';
+import { Screen } from '@/components/ui/screen';
 import { Caps } from '@/components/stats/common';
-import { MedalDisc, TierPips, TitleChip, tierName, useTierInk } from '@/components/title-chip';
-import { showToast } from '@/components/toast';
-import { Button, Card, Dialog, Display, PressableScale } from '@/components/ui';
+import { MedalDisc, TierPips, TitleChip, tierName, useTierInk } from '@/components/badges/title-chip';
+import { showToast } from '@/lib/toast';
 import { useFeatures } from '@/lib/auth';
 import { type Badge, chipOf, useBadges, useMyTitle, useSetTitle } from '@/lib/badges';
 import { formatNumber, useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
 import { useTheme } from '@/lib/theme';
+import { PressableScale } from '@/components/ui/pressable-scale';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Display } from '@/components/ui/text';
+import { Dialog } from '@/components/ui/dialog';
+import { BackButton } from '@/components/ui/back-button';
 
 const GAP = 10;
 

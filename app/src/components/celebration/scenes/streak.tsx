@@ -1,7 +1,7 @@
 /** Streak milestones (7, 30, 100… days in a row): the generic party, with Paillette hopping in over the number. */
 import Animated, { Extrapolation, interpolate, useAnimatedStyle } from 'react-native-reanimated';
 
-import { Mascot } from '@/components/mascot';
+import { Mascot } from '@/components/mascot/mascot';
 
 import type { Clock } from '@/components/celebration/engine';
 import { numberSize, type SceneFactory, type SceneProps } from '@/components/celebration/scene';

@@ -4,18 +4,21 @@ import { Crown } from 'lucide-react-native';
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import { BackHandler, Pressable, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle, useReducedMotion, withSpring, withTiming } from 'react-native-reanimated';
-
-import { Mascot } from '@/components/mascot';
-import { MascotBand } from '@/components/mascot-band';
-import { Fill, Land, Landed } from '@/components/result-bars';
-import { Screen } from '@/components/screen';
-import { Avatar, Button, Card, Display, Logo, PressableScale, QuestionText } from '@/components/ui';
+import { Mascot } from '@/components/mascot/mascot';
+import { MascotBand } from '@/components/mascot/band';
+import { Fill, Land, Landed } from '@/components/result/result-bars';
+import { Screen } from '@/components/ui/screen';
 import { useT } from '@/lib/i18n';
 import { DEMO_ORDER, demoTally, type DemoRow } from '@/lib/intro';
 import { CAST, MASCOT, type Who } from '@/lib/mascot';
 import { BOUNCE, EASE, motion } from '@/lib/motion';
 import { useSession } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
+import { PressableScale } from '@/components/ui/pressable-scale';
+import { Avatar } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Display, Logo, QuestionText } from '@/components/ui/text';
 
 type Step = 'hello' | 'vote' | 'verdict' | 'end';
 const STEPS: Step[] = ['hello', 'vote', 'verdict', 'end'];

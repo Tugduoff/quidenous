@@ -6,29 +6,20 @@ import { Pressable, Text, TextInput, View } from 'react-native';
 import { GestureDetector, GestureHandlerRootView, usePanGesture } from 'react-native-gesture-handler';
 import Animated, { interpolate, useAnimatedStyle, useReducedMotion, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
-
-import { BackButton } from '@/components/auth-ui';
-import { ModerationDialog, type ModTarget } from '@/components/moderation';
-import { QueryState } from '@/components/query-state';
-import { Screen } from '@/components/screen';
-import { Card, Display, PressableScale, QuestionText, Toggle } from '@/components/ui';
-import {
-  communityError,
-  type Suggestion,
-  SUGGESTION_MAX,
-  SUGGESTION_MIN,
-  type SuggestionVote,
-  useMySuggestions,
-  useNextSuggestions,
-  useSuggest,
-  useVoteSuggestion,
-  VOTE_KEY,
-} from '@/lib/community';
+import { ModerationDialog, type ModTarget } from '@/components/moderation/moderation';
+import { QueryState } from '@/components/ui/query-state';
+import { Screen } from '@/components/ui/screen';
+import { communityError, type Suggestion, SUGGESTION_MAX, SUGGESTION_MIN, type SuggestionVote, useMySuggestions, useNextSuggestions, useSuggest, useVoteSuggestion, VOTE_KEY } from '@/lib/community';
 import { useFeatures } from '@/lib/auth';
 import { useT } from '@/lib/i18n';
 import { EASE, motion, SPRING } from '@/lib/motion';
 import { sendOnEnter } from '@/lib/submit';
 import { useTheme } from '@/lib/theme';
+import { PressableScale } from '@/components/ui/pressable-scale';
+import { Card } from '@/components/ui/card';
+import { Display, QuestionText } from '@/components/ui/text';
+import { Toggle } from '@/components/ui/toggle';
+import { BackButton } from '@/components/ui/back-button';
 
 /** "Proposer": write a question for the official deck, vote on others' suggestions, follow mine. */
 export default function SuggestScreen() {

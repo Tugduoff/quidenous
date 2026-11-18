@@ -1,10 +1,12 @@
 import { useState } from 'react';
-
-import { AuthScreen, CODE_LENGTH, CodeField, ErrorText, TextLink, useCooldown } from '@/components/auth-ui';
-import { Button } from '@/components/ui';
+import { AuthScreen } from '@/components/auth/auth-screen';
 import { auth, authError, flow } from '@/lib/auth';
 import { useT } from '@/lib/i18n';
 import { useSession } from '@/lib/session';
+import { Button } from '@/components/ui/button';
+import { CODE_LENGTH, CodeField } from '@/components/ui/field';
+import { ErrorText, TextLink } from '@/components/ui/text';
+import { useCooldown } from '@/lib/hooks/use-cooldown';
 
 /** Right after sign-up: the 6-digit code sent to the email. Can wait ("Plus tard", then Profile > Sécurité). */
 export default function VerifyStep() {

@@ -4,16 +4,14 @@ import { ArrowDownToLine, ArrowUpToLine, Cable, Check, FileUp, Lightbulb, ListX,
 import { type ComponentRef, useEffect, useRef, useState } from 'react';
 import { Platform, Pressable, type ScrollView, Text, TextInput, View } from 'react-native';
 import Animated, { LayoutAnimationConfig } from 'react-native-reanimated';
-
-import { AnonymousMark, AnonymousToggle } from '@/components/anonymous';
-import { ModerationDialog, type ModTarget } from '@/components/moderation';
-import { ReorderList, useScrollTracker } from '@/components/reorder-list';
-import { QueryState } from '@/components/query-state';
-import { Screen } from '@/components/screen';
-import { confirmBatch, SelectableRow, SelectButton, SelectionBar, SelectionHeader, useSelection } from '@/components/selection';
-import { TemplateLink } from '@/components/template-link';
-import { Tip } from '@/components/tip';
-import { askConfirm, Avatar, Card, ConfirmModal, Display, PressableScale, QuestionText, Segmented, Toggle } from '@/components/ui';
+import { AnonymousMark, AnonymousToggle } from '@/components/vote/anonymous';
+import { ModerationDialog, type ModTarget } from '@/components/moderation/moderation';
+import { ReorderList, useScrollTracker } from '@/components/vote/reorder-list';
+import { QueryState } from '@/components/ui/query-state';
+import { Screen } from '@/components/ui/screen';
+import { confirmBatch, SelectableRow, SelectButton, SelectionBar, SelectionHeader, useSelection } from '@/components/ui/selection';
+import { TemplateLink } from '@/components/packs/template-link';
+import { Tip } from '@/components/ui/tip';
 import { api, ApiError, type Queue, type QuestionKind } from '@/lib/api';
 import { useFeatures } from '@/lib/auth';
 import { useT } from '@/lib/i18n';
@@ -24,6 +22,14 @@ import { useSession } from '@/lib/session';
 import { tidy } from '@/lib/text';
 import { useTheme } from '@/lib/theme';
 import { sendOnEnter } from '@/lib/submit';
+import { PressableScale } from '@/components/ui/pressable-scale';
+import { Avatar } from '@/components/ui/avatar';
+import { Card } from '@/components/ui/card';
+import { Display, QuestionText } from '@/components/ui/text';
+import { Toggle } from '@/components/ui/toggle';
+import { Segmented } from '@/components/ui/segmented';
+import { askConfirm } from '@/lib/confirm';
+import { ConfirmModal } from '@/components/ui/dialog';
 
 const MIN = 8;
 

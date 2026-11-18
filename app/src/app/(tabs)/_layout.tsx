@@ -6,7 +6,7 @@ import { Platform, View, type ViewStyle } from 'react-native';
 import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSpring } from 'react-native-reanimated';
 
 import { Celebration } from '@/components/celebration';
-import { TabSwipe } from '@/components/tab-swipe';
+import { TabSwipe } from '@/components/ui/tab-swipe';
 import { type TKey, useT } from '@/lib/i18n';
 import { useMilestone } from '@/lib/milestones';
 import { useStreakMilestone } from '@/lib/streaks';

@@ -4,31 +4,23 @@ import { Check, Download, Flag, Heart, Pencil, Share2, Star, Trash2 } from 'luci
 import { useState } from 'react';
 import { Text, TextInput, View } from 'react-native';
 import Animated from 'react-native-reanimated';
-
-import { AnonymousMark } from '@/components/anonymous';
-import { IconButton, MiniTag, PageHeader, Stat, StatusBadge } from '@/components/pack-card';
-import { QueryState } from '@/components/query-state';
-import { Screen } from '@/components/screen';
-import { askConfirm, Card, Dialog, DialogActions, DialogTitle, Display, PressableScale, QuestionText } from '@/components/ui';
+import { AnonymousMark } from '@/components/vote/anonymous';
+import { IconButton, MiniTag, PageHeader, Stat, StatusBadge } from '@/components/packs/pack-card';
+import { QueryState } from '@/components/ui/query-state';
+import { Screen } from '@/components/ui/screen';
 import { api, ApiError, isNotFound } from '@/lib/api';
 import { useT } from '@/lib/i18n';
 import { motion, usePop } from '@/lib/motion';
-import {
-  isPackTag,
-  packError,
-  packKeys,
-  packLink,
-  type PackDetail,
-  REPORT_REASONS,
-  type ReportReason,
-  TAG_ICONS,
-  useCommunityMe,
-  usePackDetail,
-} from '@/lib/packs';
+import { isPackTag, packError, packKeys, packLink, type PackDetail, REPORT_REASONS, type ReportReason, TAG_ICONS, useCommunityMe, usePackDetail } from '@/lib/packs';
 import { keys, useGroup, useRooms } from '@/lib/queries';
 import { useSession } from '@/lib/session';
 import { shareText } from '@/lib/share';
 import { useTheme } from '@/lib/theme';
+import { PressableScale } from '@/components/ui/pressable-scale';
+import { Card } from '@/components/ui/card';
+import { Display, QuestionText } from '@/components/ui/text';
+import { askConfirm } from '@/lib/confirm';
+import { Dialog, DialogActions, DialogTitle } from '@/components/ui/dialog';
 
 /** One pack: its questions, like, install (into a room I pick when I have several), share, report; edit and delete (author); feature (admin). */
 export default function PackScreen() {

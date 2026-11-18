@@ -6,7 +6,7 @@ import * as Sharing from 'expo-sharing';
 import { useSyncExternalStore } from 'react';
 import { Platform } from 'react-native';
 
-import { showToast } from '@/components/toast';
+import { showToast } from '@/lib/toast';
 
 import { api, ApiError, apiUpload, mediaUrl, type Message, type MessageMedia } from '@/lib/api';
 import { authError } from '@/lib/auth';

@@ -4,11 +4,8 @@ import { ArrowRight, Check, PartyPopper } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, Text, TextInput, View } from 'react-native';
 import Animated from 'react-native-reanimated';
-
-import { ErrorText, TextLink } from '@/components/auth-ui';
-import { Screen } from '@/components/screen';
-import { TermsCheck } from '@/components/terms';
-import { Avatar, AvatarStack, Button, Card, Display, Logo, PressableScale } from '@/components/ui';
+import { Screen } from '@/components/ui/screen';
+import { TermsCheck } from '@/components/auth/terms';
 import { ApiError } from '@/lib/api';
 import { setPendingCode } from '@/lib/auth';
 import { PARTS } from '@/lib/avatar';
@@ -17,6 +14,11 @@ import { motion } from '@/lib/motion';
 import { partyApi, partyError, partyKeys } from '@/lib/party';
 import { useSession } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
+import { PressableScale } from '@/components/ui/pressable-scale';
+import { Avatar, AvatarStack } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Display, Logo, ErrorText, TextLink } from '@/components/ui/text';
 
 /** The avatar backgrounds people already pick from, minus the dark one (the initial drawn on it would not show). */
 const COLORS = PARTS.bg.map(([c]) => c).filter((c) => c.toUpperCase() !== '#2E2E38');

@@ -1,0 +1,92 @@
+import { Beer, Briefcase, Coffee, Flame, Heart, House, type LucideIcon, PartyPopper, Sparkles, Users, Wine } from 'lucide-react-native';
+import { Text, View } from 'react-native';
+import type { Vibe } from '@/lib/api';
+import { t as tr, useT } from '@/lib/i18n';
+import { useTheme } from '@/lib/theme';
+import { PressableScale } from '@/components/ui/pressable-scale';
+import { askConfirm } from '@/lib/confirm';
+
+/** The server names icons in lucide's kebab-case; one this version doesn't know gets sparkles. */
+const ICONS: Record<string, LucideIcon> = {
+  beer: Beer,
+  flame: Flame,
+  briefcase: Briefcase,
+  house: House,
+  home: House,
+  heart: Heart,
+  'party-popper': PartyPopper,
+  users: Users,
+  coffee: Coffee,
+  wine: Wine,
+  sparkles: Sparkles,
+};
+
+export const vibeIcon = (name: string | undefined): LucideIcon => (name && ICONS[name]) || Sparkles;
+
+/** The server's vibes (server/deck/vibes.json) come in French: the app has them in each language. A newer one keeps the server's text. */
+const KNOWN = ['potes', 'pimente', 'boulot', 'famille'] as const;
+const known = (id: string): id is (typeof KNOWN)[number] => (KNOWN as readonly string[]).includes(id);
+export const vibeName = (v: Vibe) => (known(v.id) ? tr(`room.vibes.${v.id}.name`) : v.name);
+export const vibeDescription = (v: Vibe) => (known(v.id) ? tr(`room.vibes.${v.id}.description`) : v.description);
+
+/** The tones as selectable cards (icon, name, one line). Picking "Pimenté" (16+ questions) asks for the age first. */
+export function VibeCards({ vibes, value, onChange }: { vibes: Vibe[]; value: string | null; onChange: (id: string) => void }) {
+  const t = useTheme();
+  useT();
+  const pick = async (id: string) => {
+    if (id === 'pimente' && id !== value && !(await askConfirm(tr('packs.spicyAge.title'), tr('packs.spicyAge.message'), tr('packs.spicyAge.action'), 'acc'))) return;
+    onChange(id);
+  };
+  return (
+    <View style={{ gap: 10 }}>
+      {vibes.map((v) => {
+        const on = v.id === value;
+        const Icon = vibeIcon(v.icon);
+        return (
+          <PressableScale
+            key={v.id}
+            scale={0.98}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: on }}
+            accessibilityLabel={vibeName(v)}
+            onPress={() => pick(v.id)}
+            style={[
+              {
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 14,
+                padding: 14,
+                borderRadius: 20,
+                borderWidth: 2,
+                borderColor: on ? t.accInk : 'transparent',
+                backgroundColor: on ? t.accSoft : t.card,
+              },
+              t.shadow,
+            ]}>
+            <View
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 22,
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: on ? t.acc : t.card2,
+              }}>
+              <Icon size={22} color={on ? t.accTxt : t.txt} />
+            </View>
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text numberOfLines={1} style={{ fontFamily: t.font.bold, fontSize: 16, color: t.txt }}>
+                {vibeName(v)}
+              </Text>
+              {!!vibeDescription(v) && (
+                <Text numberOfLines={2} style={{ fontFamily: t.font.regular, fontSize: 13, lineHeight: 18, color: t.mut }}>
+                  {vibeDescription(v)}
+                </Text>
+              )}
+            </View>
+          </PressableScale>
+        );
+      })}
+    </View>
+  );
+}

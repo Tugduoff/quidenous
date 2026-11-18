@@ -2,10 +2,9 @@ import { Flame } from 'lucide-react-native';
 import { useState } from 'react';
 import { Text, View } from 'react-native';
 import Svg, { Rect } from 'react-native-svg';
-
-import { Card } from '@/components/ui';
 import { useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
+import { Card } from '@/components/ui/card';
 
 /** Monday first (`stats.heatmap.days.*`, `stats.heatmap.dayNames.*`). */
 const DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;

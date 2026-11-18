@@ -1,12 +1,13 @@
 import { Redirect, router } from 'expo-router';
 import { useState } from 'react';
-
-import { AuthScreen, CODE_LENGTH, CodeField, ErrorText, RecoveryField, TextLink } from '@/components/auth-ui';
-import { Button } from '@/components/ui';
+import { AuthScreen } from '@/components/auth/auth-screen';
 import { ApiError } from '@/lib/api';
 import { auth, authError, flow, useFeatures } from '@/lib/auth';
 import { useT } from '@/lib/i18n';
 import { useSession } from '@/lib/session';
+import { Button } from '@/components/ui/button';
+import { CODE_LENGTH, CodeField, RecoveryField } from '@/components/ui/field';
+import { ErrorText, TextLink } from '@/components/ui/text';
 
 /** 2FA sign-in: the code of the authenticator app, or a recovery code. */
 export default function TwoFactorStep() {

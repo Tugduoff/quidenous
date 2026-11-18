@@ -4,30 +4,22 @@ import { Ban, CalendarHeart, Check, ChevronRight, Eye, Lightbulb, type LucideIco
 import { type ReactNode, useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import Animated from 'react-native-reanimated';
-
-import { MiniTag, PageHeader } from '@/components/pack-card';
-import { Screen } from '@/components/screen';
-import { confirmBatch, eachOf, type Selection, SelectableRow, SelectButton, SelectionBar, SelectionHeader, useSelection } from '@/components/selection';
-import { showToast } from '@/components/toast';
-import { askConfirm, Card, ConfirmModal, Display, PressableScale, QuestionText } from '@/components/ui';
+import { MiniTag, PageHeader } from '@/components/packs/pack-card';
+import { Screen } from '@/components/ui/screen';
+import { confirmBatch, eachOf, type Selection, SelectableRow, SelectButton, SelectionBar, SelectionHeader, useSelection } from '@/components/ui/selection';
+import { showToast } from '@/lib/toast';
 import { api } from '@/lib/api';
 import { useFeatures } from '@/lib/auth';
 import { dateFormat, useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
 import { REASONS } from '@/lib/moderation';
-import {
-  type PackTag,
-  packKeys,
-  type ReportAction,
-  REPORT_REASONS,
-  type ReportReason,
-  type Review,
-  type ReviewReport,
-  TAG_ICONS,
-  useCommunityMe,
-  useReview,
-} from '@/lib/packs';
+import { type PackTag, packKeys, type ReportAction, REPORT_REASONS, type ReportReason, type Review, type ReviewReport, TAG_ICONS, useCommunityMe, useReview } from '@/lib/packs';
 import { useTheme } from '@/lib/theme';
+import { PressableScale } from '@/components/ui/pressable-scale';
+import { Card } from '@/components/ui/card';
+import { Display, QuestionText } from '@/components/ui/text';
+import { askConfirm } from '@/lib/confirm';
+import { ConfirmModal } from '@/components/ui/dialog';
 
 /** The built-in deck's tones a suggestion can join (none picked: the server files it under `potes`). */
 const DECK_TAGS: PackTag[] = ['potes', 'pimente', 'boulot', 'famille'];

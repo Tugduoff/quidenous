@@ -2,17 +2,15 @@ import * as Haptics from 'expo-haptics';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Animated, { FadeIn, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
-
-import { Mascot } from '@/components/mascot';
-import { Dialog, DialogTitle } from '@/components/ui';
+import { Mascot } from '@/components/mascot/mascot';
 import { useLang, useT } from '@/lib/i18n';
 import { milestone as describe, PREVIEW_AT, playPreview, SPECIAL_NUMBERS, STREAK_PREVIEW, streakMilestone, tier, usePreview } from '@/lib/milestones';
 import { tidy } from '@/lib/text';
 import { useTheme } from '@/lib/theme';
-
 import { BigNumber, makeRand, useClock, useShake } from '@/components/celebration/engine';
 import { numberSize } from '@/components/celebration/scene';
 import { sceneFor } from '@/components/celebration/scenes';
+import { Dialog, DialogTitle } from '@/components/ui/dialog';
 
 /**
  * Full-screen party for a milestone, drawn over the app (`streak`: my days in a row instead of the room's questions).

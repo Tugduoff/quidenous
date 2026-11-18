@@ -1,0 +1,27 @@
+import { useTheme } from '@/lib/theme';
+import { StyleSheet, Text, View } from 'react-native';
+
+/** Pink behind white 12 px text: darker than the brand pink, for 4.5:1. */
+export const TAG_BG = '#C2186B';
+
+export function Tag({ label, tone = 'tag' }: { label: string; tone?: 'tag' | 'acc' }) {
+  const t = useTheme();
+  return (
+    <View style={[styles.tag, { backgroundColor: tone === 'acc' ? t.acc : TAG_BG }]}>
+      <Text
+        style={{
+          fontFamily: t.font.bold,
+          fontSize: 12,
+          letterSpacing: 0.3,
+          color: tone === 'acc' ? t.accTxt : '#fff',
+          textTransform: 'uppercase',
+        }}>
+        {label}
+      </Text>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  tag: { alignSelf: 'flex-start', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
+});

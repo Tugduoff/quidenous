@@ -6,11 +6,9 @@ import { ArrowRight, ChevronRight, Coins, Flame, MessageCircle } from 'lucide-re
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, RefreshControl, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
-
-import { Mascot } from '@/components/mascot';
-import { QueryState } from '@/components/query-state';
-import { Screen } from '@/components/screen';
-import { Avatar, Card, Display, Logo, PressableScale, QuestionText, TAG_BG } from '@/components/ui';
+import { Mascot } from '@/components/mascot/mascot';
+import { QueryState } from '@/components/ui/query-state';
+import { Screen } from '@/components/ui/screen';
 import { dateFormat, useLang, useT } from '@/lib/i18n';
 import { EASE, motion, useArrivals } from '@/lib/motion';
 import { keys } from '@/lib/queries';
@@ -20,6 +18,11 @@ import { HOT_FROM } from '@/lib/streaks';
 import { useTheme } from '@/lib/theme';
 import { until } from '@/lib/time';
 import { cardQuestion, missing, needsMe, streakAtRisk, type TodayRoom, useToday } from '@/lib/today';
+import { PressableScale } from '@/components/ui/pressable-scale';
+import { Avatar } from '@/components/ui/avatar';
+import { TAG_BG } from '@/components/ui/tag';
+import { Card } from '@/components/ui/card';
+import { Display, Logo, QuestionText } from '@/components/ui/text';
 
 export default function TodayScreen() {
   const focused = useIsFocused();

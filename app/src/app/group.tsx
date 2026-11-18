@@ -4,15 +4,13 @@ import { router } from 'expo-router';
 import { Bell, BellOff, ChevronLeft, Crown, Ellipsis, LogOut, Settings, UserX } from 'lucide-react-native';
 import { Pressable, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
-
-import { AddFriends, InviteCard } from '@/components/invite';
-import { type ModAction, ModerationDialog, type ModTarget } from '@/components/moderation';
-import { QueryState } from '@/components/query-state';
-import { Screen } from '@/components/screen';
-import { StreakBadge } from '@/components/streaks';
-import { MemberTitle } from '@/components/title-chip';
-import { showToast } from '@/components/toast';
-import { askConfirm, Avatar, Card, Display, PressableScale } from '@/components/ui';
+import { AddFriends, InviteCard } from '@/components/rooms/invite';
+import { type ModAction, ModerationDialog, type ModTarget } from '@/components/moderation/moderation';
+import { QueryState } from '@/components/ui/query-state';
+import { Screen } from '@/components/ui/screen';
+import { StreakBadge } from '@/components/streaks/streaks';
+import { MemberTitle } from '@/components/badges/title-chip';
+import { showToast } from '@/lib/toast';
 import { api, type RoomSummary } from '@/lib/api';
 import { authError, useFeatures } from '@/lib/auth';
 import { useT } from '@/lib/i18n';
@@ -21,6 +19,11 @@ import { keys, useGroup, useRooms } from '@/lib/queries';
 import { useRoomGone } from '@/lib/rooms';
 import { useSession } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
+import { PressableScale } from '@/components/ui/pressable-scale';
+import { Avatar } from '@/components/ui/avatar';
+import { Card } from '@/components/ui/card';
+import { Display } from '@/components/ui/text';
+import { askConfirm } from '@/lib/confirm';
 
 /** Ask before leaving, in the app's own dialog. */
 const confirm = (message: string, title: string, action: string) => askConfirm(title, message, action);

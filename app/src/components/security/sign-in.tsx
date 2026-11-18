@@ -2,26 +2,17 @@ import { useQueryClient } from '@tanstack/react-query';
 import { BadgeCheck, KeyRound, Mail } from 'lucide-react-native';
 import { useRef, useState } from 'react';
 import { View } from 'react-native';
-
-import {
-  CODE_LENGTH,
-  CodeField,
-  ErrorText,
-  Field,
-  type InputRef,
-  PasswordField,
-  Pill,
-  Row,
-  Section,
-  TextLink,
-  useCooldown,
-} from '@/components/auth-ui';
 import { withReauth } from '@/components/security/reauth';
-import { Toggle } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { accountKey, auth, authError, looksLikeEmail, PASSWORD_MIN, useFeatures, type Account } from '@/lib/auth';
 import { useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
+import { Toggle } from '@/components/ui/toggle';
+import { CODE_LENGTH, CodeField, Field, type InputRef, PasswordField } from '@/components/ui/field';
+import { ErrorText, TextLink } from '@/components/ui/text';
+import { Pill } from '@/components/ui/pill';
+import { Row, Section } from '@/components/ui/section';
+import { useCooldown } from '@/lib/hooks/use-cooldown';
 
 /** Email (+ its code) and password; a legacy account adds both here. */
 export function SignInSection({ account }: { account: Account }) {

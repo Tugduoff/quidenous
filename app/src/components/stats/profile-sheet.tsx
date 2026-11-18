@@ -2,15 +2,16 @@ import { router } from 'expo-router';
 import { ChevronRight, X } from 'lucide-react-native';
 import { type ReactNode, useRef } from 'react';
 import { Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native';
-
-import { MedalDisc, MemberTitle, tierName } from '@/components/title-chip';
-import { Avatar, Dialog, PressableScale, QuestionText } from '@/components/ui';
+import { MedalDisc, MemberTitle, tierName } from '@/components/badges/title-chip';
 import type { Member, MemberStats, QuestionRef } from '@/lib/api';
 import { useMemberBadges } from '@/lib/badges';
 import { useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
-
 import { AWARD_ICONS, awardTitle, Caps, duration, iconFor, int, pct, place } from '@/components/stats/common';
+import { PressableScale } from '@/components/ui/pressable-scale';
+import { Avatar } from '@/components/ui/avatar';
+import { QuestionText } from '@/components/ui/text';
+import { Dialog } from '@/components/ui/dialog';
 
 function Mini({ value, label }: { value: string; label: string }) {
   const t = useTheme();

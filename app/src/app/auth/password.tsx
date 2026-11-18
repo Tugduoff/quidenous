@@ -1,15 +1,16 @@
 import { Redirect, router } from 'expo-router';
 import { type ComponentRef, useRef, useState } from 'react';
 import { Text, TextInput } from 'react-native';
-
-import { AuthScreen, ErrorText, Field, PasswordField, TextLink } from '@/components/auth-ui';
-import { TermsCheck } from '@/components/terms';
-import { Button } from '@/components/ui';
+import { AuthScreen } from '@/components/auth/auth-screen';
+import { TermsCheck } from '@/components/auth/terms';
 import { auth, authError, flow, PASSWORD_MIN, useFeatures } from '@/lib/auth';
 import { useT } from '@/lib/i18n';
 import { useSession } from '@/lib/session';
 import { useFinishSignIn } from '@/lib/sign-in';
 import { useTheme } from '@/lib/theme';
+import { Button } from '@/components/ui/button';
+import { Field, PasswordField } from '@/components/ui/field';
+import { ErrorText, TextLink } from '@/components/ui/text';
 
 /** Step 2: the password. Signs in when the email has an account, else signs up (first name + password). */
 export default function PasswordStep() {

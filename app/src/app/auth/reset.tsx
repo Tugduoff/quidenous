@@ -1,12 +1,14 @@
 import { Redirect } from 'expo-router';
 import { type ComponentRef, useRef, useState } from 'react';
 import { TextInput } from 'react-native';
-
-import { AuthScreen, CODE_LENGTH, CodeField, ErrorText, PasswordField, TextLink, useCooldown } from '@/components/auth-ui';
-import { Button } from '@/components/ui';
+import { AuthScreen } from '@/components/auth/auth-screen';
 import { auth, authError, flow, PASSWORD_MIN } from '@/lib/auth';
 import { useT } from '@/lib/i18n';
 import { useFinishSignIn } from '@/lib/sign-in';
+import { Button } from '@/components/ui/button';
+import { CODE_LENGTH, CodeField, PasswordField } from '@/components/ui/field';
+import { ErrorText, TextLink } from '@/components/ui/text';
+import { useCooldown } from '@/lib/hooks/use-cooldown';
 
 /** The emailed code and a new password: signed in (or on to 2FA), every other device signed out. */
 export default function ResetStep() {

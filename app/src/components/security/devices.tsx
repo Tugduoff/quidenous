@@ -2,29 +2,20 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Fingerprint, Globe, Lock, LogOut, ScanFace, Smartphone, X } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { Pressable, Text } from 'react-native';
-
-import { ErrorText, Pill, Row, Section, TextLink } from '@/components/auth-ui';
-import { BrandIcon } from '@/components/brand-icons';
+import { BrandIcon } from '@/components/auth/brand-icons';
 import { withReauth } from '@/components/security/reauth';
-import { askConfirm, Toggle } from '@/components/ui';
-import {
-  accountKey,
-  auth,
-  authError,
-  isLinked,
-  PROVIDER_NAMES,
-  useAccount,
-  useFeatures,
-  type Account,
-  type DeviceSession,
-  type Provider,
-} from '@/lib/auth';
+import { accountKey, auth, authError, isLinked, PROVIDER_NAMES, useAccount, useFeatures, type Account, type DeviceSession, type Provider } from '@/lib/auth';
 import { t as translate, useT } from '@/lib/i18n';
 import { lockMethod, lockSupported, setLock, useLock } from '@/lib/lock';
 import { useSession } from '@/lib/session';
 import { oauth } from '@/lib/sign-in';
 import { useTheme } from '@/lib/theme';
 import { ago } from '@/lib/time';
+import { Toggle } from '@/components/ui/toggle';
+import { askConfirm } from '@/lib/confirm';
+import { ErrorText, TextLink } from '@/components/ui/text';
+import { Pill } from '@/components/ui/pill';
+import { Row, Section } from '@/components/ui/section';
 
 /** Google / Discord: link (the web leaves for the provider and comes back on /oauth), unlink. */
 export function ProvidersSection({ account }: { account: Account }) {

@@ -3,13 +3,11 @@ import { router } from 'expo-router';
 import { Download, Plus, Trash2 } from 'lucide-react-native';
 import { Text } from 'react-native';
 import Animated from 'react-native-reanimated';
-
-import { IconButton, PackCard, PageHeader } from '@/components/pack-card';
-import { QueryState } from '@/components/query-state';
-import { Screen } from '@/components/screen';
-import { type BatchAction, confirmBatch, eachOf, SelectableRow, SelectButton, SelectionBar, SelectionHeader, useSelection } from '@/components/selection';
-import { showToast } from '@/components/toast';
-import { Button, Display } from '@/components/ui';
+import { IconButton, PackCard, PageHeader } from '@/components/packs/pack-card';
+import { QueryState } from '@/components/ui/query-state';
+import { Screen } from '@/components/ui/screen';
+import { type BatchAction, confirmBatch, eachOf, SelectableRow, SelectButton, SelectionBar, SelectionHeader, useSelection } from '@/components/ui/selection';
+import { showToast } from '@/lib/toast';
 import { api } from '@/lib/api';
 import { useFeatures } from '@/lib/auth';
 import { useT } from '@/lib/i18n';
@@ -17,6 +15,8 @@ import { motion } from '@/lib/motion';
 import { packKeys, type PackItem, useMyPacks } from '@/lib/packs';
 import { keys, useGroup } from '@/lib/queries';
 import { useTheme } from '@/lib/theme';
+import { Button } from '@/components/ui/button';
+import { Display } from '@/components/ui/text';
 
 type Deleted = { deleted: number[]; skipped: { id: number; error: string }[] };
 

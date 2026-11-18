@@ -4,16 +4,18 @@ import { Check, ChevronLeft, Clock, Share2, UserPlus, X } from 'lucide-react-nat
 import { type ReactNode, useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
-
-import { QueryState } from '@/components/query-state';
-import { ScanButton } from '@/components/qr-scanner';
-import { Screen } from '@/components/screen';
-import { Avatar, Card, CodeText, Display, PressableScale } from '@/components/ui';
+import { QueryState } from '@/components/ui/query-state';
+import { ScanButton } from '@/components/ui/qr-scanner';
+import { Screen } from '@/components/ui/screen';
 import { api, ApiError, presetFriendCode, type Member, type Person } from '@/lib/api';
 import { t as tr, type TKey, useT } from '@/lib/i18n';
 import { keys, useFriends } from '@/lib/queries';
 import { friendLink, friendMessage, shareText } from '@/lib/share';
 import { useTheme } from '@/lib/theme';
+import { PressableScale } from '@/components/ui/pressable-scale';
+import { Avatar } from '@/components/ui/avatar';
+import { Card } from '@/components/ui/card';
+import { CodeText, Display } from '@/components/ui/text';
 
 const ERRORS: Record<string, TKey> = { bad_code: 'friends.errors.badCode', self_friend: 'friends.errors.self' };
 

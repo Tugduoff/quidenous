@@ -4,10 +4,8 @@ import { ChevronLeft, ChevronRight, Crown, LogIn, Swords } from 'lucide-react-na
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
-
-import { RoomForms } from '@/components/room-forms';
-import { Screen } from '@/components/screen';
-import { Button, Card, Display, Logo, Tag } from '@/components/ui';
+import { RoomForms } from '@/components/rooms/room-forms';
+import { Screen } from '@/components/ui/screen';
 import { api, type RoomSummary } from '@/lib/api';
 import { pendingPlayToken, setPendingPlay } from '@/lib/auth';
 import { communityError, playInto, usePlay } from '@/lib/community';
@@ -18,6 +16,10 @@ import { useSwitchRoom } from '@/lib/rooms';
 import { useSession } from '@/lib/session';
 import { tidy } from '@/lib/text';
 import { useTheme } from '@/lib/theme';
+import { Button } from '@/components/ui/button';
+import { Tag } from '@/components/ui/tag';
+import { Card } from '@/components/ui/card';
+import { Display, Logo } from '@/components/ui/text';
 
 /**
  * `/play?share={token}`: a question shared from another room. Add it to one of my rooms (it comes next there)

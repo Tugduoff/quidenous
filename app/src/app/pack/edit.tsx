@@ -4,34 +4,28 @@ import { Cable, FileUp, Flame, Plus, Star, Trash2, Trophy, X } from 'lucide-reac
 import { type ComponentRef, useRef, useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import Animated from 'react-native-reanimated';
-
-import { AnonymousMark } from '@/components/anonymous';
-import { Chip, PageHeader } from '@/components/pack-card';
-import { Screen } from '@/components/screen';
-import { type BatchAction, confirmBatch, SelectableRow, SelectButton, SelectionBar, SelectionHeader, useSelection } from '@/components/selection';
-import { TemplateLink } from '@/components/template-link';
-import { askConfirm, Button, Card, Display, PressableScale, Segmented, Toggle } from '@/components/ui';
+import { AnonymousMark } from '@/components/vote/anonymous';
+import { Chip, PageHeader } from '@/components/packs/pack-card';
+import { Screen } from '@/components/ui/screen';
+import { type BatchAction, confirmBatch, SelectableRow, SelectButton, SelectionBar, SelectionHeader, useSelection } from '@/components/ui/selection';
+import { TemplateLink } from '@/components/packs/template-link';
 import { api, ApiError } from '@/lib/api';
 import { useFeatures } from '@/lib/auth';
 import { itemsOk, parseQuestions, pickTextFile, splitTag } from '@/lib/import-draft';
 import { getLang, type Lang, useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
 import { parsePackHeader } from '@/lib/pack-file';
-import {
-  isPackTag,
-  MAX_TAGS,
-  PACK_TAGS,
-  packError,
-  packKeys,
-  type PackQuestion,
-  type PackTag,
-  TAG_ICONS,
-  useCommunityMe,
-  usePackDetail,
-} from '@/lib/packs';
+import { isPackTag, MAX_TAGS, PACK_TAGS, packError, packKeys, type PackQuestion, type PackTag, TAG_ICONS, useCommunityMe, usePackDetail } from '@/lib/packs';
 import { useGroup, useQueue } from '@/lib/queries';
 import { tidy } from '@/lib/text';
 import { useTheme } from '@/lib/theme';
+import { PressableScale } from '@/components/ui/pressable-scale';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Display } from '@/components/ui/text';
+import { Toggle } from '@/components/ui/toggle';
+import { Segmented } from '@/components/ui/segmented';
+import { askConfirm } from '@/lib/confirm';
 
 /** The server refuses a pack under 5 questions: said before the tap. */
 const PACK_MIN = 5;

@@ -2,20 +2,21 @@ import { router } from 'expo-router';
 import { BellOff, Check, ChevronRight, Crown, PartyPopper } from 'lucide-react-native';
 import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
-
-import { BackButton } from '@/components/auth-ui';
-import { RoomInvites } from '@/components/invite';
-import { RoomForms } from '@/components/room-forms';
-import { QueryState } from '@/components/query-state';
-import { Screen } from '@/components/screen';
-import { Card, Display, TAG_BG } from '@/components/ui';
-import { type RoomSummary } from '@/lib/api';
+import { RoomInvites } from '@/components/rooms/invite';
+import { RoomForms } from '@/components/rooms/room-forms';
+import { QueryState } from '@/components/ui/query-state';
+import { Screen } from '@/components/ui/screen';
+import type { RoomSummary } from '@/lib/api';
 import { pendingJoinCode, setPendingCode, useFeatures } from '@/lib/auth';
 import { useT } from '@/lib/i18n';
 import { useRooms } from '@/lib/queries';
 import { useSwitchRoom } from '@/lib/rooms';
 import { useSession } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
+import { TAG_BG } from '@/components/ui/tag';
+import { Card } from '@/components/ui/card';
+import { Display } from '@/components/ui/text';
+import { BackButton } from '@/components/ui/back-button';
 
 /** All my rooms, to switch between them, plus create one or join one with a code. */
 export default function RoomsScreen() {

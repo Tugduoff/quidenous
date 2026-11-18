@@ -1,28 +1,13 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
-import {
-  Check,
-  ChevronRight,
-  Hourglass,
-  type LucideIcon,
-  MessageCircleQuestion,
-  RefreshCw,
-  Settings2,
-  Ticket,
-  TriangleAlert,
-  Trash2,
-  Vote,
-} from 'lucide-react-native';
+import { Check, ChevronRight, Hourglass, type LucideIcon, MessageCircleQuestion, RefreshCw, Settings2, Ticket, TriangleAlert, Trash2, Vote } from 'lucide-react-native';
 import { type ReactNode, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, Text, TextInput, View } from 'react-native';
-
-import { AnonymousSetting } from '@/components/anonymous';
-import { BackButton, ErrorText } from '@/components/auth-ui';
-import { QueryState } from '@/components/query-state';
-import { Screen } from '@/components/screen';
-import { showToast } from '@/components/toast';
-import { askConfirm, Avatar, Button, Card, Dialog, DialogActions, DialogTitle, Display, PressableScale, Segmented, Toggle } from '@/components/ui';
-import { VibeCards, vibeIcon, vibeName } from '@/components/vibes';
+import { AnonymousSetting } from '@/components/vote/anonymous';
+import { QueryState } from '@/components/ui/query-state';
+import { Screen } from '@/components/ui/screen';
+import { showToast } from '@/lib/toast';
+import { VibeCards, vibeIcon, vibeName } from '@/components/rooms/vibes';
 import { api, type Group, type Member } from '@/lib/api';
 import { authError, useFeatures } from '@/lib/auth';
 import { type Lang, t as tr, useT } from '@/lib/i18n';
@@ -30,6 +15,16 @@ import { keys, useGroup, useVibes } from '@/lib/queries';
 import { useRoomGone } from '@/lib/rooms';
 import { useSession } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
+import { PressableScale } from '@/components/ui/pressable-scale';
+import { Avatar } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Display, ErrorText } from '@/components/ui/text';
+import { Toggle } from '@/components/ui/toggle';
+import { Segmented } from '@/components/ui/segmented';
+import { askConfirm } from '@/lib/confirm';
+import { Dialog, DialogActions, DialogTitle } from '@/components/ui/dialog';
+import { BackButton } from '@/components/ui/back-button';
 
 type Patch = Partial<Group['settings']> & { name?: string; language?: Lang };
 

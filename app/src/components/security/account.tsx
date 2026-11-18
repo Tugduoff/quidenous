@@ -1,15 +1,18 @@
 import { Trash2 } from 'lucide-react-native';
 import { useState } from 'react';
 import { Pressable, Text } from 'react-native';
-
-import { ErrorText, Field, PasswordField, Pill, Row, Section, TextLink } from '@/components/auth-ui';
 import { needsReauth, ReauthProviders } from '@/components/security/reauth';
-import { Avatar, ConfirmModal } from '@/components/ui';
 import { auth, authError, type Account } from '@/lib/auth';
 import { useT } from '@/lib/i18n';
 import { blockedAsMember, useBlockActions, useBlocks } from '@/lib/moderation';
 import { useSession } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
+import { Avatar } from '@/components/ui/avatar';
+import { ConfirmModal } from '@/components/ui/dialog';
+import { Field, PasswordField } from '@/components/ui/field';
+import { ErrorText, TextLink } from '@/components/ui/text';
+import { Pill } from '@/components/ui/pill';
+import { Row, Section } from '@/components/ui/section';
 
 /** People I blocked, each with "Débloquer"; nothing when there is nobody. */
 export function BlockedSection() {

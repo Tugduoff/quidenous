@@ -4,34 +4,20 @@ import { Check, Share2, X } from 'lucide-react-native';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { GestureDetector, GestureHandlerRootView, usePanGesture } from 'react-native-gesture-handler';
-import Animated, {
-  cancelAnimation,
-  Easing,
-  FadeIn,
-  FadeInDown,
-  ReduceMotion,
-  type SharedValue,
-  useAnimatedStyle,
-  useReducedMotion,
-  useSharedValue,
-  withSpring,
-  withTiming,
-  ZoomIn,
-} from 'react-native-reanimated';
+import Animated, { cancelAnimation, Easing, FadeIn, FadeInDown, ReduceMotion, type SharedValue, useAnimatedStyle, useReducedMotion, useSharedValue, withSpring, withTiming, ZoomIn } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { scheduleOnRN } from 'react-native-worklets';
-
-import { Mascot } from '@/components/mascot';
-import { QueryState } from '@/components/query-state';
+import { Mascot } from '@/components/mascot/mascot';
+import { QueryState } from '@/components/ui/query-state';
 import { Caps, iconFor } from '@/components/stats/common';
-import { Avatar } from '@/components/ui';
 import type { Member } from '@/lib/api';
 import { useFeatures } from '@/lib/auth';
 import { dateFormat, useT } from '@/lib/i18n';
 import { LAYOUT_EASE, SPRING } from '@/lib/motion';
 import { useTheme } from '@/lib/theme';
 import { shareWrappedCard, useRoomWrappedOk, useWrapped, type Wrapped, type WrappedCard, type WrappedScope } from '@/lib/wrapped';
+import { Avatar } from '@/components/ui/avatar';
 
 /** How long a card stays before the next one (auto-advance). */
 const CARD_MS = 6000;

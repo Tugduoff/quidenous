@@ -3,33 +3,22 @@ import { useLocalSearchParams } from 'expo-router';
 import { useEffect } from 'react';
 import { ActivityIndicator, ScrollView, Text, useWindowDimensions, View } from 'react-native';
 import Animated from 'react-native-reanimated';
-
-import { ScreenBursts, ScreenCounts } from '@/components/live-reactions';
-import { Mascot } from '@/components/mascot';
-import { MascotBand } from '@/components/mascot-band';
-import { Countdown, JoinQr, PlayerChips, Reactions, VotedLine, WinnerReveal } from '@/components/party';
-import { SaidScreenQuestion, SaidScreenResult } from '@/components/party-said';
-import { ResultBars } from '@/components/result-bars';
-import { CodeText, Display, Logo, Tag } from '@/components/ui';
+import { ScreenBursts, ScreenCounts } from '@/components/result/live-reactions';
+import { Mascot } from '@/components/mascot/mascot';
+import { MascotBand } from '@/components/mascot/band';
+import { Countdown, JoinQr, PlayerChips, Reactions, VotedLine, WinnerReveal } from '@/components/party/party';
+import { SaidScreenQuestion, SaidScreenResult } from '@/components/party/said';
+import { ResultBars } from '@/components/result/result-bars';
 import type { Member } from '@/lib/api';
 import { useFeatures } from '@/lib/auth';
 import { showLang, useT } from '@/lib/i18n';
 import { useSession } from '@/lib/session';
 import { motion } from '@/lib/motion';
-import {
-  type Party,
-  partyApi,
-  partyError,
-  partyJoinLink,
-  partyKeys,
-  type PartyRound,
-  tallies,
-  useCountdown,
-  useRefetchAtZero,
-  useScreenLive,
-} from '@/lib/party';
+import { type Party, partyApi, partyError, partyJoinLink, partyKeys, type PartyRound, tallies, useCountdown, useRefetchAtZero, useScreenLive } from '@/lib/party';
 import { tidy } from '@/lib/text';
 import { useTheme } from '@/lib/theme';
+import { Tag } from '@/components/ui/tag';
+import { CodeText, Display, Logo } from '@/components/ui/text';
 
 /**
  * `/party/screen/[code]`: the party on a TV or a laptop, no account. The QR code and the code to join on one side,

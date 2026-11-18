@@ -1,31 +1,21 @@
 import { useQueryClient } from '@tanstack/react-query';
-import {
-  ArrowRight,
-  AtSign,
-  Bell,
-  BellOff,
-  BellRing,
-  Crown,
-  Flame,
-  type LucideIcon,
-  MessageCircle,
-  MessageCircleQuestion,
-  Moon,
-  Sparkles,
-  UserPlus,
-} from 'lucide-react-native';
+import { ArrowRight, AtSign, Bell, BellOff, BellRing, Crown, Flame, type LucideIcon, MessageCircle, MessageCircleQuestion, Moon, Sparkles, UserPlus } from 'lucide-react-native';
 import { type ReactNode, useRef, useState } from 'react';
 import { ActivityIndicator, Linking, Platform, Pressable, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
-
-import { BackButton, ErrorText, Section } from '@/components/auth-ui';
-import { Screen } from '@/components/screen';
-import { Card, Dialog, DialogTitle, Display, PressableScale, Toggle } from '@/components/ui';
+import { Screen } from '@/components/ui/screen';
 import { useFeatures } from '@/lib/auth';
 import { type TKey, useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
 import { notifKey, type NotifKind, type NotifPrefs, useDevicePush, useNotifPrefs, useSaveNotifPrefs } from '@/lib/notifications';
 import { useTheme } from '@/lib/theme';
+import { PressableScale } from '@/components/ui/pressable-scale';
+import { Card } from '@/components/ui/card';
+import { Display, ErrorText } from '@/components/ui/text';
+import { Toggle } from '@/components/ui/toggle';
+import { Dialog, DialogTitle } from '@/components/ui/dialog';
+import { BackButton } from '@/components/ui/back-button';
+import { Section } from '@/components/ui/section';
 
 const KINDS: { kind: NotifKind; label: TKey; Icon: LucideIcon }[] = [
   { kind: 'question', label: 'notifications.kinds.question', Icon: Sparkles },

@@ -4,29 +4,18 @@ import { Dices } from 'lucide-react-native';
 import { type ReactNode, useState } from 'react';
 import { Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native';
 import Animated from 'react-native-reanimated';
-
-import { BackButton } from '@/components/auth-ui';
-import { AvatarArt } from '@/components/avatar-art';
-import { Screen } from '@/components/screen';
-import { Button, PressableScale } from '@/components/ui';
+import { AvatarArt } from '@/components/ui/avatar-art';
+import { Screen } from '@/components/ui/screen';
 import { api, type Member } from '@/lib/api';
-import {
-  type Avatar,
-  type Field,
-  formatAvatar,
-  optionCount,
-  PARTS,
-  type PaletteField,
-  parseAvatar,
-  PRESETS,
-  randomAvatar,
-  startingAvatar,
-} from '@/lib/avatar';
+import { type Avatar, type Field, formatAvatar, optionCount, PARTS, type PaletteField, parseAvatar, PRESETS, randomAvatar, startingAvatar } from '@/lib/avatar';
 import { type TKey, useT } from '@/lib/i18n';
 import { usePop } from '@/lib/motion';
 import { keys } from '@/lib/queries';
 import { useSession } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
+import { PressableScale } from '@/components/ui/pressable-scale';
+import { Button } from '@/components/ui/button';
+import { BackButton } from '@/components/ui/back-button';
 
 type Tab = { label: TKey; field?: Field; colors?: PaletteField; zoom?: boolean };
 const TABS: Tab[] = [

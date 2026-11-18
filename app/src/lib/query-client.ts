@@ -1,7 +1,7 @@
 import { focusManager, MutationCache, QueryClient } from '@tanstack/react-query';
 import { AppState, Platform } from 'react-native';
 
-import { showToast } from '@/components/toast';
+import { showToast } from '@/lib/toast';
 
 import { ApiError } from '@/lib/api';
 import { authError } from '@/lib/auth';

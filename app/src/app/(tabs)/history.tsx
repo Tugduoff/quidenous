@@ -4,11 +4,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, SectionList, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
-import { AnonymousMark } from '@/components/anonymous';
-import { Mascot } from '@/components/mascot';
-import { QueryState } from '@/components/query-state';
-import { Avatar, AvatarStack, avatarStackWidth, Display, PressableScale, QuestionText } from '@/components/ui';
+import { AnonymousMark } from '@/components/vote/anonymous';
+import { Mascot } from '@/components/mascot/mascot';
+import { QueryState } from '@/components/ui/query-state';
 import type { HistoryItem, Member } from '@/lib/api';
 import { dateFormat, t as translate, useT } from '@/lib/i18n';
 import { isMilestone } from '@/lib/milestones';
@@ -16,6 +14,9 @@ import { motion } from '@/lib/motion';
 import { downloadHistory } from '@/lib/share';
 import { useHistory, useMembers, usePinned } from '@/lib/queries';
 import { useTheme } from '@/lib/theme';
+import { PressableScale } from '@/components/ui/pressable-scale';
+import { Avatar, AvatarStack, avatarStackWidth } from '@/components/ui/avatar';
+import { Display, QuestionText } from '@/components/ui/text';
 
 /** Solo winner size; tied faces are 4 px smaller so that with their 2 px ring they match it. */
 const SOLO = 44;
