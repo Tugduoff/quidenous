@@ -6,13 +6,22 @@ import { Platform, View, type ViewStyle } from 'react-native';
 import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSpring } from 'react-native-reanimated';
 
 import { Celebration } from '@/components/celebration';
-import { useT } from '@/lib/i18n';
+import { TabSwipe } from '@/components/tab-swipe';
+import { type TKey, useT } from '@/lib/i18n';
 import { useMilestone } from '@/lib/milestones';
 import { useStreakMilestone } from '@/lib/streaks';
 import { BOUNCE, SPRING, usePop } from '@/lib/motion';
 import { useTheme } from '@/lib/theme';
 
 type Icon = ComponentType<{ size?: number; color?: string }>;
+
+// The tabs, left to right: the bar and swiping between pages both follow this order.
+const TABS: { name: string; Icon: Icon; label: TKey }[] = [
+  { name: 'index', Icon: Vote, label: 'vote.tabs.vote' },
+  { name: 'history', Icon: History, label: 'vote.tabs.history' },
+  { name: 'stats', Icon: ChartNoAxesColumn, label: 'vote.tabs.stats' },
+  { name: 'questions', Icon: MessageCircleQuestion, label: 'vote.tabs.questions' },
+];
 
 // Home screen web app on iPhone: the safe-area inset is only known to CSS, so pad with env().
 const WEB_TAB_BAR = {
@@ -54,6 +63,18 @@ export default function TabsLayout() {
   return (
     <View style={{ flex: 1 }}>
       <Tabs
+        // Swiping sideways on a page: the next or previous tab, as if its icon was tapped (nothing past either end).
+        layout={({ state, navigation, children }) => (
+          <TabSwipe
+            onSwipe={(dir) => {
+              const to = TABS[TABS.findIndex((s) => s.name === state.routes[state.index]?.name) + dir];
+              // Only the tabs opened so far are in `routes`; `routeNames` has them all.
+              if (!to || !state.routeNames.includes(to.name)) return;
+              navigation.navigate(to.name, state.routes.find((r) => r.name === to.name)?.params);
+            }}>
+            {children}
+          </TabSwipe>
+        )}
         screenOptions={{
           headerShown: false,
           // Switching tabs: the new screen fades in with a small sideways shift (still under reduced motion).
@@ -64,10 +85,9 @@ export default function TabsLayout() {
           tabBarStyle: [{ backgroundColor: t.bg, borderTopColor: t.line }, Platform.OS === 'web' && WEB_TAB_BAR],
           tabBarItemStyle: { paddingTop: 6 },
         }}>
-        <Tabs.Screen name="index" options={tab(Vote, tr('vote.tabs.vote'))} />
-        <Tabs.Screen name="history" options={tab(History, tr('vote.tabs.history'))} />
-        <Tabs.Screen name="stats" options={tab(ChartNoAxesColumn, tr('vote.tabs.stats'))} />
-        <Tabs.Screen name="questions" options={tab(MessageCircleQuestion, tr('vote.tabs.questions'))} />
+        {TABS.map((s) => (
+          <Tabs.Screen key={s.name} name={s.name} options={tab(s.Icon, tr(s.label))} />
+        ))}
       </Tabs>
       {milestone != null && <Celebration key={milestone} count={milestone} onDone={dismiss} />}
       {milestone == null && streak.milestone != null && <Celebration key={`s${streak.milestone}`} streak count={streak.milestone} onDone={streak.dismiss} />}
