@@ -19,6 +19,26 @@ const STEP_TIMEOUT_MS = 20_000;
 const SETTLE_MS = 1_500;
 const SERVER_START_TIMEOUT_MS = 60_000;
 const PHONE = { width: 390, height: 844 };
+const OTHER_SCREENS = [
+  '/questions',
+  '/stats',
+  '/group',
+  '/rooms',
+  '/friends',
+  '/inbox',
+  '/profile',
+  '/security',
+  '/notifications',
+  '/avatar',
+  '/badges',
+  '/packs',
+  '/packs-mine',
+  '/pack/edit',
+  '/suggest',
+  '/global',
+  '/party/new',
+  '/wrapped',
+];
 
 let serverLog = '';
 let clientIp = 0;
@@ -144,12 +164,21 @@ async function run() {
     });
     const page = await context.newPage();
     page.setDefaultTimeout(STEP_TIMEOUT_MS);
-    page.on('pageerror', (error) => problems.push(`page error: ${error.message}`));
+    let step = 'sign-in';
+    const problem = (what) => problems.push(`${step}: ${what}`);
+    page.on('pageerror', (error) => problem(`page error: ${error.message}`));
+    page.on('console', (message) => {
+      if (message.type() === 'error') problem(`console error: ${message.text()}`);
+    });
+    page.on('request', (req) => {
+      if (req.url().endsWith('/api/client-errors')) problem(`the app showed its crash screen: ${req.postData()}`);
+    });
     page.on('response', (res) => {
-      if (res.status() >= 500) problems.push(`HTTP ${res.status()} ${res.request().method()} ${res.url()}`);
+      if (res.status() >= 500) problem(`HTTP ${res.status()} ${res.request().method()} ${res.url()}`);
     });
     const settle = () => page.waitForTimeout(SETTLE_MS);
     const shot = async (name) => {
+      step = name;
       await settle();
       await page.screenshot({ path: join(OUT, `${name}.png`) });
     };
@@ -192,6 +221,15 @@ async function run() {
     await page.waitForURL(/\/room-settings$/);
     await see('Nouveau code d\'invitation');
     await shot('05-room-settings');
+
+    for (const route of OTHER_SCREENS) {
+      step = route;
+      await page.goto(server.url + route);
+      await page.waitForLoadState('networkidle');
+      await shot(`screen${route.replaceAll('/', '-')}`);
+      const landed = new URL(page.url()).pathname;
+      if (landed !== route) problem(`the app left this screen for ${landed}`);
+    }
   } finally {
     await browser.close();
     await server.stop();
