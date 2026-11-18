@@ -1,22 +1,20 @@
 import { useMutation } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ChevronLeft, ChevronRight, Crown, LogIn, Swords } from 'lucide-react-native';
+import { LogIn } from 'lucide-react-native';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, Text, View } from 'react-native';
-import Animated from 'react-native-reanimated';
+import { ActivityIndicator, Text, View } from 'react-native';
+import { PlayRoomList } from '@/components/play/play-room-list';
+import { SharedQuestion } from '@/components/play/shared-question';
 import { RoomForms } from '@/components/rooms/room-forms';
+import { BackButton } from '@/components/ui/back-button';
 import { Screen } from '@/components/ui/screen';
 import { communityError, playInto, usePlay } from '@/lib/api/community';
 import { useT } from '@/lib/i18n';
-import { motion } from '@/lib/motion';
 import { useSwitchRoom } from '@/lib/hooks/use-switch-room';
 import { useSession } from '@/lib/session';
-import { tidy } from '@/lib/utils/text';
 import { useTheme } from '@/lib/theme';
 import { Button } from '@/components/ui/button';
-import { Tag } from '@/components/ui/tag';
-import { Card } from '@/components/ui/card';
-import { Display, Logo } from '@/components/ui/text';
+import { Logo } from '@/components/ui/text';
 import { useRooms } from '@/lib/api/rooms';
 import { pendingPlayToken, setPendingPlay } from '@/lib/auth-flow';
 
@@ -70,16 +68,7 @@ export default function PlayScreen() {
     await enter(id);
   };
 
-  const back = (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={tr('common.back')}
-      onPress={leave}
-      hitSlop={4}
-      style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card }}>
-      <ChevronLeft size={22} color={t.txt} />
-    </Pressable>
-  );
+  const back = <BackButton onPress={leave} />;
 
   if (!token || info.isError)
     return (
@@ -112,45 +101,10 @@ export default function PlayScreen() {
         {back}
         <Logo />
       </View>
-      {!creating && (
-        <Animated.View entering={motion.question} style={{ gap: 12 }}>
-          <Tag label={tr(q.kind === 'rank' ? 'vote.kind.rank' : q.kind === 'choose' ? 'vote.kind.choose' : 'vote.kind.pick')} />
-          <Display size={30}>{tidy(q.question)}</Display>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            {q.closed && <Swords size={14} color={t.mut} />}
-            <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: t.font.regular, fontSize: 14, color: t.mut }}>
-              {q.closed ? tr('community.play.challenge') : tr('community.play.from', { room: q.room })}
-            </Text>
-          </View>
-        </Animated.View>
-      )}
+      {!creating && <SharedQuestion q={q} />}
 
       {signedIn && !creating && !!rooms?.length && (
-        <View style={{ gap: 10, marginTop: 8 }}>
-          <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut, marginLeft: 4 }}>{tr('community.play.pick')}</Text>
-          {rooms.map((r) => {
-            const busy = play.isPending && play.variables === r.id;
-            return (
-              <Pressable key={r.id} accessibilityRole="button" disabled={play.isPending} onPress={() => play.mutate(r.id)}>
-                <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16 }}>
-                  <View style={{ flex: 1, gap: 2 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                      <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: t.font.bold, fontSize: 17, color: t.txt }}>
-                        {r.name}
-                      </Text>
-                      {r.role === 'owner' && <Crown size={14} color={t.accInk} />}
-                    </View>
-                    <Text numberOfLines={1} style={{ fontFamily: t.font.regular, fontSize: 13, color: t.mut }}>
-                      {tr('common.members', { count: r.members })}
-                    </Text>
-                  </View>
-                  {busy ? <ActivityIndicator color={t.mut} /> : <ChevronRight size={20} color={t.mut} />}
-                </Card>
-              </Pressable>
-            );
-          })}
-          {error && <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.tagInk, marginLeft: 4 }}>{error}</Text>}
-        </View>
+        <PlayRoomList rooms={rooms} pending={play.isPending} busyId={play.variables} error={error} onPick={play.mutate} />
       )}
 
       {signedIn && <RoomForms createOnly={tr('community.play.newRoom')} onEntered={created} onVibeStep={setCreating} />}
