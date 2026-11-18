@@ -1,7 +1,7 @@
 import { useIsMutating } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { ArrowUp, CircleCheck, CircleX, Flag, Hourglass, SkipForward, ThumbsDown, ThumbsUp, Trophy } from 'lucide-react-native';
-import { useEffect, useState, useEffectEvent } from 'react';
+import { useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import { GestureDetector, GestureHandlerRootView, usePanGesture } from 'react-native-gesture-handler';
 import Animated, { interpolate, useAnimatedStyle, useReducedMotion, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
@@ -20,6 +20,8 @@ import { Display, QuestionText } from '@/components/ui/text';
 import { Toggle } from '@/components/ui/toggle';
 import { BackButton } from '@/components/ui/back-button';
 import { useFeatures } from '@/lib/api/features';
+import { useAnimateOnChange } from '@/lib/hooks/use-animate-on-change';
+import { useWhen } from '@/lib/hooks/use-on-change';
 
 /** "Proposer": write a question for the official deck, vote on others' suggestions, follow mine. */
 export default function SuggestScreen() {
@@ -138,13 +140,9 @@ function VoteStack() {
   const top = queue[0];
 
   // All voted: ask for more once the votes are in (the server leaves out what I voted on).
-  const refill = useEffectEvent(() => {
+  useWhen(!!data?.length && !queue.length && !voting && !isFetching, () => {
     refetch().then(() => setGone(new Set()));
   });
-  useEffect(() => {
-    if (!data?.length || queue.length || voting || isFetching) return;
-    refill();
-  }, [data?.length, queue.length, voting, isFetching]);
 
   const decide = (id: number, value: SuggestionVote) => {
     setFly(null);
@@ -244,9 +242,7 @@ function SwipeCard({ s, top, fly, onDecide }: { s: Suggestion; top: boolean; fly
   const tx = useSharedValue(0);
   const ty = useSharedValue(0);
   const depth = useSharedValue(top ? 0 : 1);
-  useEffect(() => {
-    depth.value = withSpring(top ? 0 : 1, SPRING);
-  }, [top, depth]);
+  useAnimateOnChange(depth, top, () => withSpring(top ? 0 : 1, SPRING));
 
   // Off the screen to the right (up), left (down) or upwards (skipped), then the vote.
   const away = (v: SuggestionVote) => {
@@ -259,10 +255,7 @@ function SwipeCard({ s, top, fly, onDecide }: { s: Suggestion; top: boolean; fly
     if (v === 0) ty.value = withTiming(-STACK * 1.6, cfg, done);
     else tx.value = withTiming(v * 520, cfg, done);
   };
-  const flyAway = useEffectEvent((v: SuggestionVote) => away(v));
-  useEffect(() => {
-    if (fly != null) flyAway(fly);
-  }, [fly]);
+  useWhen(fly != null, () => fly != null && away(fly));
 
   const pan = usePanGesture({
     enabled: top,

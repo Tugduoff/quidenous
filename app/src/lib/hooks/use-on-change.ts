@@ -10,3 +10,10 @@ export function useOnChange<T>(value: T, onChange: (value: T, previous: T) => vo
     handle(value, was);
   }, [value]);
 }
+
+export function useWhen(condition: boolean, onTrue: () => void) {
+  const handle = useEffectEvent(onTrue);
+  useEffect(() => {
+    if (condition) handle();
+  }, [condition]);
+}
