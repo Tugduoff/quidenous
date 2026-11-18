@@ -62,11 +62,14 @@ const NEUTRAL = `/^\\s*(${LANGUAGE_NEUTRAL_TEXT.join('|')})\\s*$/`;
 const WORDS = `[value=${HAS_LETTER}]:not([value=${NEUTRAL}])`;
 const TEMPLATE_WORDS = `TemplateLiteral:has(> TemplateElement[value.raw=${HAS_LETTER}])`;
 const TEXT_PROPS = 'JSXAttribute[name.name=/^(placeholder|title|label|accessibilityLabel|accessibilityHint|message|text)$/]';
+const CONFIRM_TONES = '/^(acc|danger)$/';
+const TEXT_CALLS = 'CallExpression[callee.name=/^(showToast|askConfirm)$/]';
 const NO_HARD_CODED_TEXT = [
   { selector: `JSXText${WORDS}`, message: TEXT_MESSAGE },
   { selector: `:matches(JSXElement, JSXFragment) > JSXExpressionContainer > :matches(Literal${WORDS}, ${TEMPLATE_WORDS})`, message: TEXT_MESSAGE },
   { selector: `${TEXT_PROPS} > Literal${WORDS}`, message: TEXT_MESSAGE },
   { selector: `${TEXT_PROPS} > JSXExpressionContainer > :matches(Literal${WORDS}, ${TEMPLATE_WORDS})`, message: TEXT_MESSAGE },
+  { selector: `${TEXT_CALLS} > :matches(Literal${WORDS}:not([value=${CONFIRM_TONES}]), ${TEMPLATE_WORDS})`, message: TEXT_MESSAGE },
 ];
 const LITERAL_TOKEN_FILES = [
   'src/lib/tokens.ts',

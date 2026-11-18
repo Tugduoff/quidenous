@@ -1,7 +1,7 @@
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-const src = resolve(process.argv[2] ?? 'src/lib/utils/mascot.ts');
+const src = resolve('src/lib/utils/mascot.ts');
 const { compose, GROUND } = await import(src);
 
 const n = (v) => (v == null ? '' : String(Math.round(v * 100) / 100));
@@ -58,9 +58,17 @@ const art = {
 };
 
 const out = resolve('src/widget/art.ts');
-writeFileSync(
-  out,
+const generated =
   `// @generated\n` +
-    `export const ART = ${JSON.stringify(art, null, 2)} as const;\n\nexport type ArtKey = keyof typeof ART;\n`,
-);
-console.log(`wrote ${out}: ${Object.entries(art).map(([k, v]) => `${k} ${(v.length / 1024).toFixed(1)} KB`).join(', ')}`);
+  `export const ART = ${JSON.stringify(art, null, 2)} as const;\n\nexport type ArtKey = keyof typeof ART;\n`;
+
+if (process.argv.includes('--check')) {
+  if (readFileSync(out, 'utf8') !== generated) {
+    console.error('src/widget/art.ts is out of date or was edited by hand: run npx tsx scripts/widget-art.mjs');
+    process.exit(1);
+  }
+  console.log('widget art up to date');
+} else {
+  writeFileSync(out, generated);
+  console.log(`wrote ${out}: ${Object.entries(art).map(([k, v]) => `${k} ${(v.length / 1024).toFixed(1)} KB`).join(', ')}`);
+}

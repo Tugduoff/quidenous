@@ -73,6 +73,7 @@ check_app() {
   npx knip
   step "app: generated files and translations"
   node scripts/mascot-parts.mjs --check
+  npx tsx scripts/widget-art.mjs --check
   node scripts/check-i18n-module-t.mjs
   step "app: unit tests"
   find src -name '*.test.ts' -print0 | xargs -0 npx tsx --test
