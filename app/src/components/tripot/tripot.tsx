@@ -11,7 +11,8 @@ import { useHideVote } from '@/lib/device/prefs';
 import { useSession } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
 import { CHIPS, type Tripot, useBet, useTripotBoard } from '@/lib/api/tripot';
-import { burst, makeRand, Particles, useClock } from '@/components/celebration/engine';
+import { burst, makeRand, Particles } from '@/components/celebration/engine';
+import { useCelebrationClock } from '@/lib/hooks/use-celebration';
 import { MemberGrid, MemberTile } from '@/components/vote/member-grid';
 import { int, Section } from '@/components/stats/common';
 import { PressableScale } from '@/components/ui/pressable-scale';
@@ -177,7 +178,7 @@ function Coin({ size, color }: { size: number; color: string }) {
 
 /** Coins thrown up from the pot and falling back, about a second. Nothing under reduced motion. */
 function CoinShower({ seed, width }: { seed: number; width: number }) {
-  const clock = useClock(1300);
+  const clock = useCelebrationClock(1300);
   const list = useMemo(() => {
     const r = makeRand(seed * 31 + 7);
     return burst(r, {

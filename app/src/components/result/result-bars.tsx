@@ -1,5 +1,5 @@
 import { ChevronDown, ChevronUp, Crown } from 'lucide-react-native';
-import { type ReactNode, useEffect, useState } from 'react';
+import { type ReactNode, useState } from 'react';
 import { type StyleProp, Text, View, type ViewStyle } from 'react-native';
 import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withSequence, withSpring, withTiming } from 'react-native-reanimated';
 import { useT } from '@/lib/i18n';
@@ -12,6 +12,7 @@ import { PressableScale } from '@/components/ui/pressable-scale';
 import { Avatar, AvatarStack } from '@/components/ui/avatar';
 import type { Member } from '@/lib/api/group';
 import type { ChooseResult, RankEntry, SaidResult, Tally } from '@/lib/api/rounds';
+import { useAnimateOnChange } from '@/lib/hooks/use-animate-on-change';
 
 /** Rows shown before "Voir tout": a big group's result stays one screen tall. */
 const TOP = 5;
@@ -277,10 +278,9 @@ export const FILL_MS = 450;
 export function Land({ on, style, children }: { on: boolean; style: StyleProp<ViewStyle>; children: ReactNode }) {
   const reduced = useReducedMotion();
   const s = useSharedValue(1);
-  useEffect(() => {
-    if (!on || reduced) return;
-    s.value = withDelay(fillDelay(0) + FILL_MS - 60, withSequence(withTiming(1.03, { duration: 110, easing: EASE }), withSpring(1, BOUNCE)));
-  }, [on, reduced, s]);
+  useAnimateOnChange(s, [on, reduced], () =>
+    !on || reduced ? undefined : withDelay(fillDelay(0) + FILL_MS - 60, withSequence(withTiming(1.03, { duration: 110, easing: EASE }), withSpring(1, BOUNCE))),
+  );
   const bump = useAnimatedStyle(() => ({ transform: [{ scale: s.value }] }));
   return <Animated.View style={[style, bump]}>{children}</Animated.View>;
 }
@@ -289,9 +289,7 @@ export function Land({ on, style, children }: { on: boolean; style: StyleProp<Vi
 export function Landed({ rows, children }: { rows: number; children: ReactNode }) {
   const reduced = useReducedMotion();
   const s = useSharedValue(reduced ? 1 : 0);
-  useEffect(() => {
-    s.value = withDelay(fillDelay(rows - 1) + FILL_MS, withSpring(1, BOUNCE));
-  }, [rows, s]);
+  useAnimateOnChange(s, rows, () => withDelay(fillDelay(rows - 1) + FILL_MS, withSpring(1, BOUNCE)));
   const pop = useAnimatedStyle(() => ({ opacity: Math.min(s.value, 1), transform: [{ scale: s.value }] }));
   return <Animated.View style={pop}>{children}</Animated.View>;
 }
@@ -300,9 +298,7 @@ export function Landed({ rows, children }: { rows: number; children: ReactNode }
 export function Fill({ index, width, color, opacity }: { index: number; width: number; color: string; opacity: number }) {
   const reduced = useReducedMotion();
   const grow = useSharedValue(reduced ? 1 : 0);
-  useEffect(() => {
-    grow.value = withDelay(fillDelay(index), withTiming(1, { duration: FILL_MS, easing: EASE }));
-  }, [grow, index]);
+  useAnimateOnChange(grow, index, () => withDelay(fillDelay(index), withTiming(1, { duration: FILL_MS, easing: EASE })));
   // A transform rather than the width: no layout pass per frame.
   const style = useAnimatedStyle(() => ({ transform: [{ scaleX: grow.value }] }));
   return (

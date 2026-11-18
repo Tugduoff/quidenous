@@ -1,17 +1,17 @@
-import { useEffect, useMemo, useRef, useState, useEffectEvent } from 'react';
-import { Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { useMemo, useRef, useState } from 'react';
+import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Animated, { FadeIn, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 import { Mascot } from '@/components/mascot/mascot';
 import { useLang, useT } from '@/lib/i18n';
 import { milestone as describe, SPECIAL_NUMBERS, streakMilestone, tier } from '@/lib/utils/milestones';
 import { tidy } from '@/lib/utils/text';
 import { useTheme } from '@/lib/theme';
-import { BigNumber, makeRand, useClock, useShake } from '@/components/celebration/engine';
+import { BigNumber, makeRand, useShake } from '@/components/celebration/engine';
+import { useCelebrationClock, useCelebrationTimers } from '@/lib/hooks/use-celebration';
 import { numberSize } from '@/components/celebration/scene';
 import { sceneFor } from '@/components/celebration/scenes';
 import { Dialog, DialogTitle } from '@/components/ui/dialog';
 import { PREVIEW_AT, playPreview, STREAK_PREVIEW, usePreview } from '@/lib/hooks/use-milestone';
-import { impactHaptic } from '@/lib/device/haptics';
 
 /**
  * Full-screen party for a milestone, drawn over the app (`streak`: my days in a row instead of the room's questions).
@@ -27,7 +27,7 @@ export function Celebration({ count, onDone, frozen, streak }: { count: number; 
   const m = useMemo(() => (streak ? streakMilestone(count, lang) : describe(count, lang)), [count, lang, streak]);
   const scene = useMemo(() => sceneFor(m, t), [m, t]);
   const rand = useMemo(() => makeRand(count * 7919 + 17), [count]);
-  const clock = useClock(scene.duration, reduced ? scene.duration : frozen);
+  const clock = useCelebrationClock(scene.duration, reduced ? scene.duration : frozen);
   const shake = useShake(clock, scene.impacts);
   const out = useSharedValue(1);
   const closing = useRef(false);
@@ -36,26 +36,11 @@ export function Celebration({ count, onDone, frozen, streak }: { count: number; 
   const close = () => {
     if (closing.current) return;
     closing.current = true;
-    out.value = withTiming(0, { duration: 220 });
+    out.set(withTiming(0, { duration: 220 }));
     setTimeout(onDone, 230);
   };
 
-  const startTimers = useEffectEvent(() => {
-    if (frozen != null) return;
-    const timers = [setTimeout(close, reduced ? 4500 : scene.duration)];
-    // A buzz on each impact (Android/iOS only).
-    if (!reduced && Platform.OS !== 'web')
-      for (const i of scene.impacts)
-        timers.push(
-          setTimeout(
-            () =>
-              impactHaptic(i.amp >= 8 ? 'heavy' : i.amp >= 4 ? 'medium' : 'light'),
-            i.at,
-          ),
-        );
-    return () => timers.forEach(clearTimeout);
-  });
-  useEffect(() => startTimers(), []);
+  useCelebrationTimers({ frozen, reduced, duration: scene.duration, impacts: scene.impacts, onEnd: close });
 
   const { Render } = scene;
   const cx = w / 2;

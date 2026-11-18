@@ -3,32 +3,17 @@
  * Particles follow closed-form physics (gravity + linear drag), so each frame is a few maths per piece in a worklet:
  * no per-frame React render, no integration state. Effects (shockwaves, rays, flashes, shake) read the same clock.
  */
-import { type ReactNode, useEffect, useMemo } from 'react';
+import { type ReactNode, useMemo } from 'react';
 import { StyleSheet, Text, type TextStyle, View, type ViewStyle } from 'react-native';
 import Animated, {
-  cancelAnimation,
-  Easing,
   Extrapolation,
   interpolate,
   type SharedValue,
   useAnimatedStyle,
-  useSharedValue,
-  withTiming,
 } from 'react-native-reanimated';
 import Svg, { Circle, Defs, Path, RadialGradient, Stop } from 'react-native-svg';
 
 export type Clock = SharedValue<number>;
-
-/** Milliseconds since the party started. `frozen` pins it to one instant (dev captures). */
-export function useClock(duration: number, frozen?: number | null) {
-  const c = useSharedValue(frozen ?? 0);
-  useEffect(() => {
-    if (frozen != null) return;
-    c.value = withTiming(duration, { duration, easing: Easing.linear });
-    return () => cancelAnimation(c);
-  }, [c, duration, frozen]);
-  return c;
-}
 
 /** Seeded random (mulberry32): the same milestone always throws the same confetti, so captures are reproducible. */
 export function makeRand(seed: number) {
