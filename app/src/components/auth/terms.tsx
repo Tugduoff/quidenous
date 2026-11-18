@@ -1,24 +1,14 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Check } from 'lucide-react-native';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Linking, Pressable, Text, View } from 'react-native';
 import { API_URL } from '@/lib/api/client';
-import { authKeys, useAccount, acceptTerms } from '@/lib/api/auth';
+import { tickTerms, useTermsGate } from '@/lib/hooks/use-terms-gate';
 import { useLang, useT } from '@/lib/i18n';
 import { useSession } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogTitle } from '@/components/ui/dialog';
 import { TextLink } from '@/components/ui/text';
-
-/**
- * Ticked on a screen that makes an account (sign-up, first-name join, party guest): the gate records
- * it as soon as the account exists, instead of asking again.
- */
-let ticked = false;
-export const tickTerms = (on: boolean) => {
-  ticked = on;
-};
 
 /** `/terms` or `/privacy` in the app's language. */
 function openLegal(page: 'terms' | 'privacy', lang: 'fr' | 'en') {
@@ -76,28 +66,11 @@ export function TermsCheck({ value, onChange }: { value: boolean; onChange: (v: 
  */
 export function TermsGate() {
   const tr = useT();
-  const qc = useQueryClient();
   const { signOut } = useSession();
-  const { data: account } = useAccount();
+  const { accept, asking } = useTermsGate();
   const [on, setOn] = useState(false);
-  const accept = useMutation({
-    mutationFn: () => acceptTerms(),
-    onSuccess: () => {
-      ticked = false;
-      qc.invalidateQueries({ queryKey: authKeys.account });
-    },
-  });
-  const missing = account?.terms === false;
-  // Already ticked on the screen that made this account: recorded without asking.
-  const silent = missing && ticked;
-  const { mutate } = accept;
-  useEffect(() => {
-    if (silent) mutate();
-    // An account that had already accepted: a tick left from another screen isn't for a later one.
-    else if (account?.terms) ticked = false;
-  }, [silent, mutate, account?.terms]);
   return (
-    <Dialog visible={missing && !silent} onClose={() => {}}>
+    <Dialog visible={asking} onClose={() => {}}>
       <DialogTitle title={tr('legal.gateTitle')} />
       <TermsCheck value={on} onChange={setOn} />
       <View style={{ gap: 4, marginTop: 4 }}>

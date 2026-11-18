@@ -1,8 +1,10 @@
 // The first-run intro: la bande shows a new account how a round goes, then on to a first room (lib/intro.ts for the rules,
 // docs/TODAY.md "Intro"). Four short steps: hello, a practice vote on the Petons, its verdict, your turn. Skippable at any time.
 import { Crown } from 'lucide-react-native';
-import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
-import { BackHandler, Pressable, Text, View } from 'react-native';
+import { type ReactNode, useCallback, useMemo, useState } from 'react';
+import { Pressable, Text, View } from 'react-native';
+import { useHardwareBack } from '@/lib/hooks/use-hardware-back';
+import { useTimeout } from '@/lib/hooks/use-timeout';
 import Animated, { useAnimatedStyle, useReducedMotion, withSpring, withTiming } from 'react-native-reanimated';
 import { Mascot } from '@/components/mascot/mascot';
 import { MascotBand } from '@/components/mascot/band';
@@ -35,16 +37,11 @@ export default function Intro() {
 
   // Back a step (Android's button; the first step leaves the app, as any first screen). Back to the practice vote
   // (from its verdict or the end): a fresh ballot.
-  useEffect(() => {
-    if (i === 0) return;
-    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      const prev = STEPS[i - 1] === 'verdict' ? 'vote' : STEPS[i - 1];
-      if (prev === 'vote') setPick(null);
-      setStep(prev);
-      return true;
-    });
-    return () => sub.remove();
-  }, [i]);
+  useHardwareBack(() => {
+    const prev = STEPS[i - 1] === 'verdict' ? 'vote' : STEPS[i - 1];
+    if (prev === 'vote') setPick(null);
+    setStep(prev);
+  }, i > 0);
 
   const footer =
     step === 'hello' ? (
@@ -138,12 +135,12 @@ function Vote({ pick, onPick, onCounted }: { pick: Who | null; onPick: (w: Who) 
     onPick(who);
     setCount(1);
   };
-  useEffect(() => {
-    if (!pick || count === 0) return;
-    const all = count >= total;
-    const timer = setTimeout(all ? onCounted : () => setCount(count + 1), all ? (reduced ? 250 : 450) : reduced ? 0 : VOTE_MS);
-    return () => clearTimeout(timer);
-  }, [pick, count, total, reduced, onCounted]);
+  const all = count >= total;
+  useTimeout(
+    () => (all ? onCounted() : setCount(count + 1)),
+    !pick || count === 0 ? null : all ? (reduced ? 250 : 450) : reduced ? 0 : VOTE_MS,
+    count,
+  );
 
   return (
     <>
