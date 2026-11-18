@@ -11,7 +11,6 @@ import { Screen } from '@/components/ui/screen';
 import { StreakBadge } from '@/components/streaks/streaks';
 import { MemberTitle } from '@/components/badges/title-chip';
 import { showToast } from '@/lib/toast';
-import { api } from '@/lib/api/client';
 import { authError, useFeatures } from '@/lib/api/auth';
 import { useT } from '@/lib/i18n';
 import { usePop } from '@/lib/motion';
@@ -23,8 +22,8 @@ import { Avatar } from '@/components/ui/avatar';
 import { Card } from '@/components/ui/card';
 import { Display } from '@/components/ui/text';
 import { askConfirm } from '@/lib/confirm';
-import { type RoomSummary, useRooms, roomKeys } from '@/lib/api/rooms';
-import { useGroup, groupKeys } from '@/lib/api/group';
+import { type RoomSummary, useRooms, roomKeys, setRoomMuted } from '@/lib/api/rooms';
+import { useGroup, groupKeys, removeMember, voteKick, leaveRoom } from '@/lib/api/group';
 
 /** Ask before leaving, in the app's own dialog. */
 const confirm = (message: string, title: string, action: string) => askConfirm(title, message, action);
@@ -57,11 +56,11 @@ function Members() {
   const [target, setTarget] = useState<ModTarget | null>(null);
   const owner = group?.my_role === 'owner';
   const forceRemove = useMutation({
-    mutationFn: (id: number) => api(`/rooms/${group!.id}/members/${id}`, { method: 'DELETE' }),
+    mutationFn: (id: number) => removeMember(group!.id, id),
     onSettled: () => qc.invalidateQueries({ queryKey: groupKeys.all }),
   });
   const kick = useMutation({
-    mutationFn: ({ id, undo }: { id: number; undo: boolean }) => api(`/members/${id}/kick`, { method: undo ? 'DELETE' : 'PUT' }),
+    mutationFn: ({ id, undo }: { id: number; undo: boolean }) => voteKick(id, !undo),
     onSettled: () => qc.invalidateQueries({ queryKey: groupKeys.all }),
   });
   if (!group) return null;
@@ -169,7 +168,7 @@ function Leave() {
     const msg = owner && group.members.length <= 1 ? tr('room.group.leaveAlone') : owner ? tr('room.group.leaveOwner') : tr('room.group.leaveMember');
     if (!(await confirm(msg, tr('room.group.leaveAsk'), tr('common.leave')))) return;
     try {
-      await api(`/rooms/${group.id}/leave`, { method: 'POST' });
+      await leaveRoom(group.id);
     } catch (e) {
       return showToast(authError(e));
     }
@@ -210,7 +209,7 @@ function MuteButton({ id, muted }: { id: number; muted: boolean }) {
   const qc = useQueryClient();
   const pop = usePop(muted);
   const toggle = useMutation({
-    mutationFn: (mute: boolean) => api<{ ok: boolean; muted: boolean }>(`/rooms/${id}/mute`, { method: mute ? 'PUT' : 'DELETE' }),
+    mutationFn: (mute: boolean) => setRoomMuted(id, mute),
     onMutate: async (mute) => {
       await qc.cancelQueries({ queryKey: roomKeys.all });
       const before = qc.getQueryData<RoomSummary[]>(roomKeys.all);

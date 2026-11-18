@@ -8,10 +8,10 @@ import { AnonymousMark } from '@/components/vote/anonymous';
 import { IconButton, MiniTag, PageHeader, Stat, StatusBadge } from '@/components/packs/pack-card';
 import { QueryState } from '@/components/ui/query-state';
 import { Screen } from '@/components/ui/screen';
-import { api, ApiError, isNotFound } from '@/lib/api/client';
+import { ApiError, isNotFound } from '@/lib/api/client';
 import { useT } from '@/lib/i18n';
 import { motion, usePop } from '@/lib/motion';
-import { isPackTag, packError, packKeys, packLink, type PackDetail, REPORT_REASONS, type ReportReason, TAG_ICONS, useCommunityMe, usePackDetail } from '@/lib/api/packs';
+import { isPackTag, packError, packKeys, type PackDetail, REPORT_REASONS, type ReportReason, TAG_ICONS, useCommunityMe, usePackDetail, installPack, likePack, featurePack, deletePack, reportPack } from '@/lib/api/packs';
 import { useSession } from '@/lib/session';
 import { shareText } from '@/lib/device/share';
 import { useTheme } from '@/lib/theme';
@@ -24,6 +24,7 @@ import { useGroup } from '@/lib/api/group';
 import { useRooms } from '@/lib/api/rooms';
 import { roundKeys } from '@/lib/api/rounds';
 import { questionKeys } from '@/lib/api/questions';
+import { packLink } from '@/lib/links';
 
 /** One pack: its questions, like, install (into a room I pick when I have several), share, report; edit and delete (author); feature (admin). */
 export default function PackScreen() {
@@ -51,7 +52,7 @@ export default function PackScreen() {
 
   const install = useMutation({
     meta: { quiet: true },
-    mutationFn: (roomId: number) => api<{ added: number; skipped: number }>(`/packs/${id}/install`, { method: 'POST', room: roomId }),
+    mutationFn: (roomId: number) => installPack(id, roomId),
     onSuccess: (r, roomId) => {
       const name = rooms?.find((x) => x.id === roomId)?.name ?? group?.name ?? '';
       setNote(
@@ -71,7 +72,7 @@ export default function PackScreen() {
     onError: (e) => setNote(tr(e instanceof ApiError ? packError(e.code) : 'common.failed')),
   });
   const like = useMutation({
-    mutationFn: (on: boolean) => api<{ likes: number; liked: boolean }>(`/packs/${id}/like`, { method: on ? 'POST' : 'DELETE' }),
+    mutationFn: (on: boolean) => likePack(id, on),
     onMutate: (on) => pack && patch({ liked: on, likes: Math.max(0, pack.likes + (on ? 1 : -1)) }),
     onSuccess: (r) => patch(r),
     onError: () => qc.invalidateQueries({ queryKey: packKeys.detail(id) }),
@@ -79,7 +80,7 @@ export default function PackScreen() {
   });
   const feature = useMutation({
     meta: { quiet: true },
-    mutationFn: (featured: boolean) => api<{ featured: boolean }>(`/admin/packs/${id}/feature`, { method: 'POST', json: { featured } }),
+    mutationFn: (featured: boolean) => featurePack(id, featured),
     onSuccess: (r) => {
       patch(r);
       refreshLists();
@@ -88,7 +89,7 @@ export default function PackScreen() {
   });
   const remove = useMutation({
     meta: { quiet: true },
-    mutationFn: () => api(`/packs/${id}`, { method: 'DELETE' }),
+    mutationFn: () => deletePack(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: packKeys.all });
       router.back();
@@ -353,7 +354,7 @@ function ReportDialog({ visible, onClose, onSent, id }: { visible: boolean; onCl
   const [details, setDetails] = useState('');
   const send = useMutation({
     meta: { quiet: true },
-    mutationFn: () => api(`/packs/${id}/report`, { method: 'POST', json: { reason, details: details.trim() || undefined } }),
+    mutationFn: () => reportPack(id, reason, details.trim() || undefined),
     onSuccess: onSent,
     // Already reported by me: same answer.
     onError: (e) => (e instanceof ApiError && e.status === 409 ? onSent() : undefined),

@@ -12,7 +12,7 @@ import { Screen } from '@/components/ui/screen';
 import { confirmBatch, SelectableRow, SelectButton, SelectionBar, SelectionHeader, useSelection } from '@/components/ui/selection';
 import { TemplateLink } from '@/components/packs/template-link';
 import { Tip } from '@/components/ui/tip';
-import { api, ApiError } from '@/lib/api/client';
+import { ApiError } from '@/lib/api/client';
 import { useFeatures } from '@/lib/api/auth';
 import { useT } from '@/lib/i18n';
 import { ITEM_MAX, ITEMS_MAX, ITEMS_MIN, itemsOk, pickQuestionFile, splitTag, takeHandedDraft, type DraftLine } from '@/lib/utils/import-draft';
@@ -30,7 +30,7 @@ import { Segmented } from '@/components/ui/segmented';
 import { askConfirm } from '@/lib/confirm';
 import { ConfirmModal } from '@/components/ui/dialog';
 import type { QuestionKind } from '@/lib/api/rounds';
-import { type Queue, useQueue, questionKeys } from '@/lib/api/questions';
+import { type Queue, useQueue, questionKeys, deleteQuestion, addQuestion, importQuestions, shuffleQueue, emptyQueue, reorderQueue, deleteQuestions } from '@/lib/api/questions';
 import { useGroup, useMembers } from '@/lib/api/group';
 import { roundKeys } from '@/lib/api/rounds';
 
@@ -63,7 +63,7 @@ export default function QuestionsScreen() {
   // Long-press on someone else's question: report it.
   const [toReport, setToReport] = useState<ModTarget | null>(null);
   const remove = useMutation({
-    mutationFn: (id: number) => api(`/questions/${id}`, { method: 'DELETE' }),
+    mutationFn: (id: number) => deleteQuestion(id),
     onSettled: () => {
       setToDelete(null);
       qc.invalidateQueries({ queryKey: questionKeys.queue });
@@ -82,15 +82,13 @@ export default function QuestionsScreen() {
     // A bad list of answers shows under it; any other failure in a toast.
     meta: { quiet: (e) => e instanceof ApiError && e.code === 'bad_items' },
     mutationFn: () =>
-      api('/questions', {
-        method: 'POST',
-        json:
-          kind === 'choose'
-            ? { text: typed.text, kind, items: chosenItems }
-            : kind === 'said'
-              ? { text: typed.text, kind }
-              : { text: typed.text, kind, ...(anonymous ? { anonymous } : {}) },
-      }),
+      addQuestion(
+        kind === 'choose'
+          ? { text: typed.text, kind, items: chosenItems }
+          : kind === 'said'
+            ? { text: typed.text, kind }
+            : { text: typed.text, kind, ...(anonymous ? { anonymous } : {}) },
+      ),
     onSuccess: () => {
       setText('');
       setRank(false);
@@ -138,10 +136,7 @@ export default function QuestionsScreen() {
   const importFile = useMutation({
     meta: { quiet: true },
     mutationFn: (lines: string[]) =>
-      api<{ added: number; skipped: number }>('/questions/import', {
-        method: 'POST',
-        json: { text: lines.join('\n') },
-      }),
+      importQuestions(lines),
     onSuccess: (res) => {
       setDraft(null);
       setImported(
@@ -157,7 +152,7 @@ export default function QuestionsScreen() {
   // Shuffle the whole upcoming queue (questions added later still go last).
   const shuffle = useMutation({
     meta: { quiet: true },
-    mutationFn: () => api<{ shuffled: number }>('/questions/shuffle', { method: 'POST' }),
+    mutationFn: () => shuffleQueue(),
     onSuccess: () => {
       setImported(tr('questions.shuffled'));
       qc.invalidateQueries({ queryKey: questionKeys.queue });
@@ -167,7 +162,7 @@ export default function QuestionsScreen() {
   // Owner: delete every upcoming question of the room at once (the built-in deck stays).
   const clear = useMutation({
     meta: { quiet: true },
-    mutationFn: () => api<{ deleted: number }>('/questions/queue', { method: 'DELETE' }),
+    mutationFn: () => emptyQueue(),
     onSuccess: (res) => setImported(tr('questions.cleared', { count: res?.deleted ?? 0 })),
     onError: () => setImported(tr('questions.clearFailed')),
     onSettled: () => {
@@ -185,7 +180,7 @@ export default function QuestionsScreen() {
   const [dragging, setDragging] = useState(false);
   const reorder = useMutation({
     meta: { quiet: true },
-    mutationFn: (ids: number[]) => api('/questions/order', { method: 'POST', json: { ids } }),
+    mutationFn: (ids: number[]) => reorderQueue(ids),
     // Someone added or removed a question meanwhile: the refetch below shows the real order, no error.
     onError: (e) => !(e instanceof ApiError && e.code === 'stale_queue') && setImported(tr('questions.reorderFailed')),
     onSettled: () => qc.invalidateQueries({ queryKey: questionKeys.queue }),
@@ -234,7 +229,7 @@ export default function QuestionsScreen() {
   const removeMany = useMutation({
     meta: { quiet: true },
     mutationFn: (ids: number[]) =>
-      api<{ deleted: number[]; skipped: { id: number; error: string }[] }>('/questions/delete', { method: 'POST', json: { ids } }),
+      deleteQuestions(ids),
     onSuccess: (res, ids) =>
       setImported(
         res.skipped.length

@@ -24,7 +24,7 @@ import { BetRow, TripotResult } from '@/components/tripot/tripot';
 import { NextGate } from '@/components/vote/next-gate';
 import { NoQuestions, SoloInvite } from '@/components/vote/vote-empty';
 import { Mascot } from '@/components/mascot/mascot';
-import { api, ApiError } from '@/lib/api/client';
+import { ApiError } from '@/lib/api/client';
 import { authError, useFeatures } from '@/lib/api/auth';
 import { showToast } from '@/lib/toast';
 import { getLang, t as translate, useT } from '@/lib/i18n';
@@ -32,7 +32,7 @@ import { EASE, motion, usePop } from '@/lib/motion';
 import { ordinal, tidy } from '@/lib/utils/text';
 import { useSession } from '@/lib/session';
 import { setHideVote, useHideVote } from '@/lib/device/prefs';
-import { confirmPublic, publicLink, questionMessage, resultMessage, shareText } from '@/lib/device/share';
+import { confirmPublic, publicLink, shareText } from '@/lib/device/share';
 import { useTheme } from '@/lib/theme';
 import { useLandOnToday } from '@/lib/api/today';
 import { PressableScale } from '@/components/ui/pressable-scale';
@@ -45,10 +45,11 @@ import { askConfirm } from '@/lib/confirm';
 import { ConfirmModal, Dialog } from '@/components/ui/dialog';
 import { BackButton } from '@/components/ui/back-button';
 import { type Member, useGroup, useMembers, groupKeys } from '@/lib/api/group';
-import { type Round, useCurrentRound, useRound, useUnseenRound, roundKeys } from '@/lib/api/rounds';
+import { type Round, useCurrentRound, useRound, useUnseenRound, roundKeys, markRoundSeen, retireRoundQuestion, voteCurrent, nudgeMember, setSkip, setRoundPinned } from '@/lib/api/rounds';
 import { useInbox } from '@/lib/api/inbox';
 import { useRooms } from '@/lib/api/rooms';
 import { historyKeys } from '@/lib/api/history';
+import { questionMessage, resultMessage } from '@/lib/links';
 
 function PushBell() {
   const t = useTheme();
@@ -209,7 +210,7 @@ export default function VoteScreen() {
 
   // Recap first: a question I voted on finished while I was away (or with my vote).
   if (unseen.data) {
-    const seenUpTo = (id: number) => api(`/rounds/${id}/seen`, { method: 'POST' }).finally(() => qc.invalidateQueries({ queryKey: roundKeys.unseen }));
+    const seenUpTo = (id: number) => markRoundSeen(id).finally(() => qc.invalidateQueries({ queryKey: roundKeys.unseen }));
     const seen = () => seenUpTo(unseen.data!.id);
     const gate = held === unseen.data.id && group.data ? <NextGate group={group.data} onLaunched={seen} /> : undefined;
     // Back after days away: skip the pile of results straight to today's question (`seen_round` only moves forward).
@@ -267,9 +268,9 @@ function Question({ round, result }: { round: Round; result?: boolean }) {
     result && round.custom && moderation && group?.my_role === 'owner'
       ? async () => {
           if (!(await askConfirm(translate('vote.retireAsk'), translate('vote.retireMessage'), translate('vote.retireAction')))) return;
-          await api(`/rounds/${round.id}/question`, { method: 'DELETE' }).catch((e) => showToast(authError(e)));
-          qc.invalidateQueries({ queryKey: ['round'] });
-          qc.invalidateQueries({ queryKey: ['history'] });
+          await retireRoundQuestion(round.id).catch((e) => showToast(authError(e)));
+          qc.invalidateQueries({ queryKey: roundKeys.all });
+          qc.invalidateQueries({ queryKey: historyKeys.all });
         }
       : undefined;
   const [copied, setCopied] = useState(false);
@@ -358,7 +359,7 @@ function RankBallot({ round, members, byId, onVoted }: { round: Round; members: 
   const last = members.length > 1 && picked.length === members.length - 1 ? members.find((m) => !picked.includes(m.id)) : undefined;
   const order = last ? [...picked, last.id] : picked;
   const vote = useMutation({
-    mutationFn: (ranking: number[]) => api('/round/current/vote', { method: 'POST', json: { ranking } }),
+    mutationFn: (ranking: number[]) => voteCurrent({ ranking }),
     onSuccess: onVoted,
     // Someone joined or left meanwhile: the room refreshed shows who to vote on now (the error is a toast).
     onError: () => qc.invalidateQueries({ queryKey: groupKeys.all }),
@@ -517,7 +518,7 @@ function PickBallot({ round, members, byId, onVoted }: { round: Round; members: 
   const qc = useQueryClient();
   const [pick, setPick] = useState<number | null>(null);
   const vote = useMutation({
-    mutationFn: (target_id: number) => api('/round/current/vote', { method: 'POST', json: { target_id } }),
+    mutationFn: (target_id: number) => voteCurrent({ target_id }),
     // Remember the round right away: when my vote is the last one, the next question
     // replaces it before the refetch could show my vote, and the result must still show.
     onSuccess: onVoted,
@@ -614,7 +615,7 @@ function NudgeButton({ member, roundId }: { member: Member; roundId: number }) {
   const [sent, setSent] = useState(false);
   useEffect(() => setSent(false), [roundId]);
   const nudge = useMutation({
-    mutationFn: () => api('/round/current/nudge', { method: 'POST', json: { member_id: member.id } }),
+    mutationFn: () => nudgeMember(member.id),
     // Nudged already (another phone of mine, a lost answer): same as sent. Any other failure: a toast, the bell stays.
     meta: { quiet: (e) => e instanceof ApiError && e.code === 'already_nudged' },
     onSuccess: () => setSent(true),
@@ -649,7 +650,7 @@ function SkipButton({ member, round }: { member: Member; round: Round }) {
   // Asking to skip someone takes a confirmation (it sits right next to the bell); taking it back doesn't.
   const [asking, setAsking] = useState(false);
   const skip = useMutation({
-    mutationFn: () => api(`/round/current/skip/${member.id}`, { method: mine ? 'DELETE' : 'PUT' }),
+    mutationFn: () => setSkip(member.id, !mine),
     onSettled: () => {
       setAsking(false);
       qc.invalidateQueries({ queryKey: roundKeys.current });
@@ -871,7 +872,7 @@ function BackHeader({ onBack, round }: { onBack: () => void; round?: Round }) {
   const tr = useT();
   const qc = useQueryClient();
   const pin = useMutation({
-    mutationFn: (pinned: boolean) => api(`/rounds/${round!.id}/pin`, { method: pinned ? 'PUT' : 'DELETE' }),
+    mutationFn: (pinned: boolean) => setRoundPinned(round!.id, pinned),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: roundKeys.detail(round!.id) });
       qc.invalidateQueries({ queryKey: historyKeys.pinned });

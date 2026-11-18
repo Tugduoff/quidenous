@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Linking, Platform, Text, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import { withReauth } from '@/components/security/reauth';
-import { accountKey, auth, authError, type Account } from '@/lib/api/auth';
+import { authKeys, auth, authError, type Account } from '@/lib/api/auth';
 import { dateFormat, useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 import { PressableScale } from '@/components/ui/pressable-scale';
@@ -25,7 +25,7 @@ export function TwoFactorSection({ account }: { account: Account }) {
   const t = useTheme();
   const tr = useT();
   const qc = useQueryClient();
-  const refresh = () => qc.invalidateQueries({ queryKey: accountKey });
+  const refresh = () => qc.invalidateQueries({ queryKey: authKeys.account });
   const [mode, setMode] = useState<Mode>(null);
   const [setup, setSetup] = useState<{ secret: string; otpauth_url: string } | null>(null);
   const [codes, setCodes] = useState<string[]>([]);

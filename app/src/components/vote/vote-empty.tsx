@@ -6,7 +6,7 @@ import { Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { AddFriends, InviteCard } from '@/components/rooms/invite';
 import { Mascot } from '@/components/mascot/mascot';
-import { api, ApiError } from '@/lib/api/client';
+import { ApiError } from '@/lib/api/client';
 import { useFeatures } from '@/lib/api/auth';
 import { useT } from '@/lib/i18n';
 import { handOffDraft, pickQuestionFile } from '@/lib/utils/import-draft';
@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Display } from '@/components/ui/text';
 import { useGroup, groupKeys } from '@/lib/api/group';
+import { askForQuestions } from '@/lib/api/questions';
 
 /** Alone in the room: nothing to vote on until someone joins, so the whole tab is the invite. */
 export function SoloInvite() {
@@ -73,7 +74,7 @@ export function NoQuestions() {
   };
   const ask = useMutation({
     meta: { quiet: true },
-    mutationFn: () => api('/questions/ask', { method: 'POST' }),
+    mutationFn: () => askForQuestions(),
     onSuccess: () => markAsked(),
     onError: (e) => {
       if (e instanceof ApiError && e.code === 'already_asked') return markAsked();

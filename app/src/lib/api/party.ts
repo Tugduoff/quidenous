@@ -6,10 +6,11 @@ import { authError, featuresQuery } from '@/lib/api/auth';
 import { t, type TKey } from '@/lib/i18n';
 import { localizeMembers } from '@/lib/utils/names';
 import { type ReactedEvent, receiveReacted } from '@/lib/api/result-reactions';
-import { appUrl } from '@/lib/device/share';
 import { openSocket } from '@/lib/api/socket';
 import type { Member, Role } from '@/lib/api/group';
 import type { QuestionKind, SaidGuess, SaidView, Tally } from '@/lib/api/rounds';
+import { leaveRoom } from '@/lib/api/group';
+import { getHistoryPage, HISTORY_PAGE, type HistoryItem } from '@/lib/api/history';
 
 export type PartyPhase = 'lobby' | 'voting' | 'reveal' | 'over';
 export type PartyPlayer = Member & { role: Role; guest: boolean };
@@ -81,6 +82,7 @@ export const partyKeys = {
   all: ['party'] as const,
   party: (id: number) => ['party', id] as const,
   screen: (code: string) => ['party', 'screen', code] as const,
+  memory: (id: number) => ['party', id, 'memory'] as const,
 };
 
 /** Players named as the app shows them, and the server's clock offset measured on arrival. */
@@ -112,7 +114,7 @@ export const partyApi = {
   update: (id: number, body: { name?: string; timer?: number; locked?: boolean }) => call(`/parties/${id}`, { method: 'PATCH', json: body }),
   end: (id: number) => post(`/parties/${id}/end`),
   keep: (id: number) => api<{ id: number }>(`/parties/${id}/keep`, { method: 'POST' }),
-  leave: (id: number) => api(`/rooms/${id}/leave`, { method: 'POST' }),
+  leave: leaveRoom,
 };
 
 /** A party's state; the screen keeps it fresh from the live socket (lib/live.ts), with a slow poll in case it drops. */
@@ -124,11 +126,6 @@ export function useSetParty(id: number) {
   const qc = useQueryClient();
   return (p: Party) => qc.setQueryData(partyKeys.party(id), p);
 }
-
-/** The link people scan or tap to join. */
-export const partyJoinLink = (code: string) => `${appUrl()}/party/join/${code}`;
-/** The big-screen view of a party (a TV, a laptop). */
-export const partyScreenLink = (code: string) => `${appUrl()}/party/screen/${code}`;
 
 /**
  * Milliseconds left until `deadline` on the server's clock, in whole seconds (rounded up, as the screen shows them),
@@ -236,3 +233,23 @@ const ERRORS: Record<string, TKey> = {
 
 /** A short message for a failed party call, in my language. */
 export const partyError = (e: unknown) => (e instanceof ApiError && ERRORS[e.code] ? t(ERRORS[e.code]) : authError(e));
+
+const MEMORY_MAX_PAGES = 20;
+
+export function usePartyMemory(id: number) {
+  return useQuery({
+    queryKey: partyKeys.memory(id),
+    queryFn: async () => {
+      const all: HistoryItem[] = [];
+      let before: number | null = null;
+      for (let i = 0; i < MEMORY_MAX_PAGES; i++) {
+        const page = await getHistoryPage(before, id);
+        all.push(...page);
+        const last = page.at(-1);
+        if (page.length < HISTORY_PAGE || !last) break;
+        before = last.number;
+      }
+      return all;
+    },
+  });
+}

@@ -9,13 +9,13 @@ import { Chip, PageHeader } from '@/components/packs/pack-card';
 import { Screen } from '@/components/ui/screen';
 import { type BatchAction, confirmBatch, SelectableRow, SelectButton, SelectionBar, SelectionHeader, useSelection } from '@/components/ui/selection';
 import { TemplateLink } from '@/components/packs/template-link';
-import { api, ApiError } from '@/lib/api/client';
+import { ApiError } from '@/lib/api/client';
 import { useFeatures } from '@/lib/api/auth';
 import { itemsOk, parseQuestions, pickTextFile, splitTag } from '@/lib/utils/import-draft';
 import { getLang, type Lang, useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
 import { parsePackHeader } from '@/lib/utils/pack-file';
-import { isPackTag, MAX_TAGS, PACK_TAGS, packError, packKeys, type PackQuestion, type PackTag, TAG_ICONS, useCommunityMe, usePackDetail } from '@/lib/api/packs';
+import { isPackTag, MAX_TAGS, PACK_TAGS, packError, packKeys, type PackQuestion, type PackTag, TAG_ICONS, useCommunityMe, usePackDetail, updatePack, createPack } from '@/lib/api/packs';
 import { tidy } from '@/lib/utils/text';
 import { useTheme } from '@/lib/theme';
 import { PressableScale } from '@/components/ui/pressable-scale';
@@ -155,8 +155,8 @@ export default function PackEditScreen() {
         );
       const body = { name: name.trim(), description: desc.trim(), language, tags, spicy, questions: sent };
       return id != null
-        ? api<{ id: number }>(`/packs/${id}`, { method: 'PUT', json: body })
-        : api<{ id: number; count: number }>('/packs', { method: 'POST', json: me?.admin && featured ? { ...body, featured: true } : body });
+        ? updatePack(id, body)
+        : createPack(me?.admin && featured ? { ...body, featured: true } : body);
     },
     onSuccess: (r) => {
       qc.invalidateQueries({ queryKey: packKeys.all });

@@ -26,3 +26,9 @@ export type Person = Pick<Friend, 'user_id' | 'name' | 'color' | 'photo_url' | '
 export type Friends = { code: string; friends: Friend[]; incoming?: Person[]; outgoing?: Person[] };
 
 export const useFriends = (enabled = true) => useQuery({ queryKey: friendKeys.all, queryFn: () => api<Friends>('/friends'), enabled });
+
+export const addFriend = (code: string) => api<{ name: string; status?: string }>('/friends', { method: 'POST', json: { code } });
+
+export const keepFriend = (userId: number) => api(`/friends/${userId}`, { method: 'POST' });
+
+export const removeFriend = (userId: number) => api(`/friends/${userId}`, { method: 'DELETE' });

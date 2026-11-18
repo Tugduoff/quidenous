@@ -1,5 +1,4 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { File as FsFile } from 'expo-file-system';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
@@ -13,7 +12,7 @@ import { useSignOut } from '@/components/security/devices';
 import { BadgesRow, MyTitle } from '@/components/badges/title-chip';
 import { VersionLine } from '@/components/update/update';
 import { WrappedRow } from '@/components/wrapped/entry';
-import { api, API_URL, ApiError, apiUpload } from '@/lib/api/client';
+import { API_URL, ApiError } from '@/lib/api/client';
 import { useAccount, useFeatures } from '@/lib/api/auth';
 import { useDonateUrl } from '@/lib/api/donate';
 import { type LangPref, setLangPref, type TKey, useLang, useT } from '@/lib/i18n';
@@ -27,8 +26,10 @@ import { Dialog, DialogTitle } from '@/components/ui/dialog';
 import { BackButton } from '@/components/ui/back-button';
 import type { Member } from '@/lib/api/group';
 import { groupKeys } from '@/lib/api/group';
+import { uploadMyPhoto, setMyName } from '@/lib/api/me';
+import { photoForm } from '@/lib/device/photo';
 
-const PHOTO_WIDTH = 512;
+
 const THEMES: { pref: ThemePref; Icon: typeof Sun; label: TKey }[] = [
   { pref: 'system', Icon: SunMoon, label: 'profile.theme.system' },
   { pref: 'light', Icon: Sun, label: 'profile.theme.light' },
@@ -41,20 +42,6 @@ const LANGS: { pref: LangPref; label: TKey }[] = [
   { pref: 'en', label: 'profile.language.en' },
 ];
 
-async function photoForm(uri: string) {
-  const small = await ImageManipulator.manipulateAsync(uri, [{ resize: { width: PHOTO_WIDTH } }], {
-    compress: 0.8,
-    format: ImageManipulator.SaveFormat.JPEG,
-  });
-  const form = new FormData();
-  if (Platform.OS === 'web') {
-    form.append('photo', await (await fetch(small.uri)).blob(), 'photo.jpg');
-  } else {
-    // expo/fetch (the global fetch since SDK 58) can't send React Native's { uri } parts; a file-system File it can.
-    form.append('photo', new FsFile(small.uri), 'photo.jpg');
-  }
-  return form;
-}
 
 function Choice({ icon: Icon, label, onPress }: { icon: LucideIcon; label: string; onPress: () => void }) {
   const t = useTheme();
@@ -139,7 +126,7 @@ export default function Profile() {
       const picked = await (from === 'camera' ? ImagePicker.launchCameraAsync(options) : ImagePicker.launchImageLibraryAsync(options));
       if (picked.canceled || !picked.assets[0]) return;
       setBusy('photo');
-      updated(await apiUpload<Member>('/me/photo', await photoForm(picked.assets[0].uri)));
+      updated(await uploadMyPhoto(await photoForm(picked.assets[0].uri)));
     } catch (e) {
       // Say why, so a failure on someone's phone can be told apart (server refusal vs. on the phone).
       setError(
@@ -156,7 +143,7 @@ export default function Profile() {
     setBusy('name');
     setError(null);
     try {
-      updated(await api<Member>('/me', { method: 'PUT', json: { name } }));
+      updated(await setMyName(name));
     } catch {
       setError(tr('profile.badName'));
     } finally {

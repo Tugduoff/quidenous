@@ -8,12 +8,11 @@ import { MiniTag, PageHeader } from '@/components/packs/pack-card';
 import { Screen } from '@/components/ui/screen';
 import { confirmBatch, eachOf, type Selection, SelectableRow, SelectButton, SelectionBar, SelectionHeader, useSelection } from '@/components/ui/selection';
 import { showToast } from '@/lib/toast';
-import { api } from '@/lib/api/client';
 import { useFeatures } from '@/lib/api/auth';
 import { dateFormat, useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
 import { REASONS } from '@/lib/api/moderation';
-import { type PackTag, packKeys, type ReportAction, REPORT_REASONS, type ReportReason, type Review, type ReviewReport, TAG_ICONS, useCommunityMe, useReview } from '@/lib/api/packs';
+import { type PackTag, packKeys, type ReportAction, REPORT_REASONS, type ReportReason, type Review, type ReviewReport, TAG_ICONS, useCommunityMe, useReview, removePack, rejectSuggestion, approvePack, approveSuggestion, closeReport } from '@/lib/api/packs';
 import { useTheme } from '@/lib/theme';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Card } from '@/components/ui/card';
@@ -26,7 +25,6 @@ const DECK_TAGS: PackTag[] = ['potes', 'pimente', 'boulot', 'famille'];
 const isReason = (r: string | null): r is ReportReason => !!r && (REPORT_REASONS as string[]).includes(r);
 /** A report's id in its list (a message and a member can share a number). */
 const reportKey = (r: ReviewReport) => `${r.kind}:${r.id}`;
-const post = (path: string, json: unknown = {}) => api(`/admin${path}`, { method: 'POST', json });
 
 type Batch = 'dismiss' | 'approvePacks' | 'removePacks' | 'approveSuggestions' | 'rejectSuggestions';
 
@@ -57,7 +55,7 @@ export default function AdminScreen() {
 
   const act = useMutation({
     meta: { quiet: true },
-    mutationFn: ({ path, json }: { path: string; json?: unknown; drop: { pack?: number; suggestion?: number } }) => post(path, json),
+    mutationFn: ({ run }: { run: () => Promise<unknown>; drop: { pack?: number; suggestion?: number } }) => run(),
     onSuccess: (_, { drop }) => {
       qc.setQueryData<Review>(
         packKeys.review,
@@ -70,8 +68,7 @@ export default function AdminScreen() {
   });
   const close = useMutation({
     meta: { quiet: true },
-    mutationFn: (v: { report: ReviewReport; action: ReportAction }) =>
-      api('/admin/reports', { method: 'POST', json: { kind: v.report.kind, id: v.report.id, action: v.action } }),
+    mutationFn: (v: { report: ReviewReport; action: ReportAction }) => closeReport(v.report, v.action),
     onSuccess: (_, { report }) =>
       qc.setQueryData<Review>(packKeys.review, (r) => r && { ...r, reports: r.reports?.filter((x) => x.kind !== report.kind || x.id !== report.id) }),
   });
@@ -109,20 +106,20 @@ export default function AdminScreen() {
       reportSel,
       (key) => {
         const r = byKey.get(key);
-        return r ? api('/admin/reports', { method: 'POST', json: { kind: r.kind, id: r.id, action: 'dismiss' } }) : Promise.reject(new Error('gone'));
+        return r ? closeReport(r, 'dismiss') : Promise.reject(new Error('gone'));
       },
       (r, done) => ({ ...r, reports: r.reports?.filter((x) => !done.has(reportKey(x))) }),
     );
   };
   const removePicked = async () => {
     const why = reason.trim();
-    await runBatch('removePacks', packSel, (id) => post(`/packs/${id}/remove`, { reason: why }), dropPacks);
+    await runBatch('removePacks', packSel, (id) => removePack(id, why), dropPacks);
     setRemoving(null);
     setReason('');
   };
   const rejectPicked = async () => {
     if (!(await confirmBatch(tr('admin.selected.rejectTitle', { count: sugSel.count }), tr('admin.reject')))) return;
-    runBatch('rejectSuggestions', sugSel, (id) => post(`/suggestions/${id}/reject`), dropSuggestions);
+    runBatch('rejectSuggestions', sugSel, (id) => rejectSuggestion(id), dropSuggestions);
   };
   const busy = act.isPending || close.isPending || !!running;
   const footer = reportSel.on ? (
@@ -141,7 +138,7 @@ export default function AdminScreen() {
           tone: 'acc',
           busy: running === 'approvePacks',
           disabled: busy,
-          onPress: () => runBatch('approvePacks', packSel, (id) => post(`/packs/${id}/approve`), dropPacks),
+          onPress: () => runBatch('approvePacks', packSel, (id) => approvePack(id), dropPacks),
         },
       ]}
     />
@@ -157,7 +154,7 @@ export default function AdminScreen() {
           busy: running === 'approveSuggestions',
           disabled: busy,
           // Without deck tones: the server files them under `potes`.
-          onPress: () => runBatch('approveSuggestions', sugSel, (id) => post(`/suggestions/${id}/approve`), dropSuggestions),
+          onPress: () => runBatch('approveSuggestions', sugSel, (id) => approveSuggestion(id), dropSuggestions),
         },
       ]}
     />
@@ -236,7 +233,7 @@ export default function AdminScreen() {
                   busy={act.isPending || !!running}
                   onReject={() => setRemoving(p.id)}
                   rejectLabel={tr('admin.remove')}
-                  onApprove={() => act.mutate({ path: `/packs/${p.id}/approve`, drop: { pack: p.id } })}
+                  onApprove={() => act.mutate({ run: () => approvePack(p.id), drop: { pack: p.id } })}
                 />
               </Card>
             </Hold>
@@ -255,8 +252,8 @@ export default function AdminScreen() {
                 meta={tr('admin.votes', { up: s.up, down: s.down, author: s.author })}
                 lang={s.lang}
                 busy={act.isPending || !!running}
-                onReject={() => act.mutate({ path: `/suggestions/${s.id}/reject`, drop: { suggestion: s.id } })}
-                onApprove={(tags) => act.mutate({ path: `/suggestions/${s.id}/approve`, json: tags.length ? { tags } : {}, drop: { suggestion: s.id } })}
+                onReject={() => act.mutate({ run: () => rejectSuggestion(s.id), drop: { suggestion: s.id } })}
+                onApprove={(tags) => act.mutate({ run: () => approveSuggestion(s.id, tags), drop: { suggestion: s.id } })}
               />
             </Hold>
           </SelectableRow>
@@ -273,7 +270,7 @@ export default function AdminScreen() {
         onConfirm={() =>
           removing === 'batch'
             ? removePicked()
-            : removing != null && act.mutate({ path: `/packs/${removing}/remove`, json: { reason: reason.trim() }, drop: { pack: removing } })
+            : removing != null && act.mutate({ run: () => removePack(removing, reason.trim()), drop: { pack: removing } })
         }>
         <TextInput
           accessibilityLabel={tr('admin.reason')}

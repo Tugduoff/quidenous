@@ -4,10 +4,9 @@ import { Check, ChevronRight, Copy, RefreshCw, Search, Share2, UserPlus, X } fro
 import { useState } from 'react';
 import { Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
-import { api } from '@/lib/api/client';
 import { useT } from '@/lib/i18n';
 import { useFeatures } from '@/lib/api/auth';
-import { inviteLink, inviteMessage, shareText } from '@/lib/device/share';
+import { shareText } from '@/lib/device/share';
 import { useTheme } from '@/lib/theme';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Avatar } from '@/components/ui/avatar';
@@ -17,9 +16,10 @@ import { askConfirm } from '@/lib/confirm';
 import { Dialog, DialogTitle } from '@/components/ui/dialog';
 import { copyText } from '@/lib/device/clipboard';
 import { type Friend, useFriends } from '@/lib/api/friends';
-import { useGroup, groupKeys } from '@/lib/api/group';
-import { useInvites, useRoomInvites, roomKeys } from '@/lib/api/rooms';
+import { useGroup, groupKeys, renewRoomCode } from '@/lib/api/group';
+import { useInvites, useRoomInvites, roomKeys, addToRoom, cancelRoomInvite, acceptInvite, declineInvite } from '@/lib/api/rooms';
 import { roundKeys } from '@/lib/api/rounds';
+import { inviteLink, inviteMessage } from '@/lib/links';
 
 /** `true` for a moment after a successful copy (a "Copié" tick). */
 function useFlash(): [boolean, (ok: boolean) => void] {
@@ -43,7 +43,7 @@ export function InviteCard({ qrSize = 168, rotate = true }: { qrSize?: number; r
   const [shared, flashShared] = useFlash();
   const [copied, flashCopied] = useFlash();
   const renew = useMutation({
-    mutationFn: () => api(`/rooms/${group!.id}/code`, { method: 'POST' }),
+    mutationFn: () => renewRoomCode(group!.id),
     onSettled: () => qc.invalidateQueries({ queryKey: groupKeys.all }),
   });
   if (!group) return null;
@@ -162,11 +162,11 @@ function InviteSheet({ visible, onClose, room, friends }: { visible: boolean; on
     qc.invalidateQueries({ queryKey: roundKeys.current });
   };
   const invite = useMutation({
-    mutationFn: (userId: number) => api(`/rooms/${room}/add`, { method: 'POST', json: { user_id: userId } }),
+    mutationFn: (userId: number) => addToRoom(room, userId),
     onSettled: refresh,
   });
   const cancel = useMutation({
-    mutationFn: (userId: number) => api(`/rooms/${room}/invites/${userId}`, { method: 'DELETE' }),
+    mutationFn: (userId: number) => cancelRoomInvite(room, userId),
     onSettled: refresh,
   });
   const needle = q.trim().toLocaleLowerCase();
@@ -255,12 +255,12 @@ export function RoomInvites({ onJoined }: { onJoined: (room: number) => void }) 
   const { consent } = useFeatures();
   const { data: invites } = useInvites(consent);
   const accept = useMutation({
-    mutationFn: (id: number) => api<{ room_id: number }>(`/invites/${id}/accept`, { method: 'POST' }),
+    mutationFn: (id: number) => acceptInvite(id),
     onSuccess: (r) => onJoined(r.room_id),
     onSettled: () => qc.invalidateQueries({ queryKey: roomKeys.invites }),
   });
   const decline = useMutation({
-    mutationFn: (id: number) => api(`/invites/${id}`, { method: 'DELETE' }),
+    mutationFn: (id: number) => declineInvite(id),
     onSettled: () => qc.invalidateQueries({ queryKey: roomKeys.invites }),
   });
   if (!invites?.length) return null;

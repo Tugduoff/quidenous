@@ -1,3 +1,4 @@
+import type { Lang } from '@/lib/i18n-core';
 import { api } from '@/lib/api/client';
 import { useQuery } from '@tanstack/react-query';
 import { localizeGroup } from '@/lib/utils/names';
@@ -60,9 +61,11 @@ export type Vibe = { id: string; name: string; icon: string; description: string
 /** Owner: open the next question now (pacing). `round_id`: the question opened, null if none could be. */
 export const launchNext = (roomId: number) => api<{ round_id: number | null }>(`/rooms/${roomId}/next`, { method: 'POST' });
 
+export const getGroup = (room?: number) => api<Group>('/group', { room });
+
 /** The room, deleted accounts named in my language (`select` runs again when the screen re-renders on a language change). */
 export const useGroup = () =>
-  useQuery({ queryKey: groupKeys.all, queryFn: () => api<Group>('/group'), select: (g) => localizeGroup(g) });
+  useQuery({ queryKey: groupKeys.all, queryFn: () => getGroup(), select: (g) => localizeGroup(g) });
 
 /** The tones a room can pick (same for every room, so kept for the session). Only asked of a server that has them. */
 export const useVibes = (enabled: boolean) =>
@@ -78,3 +81,19 @@ export function useMembers() {
   const byId = new Map(everyone.map((m) => [m.id, m]));
   return { members: data?.members ?? [], byId };
 }
+
+export type RoomPatch = Partial<Group['settings']> & { name?: string; language?: Lang };
+
+export const updateRoom = (roomId: number, patch: RoomPatch) => api(`/rooms/${roomId}`, { method: 'PATCH', json: patch });
+
+export const renewRoomCode = (roomId: number) => api(`/rooms/${roomId}/code`, { method: 'POST' });
+
+export const transferOwnership = (roomId: number, memberId: number) => api(`/rooms/${roomId}/owner`, { method: 'POST', json: { member_id: memberId } });
+
+export const deleteRoom = (roomId: number) => api(`/rooms/${roomId}`, { method: 'DELETE' });
+
+export const leaveRoom = (roomId: number) => api(`/rooms/${roomId}/leave`, { method: 'POST' });
+
+export const removeMember = (roomId: number, memberId: number) => api(`/rooms/${roomId}/members/${memberId}`, { method: 'DELETE' });
+
+export const voteKick = (memberId: number, on: boolean) => api(`/members/${memberId}/kick`, { method: on ? 'PUT' : 'DELETE' });

@@ -4,7 +4,7 @@ import { useRef, useState } from 'react';
 import { View } from 'react-native';
 import { withReauth } from '@/components/security/reauth';
 import { ApiError } from '@/lib/api/client';
-import { accountKey, auth, authError, looksLikeEmail, PASSWORD_MIN, useFeatures, type Account } from '@/lib/api/auth';
+import { authKeys, auth, authError, looksLikeEmail, PASSWORD_MIN, useFeatures, type Account } from '@/lib/api/auth';
 import { useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 import { Toggle } from '@/components/ui/toggle';
@@ -18,7 +18,7 @@ import { useCooldown } from '@/lib/hooks/use-cooldown';
 export function SignInSection({ account }: { account: Account }) {
   const tr = useT();
   const qc = useQueryClient();
-  const refresh = () => qc.invalidateQueries({ queryKey: accountKey });
+  const refresh = () => qc.invalidateQueries({ queryKey: authKeys.account });
   // The code field opens by itself when the server just emailed one (or tried to: then it says so).
   const [entering, setEntering] = useState(false);
   const [mailFailed, setMailFailed] = useState(false);

@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ChevronLeft, ChevronRight, Crown, LogIn, Swords } from 'lucide-react-native';
 import { useState } from 'react';
@@ -6,7 +6,6 @@ import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { RoomForms } from '@/components/rooms/room-forms';
 import { Screen } from '@/components/ui/screen';
-import { api } from '@/lib/api/client';
 import { pendingPlayToken, setPendingPlay } from '@/lib/api/auth';
 import { communityError, playInto, usePlay } from '@/lib/api/community';
 import { useT } from '@/lib/i18n';
@@ -19,8 +18,7 @@ import { Button } from '@/components/ui/button';
 import { Tag } from '@/components/ui/tag';
 import { Card } from '@/components/ui/card';
 import { Display, Logo } from '@/components/ui/text';
-import type { RoomSummary } from '@/lib/api/rooms';
-import { roomKeys } from '@/lib/api/rooms';
+import { useRooms } from '@/lib/api/rooms';
 
 /**
  * `/play?share={token}`: a question shared from another room. Add it to one of my rooms (it comes next there)
@@ -40,7 +38,7 @@ export default function PlayScreen() {
   const signedIn = !!session;
   const info = usePlay(token);
   // Signed out or roomless there is no list to ask for.
-  const { data: rooms } = useQuery({ queryKey: roomKeys.all, queryFn: () => api<RoomSummary[]>('/rooms'), enabled: signedIn && !roomless });
+  const { data: rooms } = useRooms(signedIn && !roomless);
   const switchRoom = useSwitchRoom();
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);

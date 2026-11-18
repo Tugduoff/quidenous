@@ -2,8 +2,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Check } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { Linking, Pressable, Text, View } from 'react-native';
-import { api, API_URL } from '@/lib/api/client';
-import { accountKey, useAccount } from '@/lib/api/auth';
+import { API_URL } from '@/lib/api/client';
+import { authKeys, useAccount, acceptTerms } from '@/lib/api/auth';
 import { useLang, useT } from '@/lib/i18n';
 import { useSession } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
@@ -81,10 +81,10 @@ export function TermsGate() {
   const { data: account } = useAccount();
   const [on, setOn] = useState(false);
   const accept = useMutation({
-    mutationFn: () => api('/auth/terms', { method: 'POST' }),
+    mutationFn: () => acceptTerms(),
     onSuccess: () => {
       ticked = false;
-      qc.invalidateQueries({ queryKey: accountKey });
+      qc.invalidateQueries({ queryKey: authKeys.account });
     },
   });
   const missing = account?.terms === false;

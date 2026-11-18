@@ -7,9 +7,9 @@ import QRCode from 'react-native-qrcode-svg';
 import { QueryState } from '@/components/ui/query-state';
 import { ScanButton } from '@/components/ui/qr-scanner';
 import { Screen } from '@/components/ui/screen';
-import { api, ApiError } from '@/lib/api/client';
+import { ApiError } from '@/lib/api/client';
 import { t as tr, type TKey, useT } from '@/lib/i18n';
-import { friendLink, friendMessage, shareText } from '@/lib/device/share';
+import { shareText } from '@/lib/device/share';
 import { useTheme } from '@/lib/theme';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Avatar } from '@/components/ui/avatar';
@@ -17,7 +17,8 @@ import { Card } from '@/components/ui/card';
 import { CodeText, Display } from '@/components/ui/text';
 import { presetFriendCode } from '@/lib/device/launch-params';
 import type { Member } from '@/lib/api/group';
-import { type Person, useFriends, friendKeys } from '@/lib/api/friends';
+import { type Person, useFriends, friendKeys, addFriend, keepFriend, removeFriend } from '@/lib/api/friends';
+import { friendLink, friendMessage } from '@/lib/links';
 
 const ERRORS: Record<string, TKey> = { bad_code: 'friends.errors.badCode', self_friend: 'friends.errors.self' };
 
@@ -80,7 +81,7 @@ export default function FriendsScreen() {
   // A code sends a request (or accepts theirs); an older server makes friends at once (no `status`).
   const add = useMutation({
     meta: { quiet: true },
-    mutationFn: (value: string) => api<{ name: string; status?: string }>('/friends', { method: 'POST', json: { code: value.trim() } }),
+    mutationFn: (value: string) => addFriend(value.trim()),
     onSuccess: (r) => {
       setCode('');
       setNote(tr(r.status === 'requested' ? 'friends.requestSent' : 'friends.added', { name: r.name }));
@@ -90,12 +91,12 @@ export default function FriendsScreen() {
   });
   // Ask a room-mate to stay friends for good, or accept someone's request.
   const keep = useMutation({
-    mutationFn: (id: number) => api(`/friends/${id}`, { method: 'POST' }),
+    mutationFn: (id: number) => keepFriend(id),
     onSettled: refresh,
   });
   // Remove a friend, decline a request or cancel mine.
   const remove = useMutation({
-    mutationFn: (id: number) => api(`/friends/${id}`, { method: 'DELETE' }),
+    mutationFn: (id: number) => removeFriend(id),
     onSettled: refresh,
   });
   const busy = keep.isPending || remove.isPending;

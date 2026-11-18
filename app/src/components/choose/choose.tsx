@@ -9,7 +9,6 @@ import Svg, { Circle, G, Path } from 'react-native-svg';
 import { scheduleOnRN } from 'react-native-worklets';
 import { Screen } from '@/components/ui/screen';
 import { Tip } from '@/components/ui/tip';
-import { api } from '@/lib/api/client';
 import { useT } from '@/lib/i18n';
 import { BOUNCE, EASE, SPRING, usePop } from '@/lib/motion';
 import { useSession } from '@/lib/session';
@@ -20,7 +19,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import type { Member } from '@/lib/api/group';
 import type { Choice, ChooseResult as ChooseData, Round } from '@/lib/api/rounds';
-import { roundKeys } from '@/lib/api/rounds';
+import { roundKeys, voteCurrent } from '@/lib/api/rounds';
 import { groupKeys } from '@/lib/api/group';
 
 // "Qui choisirait quoi ?" (docs/CHOOSE.md): wire every member to an item (mine: my real choice, the others: my guesses),
@@ -111,7 +110,7 @@ export function ChooseBallot({
   const all = people.length > 0 && done === people.length;
   const vote = useMutation({
     meta: { quiet: true },
-    mutationFn: (c: Choice[]) => api('/round/current/vote', { method: 'POST', json: { choices: c } }),
+    mutationFn: (c: Choice[]) => voteCurrent({ choices: c }),
     onSuccess: onVoted,
     onSettled: () => qc.invalidateQueries({ queryKey: roundKeys.current }),
     // Someone joined or left meanwhile: refresh the room so the ballot shows who to wire now.

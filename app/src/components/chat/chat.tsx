@@ -8,14 +8,13 @@ import { AttachButton, MediaViewer, MessageMediaFrame, PendingBubble } from '@/c
 import { HeartBurst, ReactionBar, ReactionChips, WhoReacted } from '@/components/chat/reactions';
 import { ModerationDialog, type ModTarget } from '@/components/moderation/moderation';
 import { ProfileSheet } from '@/components/stats/profile-sheet';
-import { api } from '@/lib/api/client';
 import { useFeatures } from '@/lib/api/auth';
 import { mediaOf, usePending } from '@/lib/chat-outbox';
 import { dateFormat, useT } from '@/lib/i18n';
 import { activeMention, everyone, matches, outgoing, segments } from '@/lib/utils/mentions';
 import { useBlocks } from '@/lib/api/moderation';
 import { motion, useArrivals } from '@/lib/motion';
-import { HEART, useReact, type Message, useMessages, chatKeys } from '@/lib/api/chat';
+import { HEART, useReact, type Message, useMessages, chatKeys, deleteMessage, restoreMessage, postMessage, type NewMessage } from '@/lib/api/chat';
 import { sendOnEnter } from '@/lib/utils/submit';
 import { useSession } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
@@ -279,11 +278,11 @@ export function ChatMessages({ roundId }: { roundId: number }) {
   // My own messages, or anyone's in a room I own (a server that can delete them).
   const owner = group?.my_role === 'owner';
   const remove = (id: number) => async () => {
-    await api(`/rounds/${roundId}/messages/${id}`, { method: 'DELETE' });
+    await deleteMessage(roundId, id);
     qc.setQueryData<Message[]>(chatKeys.messages(roundId), (old) => old?.filter((x) => x.id !== id));
   };
   const restore = (id: number) => async () => {
-    await api(`/rounds/${roundId}/messages/${id}/restore`, { method: 'POST' });
+    await restoreMessage(roundId, id);
     qc.setQueryData<Message[]>(chatKeys.messages(roundId), (old) => old?.map((x) => (x.id === id ? { ...x, hidden: false } : x)));
   };
   // Long-press on someone else's message: report it, block its author.
@@ -440,8 +439,7 @@ export function ChatInput({ roundId, onFocus, onSent }: { roundId: number; onFoc
     return draft.current.key;
   };
   const send = useMutation({
-    mutationFn: (body: { text: string; mentions?: number[]; everyone?: boolean; client_key: string }) =>
-      api<Message>(`/rounds/${roundId}/messages`, { method: 'POST', json: body }),
+    mutationFn: (body: NewMessage) => postMessage(roundId, body),
     onSuccess: (m) => {
       draft.current = null;
       setText('');

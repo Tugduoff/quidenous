@@ -27,13 +27,16 @@ export const historyExportUrl = async (tickets: boolean) =>
   `${API_URL}/api/history/export?${await urlAuth('export', tickets)}${roomQuery()}&tz=${-new Date().getTimezoneOffset()}`;
 
 /** Same size as `HISTORY_PAGE` on the server: a shorter page is the last one. */
-const HISTORY_PAGE = 30;
+export const HISTORY_PAGE = 30;
+
+export const getHistoryPage = (before: number | null, room?: number) =>
+  api<HistoryItem[]>(before == null ? '/history' : `/history?before=${before}`, { room });
 
 /** Finished questions, newest first, a page at a time: `before` is the number of the oldest one shown. */
 export const useHistory = () =>
   useInfiniteQuery({
     queryKey: historyKeys.list,
-    queryFn: ({ pageParam }) => api<HistoryItem[]>(pageParam == null ? '/history' : `/history?before=${pageParam}`),
+    queryFn: ({ pageParam }) => getHistoryPage(pageParam),
     initialPageParam: null as number | null,
     getNextPageParam: (last) => (last.length < HISTORY_PAGE ? undefined : last.at(-1)!.number),
   });
@@ -44,7 +47,7 @@ export const useHistory = () =>
  */
 export async function refreshHistory(qc: QueryClient) {
   if (!qc.getQueryData(historyKeys.list)) return;
-  const fresh = await api<HistoryItem[]>('/history');
+  const fresh = await getHistoryPage(null);
   qc.setQueryData<InfiniteData<HistoryItem[], number | null>>(historyKeys.list, (old) => {
     if (!old?.pages.length) return old;
     const byId = new Map(fresh.map((i) => [i.id, i]));

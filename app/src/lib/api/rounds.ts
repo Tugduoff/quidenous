@@ -91,8 +91,9 @@ export type ChooseResult = {
 
 export type RankEntry = { member_id: number; points: number; average: number; firsts: number };
 
-export const useCurrentRound = () =>
-  useQuery({ queryKey: roundKeys.current, queryFn: () => api<Round | null>('/round/current') });
+export const getCurrentRound = (room?: number) => api<Round | null>('/round/current', { room });
+
+export const useCurrentRound = () => useQuery({ queryKey: roundKeys.current, queryFn: () => getCurrentRound() });
 
 /**
  * A finished question I voted on but have not seen the result of (I was away when it closed): the oldest, with how many
@@ -100,8 +101,27 @@ export const useCurrentRound = () =>
  */
 export type UnseenRound = Round & { unseen_count?: number; unseen_last_id?: number };
 
-export const useUnseenRound = () =>
-  useQuery({ queryKey: roundKeys.unseen, queryFn: () => api<UnseenRound | null>('/round/unseen') });
+export const getUnseenRound = (room?: number) => api<UnseenRound | null>('/round/unseen', { room });
+
+export const useUnseenRound = () => useQuery({ queryKey: roundKeys.unseen, queryFn: () => getUnseenRound() });
+
+export const getRound = (id: number, room?: number) => api<Round>(`/rounds/${id}`, { room });
 
 export const useRound = (id: number | null) =>
-  useQuery({ queryKey: roundKeys.detail(id ?? 0), queryFn: () => api<Round>(`/rounds/${id}`), enabled: id != null });
+  useQuery({ queryKey: roundKeys.detail(id ?? 0), queryFn: () => (id == null ? Promise.reject(new Error('no round')) : getRound(id)), enabled: id != null });
+
+export type Ballot = { target_id: number } | { ranking: number[] } | { choices: Choice[] } | { guesses: SaidGuess[] };
+
+export const voteCurrent = (ballot: Ballot) => api('/round/current/vote', { method: 'POST', json: ballot });
+
+export const answerCurrent = (text: string) => api<Round>('/round/current/answer', { method: 'POST', json: { text } });
+
+export const nudgeMember = (memberId: number) => api('/round/current/nudge', { method: 'POST', json: { member_id: memberId } });
+
+export const setSkip = (memberId: number, on: boolean) => api(`/round/current/skip/${memberId}`, { method: on ? 'PUT' : 'DELETE' });
+
+export const markRoundSeen = (roundId: number) => api(`/rounds/${roundId}/seen`, { method: 'POST' });
+
+export const retireRoundQuestion = (roundId: number) => api(`/rounds/${roundId}/question`, { method: 'DELETE' });
+
+export const setRoundPinned = (roundId: number, pinned: boolean) => api(`/rounds/${roundId}/pin`, { method: pinned ? 'PUT' : 'DELETE' });

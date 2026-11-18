@@ -1,6 +1,6 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Beer, BookOpen, Briefcase, Flame, House, type LucideIcon, PartyPopper, Sparkles } from 'lucide-react-native';
-import { api, API_URL, isNotFound } from '@/lib/api/client';
+import { api, isNotFound } from '@/lib/api/client';
 import type { TKey } from '@/lib/i18n';
 import type { Member } from '@/lib/api/group';
 
@@ -79,6 +79,7 @@ export type Review = { packs: (PackItem & { reports: PackReport[] })[]; suggesti
 
 export const packKeys = {
   all: ['packs'] as const,
+  lists: ['packs', 'list'] as const,
   list: (sort: PackSort, tag: string | null, q: string) => ['packs', 'list', sort, tag ?? '', q] as const,
   detail: (id: number) => ['packs', 'detail', id] as const,
   mine: ['packs', 'mine'] as const,
@@ -136,5 +137,46 @@ const ERRORS: Record<string, TKey> = {
 };
 export const packError = (code: string): TKey => ERRORS[code] ?? 'common.failed';
 
-/** The pack's public page (preview card in chats, "install in a room" button). */
-export const packLink = (id: number) => `${API_URL || (typeof location !== 'undefined' ? location.origin : '')}/p/${id}`;
+export type PackDraft = {
+  name: string;
+  description: string;
+  language: 'fr' | 'en';
+  tags: string[];
+  spicy: boolean;
+  questions: PackQuestion[];
+  featured?: boolean;
+};
+
+export const createPack = (draft: PackDraft) => api<{ id: number; count: number }>('/packs', { method: 'POST', json: draft });
+
+export const updatePack = (id: number, draft: PackDraft) => api<{ id: number }>(`/packs/${id}`, { method: 'PUT', json: draft });
+
+export const deletePack = (id: number) => api(`/packs/${id}`, { method: 'DELETE' });
+
+export type PacksDeleted = { deleted: number[]; skipped: { id: number; error: string }[] };
+
+export const deletePacks = (ids: number[]) => api<PacksDeleted>('/packs/delete', { method: 'POST', json: { ids } });
+
+export const installPack = (id: number, room?: number) => api<{ added: number; skipped: number }>(`/packs/${id}/install`, { method: 'POST', room });
+
+export const likePack = (id: number, on: boolean) => api<{ likes: number; liked: boolean }>(`/packs/${id}/like`, { method: on ? 'POST' : 'DELETE' });
+
+export const reportPack = (id: number, reason: ReportReason | null, details?: string) =>
+  api(`/packs/${id}/report`, { method: 'POST', json: { reason, details } });
+
+export const setShowSpicy = (show: boolean) => api<CommunityMe>('/community/me', { method: 'PUT', json: { show_spicy: show } });
+
+const adminPost = (path: string, json: unknown = {}) => api(`/admin${path}`, { method: 'POST', json });
+
+export const featurePack = (id: number, featured: boolean) => api<{ featured: boolean }>(`/admin/packs/${id}/feature`, { method: 'POST', json: { featured } });
+
+export const approvePack = (id: number) => adminPost(`/packs/${id}/approve`);
+
+export const removePack = (id: number, reason: string) => adminPost(`/packs/${id}/remove`, { reason });
+
+export const approveSuggestion = (id: number, tags: string[] = []) => adminPost(`/suggestions/${id}/approve`, tags.length ? { tags } : {});
+
+export const rejectSuggestion = (id: number) => adminPost(`/suggestions/${id}/reject`);
+
+export const closeReport = (report: Pick<ReviewReport, 'kind' | 'id'>, action: ReportAction) =>
+  adminPost('/reports', { kind: report.kind, id: report.id, action });

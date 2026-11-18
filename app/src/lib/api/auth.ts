@@ -173,12 +173,15 @@ export function useFeatures() {
   };
 }
 
-export const accountKey = ['account'] as const;
+export const authKeys = {
+  account: ['account'] as const,
+  sessions: ['sessions'] as const,
+};
 
 /** My account (email, 2FA, linked providers); only asked of a server that has accounts. */
 export function useAccount(enabled = true) {
   const { auth: hasAuth } = useFeatures();
-  return useQuery({ queryKey: accountKey, queryFn: auth.account, enabled: enabled && hasAuth });
+  return useQuery({ queryKey: authKeys.account, queryFn: auth.account, enabled: enabled && hasAuth });
 }
 
 /** Between the sign-in screens (not in the URL): the email typed, the 2FA challenge. */
@@ -226,3 +229,7 @@ export function authError(e: unknown): string {
     ? t(`errors.${e.code as keyof typeof errors}`, { min: PASSWORD_MIN })
     : t('common.failed');
 }
+
+export const useDeviceSessions = () => useQuery({ queryKey: authKeys.sessions, queryFn: auth.sessions });
+
+export const acceptTerms = () => api('/auth/terms', { method: 'POST' });

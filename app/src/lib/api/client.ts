@@ -94,7 +94,9 @@ async function fetchWithin(url: string, init: RequestInit, ms: number): Promise<
 }
 
 /** `room`: this call is about another room than the current one (`X-Room` for it alone). */
-export async function api<T>(path: string, init: RequestInit & { json?: unknown; room?: number } = {}): Promise<T> {
+export type ApiInit = RequestInit & { json?: unknown; room?: number };
+
+export async function api<T>(path: string, init: ApiInit = {}): Promise<T> {
   // `x-kinds`: this app answers choose and said questions (an older one gets them as a plain pick).
   // `x-app-version`: a server that no longer serves it answers 426 (the app asks to update).
   const headers: Record<string, string> = {
@@ -135,3 +137,11 @@ export async function apiUpload<T>(path: string, form: FormData, method = 'PUT')
   if (!res.ok) return fail(res, !!token);
   return (await res.json().catch(() => null)) as T;
 }
+
+export const appUrl = () => API_URL || (typeof location !== 'undefined' ? location.origin : '');
+
+export const fetchExternal = (url: string, init?: RequestInit) => fetch(url, init);
+
+export const readUriBlob = async (uri: string) => (await fetch(uri)).blob();
+
+export const readUriText = async (uri: string) => (await fetch(uri)).text();

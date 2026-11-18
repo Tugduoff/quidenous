@@ -11,6 +11,7 @@ import { useTheme } from '@/lib/theme';
 import { Button } from '@/components/ui/button';
 import { launchNext, type Group, groupKeys } from '@/lib/api/group';
 import { questionKeys } from '@/lib/api/questions';
+import { roundKeys } from '@/lib/api/rounds';
 
 /** Re-renders every 30 s while a countdown is on screen. */
 function useNow(on: boolean) {
@@ -41,7 +42,7 @@ export function NextGate({ group, onLaunched }: { group: Group; onLaunched?: () 
     onSuccess: () => onLaunched?.(),
     // The new question, the room's pacing and the queue it came from (not every query).
     onSettled: () => {
-      qc.invalidateQueries({ queryKey: ['round'] });
+      qc.invalidateQueries({ queryKey: roundKeys.all });
       qc.invalidateQueries({ queryKey: groupKeys.all });
       qc.invalidateQueries({ queryKey: questionKeys.queue });
     },

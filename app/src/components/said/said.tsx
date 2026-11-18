@@ -13,7 +13,7 @@ import { Mascot } from '@/components/mascot/mascot';
 import { ModerationDialog, type ModTarget } from '@/components/moderation/moderation';
 import { Screen } from '@/components/ui/screen';
 import { Tip } from '@/components/ui/tip';
-import { api, ApiError } from '@/lib/api/client';
+import { ApiError } from '@/lib/api/client';
 import { useT } from '@/lib/i18n';
 import { BOUNCE, EASE, LAYOUT_EASE, motion, usePop } from '@/lib/motion';
 import { ANSWER_MAX, ANSWER_WARN, guessGroups, initMatch, isComplete, type Match, type MatchAction, matchReducer, pickLine, placed, type RevealItem, revealItems, suspects as suspectIds, toGuess, toGuesses, places } from '@/lib/utils/said';
@@ -26,7 +26,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import type { Member } from '@/lib/api/group';
 import type { Round, SaidAnswer, SaidGuess, SaidResult, SaidView } from '@/lib/api/rounds';
-import { roundKeys } from '@/lib/api/rounds';
+import { roundKeys, answerCurrent, voteCurrent } from '@/lib/api/rounds';
 import { groupKeys } from '@/lib/api/group';
 
 const sys = ReduceMotion.System;
@@ -644,7 +644,7 @@ function SaidWriting({
   const [error, setError] = useState<string | null>(null);
   const send = useMutation({
     meta: { quiet: true },
-    mutationFn: (answer: string) => api<Round>('/round/current/answer', { method: 'POST', json: { text: answer } }),
+    mutationFn: (answer: string) => answerCurrent(answer),
     onSuccess: (r) => {
       setEditing(false);
       setError(null);
@@ -740,7 +740,7 @@ function SaidGuessing({
   const nothing = answers.length === 0;
   const vote = useMutation({
     meta: { quiet: true },
-    mutationFn: (guesses: SaidGuess[]) => api('/round/current/vote', { method: 'POST', json: { guesses } }),
+    mutationFn: (guesses: SaidGuess[]) => voteCurrent({ guesses }),
     onSuccess: onVoted,
     // The writers changed meanwhile (someone left): the refreshed room shows who to place now.
     onError: () => qc.invalidateQueries({ queryKey: groupKeys.all }),

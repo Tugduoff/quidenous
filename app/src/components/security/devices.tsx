@@ -1,10 +1,10 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { Fingerprint, Globe, Lock, LogOut, ScanFace, Smartphone, X } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { Pressable, Text } from 'react-native';
 import { BrandIcon } from '@/components/auth/brand-icons';
 import { withReauth } from '@/components/security/reauth';
-import { accountKey, auth, authError, isLinked, PROVIDER_NAMES, useAccount, useFeatures, type Account, type DeviceSession, type Provider } from '@/lib/api/auth';
+import { authKeys, auth, authError, isLinked, PROVIDER_NAMES, useAccount, useFeatures, type Account, type DeviceSession, type Provider, useDeviceSessions } from '@/lib/api/auth';
 import { t as translate, useT } from '@/lib/i18n';
 import { lockMethod, lockSupported, setLock, useLock } from '@/lib/device/lock';
 import { useSession } from '@/lib/session';
@@ -31,7 +31,7 @@ export function ProvidersSection({ account }: { account: Account }) {
     setError(null);
     try {
       await f();
-      qc.invalidateQueries({ queryKey: accountKey });
+      qc.invalidateQueries({ queryKey: authKeys.account });
     } catch (e) {
       setError(authError(e));
     } finally {
@@ -91,10 +91,10 @@ export function SessionsSection() {
   const t = useTheme();
   const tr = useT();
   const qc = useQueryClient();
-  const { data: sessions } = useQuery({ queryKey: ['sessions'], queryFn: auth.sessions });
+  const { data: sessions } = useDeviceSessions();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const refresh = () => qc.invalidateQueries({ queryKey: ['sessions'] });
+  const refresh = () => qc.invalidateQueries({ queryKey: authKeys.sessions });
   const list = [...(sessions ?? [])].sort((a, b) => Number(b.current) - Number(a.current));
   const others = list.filter((s) => !s.current).length;
 

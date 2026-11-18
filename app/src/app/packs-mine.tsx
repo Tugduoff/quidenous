@@ -8,19 +8,16 @@ import { QueryState } from '@/components/ui/query-state';
 import { Screen } from '@/components/ui/screen';
 import { type BatchAction, confirmBatch, eachOf, SelectableRow, SelectButton, SelectionBar, SelectionHeader, useSelection } from '@/components/ui/selection';
 import { showToast } from '@/lib/toast';
-import { api } from '@/lib/api/client';
 import { useFeatures } from '@/lib/api/auth';
 import { useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
-import { packKeys, type PackItem, useMyPacks } from '@/lib/api/packs';
+import { packKeys, type PackItem, useMyPacks, deletePacks, installPack } from '@/lib/api/packs';
 import { useTheme } from '@/lib/theme';
 import { Button } from '@/components/ui/button';
 import { Display } from '@/components/ui/text';
 import { useGroup } from '@/lib/api/group';
 import { roundKeys } from '@/lib/api/rounds';
 import { questionKeys } from '@/lib/api/questions';
-
-type Deleted = { deleted: number[]; skipped: { id: number; error: string }[] };
 
 /** Whether a pack of mine can go into a room: public, or still in review (as on its page). */
 const installable = (p: PackItem) => p.status === 'public' || p.status === 'review';
@@ -45,7 +42,7 @@ export default function MyPacksScreen() {
 
   const remove = useMutation({
     meta: { quiet: true },
-    mutationFn: (ids: number[]) => api<Deleted>('/packs/delete', { method: 'POST', json: { ids } }),
+    mutationFn: (ids: number[]) => deletePacks(ids),
     onSuccess: (r, ids) => {
       showToast(
         r.skipped.length
@@ -66,7 +63,7 @@ export default function MyPacksScreen() {
   // No batch endpoint: one install per pack, like its page does (each skips questions already in the room).
   const add = useMutation({
     meta: { quiet: true },
-    mutationFn: (ids: number[]) => eachOf(ids, (id) => api(`/packs/${id}/install`, { method: 'POST' }), 1),
+    mutationFn: (ids: number[]) => eachOf(ids, (id) => installPack(id), 1),
     onSuccess: (done, ids) => {
       showToast(
         done.length < ids.length

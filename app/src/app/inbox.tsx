@@ -5,7 +5,6 @@ import { useEffect, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { QueryState } from '@/components/ui/query-state';
 import { Screen } from '@/components/ui/screen';
-import { api } from '@/lib/api/client';
 import { type TKey, useT } from '@/lib/i18n';
 import { useSwitchRoom, useSwitchRoomHere } from '@/lib/hooks/use-switch-room';
 import { useSession } from '@/lib/session';
@@ -15,7 +14,7 @@ import { ago } from '@/lib/utils/time';
 import { Avatar } from '@/components/ui/avatar';
 import { Card } from '@/components/ui/card';
 import { Display } from '@/components/ui/text';
-import { type InboxItem, useInbox, inboxKeys } from '@/lib/api/inbox';
+import { type InboxItem, useInbox, inboxKeys, markInboxRead } from '@/lib/api/inbox';
 import { useGroup, useMembers } from '@/lib/api/group';
 
 // A kind this version doesn't know (newer server) falls back to a plain bell and title.
@@ -69,7 +68,7 @@ export default function InboxScreen() {
     if (data && !fresh) setFresh(new Set(data.items.filter((i) => !i.read).map((i) => i.id)));
   }, [data, fresh]);
   useEffect(() => {
-    if (unread > 0) api('/inbox/read', { method: 'POST' }).then(() => qc.invalidateQueries({ queryKey: inboxKeys.all }));
+    if (unread > 0) markInboxRead().then(() => qc.invalidateQueries({ queryKey: inboxKeys.all }));
   }, [unread, qc]);
 
   const open = (item: InboxItem) => {

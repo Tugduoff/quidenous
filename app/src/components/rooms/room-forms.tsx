@@ -6,7 +6,7 @@ import Animated from 'react-native-reanimated';
 import { InvitePreview } from '@/components/rooms/invite-preview';
 import { ScanButton } from '@/components/ui/qr-scanner';
 import { VibeCards } from '@/components/rooms/vibes';
-import { api, ApiError } from '@/lib/api/client';
+import { ApiError } from '@/lib/api/client';
 import { authError, useFeatures } from '@/lib/api/auth';
 import { getLang, type Lang, type TKey, useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
@@ -16,6 +16,7 @@ import { Card } from '@/components/ui/card';
 import { Display } from '@/components/ui/text';
 import { Segmented } from '@/components/ui/segmented';
 import { useVibes } from '@/lib/api/group';
+import { createRoom, joinRoom } from '@/lib/api/rooms';
 
 const ERRORS: Record<string, TKey> = {
   bad_code: 'room.errors.badCode',
@@ -64,10 +65,7 @@ export function RoomForms({
   const create = useMutation({
     meta: { quiet: true },
     mutationFn: (withVibe: string | null) =>
-      api<{ id: number }>('/rooms', {
-        method: 'POST',
-        json: { name: name.trim(), ...(withVibe ? { vibe: withVibe } : {}), ...(features.languages ? { language } : {}) },
-      }),
+      createRoom({ name: name.trim(), ...(withVibe ? { vibe: withVibe } : {}), ...(features.languages ? { language } : {}) }),
     onSuccess: (r) => onEntered(r.id),
     onError: fail,
   });
@@ -79,7 +77,7 @@ export function RoomForms({
   };
   const join = useMutation({
     meta: { quiet: true },
-    mutationFn: (value: string) => api<{ id: number }>('/rooms/join', { method: 'POST', json: { code: value.trim() } }),
+    mutationFn: (value: string) => joinRoom(value.trim()),
     onSuccess: (r) => onEntered(r.id),
     onError: fail,
   });

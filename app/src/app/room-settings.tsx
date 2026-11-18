@@ -8,7 +8,6 @@ import { QueryState } from '@/components/ui/query-state';
 import { Screen } from '@/components/ui/screen';
 import { showToast } from '@/lib/toast';
 import { VibeCards, vibeIcon, vibeName } from '@/components/rooms/vibes';
-import { api } from '@/lib/api/client';
 import { authError, useFeatures } from '@/lib/api/auth';
 import { type Lang, t as tr, useT } from '@/lib/i18n';
 import { useRoomGone } from '@/lib/hooks/use-switch-room';
@@ -24,10 +23,10 @@ import { Segmented } from '@/components/ui/segmented';
 import { askConfirm } from '@/lib/confirm';
 import { Dialog, DialogActions, DialogTitle } from '@/components/ui/dialog';
 import { BackButton } from '@/components/ui/back-button';
-import { type Group, type Member, useGroup, useVibes, groupKeys } from '@/lib/api/group';
+import { type Group, type Member, useGroup, useVibes, groupKeys, type RoomPatch, updateRoom, renewRoomCode, transferOwnership, deleteRoom } from '@/lib/api/group';
 import { roomKeys } from '@/lib/api/rooms';
 
-type Patch = Partial<Group['settings']> & { name?: string; language?: Lang };
+type Patch = RoomPatch;
 
 /** The waits the server accepts between two questions, in seconds. */
 const DELAYS = [0, 900, 3600, 10800, 43200, 86400];
@@ -279,7 +278,7 @@ function Settings({ group }: { group: Group }) {
   // Optimistic: the switch moves at once, and springs back if the server says no.
   const save = useMutation({
     meta: { quiet: true },
-    mutationFn: (body: Patch) => api(`/rooms/${group.id}`, { method: 'PATCH', json: body }),
+    mutationFn: (body: Patch) => updateRoom(group.id, body),
     onMutate: async (body) => {
       await qc.cancelQueries({ queryKey: groupKeys.all });
       const before = qc.getQueryData<Group>(groupKeys.all);
@@ -304,13 +303,13 @@ function Settings({ group }: { group: Group }) {
   });
   const renew = useMutation({
     meta: { quiet: true },
-    mutationFn: () => api(`/rooms/${group.id}/code`, { method: 'POST' }),
+    mutationFn: () => renewRoomCode(group.id),
     onSettled: () => qc.invalidateQueries({ queryKey: groupKeys.all }),
   });
   // Once done, I'm no longer the owner: the screen steps back by itself.
   const transfer = useMutation({
     meta: { quiet: true },
-    mutationFn: (id: number) => api(`/rooms/${group.id}/owner`, { method: 'POST', json: { member_id: id } }),
+    mutationFn: (id: number) => transferOwnership(group.id, id),
     onSuccess: close,
     onSettled: () => qc.invalidateQueries({ queryKey: groupKeys.all }),
   });
@@ -327,7 +326,7 @@ function Settings({ group }: { group: Group }) {
   const remove = async () => {
     if (!(await askConfirm(tr('room.settings.deleteAsk', { name: group.name }), tr('room.settings.deleteMessage'), tr('common.delete')))) return;
     try {
-      await api(`/rooms/${group.id}`, { method: 'DELETE' });
+      await deleteRoom(group.id);
     } catch (e) {
       return showToast(authError(e));
     }

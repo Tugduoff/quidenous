@@ -6,7 +6,6 @@ import { Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-na
 import Animated from 'react-native-reanimated';
 import { AvatarArt } from '@/components/ui/avatar-art';
 import { Screen } from '@/components/ui/screen';
-import { api } from '@/lib/api/client';
 import { type Avatar, type Field, formatAvatar, optionCount, PARTS, type PaletteField, parseAvatar, PRESETS, randomAvatar, startingAvatar } from '@/lib/utils/avatar';
 import { type TKey, useT } from '@/lib/i18n';
 import { usePop } from '@/lib/motion';
@@ -15,8 +14,8 @@ import { useTheme } from '@/lib/theme';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Button } from '@/components/ui/button';
 import { BackButton } from '@/components/ui/back-button';
-import type { Member } from '@/lib/api/group';
 import { groupKeys } from '@/lib/api/group';
+import { setMyAvatar } from '@/lib/api/me';
 
 type Tab = { label: TKey; field?: Field; colors?: PaletteField; zoom?: boolean };
 const TABS: Tab[] = [
@@ -131,7 +130,7 @@ export default function AvatarBuilder() {
     setBusy(true);
     setError(false);
     try {
-      setMe(await api<Member>('/me/avatar', { method: 'PUT', json: { avatar: spec } }));
+      setMe(await setMyAvatar(spec));
       qc.invalidateQueries({ queryKey: groupKeys.all });
       router.back();
     } catch {

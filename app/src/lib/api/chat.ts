@@ -104,3 +104,11 @@ export type Message = {
 
 export const useMessages = (roundId: number) =>
   useQuery({ queryKey: chatKeys.messages(roundId), queryFn: () => api<Message[]>(`/rounds/${roundId}/messages`) });
+
+export type NewMessage = { text: string; mentions?: number[]; everyone?: boolean; client_key: string };
+
+export const postMessage = (roundId: number, message: NewMessage) => api<Message>(`/rounds/${roundId}/messages`, { method: 'POST', json: message });
+
+export const deleteMessage = (roundId: number, id: number) => api(`/rounds/${roundId}/messages/${id}`, { method: 'DELETE' });
+
+export const restoreMessage = (roundId: number, id: number) => api(`/rounds/${roundId}/messages/${id}/restore`, { method: 'POST' });

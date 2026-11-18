@@ -21,3 +21,5 @@ export type InboxItem = {
 };
 
 export const useInbox = () => useQuery({ queryKey: inboxKeys.all, queryFn: () => api<{ items: InboxItem[]; unread: number }>('/inbox') });
+
+export const markInboxRead = () => api('/inbox/read', { method: 'POST' });

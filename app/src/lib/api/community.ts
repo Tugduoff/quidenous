@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { api, ApiError, API_URL } from '@/lib/api/client';
+import { api, ApiError, API_URL, appUrl } from '@/lib/api/client';
 import { authError, useFeatures } from '@/lib/api/auth';
 import { getLang, t, type TKey } from '@/lib/i18n';
 
@@ -138,6 +138,6 @@ export const challengeRoom = (roundId: number, roomId: number) =>
 /** A public link to this question (no podium) whose page leads to /play. */
 export async function questionShareLink(roundId: number): Promise<string> {
   const r = await api<{ token?: string; path: string }>(`/rounds/${roundId}/share`, { method: 'POST', json: { result: false } });
-  const base = API_URL || (typeof location !== 'undefined' ? location.origin : '');
+  const base = appUrl();
   return `${base}${r.token ? `/s/${r.token}` : r.path}`;
 }

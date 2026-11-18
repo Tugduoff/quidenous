@@ -1,32 +1,13 @@
 import { Linking, Platform, Share } from 'react-native';
 import { showToast } from '@/lib/toast';
-import { api, API_URL } from '@/lib/api/client';
+import { api, appUrl } from '@/lib/api/client';
 import { featuresQuery } from '@/lib/api/auth';
 import { getLang, t } from '@/lib/i18n';
 import { queryClient } from '@/lib/api/query-client';
 import { storage } from '@/lib/device/storage';
 import { askConfirm } from '@/lib/confirm';
-import type { Member } from '@/lib/api/group';
-import type { Round } from '@/lib/api/rounds';
 import { historyExportUrl } from '@/lib/api/history';
 import type { StatsPeriod, Story } from '@/lib/api/stats';
-
-/** Where friends can open the app (web app served by the API server). */
-export const appUrl = () => API_URL || (typeof location !== 'undefined' ? location.origin : '');
-
-/** My friend link (what the QR code holds). */
-export const friendLink = (code: string) => `${appUrl()}/?friend=${code}`;
-
-export function friendMessage(code: string) {
-  return t('share.friend', { link: friendLink(code), code });
-}
-
-/** Invite to a room: the link carries the code, so it opens the join screen ready to go (signed in too: see _layout). */
-export const inviteLink = (code: string) => `${appUrl()}/join?code=${code}`;
-
-export function inviteMessage(roomName: string, code: string) {
-  return t('share.invite', { room: roomName, link: inviteLink(code), code });
-}
 
 /** The first public link on this device asks first: anyone with it sees the card and the room's name. */
 const PUBLIC_OK = 'qdn.publicShareOk';
@@ -62,45 +43,6 @@ export async function publicLink(roundId: number, result: boolean): Promise<stri
   } catch {
     return null;
   }
-}
-
-/** The open question, as a message inviting people to vote. */
-export function questionMessage(round: Round) {
-  return t('share.question', { number: round.number, question: round.question, url: appUrl() });
-}
-
-/** A finished question with its podium. */
-export function resultMessage(round: Round, byId: Map<number, Member>) {
-  // A choose question: what each person really took (the first few).
-  if (round.choose && round.items) {
-    const items = round.items;
-    const lines = round.choose.people
-      .filter((p) => p.real != null)
-      .slice(0, 5)
-      .map((p) => `${byId.get(p.member_id)?.name ?? '?'} · ${items[p.real!] ?? '?'}`);
-    return t('share.result', { number: round.number, question: round.question, lines: lines.join('\n'), url: appUrl() });
-  }
-  // A said question: its top scorers.
-  if (round.said?.result) {
-    const medals = ['🥇', '🥈', '🥉'];
-    const lines = round.said.result.scores
-      .filter((s) => s.points > 0)
-      .slice(0, 3)
-      .map((s, i) => `${medals[i]} ${byId.get(s.member_id)?.name ?? '?'} · ${t('share.points', { points: s.points })}`);
-    return t('share.result', { number: round.number, question: round.question, lines: lines.join('\n'), url: appUrl() });
-  }
-  if (round.ranking) {
-    const medals = ['🥇', '🥈', '🥉'];
-    const lines = round.ranking
-      .slice(0, 3)
-      .map((r, i) => `${medals[i]} ${byId.get(r.member_id)?.name ?? '?'} · ${t('share.points', { points: r.points })}`);
-    return t('share.ranking', { number: round.number, question: round.question, lines: lines.join('\n'), url: appUrl() });
-  }
-  const tallies = round.result ?? [];
-  const total = tallies.reduce((n, x) => n + x.count, 0);
-  const medals = ['👑', '🥈', '🥉'];
-  const lines = tallies.slice(0, 3).map((x, i) => `${medals[i]} ${byId.get(x.target_id)?.name ?? '?'} · ${x.count}/${total}`);
-  return t('share.result', { number: round.number, question: round.question, lines: lines.join('\n'), url: appUrl() });
 }
 
 /** Native share sheet; on the web, the browser's share or the clipboard. Returns 'copied' when it fell back to the clipboard. */
