@@ -1,5 +1,5 @@
 import { ChevronRight, Download, Share, SquarePlus, Smartphone, X } from 'lucide-react-native';
-import { type ComponentType, useEffect, useState } from 'react';
+import { type ComponentType, useState } from 'react';
 import { Platform, Pressable, Text, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import { Screen } from '@/components/ui/screen';
@@ -9,21 +9,9 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { CodeText, Display, Logo } from '@/components/ui/text';
 import { presetFriendCode, presetJoinCode } from '@/lib/device/launch-params';
-
-type InstallPrompt = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }> };
+import { useInstallPrompt } from '@/lib/hooks/use-install-prompt';
 
 const web = Platform.OS === 'web' && typeof window !== 'undefined';
-
-// Android fires it once, early: keep it for the Installer button.
-let deferred: InstallPrompt | null = null;
-const waiting = new Set<() => void>();
-if (web) {
-  window.addEventListener('beforeinstallprompt', (e) => {
-    e.preventDefault();
-    deferred = e as InstallPrompt;
-    waiting.forEach((f) => f());
-  });
-}
 
 /**
  * The web build is meant for the home screen app (push, full screen, its own session).
@@ -82,30 +70,10 @@ export function InstallScreen({ onClose }: { onClose?: () => void }) {
   const t = useTheme();
   const tr = useT();
   const [kind] = useState(device);
-  const [prompt, setPrompt] = useState(deferred);
-  const [installed, setInstalled] = useState(false);
+  const { canPrompt, installed, install } = useInstallPrompt();
   const code = presetJoinCode();
   const friend = presetFriendCode();
   const shownCode = code || friend;
-
-  useEffect(() => {
-    const ready = () => setPrompt(deferred);
-    const done = () => setInstalled(true);
-    waiting.add(ready);
-    window.addEventListener('appinstalled', done);
-    return () => {
-      waiting.delete(ready);
-      window.removeEventListener('appinstalled', done);
-    };
-  }, []);
-
-  const install = async () => {
-    if (!prompt) return;
-    await prompt.prompt();
-    if ((await prompt.userChoice).outcome === 'accepted') setInstalled(true);
-    deferred = null;
-    setPrompt(null);
-  };
 
   const text = { fontFamily: t.font.regular, fontSize: 16, lineHeight: 22, color: t.mut };
   return (
@@ -149,7 +117,7 @@ export function InstallScreen({ onClose }: { onClose?: () => void }) {
           <Card style={{ padding: 18 }}>
             <Step n={1} Icon={Smartphone} label={tr('install.android.installed')} />
           </Card>
-        ) : prompt ? (
+        ) : canPrompt ? (
           <Button onPress={install}>
             <Download size={20} color={t.accTxt} />
             <Text style={{ fontFamily: t.font.bold, fontSize: 17, color: t.accTxt }}>{tr('install.android.install')}</Text>

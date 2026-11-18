@@ -1,6 +1,5 @@
 import { Check, Download, RefreshCw, Settings, Sparkles, X } from 'lucide-react-native';
 import { usePathname } from 'expo-router';
-import { useEffect } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -11,6 +10,7 @@ import { appVersion, checkForUpdate, clearCheck, install, later, openInstallSett
 import { useTheme } from '@/lib/theme';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Dialog } from '@/components/ui/dialog';
+import { useTimeout } from '@/lib/hooks/use-timeout';
 
 /** A newer APK is out: its notes, Installer (download, then Android's installer) or Plus tard. Mounted once, in the root layout. */
 export function UpdateDialog() {
@@ -135,11 +135,7 @@ export function VersionLine() {
   const tr = useT();
   const { status, release } = useUpdate();
   // A manual check's answer stays a few seconds.
-  useEffect(() => {
-    if (status !== 'latest' && status !== 'failed') return;
-    const timer = setTimeout(clearCheck, 4000);
-    return () => clearTimeout(timer);
-  }, [status]);
+  useTimeout(clearCheck, status === 'latest' || status === 'failed' ? 4000 : null, status);
   const small = { fontFamily: t.font.semibold, fontSize: 13, color: t.mut };
   const Icon = status === 'latest' ? Check : release ? Download : RefreshCw;
   const label =
