@@ -4,7 +4,7 @@ import Animated from 'react-native-reanimated';
 import { MascotBand } from '@/components/mascot/band';
 import { Mascot } from '@/components/mascot/mascot';
 import { Countdown, PlayerChips, Reactions, VotedLine, WinnerReveal } from '@/components/party/party';
-import { SaidScreenQuestion, SaidScreenResult } from '@/components/party/said';
+import { SaidScreenQuestion, SaidScreenResult } from '@/components/party/said-screen';
 import { ScreenCounts } from '@/components/result/live-reactions';
 import { ResultBars } from '@/components/result/result-bars';
 import { Tag } from '@/components/ui/tag';
