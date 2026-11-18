@@ -225,6 +225,7 @@ pub fn router() -> Router<AppState> {
         .route("/push/subscribe", post(push_subscribe))
         .route("/push/unsubscribe", post(push_unsubscribe))
         .merge(crate::updates::router())
+        .merge(crate::reactions::router())
 }
 
 async fn features(State(state): State<AppState>) -> Json<Value> {
@@ -265,6 +266,8 @@ async fn features(State(state): State<AppState>) -> Json<Value> {
         "share_links",
         "terms",
         "chat_reactions",
+        // Live taps on revealed results (docs/REACTIONS.md).
+        "result_reactions",
         "clear_queue",
         "chat_images",
         // The global question of the day (docs/GLOBAL_QUESTION.md).
@@ -1876,6 +1879,8 @@ struct LiveQuery {
     room: Option<i64>,
     /// A party's code: the big screen follows that party without an account.
     screen: Option<String>,
+    /// Events this app understands beyond the old ones, comma-separated (`crate::live::OptIns`).
+    events: Option<String>,
 }
 
 /// The app only ever sends "here" / "away": anything bigger is cut off at the frame.
@@ -1978,7 +1983,8 @@ async fn live(
         .live
         .take_socket(watcher.user_id(), ip)
         .ok_or(AppError::TooMany("too_many_sockets"))?;
-    Ok(ws.on_upgrade(move |socket| relay(socket, state, group_id, watcher, slot)))
+    let opt_ins = crate::live::OptIns::parse(q.events.as_deref());
+    Ok(ws.on_upgrade(move |socket| relay(socket, state, group_id, watcher, opt_ins, slot)))
 }
 
 async fn relay(
@@ -1986,6 +1992,7 @@ async fn relay(
     state: AppState,
     group_id: i64,
     watcher: Watcher,
+    opt_ins: crate::live::OptIns,
     _slot: crate::live::SocketSlot,
 ) {
     use std::time::Instant;
@@ -2002,7 +2009,7 @@ async fn relay(
     loop {
         tokio::select! {
             event = rx.recv() => match event {
-                Ok(e) if e.group_id == group_id => {
+                Ok(e) if e.group_id == group_id && opt_ins.wants(&e.event) => {
                     let Ok(text) = serde_json::to_string(&e.event) else { continue };
                     if socket.send(Message::Text(text.into())).await.is_err() { break; }
                     if watcher.ends_with(&e.event) {

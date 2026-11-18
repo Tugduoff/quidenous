@@ -460,8 +460,9 @@ export const photoUrl = (m: Member) => (m.photo_url ? `${API_URL}${m.photo_url}`
 /** A media path from the server (`/api/…`) on the server in use; an absolute URL as is. */
 export const mediaUrl = (url: string) => (url.startsWith('/') ? `${API_URL}${url}` : url);
 
-export const liveUrl = async (t: string, tickets: boolean) =>
-  `${API_URL.replace(/^http/, 'ws')}/api/live?${await urlAuth('live', tickets, t)}${roomQuery()}`;
+/** The live socket. `reactions`: also send `result_reacted` (only to apps that handle it, docs/REACTIONS.md). */
+export const liveUrl = async (t: string, tickets: boolean, reactions = false) =>
+  `${API_URL.replace(/^http/, 'ws')}/api/live?${await urlAuth('live', tickets, t)}${roomQuery()}${reactions ? '&events=reactions' : ''}`;
 
 /** Multipart upload (photo). Content type is set by fetch with the boundary. */
 export async function apiUpload<T>(path: string, form: FormData, method = 'PUT'): Promise<T> {

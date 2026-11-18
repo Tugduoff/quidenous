@@ -3,9 +3,10 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 
 import { api, API_URL, ApiError, type Member, type Role, type Tally } from './api';
-import { authError } from './auth';
+import { authError, featuresQuery } from './auth';
 import { t, type TKey } from './i18n';
 import { localizeMembers } from './names';
+import { type ReactedEvent, receiveReacted } from './result-reactions';
 import { appUrl } from './share';
 import { openSocket } from './ws';
 
@@ -163,14 +164,24 @@ export function useRefetchAtZero(ms: number | null, refetch: () => void) {
 export const tallies = (round: PartyRound): Tally[] =>
   (round.results ?? []).map((r) => ({ target_id: r.member_id, count: r.votes, voter_ids: r.voters })).sort((a, b) => b.count - a.count);
 
-/** The big-screen view's live socket (no account: the party's code instead of a token). */
+/**
+ * The big-screen view's live socket (no account: the party's code instead of a token). Taps on a result
+ * (`result_reacted`, asked for when the server has them) go to its bursts, the counts come with `party_updated`.
+ */
 export function useScreenLive(code: string, onEvent: () => void) {
+  const qc = useQueryClient();
   useEffect(() => {
     if (!code) return;
-    const socket = openSocket<{ type: string }>(`${API_URL.replace(/^http/, 'ws')}/api/live?screen=${encodeURIComponent(code)}`, {
+    const url = async () => {
+      const features = await qc.ensureQueryData(featuresQuery).catch(() => [] as string[]);
+      const events = features.includes('result_reactions') ? '&events=reactions' : '';
+      return `${API_URL.replace(/^http/, 'ws')}/api/live?screen=${encodeURIComponent(code)}${events}`;
+    };
+    const socket = openSocket<{ type: string }>(url, {
       onOpen: onEvent,
       onEvent: (event) => {
-        if (PARTY_EVENTS.has(event.type)) onEvent();
+        if (event.type === 'result_reacted') receiveReacted(qc, event as ReactedEvent);
+        else if (PARTY_EVENTS.has(event.type)) onEvent();
       },
     });
     return socket.close;

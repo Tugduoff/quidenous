@@ -12,7 +12,7 @@ A party is a room (`groups` row) with `kind = 'party'`, so rounds, votes, member
 - `rounds.deadline_at` (party rounds only): opened_at + timer.
 - `party_players (round_id, member_id)`: who was in the party when the question opened. Only they vote on it and only they can be picked; someone joining mid-question votes from the next one (`409 joined_late`).
 - `party_taps (round_id, member_id)`: "Suivante" taps on a revealed question.
-- `party_reactions (round_id, member_id, emoji)`: quick reactions on a result, toggled. Allowed: `😂 🔥 😱 👀 💀 ❤️`.
+- Reactions on a result: `round_reactions` (taps), shared with daily rounds, see docs/REACTIONS.md. `party_reactions` (the old toggles) is empty since `0050`.
 - `users.guest INTEGER NOT NULL DEFAULT 0`: account created by a party join without an account (token only, like a legacy account). It can later add an e-mail + password or link Google/Discord (`/api/auth/credentials`, OAuth link) and keeps its seats and history; `guest` reads false once the account is secured.
 
 ## Flow
@@ -60,7 +60,7 @@ All under `/api`, JSON, errors `{"error": code}`. `{id}` = the party's room id; 
 | `POST /parties/{id}/vote` | eligible player | `target_id` | state · `409 joined_late`, `409 already_voted`, `409 no_open_round`, `400 unknown_member` |
 | `POST /parties/{id}/next` | player | | state · owner: opens next; others: tap · `409 not_reveal` |
 | `DELETE /parties/{id}/next` | player | | state |
-| `POST /parties/{id}/react` | player | `round_id, emoji` | state · `400 bad_emoji` |
+| `POST /parties/{id}/react` | player | `round_id, emoji` | state · `400 bad_emoji` (older apps: a toggle on the taps, docs/REACTIONS.md; newer ones use `POST /rounds/{id}/reactions`) |
 | `PATCH /parties/{id}` | owner | `name?, timer?, locked?` | state (`locked`: nobody new can join, `403 party_locked`; seats already taken stay) · `400 bad_timer` |
 | `POST /parties/{id}/end` | owner | | state (over now) |
 | `POST /parties/{id}/keep` | owner | | `{ id }` (now a normal room) |
@@ -101,7 +101,7 @@ Leaving uses `POST /rooms/{id}/leave`. The memory (list of questions and winners
 
 ### Live
 
-The existing socket (`/api/live?ticket=`, or `?token=` from older apps) carries the party's room events: `member_joined`, `vote_cast`, `round_closed`, `round_opened`, `member_removed`, `room_updated` (settings, start, end, keep) and a new `party_updated { round_id }` (taps, reactions; at most one per party every 500 ms, the last of a burst sent once the gap has passed, see `server/src/live.rs`). The app refetches the party state on any of them, events in the same 250 ms batched into one refetch. The big screen subscribes without an account: `/api/live?screen=<code>` (party rooms only, same events, same rules as the screen route: closed and refused 15 min after the end).
+The existing socket (`/api/live?ticket=`, or `?token=` from older apps) carries the party's room events: `member_joined`, `vote_cast`, `round_closed`, `round_opened`, `member_removed`, `room_updated` (settings, start, end, keep) and a new `party_updated { round_id }` (taps, reactions; at most one per party every 500 ms, the last of a burst sent once the gap has passed, see `server/src/live.rs`). The app refetches the party state on any of them, events in the same 250 ms batched into one refetch. The big screen subscribes without an account: `/api/live?screen=<code>` (party rooms only, same events, same rules as the screen route: closed and refused 15 min after the end). With `events=reactions` both also get `result_reacted` (docs/REACTIONS.md).
 
 `GET /api/features` lists `party`.
 
@@ -109,7 +109,7 @@ The existing socket (`/api/live?ticket=`, or `?token=` from older apps) carries 
 
 - `POST /parties`: `name` empty or missing = "Soirée de {host}" / "{host}'s party" (host's language); `language` missing = the host's account language; `400 bad_hours`, `400 bad_timer`, `400 bad_vibe`, `400 bad_language`, `400 bad_room_name` (> 40).
 - `eligible` lists the players of that question still in the party (they are the ones the close waits for); `voted` lists everyone who voted on it.
-- `reactions` lists only emojis with at least one reaction, in the order `😂 🔥 😱 👀 💀 ❤️`. Reacting on an open question: `409 not_reveal`.
+- `reactions` lists only emojis with at least one tap, in the palette order of docs/REACTIONS.md (`😂 🔥 😱 👀 💀 ❤️ 👏 🙈`); `count` is the taps, `mine` whether I have any, without the people I blocked. Reacting on an open question: `409 not_reveal`.
 - Over: `vote`, `next`, `start`, `react`, `PATCH` answer `410 party_over`; `end` again changes nothing; `next` is null in the state. `keep` works at any time (owner).
 - After `keep`, `GET /parties/{id}` still answers (with `kind: "room"`, so the app can go to the room); the other party endpoints answer `409 not_party`.
 - Party rooms refuse room pacing (`PATCH /rooms/{id}` with `owner_next` / `next_delay`: `400 bad_setting`; `POST /rooms/{id}/next`: `409 party`) and nudges (`409 party`).

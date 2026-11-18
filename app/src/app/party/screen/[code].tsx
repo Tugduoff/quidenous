@@ -4,12 +4,14 @@ import { useEffect } from 'react';
 import { ActivityIndicator, ScrollView, Text, useWindowDimensions, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 
+import { ScreenBursts, ScreenCounts } from '@/components/live-reactions';
 import { Mascot } from '@/components/mascot';
 import { MascotBand } from '@/components/mascot-band';
 import { Countdown, JoinQr, PlayerChips, Reactions, VotedLine, WinnerReveal } from '@/components/party';
 import { ResultBars } from '@/components/result-bars';
 import { CodeText, Display, Logo, Tag } from '@/components/ui';
 import type { Member } from '@/lib/api';
+import { useFeatures } from '@/lib/auth';
 import { showLang, useT } from '@/lib/i18n';
 import { useSession } from '@/lib/session';
 import { motion } from '@/lib/motion';
@@ -40,6 +42,7 @@ export default function PartyBigScreen() {
     .trim()
     .toUpperCase();
   const { width, height } = useWindowDimensions();
+  const { resultReactions } = useFeatures();
   const q = useQuery({ queryKey: partyKeys.screen(code), queryFn: () => partyApi.screen(code), refetchInterval: 15_000, enabled: !!code });
   useScreenLive(code, () => q.refetch());
   const p = q.data;
@@ -78,32 +81,36 @@ export default function PartyBigScreen() {
   );
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: t.bg }} contentContainerStyle={{ flexGrow: 1, padding: wide ? 48 : 24, gap: 32 }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 20 }}>
-        <Logo size={28} />
-        <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: t.font.bold, fontSize: 22, color: t.mut }}>
-          {p.name || tr('party.name')}
-        </Text>
-      </View>
-      <View style={{ flex: 1, flexDirection: wide ? 'row' : 'column-reverse', alignItems: wide ? 'center' : 'stretch', gap: 48 }}>
-        {side}
-        <View style={{ flex: wide ? 1 : undefined, minWidth: 0, justifyContent: 'center', gap: 32 }}>
-          <Stage party={p} unit={Math.max(0.6, unit)} wide={wide} />
+    <View style={{ flex: 1, backgroundColor: t.bg }}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1, padding: wide ? 48 : 24, gap: 32 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 20 }}>
+          <Logo size={28} />
+          <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: t.font.bold, fontSize: 22, color: t.mut }}>
+            {p.name || tr('party.name')}
+          </Text>
         </View>
-      </View>
-    </ScrollView>
+        <View style={{ flex: 1, flexDirection: wide ? 'row' : 'column-reverse', alignItems: wide ? 'center' : 'stretch', gap: 48 }}>
+          {side}
+          <View style={{ flex: wide ? 1 : undefined, minWidth: 0, justifyContent: 'center', gap: 32 }}>
+            <Stage party={p} unit={Math.max(0.6, unit)} wide={wide} reactions={resultReactions} />
+          </View>
+        </View>
+      </ScrollView>
+      {/* Taps from the phones float up from the bottom edge, over everything. */}
+      {resultReactions && p.phase === 'reveal' && p.round && <ScreenBursts roundId={p.round.id} wide={wide} />}
+    </View>
   );
 }
 
 const byIdOf = (p: Party) => new Map<number, Member>(p.players.map((m) => [m.id, m]));
 
 /** What the room is looking at: the players while waiting, the question, the result, the end. */
-function Stage({ party, unit, wide }: { party: Party; unit: number; wide: boolean }) {
+function Stage({ party, unit, wide, reactions }: { party: Party; unit: number; wide: boolean; reactions: boolean }) {
   const t = useTheme();
   const tr = useT();
   const big = (n: number) => Math.round(n * unit);
   if (party.phase === 'voting' && party.round) return <Question key={party.round.id} party={party} round={party.round} unit={unit} />;
-  if (party.phase === 'reveal' && party.round) return <Result key={party.round.id} party={party} round={party.round} unit={unit} wide={wide} />;
+  if (party.phase === 'reveal' && party.round) return <Result key={party.round.id} party={party} round={party.round} unit={unit} wide={wide} reactions={reactions} />;
   if (party.phase === 'over')
     return (
       <Animated.View entering={motion.enter} style={{ gap: 16 }}>
@@ -138,7 +145,7 @@ function Question({ party, round, unit }: { party: Party; round: PartyRound; uni
 }
 
 /** The result: on a wide screen the winner and the bars side by side, so it all fits without scrolling. */
-function Result({ party, round, unit, wide }: { party: Party; round: PartyRound; unit: number; wide: boolean }) {
+function Result({ party, round, unit, wide, reactions }: { party: Party; round: PartyRound; unit: number; wide: boolean; reactions: boolean }) {
   const t = useTheme();
   const byId = byIdOf(party);
   const list = tallies(round).slice(0, wide ? 4 : 5);
@@ -154,7 +161,7 @@ function Result({ party, round, unit, wide }: { party: Party; round: PartyRound;
         </View>
         {bars && <View style={{ flex: wide ? 1.3 : undefined, minWidth: 0 }}>{bars}</View>}
       </View>
-      {!!round.reactions?.length && <Reactions round={round} disabled />}
+      {reactions ? <ScreenCounts reactions={round.reactions} unit={unit} /> : !!round.reactions?.length && <Reactions round={round} disabled />}
     </View>
   );
 }

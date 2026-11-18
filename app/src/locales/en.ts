@@ -32,6 +32,7 @@ import { globalQuestion } from './en/global';
 import { streaks } from './en/streaks';
 import { anonymous } from './en/anonymous';
 import { tripot } from './en/tripot';
+import { reactions } from './en/reactions';
 
 export const en: Messages = {
   common,
@@ -66,4 +67,5 @@ export const en: Messages = {
   streaks,
   anonymous,
   tripot,
+  reactions,
 };

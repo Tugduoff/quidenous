@@ -32,6 +32,7 @@ import { GlobalCard } from '@/components/global';
 import { BIG_GROUP, gridColumns, MemberGrid, MemberTile } from '@/components/member-grid';
 import { AnonymousBadge } from '@/components/anonymous';
 import { RankResult, ResultBars, ResultSummary } from '@/components/result-bars';
+import { LiveReactions } from '@/components/live-reactions';
 import { QueryState } from '@/components/query-state';
 import { Screen } from '@/components/screen';
 import { SecureCard } from '@/components/secure-card';
@@ -967,6 +968,7 @@ export function Result({
           <ResultBars result={round.result ?? []} byId={byId} anonymous={round.anonymous} />
         )}
       </View>
+      <LiveReactions roundId={round.id} byId={byId} />
       <TripotResult round={round} byId={byId} />
       <Challenges roundId={round.id} />
       <ChatMessages roundId={round.id} />

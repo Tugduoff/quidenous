@@ -22,6 +22,7 @@ import Animated from 'react-native-reanimated';
 
 import { copyText, ErrorText, SoftButton } from '@/components/auth-ui';
 import { Mascot } from '@/components/mascot';
+import { LiveReactions } from '@/components/live-reactions';
 import { BIG_GROUP, gridColumns, MemberGrid, MemberTile } from '@/components/member-grid';
 import { Countdown, JoinQr, NextButton, PlayerChips, Reactions, VotedLine, WinnerReveal } from '@/components/party';
 import { ResultBars } from '@/components/result-bars';
@@ -535,6 +536,7 @@ function Reveal({ party, round }: { party: Party; round: PartyRound }) {
   const [error, setError] = useState<string | null>(null);
   const byId = usePeople(party);
   const owner = isOwner(party);
+  const { resultReactions } = useFeatures();
   const refetch = () => qc.invalidateQueries({ queryKey: ['party', party.id] });
   const next = useMutation({
     meta: { quiet: true },
@@ -572,7 +574,12 @@ function Reveal({ party, round }: { party: Party; round: PartyRound }) {
         <WinnerReveal round={round} byId={byId} size={112} />
       </View>
       {list.length > 0 && <ResultBars result={list} byId={byId} />}
-      <Reactions round={round} disabled={!party.me} onReact={(e) => react.mutate(e)} />
+      {/* Taps with bursts on a newer server (its own counts); the old toggles otherwise. */}
+      {resultReactions ? (
+        party.me && <LiveReactions roundId={round.id} byId={byId} me={party.me.member_id} />
+      ) : (
+        <Reactions round={round} disabled={!party.me} onReact={(e) => react.mutate(e)} />
+      )}
     </Screen>
   );
 }

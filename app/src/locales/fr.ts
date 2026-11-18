@@ -31,6 +31,7 @@ import { globalQuestion } from './fr/global';
 import { streaks } from './fr/streaks';
 import { anonymous } from './fr/anonymous';
 import { tripot } from './fr/tripot';
+import { reactions } from './fr/reactions';
 
 export const fr = {
   common,
@@ -65,6 +66,7 @@ export const fr = {
   streaks,
   anonymous,
   tripot,
+  reactions,
 };
 
 /** The shape every language follows (strings widened, same keys). */

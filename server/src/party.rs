@@ -41,8 +41,8 @@ pub const HOURS: [i64; 4] = [2, 4, 8, 12];
 pub const DEFAULT_HOURS: i64 = 4;
 /// Players at most in one party.
 pub const MAX_PLAYERS: i64 = 40;
-/// Quick reactions on a result.
-pub const EMOJIS: [&str; 6] = ["😂", "🔥", "😱", "👀", "💀", "❤️"];
+/// Quick reactions on a result: the result palette (docs/REACTIONS.md).
+pub const EMOJIS: [&str; 8] = crate::reactions::RESULT_EMOJIS;
 /// 8 symbols of 32 = 40 bits: the code alone opens the big screen, with names and votes.
 /// (Parties made before this had 5; their codes still work.)
 const CODE_LEN: usize = 8;
@@ -387,11 +387,16 @@ async fn round_view(
             let needed = needed_now(state, round_id, players, None).await?;
             json!({ "taps": taps, "needed": needed, "players": players, "mine": mine })
         };
+        // Taps, without the people I blocked; `mine`: I have some.
         let rows: Vec<(String, i64, bool)> = sqlx::query_as(
-            "SELECT emoji, COUNT(*), MAX(member_id = ?) FROM party_reactions WHERE round_id = ? GROUP BY emoji",
+            "SELECT r.emoji, SUM(r.count), MAX(r.member_id = ?1) FROM round_reactions r \
+             JOIN members m ON m.id = r.member_id WHERE r.round_id = ?2 \
+             AND NOT EXISTS (SELECT 1 FROM blocks b WHERE b.user_id = ?3 AND b.blocked_id = m.user_id) \
+             GROUP BY r.emoji",
         )
         .bind(me.map(|m| m.id))
         .bind(round_id)
+        .bind(me.and_then(|m| m.user_id))
         .fetch_all(&state.db)
         .await?;
         let reactions: Vec<Value> = EMOJIS
@@ -1094,7 +1099,8 @@ pub struct ReactBody {
     emoji: String,
 }
 
-/// Toggle a quick reaction on a result.
+/// Older apps: toggles a quick reaction on a result. Mine on that emoji go if I have some, else one
+/// tap is added (within the cap, docs/REACTIONS.md).
 async fn react(
     State(state): State<AppState>,
     UserId(user): UserId,
@@ -1102,34 +1108,36 @@ async fn react(
     Json(body): Json<ReactBody>,
 ) -> AppResult<Json<Value>> {
     let (me, p) = party_seat(&state, user, id).await?;
-    let emoji = body.emoji.trim();
-    if !EMOJIS.contains(&emoji) {
-        return Err(AppError::BadRequest("bad_emoji"));
-    }
+    let emoji = crate::reactions::clean_result_emoji(&body.emoji)
+        .ok_or(AppError::BadRequest("bad_emoji"))?;
     not_over(&p)?;
     let round = game::round(&state.db, id, body.round_id).await?;
     if round.closed_at.is_none() {
         return Err(AppError::Conflict("not_reveal"));
     }
+    let mut tx = crate::db::write_tx(&state.db).await?;
     let removed = sqlx::query(
-        "DELETE FROM party_reactions WHERE round_id = ? AND member_id = ? AND emoji = ?",
+        "DELETE FROM round_reactions WHERE round_id = ? AND member_id = ? AND emoji = ?",
     )
     .bind(round.id)
     .bind(me.id)
     .bind(emoji)
-    .execute(&state.db)
-    .await?;
-    if removed.rows_affected() == 0 {
-        sqlx::query("INSERT INTO party_reactions (round_id, member_id, emoji) VALUES (?, ?, ?)")
-            .bind(round.id)
-            .bind(me.id)
-            .bind(emoji)
-            .execute(&state.db)
-            .await?;
+    .execute(&mut *tx)
+    .await?
+    .rows_affected()
+        > 0;
+    let added = if removed {
+        Vec::new()
+    } else {
+        crate::reactions::add_taps(&mut tx, round.id, me.id, &[(emoji, 1)]).await?
+    };
+    tx.commit().await?;
+    if removed {
+        state
+            .live
+            .send(id, Event::PartyUpdated { round_id: round.id });
     }
-    state
-        .live
-        .send(id, Event::PartyUpdated { round_id: round.id });
+    crate::reactions::tell_taps(&state, &me, round.id, true, &added);
     answer(&state, id, &me).await
 }
 
