@@ -8,7 +8,6 @@ async fn results_can_be_pinned_for_the_group() {
 
     let (_, open) = call(&app, "GET", "/round/current", Some(&tug), None).await;
     let first = open["id"].as_i64().unwrap();
-    // Not while the question is open.
     let (status, _) = call(
         &app,
         "PUT",
@@ -30,7 +29,6 @@ async fn results_can_be_pinned_for_the_group() {
     )
     .await;
     assert_eq!(status, StatusCode::OK);
-    // Pinning twice is fine.
     let (status, _) = call(
         &app,
         "PUT",
@@ -41,7 +39,6 @@ async fn results_can_be_pinned_for_the_group() {
     .await;
     assert_eq!(status, StatusCode::OK);
 
-    // Everyone sees it pinned.
     let (_, round) = call(&app, "GET", &format!("/rounds/{first}"), Some(&louis), None).await;
     assert_eq!(round["pinned"], true);
     let (_, history) = call(&app, "GET", "/history", Some(&louis), None).await;
@@ -50,7 +47,6 @@ async fn results_can_be_pinned_for_the_group() {
     assert_eq!(pinned.as_array().unwrap().len(), 1);
     assert_eq!(pinned[0]["id"], first);
 
-    // Only whoever pinned it (or the owner) unpins it.
     let (status, _) = call(
         &app,
         "DELETE",
@@ -87,7 +83,6 @@ async fn stats_count_votes_and_hand_out_awards() {
     assert!(empty["most_chosen"].is_null());
     assert_eq!(empty["never_chosen"], json!([]));
 
-    // 1: everyone picks Louis (unanimous). 2: Tug votes for himself, a tie. 3: Louis again.
     for (t, target) in [(&tug, louis_id), (&louis, louis_id), (&ravenne, louis_id)] {
         vote_as(&app, t, target).await;
     }
@@ -97,7 +92,6 @@ async fn stats_count_votes_and_hand_out_awards() {
     for (t, target) in [(&tug, louis_id), (&ravenne, louis_id), (&louis, tug_id)] {
         vote_as(&app, t, target).await;
     }
-    // The open question 4 must not count.
     vote_as(&app, &tug, ravenne_id).await;
 
     let (status, s) = call(&app, "GET", "/stats", Some(&ravenne), None).await;
@@ -119,7 +113,6 @@ async fn stats_count_votes_and_hand_out_awards() {
     assert_eq!(s["never_chosen"], json!([ravenne_id]));
     assert_eq!(s["seconds_voting"], 9 * 20);
     assert!(s["last_voter"]["member_id"].is_i64());
-    // Tug and Ravenne both picked Louis twice: the lowest id wins the tie.
     assert_eq!(
         s["duo"],
         json!({ "voter_id": tug_id, "target_id": louis_id, "value": 2 })
@@ -171,7 +164,6 @@ async fn public_share_links_show_only_the_card() {
     let (b, _) = join(&app, "Bob").await;
     let (_, open) = call(&app, "GET", "/round/current", Some(&a), None).await;
     let round = open["id"].as_i64().unwrap();
-    // While open, asking for the result still gives a question-only link.
     let (s, early) = call(
         &app,
         "POST",
@@ -193,7 +185,6 @@ async fn public_share_links_show_only_the_card() {
     .await;
     let token = share["token"].as_str().unwrap().to_owned();
     assert_ne!(token, early["token"].as_str().unwrap());
-    // Same request again: same link.
     let (_, again) = call(
         &app,
         "POST",
@@ -203,7 +194,6 @@ async fn public_share_links_show_only_the_card() {
     )
     .await;
     assert_eq!(again["token"], share["token"]);
-    // The page needs no token and carries preview tags; the card is a PNG.
     let res = app
         .clone()
         .oneshot(
@@ -233,7 +223,6 @@ async fn public_share_links_show_only_the_card() {
     assert_eq!(res.headers()["content-type"], "image/png");
     let png = res.into_body().collect().await.unwrap().to_bytes();
     assert_eq!(&png[1..4], b"PNG");
-    // Unknown link, and someone outside the room can't make one.
     let res = app
         .clone()
         .oneshot(
@@ -271,7 +260,6 @@ async fn the_quill_counts_only_written_questions() {
     let (a, a_id) = join(&app, "Ana").await;
     let (b, b_id) = join(&app, "Bob").await;
     common::trust_all(&state).await;
-    // Ana imports a file and installs a pack; Bob writes one question by hand.
     let (s, _) = call(
         &app,
         "POST",
@@ -330,7 +318,6 @@ async fn csv_export_ranks_ranking_questions_on_points() {
     for t in [&a, &b, &c] {
         vote_as(&app, t, a_id).await;
     }
-    // Everyone is 1st once; Bob has the most points.
     for (t, order) in [
         (&a, [a_id, b_id, c_id]),
         (&b, [b_id, c_id, a_id]),
@@ -354,7 +341,6 @@ async fn csv_export_ranks_ranking_questions_on_points() {
     let body =
         String::from_utf8(res.into_body().collect().await.unwrap().to_bytes().to_vec()).unwrap();
     let line = body.lines().nth(2).unwrap();
-    // Bob: 2+3+2 = 7, Cyd: 1+2+3 = 6, Ana: 3+1+1 = 5.
     assert!(
         line.contains("\"Bob\",7,3,\"Bob (7 pts) | Cyd (6 pts) | Ana (5 pts)\""),
         "{body}"
@@ -373,7 +359,6 @@ async fn drawn_avatars_replace_photos_and_follow_the_account() {
     let spec = presets[0].clone();
     let fields = spec.split('.').count();
 
-    // Ana is in a second room (Bob's) before picking an avatar.
     let (_, room) = call(
         &app,
         "POST",
@@ -395,7 +380,6 @@ async fn drawn_avatars_replace_photos_and_follow_the_account() {
     .await;
     assert_eq!(s, StatusCode::OK);
 
-    // Only valid specs: right field count, canonical numbers, in range. Never markup.
     let too_far = spec
         .split('.')
         .enumerate()
@@ -415,7 +399,6 @@ async fn drawn_avatars_replace_photos_and_follow_the_account() {
         assert!(s.is_client_error(), "{bad} gave {s}");
     }
 
-    // A photo first: picking an avatar drops it (and its file), in every room.
     let (s, m) = upload_photo(&app, &ana).await;
     assert_eq!(s, StatusCode::OK, "{m}");
     let photo = m["photo_url"]
@@ -454,7 +437,6 @@ async fn drawn_avatars_replace_photos_and_follow_the_account() {
     }
     let (_, me) = call(&app, "GET", "/me", Some(&ana), None).await;
     assert_eq!(me["avatar"], json!(spec));
-    // Friends see it too.
     let (_, fr) = call(&app, "GET", "/friends", Some(&bob), None).await;
     let f = fr["friends"]
         .as_array()
@@ -465,7 +447,6 @@ async fn drawn_avatars_replace_photos_and_follow_the_account() {
         .clone();
     assert_eq!(f["avatar"], json!(spec));
 
-    // A new seat inherits it.
     let (_, room) = call(
         &app,
         "POST",
@@ -495,7 +476,6 @@ async fn drawn_avatars_replace_photos_and_follow_the_account() {
         .clone();
     assert_eq!(seat["avatar"], json!(spec));
 
-    // A photo again replaces the avatar everywhere.
     let (s, m) = upload_photo(&app, &ana).await;
     assert_eq!(s, StatusCode::OK);
     assert_eq!(m["avatar"], Value::Null);
@@ -508,7 +488,6 @@ async fn drawn_avatars_replace_photos_and_follow_the_account() {
     .unwrap();
     assert_eq!(left, 0);
 
-    // Back to an avatar, then null: the initial (and the photo stays gone).
     call(
         &app,
         "PUT",

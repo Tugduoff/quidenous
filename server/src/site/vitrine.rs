@@ -1,20 +1,3 @@
-//! The showcase page ("vitrine") for visitors: `/` in French, `/en` in English, its files under
-//! `/vitrine/`. Strangers (search engines, the Play listing's website link, shared links) get the
-//! page; people who already play keep landing straight in the web app at `/`:
-//!
-//! - `/` serves the web app's `index.html` when the request carries the [`APP_COOKIE`] (set by the
-//!   app's `index.html` while this browser has a session, or runs as the installed app) or a query
-//!   string other than tracking tags (`/?code=…`, `/?room=…` from notifications, `/?share=…`,
-//!   `/?source=pwa`, the manifest's `start_url`).
-//! - Otherwise the page, whose first inline script sends a browser that has a session
-//!   (`localStorage` `qdn.token`) or runs standalone back into the app: it sets the cookie and
-//!   reloads `/` (or `/?app=1` when cookies are off). That covers sessions from before this page and
-//!   Safari dropping script-set cookies after 7 days.
-//!
-//! Every other app route (`/join`, `/oauth`, `/round/…`, `/party/…`) is untouched: they still fall
-//! back to the app. The page's CSS and JS are `site.css?v=N` / `site.js?v=N` in the HTML: bump N
-//! when they change (the files are cached for a week).
-
 use axum::{
     Router,
     body::Body,
@@ -29,27 +12,21 @@ use std::path::PathBuf;
 
 use crate::platform::web::{BASE_CSP, inline_scripts};
 
-/// The French page (at `/`).
 pub const PAGE_FR: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/assets/vitrine/index.html"
 ));
-/// The English page (at `/en`).
 pub const PAGE_EN: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/assets/vitrine/index.en.html"
 ));
 
-/// Name of the cookie that says "this browser plays": no secret in it, only a routing hint.
 pub const APP_COOKIE: &str = "qdn_app";
 
-/// Query keys that never mean "open the app": links shared on social networks and ads carry them.
 const TRACKING: [&str; 9] = [
     "fbclid", "gclid", "gbraid", "wbraid", "msclkid", "igshid", "mc_cid", "mc_eid", "ref",
 ];
 
-/// The page's files: (path under `/vitrine/`, content type, bytes). The mascots are drawn by
-/// `assets/vitrine/mascots/build.mjs`; the demo's verdict loads four of them from `site.js`.
 const FILES: [(&str, &str, &[u8]); 21] = [
     (
         "site.css",
@@ -221,7 +198,6 @@ const FILES: [(&str, &str, &[u8]); 21] = [
     ),
 ];
 
-/// The page's policy: its own files, its inline redirect script by hash, nothing from elsewhere.
 pub fn csp() -> String {
     let mut hashes: Vec<String> = [PAGE_FR, PAGE_EN]
         .iter()
@@ -243,7 +219,6 @@ pub fn csp() -> String {
     )
 }
 
-/// Does this request come from someone who plays (see the module doc)?
 pub fn wants_app(headers: &HeaderMap, query: Option<&str>) -> bool {
     let cookie = headers
         .get_all(header::COOKIE)
@@ -260,7 +235,6 @@ pub fn wants_app(headers: &HeaderMap, query: Option<&str>) -> bool {
     cookie || app_query
 }
 
-/// `/`, `/en` and `/vitrine/…`. `app` = the web app's folder and its policy, when it is served.
 pub fn router<S: Clone + Send + Sync + 'static>(app: Option<(PathBuf, HeaderValue)>) -> Router<S> {
     let csp = HeaderValue::from_str(&csp()).unwrap_or(HeaderValue::from_static(BASE_CSP));
     let home_csp = csp.clone();
@@ -296,7 +270,6 @@ fn page(body: &'static str, csp: HeaderValue) -> Response {
     html(Body::from(body), csp)
 }
 
-/// HTML at `/` differs by cookie: never stored by a shared cache, revalidated by the browser.
 fn html(body: Body, csp: HeaderValue) -> Response {
     (
         [
@@ -366,7 +339,6 @@ mod tests {
     fn the_policy_allows_the_inline_redirect() {
         let csp = csp();
         assert!(csp.contains("script-src 'self' 'sha256-"), "{csp}");
-        // The same script on both pages: one hash.
         assert_eq!(csp.matches("'sha256-").count(), 1, "{csp}");
         assert!(!csp.contains("unsafe-inline"), "{csp}");
     }

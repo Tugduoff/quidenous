@@ -5,7 +5,6 @@ async fn sensitive_changes_need_a_recent_reauth() {
     let (t, grants) = oauth_setup().await;
     let (ana, _) = signup(&t, "ana@example.com", "Ana").await;
     verify_email(&t, &ana, "ana@example.com").await;
-    // Without re-authenticating: 2FA set-up and enable, linking, deleting.
     assert_eq!(
         status_error(&t, "POST", "/auth/2fa/setup", &ana, None).await,
         reauth_required()
@@ -37,7 +36,6 @@ async fn sensitive_changes_need_a_recent_reauth() {
         reauth_required()
     );
 
-    // Wrong or no proof.
     assert_eq!(
         status_error(
             &t,
@@ -71,7 +69,6 @@ async fn sensitive_changes_need_a_recent_reauth() {
     .await;
     assert_eq!(s, StatusCode::UNAUTHORIZED);
 
-    // The right password: this session only, for 10 minutes.
     let (s, b) = call(
         &t.app,
         "POST",
@@ -90,7 +87,6 @@ async fn sensitive_changes_need_a_recent_reauth() {
     let (s, setup) = call(&t.app, "POST", "/auth/2fa/setup", Some(&ana), None).await;
     assert_eq!(s, StatusCode::OK, "{setup}");
     let secret = setup["secret"].as_str().unwrap().to_owned();
-    // Linking works too now.
     let (location, key) = oauth_round(
         &t,
         &grants,
@@ -105,7 +101,6 @@ async fn sensitive_changes_need_a_recent_reauth() {
         json!({ "linked": "discord" })
     );
 
-    // Ten minutes later it has to be done again.
     sqlx::query("UPDATE user_tokens SET reauth_at = reauth_at - 601 WHERE reauth_at IS NOT NULL")
         .execute(&t.state.db)
         .await
@@ -138,7 +133,6 @@ async fn sensitive_changes_need_a_recent_reauth() {
     assert_eq!(s, StatusCode::OK, "{b}");
     let recovery = b["recovery_codes"][0].as_str().unwrap().to_owned();
 
-    // With 2FA on, a code from the app or a recovery code proves it too (from another session).
     let (s, b) = login(&t, "ana@example.com", PASSWORD).await;
     assert_eq!(s, StatusCode::OK);
     let (_, b) = call(
@@ -164,7 +158,6 @@ async fn sensitive_changes_need_a_recent_reauth() {
     .await;
     assert_eq!(s, StatusCode::BAD_REQUEST, "a recovery code is single use");
     let other_recovery = {
-        // A fresh set: the old ones go.
         let code = totp_code(&secret, now() + 30).unwrap();
         let (s, b) = call(
             &t.app,
@@ -189,7 +182,6 @@ async fn sensitive_changes_need_a_recent_reauth() {
     let (s, _) = call(&t.app, "DELETE", "/auth/oauth/discord", Some(&third), None).await;
     assert_eq!(s, StatusCode::OK);
 
-    // Deleting: the password inline still works (older apps), as does a recent re-auth.
     let (s, _) = call(&t.app, "DELETE", "/auth/account", Some(&third), None).await;
     assert_eq!(s, StatusCode::OK);
     let (s, _) = call(&t.app, "GET", "/auth/account", Some(&ana), None).await;
@@ -210,7 +202,6 @@ async fn provider_only_accounts_reauth_with_a_fresh_provider_round() {
     .await;
     let (_, b) = redeem(&t, &location, &key).await;
     let pia = b["token"].as_str().unwrap().to_owned();
-    // A first password, linking another provider, 2FA, deleting: all need it.
     assert_eq!(
         status_error(
             &t,
@@ -230,7 +221,6 @@ async fn provider_only_accounts_reauth_with_a_fresh_provider_round() {
         status_error(&t, "DELETE", "/auth/account", &pia, None).await,
         reauth_required()
     );
-    // No password to type: a password proves nothing.
     assert_eq!(
         status_error(
             &t,
@@ -242,7 +232,6 @@ async fn provider_only_accounts_reauth_with_a_fresh_provider_round() {
         .await,
         (StatusCode::BAD_REQUEST, Some("bad_credentials".into()))
     );
-    // Re-auth mode needs a session.
     let (s, _) = call(
         &t.app,
         "POST",
@@ -252,7 +241,6 @@ async fn provider_only_accounts_reauth_with_a_fresh_provider_round() {
     )
     .await;
     assert_eq!(s, StatusCode::UNAUTHORIZED);
-    // Another Discord account than the linked one proves nothing, and links nothing.
     let (s, b) = oauth_reauth(
         &t,
         &grants,
@@ -289,7 +277,6 @@ async fn provider_only_accounts_reauth_with_a_fresh_provider_round() {
         .await,
         reauth_required()
     );
-    // The linked one does.
     let (s, b) = oauth_reauth(
         &t,
         &grants,
@@ -309,7 +296,6 @@ async fn provider_only_accounts_reauth_with_a_fresh_provider_round() {
     .await;
     assert_eq!(s, StatusCode::OK, "{b}");
 
-    // A Discord account that gave no e-mail adds one with a password: same rule.
     let (location, key) = oauth_round(
         &t,
         &grants,
@@ -330,10 +316,8 @@ async fn provider_only_accounts_reauth_with_a_fresh_provider_round() {
     assert_eq!(s, StatusCode::OK);
     let (s, b) = call(&t.app, "POST", "/auth/credentials", Some(&noe), Some(creds)).await;
     assert_eq!(s, StatusCode::OK, "{b}");
-    // The re-auth also lets it delete the account.
     let (s, _) = call(&t.app, "DELETE", "/auth/account", Some(&noe), None).await;
     assert_eq!(s, StatusCode::OK);
-    // A signed-out session can't finish a re-auth round.
     let (location, key) = oauth_round_with(
         &t,
         &grants,
@@ -358,7 +342,6 @@ async fn legacy_accounts_have_nothing_to_reauth_with() {
         (s, b["error"].as_str()),
         (StatusCode::BAD_REQUEST, Some("bad_credentials"))
     );
-    // Securing the account and deleting it need no re-auth: there is nothing to prove with.
     let (s, b) = call(
         &t.app,
         "POST",
@@ -368,7 +351,6 @@ async fn legacy_accounts_have_nothing_to_reauth_with() {
     )
     .await;
     assert_eq!(s, StatusCode::OK, "{b}");
-    // Now it has a password: the next sensitive change needs it.
     assert_eq!(
         status_error(&t, "POST", "/auth/2fa/setup", &leo, None).await,
         reauth_required()
@@ -381,7 +363,6 @@ async fn wrong_codes_are_capped_per_email_across_restarts() {
     let t = with_mailer(config.clone()).await;
     signup(&t, "eve@example.com", "Eve").await;
     let reset = |code: &str| json!({ "email": "eve@example.com", "code": code, "password": "un-autre-mot-de-passe" });
-    // A right code under the cap works and isn't counted.
     let code = forgot_code(&t, "eve@example.com").await;
     let (s, _) = call(
         &t.app,
@@ -396,8 +377,6 @@ async fn wrong_codes_are_capped_per_email_across_restarts() {
     assert_eq!(s, StatusCode::OK, "{b}");
     assert_eq!(count(&t, "SELECT COUNT(*) FROM code_failures").await, 1);
 
-    // 19 more wrong codes, over several "restarts" (fresh in-memory limits each time), reset and
-    // delete codes alike: 5 tries per code, then a new code.
     let mut failures = 1;
     while failures < 20 {
         let t = with_mailer(config.clone()).await;
@@ -447,8 +426,6 @@ async fn wrong_codes_are_capped_per_email_across_restarts() {
             failures += 1;
         }
     }
-    // The 20th failure killed the code; after a restart, a new code is refused even when right,
-    // for every kind, until a day has passed.
     let t = with_mailer(config.clone()).await;
     let code = forgot_code(&t, "eve@example.com").await;
     let r = send(&t.app, "POST", "/auth/reset", None, Some(reset(&code)), &[]).await;
@@ -458,7 +435,6 @@ async fn wrong_codes_are_capped_per_email_across_restarts() {
     );
     let wait = r.body["retry_after"].as_u64().unwrap();
     assert!((80_000..=86_400).contains(&wait), "{wait}");
-    // That code is dead now, and refused tries don't count.
     let (s, b) = call(&t.app, "POST", "/auth/reset", None, Some(reset(&code))).await;
     assert_eq!(
         (s, b["error"].as_str()),
@@ -484,7 +460,6 @@ async fn wrong_codes_are_capped_per_email_across_restarts() {
     )
     .await;
     assert_eq!(s, StatusCode::TOO_MANY_REQUESTS);
-    // Another e-mail is not affected.
     signup(&t, "fay@example.com", "Fay").await;
     let code = forgot_code(&t, "fay@example.com").await;
     let (s, _) = call(
@@ -497,7 +472,6 @@ async fn wrong_codes_are_capped_per_email_across_restarts() {
     .await;
     assert_eq!(s, StatusCode::OK);
 
-    // A day later (the oldest failures age out), codes work again.
     sqlx::query("UPDATE code_failures SET at = at - 86400")
         .execute(&t.state.db)
         .await
@@ -532,17 +506,14 @@ async fn a_lockout_from_one_ip_does_not_lock_the_owner_out() {
             StatusCode::BAD_REQUEST
         );
     }
-    // That IP is locked out of this account, even with the right password…
     assert_eq!(
         attempt(PASSWORD, "198.51.100.1".into()).await,
         StatusCode::TOO_MANY_REQUESTS
     );
-    // …but the owner, elsewhere, signs in.
     assert_eq!(
         attempt(PASSWORD, "203.0.113.50".into()).await,
         StatusCode::OK
     );
-    // Guesses spread over many IPs still stop: 40 failures an hour per e-mail.
     let mut statuses = Vec::new();
     for i in 0..36 {
         statuses.push(attempt("pas-le-bon", format!("192.0.2.{i}")).await);
@@ -561,7 +532,6 @@ async fn a_lockout_from_one_ip_does_not_lock_the_owner_out() {
 #[tokio::test]
 async fn forwarded_for_uses_the_last_header_line() {
     let t = setup().await;
-    // A proxy that adds its own line: the client's line (first) must not pick the IP.
     for i in 0..quidenous_server::accounts::limits::LOGIN_IP.capacity {
         let spoofed = format!("198.18.1.{i}");
         let r = send(
@@ -694,23 +664,19 @@ async fn tickets_replace_the_token_in_urls() {
         StatusCode::UNAUTHORIZED,
         "single use"
     );
-    // One purpose: a socket ticket doesn't download the history.
     let tk = ticket("live").await;
     assert_eq!(
         export(format!("ticket={tk}")).await,
         StatusCode::UNAUTHORIZED
     );
     assert_eq!(export("ticket=nope".into()).await, StatusCode::UNAUTHORIZED);
-    // It stops working with its session.
     let tk = ticket("export").await;
-    // Older apps still send the token itself.
     assert_eq!(export(format!("token={ana}")).await, StatusCode::OK);
     call(&t.app, "POST", "/auth/logout", Some(&ana), None).await;
     assert_eq!(
         export(format!("ticket={tk}")).await,
         StatusCode::UNAUTHORIZED
     );
-    // The socket takes tickets too (not a WebSocket request here: refused before the ticket is read).
     let (s, _) = call(&t.app, "GET", "/live?ticket=x", None, None).await;
     assert_ne!(s, StatusCode::OK);
 }

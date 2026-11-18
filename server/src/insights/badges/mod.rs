@@ -1,26 +1,11 @@
-//! Titles & badges (docs/BADGES.md): a catalogue of badges earned from real play, 3 tiers each
-//! (bronze, silver, gold), computed per account over all its seats. Each earned badge is a *title*
-//! the account may display next to its name.
-//!
-//! Awarding is idempotent ([`evaluate`]): `INSERT OR IGNORE` one row per tier reached, and one inbox
-//! entry per badge for its highest new tier, except on an account's very first evaluation
-//! (`users.badges_at` null), which backfills silently. It runs after a question closes (spawned,
-//! post-commit: [`after_close`]), when someone opens their collection (`GET /badges`), and hourly for
-//! the accounts active lately ([`spawn_sweeper`], which also posts the Wrapped notice in December).
-//! Badges are never taken back.
-
 use crate::platform::i18n::Lang;
 
-/// One badge of the catalogue. Names are the titles (French is the source).
 pub struct BadgeDef {
     pub key: &'static str,
     pub fr: &'static str,
     pub en: &'static str,
-    /// Lucide icon, kebab-case.
     pub icon: &'static str,
-    /// The mascot of its family (docs/MASCOTS.md).
     pub mascot: &'static str,
-    /// Bronze, silver and gold thresholds of its metric.
     pub tiers: [i64; 3],
 }
 
@@ -29,7 +14,6 @@ impl BadgeDef {
         lang.pick(self.fr, self.en)
     }
 
-    /// The highest tier a metric value reaches (0 = none).
     pub fn tier_for(&self, value: i64) -> i64 {
         self.tiers.iter().filter(|t| value >= **t).count() as i64
     }
@@ -53,7 +37,6 @@ const fn def(
     }
 }
 
-/// Every badge, in display order. Indexes match [`Metrics`].
 pub const CATALOGUE: [BadgeDef; 14] = [
     def(
         "pilier",
@@ -169,15 +152,12 @@ pub const CATALOGUE: [BadgeDef; 14] = [
     ),
 ];
 
-/// One value per badge of [`CATALOGUE`], same order.
 pub type Metrics = [i64; CATALOGUE.len()];
 
-/// The catalogue entry of a key.
 pub fn find(key: &str) -> Option<&'static BadgeDef> {
     CATALOGUE.iter().find(|b| b.key == key)
 }
 
-/// "bronze" / "argent" / "or" (English: bronze, silver, gold).
 pub fn tier_name(tier: i64, lang: Lang) -> &'static str {
     match tier {
         3 => lang.pick("or", "gold"),
@@ -186,7 +166,6 @@ pub fn tier_name(tier: i64, lang: Lang) -> &'static str {
     }
 }
 
-/// How to reach `n` (the next tier), or how it was earned once maxed (`done`).
 pub fn hint(key: &str, n: i64, lang: Lang, done: bool) -> String {
     let s = if n > 1 { "s" } else { "" };
     let fr = |next: String, got: String| if done { got } else { next };
@@ -300,7 +279,6 @@ pub fn hint(key: &str, n: i64, lang: Lang, done: bool) -> String {
     }
 }
 
-/// « Nouveau titre : Le pilier (or) » / "New title: The pillar (gold)".
 pub fn inbox_text(def: &BadgeDef, tier: i64, lang: Lang) -> String {
     match lang {
         Lang::Fr => format!(
@@ -312,9 +290,6 @@ pub fn inbox_text(def: &BadgeDef, tier: i64, lang: Lang) -> String {
     }
 }
 
-// ---------- metrics ----------
-
-/// SQL: my room seats (`?1`, a JSON array of member ids).
 macro_rules! mine {
     () => {
         "(SELECT value FROM json_each(?1))"
@@ -325,10 +300,6 @@ mod award;
 mod handlers;
 pub use award::*;
 pub use handlers::*;
-
-// ---------- awarding ----------
-
-// ---------- API ----------
 
 #[cfg(test)]
 mod tests {

@@ -1,5 +1,3 @@
-//! Operations: `/api/version`, app crash reports, database snapshots.
-
 use quidenous_server::platform::ids::UserId;
 use std::path::PathBuf;
 
@@ -35,7 +33,6 @@ async fn test_app(webhook: Option<String>) -> (Router, AppState, PathBuf) {
         join_code: "CODE-1".into(),
         vapid_subject: "mailto:test@example.com".into(),
         client_errors_webhook: webhook,
-        // Requests without `x-forwarded-for` still have no IP (no socket in these tests).
         trust_proxy: true,
         ..Config::default()
     };
@@ -68,7 +65,6 @@ async fn call(
     )
 }
 
-/// A signed-in account, made directly in the database.
 async fn account(state: &AppState, name: &str) -> String {
     let id: i64 = sqlx::query_scalar(
         "INSERT INTO users (name, color, friend_code) VALUES (?, '#FF7A45', ?) RETURNING id",
@@ -89,7 +85,6 @@ async fn version_reports_the_release_and_commit_built() {
     let (status, body) = call(&app, "GET", "/version", None, None).await;
     assert_eq!(status, StatusCode::OK);
     let manifest = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-    // Baked in by build.rs: the build's QUIDENOUS_VERSION, else app/app.json's version.
     let expected = match option_env!("QUIDENOUS_VERSION").map(str::trim) {
         Some(v) if !v.is_empty() && v != "dev" => v.trim_start_matches('v').to_owned(),
         _ => {
@@ -141,7 +136,6 @@ async fn version_reports_the_release_and_commit_built() {
 
 #[tokio::test]
 async fn client_errors_are_accepted_capped_and_rate_limited() {
-    // A local stand-in for the Discord webhook.
     let (tx, mut rx) = mpsc::unbounded_channel::<Value>();
     let hook = Router::new().route(
         "/hook",
@@ -190,7 +184,6 @@ async fn client_errors_are_accepted_capped_and_rate_limited() {
     );
     assert_eq!(sent["allowed_mentions"], json!({ "parse": [] }));
 
-    // Bad bodies.
     for body in [
         json!({}),
         json!({ "message": "   " }),
@@ -220,7 +213,6 @@ async fn client_errors_are_accepted_capped_and_rate_limited() {
     )
     .await;
     assert_eq!(status, StatusCode::PAYLOAD_TOO_LARGE);
-    // A stale token doesn't stop the report.
     let (status, _) = call(
         &app,
         "POST",
@@ -231,7 +223,6 @@ async fn client_errors_are_accepted_capped_and_rate_limited() {
     .await;
     assert_eq!(status, StatusCode::NO_CONTENT);
 
-    // Signed in: 10 reports per account, then 429 (the per-IP limit needs a socket, not here).
     let token = account(&state, "Lou").await;
     for _ in 0..10 {
         let (status, _) = call(
@@ -256,7 +247,6 @@ async fn client_errors_are_accepted_capped_and_rate_limited() {
         (status, res["error"].as_str()),
         (StatusCode::TOO_MANY_REQUESTS, Some("rate_limited"))
     );
-    // Someone else still can.
     let other = account(&state, "Max").await;
     let (status, _) = call(
         &app,
@@ -278,7 +268,6 @@ async fn backup_copies_the_live_database() {
     quidenous_server::platform::ops::backup(&url, &dest)
         .await
         .unwrap();
-    // The copy opens on its own and has the data.
     let copy = quidenous_server::connect(&format!("sqlite://{}", dest.display()))
         .await
         .unwrap();
@@ -287,7 +276,6 @@ async fn backup_copies_the_live_database() {
         .await
         .unwrap();
     assert!(names.contains(&"Lou".to_owned()));
-    // Never over an existing file.
     assert!(
         quidenous_server::platform::ops::backup(&url, &dest)
             .await
@@ -324,7 +312,6 @@ async fn one_ip_cannot_use_up_the_crash_webhook() {
             .unwrap()
     };
     let limit = quidenous_server::accounts::limits::CLIENT_ERROR_WEBHOOK_IP.capacity;
-    // Over its webhook share, one IP's reports are still accepted (and logged), just not forwarded.
     for n in 0..limit + 2 {
         let res = app
             .clone()
@@ -333,7 +320,6 @@ async fn one_ip_cannot_use_up_the_crash_webhook() {
             .unwrap();
         assert_eq!(res.status(), StatusCode::NO_CONTENT);
     }
-    // Another IP still gets through.
     let res = app
         .clone()
         .oneshot(report("198.51.100.2", "other crash"))

@@ -19,7 +19,6 @@ pub(crate) const COLORS: [&str; 8] = [
     "#FF7A45", "#5BC8FF", "#FF4FA3", "#FFB547", "#B48CFF", "#5CF2B0", "#FF6B6B", "#7AA2FF",
 ];
 
-/// Gate for the anonymous ways in (`/join` without a token, `/start`).
 pub(crate) fn legacy_gate(state: &AppState, ip: Option<std::net::IpAddr>) -> AppResult<()> {
     if state.config.auth_required {
         return Err(AppError::Gone("sign_in_required"));
@@ -47,13 +46,11 @@ pub(crate) async fn join(
         legacy_gate(&state, ip)?;
     }
     let name = crate::platform::text::clean_name(&body.name)?;
-    // Already signed in: the same account joins one more room.
     let signed_in = match bearer {
         Some(t) => Some(crate::accounts::auth::user_for_token(&state, t).await?),
         None => None,
     };
     let attempt = crate::platform::quotas::code_attempt(&state, signed_in, ip)?;
-    // Parties have their own way in (`POST /parties/join`); a deleted room takes nobody.
     let group_id: RoomId = sqlx::query_scalar(
         "SELECT id FROM groups WHERE join_code = ? AND kind = 'room' AND deleted_at IS NULL",
     )
@@ -62,14 +59,12 @@ pub(crate) async fn join(
     .await?
     .ok_or(AppError::BadRequest("bad_code"))?;
     attempt.found();
-    // A party guest plays in parties only.
     if let Some(user) = signed_in
         && crate::accounts::auth::is_guest(&state.db, user).await?
     {
         return Err(AppError::Forbidden("guest_account"));
     }
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
-    // Its owner may have left it alone (and deleted it) since the lookup.
     crate::rooms::manage::still_open(&mut *tx, group_id).await?;
     let existing = match signed_in {
         Some(user_id) => {
@@ -81,7 +76,6 @@ pub(crate) async fn join(
             .fetch_optional(&mut *tx)
             .await?
         }
-        // Same first name in the room = the same person on a new device (reinstall, web + phone).
         None => {
             sqlx::query_as::<_, MemberRow>(
                 "SELECT * FROM members WHERE group_id = ? AND lower(name) = lower(?)",
@@ -92,21 +86,18 @@ pub(crate) async fn join(
             .await?
         }
     };
-    // Removed by the owner or a vote: only the owner can bring them back. Left on their own: welcome back.
     if existing
         .as_ref()
         .is_some_and(|m| m.removed_at.is_some() && !m.left_by_self)
     {
         return Err(AppError::Forbidden("removed"));
     }
-    // A first name no longer hands over an account that can sign in: sign in instead.
     if signed_in.is_none()
         && let Some(user) = existing.as_ref().and_then(|m| m.user_id)
     {
         if crate::accounts::is_secured(&mut *tx, user).await? {
             return Err(AppError::Conflict("account_protected"));
         }
-        // Nor a suspended one (legacy accounts have no other way back in).
         if crate::accounts::is_suspended(&mut *tx, user).await? {
             return Err(AppError::Forbidden("suspended"));
         }
@@ -160,7 +151,6 @@ pub(crate) async fn join(
             .await?
         }
     };
-    // A room nobody owns (fresh env group) gets its first member as owner.
     sqlx::query(
         "UPDATE members SET role = 'owner' WHERE id = ?1 AND NOT EXISTS \
          (SELECT 1 FROM members WHERE group_id = ?2 AND role = 'owner' AND removed_at IS NULL)",
@@ -170,9 +160,6 @@ pub(crate) async fn join(
     .execute(&mut *tx)
     .await?;
     let user_id = member.user_id.ok_or(AppError::Unauthorized)?;
-    // Signed in: the caller keeps its own session (and its limits, see `not_claimed`), no new
-    // token. By first name: a new session; an existing member handed over that way gets a
-    // `claimed` one, which can't lock the others out.
     let token = match bearer {
         Some(t) => t.to_owned(),
         None => {
@@ -271,7 +258,6 @@ pub(crate) async fn group(State(state): State<AppState>, Me(me): Me) -> AppResul
         .iter()
         .map(crate::rooms::manage::member_with_role)
         .collect();
-    // People who left keep their name and photo in the history, awards and chat.
     let former: Vec<Value> = former
         .iter()
         .map(|m| {
@@ -309,7 +295,6 @@ pub(crate) async fn group(State(state): State<AppState>, Me(me): Me) -> AppResul
     Ok(Json(out))
 }
 
-/// A room setting the owner can switch off (`skip_vote`, `kick_vote`).
 async fn room_allows(state: &AppState, group_id: RoomId, setting: &str) -> AppResult<()> {
     let sql = match setting {
         "skip_vote" => "SELECT skip_vote FROM groups WHERE id = ?",
@@ -326,7 +311,6 @@ async fn room_allows(state: &AppState, group_id: RoomId, setting: &str) -> AppRe
     }
 }
 
-/// Majority votes (skip, removal) need three people or more in the room.
 async fn enough_for_votes(state: &AppState, group_id: RoomId) -> AppResult<()> {
     let mut tx = state.db.begin().await?;
     let active = game::active_count(&mut tx, group_id).await?;
@@ -338,7 +322,6 @@ async fn enough_for_votes(state: &AppState, group_id: RoomId) -> AppResult<()> {
     }
 }
 
-/// Agree not to wait for someone on the open question. With a majority, the question closes without them.
 pub(crate) async fn skip(
     State(state): State<AppState>,
     Me(me): Me,
@@ -349,7 +332,6 @@ pub(crate) async fn skip(
     }
     room_allows(&state, me.group_id, "skip_vote").await?;
     enough_for_votes(&state, me.group_id).await?;
-    // Checked in the write transaction: a vote can't close the question in between.
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
     let round_id: RoundId =
         sqlx::query_scalar("SELECT id FROM rounds WHERE group_id = ? AND closed_at IS NULL")
@@ -357,7 +339,6 @@ pub(crate) async fn skip(
             .fetch_optional(&mut *tx)
             .await?
             .ok_or(AppError::Conflict("no_open_round"))?;
-    // Not done yet (on a said question still writing: not written).
     let waiting: Option<MemberId> = sqlx::query_scalar(concat!(
         "SELECT id FROM members m WHERE m.id = ?1 AND m.group_id = ?2 AND m.removed_at IS NULL AND NOT ",
         crate::rounds::said::done!("?3", "m.id")
@@ -401,7 +382,6 @@ pub(crate) async fn unskip(
     Ok(Json(json!({ "ok": true })))
 }
 
-/// Broadcast what a skip or a removal changed, and notify when it closed the question.
 async fn after_round_change(
     state: &AppState,
     group_id: RoomId,
@@ -427,8 +407,6 @@ async fn after_round_change(
     Json(json!({ "ok": true, "closed": closed }))
 }
 
-/// Vote to remove someone from the group. With a majority of the others, they are out:
-/// signed out everywhere, gone from the members, their past votes stay in the history.
 pub(crate) async fn kick(
     State(state): State<AppState>,
     Me(me): Me,
@@ -439,8 +417,6 @@ pub(crate) async fn kick(
     }
     room_allows(&state, me.group_id, "kick_vote").await?;
     enough_for_votes(&state, me.group_id).await?;
-    // The vote, the count and the removal in one write transaction: two votes landing together
-    // (or a vote and the target leaving) can't both remove the seat.
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
     let target: Option<Role> = sqlx::query_scalar(
         "SELECT role FROM members WHERE id = ? AND group_id = ? AND removed_at IS NULL",
@@ -451,7 +427,6 @@ pub(crate) async fn kick(
     .await?;
     match target {
         None => return Err(AppError::NotFound),
-        // The owner runs the room: no vote removes them (they can hand it over, or leave).
         Some(Role::Owner) => return Err(AppError::Forbidden("owner")),
         Some(_) => {}
     }
@@ -480,22 +455,14 @@ pub(crate) async fn kick(
     Ok(Json(json!({ "ok": true, "removed": true })))
 }
 
-/// What taking a seat away changed, to announce once it committed (see [`announce_removal`]).
 pub(crate) struct Removal {
     group_id: RoomId,
     member_id: MemberId,
-    /// Someone became the owner.
     promoted: bool,
-    /// The open question, re-checked without them.
     open: Option<RoundId>,
     events: Vec<Event>,
 }
 
-/// Takes someone's seat in a room away (vote, owner, or leaving: `left`), in the caller's write
-/// transaction. Their account, devices and other rooms are untouched; their past votes stay in the
-/// history; the open question stops waiting for them. An owner seat that ends hands the room to the
-/// longest-standing member. `None` when the seat was already empty (a concurrent removal or leave
-/// got there first: theirs decides whether they may come back).
 pub(crate) async fn take_seat(
     tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
     group_id: RoomId,
@@ -515,7 +482,6 @@ pub(crate) async fn take_seat(
         return Ok(None);
     }
     let promoted = game::ensure_owner(tx, group_id).await?;
-    // Removed (not left): the questions they queued go too (a troll's 300 questions).
     if !left {
         sqlx::query(concat!(
             "DELETE FROM questions AS q WHERE q.group_id = ?1 AND q.author_id = ?2 AND ",
@@ -543,8 +509,6 @@ pub(crate) async fn take_seat(
             .bind(member_id)
             .execute(&mut **tx)
             .await?;
-        // Their rank / choose / said ballot goes too: it no longer counts, like their vote; so
-        // does their said answer, with the guesses on it.
         game::clear_ballot(tx, round_id, member_id).await?;
         crate::rounds::said::leave(tx, round_id, member_id).await?;
         events = game::close_if_done(tx, group_id, round_id).await?;
@@ -558,8 +522,6 @@ pub(crate) async fn take_seat(
     }))
 }
 
-/// After a removal committed: the room hears it, the question it closed is announced, and a party
-/// re-counts its "Suivante" taps. Failures are logged (the removal itself is done).
 pub(crate) async fn announce_removal(state: &AppState, actor: MemberId, removal: Removal) {
     let Removal {
         group_id,
@@ -577,14 +539,11 @@ pub(crate) async fn announce_removal(state: &AppState, actor: MemberId, removal:
     if let Some(round_id) = open {
         let _ = after_round_change(state, group_id, actor, round_id, events).await;
     }
-    // A party: 75 % of fewer players may now have tapped "Suivante".
     if let Err(e) = crate::party::after_leave(state, group_id).await {
         tracing::warn!(%group_id, error = ?e, "party re-check after a removal failed");
     }
 }
 
-/// [`take_seat`] in its own transaction, then [`announce_removal`]. `false` when the seat was
-/// already empty (nothing changed, nothing announced).
 pub(crate) async fn remove_member(
     state: &AppState,
     group_id: RoomId,
@@ -618,7 +577,6 @@ pub(crate) async fn unkick(
     Ok(Json(json!({ "ok": true })))
 }
 
-/// Someone who left takes their old seat back: same member, so their history reconnects.
 pub(crate) async fn rejoin_seat(
     tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
     member_id: MemberId,

@@ -1,8 +1,3 @@
-//! The global question of the day (contract: `docs/GLOBAL_QUESTION.md`): one built-in deck question per
-//! UTC day and language, the same in every room of that language, apart from the room's own
-//! questions. Each seat answers it once, about someone of its room; after voting it sees its
-//! room's tally and anonymous aggregates across rooms (only once enough rooms answered).
-
 use crate::platform::ids::{MemberId, QuestionId, RoomId};
 use std::collections::HashMap;
 
@@ -24,13 +19,9 @@ use crate::{
     rooms::model::{MemberRow, Role},
 };
 
-/// A room needs this many people for the global question (fewer: the card is hidden).
 pub const MIN_MEMBERS: i64 = 3;
-/// Aggregates across rooms are only shown once this many rooms answered...
 pub const MIN_ROOMS: usize = 5;
-/// ...each with at least this many votes.
 pub const MIN_ROOM_VOTES: usize = 2;
-/// A question is not asked again for this many days (unless the deck runs out).
 pub const NO_REPEAT_DAYS: i64 = 90;
 
 pub fn router() -> Router<AppState> {
@@ -39,7 +30,6 @@ pub fn router() -> Router<AppState> {
         .route("/global/vote", post(vote))
 }
 
-/// Today, the UTC date (`2026-11-17`), from the database clock.
 pub async fn today(db: &SqlitePool) -> sqlx::Result<String> {
     sqlx::query_scalar("SELECT date('now')").fetch_one(db).await
 }
@@ -51,20 +41,12 @@ async fn day_before(db: &SqlitePool, day: &str) -> sqlx::Result<String> {
         .await
 }
 
-/// Deck questions fit for every room (`?1` = language): pick questions tagged for families or
-/// colleagues (the vibes any room can take), never spicy (16+). With the last day each was the
-/// global question before `?2` (`NULL`: never), by id.
 const ELIGIBLE: &str = "SELECT q.id, q.text, (SELECT MAX(g.day) FROM global_questions g \
      WHERE g.question_id = q.id AND g.language = ?1 AND g.day < ?2) FROM questions q \
      WHERE q.group_id IS NULL AND q.kind = 'pick' AND q.lang = ?1 \
      AND (',' || q.vibes || ',' LIKE '%,famille,%' OR ',' || q.vibes || ',' LIKE '%,boulot,%') \
      AND ',' || q.vibes || ',' NOT LIKE '%,pimente,%' ORDER BY q.id";
 
-/// The question of `day` in `lang`: the one stored, else one picked now and stored (the first
-/// request of the day picks it; two at once pick the same one and the second insert is a no-op).
-/// The pick is deterministic: a hash of the day and language over the eligible deck questions
-/// not asked in the last [`NO_REPEAT_DAYS`] days (all asked lately: the ones asked longest ago),
-/// by id. `None` when the deck has none.
 pub async fn question_for(
     db: &SqlitePool,
     lang: Lang,
@@ -132,9 +114,6 @@ fn pick_index(day: &str, lang: Lang, len: usize) -> usize {
     (u64::from_be_bytes(first) % len as u64) as usize
 }
 
-/// Can this seat answer the global question? Its room's language, or why not:
-/// `party` (a party), `guest` (a party guest account), `small_room` (fewer than
-/// [`MIN_MEMBERS`] people).
 async fn gate(db: &SqlitePool, me: &MemberRow) -> AppResult<Result<Lang, &'static str>> {
     let (kind, language): (String, String) =
         sqlx::query_as("SELECT kind, language FROM groups WHERE id = ?")
@@ -161,8 +140,6 @@ async fn members(db: &SqlitePool, room: RoomId) -> sqlx::Result<i64> {
         .await
 }
 
-/// Votes that count: in a live room (not a party), voter and target still in it.
-/// `(room, voter, target)`, for one question (day + language).
 async fn counted_votes(
     db: &SqlitePool,
     lang: Lang,
@@ -183,14 +160,12 @@ async fn counted_votes(
     .await
 }
 
-/// One person's count in my room's tally (no voter ids: the global question is anonymous).
 #[derive(Debug, Serialize, PartialEq)]
 pub struct Count {
     pub target_id: MemberId,
     pub count: i64,
 }
 
-/// Most votes first, then by id.
 fn tally(targets: impl Iterator<Item = MemberId>) -> Vec<Count> {
     let mut counts: HashMap<MemberId, i64> = HashMap::new();
     for t in targets {
@@ -204,7 +179,6 @@ fn tally(targets: impl Iterator<Item = MemberId>) -> Vec<Count> {
     out
 }
 
-/// Whoever has the most votes (all of them on a tie).
 fn winners(tally: &[Count]) -> Vec<MemberId> {
     let top = tally.first().map_or(0, |c| c.count);
     tally
@@ -214,14 +188,12 @@ fn winners(tally: &[Count]) -> Vec<MemberId> {
         .collect()
 }
 
-/// One aggregate across rooms: `pct` of `of` (rooms or voters, see `docs/GLOBAL_QUESTION.md`).
 #[derive(Debug, Serialize)]
 pub struct Fact {
     pub id: &'static str,
     pub pct: i64,
 }
 
-/// Rooms (or voters) a fact is about, and how many match.
 #[derive(Default)]
 struct Ratio {
     hits: usize,
@@ -239,8 +211,6 @@ impl Ratio {
     }
 }
 
-/// How many rooms count for the aggregates (at least [`MIN_ROOM_VOTES`] votes), how many people
-/// voted in them, and the aggregates (most striking first) when there are at least [`MIN_ROOMS`].
 async fn aggregates(
     db: &SqlitePool,
     lang: Lang,
@@ -270,7 +240,6 @@ async fn aggregates(
         for (voter, target) in votes {
             themselves.add(voter == target);
         }
-        // The owner, and whoever joined last (the owner never counts as the newcomer).
         let people: Vec<(MemberId, Role)> = sqlx::query_as(
             "SELECT id, role FROM members WHERE group_id = ? AND removed_at IS NULL \
              ORDER BY created_at DESC, id DESC",
@@ -284,7 +253,6 @@ async fn aggregates(
         if let Some((id, _)) = people.iter().find(|(_, role)| *role != Role::Owner) {
             newest.add(won.contains(id));
         }
-        // The room's latest closed pick question that got votes (a skipped one keeps none).
         let last: Vec<MemberId> = sqlx::query_scalar(
             "SELECT target_id FROM votes WHERE round_id = (SELECT r.id FROM rounds r \
              JOIN questions q ON q.id = r.question_id AND q.kind = 'pick' \
@@ -308,7 +276,6 @@ async fn aggregates(
         ("self", &themselves),
     ]
     .into_iter()
-    // Each fact over enough rooms too (the latest winner is only known in some).
     .filter(|(id, r)| *id == "self" || r.of >= MIN_ROOMS)
     .map(|(id, r)| Fact { id, pct: r.pct() })
     .collect();
@@ -316,7 +283,6 @@ async fn aggregates(
         id: "top_share",
         pct: (top_share * 100.0 / rooms as f64).round() as i64,
     });
-    // Most striking first (stable: ties keep the order above).
     facts.sort_by_key(|f| std::cmp::Reverse(f.pct));
     Ok((rooms, voters, Some(facts)))
 }
@@ -325,7 +291,6 @@ async fn aggregates(
 struct RoomPart {
     members: i64,
     voters: usize,
-    /// Only once I voted.
     tally: Option<Vec<Count>>,
 }
 
@@ -334,7 +299,6 @@ struct GlobalPart {
     rooms: usize,
     voters: usize,
     min_rooms: usize,
-    /// Only once I voted and at least `min_rooms` rooms answered.
     facts: Option<Vec<Fact>>,
 }
 
@@ -347,9 +311,6 @@ struct Yesterday {
     facts: Option<Vec<Fact>>,
 }
 
-/// `GET /api/global` for `day` (tests pass another day): `available: false` with a `reason`
-/// (the app hides the card), or the question, my vote, my room's tally once I voted, the number
-/// of rooms that answered and the aggregates, and yesterday's final numbers.
 pub async fn view_at(state: &AppState, me: &MemberRow, day: &str) -> AppResult<Value> {
     let db = &state.db;
     let lang = match gate(db, me).await? {
@@ -422,9 +383,6 @@ pub(crate) struct VoteBody {
     target: MemberId,
 }
 
-/// Answers the question of `day` for someone of my room. Final: `409 already_voted` after.
-/// `403 party | guest | small_room` when the room can't answer it, `400 unknown_member` for
-/// someone not in my room.
 pub async fn vote_at(
     state: &AppState,
     me: &MemberRow,

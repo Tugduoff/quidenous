@@ -1,6 +1,3 @@
-//! « Qui a dit ça ? » questions (docs/SAID.md): writing, guessing, the reveal, and everything
-//! around them (older apps, small rooms, skips, leaves, reports, history, parties).
-
 use crate::common;
 use crate::common::call_with_kinds as call_with;
 use quidenous_server::platform::ids::UserId;
@@ -14,7 +11,6 @@ use quidenous_server::{AppState, app, party, platform::config::Config, rooms::fl
 use serde_json::{Value, json};
 use tower::ServiceExt;
 
-/// A fresh server, its deck reduced to pick questions; account 1 (the first to join) is an admin.
 async fn setup() -> (Router, AppState) {
     let config = Config {
         admin_user_ids: vec![UserId::from_raw(1)],
@@ -28,7 +24,6 @@ async fn setup() -> (Router, AppState) {
     (app(state.clone()), state)
 }
 
-/// A call from a new app (`x-kinds: choose,said`).
 async fn call(
     app: &Router,
     method: &str,
@@ -60,7 +55,6 @@ async fn vote(app: &Router, token: &str, body: Value) -> (StatusCode, Value) {
     call(app, "POST", "/round/current/vote", Some(token), Some(body)).await
 }
 
-/// `{guesses}` from (answer, member) pairs.
 fn guesses(pairs: &[(i64, i64)]) -> Value {
     json!({ "guesses": pairs.iter().map(|(a, m)| json!({ "answer_id": a, "member_id": m })).collect::<Vec<_>>() })
 }
@@ -83,7 +77,6 @@ async fn add_said(app: &Router, token: &str, text: &str) {
     assert_eq!(q["anonymous"], false, "never anonymous");
 }
 
-/// Everyone picks `target` on the open (pick) question, which closes it.
 async fn close_pick(app: &Router, tokens: &[&str], target: i64) {
     for t in tokens {
         let (s, b) = vote(app, t, json!({ "target_id": target })).await;
@@ -91,7 +84,6 @@ async fn close_pick(app: &Router, tokens: &[&str], target: i64) {
     }
 }
 
-/// `n` people in the env room, the first (automatic, pick) question closed and a said question open.
 async fn room_with_said(app: &Router, names: &[&str]) -> Vec<(String, i64)> {
     let mut people = Vec::new();
     for name in names {
@@ -105,7 +97,6 @@ async fn room_with_said(app: &Router, names: &[&str]) -> Vec<(String, i64)> {
     people
 }
 
-/// The answer ids of the open (or given) round, by author: read from the database (the API never says).
 async fn answer_of(state: &AppState, member: i64) -> i64 {
     sqlx::query_scalar(
         "SELECT id FROM said_answers WHERE member_id = ? ORDER BY round_id DESC LIMIT 1",
@@ -141,7 +132,6 @@ async fn write_guess_and_reveal() {
     assert_eq!(said["writer_ids"], json!([]));
     assert!(said["my_answer"].is_null() && said["answers"].is_null() && said["result"].is_null());
 
-    // 1 to 140 characters once cleaned.
     for bad in ["", "  \u{200B} ", &"x".repeat(141)] {
         assert_eq!(
             err(&write(&app, &a, bad).await),
@@ -153,7 +143,6 @@ async fn write_guess_and_reveal() {
     assert_eq!(s, StatusCode::OK, "{view}");
     assert_eq!(view["said"]["my_answer"]["text"], "Un pull qui gratte");
     let first_id = view["said"]["my_answer"]["id"].as_i64().unwrap();
-    // Rewriting replaces it (same answer).
     let (_, view) = write(&app, &a, "Un pull qui gratte, tricoté main").await;
     assert_eq!(view["said"]["my_answer"]["id"], first_id);
     assert_eq!(
@@ -162,12 +151,10 @@ async fn write_guess_and_reveal() {
     );
     assert_eq!(view["said"]["writer_ids"], json!([a_id]));
 
-    // Bob sees who wrote, never what.
     let bob_view = current(&app, &b).await;
     assert_eq!(bob_view["said"]["writer_ids"], json!([a_id]));
     assert!(bob_view["said"]["my_answer"].is_null());
     assert!(!bob_view.to_string().contains("pull"), "{bob_view}");
-    // Guesses wait for the guessing; a vote needs them.
     assert_eq!(
         err(&vote(&app, &b, guesses(&[(first_id, a_id)])).await),
         (StatusCode::CONFLICT, Some("not_guessing"))
@@ -176,7 +163,6 @@ async fn write_guess_and_reveal() {
         err(&vote(&app, &b, json!({})).await),
         (StatusCode::BAD_REQUEST, Some("guesses_needed"))
     );
-    // Writing counts as done: no skip or nudge on Ana.
     let (s, _) = call(
         &app,
         "PUT",
@@ -207,7 +193,6 @@ async fn write_guess_and_reveal() {
 
     write(&app, &b, "Une boule à neige de Dunkerque").await;
     let (_, view) = write(&app, &c, "Un abonnement à la salle").await;
-    // Everyone wrote: the guessing starts.
     let said = &view["said"];
     assert_eq!(said["phase"], "guessing", "{view}");
     assert!(said["guess_at"].is_string());
@@ -229,7 +214,6 @@ async fn write_guess_and_reveal() {
         assert_eq!(x["hidden"], false);
     }
     assert!(said["result"].is_null());
-    // Frozen.
     assert_eq!(
         err(&write(&app, &a, "Autre chose").await),
         (StatusCode::CONFLICT, Some("not_writing"))
@@ -241,7 +225,6 @@ async fn write_guess_and_reveal() {
         answer_of(&state, c_id).await,
     );
     assert_eq!(aa, first_id);
-    // One guess per answer but mine, writers other than me, nobody twice.
     for bad in [
         guesses(&[(ba, b_id)]),
         guesses(&[(ba, b_id), (ca, c_id), (aa, a_id)]),
@@ -261,7 +244,6 @@ async fn write_guess_and_reveal() {
         err(&vote(&app, &a, json!({})).await),
         (StatusCode::BAD_REQUEST, Some("guesses_needed"))
     );
-    // Ana and Cyd: right on both. Bob: wrong on both.
     let (s, body) = vote(&app, &a, guesses(&[(ca, c_id), (ba, b_id)])).await;
     assert_eq!(s, StatusCode::OK, "{body}");
     let mine = current(&app, &a).await;
@@ -284,8 +266,6 @@ async fn write_guess_and_reveal() {
     let said = &done["said"];
     assert_eq!(said["phase"], "done");
     let result = &said["result"];
-    // Bob's answer: found by Ana and Cyd. Cyd's: found by Ana, missed by Bob. Ana's: found by
-    // Cyd, missed by Bob.
     let reveal: Vec<(i64, i64, i64, i64)> = result["answers"]
         .as_array()
         .unwrap()
@@ -305,7 +285,6 @@ async fn write_guess_and_reveal() {
     let mut expected = vec![(aa, a_id, 1, 1), (ca, c_id, 1, 1)];
     expected.sort_unstable();
     assert_eq!(rest, expected);
-    // Ana 2 found + 1 fooled, Cyd 2 + 1, Bob 0 + 0.
     assert_eq!(
         result["scores"],
         json!([
@@ -314,16 +293,13 @@ async fn write_guess_and_reveal() {
             { "member_id": b_id, "points": 0, "found": 0, "fooled": 0 },
         ])
     );
-    // Bob still gets his own answer and guesses.
     assert_eq!(said["my_answer"]["text"], "Une boule à neige de Dunkerque");
     assert_eq!(said["my_guesses"].as_array().unwrap().len(), 2);
 
-    // History: the top scorers share the win.
     let (_, history) = call(&app, "GET", "/history", Some(&a), None).await;
     assert_eq!(history[0]["kind"], "said");
     assert_eq!(history[0]["winner_ids"], json!([a_id, c_id]));
     assert_eq!(history[0]["top_count"], 3);
-    // Stats leave it out; the share card and the CSV export still work.
     let (s, _) = call(&app, "GET", "/stats", Some(&a), None).await;
     assert_eq!(s, StatusCode::OK);
     let (s, share) = call(
@@ -389,7 +365,6 @@ async fn older_apps_are_asked_to_update_and_pass() {
     .await;
     assert_eq!(new["question"], "Le pire cadeau qu'on t'ait fait ?");
 
-    // Dan's old app picks someone while people write: a pass (written, nothing to guess).
     let (s, body) = call_with(
         &app,
         "POST",
@@ -406,9 +381,7 @@ async fn older_apps_are_asked_to_update_and_pass() {
     write(&app, &b, "Un livre déjà lu").await;
     let (_, view) = write(&app, &c, "Rien du tout").await;
     assert_eq!(view["said"]["phase"], "guessing", "{view}");
-    // The pass is not an answer.
     assert_eq!(view["said"]["answers"].as_array().unwrap().len(), 3);
-    // Dan already counts as voted: the others close it.
     let (aa, ba, ca) = (
         answer_of(&state, a_id).await,
         answer_of(&state, b_id).await,
@@ -420,7 +393,6 @@ async fn older_apps_are_asked_to_update_and_pass() {
     assert_eq!(s, StatusCode::OK, "{body}");
     let (_, history) = call(&app, "GET", "/history", Some(&a), None).await;
     assert_eq!(history[0]["kind"], "said", "nobody waited for Dan");
-    // Ana found both and fooled Cyd: 3. Bob found Ana and fooled Cyd: 2. Cyd fooled Bob: 1.
     assert_eq!(history[0]["winner_ids"], json!([a_id]));
     assert_eq!(history[0]["top_count"], 3);
 }
@@ -432,7 +404,6 @@ async fn an_old_app_votes_without_guesses_while_guessing() {
     let [(a, a_id), (b, b_id), (c, _)] = [people[0].clone(), people[1].clone(), people[2].clone()];
     write(&app, &a, "Un mug").await;
     write(&app, &b, "Une plante").await;
-    // Cyd's old app passes: everyone wrote, two answers: guessing.
     call_with(
         &app,
         "POST",
@@ -446,7 +417,6 @@ async fn an_old_app_votes_without_guesses_while_guessing() {
     assert_eq!(view["said"]["phase"], "guessing", "{view}");
     let ba = answer_of(&state, b_id).await;
     vote(&app, &a, guesses(&[(ba, b_id)])).await;
-    // Bob's other phone runs an old app: a vote without guesses.
     let (s, body) = call_with(
         &app,
         "POST",
@@ -459,7 +429,6 @@ async fn an_old_app_votes_without_guesses_while_guessing() {
     assert_eq!(s, StatusCode::OK, "{body}");
     let (_, history) = call(&app, "GET", "/history", Some(&a), None).await;
     assert_eq!(history[0]["kind"], "said");
-    // Ana found Bob; nobody guessed Ana's answer.
     assert_eq!(history[0]["winner_ids"], json!([a_id]));
 }
 
@@ -505,7 +474,6 @@ async fn a_small_room_waits_with_its_said_question() {
     )
     .await;
     close_pick(&app, &[&a, &b], a_id).await;
-    // Two people: the pick question goes first.
     let open = current(&app, &a).await;
     assert_eq!(open["kind"], "pick");
     assert_eq!(open["question"], "Qui chante le plus faux ?");
@@ -529,7 +497,6 @@ async fn skips_and_the_late_quorum_end_the_writing() {
     let round = current(&app, &a).await["id"].as_i64().unwrap();
     write(&app, &a, "Un mug").await;
     write(&app, &b, "Une plante").await;
-    // Two of four, a day later: half is enough.
     sqlx::query("UPDATE rounds SET opened_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-25 hours') WHERE id = ?")
         .bind(round)
         .execute(&state.db)
@@ -542,13 +509,11 @@ async fn skips_and_the_late_quorum_end_the_writing() {
     );
     let view = current(&app, &a).await;
     assert_eq!(view["said"]["phase"], "guessing", "{view}");
-    // The guessing's own clock: Ana and Bob guessed, not late yet.
     let (aa, ba) = (answer_of(&state, a_id).await, answer_of(&state, b_id).await);
     vote(&app, &a, guesses(&[(ba, b_id)])).await;
     vote(&app, &b, guesses(&[(aa, a_id)])).await;
     flow::close_late(&state).await.unwrap();
     assert!(current(&app, &a).await["closed_at"].is_null());
-    // Cyd and Dan never wrote: they can still guess (any writer).
     let view = current(&app, &c).await;
     assert!(view["said"]["my_answer"].is_null());
     sqlx::query("UPDATE rounds SET said_guess_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-25 hours') WHERE id = ?")
@@ -560,14 +525,12 @@ async fn skips_and_the_late_quorum_end_the_writing() {
     let (_, done) = call(&app, "GET", &format!("/rounds/{round}"), Some(&a), None).await;
     assert!(done["closed_at"].is_string());
 
-    // Next said question: Cyd and Dan wrote, the room skips Ana and Bob.
     add_said(&app, &a, "Ton plat de flemme ?").await;
     close_pick(&app, &[&a, &b, &c, &d], a_id).await;
     let round = current(&app, &a).await;
     assert_eq!(round["kind"], "said", "{round}");
     write(&app, &c, "Des pâtes").await;
     write(&app, &d, "Un bol de céréales").await;
-    // Skipping someone who wrote: no.
     let (s, _) = call(
         &app,
         "PUT",
@@ -620,7 +583,6 @@ async fn leaving_takes_the_answer_and_its_guesses() {
     for id in &ids {
         answers.push(answer_of(&state, *id).await);
     }
-    // Dan guesses (Ana's answer among them), Ana guesses too, then Ana leaves.
     vote(
         &app,
         &people[3].0,
@@ -663,7 +625,6 @@ async fn leaving_takes_the_answer_and_its_guesses() {
     .await
     .unwrap();
     assert!(left.is_empty(), "{left:?}");
-    // Dan's other guesses stay; his vote still counts.
     let dan = current(&app, &people[3].0).await;
     assert_eq!(dan["said"]["my_guesses"].as_array().unwrap().len(), 2);
 }
@@ -688,7 +649,6 @@ async fn reported_answers_hide_after_three_until_an_admin_decides() {
     };
     write(&app, &people[1].0, "Un truc vraiment méchant").await;
     let rude = answer_of(&state, people[1].1).await;
-    // Nothing shown yet: nothing to report.
     assert_eq!(
         report(people[0].0.clone(), rude).await.0,
         StatusCode::NOT_FOUND
@@ -700,7 +660,6 @@ async fn reported_answers_hide_after_three_until_an_admin_decides() {
         current(&app, &people[0].0).await["said"]["phase"],
         "guessing"
     );
-    // Not my own.
     assert_eq!(
         err(&report(people[1].0.clone(), rude).await),
         (StatusCode::BAD_REQUEST, Some("bad_target"))
@@ -723,7 +682,6 @@ async fn reported_answers_hide_after_three_until_an_admin_decides() {
         shown(&view, rude),
         json!({ "id": rude, "text": null, "hidden": true })
     );
-    // Still in the game: it is guessed like the others.
     let (_, list) = call(&app, "GET", "/admin/review", Some(&people[0].0), None).await;
     let r = list["reports"]
         .as_array()
@@ -754,7 +712,6 @@ async fn reported_answers_hide_after_three_until_an_admin_decides() {
     assert_eq!(s, StatusCode::OK, "{body}");
     let view = current(&app, &people[2].0).await;
     assert_eq!(shown(&view, rude)["text"], "Un truc vraiment méchant");
-    // Another answer, reported once and deleted by the admin: blanked for good.
     let other = answer_of(&state, people[2].1).await;
     report(people[3].0.clone(), other).await;
     let (s, body) = act("delete", other).await;
@@ -770,14 +727,12 @@ async fn reported_answers_hide_after_three_until_an_admin_decides() {
         .await
         .unwrap();
     assert_eq!(text.as_deref(), Some(""));
-    // Nothing left to report on it.
     assert_eq!(
         report(people[0].0.clone(), other).await.0,
         StatusCode::NOT_FOUND
     );
 }
 
-/// The party API, with its own helpers.
 mod parties {
     use super::*;
 
@@ -812,13 +767,11 @@ mod parties {
             .unwrap()
     }
 
-    /// A started party whose deck holds only said questions: (id, code, [(token, member)] host first).
     async fn started(
         app: &Router,
         state: &AppState,
         guests: &[&str],
     ) -> (i64, String, Vec<(String, i64)>) {
-        // `setup` left only pick questions: the said ones come back, the rest goes.
         quidenous_server::community::deck::seed(&state.db)
             .await
             .unwrap();
@@ -865,7 +818,6 @@ mod parties {
         assert_eq!(round["kind"], "said", "{s}");
         assert_eq!(round["said"]["phase"], "writing");
         let round_id = round["id"].as_i64().unwrap();
-        // Writing: twice the 30 s timer.
         let secs: f64 = sqlx::query_scalar("SELECT (julianday(deadline_at) - julianday(opened_at)) * 86400 FROM rounds WHERE id = ?")
             .bind(round_id)
             .fetch_one(&state.db)
@@ -895,7 +847,6 @@ mod parties {
             get(&app, id, &p[2].0).await["round"]["said"]["phase"],
             "writing"
         );
-        // Not yet.
         assert_eq!(
             party::sweep_at(&state, &at(&state, "+30 seconds").await)
                 .await
@@ -907,7 +858,6 @@ mod parties {
             get(&app, id, &p[2].0).await["round"]["said"]["phase"],
             "writing"
         );
-        // The writing deadline with two answers: the guessing starts, with its own deadline.
         let later = at(&state, "+61 seconds").await;
         assert_eq!(party::sweep_at(&state, &later).await.unwrap().closed, 0);
         let s = get(&app, id, &p[2].0).await;
@@ -934,7 +884,6 @@ mod parties {
         let (s, body) = post(&app, id, "vote", &p[0].0, Some(guesses(&[(a1, p[1].1)]))).await;
         assert_eq!(s, StatusCode::OK, "{body}");
         post(&app, id, "vote", &p[1].0, Some(guesses(&[(a0, p[0].1)]))).await;
-        // Max wrote nothing: he guesses both.
         let (s, body) = post(
             &app,
             id,
@@ -946,11 +895,9 @@ mod parties {
         assert_eq!(s, StatusCode::OK, "{body}");
         assert_eq!(body["phase"], "reveal", "{body}");
         let result = &body["round"]["said"]["result"];
-        // Hôte and Léa found each other and fooled Max: 2 each.
         assert_eq!(result["scores"][0]["points"], 2, "{result}");
         assert_eq!(result["scores"][1]["points"], 2, "{result}");
 
-        // The big screen: the reveal, no `my_*`.
         let (s, screen) = call(&app, "GET", &format!("/parties/screen/{code}"), None, None).await;
         assert_eq!(s, StatusCode::OK, "{screen}");
         let said = &screen["round"]["said"];
@@ -989,7 +936,6 @@ mod parties {
     }
 }
 
-/// Today (docs/TODAY.md): writing counts as voted while the question is in its writing phase.
 #[tokio::test]
 async fn today_counts_a_written_answer() {
     let (app, _state) = setup().await;

@@ -1,6 +1,3 @@
-//! Live reactions on results (docs/REACTIONS.md): the palette, the cap, who may react to what, blocks,
-//! parties (guests, the old toggle, the state), account deletion and the live event's opt-in.
-
 use crate::common::{Socket, connect, next_event, serve};
 use quidenous_server::platform::ids::RoomId;
 
@@ -12,7 +9,6 @@ use quidenous_server::{
 };
 use serde_json::{Value, json};
 
-/// Ana, Bob and Carl in the env room, the first question closed. (tokens, member ids, round, room)
 async fn closed() -> (Router, AppState, [String; 3], [i64; 3], i64, i64) {
     let (app, state) = setup().await;
     let (ana, ana_id) = join(&app, "Ana").await;
@@ -43,7 +39,6 @@ async fn closed() -> (Router, AppState, [String; 3], [i64; 3], i64, i64) {
     )
 }
 
-/// A party hosted by `host` with one guest, its first question revealed: (id, code, round, guest token, guest member).
 async fn revealed_party(
     app: &Router,
     state: &AppState,
@@ -121,8 +116,6 @@ async fn user_of(app: &Router, token: &str, room: i64, member: i64) -> i64 {
         .unwrap()
 }
 
-/// The taps of the `result_reacted` events heard so far, summed per (member, emoji), and the
-/// number of `party_updated` events.
 fn heard(
     rx: &mut tokio::sync::broadcast::Receiver<GroupEvent>,
 ) -> (Vec<(i64, String, i64)>, usize) {
@@ -167,7 +160,6 @@ async fn taps_are_counted_in_palette_order() {
             json!({ "round_id": round, "cap": 30, "mine": 0, "reactions": [] })
         )
     );
-    // Sent 🙈 then 😂: shown in palette order; a bare heart is the heart.
     let (s, b) = tap(
         &app,
         &ana,
@@ -215,7 +207,6 @@ async fn taps_are_counted_in_palette_order() {
         })
     );
 
-    // Bad requests.
     for (taps, error) in [
         (json!([]), "bad_taps"),
         (json!([{ "emoji": "😂", "count": 0 }]), "bad_taps"),
@@ -250,7 +241,6 @@ async fn taps_are_counted_in_palette_order() {
         (StatusCode::BAD_REQUEST, Some("bad_taps"))
     );
 
-    // The open question: not yet. No such round: 404. No account: 401.
     let (_, open) = call(&app, "GET", "/round/current", Some(&ana), Some(room), None).await;
     let open = open["id"].as_i64().unwrap();
     assert_ne!(open, round);
@@ -289,7 +279,6 @@ async fn thirty_taps_per_person_and_result() {
     let mut rx = state.live.subscribe();
     let (s, b) = tap(&app, &ana, round, json!([{ "emoji": "😂", "count": 20 }])).await;
     assert_eq!((s, b["accepted"].as_i64()), (StatusCode::OK, Some(20)));
-    // In request order until the cap, all emojis together.
     let (s, b) = tap(
         &app,
         &ana,
@@ -309,7 +298,6 @@ async fn thirty_taps_per_person_and_result() {
         .map(|r| (r["emoji"].as_str().unwrap(), r["count"].as_i64().unwrap()))
         .collect();
     assert_eq!(emojis, vec![("😂", 20), ("🔥", 8), ("😱", 2)]);
-    // Full: fine, nothing counted. Others still can.
     let (s, b) = tap(&app, &ana, round, json!([{ "emoji": "😂", "count": 1 }])).await;
     assert_eq!(
         (s, b["accepted"].as_i64(), b["mine"].as_i64()),
@@ -319,8 +307,6 @@ async fn thirty_taps_per_person_and_result() {
     assert_eq!((s, b["accepted"].as_i64()), (StatusCode::OK, Some(30)));
     assert_eq!(b["reactions"][0]["count"], 50);
 
-    // The room heard exactly the counted taps (coalesced: wait for the trailing event); a daily room
-    // gets no `party_updated`.
     tokio::time::sleep(quidenous_server::realtime::live::RESULT_REACT_GAP * 3).await;
     let (taps, party) = heard(&mut rx);
     assert_eq!(
@@ -362,7 +348,6 @@ async fn blocked_people_are_left_out() {
             { "member_id": carl_id, "count": 2 }, { "member_id": ana_id, "count": 1 },
         ] }])
     );
-    // Bob is still counted for Carl.
     let (_, b) = get(&app, &carl, round).await;
     assert_eq!(b["reactions"][0]["count"], 7);
     assert_eq!(b["reactions"][0]["members"][0]["member_id"], bob_id);
@@ -371,7 +356,6 @@ async fn blocked_people_are_left_out() {
 #[tokio::test]
 async fn other_rooms_results_are_out_of_reach_and_deleted_accounts_take_their_taps() {
     let (app, state, [ana, _, carl], [_, _, carl_id], round, _) = closed().await;
-    // A party Ana isn't in.
     let (host, _) = join(&app, "Hôte").await;
     let (_, _, party_round, _, _) = revealed_party(&app, &state, &host).await;
     let (s, b) = get(&app, &ana, party_round).await;
@@ -412,7 +396,6 @@ async fn party_guests_react_and_older_apps_still_toggle() {
     let (id, _, round, guest, guest_id) = revealed_party(&app, &state, &host).await;
     let mut rx = state.live.subscribe();
 
-    // A guest (no e-mail) taps; the party state counts the taps.
     let (s, b) = tap(&app, &guest, round, json!([{ "emoji": "😂", "count": 3 }])).await;
     assert_eq!(s, StatusCode::OK, "{b}");
     assert_eq!(b["accepted"], 3);
@@ -430,7 +413,6 @@ async fn party_guests_react_and_older_apps_still_toggle() {
         json!([{ "emoji": "😂", "count": 3, "mine": true }])
     );
 
-    // The old toggle: none of mine there, so one tap; again, mine go.
     let react = |emoji: &'static str| {
         let app = app.clone();
         let host = host.clone();
@@ -467,7 +449,6 @@ async fn party_guests_react_and_older_apps_still_toggle() {
         (s, b["error"].as_str()),
         (StatusCode::BAD_REQUEST, Some("bad_emoji"))
     );
-    // The guest taps the rest of the cap; the toggle adds nothing over it.
     let (_, b) = tap(&app, &guest, round, json!([{ "emoji": "🔥", "count": 30 }])).await;
     assert_eq!(b["accepted"], 27);
     let (_, b) = call(
@@ -487,7 +468,6 @@ async fn party_guests_react_and_older_apps_still_toggle() {
             .all(|r| r["emoji"] != "💀")
     );
 
-    // Live: the counted taps, and `party_updated` for older apps.
     tokio::time::sleep(quidenous_server::realtime::live::RESULT_REACT_GAP * 3).await;
     let (taps, party) = heard(&mut rx);
     let host_id = p["me"]["member_id"].as_i64().unwrap();
@@ -503,9 +483,6 @@ async fn party_guests_react_and_older_apps_still_toggle() {
     assert!(party > 0);
 }
 
-// ---------- the socket ----------
-
-/// The types of the events heard until `ms` of silence.
 async fn types(socket: &mut Socket, ms: u64) -> Vec<String> {
     let mut seen = Vec::new();
     while let Some(e) = next_event(socket, ms).await {
@@ -514,7 +491,6 @@ async fn types(socket: &mut Socket, ms: u64) -> Vec<String> {
     seen
 }
 
-/// `result_reacted` reaches only the sockets opened with `events=reactions`, members and the big screen.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn only_sockets_that_ask_hear_the_taps() {
     let (app, state) = setup().await;
@@ -527,7 +503,6 @@ async fn only_sockets_that_ask_hear_the_taps() {
         connect(addr, &format!("token={host}&room={id}")).await,
         connect(addr, &format!("screen={code}")).await,
     ];
-    // Each socket subscribes once its upgrade is done: ping the room until all hear it.
     for socket in &mut sockets {
         let mut ok = false;
         for _ in 0..50 {

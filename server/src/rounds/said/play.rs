@@ -18,7 +18,6 @@ use crate::{
 
 use super::*;
 
-/// A fresh answer id: random, below 2^53 (exact in JavaScript), never sequential.
 pub(super) fn answer_id() -> AnswerId {
     use rand::Rng;
     let mut bytes = [0u8; 8];
@@ -26,8 +25,6 @@ pub(super) fn answer_id() -> AnswerId {
     AnswerId::from_raw((u64::from_le_bytes(bytes) >> 11) as i64)
 }
 
-/// Writes (or rewrites) my answer to the open said question, then checks whether the writing is
-/// over. Returns the round and what to broadcast.
 pub async fn write(
     db: &SqlitePool,
     group_id: RoomId,
@@ -75,8 +72,6 @@ pub async fn write(
     .bind(&text)
     .execute(&mut *tx)
     .await?;
-    // A pass sent earlier from an older app: this real answer replaces it, and the guessing will
-    // wait for my guesses.
     sqlx::query("DELETE FROM votes WHERE round_id = ? AND voter_id = ?")
         .bind(round_id)
         .bind(member_id)
@@ -91,10 +86,6 @@ pub async fn write(
     Ok((round_id, events))
 }
 
-/// A vote on a said question (`game::vote`, in its transaction; the `votes` row follows there).
-/// Guessing: the matching, checked and stored. An older app's single pick (`target_id`, no
-/// guesses) is a pass while writing (written, nothing to guess) and a vote without guesses while
-/// guessing: nobody waits for it either way.
 pub async fn ballot(
     tx: &mut Transaction<'_, Sqlite>,
     round_id: RoundId,
@@ -118,7 +109,6 @@ pub async fn ballot(
             .bind(voter_id)
             .execute(&mut **tx)
             .await?;
-            // Already written (from a newer app): nothing to pass.
             if added.rows_affected() == 0 {
                 return Err(AppError::Conflict("already_voted"));
             }
@@ -127,8 +117,6 @@ pub async fn ballot(
     }
 }
 
-/// Exactly one guess per real answer that isn't mine, each naming a writer other than me, nobody
-/// twice (`400 bad_guesses`). Replaces a ballot left from an earlier seat.
 pub(super) async fn store_guesses(
     tx: &mut Transaction<'_, Sqlite>,
     round_id: RoundId,
@@ -176,8 +164,6 @@ pub(super) async fn store_guesses(
     Ok(())
 }
 
-/// A seat ended while the question is open: their answer and every guess on it go (their own
-/// guesses go with `game::clear_ballot`).
 pub async fn leave(
     tx: &mut Transaction<'_, Sqlite>,
     round_id: RoundId,
@@ -197,24 +183,14 @@ pub async fn leave(
     Ok(())
 }
 
-/// Where an open question stands for [`advance`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Step {
-    /// Not a said question in its writing phase: the usual closing rule applies.
     NotWriting,
-    /// Still waiting for answers.
     Writing,
-    /// The guessing just started.
     Guessing,
-    /// Everyone it waited for wrote, with fewer than [`MIN_ANSWERS`] real answers: nothing to
-    /// guess, it closes with no result.
     TooFew,
 }
 
-/// Checks whether a said question's writing is over (in the caller's write transaction): once
-/// everyone it waits for wrote (as for closing: a party's players still there; a room's active
-/// members minus the skipped and the away, or half of them after [`game::QUORUM_HOURS`]), the
-/// guessing starts with two answers or more (`round_updated`), else it is [`Step::TooFew`].
 pub async fn advance(
     tx: &mut Transaction<'_, Sqlite>,
     group_id: RoomId,
@@ -268,8 +244,6 @@ pub async fn advance(
     Ok(Step::Guessing)
 }
 
-/// Freezes the answers: the guessing starts at `now` (database clock when `None`), with a new
-/// deadline at a party (`timer`). Skips on people who wrote were about the writing: they go.
 pub(super) async fn start_guessing(
     tx: &mut Transaction<'_, Sqlite>,
     round_id: RoundId,
@@ -297,8 +271,6 @@ pub(super) async fn start_guessing(
     Ok(())
 }
 
-/// A party question at its deadline (`now`): a said question still writing with two answers or
-/// more moves on to the guessing (new deadline, `Some` events); anything else is left to close.
 pub async fn at_deadline(
     tx: &mut Transaction<'_, Sqlite>,
     group_id: RoomId,
@@ -328,8 +300,6 @@ pub async fn at_deadline(
     }
 }
 
-/// After events from the round loop were sent: a guessing that started gets its countdown at a
-/// party, and a push + inbox entry in a room ("the answers are in"). `actor` isn't told.
 pub async fn announce(
     state: &AppState,
     group_id: RoomId,
@@ -352,7 +322,6 @@ pub async fn announce(
     }
 }
 
-/// « Les réponses sont là : qui a dit quoi ? » to every device of the room and its inbox.
 pub(super) async fn notify_guessing(
     state: &AppState,
     group_id: RoomId,
@@ -397,7 +366,6 @@ pub struct AnswerBody {
     text: String,
 }
 
-/// `POST /round/current/answer {text}`: my answer to the open said question; the round view.
 pub async fn answer(
     State(state): State<AppState>,
     Me(me): Me,
@@ -413,7 +381,6 @@ pub async fn answer(
     ))
 }
 
-/// `POST /parties/{id}/answer {text}` (the caller checked my seat): what [`write`] broadcasts.
 pub async fn party_answer(
     state: &AppState,
     party_id: RoomId,

@@ -1,6 +1,3 @@
-//! Accounts you can sign in to: email + password, Google / Discord, 2FA, sessions. See docs/AUTH.md.
-//! A session is still a bearer token in `user_tokens`; legacy token-only accounts keep working.
-
 pub mod auth;
 pub mod avatar;
 pub mod crypto;
@@ -38,19 +35,14 @@ pub use tokens::*;
 pub use crypto::{totp_code, totp_match};
 pub use mail::{Email, LogMailer, Mailer, MailgunMailer, MemoryMailer, Watched};
 
-/// Everything the auth endpoints share, built once at start-up.
 pub struct Auth {
     pub keys: crypto::Keys,
     pub hasher: crypto::Hasher,
     pub limits: limits::Limiter,
-    /// The mailer, and whether its last send failed (`503 email_failed`).
     pub mailer: Arc<Watched>,
     pub oauth: oauth::OAuth,
-    /// When each token's `last_used_at` was last written (spares the SD card).
     touched: Mutex<HashMap<String, Instant>>,
-    /// Tokens whose device label was already checked (sessions from before 0015 have none).
     labelled: Mutex<std::collections::HashSet<String>>,
-    /// Short-lived single-purpose tickets that stand in for the token in URLs (CSV link, live socket).
     pub tickets: tickets::Tickets,
 }
 
@@ -68,7 +60,6 @@ impl Auth {
         })
     }
 
-    /// Mailgun when configured, else the log.
     pub fn mailer_from(config: &Config) -> Arc<dyn Mailer> {
         match &config.mailgun {
             Some(m) => Arc::new(MailgunMailer::new(m.clone())),
@@ -132,11 +123,7 @@ fn auth_router() -> Router<AppState> {
         .route("/oauth/{provider}", delete(oauth::unlink))
 }
 
-/// What `/api/features` adds for auth.
 pub fn features(state: &AppState) -> Vec<&'static str> {
-    // `reauth`: sensitive changes answer `403 reauth_required` until `POST /auth/reauth` (or an
-    // OAuth round with `reauth: true`); `tickets`: `POST /auth/ticket` for the CSV link and the socket.
-    // `account_recovery`: change e-mail, 2FA reset by e-mail, `email_failed`, security notices.
     let mut f = vec!["auth", "reauth", "tickets", "account_recovery"];
     if state.auth.mailer.configured() {
         f.push("email");
@@ -150,14 +137,6 @@ pub fn features(state: &AppState) -> Vec<&'static str> {
     }
     f
 }
-
-// ---------- extractors ----------
-
-// ---------- sessions ----------
-
-// ---------- security notices, stale e-mails ----------
-
-// ---------- input checks ----------
 
 #[cfg(test)]
 mod tests {
@@ -185,10 +164,8 @@ mod tests {
         let socket: SocketAddr = "10.0.0.2:4000".parse().unwrap();
         h.insert("x-forwarded-for", "6.6.6.6, 203.0.113.7".parse().unwrap());
         let ip = |s: &str| Some(s.parse::<IpAddr>().unwrap());
-        // The first entry is whatever the client sent; the last one is the proxy's.
         assert_eq!(client_ip(&h, Some(socket), true), ip("203.0.113.7"));
         assert_eq!(client_ip(&h, Some(socket), false), ip("10.0.0.2"));
-        // A proxy that adds its own header line: the last line counts, not the client's first one.
         h.append("x-forwarded-for", "198.51.100.4".parse().unwrap());
         assert_eq!(client_ip(&h, Some(socket), true), ip("198.51.100.4"));
         h.remove("x-forwarded-for");

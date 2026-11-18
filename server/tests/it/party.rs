@@ -1,6 +1,3 @@
-//! Party mode (docs/PARTY.md): lobby, guests, one question for everyone with a deadline, reveal,
-//! "Suivante" taps (75 %), the end, keeping it as a room, the big screen.
-
 use crate::common;
 use quidenous_server::platform::ids::{RoomId, RoundId};
 
@@ -26,7 +23,6 @@ async fn setup() -> (Router, AppState) {
         ..Config::default()
     };
     let state = state(config).await.unwrap();
-    // These tests vote by picking someone: no said questions (tests/said.rs plays them).
     sqlx::query("DELETE FROM questions WHERE group_id IS NULL AND kind = 'said'")
         .execute(&state.db)
         .await
@@ -75,7 +71,6 @@ async fn call(
     send(app, method, path, token, None, body).await
 }
 
-/// A token-only account (joins the env room "Test").
 async fn account(app: &Router, name: &str) -> String {
     let (status, body) = call(
         app,
@@ -89,7 +84,6 @@ async fn account(app: &Router, name: &str) -> String {
     body["token"].as_str().unwrap().to_owned()
 }
 
-/// A party hosted by `host`: (id, code).
 async fn create(app: &Router, host: &str) -> (i64, String) {
     let (status, body) = call(app, "POST", "/parties", Some(host), Some(json!({}))).await;
     assert_eq!(status, StatusCode::OK, "{body}");
@@ -99,7 +93,6 @@ async fn create(app: &Router, host: &str) -> (i64, String) {
     )
 }
 
-/// A guest joins: (token, member id).
 async fn guest(app: &Router, code: &str, name: &str) -> (String, i64) {
     let (status, body) = call(
         app,
@@ -162,7 +155,6 @@ async fn future(state: &AppState, offset: &str) -> String {
         .unwrap()
 }
 
-/// A started party: host + guests, voting on its first question.
 async fn started(app: &Router, guests: &[&str]) -> (i64, String, String, i64, Vec<(String, i64)>) {
     let host = account(app, "Hôte").await;
     let (id, code) = create(app, &host).await;
@@ -192,7 +184,6 @@ async fn create_and_join_as_guest_or_account() {
     assert_eq!(s["me"]["role"], "owner");
     assert_eq!(s["me"]["guest"], false);
 
-    // Guest: name + colour, a token comes back.
     let (status, body) = call(
         &app,
         "POST",
@@ -210,7 +201,6 @@ async fn create_and_join_as_guest_or_account() {
     assert_eq!(s["players"][1]["color"], "#FF7A45");
     assert_eq!(s["players"][1]["guest"], true);
 
-    // Same name in that party, missing colour, unknown code.
     for (body, status, error) in [
         (
             json!({ "code": code, "name": "LÉA ", "color": "#5BC8FF" }),
@@ -232,7 +222,6 @@ async fn create_and_join_as_guest_or_account() {
             StatusCode::NOT_FOUND,
             "not_found",
         ),
-        // A normal room's code is not a party.
         (
             json!({ "code": "CODE-1", "name": "Max", "color": "#5BC8FF" }),
             StatusCode::NOT_FOUND,
@@ -243,7 +232,6 @@ async fn create_and_join_as_guest_or_account() {
         assert_eq!((s, b["error"].as_str()), (status, Some(error)));
     }
 
-    // An account joins with its token: no new token; again = same seat.
     let max = account(&app, "Max").await;
     let (status, body) = call(
         &app,
@@ -266,7 +254,6 @@ async fn create_and_join_as_guest_or_account() {
     .await;
     assert_eq!(again["member_id"], max_id);
 
-    // The rooms list and /group say it's a party.
     let (_, rooms) = call(&app, "GET", "/rooms", Some(&lea), None).await;
     assert_eq!(rooms[0]["id"], id);
     assert_eq!(rooms[0]["kind"], "party");
@@ -284,7 +271,6 @@ async fn create_and_join_as_guest_or_account() {
     let (_, group) = send(&app, "GET", "/group", Some(&lea), Some(id), None).await;
     assert_eq!(group["kind"], "party");
 
-    // A signed-in person with /rooms/join gets the kind back.
     let zoe = account(&app, "Zoé").await;
     let (status, body) = call(
         &app,
@@ -296,7 +282,6 @@ async fn create_and_join_as_guest_or_account() {
     .await;
     assert_eq!(status, StatusCode::OK, "{body}");
     assert_eq!(body["kind"], "party");
-    // The old anonymous /join doesn't take party codes.
     let (status, _) = call(
         &app,
         "POST",
@@ -307,7 +292,6 @@ async fn create_and_join_as_guest_or_account() {
     .await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
 
-    // Party mates are not friends by sharing the party (and a guest has no friends list).
     let (_, friends) = call(&app, "GET", "/friends", Some(&host), None).await;
     assert!(
         !friends["friends"]
@@ -320,12 +304,10 @@ async fn create_and_join_as_guest_or_account() {
     let (status, _) = call(&app, "GET", "/friends", Some(&lea), None).await;
     assert_eq!(status, StatusCode::FORBIDDEN);
 
-    // Not a player: 403.
     let other = account(&app, "Autre").await;
     let (status, _) = call(&app, "GET", &format!("/parties/{id}"), Some(&other), None).await;
     assert_eq!(status, StatusCode::FORBIDDEN);
 
-    // Features.
     let (_, features) = call(&app, "GET", "/features", None, None).await;
     assert!(features.as_array().unwrap().contains(&json!("party")));
 }
@@ -365,7 +347,6 @@ async fn the_owner_starts_with_two_players() {
     let (lea, lea_id) = guest(&app, &code, "Léa").await;
     let (status, _) = post(&app, id, "start", &lea, None).await;
     assert_eq!(status, StatusCode::FORBIDDEN);
-    // Nothing opened by itself in the lobby.
     assert_eq!(get(&app, id, &lea).await["phase"], "lobby");
     let (status, s) = post(&app, id, "start", &host, None).await;
     assert_eq!(status, StatusCode::OK, "{s}");
@@ -381,7 +362,6 @@ async fn the_owner_starts_with_two_players() {
         (status, body["error"].as_str()),
         (StatusCode::CONFLICT, Some("started"))
     );
-    // Not revealed yet: "Suivante" waits.
     let (status, body) = post(&app, id, "next", &lea, None).await;
     assert_eq!(
         (status, body["error"].as_str()),
@@ -396,7 +376,6 @@ async fn everyone_votes_late_joiners_wait_for_the_next_question() {
     let (lea, lea_id) = &players[0];
     let (max, _) = &players[1];
 
-    // Someone arriving mid-question: can't vote, can't be picked (also through the old endpoint).
     let (late, late_id) = guest(&app, &code, "Zoé").await;
     let (status, body) = vote(&app, id, &late, *lea_id).await;
     assert_eq!(
@@ -431,7 +410,6 @@ async fn everyone_votes_late_joiners_wait_for_the_next_question() {
         (status, body["error"].as_str()),
         (StatusCode::CONFLICT, Some("already_voted"))
     );
-    // An old app votes through /round/current/vote: same rules.
     let (status, body) = send(
         &app,
         "POST",
@@ -446,7 +424,6 @@ async fn everyone_votes_late_joiners_wait_for_the_next_question() {
     assert_eq!(s["phase"], "voting");
     assert!(s["round"]["results"].is_null());
     let (_, s) = vote(&app, id, max, *lea_id).await;
-    // Everyone voted: revealed together, and nothing opens by itself.
     assert_eq!(s["phase"], "reveal");
     assert!(s["round"]["closed_at"].is_string());
     assert_eq!(s["round"]["results"][0]["member_id"], *lea_id);
@@ -460,7 +437,6 @@ async fn everyone_votes_late_joiners_wait_for_the_next_question() {
         (StatusCode::CONFLICT, Some("no_open_round"))
     );
 
-    // Next question: the late joiner is in it.
     let (status, s) = post(&app, id, "next", &host, None).await;
     assert_eq!(status, StatusCode::OK, "{s}");
     assert_eq!(s["phase"], "voting");
@@ -476,10 +452,8 @@ async fn questions_close_at_their_deadline() {
     let (id, _, host, _, players) = started(&app, &["Léa", "Max"]).await;
     let (_, lea_id) = &players[0];
     vote(&app, id, &host, *lea_id).await;
-    // Before the deadline: nothing.
     let now = future(&state, "+0 seconds").await;
     assert_eq!(party::sweep_at(&state, &now).await.unwrap().closed, 0);
-    // After it: closed with the votes it has, revealed.
     let later = future(&state, "+31 seconds").await;
     let swept = party::sweep_at(&state, &later).await.unwrap();
     assert_eq!(swept.closed, 1);
@@ -489,7 +463,6 @@ async fn questions_close_at_their_deadline() {
     assert_eq!(s["round"]["closed_at"], later);
     assert_eq!(s["round"]["results"][0]["votes"], 1);
 
-    // The timer is an owner setting; the next question uses it.
     let (status, body) = call(
         &app,
         "PATCH",
@@ -529,7 +502,6 @@ async fn three_quarters_of_the_players_open_the_next_question() {
     let (a, _) = &players[0];
     let (b, _) = &players[1];
     let (c, _) = &players[2];
-    // 4 players: 3 taps needed. Tapping twice counts once; un-tapping takes it back.
     post(&app, id, "next", a, None).await;
     let (_, s) = post(&app, id, "next", a, None).await;
     assert_eq!(s["round"]["next"]["taps"].as_array().unwrap().len(), 1);
@@ -551,7 +523,6 @@ async fn three_quarters_of_the_players_open_the_next_question() {
     assert_eq!(s["phase"], "voting");
     assert_eq!(s["round"]["number"], 2);
 
-    // The owner's tap opens it right away.
     let later = future(&state, "+61 seconds").await;
     party::sweep_at(&state, &later).await.unwrap();
     assert_eq!(get(&app, id, &host).await["phase"], "reveal");
@@ -561,7 +532,6 @@ async fn three_quarters_of_the_players_open_the_next_question() {
         (Some("voting"), Some(3))
     );
 
-    // Reactions on a result, toggled.
     let later = future(&state, "+91 seconds").await;
     party::sweep_at(&state, &later).await.unwrap();
     let rid = get(&app, id, &host).await["round"]["id"].as_i64().unwrap();
@@ -617,7 +587,6 @@ async fn leaving_rechecks_the_question_and_the_taps() {
     let (id, _, host, host_id, players) = started(&app, &["A", "B", "C", "D"]).await;
     let (a, a_id) = &players[0];
     let (_, b_id) = &players[1];
-    // Everyone but B voted; B leaves: the question closes.
     vote(&app, id, &host, *a_id).await;
     vote(&app, id, a, host_id).await;
     vote(&app, id, &players[2].0, host_id).await;
@@ -636,8 +605,6 @@ async fn leaving_rechecks_the_question_and_the_taps() {
     assert_eq!(s["phase"], "reveal");
     assert!(!ids(&s["round"]["eligible"]).contains(b_id));
 
-    // A and C tap. Removing D (3 players) still needs 3 taps; the owner leaving (2 players,
-    // both tapped) opens the next question.
     post(&app, id, "next", a, None).await;
     post(&app, id, "next", &players[2].0, None).await;
     assert_eq!(get(&app, id, &host).await["phase"], "reveal");
@@ -650,7 +617,6 @@ async fn leaving_rechecks_the_question_and_the_taps() {
     )
     .await;
     assert_eq!(status, StatusCode::OK);
-    // 3 players (host, A, C): needed 3, 2 taps.
     assert_eq!(get(&app, id, &host).await["round"]["next"]["needed"], 3);
     let (status, _) = call(
         &app,
@@ -672,7 +638,6 @@ async fn a_party_that_is_over_is_a_memory_and_can_become_a_room() {
     let (id, code, host, host_id, players) = started(&app, &["Léa"]).await;
     let (lea, lea_id) = &players[0];
     vote(&app, id, &host, *lea_id).await;
-    // Only the owner ends it; the open question closes with what it has.
     let (status, _) = post(&app, id, "end", lea, None).await;
     assert_eq!(status, StatusCode::FORBIDDEN);
     let (status, s) = post(&app, id, "end", &host, None).await;
@@ -708,12 +673,10 @@ async fn a_party_that_is_over_is_a_memory_and_can_become_a_room() {
     );
     let (_, rooms) = call(&app, "GET", "/rooms", Some(lea), None).await;
     assert_eq!(rooms[0]["over"], true);
-    // The memory: the room history.
     let (status, history) = send(&app, "GET", "/history", Some(lea), Some(id), None).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(history.as_array().unwrap().len(), 1);
 
-    // Keep playing as a normal room: the next question opens like in any room.
     let (status, _) = post(&app, id, "keep", lea, None).await;
     assert_eq!(status, StatusCode::FORBIDDEN);
     let (status, body) = post(&app, id, "keep", &host, None).await;
@@ -775,7 +738,6 @@ async fn the_big_screen_needs_only_the_code() {
     }
 }
 
-/// The big screen draws its words in the party's language (not the TV browser's).
 #[tokio::test]
 async fn the_big_screen_knows_the_party_language() {
     let (app, _) = setup().await;
@@ -813,7 +775,6 @@ async fn parties_send_no_inbox_or_push() {
     .await
     .unwrap();
     assert_eq!(rows, 0);
-    // No nudges either.
     let (status, _) = send(
         &app,
         "POST",
@@ -848,7 +809,6 @@ async fn a_guest_who_secures_the_account_keeps_everything() {
 #[tokio::test]
 async fn deleted_accounts_read_in_the_readers_language() {
     let (app, state) = setup().await;
-    // Two single picks must close the first question: no rank or choose question from the deck.
     sqlx::query("DELETE FROM questions WHERE group_id IS NULL AND kind <> 'pick'")
         .execute(&state.db)
         .await
@@ -857,7 +817,6 @@ async fn deleted_accounts_read_in_the_readers_language() {
     let gone = account(&app, "Louis").await;
     let (_, me) = call(&app, "GET", "/me", Some(&gone), None).await;
     let gone_id = me["id"].as_i64().unwrap();
-    // A finished question with Louis as the winner, then Louis deletes the account.
     let (_, tug_me) = call(&app, "GET", "/me", Some(&tug), None).await;
     send(
         &app,
@@ -894,7 +853,6 @@ async fn deleted_accounts_read_in_the_readers_language() {
     assert_eq!(active["id"], tug_me["id"]);
     assert!(active.get("deleted").is_none());
 
-    // An English reader's CSV says "Deleted account".
     let (status, _) = call(
         &app,
         "PUT",
@@ -915,8 +873,6 @@ async fn deleted_accounts_read_in_the_readers_language() {
     assert!(!csv.contains("Compte supprimé"), "{csv}");
 }
 
-/// A burst of "Suivante" taps / reactions: one `PartyUpdated` right away, then one trailing (latest round)
-/// after the gap, instead of one per tap to every phone. Other parties and other events are not held back.
 #[tokio::test]
 async fn party_updates_are_coalesced() {
     use quidenous_server::realtime::live::{Event, Live, PARTY_UPDATE_GAP};
@@ -963,7 +919,6 @@ async fn party_updates_are_coalesced() {
     tokio::time::sleep(PARTY_UPDATE_GAP).await;
     assert!(rx.try_recv().is_err(), "only one trailing update");
 
-    // Quiet for a gap: the next one goes out right away again.
     live.send(
         RoomId::from_raw(7),
         Event::PartyUpdated {
@@ -982,7 +937,6 @@ async fn votes_after_the_countdown_are_refused() {
     let (app, state) = setup().await;
     let (id, _, host, _, players) = started(&app, &["Léa", "Max"]).await;
     let (_, lea_id) = &players[0];
-    // The countdown is over but the sweep hasn't closed it yet (a lost deadline task, a restart).
     sqlx::query(
         "UPDATE rounds SET deadline_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-1 seconds') \
          WHERE group_id = ? AND closed_at IS NULL",
@@ -998,8 +952,6 @@ async fn votes_after_the_countdown_are_refused() {
     );
 }
 
-/// The owner removes a player (the big screen and every phone see it), the same guest can't take
-/// a fresh seat under that name, and a locked party takes nobody new.
 #[tokio::test]
 async fn the_owner_removes_players_and_locks_the_party() {
     let (app, _) = setup().await;
@@ -1034,7 +986,6 @@ async fn the_owner_removes_players_and_locks_the_party() {
         ))
         .contains(&troll)
     );
-    // Rescanning the QR code with the same name: no.
     let (status, b) = call(
         &app,
         "POST",
@@ -1048,7 +999,6 @@ async fn the_owner_removes_players_and_locks_the_party() {
         (StatusCode::FORBIDDEN, Some("removed"))
     );
 
-    // Locked: nobody new, guest or account; the players stay.
     let (status, p) = call(
         &app,
         "PATCH",
@@ -1085,7 +1035,6 @@ async fn the_owner_removes_players_and_locks_the_party() {
     .await;
     assert_eq!(status, StatusCode::FORBIDDEN);
     assert_eq!(get(&app, id, &players[0].0).await["locked"], true);
-    // Open again.
     call(
         &app,
         "PATCH",
@@ -1097,7 +1046,6 @@ async fn the_owner_removes_players_and_locks_the_party() {
     guest(&app, &code, "Zoé").await;
 }
 
-/// The big screen shows how many votes each player got, not who voted for whom.
 #[tokio::test]
 async fn the_big_screen_shows_counts_not_voters() {
     let (app, _) = setup().await;

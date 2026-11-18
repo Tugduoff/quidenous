@@ -13,25 +13,20 @@ pub struct QuestionIn {
     text: String,
     #[serde(default)]
     kind: Option<String>,
-    /// A choose question's answers (2 to 4).
     #[serde(default)]
     items: Option<Vec<String>>,
-    /// Anonymous votes (absent from apps before `anonymous_votes`: kept as it was).
     #[serde(default)]
     anonymous: Option<bool>,
 }
 
-/// A pack question: `pick` | `rank` | `choose` (with its answers).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackQuestion {
     pub text: String,
     pub kind: String,
     pub items: Option<Vec<String>>,
-    /// Anonymous votes once installed (pick and ranking only, see `anonymous`).
     pub anonymous: bool,
 }
 
-/// A pack's questions in order.
 pub(super) async fn stored_questions<'e, E: sqlx::SqliteExecutor<'e>>(
     db: E,
     id: PackId,
@@ -57,16 +52,11 @@ pub(super) async fn stored_questions<'e, E: sqlx::SqliteExecutor<'e>>(
 pub struct PackBody {
     pub(crate) name: Option<String>,
     pub(crate) description: Option<String>,
-    /// A question file (`[classement]` lines allowed).
     pub(crate) text: Option<String>,
-    /// `fr` | `en`, the language its questions are written in; none = French (or unchanged).
     pub(crate) language: Option<String>,
-    /// Category ids, 3 at most.
     pub(crate) tags: Option<Vec<String>>,
     pub(crate) spicy: Option<bool>,
-    /// In Coflop's selection from the start: admins only (ignored for others).
     pub(crate) featured: Option<bool>,
-    /// The questions as a list (wins over `text`).
     pub(crate) questions: Option<Vec<QuestionIn>>,
 }
 
@@ -84,7 +74,6 @@ pub(super) fn clean_language(language: &str) -> AppResult<Lang> {
     Lang::parse(language.trim()).ok_or(AppError::BadRequest("bad_language"))
 }
 
-/// Known category ids, each once, 3 at most (`400 bad_tags`).
 pub(super) fn clean_tags(tags: &[String]) -> AppResult<Vec<&'static str>> {
     let mut out: Vec<&'static str> = Vec::new();
     for tag in tags {
@@ -103,7 +92,6 @@ pub(super) fn clean_tags(tags: &[String]) -> AppResult<Vec<&'static str>> {
     Ok(out)
 }
 
-/// A pack file's questions (`[classement]`, `[choix] … | A | B`; the header is read apart).
 pub(super) fn from_file(file: &crate::community::packfile::PackFile) -> Vec<PackQuestion> {
     file.lines
         .iter()
@@ -116,8 +104,6 @@ pub(super) fn from_file(file: &crate::community::packfile::PackFile) -> Vec<Pack
         .collect()
 }
 
-/// The app's list. A choose question sent without its answers (an app from before `pack_choose`
-/// editing a pack) keeps the answers it has in `known`; anything unknown is a pick question.
 pub(super) fn from_list(list: Vec<QuestionIn>, known: &[PackQuestion]) -> Vec<PackQuestion> {
     list.into_iter()
         .map(|q| {
@@ -125,7 +111,6 @@ pub(super) fn from_list(list: Vec<QuestionIn>, known: &[PackQuestion]) -> Vec<Pa
             let kind = match q.kind.as_deref() {
                 Some("rank") => "rank",
                 Some("choose") => "choose",
-                // Not in packs yet (docs/SAID.md): dropped by `clean_questions`, never a pick.
                 Some("said") => "said",
                 _ => "pick",
             };
@@ -137,7 +122,6 @@ pub(super) fn from_list(list: Vec<QuestionIn>, known: &[PackQuestion]) -> Vec<Pa
                     .and_then(|k| k.items.clone()),
                 _ => None,
             };
-            // An app that doesn't know the flag keeps what the pack had for this question.
             let anonymous = q.anonymous.unwrap_or_else(|| {
                 known
                     .iter()
@@ -153,8 +137,6 @@ pub(super) fn from_list(list: Vec<QuestionIn>, known: &[PackQuestion]) -> Vec<Pa
         .collect()
 }
 
-/// Questions of the right length, each once (case-insensitive), choose ones with valid answers,
-/// no said ones (not in packs yet), 5 to 300 of them.
 pub fn clean_questions(mut questions: Vec<PackQuestion>) -> AppResult<Vec<PackQuestion>> {
     for q in &mut questions {
         q.text = crate::platform::text::line(&q.text);
@@ -202,7 +184,6 @@ pub(super) async fn insert_questions(
     Ok(())
 }
 
-/// A new pack's fields, checked.
 pub struct NewPack {
     pub name: String,
     pub description: String,
@@ -214,7 +195,6 @@ pub struct NewPack {
     pub questions: Vec<PackQuestion>,
 }
 
-/// How many packs this author has up (public or in review).
 pub(super) async fn live_packs<'e, E: sqlx::SqliteExecutor<'e>>(
     db: E,
     author: UserId,
@@ -227,8 +207,6 @@ pub(super) async fn live_packs<'e, E: sqlx::SqliteExecutor<'e>>(
     .await?)
 }
 
-/// Inserts a checked pack; returns its id. `capped`: `409 too_many_packs` at [`PACKS_PER_USER`],
-/// counted in the write transaction (publishes at the same moment can't beat it).
 pub async fn create_pack(
     db: &sqlx::SqlitePool,
     author: UserId,

@@ -7,7 +7,6 @@ pub(super) struct Draft {
     pub(crate) key: &'static str,
     pub(crate) members: Vec<MemberId>,
     pub(crate) big: String,
-    /// Candidate punchlines; one is picked from `seed`.
     pub(crate) lines: Vec<String>,
     pub(crate) seed: usize,
     pub(crate) round_id: Option<RoundId>,
@@ -36,7 +35,6 @@ pub(super) fn draft(
     }
 }
 
-/// The variant chosen by `seed`, or the next one that fits in [`LINE_MAX`] characters.
 pub(super) fn pick_line(lines: &[String], seed: usize) -> String {
     if lines.is_empty() {
         return String::new();
@@ -48,7 +46,6 @@ pub(super) fn pick_line(lines: &[String], seed: usize) -> String {
             return l.clone();
         }
     }
-    // Very long names: cut at a word boundary.
     let mut out = String::new();
     for word in lines[seed % n].split(' ') {
         if out.chars().count() + word.chars().count() + 2 > LINE_MAX {
@@ -96,8 +93,6 @@ impl Writer<'_> {
     }
 }
 
-/// Every possible story, funniest first. Spicy rooms (16+) get their own lines where written.
-/// Each story has its lines in French and in English (same count, same tone).
 pub(super) fn drafts(
     s: &Stats,
     name: &dyn Fn(MemberId) -> String,
@@ -244,5 +239,4 @@ pub(super) fn question_drafts(w: &Writer, s: &Stats, d: &mut Vec<Draft>) {
             ),
         ));
     }
-    // The rest.
 }

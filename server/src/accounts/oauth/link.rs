@@ -13,7 +13,6 @@ pub(super) struct Outcome {
 }
 
 pub(super) enum Refusal {
-    /// Told to the app on redeem (`identity_taken`, `already_linked`, `email_taken`).
     Because(&'static str),
     Failed(AppError),
 }
@@ -24,8 +23,6 @@ impl From<sqlx::Error> for Refusal {
     }
 }
 
-/// The account for this identity: already linked, the signed-in one (link mode), the one with the
-/// same verified email (both sides verified), or a new one.
 pub(super) async fn resolve(
     state: &AppState,
     provider: &str,
@@ -61,7 +58,6 @@ pub(super) async fn resolve(
             }
         }
         if let Some(email) = verified_email {
-            // The provider vouches for this address: the account's own email if it had none, or verified.
             sqlx::query(
                 "UPDATE users SET email = ?1, email_verified_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') \
                  WHERE id = ?2 AND email IS NULL AND NOT EXISTS (SELECT 1 FROM users WHERE email = ?1)",
@@ -107,7 +103,6 @@ pub(super) async fn resolve(
                 .fetch_optional(db)
                 .await?;
         match existing {
-            // Both sides verified: same person.
             Some((user, Some(_))) => {
                 insert_identity(state, user, provider, id).await?;
                 notify(state, user, Notice::ProviderLinked(provider_name(provider)));
@@ -117,9 +112,6 @@ pub(super) async fn resolve(
                     linked: false,
                 });
             }
-            // Someone typed this address without proving it: never hand that account over, and
-            // never detach it either (it may be this very person's password account, which would
-            // be orphaned). The address's owner signs in with the password or resets it.
             Some((_, None)) => return Err(Refusal::Because("email_taken")),
             None => {}
         }

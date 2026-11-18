@@ -10,7 +10,6 @@ use crate::{
 
 use super::*;
 
-/// The party as the app and the big screen see it (`me` = null on the big screen).
 pub async fn view(state: &AppState, id: RoomId, me: Option<&MemberRow>) -> AppResult<Value> {
     let p = load(state, id).await?;
     let players: Vec<MemberRow> = sqlx::query_as(
@@ -19,7 +18,6 @@ pub async fn view(state: &AppState, id: RoomId, me: Option<&MemberRow>) -> AppRe
     .bind(id)
     .fetch_all(&state.db)
     .await?;
-    // A guest account stops being one once it has an e-mail + password or a linked provider.
     let guests: Vec<MemberId> = sqlx::query_scalar(
         "SELECT m.id FROM members m JOIN users u ON u.id = m.user_id \
          WHERE m.group_id = ? AND m.removed_at IS NULL AND u.guest \
@@ -51,7 +49,6 @@ pub async fn view(state: &AppState, id: RoomId, me: Option<&MemberRow>) -> AppRe
         Some((_, true)) => "reveal",
         None => "lobby",
     };
-    // Over: the last finished question (an open one is closed by the sweeper within seconds).
     let round_id = match (phase, latest) {
         ("over", _) => sqlx::query_scalar(
             "SELECT id FROM rounds WHERE group_id = ? AND closed_at IS NOT NULL ORDER BY number DESC LIMIT 1",
@@ -131,14 +128,12 @@ pub(super) async fn round_view(
         None => None,
     };
     let closed = closed_at.is_some();
-    // A said question: its phase and answers (`my_*` null on the big screen).
     let said =
         crate::rounds::said::view(&state.db, round_id, &kind, closed, me.map(|m| m.id)).await?;
     let (results, next, reactions) = if closed {
         let results: Vec<Value> = game::tallies(&state.db, round_id)
             .await?
             .into_iter()
-            // The big screen (no `me`, anyone with the code) gets counts only: who voted for whom stays on the phones.
             .map(|t| match me {
                 Some(_) => {
                     json!({ "member_id": t.target_id, "votes": t.count, "voters": t.voter_ids })
@@ -154,7 +149,6 @@ pub(super) async fn round_view(
             let needed = needed_now(state, round_id, players, None).await?;
             json!({ "taps": taps, "needed": needed, "players": players, "mine": mine })
         };
-        // Taps, without the people I blocked; `mine`: I have some.
         let rows: Vec<(String, i64, bool)> = sqlx::query_as(
             "SELECT r.emoji, SUM(r.count), MAX(r.member_id = ?1) FROM round_reactions r \
              JOIN members m ON m.id = r.member_id WHERE r.round_id = ?2 \
@@ -193,7 +187,6 @@ pub(super) async fn round_view(
     }))
 }
 
-/// Active members who tapped "Suivante" on a revealed question.
 pub(super) async fn taps(state: &AppState, round_id: RoundId) -> AppResult<Vec<MemberId>> {
     Ok(sqlx::query_scalar(
         "SELECT t.member_id FROM party_taps t JOIN members m ON m.id = t.member_id AND m.removed_at IS NULL \
@@ -218,7 +211,6 @@ pub(super) async fn active_players<'e, E: sqlx::SqliteExecutor<'e>>(
     )
 }
 
-/// (id, closed) of the party's latest question.
 pub(super) async fn latest_round(
     state: &AppState,
     id: RoomId,

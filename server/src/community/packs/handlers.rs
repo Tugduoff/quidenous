@@ -20,8 +20,6 @@ use crate::{
 
 use super::*;
 
-/// Publish a pack: from `questions`, else a file (`text`, whose header fills what the body leaves
-/// out), else the questions my room added. Admins have no pack limit and may publish it featured.
 pub async fn publish(
     State(state): State<AppState>,
     crate::accounts::auth::Account(user): crate::accounts::auth::Account,
@@ -51,7 +49,6 @@ pub async fn publish(
     let spicy = body.spicy.or(header.spicy).unwrap_or(false) || tags.contains(&SPICY_TAG);
     require_verified(&state, user).await?;
     let admin = crate::accounts::auth::is_admin(&state, user);
-    // Early, before the work; counted again when it is stored.
     if !admin && live_packs(&state.db, user).await? >= PACKS_PER_USER {
         return Err(AppError::Conflict("too_many_packs"));
     }
@@ -79,8 +76,6 @@ pub async fn publish(
         },
     };
     let questions = clean_questions(raw)?;
-    // An author with a pack removed by an admin, or deleted while in review, publishes into
-    // review: deleting and publishing the same pack again doesn't get round the admins.
     let probation: bool = sqlx::query_scalar(
         "SELECT EXISTS (SELECT 1 FROM packs WHERE author_id = ? AND (status = 'removed' \
          OR (status = 'deleted' AND removed_reason = ?)))",
@@ -110,7 +105,6 @@ pub async fn publish(
     ))
 }
 
-/// The author edits their pack. Fields left out keep their value; new questions bump the version.
 pub async fn edit(
     State(state): State<AppState>,
     crate::accounts::auth::Account(me): crate::accounts::auth::Account,
@@ -150,7 +144,6 @@ pub async fn edit(
         (None, None) => current.clone(),
     };
     let changed = questions != current;
-    // An admin approved it after reports: new words go back to review.
     let rewritten = changed || before != (name.clone(), description.clone());
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
     sqlx::query(
@@ -183,7 +176,6 @@ pub async fn edit(
     Ok(Json(item(&state, row, me).await?))
 }
 
-/// My packs that are not deleted (public, in review, removed with its reason), newest first.
 pub async fn mine(
     State(state): State<AppState>,
     SignedIn(me): SignedIn,
@@ -200,8 +192,6 @@ pub async fn mine(
     Ok(Json(json!(items(&state, rows, me).await?)))
 }
 
-/// Copy a pack's questions into my room's queue (skipping ones the room already has). One install
-/// per room: installing again only adds what the room lacks (a newer version).
 pub async fn install(
     State(state): State<AppState>,
     Me(me): Me,
@@ -230,7 +220,6 @@ pub async fn install(
         {
             continue;
         }
-        // Choose questions arrive as real choose questions (with their answers).
         sqlx::query(
             "INSERT INTO questions (group_id, text, author_id, kind, origin, items, anonymous) \
              VALUES (?, ?, ?, ?, 'pack', ?, ?)",
@@ -290,7 +279,6 @@ pub(super) async fn set_like(
     id: PackId,
     on: bool,
 ) -> AppResult<Json<Value>> {
-    // Liking needs a public pack; taking a like back works whatever became of it.
     let author: UserId = sqlx::query_scalar(
         "SELECT author_id FROM packs WHERE id = ? AND (status = 'public' OR NOT ?)",
     )
@@ -342,7 +330,6 @@ pub struct ReportBody {
     details: Option<String>,
 }
 
-/// An optional JSON body: older apps send none at all.
 pub(crate) fn optional_body<T: serde::de::DeserializeOwned + Default>(
     body: &Bytes,
     code: &'static str,
@@ -353,8 +340,6 @@ pub(crate) fn optional_body<T: serde::de::DeserializeOwned + Default>(
     serde_json::from_slice(body).map_err(|_| AppError::BadRequest(code))
 }
 
-/// Report a pack (once per person). The third distinct report sends a public pack to review.
-/// Each new report is e-mailed to `REPORT_EMAIL` (same hourly cap as other reports).
 pub async fn report(
     State(state): State<AppState>,
     crate::accounts::auth::Account(me): crate::accounts::auth::Account,
@@ -403,7 +388,6 @@ pub async fn report(
     if inserted.rows_affected() == 0 {
         return Ok(Json(json!({ "ok": true })));
     }
-    // Only trusted reporters take it off the catalogue (a fresh verified account can still report).
     let reports: i64 = sqlx::query_scalar(concat!(
         "SELECT COUNT(*) FROM pack_reports r WHERE r.pack_id = ? AND ",
         crate::community::moderation::trusted!("r.user_id")
@@ -463,7 +447,6 @@ pub async fn report(
     Ok(Json(json!({ "ok": true })))
 }
 
-/// The author deletes their pack (it stays installed where it was).
 pub async fn delete(
     State(state): State<AppState>,
     SignedIn(me): SignedIn,
@@ -481,10 +464,6 @@ pub async fn delete(
     Ok(Json(json!({ "ok": true })))
 }
 
-/// The author deletes several of their packs in one transaction, each like `DELETE /packs/{id}`
-/// (one already deleted counts as deleted). Someone else's or a missing one is skipped
-/// (`not_author`) and the rest still goes: `{deleted: [id], skipped: [{id, error}]}`, both in
-/// request order; 100 ids at most (`400 too_many`).
 pub async fn delete_many(
     State(state): State<AppState>,
     SignedIn(me): SignedIn,
@@ -510,7 +489,6 @@ pub async fn delete_many(
     Ok(Json(json!({ "deleted": deleted, "skipped": skipped })))
 }
 
-/// A creator's page: who they are and their public packs. 404 if none (unless it's me).
 pub async fn creator(
     State(state): State<AppState>,
     SignedIn(me): SignedIn,
@@ -526,7 +504,6 @@ pub async fn creator(
         .await?
         .ok_or(AppError::NotFound)?;
     let room = current_room(&state, me, &headers).await?;
-    // My own page shows all my public packs; someone else's, the 16+ ones only as in the list.
     let spicy_ok = user_id == me || sees_spicy(&state, me, room).await?;
     let rows: Vec<PackRow> = sqlx::query_as(select(
         "WHERE p.author_id = ?3 AND p.status = 'public' AND (?4 OR p.spicy = 0) \
@@ -564,7 +541,6 @@ pub(super) async fn community_state(state: &AppState, me: UserId) -> AppResult<V
     }))
 }
 
-/// `GET /community/me`: am I an admin, do I see 16+ packs, suggestions left today.
 pub async fn community_me(
     State(state): State<AppState>,
     SignedIn(me): SignedIn,

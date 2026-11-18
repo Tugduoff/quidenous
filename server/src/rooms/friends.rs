@@ -1,8 +1,3 @@
-//! Friends: anyone I share a room with (parties don't count), plus people I became friends with by
-//! a request they accepted (friend code, QR, or "keep" a room-mate). Nothing happens without the
-//! other person's consent: a friend request waits for them to accept it, and putting a friend in
-//! one of my rooms sends them an invitation they accept or decline (`docs/ROOMS.md`, Friends).
-
 use crate::platform::ids::{InviteId, MemberId, RoomId, UserId};
 use axum::{
     Json,
@@ -25,7 +20,6 @@ use crate::{
     rounds::game,
 };
 
-/// Is `other` a friend of `me` (added, or sharing an active room), with no block either way?
 async fn are_friends(state: &AppState, me: UserId, other: UserId) -> AppResult<bool> {
     let found: Option<i64> = sqlx::query_scalar(
         "SELECT 1 FROM ( \
@@ -50,8 +44,6 @@ fn person((id, name, color, photo, avatar): PersonRow) -> Value {
             "photo_url": photo.map(|p| format!("/photos/{p}")), "avatar": avatar })
 }
 
-/// My friend code, my friends (closest first: most rooms in common), and the friend requests
-/// waiting: `incoming` (to accept or decline) and `outgoing` (sent, to cancel).
 pub async fn list(State(state): State<AppState>, Account(me): Account) -> AppResult<Json<Value>> {
     let code: String = sqlx::query_scalar("SELECT friend_code FROM users WHERE id = ?")
         .bind(me)
@@ -67,7 +59,6 @@ pub async fn list(State(state): State<AppState>, Account(me): Account) -> AppRes
         bool,
         bool,
     );
-    // Party guests never show up: they can't be friends or invited.
     let rows: Vec<Row> = sqlx::query_as(concat!(
         "WITH shared AS ( \
              SELECT b.user_id AS uid, COUNT(DISTINCT a.group_id) AS rooms FROM members a \
@@ -125,8 +116,6 @@ pub async fn list(State(state): State<AppState>, Account(me): Account) -> AppRes
                     "incoming": incoming, "outgoing": outgoing })))
 }
 
-/// The seat a notice for this account lands on (inbox entry, push): the room they used last,
-/// else their newest. None without a room.
 async fn notice_seat(state: &AppState, user: UserId) -> AppResult<Option<(MemberId, RoomId)>> {
     Ok(sqlx::query_as(
         "SELECT m.id, m.group_id FROM members m JOIN users u ON u.id = m.user_id \
@@ -139,10 +128,6 @@ async fn notice_seat(state: &AppState, user: UserId) -> AppResult<Option<(Member
     .await?)
 }
 
-/// Tells `to` about something `from` did that isn't about one of `to`'s rooms (a friend request,
-/// a room invitation): an inbox entry and a push on the seat they use most, if they have one.
-/// Runs after the request or invitation committed: a failure is logged, never an error (a retry
-/// would find it already sent and say nothing).
 async fn notify_user(
     state: &AppState,
     to: UserId,
@@ -169,7 +154,6 @@ async fn try_notify_user(
     let Some((member_id, room)) = notice_seat(state, to).await? else {
         return Ok(());
     };
-    // The actor is any seat of the sender: it only lets a block hide the entry.
     let actor = notice_seat(state, from).await?.map(|(id, _)| id);
     inbox::to_member(&state.db, member_id, kind, None, actor, &body).await?;
     state.live.send(room, Event::InboxChanged);
@@ -189,7 +173,6 @@ async fn try_notify_user(
     Ok(())
 }
 
-/// I ask `other` to be friends, or accept if they already asked me. `true` = we are friends now.
 async fn befriend(state: &AppState, me: UserId, other: UserId, my_name: &str) -> AppResult<bool> {
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
     let asked_me = sqlx::query("DELETE FROM friend_requests WHERE from_id = ? AND to_id = ?")
@@ -231,7 +214,6 @@ async fn befriend(state: &AppState, me: UserId, other: UserId, my_name: &str) ->
         .rows_affected()
         > 0;
     tx.commit().await?;
-    // Asked again while still waiting: no second notice.
     if new {
         notify_user(
             state,
@@ -259,8 +241,6 @@ pub struct AddBody {
     code: String,
 }
 
-/// A friend request by friend code (or accepting theirs if they asked me first).
-/// `{user_id, name, status: "requested" | "friends"}`. Old apps read only `user_id` and `name`.
 pub async fn add(
     State(state): State<AppState>,
     Account(me): Account,
@@ -269,7 +249,6 @@ pub async fn add(
 ) -> AppResult<Json<Value>> {
     let code = body.code.trim().to_uppercase();
     let attempt = crate::platform::quotas::code_attempt(&state, Some(me), ip)?;
-    // A block, either way, or a party guest looks like an unknown code.
     let (other, name): (UserId, String) = sqlx::query_as(concat!(
         "SELECT u.id, u.name FROM users u WHERE u.friend_code = ?1 AND u.deleted_at IS NULL AND NOT ",
         guest_sql!("u"),
@@ -290,8 +269,6 @@ pub async fn add(
                     "status": if friends { "friends" } else { "requested" } })))
 }
 
-/// Ask a room-mate to stay friends after either of us leaves, or accept someone's friend request
-/// (anyone who asked me). `{user_id, name, status}` like [`add`].
 pub async fn keep(
     State(state): State<AppState>,
     Account(me): Account,
@@ -300,8 +277,6 @@ pub async fn keep(
     if other == me {
         return Err(AppError::BadRequest("self_friend"));
     }
-    // A room-mate (a room, not a party) or someone who asked me, no block either way, no guest:
-    // anyone else looks unknown.
     let name: String = sqlx::query_scalar(concat!(
         "SELECT u.name FROM users u WHERE u.id = ?2 AND u.deleted_at IS NULL AND NOT ",
         guest_sql!("u"),
@@ -322,8 +297,6 @@ pub async fn keep(
                     "status": if friends { "friends" } else { "requested" } })))
 }
 
-/// Remove a friend, decline their friend request or cancel mine: everything between us goes
-/// (people I share a room with stay friends).
 pub async fn remove(
     State(state): State<AppState>,
     SignedIn(me): SignedIn,
@@ -349,8 +322,6 @@ pub struct AddToRoomBody {
     user_id: UserId,
 }
 
-/// Invite a friend into one of my rooms (`POST /rooms/{id}/add`, the old "add" endpoint): they
-/// get "X invited you to Y" and accept or decline. `{invited: true, user_id}`.
 pub async fn add_to_room(
     State(state): State<AppState>,
     Account(me): Account,
@@ -365,7 +336,6 @@ pub async fn add_to_room(
             .bind(room)
             .fetch_one(&state.db)
             .await?;
-    // Parties are joined with their code, in the same place.
     if kind != "room" {
         return Err(AppError::BadRequest("not_a_room"));
     }
@@ -384,14 +354,12 @@ pub async fn add_to_room(
     .await?;
     match existing {
         Some((None, _)) => return Err(AppError::Conflict("already_in_room")),
-        // Removed by the owner (or a vote): inviting them back is the owner's call.
         Some((Some(_), false)) if !my_seat.is_owner() => {
             return Err(AppError::Forbidden("owner_only"));
         }
         _ => {}
     }
     crate::rooms::manage::seat_free(&state.db, room).await?;
-    // An invitation they accepted before (kept for a double tap, `accept_invite`) gives way to this one.
     sqlx::query(
         "DELETE FROM room_invites WHERE group_id = ? AND user_id = ? AND member_id IS NOT NULL",
     )
@@ -424,7 +392,6 @@ pub async fn add_to_room(
     Ok(Json(json!({ "invited": true, "user_id": other })))
 }
 
-/// SQL: invitation `i` can still be accepted (live room, inviter still in it, no block either way).
 macro_rules! invite_valid {
     () => {
         "EXISTS (SELECT 1 FROM groups g WHERE g.id = i.group_id AND g.deleted_at IS NULL AND g.kind = 'room') \
@@ -434,7 +401,6 @@ macro_rules! invite_valid {
     };
 }
 
-/// The room invitations waiting for me, newest first.
 pub async fn invites(
     State(state): State<AppState>,
     SignedIn(me): SignedIn,
@@ -475,15 +441,11 @@ pub async fn invites(
     Ok(Json(json!({ "invites": list })))
 }
 
-/// Accept an invitation: I take a seat in the room (my old one back if I had one), and the second
-/// person in opens the room's first question. `{room_id, member_id}`.
 pub async fn accept_invite(
     State(state): State<AppState>,
     Account(me): Account,
     Path(id): Path<InviteId>,
 ) -> AppResult<Json<Value>> {
-    // All in the write transaction, the invitation included: a double tap's second request waits for the first one
-    // and then finds the invitation accepted (not gone: it keeps the seat it gave, for this answer).
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
     let invite: Option<(RoomId, UserId, Option<MemberId>, bool)> = sqlx::query_as(concat!(
         "SELECT i.group_id, i.from_id, i.member_id, ",
@@ -498,7 +460,6 @@ pub async fn accept_invite(
         return Err(AppError::NotFound);
     };
     if let Some(member_id) = accepted {
-        // Already accepted (the first tap): the same answer, as long as I still sit in that room.
         let seated: bool = sqlx::query_scalar(
             "SELECT EXISTS (SELECT 1 FROM members m JOIN groups g ON g.id = m.group_id \
              WHERE m.id = ? AND m.removed_at IS NULL AND g.deleted_at IS NULL)",
@@ -520,7 +481,6 @@ pub async fn accept_invite(
     .fetch_optional(&mut *tx)
     .await?;
     let drop_invite = || sqlx::query("DELETE FROM room_invites WHERE id = ?").bind(id);
-    // Accepted: kept with its seat, for a second tap.
     let accept = |member_id: MemberId| {
         sqlx::query("UPDATE room_invites SET member_id = ? WHERE id = ?")
             .bind(member_id)
@@ -531,7 +491,6 @@ pub async fn accept_invite(
         tx.commit().await?;
         return Err(AppError::Gone("invite_gone"));
     }
-    // Valid: the inviter is still in the room.
     let inviter_role: Role = sqlx::query_scalar(
         "SELECT role FROM members WHERE group_id = ? AND user_id = ? AND removed_at IS NULL",
     )
@@ -545,7 +504,6 @@ pub async fn accept_invite(
             tx.commit().await?;
             return Ok(Json(json!({ "room_id": room, "member_id": member_id })));
         }
-        // Removed by the owner (or a vote): only an invitation from the owner brings them back.
         Some((_, Some(_), false)) if inviter_role != Role::Owner => {
             drop_invite().execute(&mut *tx).await?;
             tx.commit().await?;
@@ -587,7 +545,6 @@ pub async fn accept_invite(
         .bind(me)
         .execute(&mut *tx)
         .await?;
-    // The second person in: the room's first question opens.
     let opened = game::ensure_open_round(&mut tx, room).await?;
     tx.commit().await?;
     state.live.send(room, Event::MemberJoined { member_id });
@@ -599,7 +556,6 @@ pub async fn accept_invite(
     Ok(Json(json!({ "room_id": room, "member_id": member_id })))
 }
 
-/// Decline an invitation (the invited person) or take it back (whoever sent it).
 pub async fn decline_invite(
     State(state): State<AppState>,
     SignedIn(me): SignedIn,
@@ -613,7 +569,6 @@ pub async fn decline_invite(
     Ok(Json(json!({ "ok": true })))
 }
 
-/// Who has been invited into this room and hasn't answered yet (members only): `{user_ids}`.
 pub async fn room_invites(
     State(state): State<AppState>,
     RoomMember(my_seat): RoomMember,
@@ -630,7 +585,6 @@ pub async fn room_invites(
     Ok(Json(json!({ "user_ids": ids })))
 }
 
-/// Take back an invitation into this room: whoever sent it, or the owner.
 pub async fn cancel_room_invite(
     State(state): State<AppState>,
     SignedIn(me): SignedIn,

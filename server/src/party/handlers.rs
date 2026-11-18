@@ -21,9 +21,6 @@ use crate::{
 
 use super::*;
 
-/// Can someone take (or take back) a seat in this party? `410 party_over`, `409 party_full`,
-/// `403 party_locked` (the owner closed the door: only seats already taken). Run in the write
-/// transaction that takes the seat: QR codes scanned at the same moment can't beat the cap.
 pub async fn may_take_seat(
     tx: &mut sqlx::SqliteConnection,
     id: RoomId,
@@ -61,7 +58,6 @@ pub struct CreateBody {
     timer: Option<i64>,
 }
 
-/// A new party, me as its owner, in the lobby (paused until "Commencer").
 pub(super) async fn create(
     State(state): State<AppState>,
     crate::accounts::auth::Account(user): crate::accounts::auth::Account,
@@ -86,7 +82,6 @@ pub(super) async fn create(
             .fetch_one(&state.db)
             .await?;
     let my_lang = i18n::of_user(&state.db, user).await?;
-    // The party's questions: the language asked for, else the host's.
     let language = match body.language.as_deref().map(str::trim) {
         Some(l) => Lang::parse(l).ok_or(AppError::BadRequest("bad_language"))?,
         None => my_lang,
@@ -149,8 +144,6 @@ pub struct JoinBody {
     color: Option<String>,
 }
 
-/// Join with the code: as my account (with a token), or as a guest (name + colour, a new token-only
-/// account). Not behind `AUTH_REQUIRED`, rate-limited per IP instead.
 pub(super) async fn join(
     State(state): State<AppState>,
     crate::accounts::ClientIp(ip): crate::accounts::ClientIp,
@@ -161,7 +154,6 @@ pub(super) async fn join(
         Some(token) => Some(crate::accounts::auth::user_for_token(&state, token).await?),
         None => None,
     };
-    // Guests: validate, then count the attempt before looking the code up.
     let guest = match signed_in {
         Some(_) => None,
         None => {
@@ -174,7 +166,6 @@ pub(super) async fn join(
             Some((name, color))
         }
     };
-    // Guests already paid for the attempt above; accounts and IPs pay for wrong codes.
     let attempt = crate::platform::quotas::code_attempt(
         &state,
         signed_in,
@@ -182,8 +173,6 @@ pub(super) async fn join(
     )?;
     let id = by_code(&state, &body.code).await?;
     attempt.found();
-    // Everything checked in the write transaction: joins at the same moment can't beat the cap or
-    // take the same name, and a double tap finds the seat the first one took.
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
     crate::rooms::manage::still_open(&mut *tx, id).await?;
     let existing = match signed_in {
@@ -200,8 +189,6 @@ pub(super) async fn join(
     };
     may_take_seat(&mut tx, id, existing.as_ref()).await?;
     if let Some((name, _)) = &guest {
-        // Compared in Rust: SQLite's lower() only folds ASCII (Léa / LÉA). The names of guests the
-        // owner removed stay taken: rescanning the QR code doesn't bring them back.
         let names: Vec<(String, bool)> = sqlx::query_as(
             "SELECT name, removed_at IS NOT NULL FROM members WHERE group_id = ? \
              AND (removed_at IS NULL OR NOT left_by_self)",
@@ -319,7 +306,6 @@ pub(super) async fn get_state(
     Ok(Json(view(&state, id, Some(&me)).await?))
 }
 
-/// The big screen: anyone with the code, no `me` (`404` a little while after the end).
 pub(super) async fn screen(
     State(state): State<AppState>,
     crate::accounts::ClientIp(ip): crate::accounts::ClientIp,
@@ -329,7 +315,6 @@ pub(super) async fn screen(
     Ok(Json(view(&state, id, None).await?))
 }
 
-/// Owner: "Commencer" (2 players at least).
 pub(super) async fn start(
     State(state): State<AppState>,
     RoomMember(me): RoomMember,
@@ -351,7 +336,6 @@ pub(super) async fn start(
 pub struct VoteBody {
     #[serde(default)]
     target_id: Option<MemberId>,
-    /// A said question's guesses (docs/SAID.md).
     #[serde(default)]
     guesses: Option<Vec<crate::rounds::said::Guess>>,
 }
@@ -385,7 +369,6 @@ pub struct AnswerBody {
     text: String,
 }
 
-/// A said question's answer (docs/SAID.md): `POST /parties/{id}/answer {text}`.
 pub(super) async fn answer_said(
     State(state): State<AppState>,
     RoomMember(me): RoomMember,
@@ -397,7 +380,6 @@ pub(super) async fn answer_said(
     answer(&state, id, &me).await
 }
 
-/// "Suivante": the owner opens the next question; anyone else's tap counts towards 75 %.
 pub(super) async fn tap(
     State(state): State<AppState>,
     RoomMember(me): RoomMember,
@@ -449,8 +431,6 @@ pub struct ReactBody {
     emoji: String,
 }
 
-/// Older apps: toggles a quick reaction on a result. Mine on that emoji go if I have some, else one
-/// tap is added (within the cap, docs/REACTIONS.md).
 pub(super) async fn react(
     State(state): State<AppState>,
     RoomMember(me): RoomMember,
@@ -497,12 +477,10 @@ pub struct UpdateBody {
     name: Option<String>,
     #[serde(default)]
     timer: Option<i64>,
-    /// Nobody new can join (seats already taken stay).
     #[serde(default)]
     locked: Option<bool>,
 }
 
-/// Owner: rename, change the timer (next questions), lock or unlock the door.
 pub(super) async fn update(
     State(state): State<AppState>,
     SignedIn(user): SignedIn,
@@ -534,7 +512,6 @@ pub(super) async fn update(
     answer(&state, id, &me).await
 }
 
-/// Owner: "Terminer" now. Already over: nothing changes.
 pub(super) async fn end(
     State(state): State<AppState>,
     RoomMember(me): RoomMember,
@@ -545,7 +522,6 @@ pub(super) async fn end(
     answer(&state, id, &me).await
 }
 
-/// Ends the party now (the owner's "Terminer", or no question left).
 pub(super) async fn finish(state: &AppState, id: RoomId) -> AppResult<bool> {
     let now = db_now(state).await?;
     sqlx::query(
@@ -558,8 +534,6 @@ pub(super) async fn finish(state: &AppState, id: RoomId) -> AppResult<bool> {
     end_party(state, id, &now).await
 }
 
-/// Owner: the party becomes a normal room (end and timer cleared, room pacing defaults); its next
-/// question opens like in any room.
 pub(super) async fn keep(
     State(state): State<AppState>,
     RoomMember(me): RoomMember,
@@ -575,7 +549,6 @@ pub(super) async fn keep(
     .bind(id)
     .execute(&mut *tx)
     .await?;
-    // A question still open goes on as a room question: no deadline any more.
     sqlx::query("UPDATE rounds SET deadline_at = NULL WHERE group_id = ? AND closed_at IS NULL")
         .bind(id)
         .execute(&mut *tx)

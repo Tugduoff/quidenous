@@ -1,6 +1,3 @@
-//! Abuse safety: rate limits on code lookups and writes, the big screen's code, live socket caps,
-//! push device hygiene, CSV formula escaping, security headers and CORS.
-
 use crate::common;
 use crate::common::serve;
 
@@ -19,7 +16,6 @@ use tower::ServiceExt;
 
 async fn setup_with(f: impl FnOnce(&mut Config)) -> (Router, AppState) {
     let mut config = common::config(&temp_dir("qdn-abuse"));
-    // Tests pick their client IP with X-Forwarded-For.
     config.trust_proxy = true;
     f(&mut config);
     let state = state(config).await.unwrap();
@@ -41,7 +37,6 @@ struct Res {
     text: String,
 }
 
-/// One call with any headers (`ip` goes in X-Forwarded-For).
 async fn send(
     app: &Router,
     method: &str,
@@ -102,13 +97,10 @@ async fn create_party(app: &Router, host: &str) -> (i64, String) {
     )
 }
 
-// ---------- code lookups ----------
-
 #[tokio::test]
 async fn wrong_codes_are_rate_limited_per_account() {
     let (app, _) = setup().await;
     let (ana, _) = join(&app, "Ana").await;
-    // Rooms, parties and friend codes share the budget of wrong codes.
     for i in 0..10 {
         let (path, body) = match i % 3 {
             0 => ("/rooms/join", json!({ "code": format!("NOPE{i}") })),
@@ -139,7 +131,6 @@ async fn wrong_codes_are_rate_limited_per_account() {
     )
     .await;
     assert_limited(s, &b);
-    // Signed-in /join is a code lookup too.
     let (s, b) = call(
         &app,
         "POST",
@@ -149,7 +140,6 @@ async fn wrong_codes_are_rate_limited_per_account() {
     )
     .await;
     assert_limited(s, &b);
-    // Someone else is not affected.
     let (bob, _) = join(&app, "Bob").await;
     let (s, b) = call(
         &app,
@@ -207,7 +197,6 @@ async fn the_big_screen_is_rate_limited_per_ip_on_wrong_codes() {
     )
     .await;
     assert_limited(r.status, &r.body);
-    // Another network still gets in, and right codes don't use the budget up.
     let other = [("x-forwarded-for", "198.51.100.10")];
     for _ in 0..30 {
         let r = send(
@@ -228,21 +217,18 @@ async fn party_codes_are_long_and_the_screen_dies_after_the_end() {
     let (app, state) = setup().await;
     let (host, _) = join(&app, "Tug").await;
     let (id, code) = create_party(&app, &host).await;
-    // 8 symbols of 32: 40 bits.
     assert_eq!(code.len(), 8);
     let screen = |code: String| {
         let app = app.clone();
         async move { call(&app, "GET", &format!("/parties/screen/{code}"), None, None).await }
     };
     assert_eq!(screen(code.clone()).await.0, StatusCode::OK);
-    // A party from before (5-character code) still works.
     sqlx::query("UPDATE groups SET join_code = 'ABCDE' WHERE id = ?")
         .bind(id)
         .execute(&state.db)
         .await
         .unwrap();
     assert_eq!(screen("ABCDE".into()).await.0, StatusCode::OK);
-    // Just over: the screen still shows the end for a little while.
     call(
         &app,
         "POST",
@@ -254,7 +240,6 @@ async fn party_codes_are_long_and_the_screen_dies_after_the_end() {
     let (s, view) = screen("ABCDE".into()).await;
     assert_eq!(s, StatusCode::OK, "{view}");
     assert_eq!(view["phase"], "over");
-    // Long over: gone.
     sqlx::query(
         "UPDATE groups SET party_ended_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-16 minutes'), \
          party_ends_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-16 minutes') WHERE id = ?",
@@ -264,12 +249,9 @@ async fn party_codes_are_long_and_the_screen_dies_after_the_end() {
     .await
     .unwrap();
     assert_eq!(screen("ABCDE".into()).await.0, StatusCode::NOT_FOUND);
-    // Its members still see it.
     let (s, _) = call(&app, "GET", &format!("/parties/{id}"), Some(&host), None).await;
     assert_eq!(s, StatusCode::OK);
 }
-
-// ---------- writes ----------
 
 #[tokio::test]
 async fn chat_messages_are_rate_limited() {
@@ -310,7 +292,6 @@ async fn chat_messages_are_rate_limited() {
     )
     .await;
     assert_limited(s, &body);
-    // Bob can still talk.
     let (s, _) = call(&app, "POST", &path, Some(&b), Some(json!({ "text": "hi" }))).await;
     assert_eq!(s, StatusCode::OK);
 }
@@ -323,7 +304,6 @@ async fn many_mentions_count_as_everyone_and_share_its_cooldown() {
     for name in ["Bob", "Cyd", "Dan", "Eve", "Fay", "Gus"] {
         others.push(join(&app, name).await);
     }
-    // Everyone votes: the question closes.
     let mut tokens: Vec<&str> = vec![&a];
     tokens.extend(others.iter().map(|(t, _)| t.as_str()));
     for t in &tokens {
@@ -354,7 +334,6 @@ async fn many_mentions_count_as_everyone_and_share_its_cooldown() {
             .unwrap()
         }
     };
-    // Six names: rings them all, once.
     let (s, _) = call(
         &app,
         "POST",
@@ -364,7 +343,6 @@ async fn many_mentions_count_as_everyone_and_share_its_cooldown() {
     )
     .await;
     assert_eq!(s, StatusCode::OK);
-    // Again within the cooldown: a plain message.
     let (s, m) = call(
         &app,
         "POST",
@@ -375,7 +353,6 @@ async fn many_mentions_count_as_everyone_and_share_its_cooldown() {
     .await;
     assert_eq!(s, StatusCode::OK);
     assert_eq!(m["mentions"], json!([]));
-    // And @tous is in the same cooldown.
     let (s, _) = call(
         &app,
         "POST",
@@ -386,7 +363,6 @@ async fn many_mentions_count_as_everyone_and_share_its_cooldown() {
     .await;
     assert_eq!(s, StatusCode::OK);
     assert_eq!(kinds(ids[0]).await, ["mention", "message", "message"]);
-    // A few names are fine any time.
     let (s, _) = call(
         &app,
         "POST",
@@ -419,10 +395,7 @@ async fn room_creation_is_capped_per_day() {
         assert_eq!(s, StatusCode::OK, "{b}");
         first = first.or(b["id"].as_i64());
     }
-    // Parties count too.
     create_party(&app, &ana).await;
-    // Deleting a room frees a seat under the owned-rooms cap (tests/rails.rs) but gives no
-    // creation back: the daily quota answers.
     let first = first.expect("room id");
     let (s, b) = call(&app, "DELETE", &format!("/rooms/{first}"), Some(&ana), None).await;
     assert!(s.is_success(), "{b}");
@@ -505,7 +478,6 @@ async fn questions_are_rate_limited() {
     assert_limited(s, &b);
 }
 
-/// A multipart body with one `photo` field.
 fn photo_request(token: &str, bytes: &[u8]) -> Request<Body> {
     let boundary = "qdnboundary";
     let mut body = format!(
@@ -534,14 +506,12 @@ fn png(width: u32, height: u32) -> Vec<u8> {
     out.into_inner()
 }
 
-/// A PNG header claiming `width`×`height` (no pixel data: the size check must come first).
 fn huge_png_header(width: u32, height: u32) -> Vec<u8> {
     let mut ihdr = b"IHDR".to_vec();
     ihdr.extend_from_slice(&width.to_be_bytes());
     ihdr.extend_from_slice(&height.to_be_bytes());
     ihdr.extend_from_slice(&[8, 2, 0, 0, 0]);
     let crc = {
-        // CRC-32 (PNG polynomial), bit by bit: fine for 17 bytes.
         let mut c: u32 = 0xFFFF_FFFF;
         for b in &ihdr {
             c ^= u32::from(*b);
@@ -575,29 +545,24 @@ async fn photos_get_long_names_size_limits_and_a_rate_limit() {
     let bytes = res.into_body().collect().await.unwrap().to_bytes();
     let me: Value = serde_json::from_slice(&bytes).unwrap();
     let url = me["photo_url"].as_str().unwrap();
-    // `/photos/<member>-<32 hex>.jpg`: 128 random bits.
     let name = url.strip_prefix(&format!("/photos/{ana_id}-")).unwrap();
     let hex = name.strip_suffix(".jpg").unwrap();
     assert_eq!(hex.len(), 32, "{url}");
     assert!(hex.bytes().all(|b| b.is_ascii_hexdigit()));
-    // Served, and old-style names keep working (they are just files).
     let r = send(&app, "GET", url, None, None, &[]).await;
     assert_eq!(r.status, StatusCode::OK);
-    // 100 000 × 100 000 pixels claimed: refused before anything is allocated.
     let res = app
         .clone()
         .oneshot(photo_request(&ana, &huge_png_header(100_000, 100_000)))
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::BAD_REQUEST);
-    // At most 4096 px on a side, really decoded (the app sends 512 px).
     let res = app
         .clone()
         .oneshot(photo_request(&ana, &png(4097, 1)))
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::BAD_REQUEST);
-    // Charged before the body is read: a broken upload costs its token too.
     let res = app
         .clone()
         .oneshot(photo_request(&ana, b"not an image"))
@@ -619,8 +584,6 @@ async fn photos_get_long_names_size_limits_and_a_rate_limit() {
         .unwrap();
     assert_eq!(res.status(), StatusCode::TOO_MANY_REQUESTS);
 }
-
-// ---------- push devices ----------
 
 fn web_device(endpoint: &str) -> Value {
     json!({ "kind": "web", "endpoint": endpoint, "p256dh": "BOr-key_123", "auth": "auth-secret" })
@@ -713,7 +676,6 @@ async fn an_account_keeps_ten_devices_at_most() {
 async fn signing_out_removes_that_devices_push_subscription() {
     let (app, state) = setup().await;
     let (ana, _) = join(&app, "Ana").await;
-    // Ana signs in on a second device (same account, another session).
     let (s, b) = call(
         &app,
         "POST",
@@ -780,7 +742,6 @@ async fn revoking_the_other_sessions_removes_their_push_subscriptions() {
         )
         .await;
     }
-    // A device registered before sessions were recorded with it.
     let user = quidenous_server::accounts::auth::user_for_token(&state, &ana)
         .await
         .unwrap();
@@ -813,7 +774,6 @@ async fn unsubscribing_works_from_any_room() {
         Some(json!({ "kind": "fcm", "token": "phone" })),
     )
     .await;
-    // Ana moves to another room, then turns notifications off.
     let (s, room) = call(
         &app,
         "POST",
@@ -836,14 +796,11 @@ async fn unsubscribing_works_from_any_room() {
     assert!(devices(&state, &ana).await.is_empty());
 }
 
-// ---------- CSV ----------
-
 #[tokio::test]
 async fn the_csv_export_neutralises_formulas() {
     let (app, state) = setup().await;
     let (a, a_id) = join(&app, "=Ana").await;
     let (b, _) = join(&app, "Bob").await;
-    // The open question becomes one that looks like a formula.
     sqlx::query(
         "UPDATE questions SET text = '=HYPERLINK(\"http://evil\",\"x\")' WHERE id = (SELECT question_id FROM rounds WHERE closed_at IS NULL)",
     )
@@ -879,8 +836,6 @@ async fn the_csv_export_neutralises_formulas() {
     assert!(!row.contains(",\"="), "{row}");
 }
 
-// ---------- headers and CORS ----------
-
 #[tokio::test]
 async fn responses_carry_security_headers() {
     let (app, _) = setup_with(|c| c.public_url = Some("https://qdn.example.com".into())).await;
@@ -904,7 +859,6 @@ async fn responses_carry_security_headers() {
             .unwrap()
             .starts_with("max-age=")
     );
-    // No HSTS over plain http.
     let (app, _) = setup().await;
     let r = send(&app, "GET", "/api/health", None, None, &[]).await;
     assert!(r.headers.get("strict-transport-security").is_none());
@@ -928,8 +882,6 @@ async fn the_web_app_gets_a_content_security_policy() {
         .to_owned();
     assert!(csp.contains("script-src 'self' 'sha256-"), "{csp}");
     assert!(csp.contains("frame-ancestors 'none'"), "{csp}");
-    // The photo upload reads the resized picture back with fetch(blob:…) (broken by the CSP in
-    // 0.31.0): connect-src must allow blob: and data:.
     let connect = csp
         .split(';')
         .map(str::trim)
@@ -938,7 +890,6 @@ async fn the_web_app_gets_a_content_security_policy() {
     for source in ["'self'", "blob:", "data:"] {
         assert!(connect.split(' ').any(|s| s == source), "{connect}");
     }
-    // Scripts themselves only get the base policy.
     let r = send(&app, "GET", "/app.js", None, None, &[]).await;
     let csp = r.headers["content-security-policy"].to_str().unwrap();
     assert!(!csp.contains("script-src"), "{csp}");
@@ -977,8 +928,6 @@ async fn cors_allows_only_the_apps_origins() {
     }
 }
 
-// ---------- live sockets ----------
-
 type Socket = tokio_tungstenite::WebSocketStream<tokio::net::TcpStream>;
 
 async fn connect(addr: std::net::SocketAddr, query: &str) -> Result<Socket, StatusCode> {
@@ -999,7 +948,6 @@ async fn connect_from(
             .headers_mut()
             .insert("x-forwarded-for", ip.parse().unwrap());
     }
-    // A client that would send big frames: the server must cut it off, not the client.
     let config = tokio_tungstenite::tungstenite::protocol::WebSocketConfig::default();
     match tokio_tungstenite::client_async_with_config(request, stream, Some(config)).await {
         Ok((socket, _)) => Ok(socket),
@@ -1008,7 +956,6 @@ async fn connect_from(
     }
 }
 
-/// Reads until the server closes (true) or nothing comes for `ms` (false).
 async fn closed_within(socket: &mut Socket, ms: u64) -> bool {
     let deadline = tokio::time::Instant::now() + std::time::Duration::from_millis(ms);
     loop {
@@ -1059,7 +1006,6 @@ async fn live_sockets_are_capped_per_account_and_per_ip() {
         connect(addr, &format!("token={a}")).await.err(),
         Some(StatusCode::TOO_MANY_REQUESTS)
     );
-    // One closes: room for another.
     let mut first = open.remove(0);
     first.close(None).await.unwrap();
     let mut freed = false;
@@ -1074,7 +1020,6 @@ async fn live_sockets_are_capped_per_account_and_per_ip() {
     assert!(freed);
     drop(open);
 
-    // Per IP, whoever the accounts are.
     let mut tokens = Vec::new();
     for i in 0..9 {
         tokens.push(join(&app, &format!("P{i}")).await.0);
@@ -1112,7 +1057,6 @@ async fn a_removed_member_or_a_signed_out_session_stops_hearing_the_room() {
     let room = common::room_id(&app, &owner).await;
     let addr = serve(app.clone()).await;
 
-    // Removed by the owner: the socket hears it, then closes.
     let mut socket = connect(addr, &format!("token={bob}")).await.unwrap();
     tokio::time::sleep(std::time::Duration::from_millis(100)).await;
     let (s, b) = call(
@@ -1126,7 +1070,6 @@ async fn a_removed_member_or_a_signed_out_session_stops_hearing_the_room() {
     assert_eq!(s, StatusCode::OK, "{b}");
     assert!(closed_within(&mut socket, 3000).await);
 
-    // Signed out elsewhere: closed at the next check (a socket opened with a ticket, like apps do).
     let (s, b) = call(
         &app,
         "POST",
@@ -1158,7 +1101,6 @@ async fn the_big_screen_socket_needs_a_live_party() {
     );
     let mut socket = connect(addr, &format!("screen={code}")).await.unwrap();
     assert!(!closed_within(&mut socket, 300).await);
-    // Long over: the open screen closes and can't come back.
     sqlx::query(
         "UPDATE groups SET party_ended_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-1 hours') WHERE id = ?",
     )

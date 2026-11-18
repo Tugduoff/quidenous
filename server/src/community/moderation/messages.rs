@@ -16,9 +16,6 @@ use crate::{
 
 use super::*;
 
-/// `POST /rounds/{id}/messages/{message_id}/restore`: the room owner brings back a message hidden
-/// by reports (three people can't silence a room). Its open reports stay for the admins; it takes
-/// [`HIDE_AFTER`] new ones to hide it again. `403 owner_only`, `404` when it isn't hidden.
 pub async fn restore_message(
     State(state): State<AppState>,
     Owner(me): Owner,
@@ -47,7 +44,6 @@ pub async fn restore_message(
     Ok(Json(json!({ "ok": true })))
 }
 
-/// A message about to be erased: round, author, text, sent at, room, kind, media, hidden.
 pub(super) type Erased = (
     RoundId,
     MemberId,
@@ -59,8 +55,6 @@ pub(super) type Erased = (
     bool,
 );
 
-/// Deletes a chat message (and its image file) and the inbox entries it made, closes its open reports and tells the
-/// room. `false` if it was already gone.
 pub(crate) async fn erase_message(state: &AppState, id: MessageId) -> AppResult<bool> {
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
     let row: Option<Erased> = sqlx::query_as(
@@ -74,7 +68,6 @@ pub(crate) async fn erase_message(state: &AppState, id: MessageId) -> AppResult<
     let Some((round_id, author, text, created_at, room, kind, media, hidden)) = row else {
         return Ok(false);
     };
-    // Hidden by reports: its copies already went.
     if !hidden {
         drop_inbox_copies(&mut tx, round_id, author, &text, &created_at).await?;
     }
@@ -84,7 +77,6 @@ pub(crate) async fn erase_message(state: &AppState, id: MessageId) -> AppResult<
         .await?;
     resolve(&mut tx, "message", id.raw(), "delete").await?;
     tx.commit().await?;
-    // An image goes with its message.
     if kind == "image" {
         let file = crate::chat::media::file_path(&state.config.data_dir, room, media.as_deref());
         crate::chat::media::remove_files(file.into_iter().collect()).await;
@@ -100,7 +92,6 @@ pub(crate) async fn erase_message(state: &AppState, id: MessageId) -> AppResult<
     Ok(true)
 }
 
-/// `DELETE /rounds/{id}/messages/{message_id}`: its author, or the room owner.
 pub async fn delete_message(
     State(state): State<AppState>,
     Me(me): Me,
@@ -123,15 +114,10 @@ pub async fn delete_message(
     Ok(Json(json!({ "ok": true })))
 }
 
-/// What an asked question becomes once removed (history, stats and shares read it).
 pub(super) fn retired_text(lang: Lang) -> &'static str {
     lang.pick("Question retirée", "Question removed")
 }
 
-/// Removes a room's own question: deleted if it was never asked, else its text is replaced
-/// everywhere it shows, its inbox entries ("new question", "result") included. Its open question
-/// closes without a result (votes dropped) and the next one opens. `409 deck_question` for the
-/// shared deck. Returns its room.
 pub(crate) async fn retire_question(state: &AppState, id: QuestionId) -> AppResult<RoomId> {
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
     let row: Option<(Option<RoomId>, bool, String)> = sqlx::query_as(
@@ -159,7 +145,6 @@ pub(crate) async fn retire_question(state: &AppState, id: QuestionId) -> AppResu
             .bind(id)
             .execute(&mut *tx)
             .await?;
-        // The inbox copied the text, in each reader's language.
         sqlx::query(
             "UPDATE inbox SET text = CASE WHEN (SELECT u.locale FROM members m JOIN users u ON u.id = m.user_id \
                                                 WHERE m.id = inbox.member_id) = 'en' THEN ?1 ELSE ?2 END \
@@ -203,8 +188,6 @@ pub(crate) async fn retire_question(state: &AppState, id: QuestionId) -> AppResu
     Ok(room)
 }
 
-/// `DELETE /rounds/{id}/question`: the owner removes the room's own question behind a round
-/// (it reads "Question retirée" from then on). `409 deck_question` for a built-in one.
 pub async fn retire_round_question(
     State(state): State<AppState>,
     Owner(me): Owner,
@@ -221,8 +204,6 @@ pub async fn retire_round_question(
     Ok(Json(json!({ "ok": true })))
 }
 
-/// An admin's delete on a said answer: its text is blanked for good and it shows as hidden (it was
-/// written: it stays in the game, its guesses and points too).
 pub(super) async fn erase_answer(state: &AppState, id: AnswerId) -> AppResult<()> {
     let gone: Option<(RoundId, RoomId)> = sqlx::query_as(
         "UPDATE said_answers SET text = '', \

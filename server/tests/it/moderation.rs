@@ -1,8 +1,3 @@
-//! Moderation (docs/AUTH.md, "Reports"): deleting chat messages, reports an admin reviews,
-//! auto-hide, suspended accounts, asked questions removed, kicked members' questions, pins,
-//! suggestion reports, verified accounts for packs and suggestions, trusted reporters, owners
-//! restoring hidden messages.
-
 use crate::common;
 use quidenous_server::platform::ids::UserId;
 
@@ -11,7 +6,6 @@ use axum::{Router, http::StatusCode};
 use quidenous_server::{AppState, app, platform::config::Config, state};
 use serde_json::{Value, json};
 
-/// A fresh server where account 1 (the first to join) is the admin.
 async fn setup() -> (Router, AppState) {
     let config = Config {
         admin_user_ids: vec![UserId::from_raw(1)],
@@ -25,7 +19,6 @@ async fn setup() -> (Router, AppState) {
     (app(state.clone()), state)
 }
 
-/// Everyone votes for `target` on the open question: its id, now closed.
 async fn close_round(app: &Router, tokens: &[&str], target: i64) -> i64 {
     let (_, open) = call(app, "GET", "/round/current", Some(tokens[0]), None, None).await;
     let round = open["id"].as_i64().unwrap();
@@ -109,7 +102,7 @@ async fn act(app: &Router, token: &str, kind: &str, id: i64, action: &str) -> (S
 #[tokio::test]
 async fn authors_and_owners_delete_messages() {
     let (app, state) = setup().await;
-    let (ana, ana_id) = join(&app, "Ana").await; // owner (first in)
+    let (ana, ana_id) = join(&app, "Ana").await;
     let (bob, _) = join(&app, "Bob").await;
     let (cyd, _) = join(&app, "Cyd").await;
     let round = close_round(&app, &[&ana, &bob, &cyd], ana_id).await;
@@ -118,13 +111,11 @@ async fn authors_and_owners_delete_messages() {
     let kept = say(&app, &cyd, round, "salut").await;
     let path = |id: i64| format!("/rounds/{round}/messages/{id}");
 
-    // Someone else's message: not mine to delete.
     let (s, b) = call(&app, "DELETE", &path(kept), Some(&bob), None, None).await;
     assert_eq!(
         (s, b["error"].as_str()),
         (StatusCode::FORBIDDEN, Some("not_author"))
     );
-    // My own: gone, with the inbox entries it made.
     let (s, b) = call(&app, "DELETE", &path(mine), Some(&bob), None, None).await;
     assert_eq!(s, StatusCode::OK, "{b}");
     let left: i64 =
@@ -133,11 +124,9 @@ async fn authors_and_owners_delete_messages() {
             .await
             .unwrap();
     assert_eq!(left, 0);
-    // The owner removes anyone's.
     let (s, b) = call(&app, "DELETE", &path(rude), Some(&ana), None, None).await;
     assert_eq!(s, StatusCode::OK, "{b}");
     assert_eq!(texts(&app, &cyd, round).await, vec!["salut"]);
-    // Already gone: 404.
     let (s, _) = call(&app, "DELETE", &path(rude), Some(&ana), None, None).await;
     assert_eq!(s, StatusCode::NOT_FOUND);
     let (_, features) = call(&app, "GET", "/features", None, None, None).await;
@@ -147,7 +136,7 @@ async fn authors_and_owners_delete_messages() {
 #[tokio::test]
 async fn three_reporters_hide_a_message_until_an_admin_decides() {
     let (app, state) = setup().await;
-    let (admin, admin_id) = join(&app, "Ana").await; // account 1: admin
+    let (admin, admin_id) = join(&app, "Ana").await;
     let (bob, _) = join(&app, "Bob").await;
     let (cyd, _) = join(&app, "Cyd").await;
     let (dan, _) = join(&app, "Dan").await;
@@ -155,7 +144,6 @@ async fn three_reporters_hide_a_message_until_an_admin_decides() {
     let round = close_round(&app, &[&admin, &bob, &cyd, &dan], admin_id).await;
     let rude = say(&app, &bob, round, "dégage").await;
 
-    // Not an admin: no review.
     let (s, _) = call(&app, "GET", "/admin/review", Some(&bob), None, None).await;
     assert_eq!(s, StatusCode::FORBIDDEN);
     let (s, _) = act(&app, &bob, "message", rude, "dismiss").await;
@@ -173,7 +161,6 @@ async fn three_reporters_hide_a_message_until_an_admin_decides() {
     }
     let (s, _) = report(&app, &dan, "message", rude).await;
     assert_eq!(s, StatusCode::OK);
-    // Three different people: hidden for everyone, the author included.
     assert!(texts(&app, &dan, round).await.is_empty());
     assert!(texts(&app, &bob, round).await.is_empty());
 
@@ -188,7 +175,6 @@ async fn three_reporters_hide_a_message_until_an_admin_decides() {
     assert_eq!(r["person"]["name"], "Bob");
     assert_eq!(r["room"], "Test");
 
-    // Nothing wrong after all: back for everyone, the reports are closed.
     let (s, b) = act(&app, &admin, "message", rude, "dismiss").await;
     assert_eq!(s, StatusCode::OK, "{b}");
     assert_eq!(texts(&app, &dan, round).await, vec!["dégage"]);
@@ -196,7 +182,6 @@ async fn three_reporters_hide_a_message_until_an_admin_decides() {
     let (s, _) = act(&app, &admin, "message", rude, "dismiss").await;
     assert_eq!(s, StatusCode::NOT_FOUND);
 
-    // Reported again, then deleted by the admin.
     report(
         &app,
         &cyd,
@@ -219,7 +204,6 @@ async fn a_suspended_account_is_signed_out_for_good() {
     let (bob, bob_member) = join(&app, "Bob").await;
     let (s, b) = report(&app, &bob, "member", admin_id).await;
     assert_eq!(s, StatusCode::OK, "{b}");
-    // An admin can't be suspended through a report.
     let (s, b) = act(&app, &admin, "member", admin_id, "suspend").await;
     assert_eq!(
         (s, b["error"].as_str()),
@@ -237,7 +221,6 @@ async fn a_suspended_account_is_signed_out_for_good() {
         .fetch_one(&state.db)
         .await
         .unwrap();
-    // No new session either.
     let err = quidenous_server::accounts::sign_in(&state, UserId::from_raw(bob_user), false, None)
         .await
         .unwrap_err();
@@ -269,7 +252,6 @@ async fn the_owner_removes_an_asked_question_and_a_kick_takes_queued_ones() {
         }
     };
     let asked = add("Qui est le plus nul de tous ?").await;
-    // Bob's question is the next one asked.
     close_round(&app, &[&ana, &bob, &cyd], ana_id).await;
     let (_, open) = call(&app, "GET", "/round/current", Some(&ana), None, None).await;
     assert_eq!(open["question"], "Qui est le plus nul de tous ?", "{open}");
@@ -285,7 +267,6 @@ async fn the_owner_removes_an_asked_question_and_a_kick_takes_queued_ones() {
     .await;
     assert_eq!(s, StatusCode::OK);
 
-    // Its author can't, once asked; the owner can: the text is replaced everywhere.
     let (s, b) = call(
         &app,
         "DELETE",
@@ -323,7 +304,6 @@ async fn the_owner_removes_an_asked_question_and_a_kick_takes_queued_ones() {
     )
     .await;
     assert_eq!(r["question"], "Question retirée", "{r}");
-    // It was the open question: closed with no result (Cyd's vote is gone), the next one is open.
     assert!(r["closed_at"].is_string(), "{r}");
     let votes: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM votes WHERE round_id = ?")
         .bind(round)
@@ -335,7 +315,6 @@ async fn the_owner_removes_an_asked_question_and_a_kick_takes_queued_ones() {
     assert_ne!(open["id"].as_i64(), Some(round), "{open}");
     assert!(open["id"].is_i64(), "{open}");
 
-    // Bob queues more, then is removed: they go with him.
     add("Qui a le plus de chaussettes ?").await;
     add("Qui chante le plus faux ?").await;
     let (s, b) = call(
@@ -357,7 +336,6 @@ async fn the_owner_removes_an_asked_question_and_a_kick_takes_queued_ones() {
     .await
     .unwrap();
     assert_eq!(left, 0);
-    // The asked one stays (retired) for the history.
     let kept: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM questions WHERE id = ?")
         .bind(asked)
         .fetch_one(&state.db)
@@ -424,7 +402,6 @@ async fn suggestions_can_be_reported_and_voted_off() {
     let liked = suggest(&app, &people[0], "Qui finirait millionnaire un jour ?").await;
     let booed = suggest(&app, &people[0], "Qui mange le plus de brocolis ?").await;
 
-    // Three reports take it off the vote stack; the admin sees it and can put it back.
     for t in &people[1..4] {
         let (s, b) = report(&app, t, "suggestion", rude).await;
         assert_eq!(s, StatusCode::OK, "{b}");
@@ -437,7 +414,6 @@ async fn suggestions_can_be_reported_and_voted_off() {
     assert_eq!(s, StatusCode::OK);
     assert_eq!(status(&state, rude).await, "voting");
 
-    // Five more down than up votes: rejected for good.
     for t in &people[1..6] {
         let (s, b) = call(
             &app,
@@ -452,7 +428,6 @@ async fn suggestions_can_be_reported_and_voted_off() {
     }
     assert_eq!(status(&state, booed).await, "rejected");
 
-    // One up vote is far from the threshold, but the admins see it already.
     call(
         &app,
         "POST",
@@ -477,7 +452,6 @@ async fn the_owner_removes_a_question_from_its_result() {
     let (app, state) = setup().await;
     let (ana, ana_id) = join(&app, "Ana").await;
     let (bob, _) = join(&app, "Bob").await;
-    // The first question comes from the built-in deck: not the room's to remove.
     let deck = close_round(&app, &[&ana, &bob], ana_id).await;
     let (s, b) = call(
         &app,
@@ -502,7 +476,6 @@ async fn the_owner_removes_a_question_from_its_result() {
     )
     .await;
     assert_eq!(s, StatusCode::OK);
-    // The deck round closed before Bob's question existed: his opens next.
     let (_, open) = call(&app, "GET", "/round/current", Some(&ana), None, None).await;
     let mut round = open["id"].as_i64().unwrap();
     if open["question"] != "Qui est le pire de nous ?" {
@@ -543,7 +516,6 @@ async fn the_owner_removes_a_question_from_its_result() {
     )
     .await;
     assert_eq!(r["question"], "Question retirée", "{r}");
-    // Nobody's Activity keeps the text either.
     assert_eq!(inbox(round).await, vec!["Question retirée"]);
 }
 
@@ -595,7 +567,6 @@ async fn packs_need_a_verified_email_and_removed_ones_dont_come_back() {
         }
     };
 
-    // An e-mail never verified: no publishing (nor liking, nor reporting).
     verified(false).await;
     let (s, b) = publish(&app, &bob, pack("Pack", "rit")).await;
     assert_eq!(
@@ -611,7 +582,6 @@ async fn packs_need_a_verified_email_and_removed_ones_dont_come_back() {
     );
     let first = b["id"].as_i64().unwrap();
 
-    // Reported into review, approved, then edited: back to review.
     for t in &reporters {
         let (s, _) = call(
             &app,
@@ -648,7 +618,6 @@ async fn packs_need_a_verified_email_and_removed_ones_dont_come_back() {
     assert_eq!(s, StatusCode::OK, "{b}");
     assert_eq!(pack_status(&state, first).await, "review");
 
-    // Deleted while in review, then published again: straight into review.
     let (s, _) = call(
         &app,
         "DELETE",
@@ -667,7 +636,6 @@ async fn packs_need_a_verified_email_and_removed_ones_dont_come_back() {
     );
 }
 
-/// Removed open questions are no questions anyone missed: three in a row make nobody "away".
 #[tokio::test]
 async fn removed_open_questions_dont_make_anyone_away() {
     let (app, _) = setup().await;
@@ -711,12 +679,10 @@ async fn removed_open_questions_dont_make_anyone_away() {
     assert_eq!(open["away_ids"], json!([]), "{open}");
 }
 
-/// Ana's room waits for nobody who was suspended: the seat goes like a leave (votes re-counted,
-/// the owner hands over), whether the room has two people or more. A room Bob is alone in stays.
 #[tokio::test]
 async fn a_suspended_member_no_longer_holds_up_their_rooms() {
     let (app, state) = setup().await;
-    let (admin, admin_id) = join(&app, "Ana").await; // account 1: admin, owner of "Test"
+    let (admin, admin_id) = join(&app, "Ana").await;
     let (bob, bob_id) = join(&app, "Bob").await;
     let (cyd, _) = join(&app, "Cyd").await;
     let test = room_id(&app, &admin).await;
@@ -725,7 +691,6 @@ async fn a_suspended_member_no_longer_holds_up_their_rooms() {
         .fetch_one(&state.db)
         .await
         .unwrap();
-    // Bob's own room, with Ana: two people, Bob owns it. And one he is alone in.
     let mut rooms = Vec::new();
     for name in ["Chez Bob", "Bob seul"] {
         let (s, r) = call(
@@ -783,7 +748,6 @@ async fn a_suspended_member_no_longer_holds_up_their_rooms() {
             .unwrap()
         }
     };
-    // Ana voted in both rooms, Cyd too in "Test": both questions wait for Bob.
     let duo_round = open(duo).await.expect("a question opens with two people");
     let test_round = open(test).await.unwrap();
     for (token, room, target) in [
@@ -810,10 +774,8 @@ async fn a_suspended_member_no_longer_holds_up_their_rooms() {
     let (s, b) = act(&app, &admin, "member", bob_id, "suspend").await;
     assert_eq!(s, StatusCode::OK, "{b}");
 
-    // "Test" (three people): the question closed without him, the next one is open.
     let next = open(test).await.expect("the next question opens");
     assert_ne!(next, test_round);
-    // Bob's room: Ana's vote was all it waited for; she owns it now.
     assert_eq!(open(duo).await, None);
     let (s, r) = call(
         &app,
@@ -862,12 +824,10 @@ async fn trusted(state: &AppState, member: i64, verified: bool, old: bool) {
     .unwrap();
 }
 
-/// Only reports from verified accounts older than a day hide a message, the owner's included; the
-/// owner restores a hidden one (its reports stay open for the admins); a hidden text leaves the inbox.
 #[tokio::test]
 async fn throwaway_reports_dont_hide_and_the_owner_restores() {
     let (app, state) = setup().await;
-    let (ana, ana_id) = join(&app, "Ana").await; // owner (and admin)
+    let (ana, ana_id) = join(&app, "Ana").await;
     let mut people = Vec::new();
     for name in ["Bob", "Cyd", "Dan", "Eve", "Fox", "Gus", "Hal"] {
         people.push(join(&app, name).await);
@@ -890,7 +850,6 @@ async fn throwaway_reports_dont_hide_and_the_owner_restores() {
     };
     assert_eq!(inbox_copies().await, 7);
     trust_all(&state).await;
-    // Bob: never verified; Cyd: legacy (no e-mail); Dan: verified but made an hour ago.
     trusted(&state, people[0].1, false, true).await;
     sqlx::query("UPDATE users SET email = NULL, email_verified_at = NULL WHERE id = (SELECT user_id FROM members WHERE id = ?)")
         .bind(people[1].1)
@@ -907,7 +866,6 @@ async fn throwaway_reports_dont_hide_and_the_owner_restores() {
         texts(&app, bob, round).await,
         vec!["on se retrouve ce soir"]
     );
-    // Two trusted reporters: still there; the third hides it.
     for (token, _) in &people[3..5] {
         report(&app, token, "message", msg).await;
     }
@@ -916,7 +874,6 @@ async fn throwaway_reports_dont_hide_and_the_owner_restores() {
     assert!(texts(&app, bob, round).await.is_empty());
     assert_eq!(inbox_copies().await, 0, "a hidden text leaves the inbox");
 
-    // The owner still sees it, marked, and brings it back; nobody else can.
     let (_, list) = call(
         &app,
         "GET",
@@ -951,7 +908,6 @@ async fn throwaway_reports_dont_hide_and_the_owner_restores() {
     assert!(list[0].get("hidden").is_none(), "{list}");
     let (s, _) = call(&app, "POST", &path, Some(&ana), None, None).await;
     assert_eq!(s, StatusCode::NOT_FOUND);
-    // A new report doesn't hide it again at once (three new ones would); the admins see them all.
     let (s, _) = report(&app, &people[6].0, "message", msg).await;
     assert_eq!(s, StatusCode::OK);
     assert_eq!(texts(&app, bob, round).await.len(), 1);
@@ -965,7 +921,6 @@ async fn throwaway_reports_dont_hide_and_the_owner_restores() {
     assert_eq!(open["hidden"], false);
 }
 
-/// Suggestions take a verified account; down votes from accounts younger than a day don't reject one.
 #[tokio::test]
 async fn suggestions_need_a_verified_account_and_fresh_votes_dont_reject() {
     let (app, state) = setup().await;
@@ -975,7 +930,6 @@ async fn suggestions_need_a_verified_account_and_fresh_votes_dont_reject() {
         people.push(join(&app, name).await);
     }
     let (bob, _) = &people[0];
-    // A legacy account (no e-mail): no suggesting, no voting.
     let (s, b) = call(
         &app,
         "POST",
@@ -1006,7 +960,6 @@ async fn suggestions_need_a_verified_account_and_fresh_votes_dont_reject() {
         assert_eq!(b["down"].as_i64(), Some(i as i64 + 1));
     }
     assert_eq!(status(&state, id).await, "voting");
-    // Unverified: refused.
     trusted(&state, people[1].1, false, true).await;
     let (s, b) = call(
         &app,

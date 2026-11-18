@@ -1,6 +1,3 @@
-//! Languages: the account's locale, push / inbox / e-mails in each person's language, room
-//! languages drawing their own deck, pack languages, share pages, English legal pages.
-
 use crate::common;
 use crate::common::{T, user_of};
 use quidenous_server::platform::ids::UserId;
@@ -37,7 +34,6 @@ async fn setup() -> T {
     };
     let mail = Arc::new(MemoryMailer::default());
     let state = state_with_mailer(config, mail.clone()).await.unwrap();
-    // These tests vote by picking someone: no deck choose or said questions (docs/CHOOSE.md, docs/SAID.md).
     sqlx::query("DELETE FROM questions WHERE group_id IS NULL AND kind IN ('choose', 'said')")
         .execute(&state.db)
         .await
@@ -104,7 +100,6 @@ async fn call(
     call_in(app, method, path, token, None, body).await
 }
 
-/// A newcomer in the env room (French, like every room made before languages).
 async fn join(app: &Router, name: &str) -> (String, i64) {
     let (status, body) = call(
         app,
@@ -169,7 +164,6 @@ async fn locale_round_trip_and_validation() {
             "{bad}"
         );
     }
-    // Unchanged by the rejected ones.
     let (_, b) = call(&t.app, "GET", "/me/locale", Some(&ana), None).await;
     assert_eq!(b, json!({ "locale": "en", "pref": "auto" }));
     let (s, _) = call(&t.app, "GET", "/me/locale", None, None).await;
@@ -178,7 +172,6 @@ async fn locale_round_trip_and_validation() {
     assert!(features.as_array().unwrap().contains(&json!("languages")));
 }
 
-/// Waits a little for the background senders until the recorded pushes satisfy `ok`.
 async fn wait_for(
     state: &AppState,
     ok: impl Fn(&[quidenous_server::realtime::push::Sent]) -> bool,
@@ -209,7 +202,6 @@ async fn push_and_inbox_speak_each_recipients_language() {
         user_of(&t.state, bob_id).await,
     );
 
-    // Ana nudges Bob (English), Bob nudges Ana (French).
     let (s, b) = call(
         &t.app,
         "POST",
@@ -264,7 +256,6 @@ async fn push_and_inbox_speak_each_recipients_language() {
         Some("Bob attend ton vote")
     );
 
-    // A group push: the result. Ana votes last, so Bob hears about it, in English.
     let (_, round) = call(&t.app, "GET", "/round/current", Some(&ana), None).await;
     for token in [&bob, &ana] {
         let body = if round["kind"] == "rank" {
@@ -344,7 +335,6 @@ async fn account_emails_in_the_accounts_language() {
     );
     assert!(fr.html.contains("lang=\"fr\""));
 
-    // Léa switches to English: her reset code comes in English. Sent in the background.
     set_locale(&t.app, &lea, "en").await;
     let (s, _) = call(
         &t.app,
@@ -370,7 +360,6 @@ async fn account_emails_in_the_accounts_language() {
     assert!(reset.text.contains("choose a new password"));
 }
 
-/// A deck question's language, and whether it is a built-in one.
 async fn question_lang(state: &AppState, text: &str) -> Option<String> {
     sqlx::query_scalar("SELECT lang FROM questions WHERE group_id IS NULL AND text = ?")
         .bind(text)
@@ -379,7 +368,6 @@ async fn question_lang(state: &AppState, text: &str) -> Option<String> {
         .unwrap()
 }
 
-/// Built-in questions of this language a `potes` room can draw.
 async fn deck_size(state: &AppState, lang: &str) -> i64 {
     sqlx::query_scalar(
         "SELECT COUNT(*) FROM questions WHERE group_id IS NULL AND lang = ? \
@@ -425,7 +413,6 @@ async fn rooms_draw_the_deck_of_their_language() {
     assert_eq!(s, StatusCode::OK, "{created}");
     assert_eq!(created["language"], "en");
     let en_room = created["id"].as_i64().unwrap();
-    // No language: French, as before.
     let (_, created) = call(
         &t.app,
         "POST",
@@ -473,7 +460,6 @@ async fn rooms_draw_the_deck_of_their_language() {
         (json!("en"), json!("en"))
     );
 
-    // Every question the English room gets is from the English deck, until it runs out.
     let ids = |g: &Value| -> Vec<i64> {
         g["members"]
             .as_array()
@@ -539,7 +525,6 @@ async fn rooms_draw_the_deck_of_their_language() {
         "{text}"
     );
 
-    // deck_left counts the room's deck; switching the language switches it.
     let left = |room: i64| {
         let app = t.app.clone();
         let ana = ana.clone();
@@ -690,7 +675,6 @@ async fn share_pages_speak_the_sharers_language() {
         "{en}"
     );
     assert!(en.contains("Who would you vote for?"));
-    // Bob switches to French: a new link in French, the old one stays English.
     set_locale(&t.app, &bob, "fr").await;
     let (_, b) = call(
         &t.app,
@@ -746,7 +730,6 @@ async fn stats_stories_in_the_readers_language() {
     let (ana, ana_id) = join(&t.app, "Ana").await;
     let (bob, bob_id) = join(&t.app, "Bob").await;
     set_locale(&t.app, &bob, "en").await;
-    // Bob wins four in a row: a streak story.
     for _ in 0..4 {
         let (_, round) = call(&t.app, "GET", "/round/current", Some(&ana), None).await;
         for token in [&ana, &bob] {
@@ -784,7 +767,6 @@ async fn stats_stories_in_the_readers_language() {
     assert!(en["big"].as_str().unwrap().contains("in a row"), "{en}");
     assert_ne!(fr["line"], en["line"]);
 
-    // A shared story keeps the sharer's language.
     let (s, b) = call(
         &t.app,
         "POST",
@@ -802,7 +784,6 @@ async fn stats_stories_in_the_readers_language() {
         html.contains("<html lang=\"en\"") && html.contains("Current streak"),
         "{html}"
     );
-    // The history export too.
     for (token, header) in [
         (&bob, "\u{feff}number,date,question,winner(s)"),
         (&ana, "\u{feff}numéro,date"),

@@ -18,8 +18,6 @@ pub(crate) struct NudgeBody {
     member_id: MemberId,
 }
 
-/// "Hurry up": a push to one member who has not voted on the open question (a said question still
-/// writing: not written). Once per question.
 pub(crate) async fn nudge(
     State(state): State<AppState>,
     Me(me): Me,
@@ -28,14 +26,12 @@ pub(crate) async fn nudge(
     if body.member_id == me.id {
         return Err(AppError::BadRequest("self_nudge"));
     }
-    // Everyone is in the same place at a party: no push.
     if game::party(&state.db, me.group_id).await?.is_some() {
         return Err(AppError::Conflict("party"));
     }
     let round = game::open_round(&state.db, me.group_id)
         .await?
         .ok_or(AppError::Conflict("no_open_round"))?;
-    // Not done yet (on a said question still writing: not written).
     let target: Option<MemberId> = sqlx::query_scalar(concat!(
         "SELECT id FROM members m WHERE m.id = ?1 AND m.group_id = ?2 AND m.removed_at IS NULL AND NOT ",
         crate::rounds::said::done!("?3", "m.id")
@@ -59,7 +55,6 @@ pub(crate) async fn nudge(
     if inserted.rows_affected() == 0 {
         return Err(AppError::Conflict("already_nudged"));
     }
-    // The nudge is stored (a retry gets 409 `already_nudged`): an inbox failure is only logged.
     if let Err(e) = crate::chat::inbox::to_member(
         &state.db,
         body.member_id,

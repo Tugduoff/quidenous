@@ -19,8 +19,6 @@ pub fn hash_token(token: &str) -> String {
     hex::encode(Sha256::digest(token.as_bytes()))
 }
 
-/// The signed-in user's seat in a room: the one asked for, else the room they used last.
-/// A token belongs to a user (one person, any number of rooms).
 pub async fn member_in_room(
     state: &AppState,
     token: &str,
@@ -29,7 +27,6 @@ pub async fn member_in_room(
     member_in_room_by_hash(state, &hash_token(token), room).await
 }
 
-/// `member_in_room` from the token's hash (a ticket only knows the hash).
 pub async fn member_in_room_by_hash(
     state: &AppState,
     hash: &str,
@@ -53,10 +50,7 @@ pub async fn member_in_room_by_hash(
             Ok(m)
         }
         None => match user_for_hash(state, hash).await {
-            // A valid account asking for a room it is not in.
             Ok(_) if room.is_some() => Err(AppError::Forbidden("not_in_room")),
-            // A signed-in account with no room yet: "join or create one", not "signed out".
-            // Legacy accounts keep the old 401 (old apps sign out on it after a removal).
             Ok(user) if crate::accounts::is_secured(&state.db, user).await? => {
                 Err(AppError::Forbidden("no_room"))
             }
@@ -65,12 +59,10 @@ pub async fn member_in_room_by_hash(
     }
 }
 
-/// The account behind a token, whatever room.
 pub async fn user_for_token(state: &AppState, token: &str) -> Result<UserId, AppError> {
     user_for_hash(state, &hash_token(token)).await
 }
 
-/// A suspended account's token is no session (`suspend` deletes them; one issued meanwhile too).
 async fn user_for_hash(state: &AppState, hash: &str) -> Result<UserId, AppError> {
     let user = sqlx::query_scalar(
         "SELECT t.user_id FROM user_tokens t JOIN users u ON u.id = t.user_id \
@@ -100,7 +92,6 @@ fn bearer(parts: &Parts) -> Option<&str> {
         .and_then(|v| v.strip_prefix("Bearer "))
 }
 
-/// The signed-in member, from `Authorization: Bearer <token>` and the room in `X-Room` (optional).
 pub struct Me(pub MemberRow);
 
 impl FromRequestParts<AppState> for Me {
@@ -159,8 +150,6 @@ impl FromRequestParts<AppState> for Admin {
     }
 }
 
-/// SQL: the account `$u` (a `users` alias) is a party guest: made by a party join without an
-/// account, and not secured since (an e-mail + password or a linked provider ends that).
 macro_rules! guest_sql {
     ($u:literal) => {
         concat!(
@@ -172,7 +161,6 @@ macro_rules! guest_sql {
 }
 pub(crate) use guest_sql;
 
-/// Is this account a party guest (see [`guest_sql`])?
 pub async fn is_guest<'e, E>(db: E, user: UserId) -> Result<bool, AppError>
 where
     E: sqlx::Executor<'e, Database = sqlx::Sqlite>,
@@ -188,9 +176,6 @@ where
     .unwrap_or(false))
 }
 
-/// The signed-in account, refused for a party guest (`403 guest_account`): a guest only plays in
-/// the party it joined (and that party once kept as a room). Creating rooms or parties, joining
-/// rooms, friends, invitations, packs, suggestions and reports need a real account.
 pub struct Account(pub UserId);
 
 impl FromRequestParts<AppState> for Account {
@@ -208,8 +193,6 @@ impl FromRequestParts<AppState> for Account {
     }
 }
 
-/// The session behind `?ticket=` (single use, for one purpose) or, from older apps, `?token=`:
-/// a plain link (browser download) or a socket can't send an `Authorization` header.
 pub(crate) async fn member_from_query(
     state: &AppState,
     token: Option<&str>,

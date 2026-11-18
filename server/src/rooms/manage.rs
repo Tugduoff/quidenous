@@ -1,5 +1,3 @@
-//! Rooms: one account can create, join and leave several. The owner runs the room.
-
 use crate::platform::ids::{MemberId, RoomId, UserId};
 use axum::{
     Json,
@@ -26,30 +24,23 @@ use crate::{
 const ROOM_NAME_MAX: usize = 40;
 const CODE_ALPHABET: &[u8] = b"ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
-/// Six characters, no look-alikes (0/O, 1/I).
 fn new_code() -> String {
     code_of_len(6)
 }
 
-/// `len` characters from the no-look-alike alphabet (parties use 5).
 pub(crate) fn code_of_len(len: usize) -> String {
     let mut bytes = vec![0u8; len];
     rand::rng().fill_bytes(&mut bytes);
-    // 32 symbols: a byte modulo 32 stays uniform.
     bytes
         .iter()
         .map(|b| CODE_ALPHABET[*b as usize % CODE_ALPHABET.len()] as char)
         .collect()
 }
 
-/// People in one room at most: every question waits for all of them, and every message or
-/// result reaches each one (a party has its own cap, `party::MAX_PLAYERS`).
 pub const MEMBERS_MAX: i64 = 50;
 
-/// Rooms one account can own at a time (a room handed over or deleted frees its place).
 pub const OWNED_MAX: i64 = 20;
 
-/// `409 room_full` when this room already seats [`MEMBERS_MAX`] people.
 pub(crate) async fn seat_free<'e, E: sqlx::SqliteExecutor<'e>>(
     db: E,
     room: RoomId,
@@ -66,8 +57,6 @@ pub(crate) async fn seat_free<'e, E: sqlx::SqliteExecutor<'e>>(
     Ok(())
 }
 
-/// `400 bad_code` when the room was deleted in the meantime (its owner left it alone just before):
-/// checked in the write transaction that takes a seat, so nobody joins a deleted room.
 pub(crate) async fn still_open<'e, E: sqlx::SqliteExecutor<'e>>(
     db: E,
     room: RoomId,
@@ -92,7 +81,6 @@ fn clean_room_name(name: &str) -> AppResult<String> {
     Ok(name)
 }
 
-/// My rooms, most recently used first, with what's waiting for me in each.
 type RoomRow = (
     RoomId,
     String,
@@ -165,20 +153,16 @@ pub async fn list(
 #[derive(Deserialize)]
 pub struct CreateBody {
     name: String,
-    /// A vibe id from `/vibes`; none = the classics.
     #[serde(default)]
     vibe: Option<String>,
-    /// Language of the deck questions it draws (`fr` | `en`); none = French.
     #[serde(default)]
     language: Option<String>,
 }
 
-/// A room language: `fr` or `en` (`400 bad_language` otherwise).
 fn clean_language(language: &str) -> AppResult<Lang> {
     Lang::parse(language.trim()).ok_or(AppError::BadRequest("bad_language"))
 }
 
-/// A known vibe id, or none for an empty one.
 fn clean_vibe(vibe: Option<&str>) -> AppResult<Option<&'static str>> {
     match vibe.map(str::trim) {
         None | Some("") => Ok(None),
@@ -188,7 +172,6 @@ fn clean_vibe(vibe: Option<&str>) -> AppResult<Option<&'static str>> {
     }
 }
 
-/// How many live rooms (not parties) this account owns.
 async fn owned_rooms<'e, E: sqlx::SqliteExecutor<'e>>(db: E, user: UserId) -> AppResult<i64> {
     Ok(sqlx::query_scalar(
         "SELECT COUNT(*) FROM members m JOIN groups g ON g.id = m.group_id AND g.deleted_at IS NULL \
@@ -199,7 +182,6 @@ async fn owned_rooms<'e, E: sqlx::SqliteExecutor<'e>>(db: E, user: UserId) -> Ap
     .await?)
 }
 
-/// A new room, me as its owner.
 pub async fn create(
     State(state): State<AppState>,
     crate::accounts::auth::Account(user): crate::accounts::auth::Account,
@@ -216,12 +198,10 @@ pub async fn create(
         None => Lang::Fr,
     };
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
-    // Again in the write transaction: rooms created at the same moment can't beat the cap.
     if owned_rooms(&mut *tx, user).await? >= OWNED_MAX {
         return Err(AppError::TooMany("too_many_rooms"));
     }
     let mut room_id = None;
-    // Codes are unique: retry on the (rare) clash.
     for _ in 0..5 {
         let inserted: Option<RoomId> = sqlx::query_scalar(
             "INSERT INTO groups (name, join_code, vibe, language) VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING RETURNING id",
@@ -260,7 +240,6 @@ pub async fn create(
         .bind(user)
         .execute(&mut *tx)
         .await?;
-    // Alone in it: no question yet, the first one opens when someone joins.
     tx.commit().await?;
     Ok(Json(
         json!({ "id": room_id, "name": name, "vibe": vibe, "language": language.as_str() }),
@@ -272,7 +251,6 @@ pub struct JoinBody {
     code: String,
 }
 
-/// Join a room with its invite code, as the account I already have.
 pub async fn join(
     State(state): State<AppState>,
     SignedIn(user): SignedIn,
@@ -287,12 +265,9 @@ pub async fn join(
             .await?
             .ok_or(AppError::BadRequest("bad_code"))?;
     attempt.found();
-    // A party guest plays in parties only.
     if kind != "party" && crate::accounts::auth::is_guest(&state.db, user).await? {
         return Err(AppError::Forbidden("guest_account"));
     }
-    // Checked in the write transaction: a double tap finds the seat the first one took, and a
-    // join can't beat the cap or land in a room its owner is deleting.
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
     still_open(&mut *tx, room_id).await?;
     let existing =
@@ -301,7 +276,6 @@ pub async fn join(
             .bind(user)
             .fetch_optional(&mut *tx)
             .await?;
-    // A party: not once it is over, and not beyond its player cap.
     if kind == "party" {
         crate::party::may_take_seat(&mut tx, room_id, existing.as_ref()).await?;
     }
@@ -309,11 +283,9 @@ pub async fn join(
         seat_free(&mut *tx, room_id).await?;
     }
     let joined = match existing {
-        // Removed by the owner or a vote: only the owner can add them back.
         Some(m) if m.removed_at.is_some() && !m.left_by_self => {
             return Err(AppError::Forbidden("removed"));
         }
-        // Left on their own: their old seat comes back, history included.
         Some(m) if m.removed_at.is_some() => {
             crate::rooms::members::rejoin_seat(&mut tx, m.id).await?;
             Some(m.id)
@@ -366,12 +338,8 @@ pub struct PreviewQuery {
     code: String,
 }
 
-/// How many first names an invite preview shows.
 const PREVIEW_NAMES: usize = 3;
 
-/// `GET /api/rooms/preview?code=`: what an invite link shows before joining, no account needed
-/// (per-IP limited): the room's name, how many people are in it and up to 3 first names (the owner
-/// first). No ids, no photos. Unknown codes, deleted rooms and parties: 404 `bad_code`.
 pub async fn preview(
     State(state): State<AppState>,
     crate::accounts::ClientIp(ip): crate::accounts::ClientIp,
@@ -414,29 +382,20 @@ pub struct SettingsBody {
     skip_vote: Option<bool>,
     kick_vote: Option<bool>,
     questions_by: Option<String>,
-    /// A vibe id, or "" for none.
     vibe: Option<String>,
-    /// Only the owner launches the next question.
     owner_next: Option<bool>,
-    /// Seconds to wait after a close before the next question opens (one of `pacing::DELAYS`).
     next_delay: Option<i64>,
-    /// `fr` | `en`: the deck its next questions come from.
     language: Option<String>,
-    /// `never` | `per_question` | `always` (see `anonymous`).
     anonymous_votes: Option<String>,
-    /// Le Tripot on or off (rooms only, see `tripot`).
     tripot: Option<bool>,
 }
 
-/// Owner only: rename, turn majority skip/removal on or off, who can add questions, vibe, pacing,
-/// language (only future questions change).
 pub async fn update(
     State(state): State<AppState>,
     RoomOwner(me): RoomOwner,
     Json(body): Json<SettingsBody>,
 ) -> AppResult<Json<Value>> {
     let room = me.group_id;
-    // Everything checked first, then written in one transaction: never half applied.
     let language = body.language.as_deref().map(clean_language).transpose()?;
     let name = body.name.as_deref().map(clean_room_name).transpose()?;
     if body
@@ -463,7 +422,6 @@ pub async fn update(
         .map(crate::rooms::anonymous::clean_mode)
         .transpose()?;
     let pacing = body.owner_next.is_some() || body.next_delay.is_some();
-    // A party runs its own pace (taps and the owner, see `party`), and is never anonymous.
     if (pacing || anonymous.is_some() || body.tripot.is_some())
         && crate::rounds::game::party(&state.db, room).await?.is_some()
     {
@@ -486,7 +444,6 @@ pub async fn update(
     .bind(room)
     .execute(&mut *tx)
     .await?;
-    // "" clears the vibe: not a COALESCE.
     if let Some(v) = vibe {
         sqlx::query("UPDATE groups SET vibe = ? WHERE id = ?")
             .bind(v)
@@ -503,12 +460,9 @@ pub async fn update(
     }
     tx.commit().await?;
     state.live.send(room, Event::RoomUpdated);
-    // The settings are saved: what follows from them logs its failures (the scheduler and the
-    // next request catch up), never turns the saved change into an error.
     if pacing && let Err(e) = crate::rooms::pacing::settings_changed(&state, room).await {
         tracing::warn!(%room, error = ?e, "pacing after a settings change");
     }
-    // A room that ran out of questions has a whole new deck after a vibe or language change.
     if (body.vibe.is_some() || language.is_some())
         && let Err(e) = crate::rooms::pacing::open_if_idle(&state, room, Some(me.id)).await
     {
@@ -517,7 +471,6 @@ pub async fn update(
     Ok(Json(json!({ "ok": true })))
 }
 
-/// Owner only: a new invite code; the old one stops working.
 pub async fn rotate_code(
     State(state): State<AppState>,
     RoomOwner(me): RoomOwner,
@@ -538,7 +491,6 @@ pub async fn rotate_code(
     Err(AppError::Conflict("code_clash"))
 }
 
-/// Owner only: remove someone right away, no vote.
 pub async fn force_remove(
     State(state): State<AppState>,
     RoomOwner(me): RoomOwner,
@@ -556,7 +508,6 @@ pub async fn force_remove(
     .fetch_optional(&state.db)
     .await?;
     target.ok_or(AppError::NotFound)?;
-    // Gone in between (a vote or their own leave got there first): nothing left to remove.
     if !remove_member(&state, room, member_id, me.id, false).await? {
         return Err(AppError::NotFound);
     }
@@ -568,17 +519,13 @@ pub struct OwnerBody {
     member_id: MemberId,
 }
 
-/// Owner only: hand the room over to another member.
 pub async fn transfer(
     State(state): State<AppState>,
     RoomMember(me): RoomMember,
     Json(body): Json<OwnerBody>,
 ) -> AppResult<Json<Value>> {
-    // Only a seat here: whether I'm (still) the owner is decided in the transaction, so a double tap
-    // whose first tap already handed the room over answers 200, not 403.
     let room = me.group_id;
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
-    // Still the owner when it runs: two transfers at once can't leave two owners.
     let stepped_down = sqlx::query(
         "UPDATE members SET role = 'member' WHERE id = ? AND role = 'owner' AND removed_at IS NULL",
     )
@@ -586,7 +533,6 @@ pub async fn transfer(
     .execute(&mut *tx)
     .await?;
     if stepped_down.rows_affected() == 0 {
-        // A double tap: the first one already handed the room to them.
         let done: bool = sqlx::query_scalar(
             "SELECT EXISTS (SELECT 1 FROM members WHERE id = ? AND group_id = ? AND role = 'owner' AND removed_at IS NULL)",
         )
@@ -605,7 +551,6 @@ pub async fn transfer(
         .bind(me.id)
         .execute(&mut *tx)
         .await?;
-    // Dropping the transaction rolls my step down back.
     if moved.rows_affected() == 0 {
         return Err(AppError::NotFound);
     }
@@ -614,7 +559,6 @@ pub async fn transfer(
     Ok(Json(json!({ "ok": true })))
 }
 
-/// Leave a room. An owner hands over to the longest-standing member first; alone, the room is deleted.
 pub async fn leave(
     State(state): State<AppState>,
     RoomMember(me): RoomMember,
@@ -623,12 +567,8 @@ pub async fn leave(
     Ok(Json(json!({ "ok": true, "deleted": deleted })))
 }
 
-/// Gives up a seat (leaving, or deleting the account): an owner hands over to the
-/// longest-standing active member (see `remove_member`); alone, the room is deleted. `true` = room deleted.
 pub(crate) async fn leave_seat(state: &AppState, me: &MemberRow) -> AppResult<bool> {
     let room = me.group_id;
-    // Counted in the write transaction: a join at the same moment either counts here (the room
-    // stays, handed over) or finds the room deleted (`still_open`).
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
     let alone: bool = sqlx::query_scalar(
         "SELECT EXISTS (SELECT 1 FROM members WHERE id = ?1 AND role = 'owner' AND removed_at IS NULL) \
@@ -644,7 +584,6 @@ pub(crate) async fn leave_seat(state: &AppState, me: &MemberRow) -> AppResult<bo
         room_deleted(state, room).await;
         return Ok(true);
     }
-    // Already removed (a vote landed first): that removal stands.
     let removal = crate::rooms::members::take_seat(&mut tx, room, me.id, true).await?;
     tx.commit().await?;
     if let Some(removal) = removal {
@@ -654,7 +593,6 @@ pub(crate) async fn leave_seat(state: &AppState, me: &MemberRow) -> AppResult<bo
     Ok(false)
 }
 
-/// Owner only: the room disappears for everyone.
 pub async fn delete(
     State(state): State<AppState>,
     RoomOwner(me): RoomOwner,
@@ -679,14 +617,11 @@ async fn mark_deleted<'e, E: sqlx::SqliteExecutor<'e>>(db: E, room: RoomId) -> A
     Ok(())
 }
 
-/// After the deletion committed.
 async fn room_deleted(state: &AppState, room: RoomId) {
-    // Nobody can open its chat any more: its images go now (rooms are never restored).
     crate::chat::media::remove_room(state, room).await;
     state.live.send(room, Event::RoomDeleted);
 }
 
-/// Shape of a member in the room view: the public card plus their role.
 pub fn member_with_role(m: &MemberRow) -> Value {
     let mut v = serde_json::to_value(Member::from(m)).unwrap_or_default();
     v["role"] = json!(m.role);
@@ -702,7 +637,6 @@ pub struct StartBody {
     vibe: Option<String>,
 }
 
-/// No code, no account yet: create both, with a fresh room I own (the way in for newcomers).
 pub async fn start(
     State(state): State<AppState>,
     crate::accounts::ClientIp(ip): crate::accounts::ClientIp,

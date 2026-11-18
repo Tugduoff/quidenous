@@ -5,15 +5,10 @@ use crate::{platform::error::AppResult, realtime::live::Event};
 
 use super::*;
 
-/// Questions in a row someone can miss before the room stops waiting for them ("away").
 pub const AWAY_AFTER: i64 = 3;
 
-/// Hours after which an open question closes once at least half of the people it waits for voted.
 pub const QUORUM_HOURS: i64 = 24;
 
-/// Members who are away: the last [`AWAY_AFTER`] questions of the room closed without their vote
-/// (closed since they joined; a removed question nobody could answer doesn't count). The room
-/// stops waiting for them until they vote again. Rooms only.
 pub async fn away(tx: &mut Transaction<'_, Sqlite>, group_id: RoomId) -> AppResult<Vec<MemberId>> {
     Ok(sqlx::query_scalar(concat!(
         "SELECT m.id FROM members m WHERE m.group_id = ?1 AND m.removed_at IS NULL AND ",
@@ -26,7 +21,6 @@ pub async fn away(tx: &mut Transaction<'_, Sqlite>, group_id: RoomId) -> AppResu
     .await?)
 }
 
-/// Who an open question no longer waits for: skipped by the room, or away. Sorted, no duplicates.
 pub async fn not_waited(
     tx: &mut Transaction<'_, Sqlite>,
     group_id: RoomId,
@@ -44,7 +38,6 @@ pub(super) fn union(a: &[MemberId], b: &[MemberId]) -> usize {
     all.len()
 }
 
-/// How many people a room's open question waits for: its active members minus the skipped and the away.
 pub(crate) async fn waiting_for(
     tx: &mut Transaction<'_, Sqlite>,
     group_id: RoomId,
@@ -54,8 +47,6 @@ pub(crate) async fn waiting_for(
     Ok(active_count(tx, group_id).await? - union(&skipped, &away) as i64)
 }
 
-/// Open for [`QUORUM_HOURS`] (a said question's guessing: counted from its start), so half of the
-/// people it waits for is enough.
 pub(crate) async fn late(tx: &mut Transaction<'_, Sqlite>, round_id: RoundId) -> AppResult<bool> {
     Ok(sqlx::query_scalar(
         "SELECT COALESCE(said_guess_at, opened_at) <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now', ?) \
@@ -67,11 +58,6 @@ pub(crate) async fn late(tx: &mut Transaction<'_, Sqlite>, round_id: RoundId) ->
     .await?)
 }
 
-/// Closes the round once every active member has voted or been skipped, and opens the next one
-/// (unless the room is paced: then it waits for the owner or the delay, see `pacing`).
-/// A party question closes once everyone it was opened for and still there has voted, and never
-/// opens the next one by itself (the reveal waits for the taps, see `party`).
-/// A said question still writing moves on to its guessing instead (see [`crate::rounds::said::advance`]).
 pub async fn close_if_done(
     tx: &mut Transaction<'_, Sqlite>,
     group_id: RoomId,
@@ -110,7 +96,6 @@ pub async fn close_if_done(
     .fetch_one(&mut **tx)
     .await?;
     let waiting_for = waiting_for(tx, group_id, round_id).await?;
-    // Open for a day: half of the people it waits for is enough (a holiday doesn't stop the room).
     let late = late(tx, round_id).await?;
     if votes > 0 && (votes >= waiting_for || late && 2 * votes >= waiting_for) {
         events.extend(close_room_round(tx, group_id, round_id).await?);
@@ -118,7 +103,6 @@ pub async fn close_if_done(
     Ok(events)
 }
 
-/// Closes a room question now, settles its bets and opens the next one (unless the room is paced).
 pub(super) async fn close_room_round(
     tx: &mut Transaction<'_, Sqlite>,
     group_id: RoomId,
@@ -128,7 +112,6 @@ pub(super) async fn close_room_round(
         .bind(round_id)
         .execute(&mut **tx)
         .await?;
-    // Already closed (by someone else just before): nothing to announce twice.
     if done.rows_affected() == 0 {
         return Ok(Vec::new());
     }
@@ -142,9 +125,6 @@ pub(super) async fn close_room_round(
     Ok(events)
 }
 
-/// Closes an open question with no result (its question was removed): every vote, ballot, said
-/// answer and skip on it goes, then the next question opens (a party pauses for its reveal, as at a deadline).
-/// A room never counts such a question as missed (see [`away`]).
 pub async fn drop_round(
     tx: &mut Transaction<'_, Sqlite>,
     group_id: RoomId,
@@ -180,9 +160,6 @@ pub async fn drop_round(
     Ok(events)
 }
 
-/// Closes a party question (everyone voted, its deadline, or the end of the party) at `now`
-/// (database clock when `None`) and pauses the party for the reveal. Idempotent: a closed question
-/// gives no events.
 pub async fn close_party_round(
     tx: &mut Transaction<'_, Sqlite>,
     group_id: RoomId,
@@ -222,8 +199,6 @@ pub async fn active_count(tx: &mut Transaction<'_, Sqlite>, group_id: RoomId) ->
     )
 }
 
-/// Members the group agreed not to wait for on this question (and who still have not voted; on a
-/// said question still writing, not written).
 pub async fn skipped(
     tx: &mut Transaction<'_, Sqlite>,
     group_id: RoomId,

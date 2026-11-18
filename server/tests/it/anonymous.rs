@@ -1,6 +1,3 @@
-//! Anonymous votes (docs/ANONYMOUS.md): counts only, never who voted for whom, for anyone (the
-//! owner included), wherever a result goes.
-
 use crate::common;
 use quidenous_server::platform::ids::RoomId;
 
@@ -19,7 +16,6 @@ struct Room {
     app: Router,
     state: AppState,
     id: i64,
-    /// Ana is the owner (first in).
     ana: (String, i64),
     bob: (String, i64),
     cyd: (String, i64),
@@ -78,8 +74,6 @@ impl Room {
         self.get(token, "/round/current").await
     }
 
-    /// Everyone votes on the open question (a pick: `targets[i]` for the i-th of Ana, Bob, Cyd;
-    /// a ranking: Ana, Bob, Cyd in that order rotated by i). Returns its id.
     async fn close(&self, targets: [i64; 3]) -> i64 {
         let round = self.current(&self.ana.0).await;
         let id = round["id"].as_i64().unwrap();
@@ -132,7 +126,6 @@ impl Room {
     }
 }
 
-/// Every `voter_ids` list in a result is empty, and no ranking says who ranked whom where.
 fn no_voters(view: &Value) {
     assert_eq!(view["anonymous"], true, "{view}");
     for t in view["result"].as_array().unwrap() {
@@ -186,20 +179,16 @@ async fn the_room_rule_is_owner_only_and_checked() {
 async fn a_round_keeps_what_was_decided_when_it_opened() {
     let room = Room::new().await;
     let (a, b, c) = (room.ana.1, room.bob.1, room.cyd.1);
-    // The deck question open since Bob came in: not anonymous.
     assert_eq!(room.current(&room.ana.0).await["anonymous"], false);
 
-    // Per question (the default): the question says.
     let q = room
         .add(json!({ "text": "Qui chante le plus faux ?", "anonymous": true }))
         .await;
     assert_eq!(q["anonymous"], true);
-    // Choose questions are never anonymous: the flag is dropped.
     let q = room
         .add(json!({ "text": "Qui prendrait quoi ?", "kind": "choose", "items": ["Pizza", "Sushi"], "anonymous": true }))
         .await;
     assert_eq!(q["anonymous"], false);
-    // An app that doesn't know the flag: not anonymous.
     room.add(json!({ "text": "Qui ronfle le plus fort ?" }))
         .await;
     room.add(json!({ "text": "Qui rit le plus fort ?", "anonymous": true }))
@@ -222,13 +211,11 @@ async fn a_round_keeps_what_was_decided_when_it_opened() {
     assert_eq!(open["anonymous"], true);
     let first = room.close([b, b, a]).await;
 
-    // "Never" afterwards: the past question stays anonymous.
     room.settings(&room.ana.0, json!({ "anonymous_votes": "never" }))
         .await;
     no_voters(&room.get(&room.ana.0, &format!("/rounds/{first}")).await);
     assert!(room.stored(first).await);
 
-    // The choose question: never anonymous, whatever the rule.
     room.settings(&room.ana.0, json!({ "anonymous_votes": "always" }))
         .await;
     let choose = room.current(&room.ana.0).await;
@@ -241,7 +228,6 @@ async fn a_round_keeps_what_was_decided_when_it_opened() {
         .execute(&room.state.db)
         .await
         .unwrap();
-    // Opened under "always": anonymous, though the question didn't ask.
     let mut tx = room.state.db.begin().await.unwrap();
     let opened =
         quidenous_server::rounds::game::ensure_open_round(&mut tx, RoomId::from_raw(room.id))
@@ -266,16 +252,13 @@ async fn a_new_rule_can_only_make_the_open_question_anonymous() {
     room.settings(&room.ana.0, json!({ "anonymous_votes": "never" }))
         .await;
     room.close([b, c, a]).await;
-    // Bob voted already: he sees who voted, not for whom (nothing is shown before the close).
     let open = room.current(&room.bob.0).await;
     let open_id = open["id"].as_i64().unwrap();
     assert_eq!(open["anonymous"], false);
 
-    // "Always": the open question turns anonymous (safe: nobody saw a result yet)...
     room.settings(&room.ana.0, json!({ "anonymous_votes": "always" }))
         .await;
     assert_eq!(room.current(&room.bob.0).await["anonymous"], true);
-    // ... and never back.
     room.settings(&room.ana.0, json!({ "anonymous_votes": "never" }))
         .await;
     assert_eq!(room.current(&room.bob.0).await["anonymous"], true);
@@ -283,7 +266,6 @@ async fn a_new_rule_can_only_make_the_open_question_anonymous() {
     assert_eq!(closed, open_id);
     no_voters(&room.get(&room.cyd.0, &format!("/rounds/{closed}")).await);
 
-    // Per question with an open question that asks: anonymous too. Under "never" it opened without.
     let open = room.current(&room.bob.0).await;
     assert_eq!(open["question"], "Qui rit le plus fort ?");
     assert_eq!(open["anonymous"], false);
@@ -292,7 +274,6 @@ async fn a_new_rule_can_only_make_the_open_question_anonymous() {
     assert_eq!(room.current(&room.bob.0).await["anonymous"], true);
 }
 
-/// The whole tour: round views (owner and voters), history, CSV, stats, inbox, live events.
 #[tokio::test]
 async fn nobody_learns_who_voted_for_whom() {
     let room = Room::new().await;
@@ -300,12 +281,10 @@ async fn nobody_learns_who_voted_for_whom() {
     let mut live = room.state.live.subscribe();
     room.settings(&room.ana.0, json!({ "anonymous_votes": "always" }))
         .await;
-    // The deck question, open since before: now anonymous too.
     room.add(json!({ "text": "Classe-nous du plus frileux au plus chaud", "kind": "rank" }))
         .await;
     room.add(json!({ "text": "Qui a le plus de chaussettes dépareillées ?" }))
         .await;
-    // Ana votes for herself, Bob and Cyd for Ana: self votes and pairs must not show anywhere.
     let pick = room.close([a, a, a]).await;
     let rank = room.close([0, 0, 0]).await;
     let other = room.close([b, c, b]).await;
@@ -314,11 +293,9 @@ async fn nobody_learns_who_voted_for_whom() {
         for id in [pick, rank, other] {
             let view = room.get(token, &format!("/rounds/{id}")).await;
             no_voters(&view);
-            // Who voted (the participation list) is fine.
             assert_eq!(view["voter_ids"].as_array().unwrap().len(), 3);
         }
     }
-    // My own vote and ranking come back to me only.
     let view = room.get(&room.bob.0, &format!("/rounds/{pick}")).await;
     assert_eq!(view["my_vote"], a);
     assert_eq!(
@@ -361,7 +338,6 @@ async fn nobody_learns_who_voted_for_whom() {
         assert_eq!(p["top_voters"], json!([]), "{p}");
         assert_eq!(p["top_targets"], json!([]), "{p}");
         assert_eq!(p["self_votes"], 0, "{p}");
-        // Votes cast and received are counts: they stay.
         assert_eq!(p["votes_cast"], 3, "{p}");
     }
     let received = |id: i64| {
@@ -374,7 +350,6 @@ async fn nobody_learns_who_voted_for_whom() {
             .as_i64()
             .unwrap()
     };
-    // 3 votes per question (a ranking counts its first places).
     assert_eq!(received(a) + received(b) + received(c), 9);
     let stories = stats["stories"].to_string();
     assert!(
@@ -382,7 +357,6 @@ async fn nobody_learns_who_voted_for_whom() {
         "{stories}"
     );
 
-    // The inbox says a result is out, never by whom.
     let inbox = room.get(&room.bob.0, "/inbox").await;
     let items = inbox["items"].as_array().unwrap();
     assert!(items.iter().any(|i| i["kind"] == "result"), "{inbox}");
@@ -390,7 +364,6 @@ async fn nobody_learns_who_voted_for_whom() {
         assert!(i["actor_id"].is_null(), "{i}");
     }
 
-    // Live events: who voted (to tick them off), never for whom.
     let mut seen = 0;
     while let Ok(e) = live.try_recv() {
         let event = serde_json::to_value(&e.event).unwrap();
@@ -400,8 +373,6 @@ async fn nobody_learns_who_voted_for_whom() {
     assert!(seen > 0);
 }
 
-/// An anonymous question doesn't touch what others show: plain questions keep their voters,
-/// and the stats still pair them.
 #[tokio::test]
 async fn plain_questions_are_unchanged() {
     let room = Room::new().await;
@@ -435,7 +406,6 @@ async fn plain_questions_are_unchanged() {
     assert!(csv.contains("\"Bob (3) : Ana, Bob, Cyd\""), "{csv}");
     assert!(csv.contains("\"Cyd (2) | Ana (1)\""), "{csv}");
 
-    // Pairs come from the plain question only: Ana → Bob and Cyd → Bob, never → Cyd.
     let stats = room.get(&room.ana.0, "/stats?period=all").await;
     let edges: Vec<(i64, i64, i64)> = stats["edges"]
         .as_array()
@@ -459,7 +429,6 @@ async fn plain_questions_are_unchanged() {
         .clone();
     assert_eq!(bob["self_votes"], 1);
     assert_eq!(bob["votes_cast"], 2);
-    // Received: 3 (plain) + 0 (secret) for Bob; the secret one counts for Cyd and Ana.
     assert_eq!(bob["received"], 3);
 }
 
@@ -502,12 +471,10 @@ async fn import_and_pack_tags_carry_the_flag() {
             want("Classe-nous du plus frileux au plus chaud", "rank", true),
             want("Qui prendrait quoi au resto ?", "choose", false),
             want("Qui ronfle le plus fort ?", "pick", false),
-            // Only leading tags count: an unknown one first makes the rest part of the question.
             want("[PS] [anonyme] Qui garde ses tags ?", "pick", false),
         ]
     );
 
-    // A pack: the tag in its file, kept when it's shown, and carried onto the room's questions.
     common::trust_all(&room.state).await;
     let pack = "# titre: Secrets\n\
                 [anonyme] Qui pleure devant les pubs ?\n\
@@ -535,7 +502,6 @@ async fn import_and_pack_tags_carry_the_flag() {
         .collect();
     assert_eq!(flags, [true, true, false, false, false]);
 
-    // An app that doesn't know the flag edits the pack: what it had stays.
     let questions: Vec<Value> = shown["questions"]
         .as_array()
         .unwrap()
@@ -588,7 +554,6 @@ async fn a_party_is_never_anonymous() {
     assert_eq!(s, StatusCode::OK, "{party}");
     let id = party["id"].as_i64().unwrap();
     let code = party["code"].as_str().unwrap();
-    // The rule can't be set on a party...
     let (s, b) = call(
         &app,
         "PATCH",
@@ -602,7 +567,6 @@ async fn a_party_is_never_anonymous() {
         (s, b["error"].as_str()),
         (StatusCode::BAD_REQUEST, Some("bad_setting"))
     );
-    // ... and even forced in the database, its questions open with names.
     sqlx::query("UPDATE groups SET anonymous_votes = 'always' WHERE id = ?")
         .bind(id)
         .execute(&state.db)

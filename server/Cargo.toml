@@ -36,7 +36,6 @@ tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 
 [dev-dependencies]
 http-body-util = "0.1.5"
-# WebSocket client for the /api/live test (already built for axum's server side).
 tokio-tungstenite = { version = "0.30.0", default-features = false, features = ["handshake"] }
 tower = "0.5.3"
 
@@ -46,7 +45,6 @@ debug = "line-tables-only"
 [profile.dev.package."*"]
 debug = false
 
-# Password hashing is far too slow unoptimized (tests sign up and in a lot).
 [profile.dev.package.argon2]
 opt-level = 3
 

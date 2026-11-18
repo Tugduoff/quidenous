@@ -1,19 +1,16 @@
 use super::*;
 use crate::platform::ids::{PackId, UserId};
 
-/// What `seed-packs` did (or would do) with one file.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SeedAction {
-    /// Published (`id` is `None` in a dry run). `dropped`: question lines left out (too short or
-    /// long, duplicate, choose answers that don't hold).
     Created {
         id: Option<PackId>,
         count: usize,
         dropped: usize,
     },
-    /// The author already has a pack with this title in this language (not deleted).
-    Exists { id: PackId },
-    /// Not a valid pack (missing title or language, bad category, too few questions…).
+    Exists {
+        id: PackId,
+    },
     Invalid(String),
 }
 
@@ -24,7 +21,6 @@ pub struct SeedOutcome {
     pub action: SeedAction,
 }
 
-/// A pack file read into a pack, with the number of question lines it leaves out.
 pub fn pack_from_file(content: &str, featured: bool) -> Result<(NewPack, usize), String> {
     let file = crate::community::packfile::parse(content);
     let h = &file.header;
@@ -72,9 +68,6 @@ pub(super) fn pack_files(
     Ok(())
 }
 
-/// `server seed-packs <dir> --author-id <id> [--featured] [--dry-run]`: publishes every `*.txt`
-/// pack file under `dir` (header included) as `author`'s, public, with no pack limit. Idempotent:
-/// a pack whose title (case-insensitive) and language the author already has (not deleted) is skipped.
 pub async fn seed_dir(
     db: &sqlx::SqlitePool,
     dir: &std::path::Path,
@@ -126,7 +119,6 @@ pub async fn seed_dir(
         let key = (pack.name.to_lowercase(), pack.language);
         let action = match existing {
             Some(id) => SeedAction::Exists { id },
-            // Twice the same title in this run (only a dry run gets here: a real run finds the first one).
             None if !seen.insert(key) => {
                 SeedAction::Invalid("same title and language as another file".into())
             }

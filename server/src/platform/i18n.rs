@@ -1,8 +1,3 @@
-//! The two languages the server writes in (French, the source, and English), and every
-//! user-facing text it sends: push notifications, inbox entries, account e-mails, share cards.
-//! A person's language is `users.locale` (null = French, the language of accounts made before
-//! this existed). Contract: `docs/I18N.md`.
-
 use crate::platform::ids::{MemberId, UserId};
 use axum::{Json, extract::State};
 use serde::Serialize;
@@ -31,17 +26,14 @@ impl Lang {
         }
     }
 
-    /// `"fr"` / `"en"`; anything else is not a language we speak.
     pub fn parse(s: &str) -> Option<Self> {
         Self::ALL.into_iter().find(|l| l.as_str() == s)
     }
 
-    /// A stored language: missing or unknown means French.
     pub fn from_db(s: Option<&str>) -> Self {
         s.and_then(Self::parse).unwrap_or_default()
     }
 
-    /// The French or the English one.
     pub fn pick<T>(self, fr: T, en: T) -> T {
         match self {
             Lang::Fr => fr,
@@ -50,12 +42,9 @@ impl Lang {
     }
 }
 
-/// `GET/PUT /api/me/locale`: the account's language, and the Profile setting it came from.
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct Locale {
-    /// `fr` | `en`: the language the app shows, the one the server writes in. Null = never set (French).
     pub locale: Option<String>,
-    /// `auto` | `fr` | `en`. Null = never set.
     pub pref: Option<String>,
 }
 
@@ -95,7 +84,6 @@ pub async fn put_locale(
     }))
 }
 
-/// An account's language.
 pub async fn of_user<'e, E: SqliteExecutor<'e>>(db: E, user_id: UserId) -> sqlx::Result<Lang> {
     let locale: Option<Option<String>> =
         sqlx::query_scalar("SELECT locale FROM users WHERE id = ?")
@@ -105,7 +93,6 @@ pub async fn of_user<'e, E: SqliteExecutor<'e>>(db: E, user_id: UserId) -> sqlx:
     Ok(Lang::from_db(locale.flatten().as_deref()))
 }
 
-/// The language of the account behind a room seat.
 pub async fn of_member<'e, E: SqliteExecutor<'e>>(
     db: E,
     member_id: MemberId,
@@ -119,7 +106,6 @@ pub async fn of_member<'e, E: SqliteExecutor<'e>>(
     Ok(Lang::from_db(locale.flatten().as_deref()))
 }
 
-/// A text in both languages; the reader's language picks one.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Text {
     pub fr: String,
@@ -134,7 +120,6 @@ impl Text {
         }
     }
 
-    /// Words of the users themselves (a question, a message): the same in every language.
     pub fn same(s: impl Into<String>) -> Self {
         let s = s.into();
         Self {
@@ -143,7 +128,6 @@ impl Text {
         }
     }
 
-    /// Built per language.
     pub fn by(f: impl Fn(Lang) -> String) -> Self {
         Self {
             fr: f(Lang::Fr),
@@ -158,8 +142,6 @@ impl Text {
         }
     }
 }
-
-// ---------- push and inbox ----------
 
 pub fn result_and_question(lang: Lang) -> &'static str {
     lang.pick(
@@ -176,7 +158,6 @@ pub fn everyone_voted(lang: Lang) -> &'static str {
     lang.pick("Tout le monde a voté.", "Everyone has voted.")
 }
 
-/// A choose question seen by an app too old to show it (docs/CHOOSE.md).
 pub fn update_to_answer(lang: Lang, question: &str) -> String {
     match lang {
         Lang::Fr => format!("Mets l'app à jour pour répondre : {question}"),
@@ -184,7 +165,6 @@ pub fn update_to_answer(lang: Lang, question: &str) -> String {
     }
 }
 
-/// Push title when a said question's guessing starts (docs/SAID.md).
 pub fn said_guessing(lang: Lang) -> &'static str {
     lang.pick(
         "Les réponses sont là : qui a dit quoi ?",
@@ -192,7 +172,6 @@ pub fn said_guessing(lang: Lang) -> &'static str {
     )
 }
 
-/// The inbox entry for the same moment: the title, then the question.
 pub fn said_guessing_entry(lang: Lang, question: &str) -> String {
     match lang {
         Lang::Fr => format!("{} « {question} »", said_guessing(lang)),
@@ -204,7 +183,6 @@ pub fn new_question(lang: Lang) -> &'static str {
     lang.pick("Nouvelle question", "New question")
 }
 
-/// Chat push title: `Ana · « Who…? »`.
 pub fn chat_title(lang: Lang, name: &str, question: &str) -> String {
     match lang {
         Lang::Fr => format!("{name} · « {question} »"),
@@ -226,7 +204,6 @@ pub fn nudge(lang: Lang, name: &str) -> String {
     }
 }
 
-/// The evening streak reminder (docs/STREAKS.md): title, then body.
 pub fn streak_ending(lang: Lang, days: i64) -> String {
     match lang {
         Lang::Fr => format!("Ta série de {days} jours va s'arrêter"),
@@ -277,20 +254,14 @@ pub fn room_invite(lang: Lang, name: &str, room: &str) -> String {
     }
 }
 
-// ---------- member names ----------
-
-/// What a deleted account is called. The database keeps the French placeholder
-/// (`accounts::delete::DELETED_NAME`); texts for a reader use their language.
 pub fn deleted_name(lang: Lang) -> &'static str {
     lang.pick(crate::accounts::delete::DELETED_NAME, "Deleted account")
 }
 
-/// Is this seat the leftover of a deleted account? (anonymised: no account, the placeholder name)
 pub fn is_deleted(name: &str, user_id: Option<UserId>) -> bool {
     user_id.is_none() && name == crate::accounts::delete::DELETED_NAME
 }
 
-/// A member's name as shown to a reader: a deleted account's placeholder in the reader's language.
 pub fn member_name(lang: Lang, name: &str, user_id: Option<UserId>) -> String {
     if is_deleted(name, user_id) {
         deleted_name(lang).to_owned()
@@ -299,17 +270,12 @@ pub fn member_name(lang: Lang, name: &str, user_id: Option<UserId>) -> String {
     }
 }
 
-// ---------- party ----------
-
-/// The name of a party created without one.
 pub fn party_default_name(lang: Lang, host: &str) -> String {
     match lang {
         Lang::Fr => format!("Soirée de {host}"),
         Lang::En => format!("{host}'s party"),
     }
 }
-
-// ---------- history export (CSV) ----------
 
 pub fn csv_header(lang: Lang) -> &'static str {
     lang.pick(
@@ -318,7 +284,6 @@ pub fn csv_header(lang: Lang) -> &'static str {
     )
 }
 
-/// `Ana (2) : Bob, Carl`: who got how many votes, from whom.
 pub fn csv_votes(lang: Lang, name: &str, count: i64, voters: &str) -> String {
     match lang {
         Lang::Fr => format!("{name} ({count}) : {voters}"),
@@ -333,9 +298,6 @@ pub fn csv_disposition(lang: Lang) -> &'static str {
     )
 }
 
-// ---------- account e-mails ----------
-
-/// Subject, heading, intro and outro of a code e-mail.
 pub struct CodeMail {
     pub subject: String,
     pub heading: &'static str,
@@ -428,18 +390,13 @@ pub fn mfa_reset(lang: Lang, code: &str) -> CodeMail {
     }
 }
 
-/// A security change worth a short e-mail to the account's (verified) address.
 #[derive(Clone, Debug)]
 pub enum Notice {
     TotpOn,
     TotpOff,
     PasswordChanged,
     PasswordSet,
-    /// To the old address: the account now uses `new` (masked), write to `contact` if not me.
-    EmailChanged {
-        new: String,
-        contact: String,
-    },
+    EmailChanged { new: String, contact: String },
     ProviderLinked(String),
     ProviderUnlinked(String),
     MfaResetScheduled,
@@ -556,8 +513,6 @@ pub fn notice(lang: Lang, n: &Notice) -> NoticeMail {
     }
 }
 
-// ---------- share cards and pages ----------
-
 pub fn card_tag_rank(lang: Lang, number: i64) -> String {
     format!("{} · #{number}", lang.pick("CLASSEMENT", "RANKING"))
 }
@@ -577,12 +532,10 @@ pub fn card_footer(lang: Lang) -> &'static str {
     )
 }
 
-/// A ranking score on the podium (`pts` in both languages).
 pub fn points(points: i64) -> String {
     format!("{points} pts")
 }
 
-/// A share of the votes on the podium.
 pub fn percent(lang: Lang, pc: i64) -> String {
     match lang {
         Lang::Fr => format!("{pc} %"),
@@ -619,15 +572,12 @@ pub fn share_expired(lang: Lang) -> &'static str {
     lang.pick("Lien expiré", "Link expired")
 }
 
-/// Primary button of a shared question's page (`/play?share=`).
 pub fn share_play(lang: Lang) -> &'static str {
     lang.pick(
         "Jouer cette question avec tes potes",
         "Play this question with your friends",
     )
 }
-
-// ---------- pack pages (`/p/{id}`) ----------
 
 pub fn card_tag_pack(lang: Lang, count: i64) -> String {
     format!("PACK · {count} {}", lang.pick("QUESTIONS", "QUESTIONS"))

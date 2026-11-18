@@ -22,7 +22,6 @@ async fn deleting_an_account_from_the_app() {
     let (_, inbox) = in_room(&t, "GET", "/inbox", &bob, room, None).await;
     assert_eq!(inbox["items"][0]["kind"], "message");
 
-    // A password account proves it is them.
     let (s, b) = call(&t.app, "DELETE", "/auth/account", Some(&ana), None).await;
     assert_eq!(
         (s, b["error"].as_str()),
@@ -51,7 +50,6 @@ async fn deleting_an_account_from_the_app() {
     )
     .await;
     assert_eq!((s, &b), (StatusCode::OK, &json!({ "ok": true })));
-    // Every session is gone; the email no longer signs in, and is free again.
     for token in [&ana, &other_device] {
         let (s, _) = call(&t.app, "GET", "/auth/account", Some(token), None).await;
         assert_eq!(s, StatusCode::UNAUTHORIZED);
@@ -59,7 +57,6 @@ async fn deleting_an_account_from_the_app() {
     let (s, _) = login(&t, "ana@example.com", PASSWORD).await;
     assert_eq!(s, StatusCode::BAD_REQUEST);
 
-    // Bob owns the room now, alone among the active members.
     let (_, g) = in_room(&t, "GET", "/group", &bob, room, None).await;
     let members = g["members"].as_array().unwrap();
     assert_eq!(members.len(), 1);
@@ -67,7 +64,6 @@ async fn deleting_an_account_from_the_app() {
         (&members[0]["id"], &g["my_role"]),
         (&json!(bob_seat), &json!("owner"))
     );
-    // The history still counts Ana's vote, under an anonymous name; her message is gone.
     let (s, r) = in_room(&t, "GET", &format!("/rounds/{round}"), &bob, room, None).await;
     assert_eq!(s, StatusCode::OK);
     assert_eq!(r["result"][0]["count"], 2);
@@ -156,7 +152,6 @@ async fn deleting_with_2fa_legacy_and_alone_in_a_room() {
     .await;
     let recovery = b["recovery_codes"][0].as_str().unwrap().to_owned();
     let room = room_with(&t, &cyd, &[]).await;
-    // A 2FA code instead of the password.
     let (s, b) = call(
         &t.app,
         "DELETE",
@@ -178,7 +173,6 @@ async fn deleting_with_2fa_legacy_and_alone_in_a_room() {
     )
     .await;
     assert_eq!(s, StatusCode::OK, "{b}");
-    // Alone in the room: it is deleted.
     let deleted: Option<String> = sqlx::query_scalar("SELECT deleted_at FROM groups WHERE id = ?")
         .bind(room)
         .fetch_one(&t.state.db)
@@ -187,8 +181,6 @@ async fn deleting_with_2fa_legacy_and_alone_in_a_room() {
     assert!(deleted.is_some());
     assert_eq!(count(&t, "SELECT COUNT(*) FROM recovery_codes").await, 0);
 
-    // A legacy account has nothing to prove, but a name grab can't delete it while the owner
-    // has another session.
     let (s, _) = legacy_join(&t.app, "Yann").await;
     assert_eq!(s, StatusCode::OK);
     let (_, b) = legacy_join(&t.app, "Zoé").await;
@@ -206,7 +198,6 @@ async fn deleting_with_2fa_legacy_and_alone_in_a_room() {
         let (s, _) = call(&t.app, "GET", "/me", Some(token), None).await;
         assert_eq!(s, StatusCode::UNAUTHORIZED);
     }
-    // Her seat is not up for grabs by first name.
     let (s, _) = legacy_join(&t.app, "Zoé").await;
     assert_eq!(s, StatusCode::OK);
     assert_eq!(
@@ -234,7 +225,6 @@ async fn deleting_from_the_public_page() {
     let html = String::from_utf8_lossy(&html);
     assert!(html.contains("Supprimer mon compte") && html.contains("/api/auth/delete/"));
 
-    // Unknown address: same answer, nothing sent.
     let (s, b) = call(
         &t.app,
         "POST",
@@ -253,7 +243,6 @@ async fn deleting_from_the_public_page() {
     )
     .await;
     assert_eq!((s, &b), (StatusCode::OK, &json!({ "sent": true })));
-    // The signup sent the verification code first.
     let code = wait_for_code(&t.mail, "dan@example.com", 2).await;
     tokio::time::sleep(Duration::from_millis(50)).await;
     assert_eq!(t.mail.count("nobody@example.com"), 0);
@@ -272,7 +261,6 @@ async fn deleting_from_the_public_page() {
         (s, b["error"].as_str()),
         (StatusCode::BAD_REQUEST, Some("bad_code"))
     );
-    // A password reset code is not a deletion code.
     let (s, _) = call(
         &t.app,
         "POST",
@@ -303,7 +291,6 @@ async fn deleting_from_the_public_page() {
     .await;
     assert_eq!(s, StatusCode::BAD_REQUEST);
 
-    // No email configured: the page says so.
     let plain = app(state(base_config()).await.unwrap());
     let (s, b) = call(
         &plain,
@@ -360,7 +347,6 @@ async fn reports_are_stored_emailed_and_limited() {
     let email = t.mail.sent.lock().unwrap().last().unwrap().clone();
     assert!(email.text.contains("un message <b>limite</b>") && email.text.contains("pas sympa"));
     assert!(email.html.contains("&lt;b&gt;limite") && !email.html.contains("<b>limite"));
-    // Twice: stored once, emailed once, still ok.
     let (s, _) = report(
         &t,
         &ana,
@@ -391,7 +377,6 @@ async fn reports_are_stored_emailed_and_limited() {
     );
     assert_eq!(count(&t, "SELECT COUNT(*) FROM reports").await, 2);
 
-    // A question someone added, from the room.
     let (_, q) = in_room(
         &t,
         "POST",
@@ -409,7 +394,6 @@ async fn reports_are_stored_emailed_and_limited() {
     .await;
     assert_eq!(s, StatusCode::OK);
 
-    // Not myself, not from outside the room, not nonsense.
     let (s, b) = report(
         &t,
         &ana,
@@ -453,7 +437,6 @@ async fn reports_are_stored_emailed_and_limited() {
     .await;
     assert_eq!(s, StatusCode::BAD_REQUEST);
 
-    // 20 an hour per person (Ana has used 4).
     for _ in 0..16 {
         let (s, _) = report(
             &t,

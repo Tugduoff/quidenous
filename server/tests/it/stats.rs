@@ -1,5 +1,3 @@
-//! Stats v2 (docs/STATS.md): periods, time zones, awards, profiles, stories and shared stat cards.
-
 use crate::common::{call_last_room as call, join, setup};
 use quidenous_server::platform::ids::RoomId;
 
@@ -39,7 +37,6 @@ async fn members(app: &Router, names: &[&str]) -> Vec<(String, i64)> {
     out
 }
 
-/// Everyone votes on the open pick question; returns its id.
 async fn play(app: &Router, votes: &[(&str, i64)]) -> i64 {
     let (_, open) = call(app, "GET", "/round/current", Some(votes[0].0), None).await;
     let id = open["id"].as_i64().expect("an open question");
@@ -57,8 +54,6 @@ async fn play(app: &Router, votes: &[(&str, i64)]) -> i64 {
     id
 }
 
-/// Adds a ranking question (each text once: a room refuses a duplicate) and everyone ranks in the
-/// given order.
 async fn play_rank(app: &Router, tokens: &[&str], text: &str, order: &[i64]) -> i64 {
     let (s, b) = call(
         app,
@@ -69,7 +64,6 @@ async fn play_rank(app: &Router, tokens: &[&str], text: &str, order: &[i64]) -> 
     )
     .await;
     assert_eq!(s, StatusCode::OK, "{b}");
-    // The pick question already open goes first: everyone votes for the first person.
     let (_, open) = call(app, "GET", "/round/current", Some(tokens[0]), None).await;
     if open["kind"] != "rank" {
         let votes: Vec<(&str, i64)> = tokens.iter().map(|t| (*t, order[0])).collect();
@@ -110,7 +104,6 @@ async fn stats(app: &Router, token: &str, query: &str) -> Value {
     body
 }
 
-/// Moves a question (its votes and messages too) `days` back in time.
 async fn age(db: &SqlitePool, round: i64, days: i64) {
     let m = format!("-{days} days");
     for sql in [
@@ -177,7 +170,6 @@ fn sum(v: &Value) -> i64 {
         .sum()
 }
 
-/// The invariants every story list keeps.
 fn check_stories(s: &Value) {
     let stories = s["stories"].as_array().unwrap();
     assert!(!stories.is_empty() && stories.len() <= 6, "{stories:?}");
@@ -237,7 +229,6 @@ async fn stats_filter_by_period_and_reject_unknown_ones() {
     assert_eq!(week["questions"], 1);
     assert_eq!(week["most_chosen"]["member_id"], a.1);
 
-    // Activity: exactly 7 / 30 daily buckets ending today; `all` from the first question's day.
     assert_eq!(week["activity"]["bucket"], "day");
     assert_eq!(week["activity"]["questions"].as_array().unwrap().len(), 7);
     assert_eq!(sum(&week["activity"]["questions"]), 1);
@@ -249,12 +240,10 @@ async fn stats_filter_by_period_and_reject_unknown_ones() {
     assert_eq!(all["activity"]["questions"][0], 1);
     assert_eq!(sum(&all["activity"]["votes"]), 9);
     assert_eq!(all["activity"]["start"].as_str().unwrap().len(), 10);
-    // Heatmap: 7 days of 24 hours, every vote in it.
     let heat = all["heatmap"].as_array().unwrap();
     assert_eq!(heat.len(), 7);
     assert!(heat.iter().all(|d| d.as_array().unwrap().len() == 24));
     assert_eq!(heat.iter().map(sum).sum::<i64>(), 9);
-    // Every current member has a profile, by id.
     let ids: Vec<i64> = all["profiles"]
         .as_array()
         .unwrap()
@@ -268,13 +257,10 @@ async fn stats_filter_by_period_and_reject_unknown_ones() {
         (s, body["error"].as_str()),
         (StatusCode::BAD_REQUEST, Some("bad_period"))
     );
-    // A silly time zone is clamped, not an error.
     stats(&app, &a.0, "?tz=99999").await;
     stats(&app, &a.0, "?tz=abc").await;
 }
 
-/// Ana, Bob, Cyd, Dan, Eve. Rounds 1-4: everyone but Dan picks Cyd (Cyd too), Dan picks Bob.
-/// Rounds 5-6: Ana and Bob pick Bob, who wins by one vote; the others scatter.
 async fn voting_blocs(app: &Router) -> Vec<(String, i64)> {
     let m = members(app, &["Ana", "Bob", "Cyd", "Dan", "Eve"]).await;
     let (a, b, c, d, e) = (&m[0], &m[1], &m[2], &m[3], &m[4]);
@@ -336,7 +322,6 @@ async fn contrarian_sheep_loyal_twins_and_kingmaker() {
     );
     assert_eq!(s["narcissist"], json!({ "member_id": c, "value": 4 }));
     assert_eq!(s["most_unanimous"], Value::Null, "Dan never agrees");
-    // Edges: who votes for whom, self included.
     let edges = s["edges"].as_array().unwrap();
     assert!(edges.contains(&json!({ "voter_id": c, "target_id": c, "value": 4 })));
     assert!(edges.contains(&json!({ "voter_id": d, "target_id": b, "value": 4 })));
@@ -347,7 +332,6 @@ async fn contrarian_sheep_loyal_twins_and_kingmaker() {
             .sum::<i64>(),
         30
     );
-    // Profiles.
     let p = &s["profiles"][2];
     assert_eq!(p["member_id"], c);
     assert_eq!(p["received"], 16);
@@ -383,7 +367,6 @@ async fn contrarian_sheep_loyal_twins_and_kingmaker() {
         .collect();
     assert_eq!(keys[0], "narcissist", "{keys:?}");
 
-    // A spicy room gets its own lines, same rules.
     sqlx::query("UPDATE groups SET vibe = 'pimente'")
         .execute(&st.db)
         .await
@@ -400,7 +383,6 @@ async fn streaks_records_and_comebacks() {
     let all =
         |target: i64| -> Vec<(&str, i64)> { m.iter().map(|x| (x.0.as_str(), target)).collect() };
     let (a, b, c) = (m[0].1, m[1].1, m[2].1);
-    // Winners: Cyd, Ana ×3, Bob ×5, then Cyd ×2.
     let mut order = vec![c, a, a, a];
     order.extend([b; 5]);
     order.extend([c, c]);
@@ -434,7 +416,6 @@ async fn night_owls_and_early_birds_follow_the_time_zone() {
         let id = play(&app, &[(&m[0].0, b), (&m[1].0, c), (&m[2].0, a)]).await;
         let day = base + i * 86_400;
         set_round_times(&st.db, id, day - 4 * 3600, day + 12 * 3600).await;
-        // Ana at 22:30 UTC the night before, Bob at 04:30 UTC, Cyd at noon.
         set_vote_time(&st.db, id, a, day - 5400).await;
         set_vote_time(&st.db, id, b, day + 4 * 3600 + 1800).await;
         set_vote_time(&st.db, id, c, day + 12 * 3600).await;
@@ -452,7 +433,6 @@ async fn night_owls_and_early_birds_follow_the_time_zone() {
         .map(|d| d[23].as_i64().unwrap())
         .sum();
     assert_eq!(hour23, 3);
-    // Slow and fast: Ana votes 2.5 h after opening, Cyd 16 h after.
     assert_eq!(paris["fastest"]["member_id"], a);
     assert_eq!(paris["fastest"]["value"], 9000);
     assert_eq!(paris["slowest"]["member_id"], c);
@@ -510,7 +490,6 @@ async fn chatterbox_silent_hottest_and_split() {
     assert_eq!(s["most_unanimous"]["round_id"], first);
     assert_eq!(s["most_unanimous"]["value"], 5);
     assert_eq!(s["profiles"][0]["messages"], 8);
-    // Bob's best: 5 votes out of 5 on the first question.
     assert_eq!(s["profiles"][1]["best"]["round_id"], first);
     assert_eq!(s["profiles"][1]["best"]["value"], 5);
     check_stories(&s);
@@ -547,7 +526,6 @@ async fn ranking_positions_make_podium_and_red_lantern() {
     );
     assert_eq!(s["profiles"][0]["avg_rank"], 1.0);
     assert_eq!(s["profiles"][2]["avg_rank"], 2.5);
-    // Bob's worst ranking: 3rd of 3, on the second one.
     let worst = &s["profiles"][1]["worst"];
     assert_eq!(worst["kind"], "rank");
     assert_eq!(
@@ -556,7 +534,6 @@ async fn ranking_positions_make_podium_and_red_lantern() {
     );
     assert!(worst["round_id"].as_i64().unwrap() > r1);
     assert_eq!(s["profiles"][0]["worst"]["value"], 1);
-    // Ranking questions are won on points: Ana took both, plus the pick round before.
     assert_eq!(s["profiles"][0]["wins"], s["questions"]);
     check_stories(&s);
 }
@@ -613,7 +590,6 @@ async fn stat_stories_can_be_shared_publicly() {
     assert_eq!((status, ctype.as_str()), (StatusCode::OK, "image/png"));
     assert_eq!(&png[1..4], b"PNG");
 
-    // A story the stats don't have, a bad period, no token.
     let (status, _) = call(
         &app,
         "POST",
@@ -643,7 +619,6 @@ async fn stat_stories_can_be_shared_publicly() {
     assert_eq!(status, StatusCode::UNAUTHORIZED);
 }
 
-/// `cargo test --release --test stats -- --ignored --nocapture`: 20 members, 400 finished questions.
 #[tokio::test]
 #[ignore]
 async fn bench_stats_on_a_big_room() {

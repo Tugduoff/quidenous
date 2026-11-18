@@ -12,7 +12,6 @@ use crate::{
 
 use super::*;
 
-/// Closes the open reports on one target.
 pub(super) async fn resolve(
     tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
     kind: &str,
@@ -43,7 +42,6 @@ pub(super) type OpenRow = (
     String,
 );
 
-/// Open reports, one entry per reported thing (oldest first), for `GET /admin/review`.
 pub async fn open_reports(state: &AppState) -> AppResult<Vec<Value>> {
     let rows: Vec<OpenRow> = sqlx::query_as(
         "SELECT kind, target_id, MAX(room_id), MAX(reported_user_id), MAX(content), COUNT(*), MIN(created_at), \
@@ -64,7 +62,6 @@ pub async fn open_reports(state: &AppState) -> AppResult<Vec<Value>> {
                 .bind(user)
                 .fetch_optional(&state.db)
                 .await?;
-        // Still there (and for a message: hidden by reports or not).
         let (gone, hidden): (bool, bool) = match kind.as_str() {
             "message" => sqlx::query_as::<_, (bool, bool)>(
                 "SELECT 0, hidden_at IS NOT NULL FROM messages WHERE id = ?",
@@ -82,7 +79,6 @@ pub async fn open_reports(state: &AppState) -> AppResult<Vec<Value>> {
                 .await?,
                 false,
             ),
-            // Deleted by an admin: blanked.
             "answer" => sqlx::query_as::<_, (bool, bool)>(
                 "SELECT text = '', hidden_at IS NOT NULL FROM said_answers WHERE id = ?",
             )
@@ -110,7 +106,6 @@ pub async fn open_reports(state: &AppState) -> AppResult<Vec<Value>> {
                 false,
             ),
         };
-        // An image or a GIF: what the admin needs to see (an image even while hidden).
         let media = if kind == "message" && !gone {
             sqlx::query_as::<_, (String, Option<String>)>(
                 "SELECT kind, media FROM messages WHERE id = ?",
@@ -156,13 +151,9 @@ pub async fn open_reports(state: &AppState) -> AppResult<Vec<Value>> {
 pub struct ActBody {
     kind: String,
     id: i64,
-    /// `dismiss` (nothing wrong: a hidden message, said answer or suggestion comes back), `delete`
-    /// (the message, the question, the said answer or the suggestion), `suspend` or `erase` (the
-    /// reported account).
     action: String,
 }
 
-/// `POST /admin/reports`: an admin closes the open reports on one thing.
 pub async fn act(
     State(state): State<AppState>,
     Admin(_): Admin,
@@ -220,7 +211,6 @@ pub async fn act(
                     state.live.send(room, Event::RoundUpdated { round_id });
                 }
             } else if kind == "suggestion" {
-                // Taken off the vote stack by reports: back where its votes put it.
                 let votes: Option<(i64, i64)> = sqlx::query_as(
                     "SELECT up, down FROM suggestions WHERE id = ? AND status = 'rejected' AND decided_at IS NULL",
                 )
@@ -270,11 +260,6 @@ pub async fn act(
     Ok(Json(json!({ "ok": true })))
 }
 
-/// Signs the account out everywhere and refuses its sign-ins (`403 suspended`) from now on. Its
-/// rooms stop waiting for it: every seat it shares with someone is given up like a leave
-/// (`rooms::leave_seat`, as when an account is deleted: an owner hands over, the open question is
-/// checked again without it). A room it is alone in stays as it is (nobody waits there, and a
-/// suspension can be lifted).
 pub(crate) async fn suspend(state: &AppState, user: UserId) -> AppResult<()> {
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
     sqlx::query(

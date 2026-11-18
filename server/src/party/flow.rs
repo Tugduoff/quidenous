@@ -44,16 +44,12 @@ pub(super) async fn answer(state: &AppState, id: RoomId, me: &MemberRow) -> AppR
     Ok(Json(view(state, id, Some(&me)).await?))
 }
 
-/// Opens the next question of a paused party, if it is still waiting after `after` (the revealed
-/// question; `None` = the lobby). Concurrent taps open it once. A party with no question left stays
-/// paused. Returns the new round.
 pub(super) async fn open_next(
     state: &AppState,
     id: RoomId,
     after: Option<RoundId>,
 ) -> AppResult<Option<RoundId>> {
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
-    // Write first: the transaction holds the lock for the checks below.
     let released = sqlx::query(
         "UPDATE groups SET paused_at = NULL, next_open_at = NULL WHERE id = ? AND paused_at IS NOT NULL",
     )
@@ -93,8 +89,6 @@ pub(super) async fn open_next(
         state.live.send(id, Event::RoundOpened { round_id });
         spawn_deadline(state.clone(), round_id);
     } else if after.is_some() {
-        // Nothing left to ask: the party ends (everyone gets its recap) instead of a result
-        // nobody can move on from.
         finish(state, id).await?;
         return Ok(None);
     }
@@ -102,8 +96,6 @@ pub(super) async fn open_next(
     Ok(opened)
 }
 
-/// Opens the next question when the revealed one has enough "Suivante" taps (75 % of the players
-/// still there, or one once the result has been up a while). After a tap, a leave or a removal.
 pub(super) async fn check_taps(state: &AppState, id: RoomId) -> AppResult<Option<RoundId>> {
     check_taps_at(state, id, None).await
 }
@@ -129,7 +121,6 @@ pub(super) async fn check_taps_at(
     open_next(state, id, Some(round_id)).await
 }
 
-/// After someone left or was removed (the open question was already re-checked by `close_if_done`).
 pub async fn after_leave(state: &AppState, id: RoomId) -> AppResult<()> {
     if game::party(&state.db, id).await?.is_some() {
         check_taps(state, id).await?;
@@ -137,7 +128,6 @@ pub async fn after_leave(state: &AppState, id: RoomId) -> AppResult<()> {
     Ok(())
 }
 
-/// Closes the open question of a party that is over and pauses it for good, once. `true` = it just ended.
 pub(super) async fn end_party(state: &AppState, id: RoomId, now: &str) -> AppResult<bool> {
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
     let done = sqlx::query(
@@ -168,20 +158,13 @@ pub(super) async fn end_party(state: &AppState, id: RoomId, now: &str) -> AppRes
     Ok(true)
 }
 
-/// What a sweep did.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct Swept {
-    /// Questions closed at their deadline.
     pub closed: usize,
-    /// Parties that just ended.
     pub ended: usize,
-    /// Results that had a tap and stayed up past the grace: next question opened.
     pub moved_on: usize,
 }
 
-/// At `now` (`YYYY-MM-DDTHH:MM:SS.sssZ`, the database format): ends every party past its end
-/// (closing its open question) and closes every party question past its deadline, voted or not.
-/// Idempotent.
 pub async fn sweep_at(state: &AppState, now: &str) -> AppResult<Swept> {
     let mut swept = Swept::default();
     let ending: Vec<RoomId> = sqlx::query_scalar(
@@ -191,7 +174,6 @@ pub async fn sweep_at(state: &AppState, now: &str) -> AppResult<Swept> {
     .bind(now)
     .fetch_all(&state.db)
     .await?;
-    // One party failing is logged and retried next sweep; the others still go ahead.
     for id in ending {
         match end_party(state, id, now).await {
             Ok(true) => swept.ended += 1,
@@ -215,7 +197,6 @@ pub async fn sweep_at(state: &AppState, now: &str) -> AppResult<Swept> {
             }
         }
     }
-    // A result up for the grace with a "Suivante" tap waiting (tapped before the grace, nobody else came).
     let waiting: Vec<RoomId> = sqlx::query_scalar(
         "SELECT g.id FROM groups g JOIN rounds r ON r.group_id = g.id \
          AND r.number = (SELECT MAX(number) FROM rounds WHERE group_id = g.id) \
@@ -239,8 +220,6 @@ pub async fn sweep_at(state: &AppState, now: &str) -> AppResult<Swept> {
     Ok(swept)
 }
 
-/// Closes one party question past its deadline (a said question with answers enough moves on to
-/// its guessing instead, with a new deadline). `false` when it didn't close.
 pub(super) async fn close_due(
     state: &AppState,
     id: RoomId,
@@ -263,13 +242,11 @@ pub(super) async fn close_due(
     Ok(closed)
 }
 
-/// [`sweep_at`] with the database clock.
 pub async fn sweep(state: &AppState) -> AppResult<Swept> {
     let now = db_now(state).await?;
     sweep_at(state, &now).await
 }
 
-/// Sleeps until the question's deadline, then sweeps (closes it if still open).
 pub fn spawn_deadline(state: AppState, round_id: RoundId) {
     tokio::spawn(async move {
         let left: Option<f64> = sqlx::query_scalar(
@@ -282,7 +259,6 @@ pub fn spawn_deadline(state: AppState, round_id: RoundId) {
         .ok()
         .flatten();
         let Some(left) = left else { return };
-        // A little after the deadline, so the database clock has passed it too.
         let wait = std::time::Duration::from_secs_f64(left.max(0.0) + 0.05);
         tokio::time::sleep(wait).await;
         if let Err(e) = sweep(&state).await {
@@ -291,8 +267,6 @@ pub fn spawn_deadline(state: AppState, round_id: RoundId) {
     });
 }
 
-/// The background task that closes overdue party questions and ends finished parties (first run
-/// right away: catches up after a restart).
 pub fn spawn_sweeper(state: AppState) {
     tokio::spawn(async move {
         let mut tick = tokio::time::interval(SWEEP);

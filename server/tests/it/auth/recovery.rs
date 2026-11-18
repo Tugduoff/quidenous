@@ -3,7 +3,6 @@ use super::*;
 #[tokio::test]
 async fn security_changes_send_a_notice_to_the_verified_email() {
     let t = setup().await;
-    // Unverified: the address may be someone else's, nothing is sent to it.
     let (bob, _) = signup(&t, "bob@example.com", "Bob").await;
     let (s, _) = call(
         &t.app,
@@ -52,7 +51,6 @@ async fn security_changes_send_a_notice_to_the_verified_email() {
             "Double authentification désactivée"
         ]
     );
-    // The notice has no code in it (the code e-mails are unaffected).
     let n = t.mail.notices.lock().unwrap()[0].clone();
     assert!(n.text.contains("Si ce n'est pas toi"), "{}", n.text);
     assert!(n.html.contains("lang=\"fr\""));
@@ -65,7 +63,6 @@ async fn failed_sends_are_reported_without_saying_who_has_an_account() {
     let t = setup().await;
     let (ana, _) = signup(&t, "ana@example.com", "Ana").await;
     t.mail.fail.store(true, Ordering::Relaxed);
-    // Sign-up: the account works, and the app can say the e-mail didn't go.
     let (s, b) = call(
         &t.app,
         "POST",
@@ -84,7 +81,6 @@ async fn failed_sends_are_reported_without_saying_who_has_an_account() {
         (s, b["error"].as_str()),
         (StatusCode::SERVICE_UNAVAILABLE, Some("email_failed"))
     );
-    // Forgot and the public deletion page: same answer for an account and for nobody.
     for email in ["ana@example.com", "nobody@example.com"] {
         for path in ["/auth/forgot", "/auth/delete/send"] {
             let (s, b) = call(&t.app, "POST", path, None, Some(json!({ "email": email }))).await;
@@ -95,7 +91,6 @@ async fn failed_sends_are_reported_without_saying_who_has_an_account() {
             );
         }
     }
-    // Mail works again: the next send clears it.
     t.mail.fail.store(false, Ordering::Relaxed);
     let (s, b) = call(&t.app, "POST", "/auth/verify/send", Some(&ana), None).await;
     assert_eq!((s, &b["email_sent"]), (StatusCode::OK, &json!(true)));
@@ -160,7 +155,6 @@ async fn changing_the_email_needs_a_code_from_the_new_address() {
         }
     };
     assert_eq!(confirm(wrong.into()).await.1["error"], "bad_code");
-    // Nothing changed yet.
     let (_, acct) = call(&t.app, "GET", "/auth/account", Some(&ana), None).await;
     assert_eq!(acct["email"], "ana@example.com");
     let (s, b) = confirm(code).await;
@@ -170,7 +164,6 @@ async fn changing_the_email_needs_a_code_from_the_new_address() {
         (&acct["email"], &acct["email_verified"]),
         (&json!("new@example.com"), &json!(true))
     );
-    // The old address is told, with the new one masked.
     let notices = wait_notices(&t.mail, "ana@example.com", 1).await;
     assert_eq!(notices, ["Adresse e-mail modifiée"]);
     let n = t.mail.notices.lock().unwrap()[0].clone();
@@ -223,8 +216,6 @@ async fn an_unverified_email_is_only_freed_by_a_proof() {
         }
     };
 
-    // A week later, its owner comes back on a new phone: the lookup changes nothing, and the
-    // password still signs in (it used to detach the address and orphan the account).
     for _ in 0..3 {
         let (s, b) = call(
             &t.app,
@@ -243,12 +234,9 @@ async fn an_unverified_email_is_only_freed_by_a_proof() {
         (StatusCode::OK, Some(typo_id)),
         "{b}"
     );
-    // A sign-up proves nothing either.
     assert_eq!(again().await.1["error"], "email_taken");
     assert_eq!(email_of(typo_id).await.as_deref(), Some("real@example.com"));
 
-    // Someone who proves the address (a code sent to it) takes it: the account that typed it
-    // keeps its sessions and can add another address.
     let (real, real_id) = signup(&t, "real-other@example.com", "Real").await;
     reauth(&t, &real).await;
     let (s, b) = call(
@@ -260,7 +248,6 @@ async fn an_unverified_email_is_only_freed_by_a_proof() {
     )
     .await;
     assert_eq!(s, StatusCode::OK, "{b}");
-    // Asking for the code is not a proof.
     assert_eq!(email_of(typo_id).await.as_deref(), Some("real@example.com"));
     let code = t.mail.last_code("real@example.com").unwrap();
     let (s, b) = call(
@@ -281,7 +268,6 @@ async fn an_unverified_email_is_only_freed_by_a_proof() {
     let (s, acct) = call(&t.app, "GET", "/auth/account", Some(&typo), None).await;
     assert_eq!((s, &acct["email"]), (StatusCode::OK, &Value::Null));
 
-    // A verified address is never freed.
     sqlx::query("UPDATE users SET email_set_at = '2020-01-01T00:00:00.000Z' WHERE id = ?")
         .bind(real_id)
         .execute(&t.state.db)
@@ -347,7 +333,6 @@ async fn lost_2fa_without_codes_is_reset_by_email_a_day_later() {
     assert_eq!(s, StatusCode::OK, "{b}");
     let at = b["reset_at"].as_i64().unwrap();
     assert!((at - now() as i64 - 24 * 3600).abs() < 60, "{at}");
-    // The notices are sent from spawned tasks: their order isn't fixed.
     assert!(
         wait_notices(&t.mail, "ana@example.com", 2)
             .await
@@ -356,16 +341,13 @@ async fn lost_2fa_without_codes_is_reset_by_email_a_day_later() {
     );
     let (_, acct) = call(&t.app, "GET", "/auth/account", Some(&ana), None).await;
     assert_eq!(acct["mfa_reset_at"], at);
-    // Before the day is over, 2FA still applies.
     assert!(login(&t, "ana@example.com", PASSWORD).await.1["challenge"].is_string());
 
-    // A signed-in session cancels it.
     let (s, _) = call(&t.app, "POST", "/auth/2fa/reset/cancel", Some(&ana), None).await;
     assert_eq!(s, StatusCode::OK);
     let (_, acct) = call(&t.app, "GET", "/auth/account", Some(&ana), None).await;
     assert_eq!(acct["mfa_reset_at"], Value::Null);
 
-    // Asked again, and the day is over: the next sign-in removes 2FA.
     let c = challenge().await;
     call(
         &t.app,
@@ -411,7 +393,6 @@ async fn lost_2fa_without_codes_is_reset_by_email_a_day_later() {
     );
     let _ = secret;
 
-    // Signing in with a code calls a pending reset off; no verified e-mail, no reset.
     let secret = enable_2fa(&t, &token).await;
     let c = challenge().await;
     call(
@@ -479,7 +460,6 @@ async fn sessions_are_capped_and_expire_when_unused() {
         .await
         .unwrap();
     assert_eq!(n, quidenous_server::accounts::MAX_SESSIONS);
-    // The least recently used one (the sign-up's, never used since) went.
     assert_eq!(
         call(&t.app, "GET", "/auth/account", Some(&first), None)
             .await
@@ -487,7 +467,6 @@ async fn sessions_are_capped_and_expire_when_unused() {
         StatusCode::UNAUTHORIZED
     );
 
-    // 180 days unused: gone for an account that can sign in again, kept for a legacy one.
     let (_, b) = login(&t, "ana@example.com", PASSWORD).await;
     let ana = b["token"].as_str().unwrap().to_owned();
     let (_, b) = legacy_join(&t.app, "Rita").await;
@@ -534,7 +513,6 @@ async fn a_claimed_session_can_secure_an_account_whose_other_device_is_long_unus
         (s, b["error"].as_str()),
         (StatusCode::FORBIDDEN, Some("claimed_session"))
     );
-    // The lost phone hasn't been used for 31 days.
     let hash = hex::encode(Sha256::digest(lost.as_bytes()));
     sqlx::query(
         "UPDATE user_tokens SET last_used_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-31 days'), \
@@ -568,8 +546,6 @@ async fn a_password_reset_by_email_holds_off_a_2fa_reset_for_a_week() {
     let mfa_reset =
         async |path: &str, body: Value| call(&t.app, "POST", path, None, Some(body)).await;
 
-    // A 2FA reset is pending (confirmed), and another code is on its way. (Sends share the
-    // 3 / hour budget with `forgot`.)
     sqlx::query("UPDATE users SET mfa_reset_at = ? WHERE id = ?")
         .bind(now() as i64 + 3600)
         .bind(ana_id)
@@ -582,7 +558,6 @@ async fn a_password_reset_by_email_holds_off_a_2fa_reset_for_a_week() {
     assert_eq!(s, StatusCode::OK);
     let pending = t.mail.last_code("ana@example.com").unwrap();
 
-    // With the mailbox alone: the password is reset by e-mail...
     let code = forgot_code(&t, "ana@example.com").await;
     let new_password = "nouveau-mot-de-passe-solide";
     let (s, b) = call(
@@ -598,7 +573,6 @@ async fn a_password_reset_by_email_holds_off_a_2fa_reset_for_a_week() {
         .as_str()
         .expect("2FA still applies")
         .to_owned();
-    // ...which calls the pending 2FA reset off, its codes too...
     let at: Option<i64> = sqlx::query_scalar("SELECT mfa_reset_at FROM users WHERE id = ?")
         .bind(ana_id)
         .fetch_one(&t.state.db)
@@ -614,7 +588,6 @@ async fn a_password_reset_by_email_holds_off_a_2fa_reset_for_a_week() {
         (s, b["error"].as_str()),
         (StatusCode::FORBIDDEN, Some("password_reset_recent"))
     );
-    // ...and no new 2FA reset by e-mail can start for a week.
     let mails = t.mail.count("ana@example.com");
     let (s, b) = mfa_reset("/auth/2fa/reset/send", json!({ "challenge": c })).await;
     assert_eq!(
@@ -622,7 +595,6 @@ async fn a_password_reset_by_email_holds_off_a_2fa_reset_for_a_week() {
         (StatusCode::FORBIDDEN, Some("password_reset_recent"))
     );
     assert_eq!(t.mail.count("ana@example.com"), mails, "no code sent");
-    // The owner, with the second factor, still signs in.
     let (s, b) = call(
         &t.app,
         "POST",
@@ -633,7 +605,6 @@ async fn a_password_reset_by_email_holds_off_a_2fa_reset_for_a_week() {
     .await;
     assert_eq!(s, StatusCode::OK, "{b}");
 
-    // A week later, the e-mail way works again (and the old code is still dead).
     sqlx::query("UPDATE users SET password_reset_at = ? WHERE id = ?")
         .bind(now() as i64 - 7 * 24 * 3600 - 60)
         .bind(ana_id)
@@ -661,7 +632,6 @@ async fn tickets_are_capped_per_session_account_and_ip() {
     let t = setup().await;
     let (ana, _) = signup(&t, "ana@example.com", "Ana").await;
     let room = room_with(&t, &ana, &[]).await;
-    // One session keeps its last `MAX_PER_SESSION` live tickets: asking for more drops the oldest.
     let mut tickets = Vec::new();
     for _ in 0..MAX_PER_SESSION + 5 {
         let (s, b) = ticket(&t, &ana, "10.0.0.1").await;
@@ -686,7 +656,6 @@ async fn tickets_are_capped_per_session_account_and_ip() {
     for tk in &tickets[5..] {
         assert_eq!(export(tk).await, StatusCode::OK);
     }
-    // Per account, whatever the session.
     let (s, b) = login(&t, "ana@example.com", PASSWORD).await;
     assert_eq!(s, StatusCode::OK);
     let other = b["token"].as_str().unwrap().to_owned();
@@ -699,10 +668,8 @@ async fn tickets_are_capped_per_session_account_and_ip() {
         }
     };
     assert_eq!(status, StatusCode::TOO_MANY_REQUESTS);
-    // (A slow run may have refilled a token meanwhile.)
     let cap = TICKET_USER.capacity as usize;
     assert!((cap + 1..=cap + 2).contains(&asked), "{asked}");
-    // Per IP: another account behind a busy IP.
     let (bob, _) = signup(&t, "bob@example.com", "Bob").await;
     for _ in 0..TICKET_IP.capacity {
         t.state.auth.limits.hit(&TICKET_IP, "10.0.0.3").unwrap();
@@ -716,7 +683,6 @@ async fn tickets_are_capped_per_session_account_and_ip() {
 #[tokio::test]
 async fn a_suspended_account_gets_and_keeps_no_session() {
     let t = setup().await;
-    // A session left over (issued while the suspension was being written) is no session.
     let (ana, ana_id) = signup(&t, "ana@example.com", "Ana").await;
     let room = room_with(&t, &ana, &[]).await;
     let (s, _) = in_room(&t, "GET", "/me", &ana, room, None).await;
@@ -744,7 +710,6 @@ async fn a_suspended_account_gets_and_keeps_no_session() {
     .await;
     assert_eq!(r.status, StatusCode::UNAUTHORIZED);
 
-    // Suspended between the password and the 2FA code: no session either.
     let (bob, bob_id) = signup(&t, "bob@example.com", "Bob").await;
     verify_email(&t, &bob, "bob@example.com").await;
     let secret = enable_2fa(&t, &bob).await;
@@ -766,7 +731,6 @@ async fn a_suspended_account_gets_and_keeps_no_session() {
     );
     assert!(b["token"].is_null());
 
-    // A legacy account can't come back by typing its first name.
     let (s, b) = legacy_join(&t.app, "Zoé").await;
     assert_eq!(s, StatusCode::OK, "{b}");
     let zoe = b["token"].as_str().unwrap().to_owned();

@@ -1,13 +1,5 @@
-//! What people type, made safe to show: names, room names, questions and chat messages lose
-//! invisible characters (zero-width spaces, bidi overrides, control characters) and runs of
-//! blank space, so nothing shows up empty, reversed or a screen tall.
-
 use crate::platform::error::{AppError, AppResult};
 
-/// Characters that are never shown on their own and only serve to hide or flip text: zero-width
-/// spaces and marks, bidi embeddings/overrides/isolates, word joiners, the BOM, soft hyphens,
-/// Hangul fillers and the blank Braille pattern (both used for "empty" names). The zero-width
-/// joiner and non-joiner stay (emoji sequences, Persian), as do variation selectors.
 fn hidden(c: char) -> bool {
     matches!(c,
         '\u{00AD}' | '\u{061C}' | '\u{115F}' | '\u{1160}' | '\u{180E}'
@@ -20,13 +12,10 @@ fn hidden(c: char) -> bool {
     ) || (c.is_control() && !c.is_whitespace())
 }
 
-/// Shows nothing by itself (joiners and variation selectors only make sense next to something).
 fn blank(c: char) -> bool {
     c.is_whitespace() || matches!(c, '\u{200C}' | '\u{200D}' | '\u{FE00}'..='\u{FE0F}')
 }
 
-/// One line: hidden characters dropped, any run of white space (line breaks included) becomes
-/// one space, trimmed. Empty when nothing visible is left.
 pub fn line(s: &str) -> String {
     let kept: String = s.chars().filter(|c| !hidden(*c)).collect();
     let out = kept.split_whitespace().collect::<Vec<_>>().join(" ");
@@ -37,8 +26,6 @@ pub fn line(s: &str) -> String {
     }
 }
 
-/// Several lines (a chat message): each line cleaned like [`line`], at most one blank line in a
-/// row, trimmed. Empty when nothing visible is left.
 pub fn lines(s: &str) -> String {
     let mut out: Vec<String> = Vec::new();
     for l in s.lines() {
@@ -54,15 +41,12 @@ pub fn lines(s: &str) -> String {
     out.join("\n")
 }
 
-/// Compares two texts the way people read them: case-insensitive beyond ASCII ("ÉTÉ" = "été"),
-/// invisible characters and extra spaces ignored.
 pub fn key(s: &str) -> String {
     line(s).to_lowercase()
 }
 
 const NAME_MAX: usize = 24;
 
-/// A first name: one line, no invisible characters, 1 to 24 characters.
 pub(crate) fn clean_name(name: &str) -> AppResult<String> {
     let name = crate::platform::text::line(name);
     if name.is_empty() || name.chars().count() > NAME_MAX {
@@ -86,7 +70,6 @@ mod tests {
             line("  Qui   est\n\n\n le plus\tdrôle ?  "),
             "Qui est le plus drôle ?"
         );
-        // Emoji sequences keep their joiners.
         assert_eq!(line("👨\u{200D}👩\u{200D}👧"), "👨\u{200D}👩\u{200D}👧");
     }
 

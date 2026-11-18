@@ -1,8 +1,3 @@
-//! GIFs in the result chat through Klipy (docs/CHAT_MEDIA.md). The server searches for the app
-//! and proxies every GIF file, so phones never talk to Klipy (no IP, no key on the device):
-//! the URLs the app gets are `/api/gifs/media/<token>`, a signed original URL on Klipy's static
-//! hosts. Only when `KLIPY_API_KEY` is set (`chat_gifs` feature); else `404 gifs_off`.
-
 use crate::platform::ids::{MemberId, RoundId};
 use std::{sync::OnceLock, time::Duration};
 
@@ -27,19 +22,12 @@ use crate::{
     platform::i18n,
 };
 
-/// GIFs per page of results.
 const PER_PAGE: u32 = 24;
-/// Pages one can scroll to.
 const PAGES_MAX: u32 = 50;
-/// Characters of a search kept.
 const QUERY_MAX: usize = 100;
-/// A search answers within this, or `503 gifs_unavailable`.
 const API_TIMEOUT: Duration = Duration::from_secs(5);
-/// A GIF file comes through within this (a few MB at most).
 const MEDIA_TIMEOUT: Duration = Duration::from_secs(20);
-/// Largest GIF file passed on.
 const MEDIA_MAX: usize = 10 * 1024 * 1024;
-/// Largest side a posted GIF may claim.
 const SIDE_MAX: u64 = 4096;
 const PURPOSE: &str = "klipy media";
 
@@ -51,7 +39,6 @@ fn klipy(state: &AppState) -> AppResult<&Klipy> {
         .ok_or(AppError::Missing("gifs_off"))
 }
 
-/// Klipy's API (its own redirects, a few at most).
 fn api_client() -> &'static reqwest::Client {
     static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
     CLIENT.get_or_init(|| {
@@ -63,7 +50,6 @@ fn api_client() -> &'static reqwest::Client {
     })
 }
 
-/// GIF files: redirects only to Klipy's static hosts.
 fn media_client() -> &'static reqwest::Client {
     static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
     CLIENT.get_or_init(|| {
@@ -81,7 +67,6 @@ fn media_client() -> &'static reqwest::Client {
     })
 }
 
-/// `https://static.klipy.com/…`, `https://static1.klipy.com/…` and so on (default port, no credentials).
 fn klipy_static(url: &reqwest::Url) -> bool {
     let static_host = url.host_str().is_some_and(|h| {
         h.strip_suffix(".klipy.com")
@@ -95,7 +80,6 @@ fn klipy_static(url: &reqwest::Url) -> bool {
         && static_host
 }
 
-/// A GIF file URL the proxy may fetch: Klipy's static hosts, or an origin the config adds (tests).
 fn allowed(state: &AppState, url: &str) -> bool {
     let Ok(url) = reqwest::Url::parse(url) else {
         return false;
@@ -109,19 +93,16 @@ fn allowed(state: &AppState, url: &str) -> bool {
     extra || klipy_static(&url)
 }
 
-/// Our proxy URL for a Klipy file.
 fn proxy_url(state: &AppState, original: &str) -> String {
     format!("/api/gifs/media/{}", sign(state, PURPOSE, original))
 }
 
-/// The original URL behind one of our proxy URLs (relative or absolute), if it is ours and allowed.
 fn original(state: &AppState, proxied: &str) -> Option<String> {
     let token = proxied.rsplit_once("/gifs/media/")?.1;
     let url = verify(state, PURPOSE, token)?;
     allowed(state, &url).then_some(url)
 }
 
-/// `image/webp` or `image/gif`, from the file name.
 fn mime_of(url: &str) -> Option<&'static str> {
     let path = url.split(['?', '#']).next()?.to_ascii_lowercase();
     if path.ends_with(".webp") {
@@ -133,7 +114,6 @@ fn mime_of(url: &str) -> Option<&'static str> {
     }
 }
 
-/// A GIF message's `media` as the app gets it (proxied URLs).
 pub fn payload(state: &AppState, media: &Value) -> Option<Value> {
     let url = media["url"].as_str()?;
     let preview = media["preview_url"].as_str().unwrap_or(url);
@@ -148,8 +128,6 @@ pub fn payload(state: &AppState, media: &Value) -> Option<Value> {
     }))
 }
 
-/// One rendition of a Klipy item: the first size, then format, that exists (animated WebP before GIF:
-/// both play in expo-image; MP4 would need a video player).
 fn rendition<'a>(file: &'a Value, sizes: &[&str]) -> Option<(&'a str, u64, u64)> {
     sizes.iter().find_map(|size| {
         ["webp", "gif"].iter().find_map(|format| {
@@ -163,8 +141,6 @@ fn rendition<'a>(file: &'a Value, sizes: &[&str]) -> Option<(&'a str, u64, u64)>
     })
 }
 
-/// Klipy's answer as the app gets it: `{ items: [{ id, title, width, height, preview_url, url }], next }`,
-/// ads and items without a usable file left out.
 fn results(state: &AppState, body: &Value) -> Value {
     let data = &body["data"];
     let list = data["data"]
@@ -207,7 +183,6 @@ pub struct SearchQuery {
     page: Option<u32>,
 }
 
-/// `GET /gifs?q=&page=`: a page of GIFs for the search (trending when empty), in my language.
 pub async fn search(
     State(state): State<AppState>,
     Me(me): Me,
@@ -220,7 +195,6 @@ pub async fn search(
     let q: String = query.q.trim().chars().take(QUERY_MAX).collect();
     let page = query.page.unwrap_or(1).clamp(1, PAGES_MAX);
     let lang = i18n::of_member(&state.db, me.id).await?;
-    // Klipy keeps recents per customer: an opaque id per account, not ours.
     let who = me
         .user_id
         .map_or_else(|| format!("m{}", me.id), |u| format!("u{u}"));
@@ -244,7 +218,6 @@ pub async fn search(
         tracing::warn!("KLIPY_API_BASE is not a valid URL");
         AppError::Unavailable("gifs_unavailable")
     })?;
-    // Errors never carry the URL: the key is in its path.
     let res = api_client().get(url).send().await.map_err(|e| {
         tracing::warn!(error = %e.without_url(), "klipy search failed");
         AppError::Unavailable("gifs_unavailable")
@@ -260,10 +233,6 @@ pub async fn search(
     Ok(Json(results(&state, &body)))
 }
 
-/// `GET /gifs/media/{token}` (no sign-in: image tags can't send one): fetches the GIF file from
-/// Klipy and streams it back (`image/gif` or `image/webp` only, 10 MB at most). Works with GIFs off
-/// too, so GIFs already posted keep showing. `404` for a token that isn't ours or a file Klipy
-/// doesn't have.
 pub async fn proxy(
     State(state): State<AppState>,
     Path(token): Path<String>,
@@ -290,7 +259,6 @@ pub async fn proxy(
     if length.is_some_and(|l| l > MEDIA_MAX as u64) {
         return Err(AppError::NotFound);
     }
-    // Streamed through, cut off past the cap (a missing or wrong length can't get around it).
     let stream = futures::stream::unfold(Some((res, 0usize)), |state| async move {
         let (mut res, seen) = state?;
         match res.chunk().await {
@@ -328,9 +296,7 @@ pub async fn proxy(
 
 #[derive(Deserialize)]
 pub struct GifBody {
-    /// Klipy's id for it (a string or a number).
     id: Value,
-    /// Our proxy URLs, as `/gifs` gave them.
     url: String,
     preview_url: Option<String>,
     width: u64,
@@ -340,13 +306,10 @@ pub struct GifBody {
     mentions: Vec<MemberId>,
     #[serde(default)]
     everyone: bool,
-    /// As for a text message: a retry with the same key gets the message already posted.
     #[serde(default)]
     client_key: Option<String>,
 }
 
-/// `POST /rounds/{id}/messages/gif`: a GIF picked in `/gifs`, with an optional caption. Same rules
-/// as a text message. Stores the original Klipy URLs (`400 bad_gif` unless they came from us).
 pub(crate) async fn post(
     State(state): State<AppState>,
     Me(me): Me,

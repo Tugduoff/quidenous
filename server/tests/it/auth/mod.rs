@@ -1,5 +1,3 @@
-//! Accounts: email + password, codes, 2FA, sessions, rate limits, legacy accounts, OAuth (mock providers).
-
 use crate::common;
 use crate::common::{T, with_mailer};
 
@@ -52,7 +50,6 @@ fn base_config() -> Config {
         join_code: "CODE-1".into(),
         vapid_subject: "mailto:test@example.com".into(),
         auth_secret: Some("test-secret-test-secret-test-secret".into()),
-        // Tests pick their client IP with X-Forwarded-For.
         trust_proxy: true,
         ..Config::default()
     }
@@ -153,7 +150,6 @@ async fn login(t: &T, email: &str, password: &str) -> (StatusCode, Value) {
     .await
 }
 
-/// Proves this session's owner with the password: sensitive changes need it (10 min).
 async fn reauth(t: &T, token: &str) {
     let (s, b) = call(
         &t.app,
@@ -184,7 +180,6 @@ fn now() -> u64 {
         .as_secs()
 }
 
-/// The reset email is sent in the background.
 async fn wait_for_code(mail: &MemoryMailer, to: &str, count: usize) -> String {
     for _ in 0..100 {
         if mail.count(to) >= count {
@@ -202,12 +197,9 @@ const TEST_KEY: &str = include_str!(concat!(
 
 const TEST_N: &str = "ocbStqmOau3_j-9Kdp3YTm5jI1-N7P-qYkU1lZtKhQrmqWuNIl273xt7VkMhMguMtnEafUejbKawcHhsrJVvVjPSaDiXUPA26FVspQ1DxOKpFxtN5RgAmYI0BNOX6rwji0_CycIQ3eH_Uf9JxjHBhf69iRfKUsssWmnckZAW8pbT_ZEApgIftKFgtburWbwa-xg1cPWT7kcbd0iw7QtHxS2qUWJY3x0bfipZ-BRxxJDLX-seOZS2fMIpBdlGaBK9cjusBkQX3NUDXTsnyhlk9DQbO-giiMhgvipSp6FpkOWT6j9C2GE06PQW5QJIFjF8DAHdLf-O-2mnEZHFmgahwQ";
 
-/// What the mock provider will say for an authorization code.
 #[derive(Clone)]
 struct Grant {
-    /// PKCE challenge from the authorize URL: the token request must bring the matching verifier.
     challenge: String,
-    /// Discord: the `/users/@me` profile. Google: the ID token claims.
     profile: Value,
 }
 
@@ -317,7 +309,6 @@ fn query_param(url: &str, name: &str) -> Option<String> {
         .map(|(_, v)| v.into_owned())
 }
 
-/// Runs start → (provider) → callback. Returns the redirect back to the app and the key.
 async fn oauth_round(
     t: &T,
     grants: &Grants,
@@ -329,7 +320,6 @@ async fn oauth_round(
     oauth_round_with(t, grants, provider, token, json!({ "link": link }), profile).await
 }
 
-/// `oauth_round` with more fields in the start body (`link`, `reauth`).
 async fn oauth_round_with(
     t: &T,
     grants: &Grants,
@@ -381,7 +371,6 @@ async fn oauth_round_with(
     assert!(r.status.is_redirection(), "{} {}", r.status, r.body);
     let location = r.headers["location"].to_str().unwrap().to_owned();
     assert!(location.starts_with("quidenous://oauth?"), "{location}");
-    // The state is single use.
     let again = send(
         &t.app,
         "GET",
@@ -404,7 +393,6 @@ fn discord(id: &str, email: &str, verified: bool) -> impl FnOnce(&str) -> Value 
     move |_| profile
 }
 
-/// A fresh provider round that only proves the session's owner (`reauth: true`).
 async fn oauth_reauth(
     t: &T,
     grants: &Grants,
@@ -455,7 +443,6 @@ async fn count(t: &T, sql: &'static str) -> i64 {
         .unwrap()
 }
 
-/// Same as `call`, in a given room (`X-Room`).
 async fn in_room(
     t: &T,
     method: &str,
@@ -477,8 +464,6 @@ async fn in_room(
     (r.status, r.body)
 }
 
-/// A room created by `owner`, joined by `others` in that order. Deck ranking questions are
-/// dropped so votes pick one person.
 async fn room_with(t: &T, owner: &str, others: &[&str]) -> i64 {
     sqlx::query("DELETE FROM questions WHERE group_id IS NULL AND kind <> 'pick'")
         .execute(&t.state.db)
@@ -509,7 +494,6 @@ async fn room_with(t: &T, owner: &str, others: &[&str]) -> i64 {
     room
 }
 
-/// Everyone votes for `target`: the open question closes. Returns its id.
 async fn close_round(t: &T, room: i64, voters: &[&str], target: i64) -> i64 {
     let (_, round) = in_room(t, "GET", "/round/current", voters[0], room, None).await;
     for v in voters {
@@ -561,7 +545,6 @@ fn reauth_required() -> (StatusCode, Option<String>) {
     (StatusCode::FORBIDDEN, Some("reauth_required".into()))
 }
 
-/// The reset code e-mailed after `forgot` (sent in the background).
 async fn forgot_code(t: &T, email: &str) -> String {
     let before = t.mail.count(email);
     let (s, _) = call(
@@ -580,7 +563,6 @@ fn wrong_code(code: &str) -> &'static str {
     if code == "000000" { "111111" } else { "000000" }
 }
 
-/// Security notices are sent in the background.
 async fn wait_notices(mail: &MemoryMailer, to: &str, count: usize) -> Vec<String> {
     for _ in 0..100 {
         let n = mail.notices(to);

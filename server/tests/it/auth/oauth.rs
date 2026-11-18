@@ -37,7 +37,6 @@ async fn oauth_discord_new_account_auto_link_and_link_mode() {
     .await;
     assert_eq!(s, StatusCode::OK);
 
-    // New account from a verified Discord email.
     let (location, key) = oauth_round(
         &t,
         &grants,
@@ -47,7 +46,6 @@ async fn oauth_discord_new_account_auto_link_and_link_mode() {
         discord("111", "gege@example.com", true),
     )
     .await;
-    // The code alone (hijacked redirect) gets nothing.
     let (s, b) = redeem(&t, &location, "not-the-key").await;
     assert_eq!(
         (s, b["error"].as_str()),
@@ -71,7 +69,6 @@ async fn oauth_discord_new_account_auto_link_and_link_mode() {
         (s, b["error"].as_str()),
         (StatusCode::FORBIDDEN, Some("no_room"))
     );
-    // Signing in again finds the same account.
     let (location, key) = oauth_round(
         &t,
         &grants,
@@ -86,7 +83,6 @@ async fn oauth_discord_new_account_auto_link_and_link_mode() {
         (b["user_id"].as_i64(), &b["new"]),
         (Some(gege_id), &json!(false))
     );
-    // Unlinking needs a fresh round with the provider first (no password to prove it with).
     let (s, b) = call(&t.app, "DELETE", "/auth/oauth/discord", Some(&gege), None).await;
     assert_eq!(
         (s, b["error"].as_str()),
@@ -101,14 +97,12 @@ async fn oauth_discord_new_account_auto_link_and_link_mode() {
     )
     .await;
     assert_eq!((s, &b["reauth"]), (StatusCode::OK, &json!(true)), "{b}");
-    // Last way in: can't unlink.
     let (s, b) = call(&t.app, "DELETE", "/auth/oauth/discord", Some(&gege), None).await;
     assert_eq!(
         (s, b["error"].as_str()),
         (StatusCode::CONFLICT, Some("last_method"))
     );
 
-    // Auto-link: same verified email on both sides.
     let (hal, hal_id) = signup(&t, "hal@example.com", "Hal").await;
     verify_email(&t, &hal, "hal@example.com").await;
     let (location, key) = oauth_round(
@@ -125,14 +119,12 @@ async fn oauth_discord_new_account_auto_link_and_link_mode() {
         (b["user_id"].as_i64(), &b["new"]),
         (Some(hal_id), &json!(false))
     );
-    // Hal has a password too: unlinking is fine, once re-authenticated.
     let (s, _) = call(&t.app, "DELETE", "/auth/oauth/discord", Some(&hal), None).await;
     assert_eq!(s, StatusCode::FORBIDDEN);
     reauth(&t, &hal).await;
     let (s, _) = call(&t.app, "DELETE", "/auth/oauth/discord", Some(&hal), None).await;
     assert_eq!(s, StatusCode::OK);
 
-    // Never on an unverified email: neither the account's nor the provider's.
     signup(&t, "ivy@example.com", "Ivy").await;
     let (location, key) = oauth_round(
         &t,
@@ -162,7 +154,6 @@ async fn oauth_discord_new_account_auto_link_and_link_mode() {
     assert_eq!(b["new"], true);
     assert_ne!(b["user_id"].as_i64(), Some(hal_id));
 
-    // Link mode: a legacy account adds Discord.
     let (_, b) = legacy_join(&t.app, "Jo").await;
     let jo = b["token"].as_str().unwrap().to_owned();
     let (s, _) = call(
@@ -197,7 +188,6 @@ async fn oauth_discord_new_account_auto_link_and_link_mode() {
         (s, b["error"].as_str()),
         (StatusCode::CONFLICT, Some("account_protected"))
     );
-    // Someone else's identity can't be linked.
     let (location, key) = oauth_round(
         &t,
         &grants,
@@ -213,7 +203,6 @@ async fn oauth_discord_new_account_auto_link_and_link_mode() {
         (StatusCode::CONFLICT, Some("identity_taken"))
     );
 
-    // The provider says no: back to the app with an error.
     let (_, b) = call(
         &t.app,
         "POST",
@@ -271,7 +260,6 @@ async fn oauth_google_id_token_is_verified() {
         (&json!("Kim"), &json!(["google"]))
     );
 
-    // Wrong nonce or audience: refused.
     for bad in [
         claims("g-2", "client-id", false),
         claims("g-3", "someone-else", true),
@@ -280,7 +268,6 @@ async fn oauth_google_id_token_is_verified() {
         assert_eq!(location, "quidenous://oauth?error=provider_error");
     }
 
-    // 2FA still applies to OAuth sign-ins. Turning it on without a password: a fresh Google round.
     let token = b["token"].as_str().unwrap().to_owned();
     let (s, b) = oauth_reauth(
         &t,
@@ -332,7 +319,6 @@ async fn parallel_guesses_share_the_same_budgets() {
     let (token, _) = signup(&t, "gus@example.com", "Gus").await;
     let code = t.mail.last_code("gus@example.com").unwrap();
     let wrong = if code == "000000" { "111111" } else { "000000" };
-    // 12 guesses at once: a code still only gets 5.
     let guesses = (0..12).map(|_| {
         call(
             &t.app,
@@ -358,7 +344,6 @@ async fn parallel_guesses_share_the_same_budgets() {
         (StatusCode::BAD_REQUEST, Some("expired"))
     );
 
-    // Sign-in: successes give their token back, parallel failures each take one.
     for _ in 0..6 {
         assert_eq!(
             login(&t, "gus@example.com", PASSWORD).await.0,
@@ -380,7 +365,6 @@ async fn parallel_guesses_share_the_same_budgets() {
         StatusCode::TOO_MANY_REQUESTS
     );
 
-    // Reset: 10 tries per hour per email, whatever the IP.
     for i in 0..10 {
         let ip = format!("192.0.2.{i}");
         let r = send(
@@ -442,12 +426,10 @@ async fn a_name_grab_cannot_lock_the_first_device_out() {
             "{path}"
         );
     }
-    // It still plays in the room.
     assert_eq!(
         call(&t.app, "GET", "/me", Some(&grab), None).await.0,
         StatusCode::OK
     );
-    // The first device (it created the account) can sign the claimer out.
     let (_, b) = call(
         &t.app,
         "POST",
@@ -464,7 +446,6 @@ async fn a_name_grab_cannot_lock_the_first_device_out() {
         StatusCode::UNAUTHORIZED
     );
 
-    // Alone on the account, a claimed session may secure it: nothing is taken from anyone.
     let (_, b) = legacy_join(&t.app, "RITA").await;
     let grab = b["token"].as_str().unwrap().to_owned();
     call(&t.app, "POST", "/auth/logout", Some(&rita), None).await;
@@ -477,7 +458,6 @@ async fn a_name_grab_cannot_lock_the_first_device_out() {
     )
     .await;
     assert_eq!(s, StatusCode::OK, "{b}");
-    // A password sign-in is never claimed; the claimed one is limited again, but can sign itself out.
     let (_, b) = login(&t, "rita@example.com", PASSWORD).await;
     let fresh = b["token"].as_str().unwrap().to_owned();
     let (s, _) = call(
@@ -513,7 +493,6 @@ async fn a_name_grab_cannot_lock_the_first_device_out() {
 #[tokio::test]
 async fn a_reset_takes_back_an_email_someone_else_typed() {
     let (t, grants) = oauth_setup().await;
-    // Someone signs up with Vic's address (never verified), links their own Discord, turns 2FA on.
     let (squatter, squatter_id) = signup(&t, "vic@example.com", "Vic").await;
     reauth(&t, &squatter).await;
     let (location, key) = oauth_round(
@@ -541,7 +520,6 @@ async fn a_reset_takes_back_an_email_someone_else_typed() {
     .await;
     assert_eq!(s, StatusCode::OK);
 
-    // Vic resets the password: the code proves the address, the account is Vic's alone.
     let forgot = || {
         call(
             &t.app,
@@ -585,7 +563,6 @@ async fn a_reset_takes_back_an_email_someone_else_typed() {
             .0,
         StatusCode::UNAUTHORIZED
     );
-    // The squatter's Discord doesn't lead there any more.
     let (location, key) = oauth_round(
         &t,
         &grants,
@@ -599,7 +576,6 @@ async fn a_reset_takes_back_an_email_someone_else_typed() {
     assert_eq!(b["new"], true);
     assert_ne!(b["user_id"].as_i64(), Some(squatter_id));
 
-    // Once the address is proven, 2FA set up by its owner still applies to a reset.
     let (s, _) = call(
         &t.app,
         "POST",
@@ -640,8 +616,6 @@ async fn oauth_redirect_code_alone_links_and_creates_nothing() {
     let (t, grants) = oauth_setup().await;
     let (_, b) = legacy_join(&t.app, "Ola").await;
     let ola = b["token"].as_str().unwrap().to_owned();
-    // Ola starts a link, then gets someone else's browser through the provider: the redirect code
-    // without the key from `start` must not attach that person's identity to Ola's account.
     let (location, key) = oauth_round(
         &t,
         &grants,
@@ -662,7 +636,6 @@ async fn oauth_redirect_code_alone_links_and_creates_nothing() {
         (&acct["providers"], &acct["email"]),
         (&json!([]), &Value::Null)
     );
-    // Sign-in mode: no account is created either.
     let (other, _) = oauth_round(
         &t,
         &grants,
@@ -676,11 +649,9 @@ async fn oauth_redirect_code_alone_links_and_creates_nothing() {
     assert_eq!(s, StatusCode::BAD_REQUEST);
     assert_eq!(count(&t, "SELECT COUNT(*) FROM users").await, users);
     assert_eq!(count(&t, "SELECT COUNT(*) FROM oauth_identities").await, 0);
-    // With the key, the link goes through.
     let (s, b) = redeem(&t, &location, &key).await;
     assert_eq!((s, b), (StatusCode::OK, json!({ "linked": "discord" })));
 
-    // Link mode from a claimed session (first-name grab): refused while another device exists.
     let (_, b) = legacy_join(&t.app, "Kat").await;
     let kat = b["token"].as_str().unwrap().to_owned();
     let (_, b) = legacy_join(&t.app, "kat").await;
@@ -697,7 +668,6 @@ async fn oauth_redirect_code_alone_links_and_creates_nothing() {
         (s, b["error"].as_str()),
         (StatusCode::FORBIDDEN, Some("claimed_session"))
     );
-    // The first device signs out: the claimer is alone and may start a link...
     call(&t.app, "POST", "/auth/logout", Some(&kat), None).await;
     let (location, key) = oauth_round(
         &t,
@@ -708,7 +678,6 @@ async fn oauth_redirect_code_alone_links_and_creates_nothing() {
         discord("999", "kat@example.com", true),
     )
     .await;
-    // ...but redeem checks again: someone else claimed the name meanwhile.
     legacy_join(&t.app, "KAT").await;
     let (s, b) = redeem(&t, &location, &key).await;
     assert_eq!(

@@ -8,9 +8,6 @@ use crate::{
     rounds::game,
 };
 
-/// "Result is in" and/or "new question", to every device except the person who triggered it.
-/// Runs after the change committed: a failure here (inbox write, lookup) is logged, never turned
-/// into an error for a request whose write already happened (its retry would only get a 409).
 pub(crate) async fn notify_round(
     state: &AppState,
     group_id: RoomId,
@@ -18,7 +15,6 @@ pub(crate) async fn notify_round(
     opened: Option<RoundId>,
     closed: bool,
 ) {
-    // Badges the question that closed may have earned (background, logs its errors).
     if closed {
         crate::insights::badges::after_close(state, group_id);
     }
@@ -39,11 +35,9 @@ async fn try_notify_round(
     opened: Option<RoundId>,
     closed: bool,
 ) -> AppResult<()> {
-    // Home-screen widgets show this room's state: they refresh (parties too).
     if opened.is_some() || closed {
         crate::realtime::widget::ping_room(state, group_id).await;
     }
-    // Parties happen in the same place: no push, no inbox for their questions and results.
     if game::party(&state.db, group_id).await?.is_some() {
         return Ok(());
     }

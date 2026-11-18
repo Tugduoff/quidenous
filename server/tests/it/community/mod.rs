@@ -1,5 +1,3 @@
-//! Community v1 (docs/COMMUNITY.md): packs 2.0, admin review, suggestions, share → play, challenges.
-
 use crate::common;
 use crate::common::{T, join};
 use quidenous_server::platform::ids::UserId;
@@ -19,7 +17,6 @@ use tower::ServiceExt;
 mod packs;
 mod suggestions;
 
-/// A fresh server; the first account to join (user 1) is the admin.
 async fn setup() -> T {
     let dir = std::env::temp_dir().join(format!("qdn-community-{}", common::unique()));
     std::fs::create_dir_all(&dir).unwrap();
@@ -34,7 +31,6 @@ async fn setup() -> T {
     };
     let mail = Arc::new(MemoryMailer::default());
     let state = state_with_mailer(config, mail.clone()).await.unwrap();
-    // Votes here pick one person: keep the deck to pick questions.
     sqlx::query("DELETE FROM questions WHERE group_id IS NULL AND kind <> 'pick'")
         .execute(&state.db)
         .await
@@ -119,7 +115,6 @@ async fn page(app: &Router, path: &str) -> (StatusCode, String) {
     (status, String::from_utf8_lossy(&bytes).into_owned())
 }
 
-/// A new room owned by `owner`, with `others` in it: its id.
 async fn room_with(
     app: &Router,
     owner: &str,
@@ -153,7 +148,6 @@ async fn room_with(
     id
 }
 
-/// Five (or more) distinct questions for a pack file.
 fn questions(prefix: &str, n: usize) -> Vec<Value> {
     (0..n)
         .map(|i| json!({ "text": format!("{prefix} question numéro {i} ?"), "kind": "pick" }))
@@ -187,7 +181,6 @@ async fn vote_in(app: &Router, token: &str, room: i64, target: i64) {
     assert_eq!(s, StatusCode::OK, "{b}");
 }
 
-/// My member id in a room.
 async fn seat(app: &Router, token: &str, room: i64) -> i64 {
     let (_, me) = call_room(app, "GET", "/me", token, room, None).await;
     me["id"].as_i64().unwrap()

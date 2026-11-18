@@ -35,7 +35,6 @@ pub(super) fn card(
     }
 }
 
-/// The variant chosen by `seed`, or the next one that fits [`LINE_MAX`]; cut at a word otherwise.
 pub(super) fn pick(seed: i64, lines: Vec<String>) -> String {
     let n = lines.len();
     if n == 0 {
@@ -106,7 +105,6 @@ pub(super) fn outro(year: i64, lang: Lang, room: Option<&str>) -> Card {
     }
 }
 
-/// Intro, the data cards, outro; or nothing when fewer than [`MIN_CARDS`] data cards.
 pub(super) fn assemble(intro: Option<Card>, data: Vec<Card>, outro: Card) -> Vec<Card> {
     match intro {
         Some(mut intro) if data.len() >= MIN_CARDS => {
@@ -120,7 +118,6 @@ pub(super) fn assemble(intro: Option<Card>, data: Vec<Card>, outro: Card) -> Vec
     }
 }
 
-/// Unix seconds `[start, end)` of a calendar year in a time zone (minutes east of UTC).
 pub(super) fn year_range(year: i64, tz: i64) -> (i64, i64) {
     (
         days_from_civil(year, 1, 1) * DAY - tz * 60,
@@ -128,7 +125,6 @@ pub(super) fn year_range(year: i64, tz: i64) -> (i64, i64) {
     )
 }
 
-/// Best run of voted days within a year (local day numbers `[first, last]`), up to `today`.
 pub(super) fn best_in_year(days: &Days, first: i64, last: i64, today: i64) -> i64 {
     let year: Days = days.range(first..=last).map(|(d, s)| (*d, *s)).collect();
     if year.values().all(|s| *s != Day::Voted) {
@@ -137,7 +133,6 @@ pub(super) fn best_in_year(days: &Days, first: i64, last: i64, today: i64) -> i6
     streaks::streak(&year, today.min(last)).best
 }
 
-/// A seat in one of the reader's rooms, as loaded.
 pub(super) struct Seat {
     pub(crate) user: Option<UserId>,
     pub(crate) name: String,
@@ -165,9 +160,7 @@ pub(super) struct YearRound {
     pub(crate) text: String,
     pub(crate) kind: String,
     pub(crate) anonymous: bool,
-    /// (voter, target, unix time), in vote order.
     pub(crate) votes: Vec<(MemberId, MemberId, f64)>,
-    /// Ranking points per member.
     pub(crate) points: HashMap<MemberId, i64>,
     pub(crate) messages: i64,
 }
@@ -181,7 +174,6 @@ impl YearRound {
         t
     }
 
-    /// Pick: most votes (ties count); ranking: most points.
     pub(crate) fn winners(&self) -> HashSet<MemberId> {
         let scores = if self.kind == "rank" {
             self.points.clone()
@@ -200,7 +192,6 @@ impl YearRound {
     }
 }
 
-/// Highest count, then the lowest key (deterministic).
 pub(super) fn top<K: Ord + Copy + std::hash::Hash>(
     counts: &HashMap<K, i64>,
     min: i64,
@@ -212,7 +203,6 @@ pub(super) fn top<K: Ord + Copy + std::hash::Hash>(
         .map(|(k, v)| (*k, *v))
 }
 
-/// The title of the year: the highest tier earned during it, else the title I display.
 pub(super) async fn title_card(
     state: &AppState,
     user: UserId,
@@ -234,7 +224,6 @@ pub(super) async fn title_card(
             let tier = earned.iter().find(|(k, _)| k == def.key)?.1;
             Some((def, tier))
         })
-        // Highest tier, then catalogue order.
         .min_by_key(|(_, tier)| -tier);
     let (def, tier, of_year) = match in_year {
         Some((def, tier)) => (def, tier, true),

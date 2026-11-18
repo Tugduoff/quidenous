@@ -13,7 +13,6 @@ async fn join_rejects_bad_code_and_signs_back_in_with_the_same_name() {
     .await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
     let (first, id) = join(&app, "Louis").await;
-    // New device: same member, new token, and the old device stays signed in.
     let (second, same_id) = join(&app, "louis").await;
     assert_eq!(id, same_id);
     assert_ne!(first, second);
@@ -37,7 +36,6 @@ async fn round_closes_when_everyone_voted_and_next_one_opens() {
     assert_eq!(round["member_count"], 3);
     assert!(round["result"].is_null());
 
-    // Can't vote twice.
     call(
         &app,
         "POST",
@@ -56,7 +54,6 @@ async fn round_closes_when_everyone_voted_and_next_one_opens() {
     .await;
     assert_eq!(status, StatusCode::CONFLICT);
 
-    // Votes stay hidden while the round is open.
     let (_, round) = call(&app, "GET", "/round/current", Some(&louis), None).await;
     assert_eq!(round["voter_ids"], json!([tug_id]));
     assert!(round["result"].is_null());
@@ -78,7 +75,6 @@ async fn round_closes_when_everyone_voted_and_next_one_opens() {
     )
     .await;
 
-    // Closed: result is public, a new question is open.
     let (_, closed) = call(
         &app,
         "GET",
@@ -116,7 +112,6 @@ async fn group_questions_come_before_the_deck() {
     let (_, queue) = call(&app, "GET", "/questions/queue", Some(&tug), None).await;
     assert_eq!(queue["custom"][0]["id"], q["id"]);
 
-    // Finish the current deck round; the group question is next.
     let (_, tug_member) = call(&app, "GET", "/me", Some(&tug), None).await;
     call(
         &app,
@@ -184,7 +179,6 @@ async fn ranking_questions_use_points() {
     let (_, open) = call(&app, "GET", "/round/current", Some(&a), None).await;
     assert_eq!(open["kind"], "rank");
     let round = open["id"].as_i64().unwrap();
-    // Incomplete rankings are refused.
     let (s, _) = call(
         &app,
         "POST",
@@ -203,7 +197,6 @@ async fn ranking_questions_use_points() {
     )
     .await;
     assert_eq!(s, StatusCode::BAD_REQUEST);
-    // Bob 1st twice, 2nd once: 3+3+2 = 8. Cyd: 2+1+3 = 6. Ana: 1+2+1 = 4.
     for (t, order) in [
         (&a, [b_id, c_id, a_id]),
         (&b, [b_id, a_id, c_id]),
@@ -250,7 +243,6 @@ async fn an_old_app_can_still_vote_on_a_ranking_question() {
     }
     let (_, open) = call(&app, "GET", "/round/current", Some(&a), None).await;
     let round = open["id"].as_i64().unwrap();
-    // Bob is on an old app: a single pick. Ana ranks.
     let (s, _) = call(
         &app,
         "POST",
@@ -282,7 +274,6 @@ async fn an_old_app_can_still_vote_on_a_ranking_question() {
 async fn a_room_waits_for_its_second_member() {
     let app = test_app().await;
     let (ana, _) = join(&app, "Ana").await;
-    // The env group with one person in it: nothing to vote on yet.
     let (_, current) = call(&app, "GET", "/round/current", Some(&ana), None).await;
     assert!(current.is_null(), "{current}");
     let (_, room) = call(
@@ -304,7 +295,6 @@ async fn a_room_waits_for_its_second_member() {
             .iter()
             .all(|r| r["open_number"].is_null())
     );
-    // Bob joins: the first question opens, and Ana hears about it.
     let (bob, _) = join(&app, "Bob").await;
     let (_, g) = call_room(&app, "GET", "/group", &ana, room, None).await;
     let code = g["code"].as_str().unwrap().to_owned();
@@ -322,7 +312,6 @@ async fn a_room_waits_for_its_second_member() {
     assert_eq!(current["member_count"], 2);
     let (_, inbox) = call_room(&app, "GET", "/inbox", &ana, room, None).await;
     assert_eq!(inbox["items"][0]["kind"], "question", "{inbox}");
-    // Bob leaves with the question open: Ana alone can't settle it, it waits for company.
     call(
         &app,
         "POST",
@@ -426,7 +415,6 @@ async fn a_room_vibe_picks_its_deck_questions() {
         assert_eq!(queue["deck_left"], all as i64 - 1, "{vibe}");
     }
 
-    // The owner changes it later; "" goes back to the classics; only known vibes.
     let (_, room) = call(
         &app,
         "POST",
@@ -488,7 +476,6 @@ async fn a_stalled_room_hears_when_questions_arrive() {
             .filter(|i| i["kind"] == "question")
             .count()
     };
-    // One question written: Bob is told, not Ana who wrote it.
     let (s, _) = call(
         &app,
         "POST",
@@ -502,7 +489,6 @@ async fn a_stalled_room_hears_when_questions_arrive() {
     assert_eq!(question_items(&inbox), 1, "{inbox}");
     let (_, inbox) = call(&app, "GET", "/inbox", Some(&ana), None).await;
     assert_eq!(question_items(&inbox), 0);
-    // Everyone votes: out of questions again. A pack brings the room back, Ana hears it.
     let (_, me_a) = call(&app, "GET", "/me", Some(&ana), None).await;
     vote_as(&app, &ana, me_a["id"].as_i64().unwrap()).await;
     vote_as(&app, &bob, me_a["id"].as_i64().unwrap()).await;

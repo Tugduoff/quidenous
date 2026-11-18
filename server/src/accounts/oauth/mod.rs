@@ -1,6 +1,3 @@
-//! Google and Discord sign-in: authorization code + PKCE, done by the server (it holds the secrets).
-//! The provider table is generic: another provider (Apple) is one more entry.
-
 use std::{
     collections::HashMap,
     time::{Duration, Instant},
@@ -23,7 +20,6 @@ mod link;
 pub use flow::*;
 use link::*;
 
-/// `google` → `Google`, for the security notices.
 fn provider_name(provider: &str) -> String {
     let mut c = provider.chars();
     c.next()
@@ -33,9 +29,7 @@ fn provider_name(provider: &str) -> String {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Flavor {
-    /// OpenID Connect: the ID token says who it is (signature checked against the JWKS).
     Oidc { issuers: &'static [&'static str] },
-    /// Plain OAuth 2 + a profile endpoint (Discord's `/users/@me`).
     Discord,
 }
 
@@ -95,14 +89,12 @@ pub struct OAuth {
     jwks: tokio::sync::Mutex<HashMap<String, CachedKeys>>,
 }
 
-/// Where the app wants to land when it comes back from the provider.
 pub const APP_REDIRECT: &str = "quidenous://oauth";
 
 impl OAuth {
     pub fn new(config: &Config) -> Self {
         let clients: [(&str, &Option<OAuthClient>); 2] =
             [("google", &config.google), ("discord", &config.discord)];
-        // No public URL, no callback: no provider.
         let providers = if config.public_url.is_some() {
             clients
                 .into_iter()
@@ -139,7 +131,6 @@ impl OAuth {
         }
     }
 
-    /// The configured providers, in display order.
     pub fn enabled(&self) -> Vec<&'static str> {
         self.providers.iter().map(|p| p.id).collect()
     }
@@ -158,11 +149,6 @@ impl OAuth {
         )
     }
 
-    /// `quidenous://oauth`, a page of this server (`PUBLIC_URL/...`), or an `OAUTH_REDIRECTS` entry.
-    /// URLs are parsed and compared on scheme, host and port (and the entry's path as a prefix, on a
-    /// `/` boundary), never as raw strings: `http://localhost:8081` must not allow
-    /// `http://localhost:8081.evil.com`. An entry with no host (`exp://`) only allows that scheme on a
-    /// local address (Expo Go on the LAN); anything else must be listed with its host.
     pub fn redirect_allowed(&self, app_redirect: &str) -> bool {
         let Ok(url) = Url::parse(app_redirect) else {
             return false;
@@ -184,7 +170,6 @@ impl OAuth {
         let now = Instant::now();
         let fresh = cache.get(url).is_some_and(|c| c.expires > now);
         let has_kid = cache.get(url).is_some_and(|c| c.keys.find(kid).is_some());
-        // Refetch when stale, or when the key is unknown (rotation) but not more than once a minute.
         let refetch = !fresh
             || (!has_kid
                 && cache
@@ -228,7 +213,6 @@ impl OAuth {
     }
 }
 
-/// Is `url` covered by one allowed redirect `entry` (see `OAuth::redirect_allowed`)?
 fn redirect_matches(entry: &str, url: &Url) -> bool {
     let Ok(base) = Url::parse(entry.trim()) else {
         return false;
@@ -237,7 +221,6 @@ fn redirect_matches(entry: &str, url: &Url) -> bool {
         return false;
     }
     match base.host_str() {
-        // `exp://`: Expo Go dev builds, served from a computer on the same network.
         None | Some("") => {
             let host = url.host_str().unwrap_or("");
             host == "localhost"
@@ -245,7 +228,6 @@ fn redirect_matches(entry: &str, url: &Url) -> bool {
                     Ok(std::net::IpAddr::V4(ip)) => {
                         ip.is_private() || ip.is_loopback() || ip.is_link_local()
                     }
-                    // Loopback or unique local (fc00::/7).
                     Ok(std::net::IpAddr::V6(ip)) => {
                         ip.is_loopback() || ip.segments()[0] & 0xfe00 == 0xfc00
                     }
@@ -269,7 +251,6 @@ fn redirect_matches(entry: &str, url: &Url) -> bool {
     }
 }
 
-/// Who the provider says this is (kept in the one-time result until `redeem`).
 #[derive(Serialize, Deserialize)]
 struct Identity {
     subject: String,
@@ -285,8 +266,6 @@ fn pkce_challenge(verifier: &str) -> String {
 fn key_hash(state: &AppState, key: &str) -> String {
     state.auth.keys.mac(&["oauth_key", key])
 }
-
-// ---------- endpoints ----------
 
 #[cfg(test)]
 mod tests {
@@ -318,13 +297,11 @@ mod tests {
         assert!(!o.redirect_allowed("http://qdn.example.com/oauth"));
         assert!(!o.redirect_allowed("https://evil.com/oauth"));
         assert!(!o.redirect_allowed("quidenous://other"));
-        // Raw prefixes no longer match across a host or port boundary.
         assert!(!o.redirect_allowed("http://localhost:8081.evil.com/oauth"));
         assert!(!o.redirect_allowed("http://localhost:80812/oauth"));
         assert!(!o.redirect_allowed("http://localhost/oauth"));
         assert!(!o.redirect_allowed("https://staging.example.com/application"));
         assert!(!o.redirect_allowed("https://staging.example.com/other"));
-        // `exp://` alone: local addresses only.
         assert!(!o.redirect_allowed("exp://evil.com/--/oauth"));
         assert!(!o.redirect_allowed("exp://8.8.8.8:8081/--/oauth"));
         assert!(!o.redirect_allowed("exp://other.exp.direct/--/oauth"));
@@ -333,7 +310,6 @@ mod tests {
 
     #[test]
     fn pkce_s256_is_base64url_sha256() {
-        // Computed independently (Python hashlib + urlsafe_b64encode, padding stripped).
         assert_eq!(
             pkce_challenge("dBjftJeZ4CVP-mB92K9uhvVx_ql4MqVcVIxBzVYpXcY"),
             "M1vkZJVC6bTifN6SXUe4X0-jsGFLqOJJPvQ8bykhgtw"

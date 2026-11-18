@@ -17,7 +17,6 @@ async fn questions_can_be_imported_in_bulk() {
     assert_eq!(status, StatusCode::OK, "{body}");
     assert_eq!(body["added"], 2);
     assert_eq!(body["skipped"], 1);
-    // In this room's own queue, in file order, the tag gone; the shared deck is untouched.
     let (_, after) = call(&app, "GET", "/questions/queue", Some(&tug), None).await;
     assert_eq!(after["deck_left"], before["deck_left"]);
     let custom = after["custom"].as_array().unwrap();
@@ -29,7 +28,6 @@ async fn questions_can_be_imported_in_bulk() {
         "Classe-nous du plus fêtard au plus casanier"
     );
     assert_eq!(custom[1]["kind"], "rank");
-    // Another room doesn't get them.
     let (_, room) = call(
         &app,
         "POST",
@@ -80,7 +78,6 @@ async fn community_packs_publish_install_report() {
     let (_, list) = call(&app, "GET", "/packs?q=chill", Some(&b), None).await;
     assert_eq!(list[0]["name"], "Soirée chill");
     assert_eq!(list[0]["sample"].as_array().unwrap().len(), 3);
-    // Bob installs it in a room of his own: in the queue, kinds kept, no duplicates on reinstall.
     let (_, room) = call(
         &app,
         "POST",
@@ -119,7 +116,6 @@ async fn community_packs_publish_install_report() {
             .iter()
             .any(|q| q["kind"] == "rank")
     );
-    // Three reports hide it.
     for name in ["Cyd", "Dan", "Eve"] {
         let (t, _) = join(&app, name).await;
         common::trust_all(&state).await;
@@ -127,7 +123,6 @@ async fn community_packs_publish_install_report() {
     }
     let (_, list) = call(&app, "GET", "/packs", Some(&b), None).await;
     assert_eq!(list, json!([]));
-    // Only the author deletes.
     let (s, _) = call(&app, "DELETE", &format!("/packs/{id}"), Some(&b), None).await;
     assert_eq!(s, StatusCode::FORBIDDEN);
 }
@@ -135,7 +130,7 @@ async fn community_packs_publish_install_report() {
 #[tokio::test]
 async fn upcoming_questions_can_be_deleted_by_author_or_owner() {
     let app = test_app().await;
-    let (ana, _) = join(&app, "Ana").await; // owner
+    let (ana, _) = join(&app, "Ana").await;
     let (bob, _) = join(&app, "Bob").await;
     let (cyd, _) = join(&app, "Cyd").await;
     let add = |t: String, text: &'static str| {
@@ -154,7 +149,6 @@ async fn upcoming_questions_can_be_deleted_by_author_or_owner() {
     };
     let q1 = add(bob.clone(), "Qui mange le plus de pizza ?").await;
     let q2 = add(bob.clone(), "Qui chante le plus faux ?").await;
-    // Someone else can't; the author can; the owner can.
     let (s, _) = call(
         &app,
         "DELETE",
@@ -191,9 +185,8 @@ async fn upcoming_questions_can_be_deleted_by_author_or_owner() {
 #[tokio::test]
 async fn upcoming_questions_can_be_shuffled() {
     let app = test_app().await;
-    let (ana, _) = join(&app, "Ana").await; // owner
+    let (ana, _) = join(&app, "Ana").await;
     let (bob, _) = join(&app, "Bob").await;
-    // A deck question is already open, so all eight wait in the queue.
     let text = (1..=8)
         .map(|i| format!("Qui gagnerait le concours numéro {i} ?"))
         .collect::<Vec<_>>()
@@ -226,7 +219,6 @@ async fn upcoming_questions_can_be_shuffled() {
     let mut sorted = after.clone();
     sorted.sort();
     assert_eq!(sorted, before, "same questions, new order");
-    // A question added after the shuffle goes to the end.
     let (_, q) = call(
         &app,
         "POST",
@@ -238,7 +230,6 @@ async fn upcoming_questions_can_be_shuffled() {
     let (_, queue) = call(&app, "GET", "/questions/queue", Some(&ana), None).await;
     assert_eq!(*ids(&queue).last().unwrap(), q["id"].as_i64().unwrap());
     assert_eq!(ids(&queue)[..8], after[..]);
-    // Owner-only questions: members can't shuffle either.
     let (_, g) = call(&app, "GET", "/group", Some(&ana), None).await;
     call(
         &app,
@@ -255,7 +246,7 @@ async fn upcoming_questions_can_be_shuffled() {
 #[tokio::test]
 async fn upcoming_questions_can_be_reordered() {
     let app = test_app().await;
-    let (ana, _) = join(&app, "Ana").await; // owner
+    let (ana, _) = join(&app, "Ana").await;
     let (bob, _) = join(&app, "Bob").await;
     let text = (1..=5)
         .map(|i| format!("Qui gagnerait le concours numéro {i} ?"))
@@ -283,7 +274,6 @@ async fn upcoming_questions_can_be_reordered() {
     let (_, before) = call(&app, "GET", "/questions/queue", Some(&ana), None).await;
     let before = ids(&before);
     assert_eq!(before.len(), 5);
-    // Move the last question to the top, swap the next two.
     let wanted = vec![before[4], before[0], before[2], before[1], before[3]];
     let (s, res) = call(
         &app,
@@ -297,7 +287,6 @@ async fn upcoming_questions_can_be_reordered() {
     assert_eq!(res["ordered"], 5);
     let (_, after) = call(&app, "GET", "/questions/queue", Some(&ana), None).await;
     assert_eq!(ids(&after), wanted);
-    // A question added afterwards still goes to the end.
     let (_, q) = call(
         &app,
         "POST",
@@ -310,7 +299,6 @@ async fn upcoming_questions_can_be_reordered() {
     let (_, queue) = call(&app, "GET", "/questions/queue", Some(&ana), None).await;
     assert_eq!(ids(&queue)[..5], wanted[..]);
     assert_eq!(*ids(&queue).last().unwrap(), new_id);
-    // A stale list (missing the new question), duplicates or unknown ids: 409, nothing changes.
     let mut full = wanted.clone();
     full.push(new_id);
     for bad in [
@@ -331,7 +319,6 @@ async fn upcoming_questions_can_be_reordered() {
     }
     let (_, queue) = call(&app, "GET", "/questions/queue", Some(&ana), None).await;
     assert_eq!(ids(&queue), full);
-    // Owner-only questions: members can't reorder either.
     let (_, g) = call(&app, "GET", "/group", Some(&ana), None).await;
     call(
         &app,
@@ -362,7 +349,6 @@ async fn upcoming_questions_can_be_reordered() {
     assert_eq!(s, StatusCode::OK);
     let (_, queue) = call(&app, "GET", "/questions/queue", Some(&ana), None).await;
     assert_eq!(ids(&queue), reversed);
-    // Another room's questions can't be ordered from here.
     let (_, room) = call(
         &app,
         "POST",
@@ -390,7 +376,6 @@ async fn a_member_can_ask_the_owner_for_questions() {
     let app = test_app().await;
     let (ana, _) = join(&app, "Ana").await;
     let (bob, _) = join(&app, "Bob").await;
-    // Everyone may add questions: nothing to ask.
     let (s, _) = call(&app, "POST", "/questions/ask", Some(&bob), None).await;
     assert_eq!(s, StatusCode::BAD_REQUEST);
     let (_, g) = call(&app, "GET", "/group", Some(&ana), None).await;
@@ -414,7 +399,6 @@ async fn a_member_can_ask_the_owner_for_questions() {
         .cloned()
         .unwrap();
     assert_eq!(ask["text"], "Bob demande des questions");
-    // Once is enough for a while; the owner never asks.
     let (s, body) = call(&app, "POST", "/questions/ask", Some(&bob), None).await;
     assert_eq!(
         (s, body["error"].as_str()),

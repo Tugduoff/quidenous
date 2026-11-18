@@ -9,8 +9,6 @@ use crate::{
 
 use super::*;
 
-/// Records a vote; closes the round and opens the next one when everyone has voted.
-/// `guesses`: a said question's matching (see [`crate::rounds::said::ballot`]).
 pub async fn vote(
     db: &SqlitePool,
     group_id: RoomId,
@@ -21,7 +19,6 @@ pub async fn vote(
     guesses: Option<Vec<crate::rounds::said::Guess>>,
 ) -> AppResult<Vec<Event>> {
     let mut tx = crate::platform::db::write_tx(db).await?;
-    // A party that is over is a read-only memory.
     let party = party(&mut *tx, group_id).await?;
     if party.is_some_and(|p| p.over) {
         return Err(AppError::Gone("party_over"));
@@ -36,31 +33,23 @@ pub async fn vote(
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::Conflict("no_open_round"))?;
-    // A party question past its countdown takes no more votes, even before the sweep closes it.
     if time_up {
         return Err(AppError::Conflict("time_up"));
     }
-    // Party: only who was there when the question opened votes on it (and can be picked).
     if party.is_some() && !party_player(&mut tx, round_id, voter_id).await? {
         return Err(AppError::Conflict("joined_late"));
     }
-    // A question left open in a room that has since dropped to one person waits for company.
     if active_count(&mut tx, group_id).await? < 2 {
         return Err(AppError::Conflict("alone"));
     }
-    // A ranking must place every active member exactly once; its #1 is also stored as the vote.
     let target_id = if kind == "said" {
-        // Guesses (or an older app's pass); the votes row points at the voter.
         crate::rounds::said::ballot(&mut tx, round_id, voter_id, target_id, guesses).await?;
         voter_id
     } else if (kind == "rank" && ranking.is_none() || kind == "choose" && choices.is_none())
         && let Some(target_id) = target_id
     {
-        // An app too old to know ranking (or choose) questions sends a single pick: it counts as
-        // voted (nobody waits for them) but adds nothing to the result.
         target_id
     } else if kind == "choose" {
-        // Every active member wired exactly once, to an existing item; the votes row points at the voter.
         let choices = choices.ok_or(AppError::BadRequest("choices_needed"))?;
         let count =
             crate::rounds::model::parse_items(items.as_deref()).map_or(0, |i| i.len()) as i64;
@@ -75,8 +64,6 @@ pub async fn vote(
         if given != active || choices.iter().any(|c| !(0..count).contains(&c.item)) {
             return Err(AppError::BadRequest("bad_choices"));
         }
-        // A ballot left from an earlier seat (left and came back): this one replaces it (a second
-        // vote on the same seat still fails below, rolling this back).
         clear_ballot(&mut tx, round_id, voter_id).await?;
         for c in &choices {
             sqlx::query(
@@ -151,7 +138,6 @@ pub async fn vote(
     Ok(events)
 }
 
-/// Drops a member's rank / choose / said ballot on a question (their seat ended, or a new ballot replaces it).
 pub async fn clear_ballot(
     tx: &mut Transaction<'_, Sqlite>,
     round_id: RoundId,
@@ -171,7 +157,6 @@ pub async fn clear_ballot(
     Ok(())
 }
 
-/// Was this member in the party when the question opened?
 pub(crate) async fn party_player(
     tx: &mut Transaction<'_, Sqlite>,
     round_id: RoundId,
@@ -186,13 +171,10 @@ pub(crate) async fn party_player(
     .await?)
 }
 
-/// Agreements needed to skip or remove someone: a majority of the other active members
-/// (the target doesn't count), and never one person alone.
 pub fn majority(active: i64) -> i64 {
     ((active - 1) / 2 + 1).max(2)
 }
 
-/// Majority skips and removals need at least three people: with two, one would decide alone.
 pub fn votes_possible(active: i64) -> bool {
     active >= 3
 }

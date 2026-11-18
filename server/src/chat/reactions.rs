@@ -1,10 +1,3 @@
-//! Reactions, two kinds:
-//! - Chat reactions (docs/ROOMS.md, "Chat reactions"): a few emojis from a fixed list on the
-//!   messages under a finished question. One per message, member and emoji; no inbox entry, no push,
-//!   only a live `message_reacted` so open chats refresh.
-//! - Result reactions (docs/REACTIONS.md): taps on a revealed result, daily or party, counted per
-//!   member and emoji up to a cap, sent live as `result_reacted` to the sockets that asked for it.
-
 use crate::platform::ids::{MemberId, MessageId, RoomId, RoundId, UserId};
 use std::collections::HashMap;
 
@@ -25,29 +18,22 @@ use crate::{
     rooms::model::MemberRow,
 };
 
-/// The reactions there are, in the order they are shown.
 pub const EMOJIS: [&str; 6] = ["❤️", "😂", "😮", "😢", "👍", "🔥"];
 
-/// One emoji on one message, as the viewer sees it.
 #[derive(Serialize, Debug, Clone, PartialEq)]
 pub struct Reaction {
     pub emoji: &'static str,
     pub count: usize,
-    /// I am one of them.
     pub mine: bool,
-    /// Who reacted (member ids), oldest first.
     pub members: Vec<MemberId>,
 }
 
-/// The allow-listed emoji `raw` stands for (a bare "❤" is "❤️"), or `None`.
 pub fn clean_emoji(raw: &str) -> Option<&'static str> {
     let raw = raw.trim();
     let raw = if raw == "❤" { "❤️" } else { raw };
     EMOJIS.iter().copied().find(|e| *e == raw)
 }
 
-/// The reactions on these messages, as `viewer` sees them: in [`EMOJIS`] order, only emojis
-/// someone used, without the people `viewer` blocked. One query for all of them.
 pub async fn for_messages<'e, E: SqliteExecutor<'e>>(
     db: E,
     viewer: &MemberRow,
@@ -69,7 +55,6 @@ pub async fn for_messages<'e, E: SqliteExecutor<'e>>(
     .await?;
     let mut by_message: HashMap<MessageId, Vec<Reaction>> = HashMap::new();
     for (message_id, emoji, member_id) in rows {
-        // Only the allow-list is ever stored; anything else would be skipped.
         let Some(emoji) = clean_emoji(&emoji) else {
             continue;
         };
@@ -102,7 +87,6 @@ pub struct ReactBody {
     emoji: String,
 }
 
-/// `POST /messages/{id}/reactions`: adds mine (already there = fine).
 pub async fn add(
     State(state): State<AppState>,
     Me(me): Me,
@@ -112,7 +96,6 @@ pub async fn add(
     change(&state, &me, id, &body.emoji, true).await
 }
 
-/// `DELETE /messages/{id}/reactions`: takes mine back (not there = fine).
 pub async fn remove(
     State(state): State<AppState>,
     Me(me): Me,
@@ -122,9 +105,6 @@ pub async fn remove(
     change(&state, &me, id, &body.emoji, false).await
 }
 
-/// Both ways: a message of my room, under a finished question, not hidden by reports and not by
-/// someone I blocked (`404` otherwise); an allow-listed emoji (`400 bad_emoji`). Tells the room
-/// only when something changed. Answers the message's reactions as I see them.
 async fn change(
     state: &AppState,
     me: &MemberRow,
@@ -137,7 +117,6 @@ async fn change(
         crate::platform::quotas::hit_user(state, &crate::platform::quotas::REACT_USER, user)?;
         crate::platform::quotas::hit_user(state, &crate::platform::quotas::REACT_HOUR_USER, user)?;
     }
-    // Checked in the write transaction: the message can't be deleted in between.
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
     let round_id: RoundId = sqlx::query_scalar(
         "SELECT x.round_id FROM messages x JOIN rounds r ON r.id = x.round_id \
@@ -181,57 +160,43 @@ async fn change(
     Ok(Json(json!({ "message_id": id, "reactions": reactions })))
 }
 
-// ---------- Result reactions ----------
-
-/// The result palette, in the order it is shown (the party's first six, then 👏 🙈).
 pub const RESULT_EMOJIS: [&str; 8] = ["😂", "🔥", "😱", "👀", "💀", "❤️", "👏", "🙈"];
-/// Taps per member per result at most, all emojis together.
 pub const RESULT_CAP: i64 = 30;
 
 pub fn router() -> Router<AppState> {
     Router::new().route("/rounds/{id}/reactions", get(get_round).post(post_round))
 }
 
-/// The palette emoji `raw` stands for (a bare "❤" is "❤️"), or `None`.
 pub fn clean_result_emoji(raw: &str) -> Option<&'static str> {
     let raw = raw.trim();
     let raw = if raw == "❤" { "❤️" } else { raw };
     RESULT_EMOJIS.iter().copied().find(|e| *e == raw)
 }
 
-/// Someone's taps on one emoji of a result.
 #[derive(Serialize, Debug, Clone, PartialEq)]
 pub struct MemberTaps {
     pub member_id: MemberId,
     pub count: i64,
 }
 
-/// One emoji on a result, as the viewer sees it.
 #[derive(Serialize, Debug, Clone, PartialEq)]
 pub struct ResultReaction {
     pub emoji: &'static str,
     pub count: i64,
-    /// My taps on it.
     pub mine: i64,
-    /// Oldest first.
     pub members: Vec<MemberTaps>,
 }
 
-/// A result's reactions, as the viewer sees them (the `GET` and `POST` answer).
 #[derive(Serialize, Debug)]
 pub struct RoundReactions {
     pub round_id: RoundId,
     pub cap: i64,
-    /// My taps on this result, all emojis.
     pub mine: i64,
-    /// Only on `POST`: how many of the taps sent were counted.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub accepted: Option<i64>,
-    /// In [`RESULT_EMOJIS`] order, only emojis with taps, without the people the viewer blocked.
     pub reactions: Vec<ResultReaction>,
 }
 
-/// The reactions on a result, as `viewer` sees them.
 pub async fn for_round<'e, E: SqliteExecutor<'e>>(
     db: E,
     viewer: &MemberRow,
@@ -284,7 +249,6 @@ pub async fn for_round<'e, E: SqliteExecutor<'e>>(
     })
 }
 
-/// Counts `taps` (in this order) for `member_id` on a result until the cap: what was counted, per emoji.
 pub async fn add_taps(
     tx: &mut sqlx::SqliteConnection,
     round_id: RoundId,
@@ -322,8 +286,6 @@ pub async fn add_taps(
     Ok(accepted)
 }
 
-/// Tells the room about counted taps (after the commit): `result_reacted`, and `party_updated` in a
-/// party for the apps that only know that one.
 pub fn tell_taps(
     state: &AppState,
     me: &MemberRow,
@@ -353,8 +315,6 @@ pub fn tell_taps(
     }
 }
 
-/// My seat in the room of a revealed round, and whether that room is a party. A round that doesn't
-/// exist or isn't of one of my rooms: `404`; still open: `409 not_reveal`.
 async fn round_seat(
     state: &AppState,
     user: UserId,
@@ -380,7 +340,6 @@ async fn round_seat(
     Ok((me, party))
 }
 
-/// `GET /rounds/{id}/reactions`.
 async fn get_round(
     State(state): State<AppState>,
     SignedIn(user): SignedIn,
@@ -402,8 +361,6 @@ pub struct TapBody {
     count: i64,
 }
 
-/// `POST /rounds/{id}/reactions`: 1 to 8 entries, each 1 to 30 taps (`400 bad_taps`), palette
-/// emojis (`400 bad_emoji`). Counted in order until the cap; the rest is dropped quietly.
 async fn post_round(
     State(state): State<AppState>,
     SignedIn(user): SignedIn,

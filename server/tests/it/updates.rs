@@ -1,5 +1,3 @@
-//! Self-hosted expo-updates: publishing (CI) and serving (protocol v1).
-
 use std::path::PathBuf;
 
 use axum::{
@@ -22,7 +20,6 @@ async fn test_app(token: Option<&str>) -> (Router, PathBuf) {
     test_app_with(token, None).await
 }
 
-/// `certificate`: `UPDATES_CERTIFICATE` (signatures required and checked).
 async fn test_app_with(token: Option<&str>, certificate: Option<&str>) -> (Router, PathBuf) {
     let dir = std::env::temp_dir().join(format!("qdn-ota-test-{}", rand_suffix()));
     let config = Config {
@@ -43,7 +40,6 @@ async fn test_app_with(token: Option<&str>, certificate: Option<&str>) -> (Route
     (app(state(config).await.unwrap()), dir)
 }
 
-/// Unique per test app (tests run in parallel, timestamps alone can collide).
 fn rand_suffix() -> String {
     static NEXT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
     let nanos = std::time::SystemTime::now()
@@ -75,7 +71,6 @@ async fn publish(app: &Router, token: Option<&str>, archive: Vec<u8>) -> (Status
     (status, json_of(&body))
 }
 
-/// GET /api/updates/manifest with the given headers.
 async fn manifest(
     app: &Router,
     uri: &str,
@@ -113,14 +108,11 @@ async fn admin(app: &Router, method: &str, path: &str, token: Option<&str>) -> (
     (status, json_of(&body))
 }
 
-// ---------- archives ----------
-
 enum Entry<'a> {
     File(&'a str, Vec<u8>),
     Symlink(&'a str, &'a str),
 }
 
-/// A tar.gz with raw entry names (so tests can write `..` or absolute paths).
 fn tarball(entries: Vec<Entry>) -> Vec<u8> {
     let mut builder = tar::Builder::new(Vec::new());
     for entry in entries {
@@ -187,7 +179,6 @@ fn descriptor(kind: &str, platform: &str, runtime: &str) -> Value {
     json!({ "kind": kind, "platform": platform, "runtimeVersion": runtime, "signature": SIG })
 }
 
-/// update.json + body.json (pretty-printed, to check bytes are kept) + the two assets.
 fn update_archive(runtime: &str, platform: &str, body: &Value) -> (Vec<u8>, Vec<u8>) {
     let body = serde_json::to_vec_pretty(body).unwrap();
     let archive = tarball(vec![
@@ -253,7 +244,6 @@ fn assert_protocol_headers(headers: &HeaderMap) {
     assert_eq!(headers["cache-control"], "private, max-age=0");
 }
 
-/// The id the manifest endpoint serves (multipart), or None on 204.
 async fn served(app: &Router, runtime: &str, platform: &str) -> Option<String> {
     let (status, headers, body) = manifest_for(app, runtime, platform).await;
     if status == StatusCode::NO_CONTENT {
@@ -281,8 +271,6 @@ fn leftover_tmp(dir: &std::path::Path) -> bool {
         })
         .unwrap_or(false)
 }
-
-// ---------- tests ----------
 
 #[tokio::test]
 async fn publishing_needs_the_token_and_is_off_without_it() {
@@ -318,7 +306,6 @@ async fn publishing_needs_the_token_and_is_off_without_it() {
         admin(&off, "GET", "/updates", Some(TOKEN)).await.0,
         StatusCode::NOT_FOUND
     );
-    // Serving stays on (nothing to serve).
     let (status, headers, _) = manifest_for(&off, RV, "android").await;
     assert_eq!(status, StatusCode::NO_CONTENT);
     assert_protocol_headers(&headers);
@@ -338,13 +325,11 @@ async fn a_published_update_is_served_byte_for_byte() {
         json!({ "id": id, "runtimeVersion": RV, "platform": "android", "kind": "update" })
     );
     assert!(!leftover_tmp(&dir));
-    // Only referenced assets are kept.
     let stored = dir.join("updates").join(RV).join(&id);
     assert!(stored.join("assets/bundle-abc.hbc").exists());
     assert!(!stored.join("assets/unused.txt").exists());
     assert_eq!(std::fs::read(stored.join("body.json")).unwrap(), body);
 
-    // Multipart (default accept), with the signature on the manifest part.
     for accept in [
         None,
         Some("*/*"),
@@ -365,7 +350,6 @@ async fn a_published_update_is_served_byte_for_byte() {
         );
     }
 
-    // Query parameters work as well as headers.
     let (status, h, bytes) = manifest(
         &app,
         &format!("/api/updates/manifest?platform=android&runtime-version={RV}"),
@@ -378,7 +362,6 @@ async fn a_published_update_is_served_byte_for_byte() {
         expected_multipart(&boundary(&h), "manifest", &body, true)
     );
 
-    // Plain JSON: the manifest itself, signature in a header.
     for accept in [
         "application/expo+json",
         "application/json",
@@ -401,7 +384,6 @@ async fn a_published_update_is_served_byte_for_byte() {
         assert_eq!(bytes.to_vec(), body);
     }
 
-    // Other runtime, other platform: nothing.
     for (rv, platform) in [("2.0.0", "android"), (RV, "ios")] {
         let (status, h, bytes) = manifest_for(&app, rv, platform).await;
         assert_eq!(status, StatusCode::NO_CONTENT);
@@ -409,7 +391,6 @@ async fn a_published_update_is_served_byte_for_byte() {
         assert!(bytes.is_empty());
     }
 
-    // Missing or invalid parameters.
     for headers in [
         vec![("expo-platform", "android")],
         vec![("expo-runtime-version", RV)],
@@ -421,7 +402,6 @@ async fn a_published_update_is_served_byte_for_byte() {
         assert_protocol_headers(&h);
     }
 
-    // Assets.
     for (name, bytes, ct) in [
         ("bundle-abc.hbc", BUNDLE, "application/javascript"),
         ("icon-def.png", ICON, "image/png"),
@@ -458,7 +438,6 @@ async fn a_published_update_is_served_byte_for_byte() {
         assert_eq!(status, StatusCode::NOT_FOUND, "{path}");
     }
 
-    // Same id again: conflict.
     let (archive, _) = update_archive(RV, "android", &manifest_body(RV, &id));
     let (status, _) = publish(&app, Some(TOKEN), archive).await;
     assert_eq!(status, StatusCode::CONFLICT);
@@ -637,7 +616,6 @@ async fn bad_archives_are_refused() {
         json!([])
     );
 
-    // The good one still goes through.
     let (status, _) = publish(&app, Some(TOKEN), with(update_json(), body_json(&good))).await;
     assert_eq!(status, StatusCode::CREATED);
 }
@@ -645,7 +623,6 @@ async fn bad_archives_are_refused() {
 #[tokio::test]
 async fn newest_wins_and_only_five_are_kept() {
     let (app, dir) = test_app(Some(TOKEN)).await;
-    // An iOS update in the same runtime is counted apart.
     let (archive, _) = update_archive(RV, "ios", &manifest_body(RV, &uuid(100)));
     assert_eq!(
         publish(&app, Some(TOKEN), archive).await.0,
@@ -709,7 +686,6 @@ async fn rollback_directive_then_update_then_delete() {
     let directive_id = res["id"].as_str().unwrap().to_owned();
     assert!(directive_id.starts_with("directive-"));
 
-    // Served as a directive part (signed), no extensions part.
     let (status, h, bytes) = manifest(
         &app,
         "/api/updates/manifest",
@@ -728,7 +704,6 @@ async fn rollback_directive_then_update_then_delete() {
         bytes.to_vec(),
         expected_multipart(&boundary(&h), "directive", &body, true)
     );
-    // Already on the embedded bundle: nothing to do.
     let (status, h, _) = manifest(
         &app,
         "/api/updates/manifest",
@@ -742,7 +717,6 @@ async fn rollback_directive_then_update_then_delete() {
     .await;
     assert_eq!(status, StatusCode::NO_CONTENT);
     assert_protocol_headers(&h);
-    // A directive can't be served as plain JSON.
     let (status, _, _) = manifest(
         &app,
         "/api/updates/manifest",
@@ -754,7 +728,6 @@ async fn rollback_directive_then_update_then_delete() {
     )
     .await;
     assert_eq!(status, StatusCode::NO_CONTENT);
-    // Other platform unaffected.
     assert_eq!(served(&app, RV, "ios").await, None);
 
     let (_, list) = admin(&app, "GET", "/updates", Some(TOKEN)).await;
@@ -764,13 +737,11 @@ async fn rollback_directive_then_update_then_delete() {
     assert_eq!(list[0]["current"], true);
     assert_eq!(list[1]["current"], false);
 
-    // A later update supersedes the directive.
     let b = uuid(2);
     let (archive, _) = update_archive(RV, "android", &manifest_body(RV, &b));
     publish(&app, Some(TOKEN), archive).await;
     assert_eq!(served(&app, RV, "android").await, Some(b.clone()));
 
-    // Deleting brings back the previous entry each time.
     let (status, _) = admin(&app, "DELETE", &format!("/updates/{RV}/{b}"), Some(TOKEN)).await;
     assert_eq!(status, StatusCode::NO_CONTENT);
     assert_eq!(
@@ -791,7 +762,6 @@ async fn rollback_directive_then_update_then_delete() {
     let (status, _) = admin(&app, "DELETE", &format!("/updates/../{b}"), Some(TOKEN)).await;
     assert_eq!(status, StatusCode::NOT_FOUND);
 
-    // noUpdateAvailable: nothing is served.
     let (status, res) = publish(
         &app,
         Some(TOKEN),
@@ -820,18 +790,15 @@ async fn an_update_older_than_the_current_one_is_refused() {
     };
     let (status, res) = publish_at(1, "2026-11-12T10:00:00.000Z", "android").await;
     assert_eq!(status, StatusCode::CREATED, "{res}");
-    // Two CI runs finishing out of order: the older commit's JS is refused.
     let (status, res) = publish_at(2, "2026-11-12T09:59:59.999Z", "android").await;
     assert_eq!(status, StatusCode::CONFLICT);
     assert_eq!(res["error"], "older_than_current");
     assert_eq!(served(&app, RV, "android").await, Some(uuid(1)));
-    // Same time (a re-run of the same build) and newer ones go through.
     let (status, _) = publish_at(3, "2026-11-12T10:00:00Z", "android").await;
     assert_eq!(status, StatusCode::CREATED);
     let (status, _) = publish_at(4, "2026-11-12T11:00:00.000Z", "android").await;
     assert_eq!(status, StatusCode::CREATED);
     assert_eq!(served(&app, RV, "android").await, Some(uuid(4)));
-    // Per platform and per runtime.
     let (status, _) = publish_at(5, "2026-01-01T00:00:00.000Z", "ios").await;
     assert_eq!(status, StatusCode::CREATED);
     let (archive, _) = update_archive(
@@ -843,7 +810,6 @@ async fn an_update_older_than_the_current_one_is_refused() {
         publish(&app, Some(TOKEN), archive).await.0,
         StatusCode::CREATED
     );
-    // A rollback directive doesn't count: the next update (built before it) still goes.
     let directive = json!({ "type": "rollBackToEmbedded", "parameters": { "commitTime": "2026-11-13T00:00:00.000Z" } });
     let (status, _) = publish(
         &app,
@@ -855,7 +821,6 @@ async fn an_update_older_than_the_current_one_is_refused() {
     let (status, _) = publish_at(7, "2026-11-12T12:00:00.000Z", "android").await;
     assert_eq!(status, StatusCode::CREATED);
     assert_eq!(served(&app, RV, "android").await, Some(uuid(7)));
-    // An unreadable date is refused.
     let (status, res) = publish_at(8, "yesterday", "android").await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
     assert_eq!(res["error"], "bad_created_at");
@@ -909,7 +874,6 @@ const TEST_CERT: &str = concat!(
     "/tests/fixtures/ota-test-cert.pem"
 );
 
-/// `expo-signature` of these bytes with the test key, as ota-publish.mjs writes it.
 fn sign(body: &[u8]) -> String {
     let key = jsonwebtoken::EncodingKey::from_rsa_pem(TEST_KEY.as_bytes()).unwrap();
     let b64url = jsonwebtoken::crypto::sign(body, &key, jsonwebtoken::Algorithm::RS256).unwrap();
@@ -944,7 +908,6 @@ async fn with_a_certificate_only_updates_it_verifies_are_accepted() {
         (None, "unsigned_update"),
         (Some(SIG.to_owned()), "bad_signature"),
         (Some("keyid=\"main\"".to_owned()), "bad_signature"),
-        // Signed, but not these bytes.
         (Some(sign(b"something else")), "bad_signature"),
     ] {
         let (status, res) = publish(
@@ -967,7 +930,6 @@ async fn with_a_certificate_only_updates_it_verifies_are_accepted() {
     assert_eq!(status, StatusCode::CREATED, "{res}");
     assert_eq!(served(&app, RV, "android").await, Some(uuid(1)));
 
-    // Directives too.
     let directive = json!({ "type": "rollBackToEmbedded", "parameters": { "commitTime": "2026-11-13T00:00:00.000Z" } })
         .to_string()
         .into_bytes();
@@ -989,7 +951,6 @@ async fn with_a_certificate_only_updates_it_verifies_are_accepted() {
     .await;
     assert_eq!(status, StatusCode::CREATED);
 
-    // Without a certificate configured, unsigned uploads still go through (local tests).
     let (open, _) = test_app(Some(TOKEN)).await;
     let (status, _) = publish(
         &open,
@@ -1002,7 +963,6 @@ async fn with_a_certificate_only_updates_it_verifies_are_accepted() {
 
 #[test]
 fn the_app_certificate_can_verify_signatures() {
-    // The certificate the apps embed is what UPDATES_CERTIFICATE points at in production.
     let pem = include_bytes!(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/../app/certs/certificate.pem"
@@ -1014,7 +974,6 @@ fn the_app_certificate_can_verify_signatures() {
 async fn runtimes_idle_for_months_are_removed_but_the_latest_four_stay() {
     let (app, dir) = test_app(Some(TOKEN)).await;
     let updates = dir.join("updates");
-    // Six old runtimes, last published 200 days ago (one a day apart), as an older server left them.
     let day = 86_400_000u64;
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -1029,7 +988,6 @@ async fn runtimes_idle_for_months_are_removed_but_the_latest_four_stay() {
         });
         std::fs::write(entry.join("meta.json"), meta.to_string()).unwrap();
     }
-    // A runtime still in use (published 10 days ago) stays whatever its rank.
     let recent = updates.join("recent").join(uuid(99));
     std::fs::create_dir_all(&recent).unwrap();
     let meta = json!({
@@ -1043,7 +1001,6 @@ async fn runtimes_idle_for_months_are_removed_but_the_latest_four_stay() {
         publish(&app, Some(TOKEN), archive).await.0,
         StatusCode::CREATED
     );
-    // Kept: the new one, "recent", and the two most recent old ones (4 in all); the rest is gone.
     let mut left: Vec<String> = std::fs::read_dir(&updates)
         .unwrap()
         .flatten()
@@ -1055,7 +1012,6 @@ async fn runtimes_idle_for_months_are_removed_but_the_latest_four_stay() {
     assert_eq!(served(&app, RV, "android").await, Some(uuid(1000)));
 }
 
-/// The new update is live: an old one that can't be removed doesn't turn the publish into an error.
 #[cfg(unix)]
 #[tokio::test]
 async fn a_failed_prune_does_not_fail_the_publish() {
@@ -1068,7 +1024,6 @@ async fn a_failed_prune_does_not_fail_the_publish() {
             StatusCode::CREATED
         );
     }
-    // The oldest, due to go with the next publish, can't be emptied (not as root: root ignores modes).
     let oldest = dir.join("updates").join(RV).join(uuid(1));
     let mode = |m| std::fs::set_permissions(&oldest, std::fs::Permissions::from_mode(m)).unwrap();
     mode(0o555);

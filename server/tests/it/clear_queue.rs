@@ -1,5 +1,3 @@
-//! Clearing a room's question queue (`DELETE /questions/queue`, owner only, docs/ROOMS.md).
-
 use crate::common::{add_question, queued};
 
 use crate::common::{call, join, room_id, setup};
@@ -24,8 +22,6 @@ async fn the_owner_clears_only_upcoming_custom_questions() {
     let (_, features) = call(&app, "GET", "/features", None, None, None).await;
     assert!(features.as_array().unwrap().contains(&json!("clear_queue")));
 
-    // Ana (owner) queues two questions alone; Bob's arrival opens the first, the vote closes it
-    // and opens the second.
     let (ana, _) = join(&app, "Ana").await;
     let room = room_id(&app, &ana).await;
     let asked = add_question(&app, &ana, room, "Qui a déjà été posée ?").await;
@@ -55,7 +51,6 @@ async fn the_owner_clears_only_upcoming_custom_questions() {
     ];
     assert_eq!(queued(&app, &ana, room).await, upcoming);
 
-    // Another room of Ana's keeps its own.
     let (_, other) = call(
         &app,
         "POST",
@@ -70,7 +65,6 @@ async fn the_owner_clears_only_upcoming_custom_questions() {
     let deck = "SELECT COUNT(*) FROM questions WHERE group_id IS NULL";
     let deck_before: i64 = sqlx::query_scalar(deck).fetch_one(&state.db).await.unwrap();
 
-    // A member can't.
     let (s, b) = clear(&app, &bob, room).await;
     assert_eq!(
         (s, b["error"].as_str()),
@@ -91,7 +85,6 @@ async fn the_owner_clears_only_upcoming_custom_questions() {
         vec![(room, json!({ "type": "question_added", "question_id": 0 }))]
     );
 
-    // The asked and the open questions stay, the open round with them; so do the deck and the other room.
     let kept: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM questions WHERE id IN (?, ?)")
         .bind(asked)
         .bind(open)
@@ -108,7 +101,6 @@ async fn the_owner_clears_only_upcoming_custom_questions() {
     assert_eq!(deck_after, deck_before);
     assert_eq!(queued(&app, &ana, other).await, vec![elsewhere]);
 
-    // Nothing left: nothing deleted.
     let (s, b) = clear(&app, &ana, room).await;
     assert_eq!((s, b), (StatusCode::OK, json!({ "deleted": 0 })));
 }

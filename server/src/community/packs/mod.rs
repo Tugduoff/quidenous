@@ -1,8 +1,3 @@
-//! Community question packs (docs/COMMUNITY.md): anyone publishes a pack (from a file, a list or
-//! their room's own questions), anyone installs one into a room. Categories, 16+ packs, likes,
-//! one install per room, editing (versions), reports that send a pack to review, and the admin
-//! side (review, approve, remove, Coflop's selection).
-
 use crate::platform::ids::{PackId, RoomId, UserId};
 use axum::{
     Json,
@@ -32,37 +27,25 @@ const NAME_MAX: usize = 40;
 const DESC_MAX: usize = 140;
 const MIN_QUESTIONS: usize = 5;
 const MAX_QUESTIONS: usize = 300;
-/// Packs per author in `public` or `review` (removed and deleted ones don't count).
 const PACKS_PER_USER: i64 = 10;
-/// Distinct reports that send a public pack to review.
 const REPORTS_TO_REVIEW: i64 = 3;
 const QUESTION_MIN: usize = 8;
 const QUESTION_MAX: usize = 200;
 const LIST_MAX: i64 = 50;
 const DETAILS_MAX: usize = 500;
-/// `removed_reason` of a pack its author deleted while it was in review.
 const DELETED_IN_REVIEW: &str = "deleted_in_review";
-/// The author deletes a pack: `?1` DELETED_IN_REVIEW, `?2` the pack, `?3` the author. Deleted while
-/// in review: remembered (see `publish`).
 const DELETE_SQL: &str = "UPDATE packs SET removed_reason = CASE WHEN status = 'review' THEN ?1 ELSE removed_reason END, \
      status = 'deleted' WHERE id = ?2 AND author_id = ?3";
-/// Most ids in one `POST /packs/delete`.
 const DELETE_MANY_MAX: usize = 100;
 const REASON_MAX: usize = 500;
 pub const MAX_TAGS: usize = 3;
 const REPORT_REASONS: [&str; 4] = ["offensive", "sexual", "spam", "other"];
 
-/// Pack categories: fixed ids, the app names and draws them.
 pub const CATEGORIES: [&str; 7] = [
     "potes", "pimente", "boulot", "famille", "soiree", "culture", "absurde",
 ];
-/// The 16+ category: a pack tagged with it is always `spicy`.
 pub const SPICY_TAG: &str = "pimente";
 
-/// Publishing, liking and reporting packs, making, voting on and reporting suggestions: only with a
-/// verified e-mail or a linked provider (`403 unverified`). Never-verified e-mails are the cheapest
-/// throwaway accounts; legacy accounts (no e-mail: anyone who types their first name can take them
-/// over) and guests secure themselves first. Admins always can.
 pub async fn require_verified(state: &AppState, user: UserId) -> AppResult<()> {
     if crate::accounts::auth::is_admin(state, user) {
         return Ok(());
@@ -81,8 +64,6 @@ pub async fn require_verified(state: &AppState, user: UserId) -> AppResult<()> {
     Ok(())
 }
 
-/// The room the app is in, for endpoints that work without one: the `X-Room` room if I sit in it,
-/// else (no header) the room I used last, like `Me`.
 pub async fn current_room(
     state: &AppState,
     user: UserId,
@@ -121,8 +102,6 @@ struct PackRow {
     removed_reason: Option<String>,
 }
 
-/// Pack rows as lists show them. `?1` = me, `?2` = the room `installed` is about (nullable);
-/// `rest` (WHERE / ORDER BY, constant SQL only) binds from `?3`.
 fn select(rest: &str) -> sqlx::AssertSqlSafe<String> {
     sqlx::AssertSqlSafe(format!(
         "SELECT p.id, p.name, p.description, u.name AS author, p.author_id, p.installs, \
@@ -143,7 +122,6 @@ fn stored_tags(tags: &str) -> Vec<String> {
         .collect()
 }
 
-/// The JSON pack item (lists, creator page, mine), with its first three questions.
 async fn item(state: &AppState, row: PackRow, me: UserId) -> AppResult<Value> {
     let sample: Vec<String> = sqlx::query_scalar(
         "SELECT text FROM pack_questions WHERE pack_id = ? ORDER BY position LIMIT 3",
@@ -152,7 +130,6 @@ async fn item(state: &AppState, row: PackRow, me: UserId) -> AppResult<Value> {
     .fetch_all(&state.db)
     .await?;
     let mine = row.author_id == me;
-    // Why it was removed: for its author and the admins only.
     let removed_reason = if mine || crate::accounts::auth::is_admin(state, me) {
         row.removed_reason
     } else {
@@ -177,7 +154,6 @@ async fn items(state: &AppState, rows: Vec<PackRow>, me: UserId) -> AppResult<Ve
     Ok(out)
 }
 
-/// One pack as an item, whatever its status (callers check visibility).
 async fn one(state: &AppState, id: PackId, me: UserId, room: Option<RoomId>) -> AppResult<PackRow> {
     sqlx::query_as::<_, PackRow>(select("WHERE p.id = ?3"))
         .bind(me)
@@ -191,13 +167,11 @@ async fn one(state: &AppState, id: PackId, me: UserId, room: Option<RoomId>) -> 
 #[derive(Deserialize)]
 pub struct ListQuery {
     q: Option<String>,
-    /// `trending` (default) | `new` | `liked` | `featured`.
     sort: Option<String>,
     tag: Option<String>,
     lang: Option<String>,
 }
 
-/// 16+ packs are for those who opted in (and confirmed their age), or in a `pimente` room.
 async fn sees_spicy(state: &AppState, me: UserId, room: Option<RoomId>) -> AppResult<bool> {
     Ok(sqlx::query_scalar(
         "SELECT COALESCE((SELECT show_spicy FROM users WHERE id = ?1), 0) \
@@ -209,7 +183,6 @@ async fn sees_spicy(state: &AppState, me: UserId, room: Option<RoomId>) -> AppRe
     .await?)
 }
 
-/// Public packs, sorted and filtered. 16+ packs only for those who opted in, or in a `pimente` room.
 pub async fn list(
     State(state): State<AppState>,
     SignedIn(me): SignedIn,
@@ -233,7 +206,6 @@ pub async fn list(
         Some("new") => ("", "p.created_at DESC, p.id DESC"),
         Some("liked") => ("", "likes DESC, p.installs DESC, p.id DESC"),
         Some("featured") => ("AND p.featured = 1", "p.created_at DESC, p.id DESC"),
-        // Trending: installs and likes of the last 7 days, then all-time installs.
         _ => (
             "",
             "(SELECT COUNT(*) FROM pack_installs i WHERE i.pack_id = p.id \
@@ -262,8 +234,6 @@ pub async fn list(
     Ok(Json(json!(items(&state, rows, me).await?)))
 }
 
-/// One pack with all its questions: public ones (16+ ones as in the list), or its author's (not
-/// deleted), or for an admin.
 pub async fn get(
     State(state): State<AppState>,
     SignedIn(me): SignedIn,
@@ -288,7 +258,3 @@ pub async fn get(
     out["questions"] = json!(questions);
     Ok(Json(out))
 }
-
-// ---------- admin ----------
-
-// ---------- seeding (`server seed-packs`) ----------

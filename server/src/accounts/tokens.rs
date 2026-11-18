@@ -18,10 +18,6 @@ use crate::{
 
 use super::*;
 
-/// The client's IP: the socket address, or with `TRUST_PROXY=1` the right-most `X-Forwarded-For`
-/// entry, across every header line (the one our single reverse proxy appended; anything before it
-/// is client-controlled, and a proxy may add its own line instead of extending the client's).
-/// `None` when unknown (in-process tests): per-IP limits then don't apply.
 pub struct ClientIp(pub Option<IpAddr>);
 
 pub fn client_ip(
@@ -62,8 +58,6 @@ impl FromRequestParts<AppState> for ClientIp {
     }
 }
 
-/// `X-Device` (sent percent-encoded: `·` is not a valid header byte everywhere), else the
-/// User-Agent, 80 characters at most.
 pub fn device_label(headers: &HeaderMap) -> Option<String> {
     let header = |h: &str| {
         headers
@@ -116,7 +110,6 @@ pub(crate) fn bearer(headers: &HeaderMap) -> Option<&str> {
         .and_then(|v| v.strip_prefix("Bearer "))
 }
 
-/// The signed-in account and the hash of the token used (sessions, logout).
 pub struct Session {
     pub user_id: UserId,
     pub token_hash: String,
@@ -139,7 +132,6 @@ impl FromRequestParts<AppState> for Session {
     }
 }
 
-/// Signed in or not (OAuth start).
 pub struct MaybeSession(pub Option<Session>);
 
 impl FromRequestParts<AppState> for MaybeSession {
@@ -160,7 +152,6 @@ impl FromRequestParts<AppState> for MaybeSession {
 
 pub(super) const TOUCH_EVERY: Duration = Duration::from_secs(5 * 60);
 
-/// Records that a token was used, at most every 5 minutes per token.
 pub async fn touch(state: &AppState, token_hash: &str) {
     {
         let mut touched = state.auth.touched.lock().unwrap_or_else(|e| e.into_inner());
@@ -186,8 +177,6 @@ pub async fn touch(state: &AppState, token_hash: &str) {
     }
 }
 
-/// Gives a session with no device label (created before 0015) one from this request,
-/// checked once per token and process.
 pub async fn label(state: &AppState, token: &str, headers: &HeaderMap) {
     let Some(device) = device_label(headers) else {
         return;
@@ -217,7 +206,6 @@ pub async fn label(state: &AppState, token: &str, headers: &HeaderMap) {
     }
 }
 
-/// A new session token for this account.
 pub async fn issue_token(
     db: &sqlx::SqlitePool,
     user_id: UserId,
@@ -233,7 +221,6 @@ pub async fn issue_token(
     .bind(device)
     .execute(db)
     .await?;
-    // At most `MAX_SESSIONS` per account: the least recently used ones go.
     sqlx::query(
         "DELETE FROM user_tokens WHERE user_id = ?1 AND token_hash NOT IN ( \
              SELECT token_hash FROM user_tokens WHERE user_id = ?1 \
@@ -246,14 +233,10 @@ pub async fn issue_token(
     Ok(token)
 }
 
-/// Sessions per account; signing in once more signs the least recently used one out.
 pub const MAX_SESSIONS: i64 = 20;
 
-/// A session of an account that can sign in again (e-mail + password, or a provider) ends after
-/// this many days unused. Legacy and guest sessions don't: they have no way back in.
 pub const IDLE_DAYS: i64 = 180;
 
-/// Deletes the sessions unused for `IDLE_DAYS` (hourly, with the guest purge). Returns how many.
 pub async fn purge_idle_sessions(state: &AppState) -> AppResult<u64> {
     let done = sqlx::query(
         "DELETE FROM user_tokens WHERE COALESCE(last_used_at, created_at) \
@@ -267,7 +250,6 @@ pub async fn purge_idle_sessions(state: &AppState) -> AppResult<u64> {
     Ok(done.rows_affected())
 }
 
-/// `{token, user_id, new}`, or `{mfa: "totp", challenge}` when the account has 2FA on.
 pub async fn sign_in(
     state: &AppState,
     user_id: UserId,
@@ -280,7 +262,6 @@ pub async fn sign_in(
             .bind(user_id)
             .fetch_one(&state.db)
             .await?;
-    // An admin suspended it (reports): no new session.
     if suspended {
         return Err(AppError::Forbidden("suspended"));
     }

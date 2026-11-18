@@ -1,6 +1,3 @@
-//! Game flow (docs/ROOMS.md, "When someone is away"): away members, late quorum, gone owners,
-//! empty decks, ballots of people who leave, chat retries, party results nobody moves on from.
-
 use crate::common::{call, join, room_id, setup};
 use axum::{Router, http::StatusCode};
 use quidenous_server::platform::ids::{MemberId, RoomId};
@@ -25,7 +22,6 @@ async fn vote(app: &Router, token: &str, target: i64) -> (StatusCode, Value) {
     .await
 }
 
-/// Makes the open question look `hours` old.
 async fn age_open_round(state: &AppState, hours: i64) {
     sqlx::query(
         "UPDATE rounds SET opened_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now', ?) WHERE closed_at IS NULL",
@@ -47,7 +43,6 @@ async fn set_active(state: &AppState, member: i64, offset: &str) {
     .unwrap();
 }
 
-/// How many "questions" notices (low or empty deck) this person has.
 async fn asks(app: &Router, token: &str) -> usize {
     inbox_kinds(app, token)
         .await
@@ -71,7 +66,6 @@ async fn a_two_person_room_keeps_going_while_one_is_away() {
     let (app, state) = setup().await;
     let (ana, ana_id) = join(&app, "Ana").await;
     let (bob, bob_id) = join(&app, "Bob").await;
-    // Bob is on holiday: each question waits a day, then Ana's vote (half of two) is enough.
     for n in 1..=game::AWAY_AFTER {
         assert_eq!(current(&app, &ana).await["number"], n);
         assert_eq!(vote(&app, &ana, bob_id).await.0, StatusCode::OK);
@@ -84,14 +78,12 @@ async fn a_two_person_room_keeps_going_while_one_is_away() {
         age_open_round(&state, game::QUORUM_HOURS + 1).await;
         assert_eq!(flow::close_late(&state).await.unwrap(), 1);
     }
-    // Missed three in a row: away, the room no longer waits for Bob.
     let round = current(&app, &ana).await;
     assert_eq!(round["number"], game::AWAY_AFTER + 1);
     assert_eq!(round["away_ids"], json!([bob_id]));
     assert_eq!(round["member_count"], 1);
     vote(&app, &ana, bob_id).await;
     assert_eq!(current(&app, &ana).await["number"], game::AWAY_AFTER + 2);
-    // Bob votes again: back, waited for again.
     assert_eq!(vote(&app, &bob, ana_id).await.0, StatusCode::OK);
     let round = current(&app, &ana).await;
     assert_eq!(round["number"], game::AWAY_AFTER + 2);
@@ -109,7 +101,6 @@ async fn a_late_question_needs_half_of_the_room() {
     vote(&app, &ana, ana_id).await;
     age_open_round(&state, game::QUORUM_HOURS + 1).await;
     assert_eq!(flow::close_late(&state).await.unwrap(), 0, "1 of 4");
-    // The second vote closes it right away (no need to wait for the scheduler).
     vote(&app, &bob, ana_id).await;
     assert_eq!(current(&app, &ana).await["number"], 2);
 }
@@ -119,7 +110,6 @@ async fn a_member_who_leaves_takes_their_ballot_and_a_new_ballot_replaces_an_old
     let (app, state) = setup().await;
     let (ana, ana_id) = join(&app, "Ana").await;
     let room = room_id(&app, &ana).await;
-    // Only a ranking question to draw.
     sqlx::query("DELETE FROM questions WHERE group_id IS NULL")
         .execute(&state.db)
         .await
@@ -132,7 +122,6 @@ async fn a_member_who_leaves_takes_their_ballot_and_a_new_ballot_replaces_an_old
     let (bob, bob_id) = join(&app, "Bob").await;
     let (_, cyd_id) = join(&app, "Cyd").await;
     let round_id = current(&app, &ana).await["id"].as_i64().unwrap();
-    // A stale ballot of Ana's (an earlier seat): her vote replaces it.
     sqlx::query(
         "INSERT INTO rankings (round_id, voter_id, member_id, position) VALUES (?, ?, ?, 1)",
     )
@@ -162,7 +151,6 @@ async fn a_member_who_leaves_takes_their_ballot_and_a_new_ballot_replaces_an_old
     .await
     .unwrap();
     assert_eq!(mine, vec![(bob_id, 1), (ana_id, 2), (cyd_id, 3)]);
-    // Bob votes, then leaves: his ballot goes with him.
     let (s, _) = call(
         &app,
         "POST",
@@ -195,7 +183,6 @@ async fn a_member_who_leaves_takes_their_ballot_and_a_new_ballot_replaces_an_old
 
 #[test]
 fn a_guesser_with_nothing_checkable_ranks_after_a_wrong_guess() {
-    // 1 and 2 answered item 0; 1 guessed 2 wrong (0/1); 2 only guessed 3, who didn't answer (0/0).
     let m = MemberId::from_raw;
     let result = game::compute_choose(&[
         (m(1), m(1), 0),
@@ -234,7 +221,6 @@ async fn a_gone_owner_hands_the_room_to_the_longest_standing_member_seen_since()
         0,
         "everyone is around"
     );
-    // Ana and Bob haven't opened the room for 8 days; Cyd did yesterday.
     set_active(&state, ana_id, "-8 days").await;
     set_active(&state, bob_id, "-8 days").await;
     set_active(&state, cyd_id, "-1 days").await;
@@ -243,7 +229,6 @@ async fn a_gone_owner_hands_the_room_to_the_longest_standing_member_seen_since()
     assert_eq!(role(cyd_id).await, "owner");
     assert!(inbox_kinds(&app, &cyd).await.contains(&"owner".to_owned()));
     assert_eq!(flow::hand_over(&state).await.unwrap(), 0, "once");
-    // Cyd now runs the room (an owner-only setting).
     let (s, _) = call(
         &app,
         "PATCH",
@@ -285,11 +270,9 @@ async fn owner_next_stops_waiting_for_an_owner_who_is_gone() {
                 .unwrap();
         }
     };
-    // A day later, the owner was around (just didn't launch): still waiting.
     pause("-25 hours").await;
     set_active(&state, ana_id, "-2 hours").await;
     assert_eq!(pacing::open_due(&state).await.unwrap(), 0);
-    // The owner hasn't been around for a day: the room moves on.
     set_active(&state, ana_id, "-25 hours").await;
     assert_eq!(pacing::open_due(&state).await.unwrap(), 1);
     assert_eq!(current(&app, &bob).await["number"], 2);
@@ -301,7 +284,6 @@ async fn an_empty_deck_tells_the_owner_and_a_new_language_opens_a_question() {
     let (ana, ana_id) = join(&app, "Ana").await;
     let (bob, bob_id) = join(&app, "Bob").await;
     let room = room_id(&app, &ana).await;
-    // The French deck has nothing left after this question.
     let question: i64 =
         sqlx::query_scalar("SELECT question_id FROM rounds WHERE closed_at IS NULL")
             .fetch_one(&state.db)
@@ -366,8 +348,6 @@ async fn a_chat_retry_with_the_same_key_posts_once() {
     assert_eq!(count, 2);
 }
 
-/// A party result nobody else taps on: after the grace, one tap is enough (an owner whose phone died
-/// can't hold the party).
 #[tokio::test]
 async fn a_party_result_moves_on_with_one_tap_after_the_grace() {
     let (app, state) = setup().await;
@@ -413,7 +393,6 @@ async fn a_party_result_moves_on_with_one_tap_after_the_grace() {
     party::sweep_at(&state, &at("+31 seconds").await)
         .await
         .unwrap();
-    // One tap of the 3 needed (4 players), and the host is gone.
     let (_, s) = call(
         &app,
         "POST",
@@ -458,7 +437,6 @@ async fn a_low_deck_tells_the_owner_once() {
     let (ana, ana_id) = join(&app, "Ana").await;
     let (bob, bob_id) = join(&app, "Bob").await;
     let room = room_id(&app, &ana).await;
-    // Nothing left in the deck: only the room's own 4 questions after this one.
     let question: i64 =
         sqlx::query_scalar("SELECT question_id FROM rounds WHERE closed_at IS NULL")
             .fetch_one(&state.db)
@@ -493,20 +471,17 @@ async fn a_low_deck_tells_the_owner_once() {
         4
     );
     assert_eq!(asks(&app, &ana).await, 0);
-    // Question 2 opens: 3 left, the owner hears it (and only the owner).
     vote(&app, &ana, bob_id).await;
     vote(&app, &bob, ana_id).await;
     assert_eq!(current(&app, &ana).await["number"], 2);
     assert_eq!(asks(&app, &ana).await, 1);
     assert_eq!(asks(&app, &bob).await, 0);
-    // Question 3 opens: 2 left, nothing new.
     vote(&app, &ana, bob_id).await;
     vote(&app, &bob, ana_id).await;
     assert_eq!(current(&app, &ana).await["number"], 3);
     assert_eq!(asks(&app, &ana).await, 1);
 }
 
-/// A party whose deck runs out ends (its recap shows) instead of sitting on its last result.
 #[tokio::test]
 async fn a_party_out_of_questions_ends() {
     let (app, state) = setup().await;
@@ -535,7 +510,6 @@ async fn a_party_out_of_questions_ends() {
     )
     .await;
     assert_eq!(s, StatusCode::OK, "{b}");
-    // Only the open question was left.
     sqlx::query(
         "DELETE FROM questions WHERE group_id IS NULL \
          AND id NOT IN (SELECT question_id FROM rounds)",

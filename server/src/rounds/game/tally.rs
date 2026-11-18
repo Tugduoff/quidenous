@@ -11,8 +11,6 @@ use crate::{
 
 use super::*;
 
-/// Votes per person, most voted first. An anonymous question's tallies carry no voter ids: this is
-/// the one place results read who voted for whom (`anonymous`).
 pub async fn tallies(db: &SqlitePool, round_id: RoundId) -> AppResult<Vec<Tally>> {
     let anonymous = crate::rooms::anonymous::is_anonymous(db, round_id).await?;
     let rows: Vec<(MemberId, MemberId)> = sqlx::query_as(
@@ -80,8 +78,6 @@ pub async fn view(db: &SqlitePool, round: RoundRow, me: MemberId) -> AppResult<R
         (Vec::new(), Vec::new(), Vec::new())
     };
     tx.commit().await?;
-    // Votes needed to close: everyone still in the group, minus those the group decided not to
-    // wait for and those who are away.
     let member_count = active - union(&skipped_ids, &away_ids) as i64;
     let result = match round.closed_at {
         Some(_) => Some(tallies(db, round.id).await?),
@@ -172,8 +168,6 @@ pub async fn view(db: &SqlitePool, round: RoundRow, me: MemberId) -> AppResult<R
     })
 }
 
-/// A choose question's result: per person (member order) their own wire, the others' guesses and
-/// the most guessed item(s); per voter how many guesses matched a real choice, best first.
 pub async fn choose_result(db: &SqlitePool, round_id: RoundId) -> AppResult<ChooseResult> {
     let rows: Vec<(MemberId, MemberId, i64)> = sqlx::query_as(
         "SELECT voter_id, member_id, item FROM choices WHERE round_id = ? ORDER BY member_id, voter_id",
@@ -184,7 +178,6 @@ pub async fn choose_result(db: &SqlitePool, round_id: RoundId) -> AppResult<Choo
     Ok(compute_choose(&rows))
 }
 
-/// [`choose_result`] from `(voter, member, item)` wires.
 pub fn compute_choose(rows: &[(MemberId, MemberId, i64)]) -> ChooseResult {
     use std::collections::BTreeMap;
     let real: BTreeMap<MemberId, i64> = rows
@@ -215,7 +208,6 @@ pub fn compute_choose(rows: &[(MemberId, MemberId, i64)]) -> ChooseResult {
             score.hits += i64::from(item == truth);
         }
     }
-    // Voters whose guesses could not be checked (nobody else answered) still get a line.
     for &(voter_id, _, _) in rows {
         scores.entry(voter_id).or_insert(ChooseScore {
             member_id: voter_id,
@@ -236,8 +228,6 @@ pub fn compute_choose(rows: &[(MemberId, MemberId, i64)]) -> ChooseResult {
             .collect();
     }
     let mut scores: Vec<ChooseScore> = scores.into_values().collect();
-    // Best first: most hits, then the better ratio (fewer misses), then member order.
-    // Nothing checkable (0/0) goes after any real score, 0/3 included.
     scores.sort_by(|a, b| {
         b.hits
             .cmp(&a.hits)
@@ -251,7 +241,6 @@ pub fn compute_choose(rows: &[(MemberId, MemberId, i64)]) -> ChooseResult {
     }
 }
 
-/// Points per member for a ranking question: with N members ranked, 1st gets N points, last gets 1.
 pub async fn borda(db: &SqlitePool, round_id: RoundId) -> AppResult<Vec<RankEntry>> {
     let rows: Vec<(MemberId, i64, f64, i64)> = sqlx::query_as(
         "SELECT r.member_id, \

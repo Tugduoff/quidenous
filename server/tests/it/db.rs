@@ -1,6 +1,3 @@
-//! The database (docs/DATABASE.md): upgrading old databases, the backup before migrating, the
-//! repair of a half-recorded migration, indexes and settings, and a few data rules.
-
 use crate::common;
 use quidenous_server::platform::ids::{RoomId, RoundId};
 
@@ -24,7 +21,6 @@ use sqlx::{
 };
 use tower::ServiceExt;
 
-/// A database in `dir` migrated up to (and including) `last`.
 async fn old_database(dir: &std::path::Path, last: i64) -> SqlitePool {
     let options = SqliteConnectOptions::from_str(&format!(
         "sqlite://{}?mode=rwc",
@@ -71,7 +67,6 @@ async fn a_database_from_before_choose_questions_upgrades_with_its_data() {
     ] {
         sqlx::query(sql).execute(&old).await.unwrap();
     }
-    // Older backups: only the newest three stay.
     for v in 1..=4 {
         std::fs::write(dir.join(format!("pre-migrate-{v:04}.db")), b"old").unwrap();
     }
@@ -105,7 +100,6 @@ async fn a_database_from_before_choose_questions_upgrades_with_its_data() {
         .unwrap();
     assert!(fk.is_empty(), "{fk:?}");
 
-    // The copy taken before migrating is the old database, data included.
     let mut backups: Vec<String> = std::fs::read_dir(&dir)
         .unwrap()
         .filter_map(|e| e.ok()?.file_name().into_string().ok())
@@ -133,7 +127,6 @@ async fn a_database_from_before_choose_questions_upgrades_with_its_data() {
         .unwrap();
     assert_eq!(kind, "rank");
 
-    // Up to date: the next start neither migrates nor backs up again.
     drop(upgraded);
     std::fs::remove_file(dir.join("pre-migrate-0026.db")).unwrap();
     state(common::config(&dir)).await.unwrap();
@@ -144,8 +137,6 @@ async fn a_database_from_before_choose_questions_upgrades_with_its_data() {
     );
 }
 
-/// sqlx records a `-- no-transaction` migration after its script: a crash in between used to
-/// make every start fail (`table choices already exists`).
 #[tokio::test]
 async fn a_migration_that_ran_but_was_not_recorded_is_repaired() {
     let dir = common::temp_dir("qdn-db");
@@ -169,7 +160,6 @@ async fn a_migration_that_ran_but_was_not_recorded_is_repaired() {
     assert_eq!(recorded(&state.db).await, all);
 }
 
-/// A database where 0027 really didn't run is migrated normally (no false repair).
 #[tokio::test]
 async fn an_unrun_migration_is_not_marked_applied() {
     let dir = common::temp_dir("qdn-db");
@@ -232,7 +222,6 @@ async fn hot_lookups_use_indexes_and_writes_sync_less() {
             "SELECT COUNT(*) FROM inbox WHERE member_id = 1 AND read_at IS NULL",
             "inbox_unread",
         ),
-        // Erasing an account, the guest purge.
         (
             "DELETE FROM messages WHERE member_id IN (SELECT id FROM members WHERE user_id = 1)",
             "messages_member",
@@ -261,13 +250,11 @@ async fn deck_questions_are_unique_per_language() {
     .fetch_one(&state.db)
     .await
     .unwrap();
-    // The same words in English are another question…
     sqlx::query("INSERT INTO questions (text, lang) VALUES (?, 'en')")
         .bind(&text)
         .execute(&state.db)
         .await
         .unwrap();
-    // …but not twice in French.
     let again = sqlx::query("INSERT INTO questions (text, lang) VALUES (?, 'fr')")
         .bind(&text)
         .execute(&state.db)
@@ -275,8 +262,6 @@ async fn deck_questions_are_unique_per_language() {
     assert!(again.is_err());
 }
 
-/// Six people: three agree to skip Dan, then one of them leaves. Their skip goes with them, so
-/// the question waits for Dan again.
 #[tokio::test]
 async fn skips_from_people_who_left_no_longer_count() {
     let (app, state) = setup().await;
@@ -357,7 +342,6 @@ async fn a_closed_question_is_not_announced_twice() {
         )
         .await;
     }
-    // Re-checking the closed question (a late skip or removal) has nothing to say.
     let mut tx = write_tx(&state.db).await.unwrap();
     let events = quidenous_server::rounds::game::close_if_done(
         &mut tx,
@@ -397,7 +381,6 @@ async fn the_csv_export_dates_questions_in_the_readers_time_zone() {
         )
         .await;
     }
-    // Closed at 23:30 UTC: already the next day in Paris (UTC+1).
     sqlx::query("UPDATE rounds SET closed_at = '2026-01-01T23:30:00.000Z' WHERE number = 1")
         .execute(&state.db)
         .await
@@ -414,7 +397,6 @@ async fn the_csv_export_dates_questions_in_the_readers_time_zone() {
     assert_eq!(date(export(&app, &a, None).await), "2026-01-01");
     assert_eq!(date(export(&app, &a, Some(60)).await), "2026-01-02");
     assert_eq!(date(export(&app, &a, Some(-300)).await), "2026-01-01");
-    // No offset in the link: the one the app saved with the notification settings.
     let (s, _) = call(
         &app,
         "PUT",
@@ -428,7 +410,6 @@ async fn the_csv_export_dates_questions_in_the_readers_time_zone() {
     assert_eq!(date(export(&app, &a, None).await), "2026-01-02");
 }
 
-/// The hourly prune keeps the inbox bounded: 90 days, and a seat's latest 200 entries.
 #[tokio::test]
 async fn the_inbox_is_pruned_by_age_and_per_seat() {
     let (app, state) = setup().await;
@@ -454,7 +435,6 @@ async fn the_inbox_is_pruned_by_age_and_per_seat() {
         .execute(&state.db)
         .await
         .unwrap();
-    // Ana: 5 entries from 100 days ago, 3 recent. Bob: 250 recent.
     add(ana, 5, "-100 days").await;
     add(ana, 3, "-1 day").await;
     add(bob, 250, "-1 hour").await;
@@ -479,7 +459,6 @@ async fn the_inbox_is_pruned_by_age_and_per_seat() {
     };
     assert_eq!(count(ana).await, 3);
     assert_eq!(count(bob).await, 200);
-    // The newest ones stay.
     let kept: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM inbox WHERE id = ?")
         .bind(newest_bob)
         .fetch_one(&state.db)

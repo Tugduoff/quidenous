@@ -1,7 +1,3 @@
-//! Suggestions to the official deck (docs/COMMUNITY.md): anyone proposes a question, everyone
-//! votes up, down or skips; a well-liked one waits for an admin, who puts it in the shared deck
-//! of its language (`questions.suggested_by`: rounds show "proposée par X").
-
 use crate::platform::ids::{QuestionId, SuggestionId, UserId};
 use axum::{
     Json,
@@ -21,15 +17,10 @@ use crate::{
     platform::i18n::{self, Lang},
 };
 
-/// Suggestions per person in any rolling 24 hours.
 pub const PER_DAY: i64 = 5;
-/// `up - down` needed to reach the admins...
 pub const SCORE_MIN: i64 = 10;
-/// ...with at least this share of up votes.
 pub const RATIO_MIN: f64 = 0.7;
-/// `down - up` that rejects it for good (no admin needed).
 pub const SCORE_REJECT: i64 = 5;
-/// Suggestions still being voted on that the admins see too, best first.
 const VOTING_SHOWN: i64 = 30;
 const TEXT_MIN: usize = 8;
 const TEXT_MAX: usize = 200;
@@ -73,7 +64,6 @@ async fn one(db: &SqlitePool, id: SuggestionId) -> AppResult<Row> {
         .ok_or(AppError::NotFound)
 }
 
-/// Suggestions I can still make in the rolling 24 hours.
 pub async fn left(db: &SqlitePool, me: UserId) -> AppResult<i64> {
     let made: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM suggestions WHERE user_id = ? \
@@ -85,7 +75,6 @@ pub async fn left(db: &SqlitePool, me: UserId) -> AppResult<i64> {
     Ok((PER_DAY - made).max(0))
 }
 
-/// Enough votes, and mostly up ones: it goes to the admins.
 pub fn qualifies(up: i64, down: i64) -> bool {
     up - down >= SCORE_MIN && up as f64 >= RATIO_MIN * (up + down) as f64
 }
@@ -119,7 +108,6 @@ pub async fn create(
     if left(&state.db, me).await? == 0 {
         return Err(AppError::TooMany("too_many_suggestions"));
     }
-    // Case-insensitive beyond ASCII (SQLite's lower() only folds A-Z): same length in SQL, then compared here.
     let same_length: Vec<String> = sqlx::query_scalar(
         "SELECT text FROM questions WHERE group_id IS NULL AND length(text) = length(?1) \
          UNION ALL SELECT text FROM suggestions WHERE length(text) = length(?1)",
@@ -148,7 +136,6 @@ pub struct NextQuery {
     lang: Option<String>,
 }
 
-/// Up to 20 suggestions to vote on: in that language, not mine, not voted or skipped, oldest first.
 pub async fn next(
     State(state): State<AppState>,
     SignedIn(me): SignedIn,
@@ -178,7 +165,6 @@ pub struct VoteBody {
     value: i64,
 }
 
-/// Vote up (1), down (-1) or skip (0); changing my vote is allowed while it is open.
 pub async fn vote(
     State(state): State<AppState>,
     crate::accounts::auth::Account(me): crate::accounts::auth::Account,
@@ -212,7 +198,6 @@ pub async fn vote(
     .bind(body.value)
     .execute(&mut *tx)
     .await?;
-    // Shown: every vote. Rejecting for good (no admin involved) takes trusted voters only.
     let (up, down, trusted_up, trusted_down): (i64, i64, i64, i64) = sqlx::query_as(concat!(
         "SELECT COALESCE(SUM(value = 1), 0), COALESCE(SUM(value = -1), 0), \
          COALESCE(SUM(value = 1 AND trusted), 0), COALESCE(SUM(value = -1 AND trusted), 0) \
@@ -244,7 +229,6 @@ pub async fn vote(
     Ok(Json(json!({ "up": up, "down": down, "status": status })))
 }
 
-/// My suggestions, newest first, and how many I can still make today.
 pub async fn mine(State(state): State<AppState>, SignedIn(me): SignedIn) -> AppResult<Json<Value>> {
     let rows: Vec<Row> =
         sqlx::query_as(suggestion_select!("WHERE s.user_id = ? ORDER BY s.id DESC"))
@@ -257,8 +241,6 @@ pub async fn mine(State(state): State<AppState>, SignedIn(me): SignedIn) -> AppR
     })))
 }
 
-/// Suggestions waiting for an admin, oldest first, then the best-scored ones still being voted
-/// on (a small community never reaches the threshold), with their author's account id.
 pub async fn queued(db: &SqlitePool, me: UserId) -> AppResult<Vec<Value>> {
     let mut rows: Vec<Row> = sqlx::query_as(suggestion_select!(
         "WHERE s.status = 'queued' ORDER BY s.id"
@@ -288,7 +270,6 @@ pub struct ApproveBody {
     tags: Option<Vec<String>>,
 }
 
-/// The question joins the shared deck of its language, tagged (default `potes`), credited to its author.
 pub async fn approve(
     State(state): State<AppState>,
     Admin(me): Admin,

@@ -1,6 +1,3 @@
-//! Chat reactions (docs/ROOMS.md, "Chat reactions"): adding and taking back, the allow-list,
-//! who may react to what, blocks, the messages payload, deletions and the live event.
-
 use crate::common::messages;
 
 use crate::common::{call, join, room_id, setup};
@@ -8,7 +5,6 @@ use axum::{Router, http::StatusCode};
 use quidenous_server::{AppState, realtime::live::GroupEvent};
 use serde_json::{Value, json};
 
-/// Ana, Bob and Carl in the env room, the first question closed. (tokens, member ids, round, room)
 async fn chat() -> (Router, AppState, [String; 3], [i64; 3], i64, i64) {
     let (app, state) = setup().await;
     let (ana, ana_id) = join(&app, "Ana").await;
@@ -84,7 +80,6 @@ async fn user_of(app: &Router, token: &str, room: i64, member: i64) -> i64 {
         .unwrap()
 }
 
-/// The `message_reacted` events sent since the last call.
 fn reacted(rx: &mut tokio::sync::broadcast::Receiver<GroupEvent>) -> Vec<(i64, Value)> {
     let mut seen = Vec::new();
     while let Ok(e) = rx.try_recv() {
@@ -119,7 +114,6 @@ async fn reactions_toggle_and_show_under_messages() {
     let id = msg["id"].as_i64().unwrap();
     let (_, inbox_before) = call(&app, "GET", "/inbox", Some(&bob), Some(room), None).await;
 
-    // Twice the same: one reaction, both answers alike.
     let mine = json!({
         "message_id": id,
         "reactions": [{ "emoji": "😂", "count": 1, "mine": true, "members": [ana_id] }],
@@ -128,7 +122,6 @@ async fn reactions_toggle_and_show_under_messages() {
         let (s, b) = react(&app, "POST", &ana, room, id, "😂").await;
         assert_eq!((s, &b), (StatusCode::OK, &mine));
     }
-    // A bare heart is the heart; the allow-list order, oldest first within an emoji.
     let (s, _) = react(&app, "POST", &bob, room, id, "😂").await;
     assert_eq!(s, StatusCode::OK);
     let (s, b) = react(&app, "POST", &bob, room, id, "❤").await;
@@ -149,7 +142,6 @@ async fn reactions_toggle_and_show_under_messages() {
         ])
     );
 
-    // Taken back, twice: fine both times.
     for _ in 0..2 {
         let (s, b) = react(&app, "DELETE", &ana, room, id, "😂").await;
         assert_eq!(s, StatusCode::OK);
@@ -165,7 +157,6 @@ async fn reactions_toggle_and_show_under_messages() {
     assert_eq!(s, StatusCode::OK);
     assert_eq!(b["reactions"].as_array().unwrap().len(), 1);
 
-    // Off the list.
     for emoji in ["💀", "", "😂😂", "❤️❤️"] {
         let (s, b) = react(&app, "POST", &ana, room, id, emoji).await;
         assert_eq!(
@@ -177,7 +168,6 @@ async fn reactions_toggle_and_show_under_messages() {
     let (s, _) = react(&app, "POST", &ana, room, 999_999, "😂").await;
     assert_eq!(s, StatusCode::NOT_FOUND);
 
-    // Nobody hears about a reaction in their inbox.
     let (_, inbox_after) = call(&app, "GET", "/inbox", Some(&bob), Some(room), None).await;
     assert_eq!(inbox_after, inbox_before);
 }
@@ -189,7 +179,6 @@ async fn only_visible_messages_of_my_room_under_a_closed_question() {
         .as_i64()
         .unwrap();
 
-    // My other room can't reach it.
     let (s, other) = call(
         &app,
         "POST",
@@ -207,7 +196,6 @@ async fn only_visible_messages_of_my_room_under_a_closed_question() {
         (StatusCode::NOT_FOUND, Some("not_found"))
     );
 
-    // A message under the open question (none can be posted there, but one could be left over).
     let (_, open) = call(&app, "GET", "/round/current", Some(&ana), Some(room), None).await;
     let open = open["id"].as_i64().unwrap();
     let early: i64 = sqlx::query_scalar(
@@ -221,7 +209,6 @@ async fn only_visible_messages_of_my_room_under_a_closed_question() {
     let (s, _) = react(&app, "POST", &ana, room, early, "😂").await;
     assert_eq!(s, StatusCode::NOT_FOUND);
 
-    // Hidden by reports.
     let hidden = say(&app, &carl, room, round, "caché").await["id"]
         .as_i64()
         .unwrap();
@@ -233,15 +220,12 @@ async fn only_visible_messages_of_my_room_under_a_closed_question() {
     let (s, _) = react(&app, "POST", &ana, room, hidden, "😂").await;
     assert_eq!(s, StatusCode::NOT_FOUND);
 
-    // Carl's message: Bob and Ana react. Then Ana blocks Bob: his message is out of her reach,
-    // and his reaction on Carl's message is left out for her (not for Carl).
     let carls = say(&app, &carl, room, round, "bravo").await["id"]
         .as_i64()
         .unwrap();
     for t in [&bob, &ana] {
         let (s, _) = react(&app, "POST", t, room, carls, "👍").await;
         assert_eq!(s, StatusCode::OK);
-        // Reactions list in time order (ms): the same millisecond would order them by member.
         tokio::time::sleep(std::time::Duration::from_millis(5)).await;
     }
     let bob_user = user_of(&app, &ana, room, bob_id).await;
@@ -283,7 +267,6 @@ async fn reactions_go_with_their_message_and_account() {
     let count_on = "SELECT COUNT(*) FROM message_reactions WHERE message_id = ?";
     let count_by = "SELECT COUNT(*) FROM message_reactions WHERE member_id = ?";
 
-    // Deleted by its author.
     let id = say(&app, &bob, room, round, "oups").await["id"]
         .as_i64()
         .unwrap();
@@ -304,7 +287,6 @@ async fn reactions_go_with_their_message_and_account() {
     assert_eq!(s, StatusCode::OK);
     assert_eq!(rows(&state, count_on, id).await, 0);
 
-    // Carl deletes his account: his reactions go; the ones on his messages go with them.
     let bobs = say(&app, &bob, room, round, "reste").await["id"]
         .as_i64()
         .unwrap();
@@ -339,7 +321,6 @@ async fn a_change_is_told_to_the_room_once() {
     let (s, _) = react(&app, "POST", &ana, room, id, "😮").await;
     assert_eq!(s, StatusCode::OK);
     assert_eq!(reacted(&mut rx), told);
-    // Nothing changed: nothing to tell.
     let (s, _) = react(&app, "POST", &ana, room, id, "😮").await;
     assert_eq!(s, StatusCode::OK);
     assert_eq!(reacted(&mut rx), vec![]);

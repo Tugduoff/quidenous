@@ -1,24 +1,3 @@
-//! Streaks (docs/STREAKS.md): per member and per room, consecutive days with a vote.
-//!
-//! Nothing is stored: a room's rounds, votes, seats and skips are loaded and replayed (rooms are
-//! small). A *day* is a calendar day in the member's time zone (`notification_prefs.tz_offset`, else
-//! the room owner's, else UTC); the room streak uses the owner's.
-//!
-//! Each day is, for a member, one of:
-//! - **voted**: they voted in the room that day (any question): the streak goes on;
-//! - **missed**: a question was open that day that they could still vote on (in the room, not voted
-//!   on it before that day, not skipped by the group), and they didn't vote: the streak ends;
-//! - **neutral** (anything else: nothing open, paused, out of questions, not in the room yet, only
-//!   questions already answered or skipped): it neither extends nor breaks the streak. A question
-//!   opened (or a seat taken) after [`LATE`] (20:00) local time only counts from the next day.
-//!
-//! Today never breaks a streak: until it is over, the streak is the run ending today if I voted
-//! today, else the run ending yesterday. Parties have no streaks (party questions don't count).
-//!
-//! The evening reminder ([`remind_at`]): between 19:00 and 20:00 local time, someone with a streak
-//! of [`REMIND_MIN`] days or more who hasn't voted today and can still vote on the open question
-//! gets one push per room and day (`members.streak_reminded`).
-
 use crate::platform::ids::{MemberId, RoomId, RoundId};
 use std::collections::{BTreeMap, HashMap, HashSet};
 
@@ -35,44 +14,32 @@ use crate::{
     realtime::push::{Kind, Notification},
 };
 
-/// Seconds in a day.
 pub const DAY: i64 = 86_400;
 
-/// Smallest streak the evening reminder is sent for.
 pub const REMIND_MIN: i64 = 3;
 
-/// The reminder's window, in minutes after local midnight: [19:00, 20:00).
 pub const REMIND_WINDOW: std::ops::Range<i64> = 19 * 60..20 * 60;
 
-/// Minutes after local midnight from which a question opening (or a seat taken) no longer makes the
-/// day count: past the reminder, nobody should lose a streak to a question asked at 23:00.
 pub const LATE: i64 = 20 * 60;
 
-/// How often the reminder runs (first run at startup).
 const REMIND_EVERY: std::time::Duration = std::time::Duration::from_secs(5 * 60);
 
-/// What a day was for someone (absent from a [`Days`] map = neutral).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Day {
     Voted,
     Missed,
 }
 
-/// Local day number (days since 1970-01-01) → what it was.
 pub type Days = BTreeMap<i64, Day>;
 
-/// A seat's away status over time: (unix time, away from then on), in time order.
 type Away = Vec<(i64, bool)>;
 
-/// A current streak and the best one ever, in days.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
 pub struct Streak {
     pub current: i64,
     pub best: i64,
 }
 
-/// A question that counts: a room question (no party deadline) still open, or closed with votes
-/// (a removed question closes with none). Times in unix seconds.
 #[derive(Clone, Debug)]
 struct Round {
     id: RoundId,
@@ -84,44 +51,35 @@ struct Round {
 struct Seat {
     id: MemberId,
     joined: i64,
-    /// When the seat ended (left or removed); `None` while in the room.
     left: Option<i64>,
     owner: bool,
-    /// Minutes east of UTC, from the account's notification settings.
     tz: Option<i64>,
 }
 
-/// One room, loaded for [`Room::member`] and [`Room::room`].
 #[derive(Clone, Debug, Default)]
 pub struct Room {
     rounds: Vec<Round>,
     seats: Vec<Seat>,
-    /// Per member: (round, unix time) of each vote.
     votes: HashMap<MemberId, Vec<(RoundId, i64)>>,
-    /// (round, member) the group agreed not to wait for.
     skipped: HashSet<(RoundId, MemberId)>,
 }
 
-/// SQL: a timestamp column as unix seconds.
 macro_rules! secs {
     ($col:literal) => {
         concat!("CAST(strftime('%s', ", $col, ") AS INTEGER)")
     };
 }
 
-/// SQL (`r` = rounds): the question counts for streaks.
 macro_rules! counts {
     () => {
         "r.deadline_at IS NULL AND (r.closed_at IS NULL OR EXISTS (SELECT 1 FROM votes x WHERE x.round_id = r.id))"
     };
 }
 
-/// The local day of unix time `t` for an offset in minutes east of UTC.
 pub fn local_day(t: i64, tz_minutes: i64) -> i64 {
     (t + tz_minutes * 60).div_euclid(DAY)
 }
 
-/// Minutes after local midnight.
 fn local_minute(t: i64, tz_minutes: i64) -> i64 {
     (t.div_euclid(60) + tz_minutes).rem_euclid(24 * 60)
 }
@@ -132,7 +90,6 @@ pub fn now_secs() -> i64 {
         .map_or(0, |d| d.as_secs() as i64)
 }
 
-/// The streak on `today` from a member's (or the room's) days. Today counts only once voted.
 pub fn streak(days: &Days, today: i64) -> Streak {
     let mut current = 0;
     for (&d, &s) in days.range(..=today).rev() {
@@ -156,16 +113,13 @@ pub fn streak(days: &Days, today: i64) -> Streak {
     Streak { current, best }
 }
 
-/// A seat as loaded for [`Room::assemble`]: (id, joined, left, owner, tz).
 type SeatRow = (MemberId, i64, Option<i64>, bool, Option<i64>);
 
 impl Room {
-    /// Everything streaks need from one room. `None` for a party or a deleted room (no streaks).
     pub async fn load(db: &SqlitePool, group_id: RoomId) -> AppResult<Option<Room>> {
         Self::load_with(db, group_id, false).await
     }
 
-    /// [`Room::load`], deleted rooms included (badges: someone's own history, docs/BADGES.md).
     pub async fn load_history(db: &SqlitePool, group_id: RoomId) -> AppResult<Option<Room>> {
         Self::load_with(db, group_id, true).await
     }
@@ -206,7 +160,6 @@ impl Room {
         ))
         .bind(group_id)
         .fetch_all(db);
-        // A said question's answer counts like a vote (docs/SAID.md): writing is playing.
         let votes_q = sqlx::query_as::<_, (MemberId, RoundId, i64)>(concat!(
             "SELECT v.voter_id, v.round_id, ",
             secs!("v.created_at"),
@@ -228,16 +181,11 @@ impl Room {
         Ok(Some(Room::assemble(rounds, seats, votes, skips)))
     }
 
-    /// The rooms of these seats (one per room, rooms only, not deleted), keyed by room, in a fixed
-    /// number of queries whatever their count (`GET /today`). Only these seats' votes and skips are
-    /// loaded: enough for [`Room::member`] and [`Room::voted_today`] of these seats, not for anyone
-    /// else's streak nor the room's.
     pub async fn load_seats(
         db: &SqlitePool,
         seats: &[MemberId],
     ) -> AppResult<HashMap<RoomId, Room>> {
         let seats_json = serde_json::to_string(seats).unwrap_or_else(|_| "[]".into());
-        // `?1` = the seats; their rooms, when they still count for streaks.
         macro_rules! rooms {
             () => {
                 "(SELECT m.group_id FROM members m JOIN groups g ON g.id = m.group_id \
@@ -270,7 +218,6 @@ impl Room {
             ))
             .bind(&seats_json)
             .fetch_all(db);
-        // Through the rooms' rounds: votes and skips are indexed by round.
         let votes_q = sqlx::query_as::<_, (RoomId, MemberId, RoundId, i64)>(concat!(
             "SELECT r.group_id, v.voter_id, v.round_id, ",
             secs!("v.created_at"),
@@ -324,8 +271,6 @@ impl Room {
             .collect())
     }
 
-    /// A room from its rows: rounds (id, opened, closed), seats (id, joined, left, owner, tz), votes
-    /// (voter, round, at) in time order, skips (round, target, how many asked).
     fn assemble(
         rounds: Vec<(RoundId, i64, Option<i64>)>,
         seats: Vec<SeatRow>,
@@ -342,7 +287,6 @@ impl Room {
                 tz,
             })
             .collect();
-        // Skips are judged with today's room size (the past one isn't recorded).
         let needed =
             crate::rounds::game::majority(seats.iter().filter(|s| s.left.is_none()).count() as i64);
         let mut by_member: HashMap<MemberId, Vec<(RoundId, i64)>> = HashMap::new();
@@ -364,7 +308,6 @@ impl Room {
         }
     }
 
-    /// The room's time zone (minutes east of UTC): its owner's, else UTC.
     pub fn room_tz(&self) -> i64 {
         self.seats
             .iter()
@@ -373,7 +316,6 @@ impl Room {
             .unwrap_or(0)
     }
 
-    /// A member's time zone: their own, else the room's.
     pub fn tz_of(&self, member: MemberId) -> i64 {
         self.seats
             .iter()
@@ -382,17 +324,14 @@ impl Room {
             .unwrap_or_else(|| self.room_tz())
     }
 
-    /// Current members (seats still in the room).
     pub fn members(&self) -> impl Iterator<Item = MemberId> + '_ {
         self.seats.iter().filter(|s| s.left.is_none()).map(|s| s.id)
     }
 
-    /// Was this member skipped by the group on this question?
     pub fn skipped(&self, round: RoundId, member: MemberId) -> bool {
         self.skipped.contains(&(round, member))
     }
 
-    /// A member's days, in time zone `tz` (minutes), up to `now`.
     pub fn days(&self, member: MemberId, tz: i64, now: i64) -> Days {
         let mut out = Days::new();
         let Some(seat) = self.seats.iter().find(|s| s.id == member) else {
@@ -405,7 +344,6 @@ impl Room {
             .map(|v| v.iter().copied().collect())
             .unwrap_or_default();
         for r in &self.rounds {
-            // Open while I was in the room…
             let from = r.opened.max(seat.joined);
             let to = r
                 .closed
@@ -416,10 +354,8 @@ impl Room {
             if voted.is_none() && self.skipped(r.id, member) {
                 continue;
             }
-            // …and not answered yet: until my vote, if any.
             let to = voted.map_or(to, |v| to.min(v));
             if to > from {
-                // Something that opens (or a seat taken) late in the evening only counts from the next day.
                 let first = day(from) + i64::from(local_minute(from, tz) >= LATE);
                 for d in first..=day(to - 1) {
                     out.entry(d).or_insert(Day::Missed);
@@ -435,20 +371,16 @@ impl Room {
         out
     }
 
-    /// A member's streak at `now`, in their time zone.
     pub fn member(&self, member: MemberId, now: i64) -> Streak {
         let tz = self.tz_of(member);
         streak(&self.days(member, tz, now), local_day(now, tz))
     }
 
-    /// Did this member vote in the room today (their time zone)?
     pub fn voted_today(&self, member: MemberId, now: i64) -> bool {
         let tz = self.tz_of(member);
         self.days(member, tz, now).get(&local_day(now, tz)) == Some(&Day::Voted)
     }
 
-    /// When each seat counted as away (docs/ROOMS.md: the last [`crate::rounds::game::AWAY_AFTER`]
-    /// questions closed without their vote), as (time, away from then on), in time order.
     fn away_timeline(&self, seat: &Seat) -> Away {
         let mine: HashSet<RoundId> = self
             .votes
@@ -481,8 +413,6 @@ impl Room {
         out
     }
 
-    /// The room's days (owner's time zone): a day counts when someone had something to vote on;
-    /// it is voted when everyone in the room all day long (not away at its start) who could vote did.
     pub fn room_days(&self, now: i64) -> Days {
         let tz = self.room_tz();
         let per: Vec<(&Seat, Days, Away)> = self
@@ -522,14 +452,11 @@ impl Room {
         out
     }
 
-    /// The room streak at `now`.
     pub fn room(&self, now: i64) -> Streak {
         streak(&self.room_days(now), local_day(now, self.room_tz()))
     }
 }
 
-/// `GET /streaks`: `{members: {"<member id>": {current, best}}, room: {current, best} | null}` for
-/// the current members; a party answers `{members: {}, room: null}`.
 pub async fn get(State(state): State<AppState>, Me(me): Me) -> AppResult<Json<Value>> {
     let now = now_secs();
     let Some(room) = Room::load(&state.db, me.group_id).await? else {
@@ -542,15 +469,12 @@ pub async fn get(State(state): State<AppState>, Me(me): Me) -> AppResult<Json<Va
     Ok(Json(json!({ "members": members, "room": room.room(now) })))
 }
 
-/// The records in `GET /stats` (`day_streaks`): the current member with the longest streak ever
-/// (2 days or more) and the room's best and current streaks.
 #[derive(Clone, Debug, Serialize)]
 pub struct Records {
     pub member: Option<crate::insights::stats::Award>,
     pub room: Streak,
 }
 
-/// [`Records`] for a room at `now`; `None` for a party.
 pub async fn records(db: &SqlitePool, group_id: RoomId, now: i64) -> AppResult<Option<Records>> {
     let Some(room) = Room::load(db, group_id).await? else {
         return Ok(None);
@@ -559,7 +483,6 @@ pub async fn records(db: &SqlitePool, group_id: RoomId, now: i64) -> AppResult<O
         .members()
         .map(|id| (id, room.member(id, now)))
         .filter(|(_, s)| s.best >= 2)
-        // Longest ever, then the one still going, then the earliest seat.
         .max_by_key(|(id, s)| (s.best, s.current, std::cmp::Reverse(*id)))
         .map(|(member_id, s)| crate::insights::stats::Award {
             member_id,
@@ -572,8 +495,6 @@ pub async fn records(db: &SqlitePool, group_id: RoomId, now: i64) -> AppResult<O
     }))
 }
 
-/// One seat the reminder looks at: (member, room, open question, own tz, owner's tz,
-/// reminded on, push on, kinds off, quiet start, quiet end).
 type Candidate = (
     MemberId,
     RoomId,
@@ -587,11 +508,7 @@ type Candidate = (
     Option<i64>,
 );
 
-/// The evening reminder at `now` (unix seconds): pushes "your N-day streak ends tonight" to every
-/// seat that qualifies and records it. Returns the members reminded.
 pub async fn remind_at(state: &AppState, now: i64) -> AppResult<Vec<MemberId>> {
-    // Seats with an open question they haven't answered (a said question still writing: not
-    // written), in rooms of two or more.
     let rows: Vec<Candidate> = sqlx::query_as(concat!(
         "SELECT m.id, m.group_id, r.id, p.tz_offset, \
            (SELECT op.tz_offset FROM members o JOIN notification_prefs op ON op.user_id = o.user_id \
@@ -637,7 +554,6 @@ pub async fn remind_at(state: &AppState, now: i64) -> AppResult<Vec<MemberId>> {
         if n < REMIND_MIN || days.get(&today) == Some(&Day::Voted) {
             continue;
         }
-        // Once per seat and local day, even across restarts.
         let marked = sqlx::query(
             "UPDATE members SET streak_reminded = ?1 WHERE id = ?2 AND streak_reminded IS NOT ?1",
         )
@@ -670,7 +586,6 @@ pub async fn remind_at(state: &AppState, now: i64) -> AppResult<Vec<MemberId>> {
     Ok(reminded)
 }
 
-/// The background task for [`remind_at`] (errors are logged; the next run tries again).
 pub fn spawn_reminder(state: AppState) {
     tokio::spawn(async move {
         let mut tick = tokio::time::interval(REMIND_EVERY);

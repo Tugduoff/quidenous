@@ -1,6 +1,3 @@
-//! Deleting several questions or packs in one request (`POST /questions/delete`, `POST /packs/delete`,
-//! feature `batch_delete`, docs/ROOMS.md and docs/COMMUNITY.md).
-
 use crate::common;
 use crate::common::{add_question, queued};
 
@@ -37,8 +34,6 @@ async fn questions_go_by_the_single_delete_rules_with_partial_success() {
             .contains(&json!("batch_delete"))
     );
 
-    // Ana (owner) queues two questions alone; Bob's arrival opens the first, the vote closes it
-    // and opens the second.
     let (ana, _) = join(&app, "Ana").await;
     let room = room_id(&app, &ana).await;
     let asked = add_question(&app, &ana, room, "Qui a déjà été posée ?").await;
@@ -68,7 +63,6 @@ async fn questions_go_by_the_single_delete_rules_with_partial_success() {
     let b2 = add_question(&app, &bob, room, "Qui danse le mieux ?").await;
     assert_eq!(queued(&app, &ana, room).await, vec![a1, a2, b1, b2]);
 
-    // A question of another room of Ana's.
     let (_, other) = call(
         &app,
         "POST",
@@ -81,7 +75,6 @@ async fn questions_go_by_the_single_delete_rules_with_partial_success() {
     let other = other["id"].as_i64().unwrap();
     let elsewhere = add_question(&app, &ana, other, "Qui reste ailleurs ?").await;
 
-    // Bob (a member): his own goes, the rest is skipped. Doubles count once.
     let mut rx = state.live.subscribe();
     let (s, b) = delete(
         &app,
@@ -114,7 +107,6 @@ async fn questions_go_by_the_single_delete_rules_with_partial_success() {
         vec![(room, json!({ "type": "question_added", "question_id": 0 }))]
     );
 
-    // Ana (the owner): her own and Bob's; the asked and the open ones stay (retiring is one by one).
     let (s, b) = delete(
         &app,
         "/questions/delete",
@@ -149,7 +141,6 @@ async fn questions_go_by_the_single_delete_rules_with_partial_success() {
     );
     assert_eq!(queued(&app, &ana, other).await, vec![elsewhere]);
 
-    // Nothing asked or nothing deleted: no live event.
     let mut rx = state.live.subscribe();
     let (s, b) = delete(&app, "/questions/delete", &ana, Some(room), json!([])).await;
     assert_eq!(
@@ -166,7 +157,6 @@ async fn questions_go_by_the_single_delete_rules_with_partial_success() {
     );
     assert!(rx.try_recv().is_err());
 
-    // 200 ids at most.
     let (s, b) = delete(
         &app,
         "/questions/delete",
@@ -218,7 +208,6 @@ async fn authors_delete_their_own_packs_only() {
     let [a1, a2, b1] = packs[..] else {
         unreachable!()
     };
-    // One of Ana's is in review: deleting it is remembered.
     sqlx::query("UPDATE packs SET status = 'review' WHERE id = ?")
         .bind(a2)
         .execute(&state.db)
@@ -268,7 +257,6 @@ async fn authors_delete_their_own_packs_only() {
     let (_, mine) = call(&app, "GET", "/packs/mine", Some(&bob), None, None).await;
     assert_eq!(mine.as_array().unwrap().len(), 1, "{mine}");
 
-    // Already deleted: deleted again, like `DELETE /packs/{id}`.
     let (s, b) = delete(&app, "/packs/delete", &ana, None, json!([a2])).await;
     assert_eq!(
         (s, b),
@@ -282,7 +270,6 @@ async fn authors_delete_their_own_packs_only() {
             .unwrap();
     assert_eq!(reason.as_deref(), Some("deleted_in_review"));
 
-    // 100 ids at most.
     let (s, b) = delete(
         &app,
         "/packs/delete",

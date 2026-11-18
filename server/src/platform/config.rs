@@ -12,61 +12,29 @@ pub struct Config {
     pub vapid_private_key: Option<String>,
     pub vapid_subject: String,
     pub fcm_service_account: Option<PathBuf>,
-    /// `AUTH_SECRET`: master secret for TOTP secret encryption and code hashes.
-    /// Absent: generated once into `DATA_DIR/auth.key`.
     pub auth_secret: Option<String>,
-    /// `PUBLIC_URL`: `https://host` (no trailing slash). Needed for OAuth callbacks.
     pub public_url: Option<String>,
-    /// `TRUST_PROXY=1`: the client IP is the right-most `X-Forwarded-For` entry (last header line), the
-    /// one a single reverse proxy appended (behind that proxy only).
     pub trust_proxy: bool,
-    /// `AUTH_REQUIRED=1`: the anonymous `/api/join` and `/api/start` answer `410 sign_in_required`.
     pub auth_required: bool,
-    /// `MAILGUN_API_KEY` + `MAILGUN_DOMAIN` (+ `MAILGUN_FROM`, `MAILGUN_REGION`): email through Mailgun.
     pub mailgun: Option<Mailgun>,
-    /// `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET`.
     pub google: Option<OAuthClient>,
-    /// `DISCORD_CLIENT_ID` + `DISCORD_CLIENT_SECRET`.
     pub discord: Option<OAuthClient>,
-    /// `OAUTH_REDIRECTS`: extra allowed app redirects, comma-separated URLs compared on scheme, host,
-    /// port and path prefix (`exp://` alone: Expo Go on a local address only).
     pub oauth_redirects: Vec<String>,
-    /// `REPORT_EMAIL`: where content reports go (`contact@coflop.fr` when unset).
     pub report_email: Option<String>,
-    /// `UPDATES_PUBLISH_TOKEN`: bearer token CI uses to publish OTA updates (`/api/updates/publish`).
-    /// Absent: publishing and the update admin endpoints answer 404.
     pub updates_publish_token: Option<String>,
-    /// `UPDATES_CERTIFICATE`: path to the OTA code signing certificate (PEM, the one the apps
-    /// embed). Set: publishing refuses unsigned updates and signatures it doesn't verify.
     pub updates_certificate: Option<PathBuf>,
-    /// `CLIENT_ERRORS_WEBHOOK`: Discord webhook URL that app crash reports are forwarded to.
     pub client_errors_webhook: Option<String>,
-    /// `ADMIN_USER_IDS`: accounts that moderate community packs and suggestions (comma-separated ids).
     pub admin_user_ids: Vec<UserId>,
-    /// `CORS_ORIGINS`: web origins besides `PUBLIC_URL` allowed to call the API (comma-separated).
     pub cors_origins: Vec<String>,
-    /// How often open live sockets re-check their session and seat (tests shorten it; 60 s when unset).
     pub live_recheck: Option<std::time::Duration>,
-    /// `MIN_APP_VERSION` (`x.y.z`): an app that says it is older (`X-App-Version`) gets
-    /// `426 update_required` and asks to update. Unset: every version is served.
     pub min_app_version: Option<String>,
-    /// `KLIPY_API_KEY` (+ `KLIPY_CONTENT_FILTER`, `KLIPY_API_BASE`): GIFs in the chat through Klipy
-    /// (docs/CHAT_MEDIA.md). Absent: no `chat_gifs` feature, the GIF routes answer `404 gifs_off`.
     pub klipy: Option<Klipy>,
-    /// `DONATION_URL`: an `https://` page where people can buy the team a coffee (docs/DONATE.md).
-    /// Set: `donate` in `/api/features` and `GET /api/donate` gives the URL. Not https: ignored, warned.
     pub donation_url: Option<String>,
-    /// `DONATION_URL` was set but rejected (warned about at start-up).
     pub donation_url_rejected: bool,
-    /// `WRAPPED_FROM` / `WRAPPED_UNTIL` (`MM-DD`, default `12-01` / `01-31`): when the Wrapped of a
-    /// year shows (docs/WRAPPED.md). A window that wraps past New Year shows the year it started in.
     pub wrapped: WrappedWindow,
-    /// `WRAPPED_PREVIEW=1` (dev servers): the Wrapped is available all year, as a preview.
     pub wrapped_preview: bool,
 }
 
-/// A donation page URL the app may open: `https://host...`, no spaces or control characters, at most
-/// 2048 bytes. Anything else is `None`.
 pub fn donation_url(raw: &str) -> Option<String> {
     let raw = raw.trim();
     let rest = raw.strip_prefix("https://")?;
@@ -78,7 +46,6 @@ pub fn donation_url(raw: &str) -> Option<String> {
     ok.then(|| raw.to_owned())
 }
 
-/// A yearly window, as `(month, day)` pairs, both days included.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct WrappedWindow {
     pub from: (u32, u32),
@@ -86,7 +53,6 @@ pub struct WrappedWindow {
 }
 
 impl Default for WrappedWindow {
-    /// December 1 to January 31.
     fn default() -> Self {
         Self {
             from: (12, 1),
@@ -95,7 +61,6 @@ impl Default for WrappedWindow {
     }
 }
 
-/// `MM-DD` (`12-01`) as `(month, day)`; `None` when it isn't a day of the year (29 February is).
 pub fn parse_month_day(s: &str) -> Option<(u32, u32)> {
     let (m, d) = s.trim().split_once('-')?;
     let (m, d): (u32, u32) = (m.parse().ok()?, d.parse().ok()?);
@@ -107,7 +72,6 @@ pub fn parse_month_day(s: &str) -> Option<(u32, u32)> {
         .map(|_| (m, d))
 }
 
-/// `x.y.z` (a leading `v`, a missing part or a `-suffix` tolerated) as numbers to compare.
 pub fn parse_version(v: &str) -> Option<(u64, u64, u64)> {
     let v = v.trim().trim_start_matches('v');
     let v = v.split(['-', '+']).next()?;
@@ -120,18 +84,12 @@ pub fn parse_version(v: &str) -> Option<(u64, u64, u64)> {
 
 #[derive(Clone)]
 pub struct Klipy {
-    /// Goes in the URL path of every Klipy call: never logged.
     pub api_key: String,
-    /// `KLIPY_CONTENT_FILTER`: `off`, `low` (default, about PG-13), `medium` or `high`.
     pub content_filter: String,
-    /// `KLIPY_API_BASE`: `https://api.klipy.com` unless set (tests point it at a mock).
     pub api_base: String,
-    /// `KLIPY_MEDIA_HOSTS`: origins (`scheme://host[:port]`, comma-separated) GIF files may come from
-    /// besides `https://static*.klipy.com`. Leave unset in production: for tests and local mocks.
     pub media_hosts: Vec<String>,
 }
 
-/// Never the key.
 impl std::fmt::Debug for Klipy {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Klipy")
@@ -143,18 +101,14 @@ impl std::fmt::Debug for Klipy {
 }
 
 pub const DEFAULT_REPORT_EMAIL: &str = "contact@coflop.fr";
-/// `JOIN_CODE` when unset: public (in the repo and in old APKs).
 pub const DEFAULT_JOIN_CODE: &str = "BANDE-42";
-/// `VAPID_SUBJECT` when unset: a placeholder push services can't reach.
 pub const DEFAULT_VAPID_SUBJECT: &str = "mailto:admin@example.com";
 
 impl Config {
-    /// Where content reports are emailed.
     pub fn report_email(&self) -> &str {
         self.report_email.as_deref().unwrap_or(DEFAULT_REPORT_EMAIL)
     }
 
-    /// Unsafe or missing production settings, logged as warnings at startup.
     pub fn warnings(&self) -> Vec<&'static str> {
         let mut out = Vec::new();
         if !self.auth_required {
@@ -212,11 +166,8 @@ impl Config {
 pub struct Mailgun {
     pub api_key: String,
     pub domain: String,
-    /// `Qui de nous ? <no-reply@domain>` unless `MAILGUN_FROM` is set.
     pub from: String,
-    /// `MAILGUN_REPLY_TO`: where replies to the automatic e-mails go (the sender is a no-reply address).
     pub reply_to: Option<String>,
-    /// `https://api.mailgun.net` (us, default) or `https://api.eu.mailgun.net` (`MAILGUN_REGION=eu`).
     pub base_url: String,
 }
 
@@ -224,7 +175,6 @@ pub struct Mailgun {
 pub struct OAuthClient {
     pub id: String,
     pub secret: String,
-    /// The provider's own endpoints unless overridden (tests point them at a local mock).
     pub endpoints: Option<OAuthEndpoints>,
 }
 
@@ -232,9 +182,7 @@ pub struct OAuthClient {
 pub struct OAuthEndpoints {
     pub authorize: String,
     pub token: String,
-    /// Discord-like providers: the profile endpoint.
     pub userinfo: String,
-    /// OpenID providers (Google): the signing keys.
     pub jwks: String,
 }
 
@@ -336,7 +284,6 @@ impl Config {
                 var("WRAPPED_FROM").as_deref().map(parse_month_day),
                 var("WRAPPED_UNTIL").as_deref().map(parse_month_day),
             ) {
-                // Either one unreadable: the default window (and a warning at startup).
                 (Some(None), _) | (_, Some(None)) => WrappedWindow::default(),
                 (from, until) => WrappedWindow {
                     from: from.flatten().unwrap_or(WrappedWindow::default().from),

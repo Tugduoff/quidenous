@@ -1,25 +1,16 @@
-//! Drawn avatars. An avatar is a spec: one option index per field of `assets/avatar.json`, dot-separated,
-//! in the order of its `fields` (`"0.2.5.1.3.1.2.0.0.4.6"`). That JSON is the single source of truth for
-//! the app (TypeScript renderer, a byte-identical copy in `app/src/lib/avatar-parts.json`) and for the
-//! share cards here: option counts always come from it, never from the code.
-
 use std::{collections::HashMap, fmt::Write, sync::OnceLock};
 
 use serde::Deserialize;
 
-/// Longest spec accepted (11 fields of 2 digits and their dots is 32).
 const SPEC_MAX: usize = 48;
 
 #[derive(Deserialize)]
 struct Def {
     fields: Vec<String>,
-    /// Always drawn (neck, shirt).
     #[serde(default)]
     base: Vec<Shape>,
     #[serde(default)]
     presets: Vec<String>,
-    /// Palette fields (`skin`, `hairColor`, `bg`): each option is `[colour, colour]`.
-    /// Part fields (`face`, `hair`, …): each option is a list of shapes (may be empty).
     #[serde(flatten)]
     options: HashMap<String, serde_json::Value>,
 }
@@ -50,7 +41,6 @@ impl Shape {
     }
 }
 
-/// The parsed parts, per field name.
 struct Parts {
     fields: Vec<String>,
     base: Vec<Shape>,
@@ -96,7 +86,6 @@ fn parts() -> &'static Parts {
 }
 
 impl Parts {
-    /// How many options a field has (0 for a field the JSON does not define).
     fn count(&self, field: &str) -> usize {
         self.palettes
             .get(field)
@@ -105,7 +94,6 @@ impl Parts {
             .unwrap_or(0)
     }
 
-    /// The option index of every field, or None if the spec is not a valid one.
     fn parse(&self, spec: &str) -> Option<HashMap<&str, usize>> {
         if spec.is_empty() || spec.len() > SPEC_MAX {
             return None;
@@ -116,7 +104,6 @@ impl Parts {
         }
         let mut out = HashMap::new();
         for (field, item) in self.fields.iter().zip(items) {
-            // Canonical decimal only: "0", "7", "12"; not "", "01", "+1", " 1".
             if item.is_empty()
                 || item.len() > 2
                 || !item.bytes().all(|b| b.is_ascii_digit())
@@ -134,17 +121,14 @@ impl Parts {
     }
 }
 
-/// Is this a spec the current parts can draw?
 pub fn valid(spec: &str) -> bool {
     parts().parse(spec).is_some()
 }
 
-/// Ready-made avatars from the JSON.
 pub fn presets() -> &'static [String] {
     &parts().presets
 }
 
-/// Numbers as short as they can be: `50`, `2.5`, `0.333`.
 fn num(x: f64) -> String {
     let r = (x * 1000.0).round() / 1000.0;
     if r == 0.0 { "0".into() } else { format!("{r}") }
@@ -157,7 +141,6 @@ fn esc(s: &str) -> String {
         .replace('"', "&quot;")
 }
 
-/// The colours a spec picked, by token.
 struct Colors<'a> {
     skin: &'a [String],
     hair: &'a [String],
@@ -165,7 +148,6 @@ struct Colors<'a> {
 }
 
 impl Colors<'_> {
-    /// A token, a literal `#RGB`/`#RRGGBB`(`AA`) or `none`; None for anything else.
     fn resolve(&self, c: &str) -> Option<String> {
         let pick = |p: &[String], i: usize| p.get(i).cloned();
         let out = match c {
@@ -240,15 +222,6 @@ fn shape(out: &mut String, s: &Shape, colors: &Colors) {
     let _ = write!(out, "<{tag}{attrs}/>");
 }
 
-/// The avatar as an SVG fragment in a 0 0 100 100 space, clipped to the circle (50, 50, r 50), with a
-/// clipPath of id `id` (unique in the document). Place it with a transform. None if the spec is invalid.
-///
-/// Draw order (the app's renderer follows exactly the same):
-/// 1. the background (`bg`),
-/// 2. the `layer: "back"` shapes of the hair option, then of the extra option,
-/// 3. `base`,
-/// 4. face, beard, mouth, eyes, brows, glasses (all their shapes, `back` or not),
-/// 5. the other shapes of hair, then of extra.
 pub fn svg(spec: &str, id: &str) -> Option<String> {
     let p = parts();
     let sel = p.parse(spec)?;
@@ -273,7 +246,6 @@ pub fn svg(spec: &str, id: &str) -> Option<String> {
     let mut out = format!(
         r#"<g><defs><clipPath id="{id}"><circle cx="50" cy="50" r="50"/></clipPath></defs><g clip-path="url(#{id})">"#
     );
-    // 1. Background.
     let bg = Shape {
         el: "rect".into(),
         x: Some(0.0),
@@ -284,23 +256,19 @@ pub fn svg(spec: &str, id: &str) -> Option<String> {
         ..Default::default()
     };
     shape(&mut out, &bg, &colors);
-    // 2. Behind the head: long hair, hoods…
     for field in ["hair", "extra"] {
         for s in option(field).iter().filter(|s| s.back()) {
             shape(&mut out, s, &colors);
         }
     }
-    // 3. Neck and shirt.
     for s in &p.base {
         shape(&mut out, s, &colors);
     }
-    // 4. The face and what is on it.
     for field in ["face", "beard", "mouth", "eyes", "brows", "glasses"] {
         for s in option(field) {
             shape(&mut out, s, &colors);
         }
     }
-    // 5. Hair and extras in front.
     for field in ["hair", "extra"] {
         for s in option(field).iter().filter(|s| !s.back()) {
             shape(&mut out, s, &colors);
@@ -340,7 +308,6 @@ mod tests {
             resvg::tiny_skia::Transform::default(),
             &mut pixmap.as_mut(),
         );
-        // The background fills the circle: its centre is never transparent.
         assert_ne!(pixmap.pixel(50, 50).unwrap().alpha(), 0, "{doc}");
     }
 
@@ -363,7 +330,6 @@ mod tests {
 
     #[test]
     fn the_app_draws_from_the_same_parts() {
-        // Regenerate both with `node scripts/avatar-parts.mjs` (from app/).
         assert!(
             include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/avatar.json"))
                 == include_str!(concat!(
@@ -376,7 +342,6 @@ mod tests {
 
     #[test]
     fn the_app_draws_the_mascots_from_the_same_parts() {
-        // The mascots (app/scripts/mascot-parts.mjs) are kept here for share cards; regenerate both from app/.
         assert!(
             include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/mascot.json"))
                 == include_str!(concat!(
@@ -395,7 +360,6 @@ mod tests {
         for bad in ["", ".", "0", "abc", "-1", " 0"] {
             assert!(!valid(bad), "{bad:?}");
         }
-        // Wrong field count.
         assert!(!valid(&format!("{zero}.0")));
         assert!(!valid(zero.strip_suffix(".0").unwrap()));
         assert!(!valid(&format!("{zero}.")));
@@ -407,7 +371,6 @@ mod tests {
                 assert!(!valid(&spec_with(i, bad)), "{f} = {bad:?}");
             }
         }
-        // Too long, even if it were well formed.
         assert!(!valid(&"0.".repeat(40)));
     }
 

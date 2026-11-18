@@ -16,7 +16,6 @@ use crate::{
 
 use super::*;
 
-/// Packs waiting for review (with their reports) and suggestions waiting for approval.
 pub async fn review(
     State(state): State<AppState>,
     Admin(me): Admin,
@@ -55,7 +54,6 @@ pub async fn review(
     ))
 }
 
-/// The pack as an item, plus `ok`, for the admin actions.
 pub(super) async fn admin_answer(
     state: &AppState,
     id: PackId,
@@ -67,7 +65,6 @@ pub(super) async fn admin_answer(
     Ok(Json(out))
 }
 
-/// Back to `public`, reports cleared.
 pub async fn approve(
     State(state): State<AppState>,
     Admin(me): Admin,
@@ -97,7 +94,6 @@ pub struct RemoveBody {
     reason: Option<String>,
 }
 
-/// `removed`, with the reason its author sees in Mes packs.
 pub async fn remove(
     State(state): State<AppState>,
     Admin(me): Admin,
@@ -132,7 +128,6 @@ pub struct FeatureBody {
     featured: bool,
 }
 
-/// In or out of Coflop's selection.
 pub async fn feature(
     State(state): State<AppState>,
     Admin(_): Admin,

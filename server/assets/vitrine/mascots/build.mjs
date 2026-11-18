@@ -1,12 +1,3 @@
-// The showcase page's mascots, from the Petons rig (rig.mjs, vendored next to this file).
-//   node server/assets/vitrine/mascots/build.mjs
-// writes optimised SVGs next to this file. Bump `?v=` on the page (and the FILES list in src/vitrine.rs for a
-// new file) when they change.
-//
-// Optimisation: numbers rounded to 1 decimal (3 for scale/rotation in matrices), transforms folded into one
-// matrix or translate, identity transforms and empty groups dropped, round caps/joins set once on the root,
-// short colours, no width/height (CSS sizes them), a unique clipPath id per character and per file, so the
-// files can also be inlined side by side in one document.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -14,8 +5,6 @@ import { compose } from './rig.mjs';
 
 const dir = path.dirname(fileURLToPath(import.meta.url));
 
-// The band, as on the design board: everyone points at Bulle, who jumps out of his skin.
-// [who, mood, size, left, bottom] in a 400-high scene, painted back to front.
 const BAND = [
   ['bulle', 'caught', 260, 700, 10],
   ['zeste', { eyes: 'squint', brows: 'up', mouth: 'grin', arms: ['rest', 'aim'], legs: ['wide', 'wide'], tilt: 6, dx: -8 }, 200, 560, 74],
@@ -23,10 +12,8 @@ const BAND = [
   ['pave', { eyes: 'squint', brows: 'sus', mouth: 'smirk', arms: ['rest', 'point'], legs: ['wide', 'wide'], tilt: 4, dx: -10 }, 225, 420, 6],
   ['roupi', { eyes: 'lazy', mouth: 'smirk', arms: ['point', 'rest'], legs: ['sit', 'sit'], tilt: -2, dx: 10 }, 225, 1045, 6],
 ];
-// Tight box around the scene's ink (the ink measured once by rasterising, plus 1 unit).
 const BAND_VIEWBOX = '430 147 842 243';
 
-// One character per file: [file, who, mood, viewBox]. The 200 box cropped to the ink (character, props, shadow).
 const SINGLES = [
   ['zeste-accuse', 'zeste', 'accuse', '20 28 166 168'],
   ['paillette-celebrate', 'paillette', 'celebrate', '3 2 196 192'],
@@ -34,13 +21,11 @@ const SINGLES = [
   ['pave-think', 'pave', 'think', '16 27 181 169'],
 ];
 
-// ---------- optimiser ----------
 const num = (v, d = 1) => {
   const s = String(+(+v).toFixed(d));
   return s.replace(/^(-?)0\./, '$1.');
 };
 
-// Path data: round every number, drop separators that the grammar does not need.
 function pathData(d) {
   const tokens = d.match(/[a-zA-Z]|-?(?:\d+\.?\d*|\.\d+)(?:e-?\d+)?/g);
   let out = '';
@@ -59,7 +44,6 @@ function pathData(d) {
   return out;
 }
 
-// Any SVG transform list -> one affine matrix [a b c d e f].
 function matrix(list) {
   const mul = (m, n) => [m[0] * n[0] + m[2] * n[1], m[1] * n[0] + m[3] * n[1], m[0] * n[2] + m[2] * n[3], m[1] * n[2] + m[3] * n[3], m[0] * n[4] + m[2] * n[5] + m[4], m[1] * n[4] + m[3] * n[5] + m[5]];
   let m = [1, 0, 0, 1, 0, 0];
@@ -92,12 +76,11 @@ const colour = (v) => {
   return m ? `#${m[1]}${m[2]}${m[3]}` : v;
 };
 
-// Rewrite every tag's attributes. The rig only emits flat attribute lists, no <style>, no text.
 function tidyTags(svg) {
   return svg.replace(/<(\w+)((?:\s[\w-]+="[^"]*")*)\s*(\/?)>/g, (all, tag, attrs, self) => {
     const out = [];
     for (const [, k, v] of attrs.matchAll(/\s([\w-]+)="([^"]*)"/g)) {
-      if ((k === 'stroke-linecap' || k === 'stroke-linejoin') && v === 'round') continue; // set on the root
+      if ((k === 'stroke-linecap' || k === 'stroke-linejoin') && v === 'round') continue;
       if (k === 'd') out.push(`d="${pathData(v)}"`);
       else if (k === 'transform') {
         const t = transform(v);
@@ -111,13 +94,11 @@ function tidyTags(svg) {
   });
 }
 
-// A character's drawing without its <svg> wrapper, ids prefixed with `uid`.
 function inner(who, mood, uid) {
   const svg = compose(who, mood, { uid });
   return tidyTags(svg.replace(/^<svg[^>]*>/, '').replace(/<\/svg>$/, ''));
 }
 
-// Groups left without a transform: unwrap; empty groups: drop.
 function flatten(s) {
   let prev;
   do {
@@ -130,7 +111,6 @@ function flatten(s) {
 const root = (viewBox, body) =>
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}" stroke-linecap="round" stroke-linejoin="round">${flatten(body)}</svg>\n`;
 
-// ---------- write ----------
 const written = [];
 const write = (name, svg) => {
   fs.writeFileSync(path.join(dir, `${name}.svg`), svg);

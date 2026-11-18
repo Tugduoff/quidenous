@@ -74,7 +74,6 @@ async fn suggestions_are_voted_then_approved_into_the_deck() {
     assert_eq!(mine_ids, made.iter().rev().copied().collect::<Vec<_>>());
     let (_, me) = call(app, "GET", "/community/me", Some(&ana), None).await;
     assert_eq!(me["suggestions_left"], 0);
-    // Duplicates: of a suggestion (any case) or of a deck question.
     let (s, b) = call(
         app,
         "POST",
@@ -106,7 +105,6 @@ async fn suggestions_are_voted_then_approved_into_the_deck() {
         (StatusCode::CONFLICT, Some("duplicate"))
     );
 
-    // Voting: not mine, skip hides it, votes can change (up/down stay in sync).
     let target = made[0];
     let (_, next) = call(app, "GET", "/suggestions/next", Some(&ana), None).await;
     assert!(!ids(&next).contains(&target));
@@ -156,7 +154,6 @@ async fn suggestions_are_voted_then_approved_into_the_deck() {
     )
     .await;
     assert_eq!(b, json!({ "up": 0, "down": 1, "status": "voting" }));
-    // 10 up, 1 down: score 9, still voting; the 11th up makes it 10 at 92 %: queued.
     for i in 0..11 {
         let (voter, _) = join(app, &format!("Voter{i}")).await;
         common::trust_all(&t.state).await;
@@ -185,7 +182,6 @@ async fn suggestions_are_voted_then_approved_into_the_deck() {
         (StatusCode::CONFLICT, Some("closed"))
     );
 
-    // Admins approve into the deck, or reject.
     let (_, review) = call(app, "GET", "/admin/review", Some(&admin), None).await;
     assert_eq!(ids(&review["suggestions"]), [target]);
     assert_eq!(review["suggestions"][0]["author"], "Ana");
@@ -255,7 +251,6 @@ async fn suggestions_are_voted_then_approved_into_the_deck() {
     .await;
     assert_eq!(s, StatusCode::CONFLICT);
 
-    // It stays in the shared deck.
     let group: Option<i64> = sqlx::query_scalar("SELECT group_id FROM questions WHERE id = ?")
         .bind(question)
         .fetch_one(&t.state.db)
@@ -263,7 +258,6 @@ async fn suggestions_are_voted_then_approved_into_the_deck() {
         .unwrap();
     assert_eq!(group, None);
 
-    // Drawn in a room: the round says who proposed it. Leave it the only fresh deck question.
     sqlx::query("UPDATE questions SET lang = 'xx' WHERE group_id IS NULL AND id != ?")
         .bind(question)
         .execute(&t.state.db)
@@ -286,7 +280,6 @@ async fn shared_questions_play_in_other_rooms_and_challenge_them() {
     let (_, g) = call(app, "GET", "/group", Some(&ana), None).await;
     let test_room = g["id"].as_i64().unwrap();
     let (cyd, _) = join(app, "Cyd").await;
-    // Cousins opens on a written question: a random deck draw could be Test's question.
     let cousins = room_with(app, &ana, "Cousins", &[], None).await;
     let (s, b) = call_room(
         app,
@@ -310,7 +303,6 @@ async fn shared_questions_play_in_other_rooms_and_challenge_them() {
     assert_eq!(s, StatusCode::OK, "{b}");
     let ana_c = seat(app, &ana, cousins).await;
     let cyd_c = seat(app, &cyd, cousins).await;
-    // Cyd is also in Test: three there. Close Test's question with everyone.
     let (_, r0) = call_room(app, "GET", "/round/current", &ana, test_room, None).await;
     let r0_id = r0["id"].as_i64().unwrap();
     let r0_text = r0["question"].as_str().unwrap().to_owned();
@@ -325,7 +317,6 @@ async fn shared_questions_play_in_other_rooms_and_challenge_them() {
     .await;
     let token = share["token"].as_str().unwrap().to_owned();
 
-    // The share page leads to playing it.
     let (s, html) = page(app, &format!("/s/{token}")).await;
     assert_eq!(s, StatusCode::OK);
     assert!(html.contains(&format!("/play?share={token}")), "{html}");
@@ -334,7 +325,6 @@ async fn shared_questions_play_in_other_rooms_and_challenge_them() {
             && html.contains("Ouvrir qui de nous ?")
     );
 
-    // Public view of the shared question.
     let (s, p) = call(app, "GET", &format!("/play/{token}"), None, None).await;
     assert_eq!(s, StatusCode::OK);
     assert_eq!(
@@ -344,7 +334,6 @@ async fn shared_questions_play_in_other_rooms_and_challenge_them() {
     let (s, _) = call(app, "GET", "/play/nope", None, None).await;
     assert_eq!(s, StatusCode::NOT_FOUND);
 
-    // Played while open: front of Cousins' queue, no challenge.
     let (_, written) = call_room(
         app,
         "POST",
@@ -367,7 +356,6 @@ async fn shared_questions_play_in_other_rooms_and_challenge_them() {
         .collect();
     assert_eq!(queued, [qid, written["id"].as_i64().unwrap()]);
 
-    // Test closes it: playing it again makes a challenge (same queued copy).
     vote_in(app, &ana, test_room, bob_id).await;
     vote_in(app, &bob, test_room, bob_id).await;
     vote_in(app, &cyd, test_room, ana_id).await;
@@ -377,7 +365,6 @@ async fn shared_questions_play_in_other_rooms_and_challenge_them() {
     assert_eq!(s, StatusCode::OK, "{again}");
     assert_eq!(again["question_id"], qid);
     let challenge = again["challenge_id"].as_i64().unwrap();
-    // Not in its own room: it was asked there.
     let (s, b) = call_room(
         app,
         "POST",
@@ -392,7 +379,6 @@ async fn shared_questions_play_in_other_rooms_and_challenge_them() {
         (StatusCode::CONFLICT, Some("already_asked"))
     );
 
-    // Cousins closes its current question; the challenge opens next.
     vote_in(app, &ana, cousins, cyd_c).await;
     vote_in(app, &cyd, cousins, cyd_c).await;
     let (_, cr) = call_room(app, "GET", "/round/current", &ana, cousins, None).await;
@@ -418,7 +404,6 @@ async fn shared_questions_play_in_other_rooms_and_challenge_them() {
         (json!("Cousins"), json!(cr_id), json!(false))
     );
     assert!(list[0]["podium"].is_null());
-    // Both closed: both podiums.
     vote_in(app, &ana, cousins, ana_c).await;
     vote_in(app, &cyd, cousins, ana_c).await;
     let (_, list) = call_room(
@@ -450,7 +435,6 @@ async fn shared_questions_play_in_other_rooms_and_challenge_them() {
         (json!("Test"), json!(r0_id))
     );
     assert_eq!(back[0]["podium"][0]["name"], "Bob");
-    // Played now: already asked, the challenge still there.
     let (s, b) = call_room(app, "POST", &format!("/play/{token}"), &ana, cousins, None).await;
     assert_eq!(
         (s, b["error"].as_str()),
@@ -463,7 +447,6 @@ async fn shared_questions_play_in_other_rooms_and_challenge_them() {
         .unwrap();
     assert_eq!(n, 1);
 
-    // Challenge a closed round straight into another of my rooms.
     let (s, b) = call_room(
         app,
         "POST",

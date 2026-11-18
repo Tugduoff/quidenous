@@ -1,14 +1,3 @@
-//! The home-screen widget (docs/WIDGET.md): one cheap read of where a room stands for me, with a
-//! narrow token that can read this and nothing else.
-//!
-//! - `POST /api/widget/token` (session) `{fcm_token?}` → `{token}`: a read-only widget token for this
-//!   device, tied to the session (it dies with it). Minting again from the same session replaces it.
-//! - `GET /api/widget?room=<id>` (widget token) → [`WidgetState`]. No `room`: the room I used last.
-//! - `DELETE /api/widget/token` (widget token): the last widget was removed from the home screen.
-//!
-//! The widget token works on `/api/widget` only, and session tokens don't work there: a leaked widget
-//! token shows today's question and nothing more (no vote, no chat, no account change).
-
 use crate::platform::ids::{RoomId, RoundId, UserId};
 use axum::{
     Json, Router,
@@ -36,7 +25,6 @@ pub fn router() -> Router<AppState> {
 
 #[derive(Deserialize, Default)]
 struct MintBody {
-    /// This device's FCM token: question opened / result out → a silent refresh (Android).
     fcm_token: Option<String>,
 }
 
@@ -58,12 +46,10 @@ async fn mint(
     }
     let token = format!("w_{}", new_token());
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
-    // One per session (= per device): a new one replaces the old.
     sqlx::query("DELETE FROM widget_tokens WHERE session_hash = ?")
         .bind(hash_token(session))
         .execute(&mut *tx)
         .await?;
-    // The same phone signed in again: its old widget token no longer gets pushes.
     if let Some(fcm) = &fcm {
         sqlx::query("UPDATE widget_tokens SET fcm_token = NULL WHERE fcm_token = ?")
             .bind(fcm)
@@ -83,7 +69,6 @@ async fn mint(
     Ok(Json(json!({ "token": token })))
 }
 
-/// The account behind a widget token (`Authorization: Bearer w_…`).
 async fn widget_user(state: &AppState, headers: &HeaderMap) -> AppResult<(String, UserId)> {
     let token = crate::accounts::bearer(headers)
         .filter(|t| t.starts_with("w_"))
@@ -114,29 +99,18 @@ struct WidgetQuery {
     room: Option<RoomId>,
 }
 
-/// What the widget draws. `state`, by priority:
-/// `result` (a result I voted on and haven't seen), `vote` (the open question waits for me),
-/// `wait` (I voted, others haven't), `idle` (no open question: paused, or out of questions),
-/// `no_room` (signed in, in no room).
 #[derive(Debug, Serialize)]
 pub struct WidgetState {
     pub state: &'static str,
-    /// The account's language (`fr` / `en`): the widget speaks it.
     pub lang: &'static str,
     pub room: Option<WidgetRoom>,
-    /// The open question.
     pub round: Option<WidgetRound>,
-    /// I voted on the open question.
     pub voted: bool,
-    /// Votes in, and votes needed to close it (people skipped or away aren't waited for).
     pub votes: i64,
     pub needed: i64,
-    /// The newest result I voted on and haven't seen, and how many such results there are.
     pub result: Option<WidgetRound>,
     pub unseen: usize,
-    /// My day streak in this room (docs/STREAKS.md); null at a party.
     pub streak: Option<WidgetStreak>,
-    /// Paused room: when the next question opens by itself (null: the owner launches it).
     pub next_open_at: Option<String>,
 }
 
@@ -158,7 +132,6 @@ pub struct WidgetRound {
 #[derive(Debug, Serialize)]
 pub struct WidgetStreak {
     pub current: i64,
-    /// Already voted today (my time zone): the flame is lit.
     pub today: bool,
 }
 
@@ -170,7 +143,6 @@ async fn get_state(
     let (_, user) = widget_user(&state, &headers).await?;
     let body = widget_state(&state, user, q.room).await?;
     let mut res = Json(body).into_response();
-    // Personal, and stale within minutes: no shared cache, a short private one.
     res.headers_mut().insert(
         header::CACHE_CONTROL,
         HeaderValue::from_static("private, max-age=60"),
@@ -178,15 +150,12 @@ async fn get_state(
     Ok(res)
 }
 
-/// [`WidgetState`] for this account in `room` (else the room it used last; a room it isn't in any
-/// more falls back to that too, so a widget never breaks on a room left).
 pub async fn widget_state(
     state: &AppState,
     user: UserId,
     room: Option<RoomId>,
 ) -> AppResult<WidgetState> {
     let lang = i18n::of_user(&state.db, user).await?.as_str();
-    // Not `auth::member_in_room`: a glance at the widget is no visit (no "last used", no activity).
     let member = sqlx::query_as::<_, crate::rooms::model::MemberRow>(
         "SELECT m.* FROM members m JOIN users u ON u.id = m.user_id \
          JOIN groups g ON g.id = m.group_id AND g.deleted_at IS NULL \
@@ -293,8 +262,6 @@ pub async fn widget_state(
     })
 }
 
-/// A question opened or closed in this room: every widget of its members refreshes (Android, a silent
-/// FCM data message, collapsed and normal priority: it waits for the phone's next wake-up).
 pub async fn ping_room(state: &AppState, group_id: RoomId) {
     let tokens: Vec<(UserId, String)> = match sqlx::query_as(
         "SELECT DISTINCT w.user_id, w.fcm_token FROM widget_tokens w \

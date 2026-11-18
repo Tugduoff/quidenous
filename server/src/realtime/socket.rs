@@ -17,38 +17,27 @@ use crate::{
 #[derive(Deserialize)]
 pub(crate) struct LiveQuery {
     token: Option<String>,
-    /// A 60 s single-use ticket from `POST /auth/ticket` (`purpose: "live"`), instead of `token`.
     ticket: Option<String>,
     room: Option<RoomId>,
-    /// A party's code: the big screen follows that party without an account.
     screen: Option<String>,
-    /// Events this app understands beyond the old ones, comma-separated (`crate::realtime::live::OptIns`).
     events: Option<String>,
-    /// `1`: also a compact `room_activity` for the account's other rooms (docs/TODAY.md).
     others: Option<String>,
 }
 
-/// The app only ever sends "here" / "away": anything bigger is cut off at the frame.
 const WS_MAX_MESSAGE: usize = 256;
 
-/// The server pings this often; browsers and phones answer by themselves.
 const WS_PING: std::time::Duration = std::time::Duration::from_secs(30);
 
-/// Nothing at all from the other side (no pong, no "here") for this long: the socket is dropped.
 const WS_IDLE: std::time::Duration = std::time::Duration::from_secs(75);
 
-/// How often an open socket checks that its session, seat or party is still there.
 const WS_RECHECK: std::time::Duration = std::time::Duration::from_secs(60);
 
-/// Who is on the other end of a live socket.
 enum Watcher {
-    /// A signed-in seat: closed after a kick, a leave, a room deletion or a sign-out.
     Member {
         member_id: MemberId,
         user_id: Option<UserId>,
         token_hash: String,
     },
-    /// A party's big screen: closed once the party is gone or over for good.
     Screen,
 }
 
@@ -60,7 +49,6 @@ impl Watcher {
         }
     }
 
-    /// Still allowed to follow `group_id`?
     async fn still_allowed(&self, state: &AppState, group_id: RoomId) -> AppResult<bool> {
         match self {
             Self::Member {
@@ -82,7 +70,6 @@ impl Watcher {
         }
     }
 
-    /// After relaying this event, the socket has nothing more to follow.
     fn ends_with(&self, event: &Event) -> bool {
         match (self, event) {
             (_, Event::RoomDeleted) => true,
@@ -94,9 +81,6 @@ impl Watcher {
     }
 }
 
-/// WebSocket: `?ticket=` (or `?token=` from older apps) because browsers cannot set headers on a socket.
-/// `?screen=<code>`: a party's events, no account (party rooms only).
-/// Sockets are capped per account, per IP and in all (`429 too_many_sockets`).
 pub(crate) async fn live(
     State(state): State<AppState>,
     crate::accounts::ClientIp(ip): crate::accounts::ClientIp,
@@ -159,10 +143,8 @@ async fn relay(
     let every = state.config.live_recheck.unwrap_or(WS_RECHECK);
     let mut recheck = tokio::time::interval_at((Instant::now() + every).into(), every);
     let mut heard = Instant::now();
-    // Why the server hangs up, if it does (a policy close tells the app not to hurry back).
     let mut close: Option<&'static str> = None;
     loop {
-        // The next trailing `room_activity` of another room, if one waits.
         let due = others
             .as_ref()
             .and_then(crate::insights::today::OtherRooms::next_due);
@@ -184,16 +166,13 @@ async fn relay(
                         break;
                     }
                 }
-                // Lagged behind: tell the app to refetch everything.
                 Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
                     if socket.send(Message::Text(r#"{"type":"resync"}"#.into())).await.is_err() { break; }
                 }
                 Err(_) => break,
             },
             incoming = socket.recv() => match incoming {
-                // Closed, broken, or a frame over the size cap.
                 Some(Ok(Message::Close(_))) | None | Some(Err(_)) => break,
-                // The app says whether it is on the screen ("here", repeated) or in the background ("away").
                 Some(Ok(Message::Text(text))) => {
                     heard = Instant::now();
                     match (text.as_str(), user_id) {
@@ -220,12 +199,10 @@ async fn relay(
                 if socket.send(Message::Ping(Default::default())).await.is_err() { break; }
             },
             _ = recheck.tick() => {
-                // A database hiccup keeps the socket; the next check decides.
                 if let Ok(false) = watcher.still_allowed(&state, group_id).await {
                     close = Some("gone");
                     break;
                 }
-                // Same for the other rooms: the last list stays until a check succeeds.
                 if let Some(o) = others.as_mut() {
                     let _ = o.refresh(&state.db).await;
                 }

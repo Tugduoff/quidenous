@@ -1,5 +1,3 @@
-//! "Qui choisirait quoi ?" questions (docs/CHOOSE.md).
-
 use crate::common;
 use crate::common::call_with_kinds as call_with;
 
@@ -7,8 +5,6 @@ use axum::{Router, http::StatusCode};
 use quidenous_server::{AppState, app, platform::config::Config, state};
 use serde_json::{Value, json};
 
-/// A fresh server; `keep_deck: false` leaves only the deck's pick questions (so the first,
-/// automatic, round is a plain pick).
 async fn test_app(keep_deck: bool) -> (Router, AppState) {
     let suffix = common::unique();
     let dir = std::env::temp_dir().join(format!("qdn-choose-{suffix}"));
@@ -69,7 +65,6 @@ fn wires(pairs: &[(i64, i64)]) -> Value {
     json!({ "choices": pairs.iter().map(|(m, i)| json!({ "member_id": m, "item": i })).collect::<Vec<_>>() })
 }
 
-/// Three people, the automatic first round closed, then a choose question open.
 async fn three_and_a_choose_question(app: &Router) -> [(String, i64); 3] {
     let ana = join(app, "Ana").await;
     let bob = join(app, "Bob").await;
@@ -109,7 +104,6 @@ async fn everyone_is_wired_and_the_reveal_scores_the_guesses() {
     assert!(open["choose"].is_null());
     let round = open["id"].as_i64().unwrap();
 
-    // Everyone must be wired exactly once, to an existing item.
     let (s, body) = vote(&app, &a, json!({})).await;
     assert_eq!(
         (s, body["error"].as_str()),
@@ -127,7 +121,6 @@ async fn everyone_is_wired_and_the_reveal_scores_the_guesses() {
         assert_eq!(s, StatusCode::BAD_REQUEST, "{body}");
     }
 
-    // Real choices: Ana Pizza, Bob Sushi, Cyd Burger.
     let (s, body) = vote(&app, &a, wires(&[(a_id, 0), (b_id, 1), (c_id, 2)])).await;
     assert_eq!(s, StatusCode::OK, "{body}");
     let (_, mine) = call(&app, "GET", "/round/current", Some(&a), None).await;
@@ -153,7 +146,6 @@ async fn everyone_is_wired_and_the_reveal_scores_the_guesses() {
     );
     assert_eq!(people[1]["top"], json!([1]));
     assert_eq!(people[2]["real"], 2);
-    // Ana guessed both right; Bob and Cyd one each (Bob first: member order).
     assert_eq!(
         done["choose"]["scores"],
         json!([
@@ -162,12 +154,10 @@ async fn everyone_is_wired_and_the_reveal_scores_the_guesses() {
             { "member_id": c_id, "hits": 1, "total": 2 },
         ])
     );
-    // History: the best guesser wins.
     let (_, history) = call(&app, "GET", "/history", Some(&a), None).await;
     assert_eq!(history[0]["kind"], "choose");
     assert_eq!(history[0]["winner_ids"], json!([a_id]));
     assert_eq!(history[0]["top_count"], 2);
-    // Stats leave it out, the CSV export lists the guessers.
     let (s, _) = call(&app, "GET", "/stats", Some(&a), None).await;
     assert_eq!(s, StatusCode::OK);
 }
@@ -176,7 +166,6 @@ async fn everyone_is_wired_and_the_reveal_scores_the_guesses() {
 async fn an_old_app_is_asked_to_update_and_its_pick_still_counts() {
     let (app, _) = test_app(false).await;
     let [(a, a_id), (b, b_id), (c, c_id)] = three_and_a_choose_question(&app).await;
-    // No x-kinds header: an app from before choose questions.
     let (_, old) = call_with(&app, "GET", "/round/current", Some(&b), None, None).await;
     assert_eq!(
         old["question"],
@@ -205,7 +194,6 @@ async fn an_old_app_is_asked_to_update_and_its_pick_still_counts() {
     let people = &done["choose"]["people"];
     assert!(people[1]["real"].is_null(), "Bob gave no wires");
     assert_eq!(people[1]["guesses"].as_array().unwrap().len(), 2);
-    // Ana: Cyd's real choice was 1, she said 2. Cyd: Ana's real 0 = his guess. Bob unknown: no total.
     assert_eq!(
         done["choose"]["scores"],
         json!([

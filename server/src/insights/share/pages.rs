@@ -13,14 +13,12 @@ use crate::{
 
 use super::*;
 
-/// The page a shared link opens: the card, and a way into the app.
 pub async fn page(
     State(state): State<AppState>,
     Path(token): Path<String>,
     headers: HeaderMap,
 ) -> Response {
     let Ok(card) = load(&state, &token).await else {
-        // Nobody to ask the language of: both.
         return (
             StatusCode::NOT_FOUND,
             Html(format!(
@@ -37,7 +35,6 @@ pub async fn page(
         Card::Stat(c) => (format!("{} · {}", c.title, c.big), c.line.clone()),
     };
     let lang = card.lang();
-    // A question can be played in one of my rooms; a stat story just opens the app.
     let links = match &card {
         Card::Question(_) => format!(
             r#"<a class="go" href="/play?share={token}">{play}</a>
@@ -77,7 +74,6 @@ pub async fn page(
     Html(html).into_response()
 }
 
-/// `https://host` of the request (behind the proxy: its forwarded scheme).
 pub(super) fn base_url(headers: &HeaderMap) -> String {
     let host = headers
         .get(header::HOST)
@@ -96,14 +92,12 @@ pub(super) fn base_url(headers: &HeaderMap) -> String {
     format!("{scheme}://{host}")
 }
 
-/// Shared page style (dark, lime button).
 pub(super) const PAGE_STYLE: &str = "body{margin:0;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;\
 background:#0E0E12;color:#F5F5F7;font-family:system-ui,-apple-system,sans-serif;padding:24px;box-sizing:border-box}\
 img{width:100%;max-width:720px;border-radius:24px;border:1px solid #2E2E38}\
 a{display:block;width:100%;max-width:420px;text-align:center;padding:16px;border-radius:999px;font-weight:700;text-decoration:none}\
 .go{background:#C8FF3D;color:#121216} .alt{color:#8D8D99}";
 
-/// A public pack, as its page and card show it.
 pub(super) struct PackCard {
     pub(crate) lang: Lang,
     pub(crate) name: String,
@@ -141,7 +135,6 @@ pub(super) async fn load_pack(state: &AppState, id: PackId) -> AppResult<PackCar
     })
 }
 
-/// `/p/{id}`: a public pack's page (preview tags, card), and "install in a room" in the web app.
 pub async fn pack_page(
     State(state): State<AppState>,
     Path(id): Path<PackId>,

@@ -2,7 +2,6 @@ use quidenous_server::platform::ids::{RoomId, UserId};
 use quidenous_server::{app, platform::config::Config, state};
 use tracing_subscriber::EnvFilter;
 
-/// `server --health`: exit 0 when the local API answers (Docker HEALTHCHECK, no curl in the image).
 fn health(port: u16) -> std::process::ExitCode {
     use std::io::{Read, Write};
     let ok = std::net::TcpStream::connect(("127.0.0.1", port))
@@ -38,8 +37,6 @@ async fn main() -> quidenous_server::anyhow_free::Result<()> {
             1
         });
     }
-    // `server --backup <file>`: consistent copy of the database (deploy/backup.sh), before
-    // anything else opens it (no migration, no seeding).
     let args: Vec<String> = std::env::args().collect();
     if let Some(i) = args.iter().position(|a| a == "--backup") {
         let dest = args.get(i + 1).ok_or("usage: server --backup <file.db>")?;
@@ -60,7 +57,6 @@ async fn main() -> quidenous_server::anyhow_free::Result<()> {
     let port = config.port;
     let state = state(config).await?;
     if let Some(i) = args.iter().position(|a| a == "--import") {
-        // Into one room's own queue: the shared deck is the built-in deck files only.
         const USAGE: &str = "usage: server --import <questions.txt> --room <room id>";
         let path = args.get(i + 1).ok_or(USAGE)?;
         let room: RoomId = args
@@ -94,8 +90,6 @@ async fn main() -> quidenous_server::anyhow_free::Result<()> {
     Ok(())
 }
 
-/// `server seed-packs <dir> --author-id <id> [--featured] [--dry-run]`: publishes the pack files of a
-/// folder (docs/PACK_FILES.md). Safe to run again: packs the author already has are skipped.
 async fn seed_packs(args: &[String]) -> quidenous_server::anyhow_free::Result<()> {
     use quidenous_server::community::packs::SeedAction;
     const USAGE: &str =
@@ -117,7 +111,6 @@ async fn seed_packs(args: &[String]) -> quidenous_server::anyhow_free::Result<()
     }
     let config = Config::from_env();
     let db = quidenous_server::connect(&config.database_url).await?;
-    // Whose packs these become, said first (a wrong id is easy to spot in the dry run).
     let name: Option<String> =
         sqlx::query_scalar("SELECT name FROM users WHERE id = ? AND deleted_at IS NULL")
             .bind(author)
@@ -178,9 +171,6 @@ async fn seed_packs(args: &[String]) -> quidenous_server::anyhow_free::Result<()
     Ok(())
 }
 
-/// Resolves on SIGTERM (`docker stop`, a deploy) or Ctrl-C: the server stops taking connections
-/// and lets requests in flight finish (Docker's 10 s grace period bounds the wait). Live sockets
-/// just close: the apps reconnect to the new container.
 async fn shutdown() {
     let term = async {
         #[cfg(unix)]

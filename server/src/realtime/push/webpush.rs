@@ -17,7 +17,6 @@ pub struct Vapid {
 }
 
 impl Vapid {
-    /// `private_b64`: base64url raw 32-byte P-256 private key.
     pub fn new(private_b64: &str, subject: String) -> Result<Self, String> {
         let bytes = B64
             .decode(private_b64.trim())
@@ -54,7 +53,6 @@ pub(super) fn now_secs() -> u64 {
         .map_or(0, |d| d.as_secs())
 }
 
-/// RFC 8291 message encryption with the aes128gcm content coding (single record).
 pub fn encrypt(payload: &[u8], p256dh_b64: &str, auth_b64: &str) -> Result<Vec<u8>, String> {
     let ua_public_bytes = B64.decode(p256dh_b64).map_err(|e| e.to_string())?;
     let auth_secret = B64.decode(auth_b64).map_err(|e| e.to_string())?;
@@ -84,7 +82,7 @@ pub fn encrypt(payload: &[u8], p256dh_b64: &str, auth_b64: &str) -> Result<Vec<u
         .map_err(|e| e.to_string())?;
 
     let mut plaintext = payload.to_vec();
-    plaintext.push(2); // last-record delimiter
+    plaintext.push(2);
     let cipher = Aes128Gcm::new_from_slice(&cek).map_err(|e| e.to_string())?;
     let ciphertext = cipher
         .encrypt(&Nonce::from(nonce), plaintext.as_slice())
@@ -99,7 +97,6 @@ pub fn encrypt(payload: &[u8], p256dh_b64: &str, auth_b64: &str) -> Result<Vec<u
     Ok(body)
 }
 
-/// Prints a new VAPID key pair: `server --gen-vapid`.
 pub fn generate_vapid() -> (String, String) {
     let secret = SecretKey::generate_from_rng(&mut rand::rng());
     let public = secret.public_key().to_sec1_point(false);

@@ -14,7 +14,6 @@ use crate::{
 
 use super::*;
 
-/// Room seats of an account (any state, deleted rooms included) and its party seats.
 pub(super) struct Seats {
     rooms: Vec<(MemberId, RoomId)>,
     parties: Vec<MemberId>,
@@ -48,20 +47,14 @@ impl Seats {
     }
 }
 
-/// Which rooms the day streaks (`marathon`) are replayed for.
 #[derive(Clone, Copy)]
 pub enum Streaks {
-    /// Every room of the account (the collection, the sweep).
     All,
-    /// Only this one (right after one of its questions closed: the others haven't changed).
     Only(RoomId),
 }
 
-/// Rooms loaded once per evaluation run (several accounts share them).
 pub type RoomCache = HashMap<RoomId, Option<Room>>;
 
-/// Every metric of an account. A few aggregate queries over its seats (indexed: `votes_voter`,
-/// `messages_member`, `nudges_from`, `tripot_bets_member`, rounds by room) and the streak replay.
 pub async fn metrics(
     db: &SqlitePool,
     user_id: UserId,
@@ -78,8 +71,6 @@ pub async fn metrics(
     let rooms = seats.room_json();
     let parties = json!(seats.parties).to_string();
     if !seats.rooms.is_empty() {
-        // My votes: cast, self votes and the eligible ones (pick and ranking, not anonymous), late at
-        // night in my time zone, and the closed questions I voted on first (2 voters or more).
         let (cast, selfish, eligible, night, first): (i64, i64, i64, i64, i64) =
             sqlx::query_as(concat!(
                 "SELECT COUNT(*), \
@@ -98,8 +89,6 @@ pub async fn metrics(
             .bind(format!("{tz:+} minutes"))
             .fetch_one(db)
             .await?;
-        // Questions won (pick: most votes, ties count; ranking: most points), all mine (3 votes or
-        // more), and my votes for a winner other than me (3 votes or more). Closed, not anonymous.
         let (pick_wins, rank_wins, evidence, flair): (i64, i64, i64, i64) = sqlx::query_as(concat!(
             "WITH s AS (SELECT id, group_id FROM members WHERE id IN ",
             mine!(),
@@ -128,7 +117,6 @@ pub async fn metrics(
         .bind(&rooms)
         .fetch_one(db)
         .await?;
-        // Messages, nudges, Tripot bets won, questions written and asked.
         let (messages, nudges, bets, written): (i64, i64, i64, i64) = sqlx::query_as(concat!(
             "SELECT (SELECT COUNT(*) FROM messages WHERE member_id IN ",
             mine!(),
@@ -161,7 +149,6 @@ pub async fn metrics(
         m[10] = messages;
         m[11] = nudges;
         m[12] = night;
-        // Best day streak, in my time zone.
         let now = streaks::now_secs();
         for &(seat, group) in &seats.rooms {
             if let Streaks::Only(only) = streak_rooms
@@ -191,17 +178,12 @@ pub async fn metrics(
     Ok(m)
 }
 
-/// Records what `values` reach: every tier as a row (`INSERT OR IGNORE`, so evaluating twice adds
-/// nothing), then one inbox entry per badge for its highest new tier, unless this is the account's
-/// first evaluation (silent backfill). `group_id`: the room where it happened (its seat gets the
-/// entry). Returns the badges newly earned, `(key, highest new tier)`.
 pub async fn award(
     state: &AppState,
     user_id: UserId,
     values: &Metrics,
     group_id: Option<RoomId>,
 ) -> AppResult<Vec<(&'static str, i64)>> {
-    // Nothing new and already evaluated once: no write at all (spares the SD card).
     let (evaluated, held): (bool, String) = sqlx::query_as(
         "SELECT badges_at IS NOT NULL, \
            COALESCE((SELECT json_group_array(key || ':' || tier) FROM user_badges WHERE user_id = ?1), '[]') \
@@ -275,8 +257,6 @@ pub async fn award(
     Ok(news)
 }
 
-/// The seat that hears about it: mine in `group_id` when it is a room I'm still in, else the room I
-/// used last, else my most recently active room. `(member, room)`.
 pub(crate) async fn inbox_seat(
     tx: &mut sqlx::SqliteConnection,
     user_id: UserId,
@@ -296,8 +276,6 @@ pub(crate) async fn inbox_seat(
     .await?)
 }
 
-/// Evaluates these accounts: their metrics, then [`award`]. With `group_id` (a question of that
-/// room just closed), the day streaks are only replayed for that room. Returns what was earned.
 pub async fn evaluate(
     state: &AppState,
     user_ids: &[UserId],
@@ -315,8 +293,6 @@ pub async fn evaluate(
     Ok(out)
 }
 
-/// The accounts a question that just closed in `group_id` may have changed: its voters, the people
-/// voted for or ranked, and its author.
 pub async fn after_close_now(
     state: &AppState,
     group_id: RoomId,
@@ -343,8 +319,6 @@ pub async fn after_close_now(
     evaluate(state, &users, Some(group_id)).await
 }
 
-/// After a question closed (committed): [`after_close_now`] in the background. Errors are logged,
-/// never the request's.
 pub fn after_close(state: &AppState, group_id: RoomId) {
     let state = state.clone();
     tokio::spawn(async move {
@@ -354,10 +328,8 @@ pub fn after_close(state: &AppState, group_id: RoomId) {
     });
 }
 
-/// How often the sweep runs (first run at startup).
 pub(super) const SWEEP_EVERY: std::time::Duration = std::time::Duration::from_secs(3600);
 
-/// What a sweep did.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct Swept {
     pub evaluated: usize,
@@ -365,9 +337,6 @@ pub struct Swept {
     pub wrapped_notices: usize,
 }
 
-/// The hourly sweep at `now` (unix seconds): accounts used in the last 2 hours are evaluated (Tripot
-/// settles, party deadlines, nudges and chat don't go through a question closing in their room), and
-/// in the Wrapped window the "your year is ready" notice goes out (docs/WRAPPED.md).
 pub async fn sweep_at(state: &AppState, now: i64) -> AppResult<Swept> {
     let users: Vec<UserId> = sqlx::query_scalar(
         "SELECT DISTINCT m.user_id FROM members m JOIN users u ON u.id = m.user_id AND u.deleted_at IS NULL \
@@ -396,7 +365,6 @@ pub async fn sweep_at(state: &AppState, now: i64) -> AppResult<Swept> {
     Ok(swept)
 }
 
-/// The background task for [`sweep_at`] (errors are logged; the next run tries again).
 pub fn spawn_sweeper(state: AppState) {
     tokio::spawn(async move {
         let mut tick = tokio::time::interval(SWEEP_EVERY);

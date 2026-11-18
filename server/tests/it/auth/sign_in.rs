@@ -74,7 +74,6 @@ async fn sign_up_verify_sign_in_and_join_a_room() {
     assert_eq!(acct["secured"], true);
     assert_eq!(acct["totp"], false);
 
-    // Verify: a wrong code costs a try, the right one works; resend replaces the code.
     let (s, b) = call(
         &t.app,
         "POST",
@@ -111,7 +110,6 @@ async fn sign_up_verify_sign_in_and_join_a_room() {
         (StatusCode::CONFLICT, Some("already_verified"))
     );
 
-    // No room yet: 403 no_room (not 401, which would sign the app out).
     let (s, b) = call(&t.app, "GET", "/me", Some(&token), None).await;
     assert_eq!(
         (s, b["error"].as_str()),
@@ -130,7 +128,6 @@ async fn sign_up_verify_sign_in_and_join_a_room() {
     let (s, me) = call(&t.app, "GET", "/me", Some(&token), None).await;
     assert_eq!((s, me["name"].as_str()), (StatusCode::OK, Some("Ana")));
 
-    // Sign in: wrong password and unknown email look the same.
     let (s1, b1) = login(&t, "ana@example.com", "wrong-password-1").await;
     let (s2, b2) = login(&t, "nobody@example.com", PASSWORD).await;
     assert_eq!(
@@ -148,7 +145,6 @@ async fn sign_up_verify_sign_in_and_join_a_room() {
     let (s, _) = call(&t.app, "GET", "/me", Some(second), None).await;
     assert_eq!(s, StatusCode::OK);
 
-    // The session remembers the decoded device label.
     let (_, sessions) = call(&t.app, "GET", "/auth/sessions", Some(&token), None).await;
     let mine = sessions
         .as_array()
@@ -168,7 +164,6 @@ async fn failed_sign_ins_lock_the_account_and_ips_are_limited() {
         let (s, _) = login(&t, "bob@example.com", "not-the-password").await;
         assert_eq!(s, StatusCode::BAD_REQUEST);
     }
-    // Locked, even with the right password.
     let r = send(
         &t.app,
         "POST",
@@ -184,9 +179,6 @@ async fn failed_sign_ins_lock_the_account_and_ips_are_limited() {
     assert!((1..=180).contains(&wait), "{wait}");
     assert!(r.headers.get("retry-after").is_some());
 
-    // Per IP: 30 sign-in attempts per 10 minutes, whatever the email (loose: many phones share a
-    // carrier IP). The IP is the last X-Forwarded-For entry (the proxy's): changing the ones before
-    // it changes nothing.
     for i in 0..quidenous_server::accounts::limits::LOGIN_IP.capacity {
         let forwarded = format!("198.18.0.{i}, 203.0.113.7");
         let r = send(
@@ -221,7 +213,6 @@ async fn failed_sign_ins_lock_the_account_and_ips_are_limited() {
     .await;
     assert_eq!(r.status, StatusCode::BAD_REQUEST);
 
-    // Legacy join/start: 10 per hour per IP.
     for i in 0..10 {
         let r = send(
             &t.app,
@@ -287,7 +278,6 @@ async fn two_factor_setup_sign_in_recovery_and_disable() {
     assert!(url.starts_with("otpauth://totp/Qui%20de%20nous%20%3F:cyd%40example.com?secret="));
     assert!(url.contains("issuer=Qui%20de%20nous%20%3F"));
 
-    // Another device, to be signed out when 2FA goes on.
     let (_, other) = login(&t, "cyd@example.com", PASSWORD).await;
     let other = other["token"].as_str().unwrap().to_owned();
 
@@ -331,13 +321,11 @@ async fn two_factor_setup_sign_in_recovery_and_disable() {
         (&json!(true), &json!(10))
     );
 
-    // Sign in: the password alone only gets a challenge.
     let (s, b) = login(&t, "cyd@example.com", PASSWORD).await;
     assert_eq!(s, StatusCode::OK);
     assert_eq!(b["mfa"], "totp");
     assert!(b.get("token").is_none());
     let challenge = b["challenge"].as_str().unwrap().to_owned();
-    // The code used to turn 2FA on can't be replayed.
     let (s, b) = call(
         &t.app,
         "POST",
@@ -361,7 +349,6 @@ async fn two_factor_setup_sign_in_recovery_and_disable() {
     .await;
     assert_eq!(s, StatusCode::OK, "{b}");
     assert_eq!(b["user_id"], user);
-    // The challenge is single use, and so is that code.
     let (s, _) = call(
         &t.app,
         "POST",
@@ -372,7 +359,6 @@ async fn two_factor_setup_sign_in_recovery_and_disable() {
     .await;
     assert_eq!(s, StatusCode::BAD_REQUEST);
 
-    // A recovery code works once.
     for expected in [StatusCode::OK, StatusCode::BAD_REQUEST] {
         let (_, b) = login(&t, "cyd@example.com", PASSWORD).await;
         let (s, _) = call(
@@ -388,7 +374,6 @@ async fn two_factor_setup_sign_in_recovery_and_disable() {
     let (_, acct) = call(&t.app, "GET", "/auth/account", Some(&token), None).await;
     assert_eq!(acct["recovery_codes_left"], 9);
 
-    // A challenge dies after 5 wrong codes.
     let (_, b) = login(&t, "cyd@example.com", PASSWORD).await;
     let challenge = b["challenge"].as_str().unwrap().to_owned();
     for _ in 0..5 {
@@ -414,13 +399,10 @@ async fn two_factor_setup_sign_in_recovery_and_disable() {
         "{s} {b}"
     );
 
-    // Disable with a recovery code (same field as TOTP codes).
     sqlx::query("UPDATE users SET totp_last_step = NULL")
         .execute(&t.state.db)
         .await
         .unwrap();
-    // The dead challenge above also used up the per-account failure budget (in memory):
-    // a fresh server on the same database starts with empty buckets.
     let config = &t.state.config;
     let fresh = app(state_with_mailer(
         Config {
@@ -505,7 +487,6 @@ async fn forgot_password_resets_and_signs_out_everywhere() {
     )
     .await;
     assert_eq!(s, StatusCode::OK);
-    // One verification email from sign-up, then the reset one.
     let code = wait_for_code(&t.mail, "dan@example.com", 2).await;
     let new_password = "un-nouveau-mot-de-passe";
     let wrong = if code == "000000" { "111111" } else { "000000" };
@@ -546,7 +527,6 @@ async fn forgot_password_resets_and_signs_out_everywhere() {
     }
     let (_, acct) = call(&t.app, "GET", "/auth/account", Some(&fresh), None).await;
     assert_eq!(acct["email_verified"], true, "a reset proves the email");
-    // Single use.
     let (s, _) = call(
         &t.app,
         "POST",
@@ -565,7 +545,6 @@ async fn forgot_password_resets_and_signs_out_everywhere() {
         StatusCode::OK
     );
 
-    // Without Mailgun the server says so instead of pretending.
     let no_mail = app(state(base_config()).await.unwrap());
     let (s, b) = call(
         &no_mail,
@@ -638,7 +617,6 @@ async fn sessions_list_revoke_and_password_change() {
     .await;
     assert_eq!(s, StatusCode::NOT_FOUND);
 
-    // Password change: the current one is needed, the others can be signed out.
     let (s, b) = call(
         &t.app,
         "POST",
@@ -696,12 +674,10 @@ async fn legacy_accounts_keep_working_and_can_be_secured() {
     let (s, b) = legacy_join(&t.app, "Marc").await;
     assert_eq!(s, StatusCode::OK);
     let marc = b["token"].as_str().unwrap().to_owned();
-    // Legacy accounts are still claimable by first name (old behaviour).
     let (s, b) = legacy_join(&t.app, "marc").await;
     assert_eq!(s, StatusCode::OK);
     assert_ne!(b["token"].as_str().unwrap(), marc);
 
-    // A session from before accounts (no device label) gets one from its next request.
     let (_, list) = call(&t.app, "GET", "/auth/sessions", Some(&louis), None).await;
     assert_eq!(list[0]["device"], Value::Null);
     let r = send(
@@ -743,10 +719,8 @@ async fn legacy_accounts_keep_working_and_can_be_secured() {
         (s, b["error"].as_str()),
         (StatusCode::CONFLICT, Some("already_secured"))
     );
-    // Same seat, same rooms, the old token still works.
     let (s, me) = call(&t.app, "GET", "/me", Some(&louis), None).await;
     assert_eq!((s, me["id"].as_i64()), (StatusCode::OK, Some(louis_id)));
-    // Now a first name is not enough.
     let (s, b) = legacy_join(&t.app, "louis").await;
     assert_eq!(
         (s, b["error"].as_str()),
@@ -757,7 +731,6 @@ async fn legacy_accounts_keep_working_and_can_be_secured() {
     let (s, me) = call(&t.app, "GET", "/me", b["token"].as_str(), None).await;
     assert_eq!((s, me["id"].as_i64()), (StatusCode::OK, Some(louis_id)));
 
-    // AUTH_REQUIRED: no anonymous way in any more, tokens still fine.
     let strict = with_mailer(Config {
         auth_required: true,
         ..base_config()
@@ -789,7 +762,6 @@ async fn features_advertise_only_what_is_configured() {
     let (_, p) = call(&plain, "GET", "/auth/providers", None, None).await;
     assert_eq!(p, json!([]));
 
-    // Client ids without PUBLIC_URL: still off.
     let client = OAuthClient {
         id: "id".into(),
         secret: "secret".into(),

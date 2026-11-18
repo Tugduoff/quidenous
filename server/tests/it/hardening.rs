@@ -1,6 +1,3 @@
-//! Audit fixes (2026-11): choose questions keep their items across rooms, `/api/join` with a
-//! bearer mints no token, deleted rooms take nobody, startup never rewrites user data.
-
 use crate::common;
 use quidenous_server::platform::ids::{RoomId, UserId};
 
@@ -30,13 +27,11 @@ fn config(dir: &Path, group_name: &str, join_code: &str) -> Config {
     }
 }
 
-/// A server on `dir` (a second call is a restart on the same database).
 async fn boot(dir: &Path) -> (Router, AppState) {
     let state = state(config(dir, "Test", "CODE-1")).await.unwrap();
     (app(state.clone()), state)
 }
 
-/// A fresh server whose deck only has pick questions (automatic rounds are plain picks).
 async fn fresh() -> (Router, AppState, PathBuf) {
     let dir = common::temp_dir("qdn-hardening");
     let (app, state) = boot(&dir).await;
@@ -81,7 +76,6 @@ async fn call(
     )
 }
 
-/// Legacy join of the env room by first name: (token, member id).
 async fn join(app: &Router, name: &str) -> (String, i64) {
     let (s, b) = call(
         app,
@@ -105,7 +99,6 @@ async fn group(app: &Router, token: &str, room: Option<i64>) -> Value {
     g
 }
 
-/// A new room owned by `owner` with `others` in it (by code): its id.
 async fn room_with(app: &Router, owner: &str, name: &str, others: &[&str]) -> i64 {
     let (s, room) = call(
         app,
@@ -148,7 +141,6 @@ async fn current(app: &Router, token: &str, room: i64) -> Value {
     r
 }
 
-/// Everyone in `voters` picks `target` on the open (pick) question.
 async fn close_pick(app: &Router, room: i64, voters: &[&str], target: i64) {
     for t in voters {
         let (s, b) = call(
@@ -164,7 +156,6 @@ async fn close_pick(app: &Router, room: i64, voters: &[&str], target: i64) {
     }
 }
 
-/// Everyone in `voters` wires every member of `members` to an item of the open choose question.
 async fn close_choose(app: &Router, room: i64, voters: &[&str], members: &[i64]) {
     let choices: Vec<Value> = members
         .iter()
@@ -185,8 +176,6 @@ async fn close_choose(app: &Router, room: i64, voters: &[&str], members: &[i64])
     }
 }
 
-/// Ana, Bob and Cyd in the env room "Test", whose choose question was just answered by all.
-/// Returns the room, the three (token, member id) and the closed choose round's id.
 async fn test_room_with_a_closed_choose_round(app: &Router) -> (i64, [(String, i64); 3], i64) {
     let ana = join(app, "Ana").await;
     let bob = join(app, "Bob").await;
@@ -216,7 +205,6 @@ async fn a_played_or_challenged_choose_question_keeps_its_items() {
     let app = &app;
     let (test, [ana, bob, cyd], round) = test_room_with_a_closed_choose_round(app).await;
 
-    // Shared, then played in Cousins (closed in Test: a challenge).
     let (s, share) = call(
         app,
         "POST",
@@ -261,7 +249,6 @@ async fn a_played_or_challenged_choose_question_keeps_its_items() {
         "closed"
     );
 
-    // Challenged into Amis straight from the result.
     let amis = room_with(app, &bob.0, "Amis", &[&ana.0]).await;
     let (ana_a, bob_a) = (seat(app, &ana.0, amis).await, seat(app, &bob.0, amis).await);
     let (s, b) = call(
@@ -290,8 +277,6 @@ async fn a_choose_copy_without_items_is_repaired_at_startup_and_never_drawn_othe
         seat(&app, &ana.0, cousins).await,
         seat(&app, &cyd.0, cousins).await,
     );
-    // What older servers left: a copy without items, open (nobody could vote on it), and one
-    // whose original is gone.
     let broken: i64 = sqlx::query_scalar(
         "INSERT INTO questions (group_id, text, kind, origin, sort_key) VALUES (?, ?, 'choose', 'import', -100) RETURNING id",
     )
@@ -316,7 +301,6 @@ async fn a_choose_copy_without_items_is_repaired_at_startup_and_never_drawn_othe
     let stuck = current(&app, &ana.0, cousins).await;
     assert!(stuck["items"].is_null(), "{stuck}");
 
-    // Restart: the open copy gets its items back and can be answered.
     let (app, _) = boot(&dir).await;
     let round = current(&app, &ana.0, cousins).await;
     assert_eq!(
@@ -324,7 +308,6 @@ async fn a_choose_copy_without_items_is_repaired_at_startup_and_never_drawn_othe
         (stuck["id"].clone(), json!(ITEMS))
     );
     close_choose(&app, cousins, &[&ana.0, &cyd.0], &[ana_c, cyd_c]).await;
-    // The one without an original is skipped, though first in the queue.
     let next = current(&app, &ana.0, cousins).await;
     assert_ne!(next["id"], round["id"]);
     assert!(next["id"].is_i64(), "{next}");
@@ -337,7 +320,6 @@ async fn a_signed_in_join_mints_no_token_and_a_claimed_session_stays_claimed() {
     let app = &app;
     let (ana, _) = join(app, "Ana").await;
     let (bob, _) = join(app, "Bob").await;
-    // Someone else types "Ana": a claimed session of Ana's account.
     let (grabbed, _) = join(app, "Ana").await;
     let other = room_with(app, &bob, "Autre", &[]).await;
     let code = group(app, &bob, Some(other)).await["code"]
@@ -377,7 +359,6 @@ async fn a_signed_in_join_mints_no_token_and_a_claimed_session_stays_claimed() {
         (s, b["error"].as_str()),
         (StatusCode::FORBIDDEN, Some("claimed_session"))
     );
-    // Ana's own session still works.
     let (s, _) = call(app, "GET", "/me", Some(&ana), None, None).await;
     assert_eq!(s, StatusCode::OK);
 }
@@ -425,14 +406,12 @@ async fn a_restart_keeps_shared_questions_and_the_first_room_as_they_are() {
     let (app, state, dir) = fresh().await;
     let (ana, _) = join(&app, "Ana").await;
     let first = group(&app, &ana, None).await["id"].as_i64().unwrap();
-    // A shared question that is no longer a deck line (a reworded line, an old import).
     let old: i64 = sqlx::query_scalar(
         "INSERT INTO questions (text, kind, lang) VALUES ('Qui a une ancienne formulation ?', 'pick', 'fr') RETURNING id",
     )
     .fetch_one(&state.db)
     .await
     .unwrap();
-    // The owner renamed room #1 and got a new code.
     let (s, b) = call(
         &app,
         "POST",
@@ -451,7 +430,6 @@ async fn a_restart_keeps_shared_questions_and_the_first_room_as_they_are() {
     let code = group(&app, &ana, None).await["code"].clone();
     assert_ne!(code, "CODE-1");
 
-    // Restart with the env's GROUP_NAME / JOIN_CODE.
     let (app, state) = boot(&dir).await;
     let moved: Option<i64> = sqlx::query_scalar("SELECT group_id FROM questions WHERE id = ?")
         .bind(old)
@@ -548,7 +526,6 @@ fn unsafe_production_settings_are_warned_about() {
         ..Config::default()
     };
     assert!(safe.warnings().is_empty(), "{:?}", safe.warnings());
-    // Without a publish token there is nothing to sign.
     let no_ota = Config {
         updates_publish_token: None,
         updates_certificate: None,

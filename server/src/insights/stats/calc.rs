@@ -5,13 +5,11 @@ use crate::platform::i18n::{self, Lang};
 
 use super::*;
 
-/// Everything loaded, ready to be turned into [`Stats`].
 pub(super) struct Calc {
     period: Period,
     tz: i64,
     today: i64,
     info: HashMap<MemberId, MemberInfo>,
-    /// Current members, by id.
     current_ids: Vec<MemberId>,
     current: HashSet<MemberId>,
     rounds: Vec<RoundCalc>,
@@ -100,7 +98,6 @@ impl Calc {
                     v.1 = HIDDEN;
                 }
             }
-            // Ranking questions are won on points; ties count for everyone tied.
             r.winners = if r.rank && !r.points.is_empty() {
                 let best = r.points.iter().map(|p| p.1).max().unwrap_or(0);
                 r.points
@@ -173,10 +170,8 @@ impl Calc {
         let mut night: HashMap<MemberId, i64> = HashMap::new();
         let mut early: HashMap<MemberId, i64> = HashMap::new();
         let mut heatmap = vec![vec![0i64; 24]; 7];
-        // Contrarian / sheep: (eligible, against) per voter.
         let mut against: HashMap<MemberId, (i64, i64)> = HashMap::new();
         let mut kingmaker: HashMap<MemberId, i64> = HashMap::new();
-        // Twins: (shared, same) per pair of voters.
         let mut twins: HashMap<(MemberId, MemberId), (i64, i64)> = HashMap::new();
 
         for r in &self.rounds {
@@ -345,7 +340,6 @@ impl Calc {
         }
         s.kingmaker = top(&kingmaker, cur, 2);
 
-        // Loyal: the biggest share of one's (non-self) votes going to one person.
         let mut given: HashMap<MemberId, i64> = HashMap::new();
         for (&(v, t), &n) in &pairs {
             if v != t {
@@ -366,7 +360,6 @@ impl Calc {
             total: Some(total),
         });
 
-        // Streaks and droughts, question by question.
         let mut streak_now: HashMap<MemberId, i64> = HashMap::new();
         let mut streak_best: HashMap<MemberId, i64> = HashMap::new();
         let mut comeback: HashMap<MemberId, i64> = HashMap::new();
@@ -410,7 +403,6 @@ impl Calc {
                 });
         }
 
-        // Average position on ranking questions: mean, over questions, of the average given by voters.
         let mut positions: HashMap<MemberId, Vec<f64>> = HashMap::new();
         for r in self.rounds.iter().filter(|r| r.rank) {
             for &(m, _, avg) in &r.points {
@@ -454,7 +446,6 @@ impl Calc {
             s.best_rank = best;
         }
 
-        // Question awards: ties go to the most recent question.
         s.most_split = self
             .rounds
             .iter()

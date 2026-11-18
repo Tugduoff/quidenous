@@ -1,5 +1,3 @@
-//! Operations: health check, build version, oldest app served, app crash reports, database snapshots.
-
 use std::{path::Path, sync::OnceLock, time::Duration};
 
 use axum::{
@@ -19,7 +17,6 @@ use crate::{
     platform::error::{AppError, AppResult},
 };
 
-/// Largest accepted crash report body.
 pub const CLIENT_ERROR_MAX: usize = 16 * 1024;
 const MESSAGE_MAX: usize = 500;
 const STACK_MAX: usize = 4000;
@@ -35,14 +32,8 @@ pub fn router() -> Router<AppState> {
         )
 }
 
-// ---------- GET /api/health ----------
-
-/// Less free space than this where the data lives: unhealthy (SQLite and photo writes would fail).
 pub const DISK_MIN: u64 = 100 * 1024 * 1024;
 
-/// `200 ok` when the database answers (within 2 s) and the data disk has room; `503
-/// {"error": "database" | "disk_full"}` otherwise. Docker's HEALTHCHECK (`server --health`), the
-/// deploy script and an outside uptime monitor read it.
 async fn health(State(state): State<AppState>) -> Response {
     let db = tokio::time::timeout(
         Duration::from_secs(2),
@@ -70,16 +61,13 @@ fn unhealthy(what: &str) -> Response {
         .into_response()
 }
 
-/// Bytes an unprivileged process can still write on the file system holding `dir`.
 #[cfg(unix)]
 fn free_bytes(dir: &Path) -> Option<u64> {
     use std::os::unix::ffi::OsStrExt;
     let path = std::ffi::CString::new(dir.as_os_str().as_bytes()).ok()?;
-    // SAFETY: statvfs only writes into `stat`, a plain C struct (all zeroes is a valid value), and
-    // reads `path`, a NUL-terminated string that outlives the call.
     let mut stat: libc::statvfs = unsafe { std::mem::zeroed() };
     let ok = unsafe { libc::statvfs(path.as_ptr(), &mut stat) } == 0;
-    #[allow(clippy::useless_conversion)] // the field types differ between Linux and macOS
+    #[allow(clippy::useless_conversion)]
     ok.then(|| u64::from(stat.f_bavail).saturating_mul(u64::from(stat.f_frsize)))
 }
 
@@ -88,12 +76,6 @@ fn free_bytes(_: &Path) -> Option<u64> {
     None
 }
 
-// ---------- X-App-Version / 426 ----------
-
-/// Answers `426 {"error": "update_required", "min_version"}` to an app older than
-/// `MIN_APP_VERSION` (its `X-App-Version` header; no header, as from a browser or an app from
-/// before the header, goes through). What an outdated app needs still works: health, features,
-/// version, crash reports and over-the-air updates (the way out for most of them).
 pub async fn version_gate(State(state): State<AppState>, req: Request, next: Next) -> Response {
     let min = state
         .config
@@ -124,11 +106,6 @@ pub async fn version_gate(State(state): State<AppState>, req: Request, next: Nex
     next.run(req).await
 }
 
-// ---------- GET /api/version ----------
-
-/// Release and commit of this binary: baked in at compile time by `build.rs` (the build's
-/// `QUIDENOUS_VERSION`, else app/app.json's version; the build's `QUIDENOUS_GIT_SHA`, else the
-/// checkout's HEAD), else the runtime `QUIDENOUS_VERSION` / `QUIDENOUS_GIT_SHA`, else `dev`.
 fn build_info() -> &'static Value {
     static INFO: OnceLock<Value> = OnceLock::new();
     INFO.get_or_init(|| {
@@ -151,9 +128,6 @@ async fn version() -> Json<Value> {
     Json(build_info().clone())
 }
 
-// ---------- POST /api/client-errors ----------
-
-/// A JS error caught by the app's ErrorBoundary.
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ClientError {
@@ -162,18 +136,14 @@ struct ClientError {
     stack: Option<String>,
     #[serde(default)]
     component_stack: Option<String>,
-    /// `android`, `ios`, `web`.
     #[serde(default)]
     platform: Option<String>,
-    /// App version (`expo-constants`).
     #[serde(default)]
     version: Option<String>,
-    /// The screen's path.
     #[serde(default)]
     route: Option<String>,
 }
 
-/// At most `max` characters, control characters (but newlines) dropped.
 fn clip(s: &str, max: usize) -> String {
     s.chars()
         .filter(|c| *c == '\n' || !c.is_control())
@@ -192,8 +162,6 @@ async fn client_error(
     body: axum::body::Bytes,
 ) -> AppResult<StatusCode> {
     state.auth.limits.hit_ip(&limits::CLIENT_ERROR_IP, ip)?;
-    // Signed in: counted per account too (a whole party can share one IP). A stale token
-    // doesn't stop the report.
     let user_id = match crate::accounts::bearer(&headers) {
         Some(token) => crate::accounts::auth::user_for_token(&state, token)
             .await
@@ -252,7 +220,6 @@ async fn client_error(
             let res = reqwest::Client::new()
                 .post(&url)
                 .timeout(Duration::from_secs(10))
-                // Nobody gets pinged by text coming from a client.
                 .json(&json!({ "content": content, "allowed_mentions": { "parse": [] } }))
                 .send()
                 .await;
@@ -264,10 +231,6 @@ async fn client_error(
     Ok(StatusCode::NO_CONTENT)
 }
 
-// ---------- server --backup ----------
-
-/// Consistent copy of the live database into `dest` (`VACUUM INTO`, safe while the server
-/// runs), then checked with `PRAGMA quick_check`. `dest` must not exist yet.
 pub async fn backup(database_url: &str, dest: &Path) -> crate::anyhow_free::Result<()> {
     use std::str::FromStr;
 

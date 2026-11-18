@@ -1,6 +1,3 @@
-//! Privacy & Play compliance: terms acceptance, share links (expiry, revoke, list, reuse, noindex,
-//! first names), stat cards erased with the account, challenge podiums, 16+ packs off the public page.
-
 use crate::common;
 
 use crate::common::{call, join, setup};
@@ -13,7 +10,6 @@ use http_body_util::BodyExt;
 use serde_json::{Value, json};
 use tower::ServiceExt;
 
-/// A plain GET outside the API: (status, `x-robots-tag`, body).
 async fn page(app: &Router, path: &str) -> (StatusCode, Option<String>, String) {
     let res = app
         .clone()
@@ -29,7 +25,6 @@ async fn page(app: &Router, path: &str) -> (StatusCode, Option<String>, String) 
     (status, robots, String::from_utf8_lossy(&bytes).into_owned())
 }
 
-/// A newcomer with a room of their own (`/start`): (token, room id).
 async fn newcomer(app: &Router, name: &str) -> (String, i64) {
     let (s, b) = call(
         app,
@@ -101,7 +96,6 @@ async fn share_links_expire_are_listed_reused_and_revoked() {
     vote(&app, &ana, ana_id).await;
     vote(&app, &bob, ana_id).await;
 
-    // A result card: first names only, on the card's page and its preview tags; never indexed.
     let token = share(&app, &ana, round, true).await;
     let (s, robots, html) = page(&app, &format!("/s/{token}")).await;
     assert_eq!(s, StatusCode::OK);
@@ -110,10 +104,8 @@ async fn share_links_expire_are_listed_reused_and_revoked() {
     assert!(html.contains("Ana (") && !html.contains("Martin"), "{html}");
     let (_, robots, _) = page(&app, &format!("/s/{token}/card.png")).await;
     assert!(robots.is_some());
-    // The welcome and legal pages stay indexable; robots.txt keeps crawlers out of private paths.
     let (_, robots, _) = page(&app, "/privacy").await;
     assert!(robots.is_none());
-    // The Android beta page links the three steps of the Play closed test.
     let (s, _, html) = page(&app, "/beta").await;
     assert_eq!(s, StatusCode::OK);
     assert!(html.contains("groups.google.com/g/quidenous-testers"));
@@ -126,7 +118,6 @@ async fn share_links_expire_are_listed_reused_and_revoked() {
         "previews and noindex need /s/ fetchable"
     );
 
-    // New links expire in 90 days; old ones (no expiry) keep working.
     let expires: Option<String> =
         sqlx::query_scalar("SELECT expires_at FROM shares WHERE token = ?")
             .bind(&token)
@@ -140,7 +131,6 @@ async fn share_links_expire_are_listed_reused_and_revoked() {
         .unwrap();
     assert!((89.9..90.1).contains(&days), "{days}");
 
-    // A stat story shared twice is one link.
     let (_, stats) = call(&app, "GET", "/stats", Some(&ana), None, None).await;
     let key = stats["stories"][0]["key"].as_str().unwrap().to_owned();
     let stat = |who: String| {
@@ -163,7 +153,6 @@ async fn share_links_expire_are_listed_reused_and_revoked() {
     let card = stat(ana.clone()).await;
     assert_eq!(stat(ana.clone()).await, card);
 
-    // My links, newest first; not Bob's.
     let (s, mine) = call(&app, "GET", "/shares", Some(&ana), None, None).await;
     assert_eq!(s, StatusCode::OK, "{mine}");
     let tokens: Vec<&str> = mine
@@ -180,7 +169,6 @@ async fn share_links_expire_are_listed_reused_and_revoked() {
     let (_, theirs) = call(&app, "GET", "/shares", Some(&bob), None, None).await;
     assert_eq!(theirs, json!([]));
 
-    // Only the sharer (or the room's owner) revokes: then the page, card and play link are gone.
     let (s, _) = call(
         &app,
         "DELETE",
@@ -205,9 +193,7 @@ async fn share_links_expire_are_listed_reused_and_revoked() {
     assert_eq!(s, StatusCode::NOT_FOUND);
     let (s, _) = call(&app, "GET", &format!("/play/{token}"), None, None, None).await;
     assert_eq!(s, StatusCode::NOT_FOUND);
-    // Sharing again makes a new link.
     assert_ne!(share(&app, &ana, round, true).await, token);
-    // The owner of the room can take down a card someone else made.
     sqlx::query("UPDATE members SET role = 'owner' WHERE id = ?")
         .bind(bob_id)
         .execute(&state.db)
@@ -226,7 +212,6 @@ async fn share_links_expire_are_listed_reused_and_revoked() {
     let (s, _, _) = page(&app, &format!("/s/{card}")).await;
     assert_eq!(s, StatusCode::NOT_FOUND);
 
-    // An expired link is gone too, and isn't reused.
     let fresh = share(&app, &ana, round, false).await;
     sqlx::query("UPDATE shares SET expires_at = '2020-01-01T00:00:00.000Z' WHERE token = ?")
         .bind(&fresh)
@@ -248,7 +233,6 @@ async fn erasing_an_account_removes_its_cards_and_name() {
     vote(&app, &ana, ana_id).await;
     vote(&app, &bob, ana_id).await;
     let (_, stats) = call(&app, "GET", "/stats", Some(&bob), None, None).await;
-    // Bob shares a story about Ana; an older card (no member ids) names her too; one names Bob.
     let story = stats["stories"]
         .as_array()
         .unwrap()
@@ -290,7 +274,6 @@ async fn erasing_an_account_removes_its_cards_and_name() {
     }
     let her_link = share(&app, &ana, round, true).await;
     let bobs_link = share(&app, &bob, round, true).await;
-    // Bob reports Ana as a member: the report keeps her name, until she is erased.
     let (s, b) = call(
         &app,
         "POST",
@@ -331,7 +314,6 @@ async fn challenges_from_a_question_only_share_show_room_names_only() {
     vote(&app, &bob, ana_id).await;
     let question_only = share(&app, &ana, round, false).await;
     let with_result = share(&app, &ana, round, true).await;
-    // Strangers play it in their own rooms.
     let (zoe, zoe_room) = newcomer(&app, "Zoe").await;
     let (max, max_room) = newcomer(&app, "Max").await;
     for (who, room, token) in [
@@ -370,7 +352,6 @@ async fn challenges_from_a_question_only_share_show_room_names_only() {
     };
     assert_eq!(by_room("Zoe")["private"], true);
     assert_eq!(by_room("Max")["private"], false);
-    // My own podium: names and drawn avatars, never a photo.
     let mine = &by_room("Max")["mine_podium"][0];
     assert_eq!(mine["name"], "Ana");
     assert!(mine["photo_url"].is_null());
@@ -407,7 +388,6 @@ async fn spicy_packs_stay_off_the_public_page() {
     assert_eq!(s, StatusCode::NOT_FOUND);
     let (s, _, _) = page(&app, &format!("/p/{}/card.png", ids[1])).await;
     assert_eq!(s, StatusCode::NOT_FOUND);
-    // Signed in: hidden from someone who didn't opt in, on the detail and creator pages.
     let (bob, _) = join(&app, "Bob").await;
     let (s, _) = call(
         &app,
@@ -434,7 +414,6 @@ async fn spicy_packs_stay_off_the_public_page() {
     )
     .await;
     assert_eq!(creator["packs"].as_array().unwrap().len(), 1, "{creator}");
-    // Its author still sees it.
     let (s, _) = call(
         &app,
         "GET",
@@ -445,7 +424,6 @@ async fn spicy_packs_stay_off_the_public_page() {
     )
     .await;
     assert_eq!(s, StatusCode::OK);
-    // Opted in: visible.
     let (s, _) = call(
         &app,
         "PUT",

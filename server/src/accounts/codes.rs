@@ -16,9 +16,6 @@ pub const MFA_TTL: u64 = 5 * 60;
 pub const OAUTH_STATE_TTL: u64 = 10 * 60;
 pub const OAUTH_RESULT_TTL: u64 = 60;
 pub const MAX_TRIES: i64 = 5;
-/// Wrong six-digit codes per e-mail in 24 h (every kind, across restarts) before codes for that
-/// e-mail stop being accepted: the current one dies and the next tries get `429` until the
-/// oldest failure is a day old. 5 tries per code alone would allow a new code, 5 more tries…
 pub const DAILY_FAILURES: i64 = 20;
 const DAY: i64 = 86_400;
 
@@ -48,7 +45,6 @@ impl Kind {
         }
     }
 
-    /// Six-digit codes are looked up by email and hashed with it; random tokens are looked up by hash.
     fn short(self) -> bool {
         matches!(
             self,
@@ -87,7 +83,6 @@ fn hash(state: &AppState, kind: Kind, email: Option<&str>, secret: &str) -> Stri
         .mac(&[kind.as_str(), email.unwrap_or(""), secret.trim()])
 }
 
-/// Stores a new code. Six-digit codes replace the previous one for the same email.
 pub async fn create(
     state: &AppState,
     kind: Kind,
@@ -99,7 +94,6 @@ pub async fn create(
 ) -> AppResult<()> {
     let now = now_unix() as i64;
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
-    // Old rows are of no use a day after they expired.
     sqlx::query("DELETE FROM auth_codes WHERE expires_at < ?")
         .bind(now - 86_400)
         .execute(&mut *tx)
@@ -130,10 +124,6 @@ pub async fn create(
     Ok(())
 }
 
-/// Checks a six-digit code for an email: right → consumed and returned; wrong → one try used,
-/// and one failure counted for the e-mail (`DAILY_FAILURES`).
-/// Errors: `bad_code` (wrong or none), `expired` (too old or too many tries), `429` (too many
-/// wrong codes for this e-mail today).
 pub async fn redeem_short(state: &AppState, kind: Kind, email: &str, code: &str) -> AppResult<Row> {
     let row: Option<Row> = sqlx::query_as(
         "SELECT id, code_hash, user_id, data, expires_at, attempts FROM auth_codes \
@@ -145,7 +135,6 @@ pub async fn redeem_short(state: &AppState, kind: Kind, email: &str, code: &str)
     .await?;
     let row = row.ok_or(AppError::BadRequest("bad_code"))?;
     let now = now_unix() as i64;
-    // Counted as a failure before the compare (parallel guesses each count), taken back if right.
     let failure: i64 =
         sqlx::query_scalar("INSERT INTO code_failures (email, at) VALUES (?, ?) RETURNING id")
             .bind(email)
@@ -165,7 +154,6 @@ pub async fn redeem_short(state: &AppState, kind: Kind, email: &str, code: &str)
             .fetch_one(&state.db)
             .await?;
     if failures > DAILY_FAILURES {
-        // Locked: this code dies too, and a refused try doesn't push the end of the lock back.
         kill(state, row.id).await?;
         forget().await?;
         let wait = oldest.map_or(DAY, |t| t + DAY - now).max(1);
@@ -190,7 +178,6 @@ pub async fn redeem_short(state: &AppState, kind: Kind, email: &str, code: &str)
     Ok(row)
 }
 
-/// A code that must not be accepted any more (used up without being redeemed).
 async fn kill(state: &AppState, id: i64) -> AppResult<()> {
     sqlx::query("UPDATE auth_codes SET used_at = ? WHERE id = ? AND used_at IS NULL")
         .bind(now_unix() as i64)
@@ -200,7 +187,6 @@ async fn kill(state: &AppState, id: i64) -> AppResult<()> {
     Ok(())
 }
 
-/// Looks a random token up by its hash (MFA challenge, OAuth state/result).
 pub async fn find(state: &AppState, kind: Kind, secret: &str) -> AppResult<Option<Row>> {
     Ok(sqlx::query_as(
         "SELECT id, code_hash, user_id, data, expires_at, attempts FROM auth_codes \
@@ -212,7 +198,6 @@ pub async fn find(state: &AppState, kind: Kind, secret: &str) -> AppResult<Optio
     .await?)
 }
 
-/// Expired or out of tries? (No try used: for the OAuth state, which is consumed at once.)
 pub fn alive(row: &Row) -> AppResult<()> {
     if row.expires_at < now_unix() as i64 || row.attempts >= MAX_TRIES {
         return Err(AppError::BadRequest("expired"));
@@ -220,8 +205,6 @@ pub fn alive(row: &Row) -> AppResult<()> {
     Ok(())
 }
 
-/// Uses up one try before the guess is compared, in one statement: parallel guesses can't
-/// all see the same count. `expired` when too old, out of tries or used meanwhile.
 pub async fn take_try(state: &AppState, row: &Row) -> AppResult<()> {
     let done = sqlx::query(
         "UPDATE auth_codes SET attempts = attempts + 1 \
@@ -238,7 +221,6 @@ pub async fn take_try(state: &AppState, row: &Row) -> AppResult<()> {
     Ok(())
 }
 
-/// Single use: fails with `bad_code` if someone else used it first.
 pub async fn consume(state: &AppState, id: i64) -> AppResult<()> {
     let done = sqlx::query("UPDATE auth_codes SET used_at = ? WHERE id = ? AND used_at IS NULL")
         .bind(now_unix() as i64)

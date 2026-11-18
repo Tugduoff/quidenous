@@ -1,5 +1,3 @@
-//! Email: Mailgun's HTTP API in production, a log line when not configured, a recorder in tests.
-
 use std::{
     sync::{
         Arc, Mutex,
@@ -21,17 +19,14 @@ pub struct Email {
     pub subject: String,
     pub text: String,
     pub html: String,
-    /// A security notice (no code): tests keep these apart from the code e-mails.
     pub notice: bool,
 }
 
 pub trait Mailer: Send + Sync {
-    /// Does this mailer really deliver? (`false`: the API says `email_sent: false`.)
     fn configured(&self) -> bool;
     fn send(&self, email: Email) -> BoxFuture<'_, Result<(), String>>;
 }
 
-/// Not configured: the email body goes to the log (so a dev or the admin can still read the code).
 pub struct LogMailer;
 
 impl Mailer for LogMailer {
@@ -41,7 +36,6 @@ impl Mailer for LogMailer {
 
     fn send(&self, email: Email) -> BoxFuture<'_, Result<(), String>> {
         Box::pin(async move {
-            // The body holds sign-in codes: only at DEBUG (`RUST_LOG=debug`), with the full address.
             tracing::info!(to = %mask_email(&email.to), subject = %email.subject, "email (not sent: Mailgun not configured)");
             tracing::debug!(to = %email.to, body = %email.text, "email body (not sent)");
             Ok(())
@@ -49,7 +43,6 @@ impl Mailer for LogMailer {
     }
 }
 
-/// `ana@example.com` → `a***@example.com`, for logs.
 pub(crate) fn mask_email(email: &str) -> String {
     match email.split_once('@') {
         Some((user, domain)) => {
@@ -119,13 +112,8 @@ impl Mailer for MailgunMailer {
     }
 }
 
-/// How long a failed send makes `forgot` and `delete/send` answer `503 email_failed` up front
-/// (unless a send works meanwhile).
 pub const FAILURE_WINDOW: Duration = Duration::from_secs(15 * 60);
 
-/// The configured mailer, plus whether its last send failed: `forgot` and the public deletion
-/// page send in the background (the answer must not say whether the account exists), so they
-/// can only tell a failure from the previous sends, server-wide, never from this address.
 pub struct Watched {
     inner: Arc<dyn Mailer>,
     failed_at: Mutex<Option<Instant>>,
@@ -143,7 +131,6 @@ impl Watched {
         self.inner.configured()
     }
 
-    /// No failure in the last `FAILURE_WINDOW` (or a success since).
     pub fn healthy(&self) -> bool {
         let failed = self.failed_at.lock().unwrap_or_else(|e| e.into_inner());
         failed.is_none_or(|t| t.elapsed() >= FAILURE_WINDOW)
@@ -157,17 +144,14 @@ impl Watched {
     }
 }
 
-/// Keeps every email in memory (tests read the codes from here). Security notices go to `notices`.
 #[derive(Default)]
 pub struct MemoryMailer {
     pub sent: Mutex<Vec<Email>>,
     pub notices: Mutex<Vec<Email>>,
-    /// Tests: every send fails (Mailgun down, sandbox refusing the address).
     pub fail: AtomicBool,
 }
 
 impl MemoryMailer {
-    /// The six-digit code in the last email to this address.
     pub fn last_code(&self, to: &str) -> Option<String> {
         let sent = self.sent.lock().unwrap_or_else(|e| e.into_inner());
         let email = sent.iter().rev().find(|e| e.to == to)?;
@@ -183,7 +167,6 @@ impl MemoryMailer {
         sent.iter().filter(|e| e.to == to).count()
     }
 
-    /// The subjects of the security notices sent to this address, oldest first.
     pub fn notices(&self, to: &str) -> Vec<String> {
         let sent = self.notices.lock().unwrap_or_else(|e| e.into_inner());
         sent.iter()
@@ -225,7 +208,6 @@ fn layout(lang: Lang, title: &str, intro: &str, code: &str, outro: &str) -> Stri
     )
 }
 
-/// A code e-mail in the reader's language (texts in `i18n`).
 fn code_email(to: &str, code: &str, lang: Lang, m: i18n::CodeMail) -> Email {
     Email {
         to: to.to_owned(),
@@ -256,7 +238,6 @@ pub fn mfa_reset(to: &str, code: &str, lang: Lang) -> Email {
     code_email(to, code, lang, i18n::mfa_reset(lang, code))
 }
 
-/// A short security notice ("2FA turned on", "password changed"…), no code.
 pub fn notice(to: &str, lang: Lang, n: &i18n::Notice) -> Email {
     let m = i18n::notice(lang, n);
     let html = format!(
@@ -280,7 +261,6 @@ pub fn notice(to: &str, lang: Lang, n: &i18n::Notice) -> Email {
     }
 }
 
-/// Escapes text for the HTML part of an email.
 pub fn escape(s: &str) -> String {
     s.replace('&', "&amp;")
         .replace('<', "&lt;")
@@ -288,7 +268,6 @@ pub fn escape(s: &str) -> String {
         .replace('"', "&quot;")
 }
 
-/// A content report, for whoever moderates (`REPORT_EMAIL`), in French. `lines` are (label, value).
 pub fn report(to: &str, subject: &str, lines: &[(&str, String)]) -> Email {
     let text: String = lines.iter().map(|(k, v)| format!("{k} : {v}\n")).collect();
     let rows: String = lines

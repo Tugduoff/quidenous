@@ -65,7 +65,6 @@ async fn call_room(
     )
 }
 
-/// Members of the room on screen: (member id, user id, role) of current members, and ids of former ones.
 async fn roster(app: &Router, token: &str, room: i64) -> (Vec<(i64, i64, String)>, Vec<i64>) {
     let (s, g) = call_room(app, "GET", "/group", token, room, None).await;
     assert_eq!(s, StatusCode::OK, "{g}");
@@ -94,7 +93,6 @@ async fn roster(app: &Router, token: &str, room: i64) -> (Vec<(i64, i64, String)
     (members, former)
 }
 
-/// Deck questions tagged with `tag` (untagged lines are `potes`), ranking ones left out like the test deck.
 fn deck_with(tag: &str) -> Vec<String> {
     include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/deck/fr.txt"))
         .lines()
@@ -124,7 +122,6 @@ fn deck_with(tag: &str) -> Vec<String> {
         .collect()
 }
 
-/// Accounts whose devices a push to the room would reach (sorted), at `now` (unix seconds).
 async fn audience(
     state: &quidenous_server::AppState,
     target: quidenous_server::realtime::push::Target,
@@ -145,7 +142,6 @@ async fn audience(
     users
 }
 
-/// Votes for everyone on the open question (each person picks the first member).
 async fn close_round(app: &Router, tokens: &[&str], target: i64) {
     for t in tokens {
         vote_as(app, t, target).await;
@@ -165,7 +161,6 @@ async fn db_now_plus(state: &quidenous_server::AppState, offset: &str) -> String
         .unwrap()
 }
 
-/// A small PNG as a multipart `photo` upload to `PUT /me/photo`.
 async fn upload_photo(app: &Router, token: &str) -> (StatusCode, Value) {
     let mut png = Vec::new();
     image::RgbImage::from_pixel(8, 8, image::Rgb([200, 80, 40]))

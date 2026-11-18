@@ -1,15 +1,3 @@
-//! Self-hosted expo-updates (protocol v1).
-//!
-//! CI builds and signs the update, then publishes a tar.gz to `/api/updates/publish`; the
-//! server only stores the exact manifest (or directive) bytes and the precomputed
-//! `expo-signature` value, and serves them verbatim (the signing key never reaches it).
-//!
-//! Layout: `DATA_DIR/updates/<runtime>/<id>/{body.json, meta.json, assets/<name>}`.
-//!
-//! With `UPDATES_CERTIFICATE` (the code signing certificate the apps embed) the server also
-//! refuses unsigned uploads and signatures that don't match it: a leaked publish token alone
-//! can't make OTA stall on an update every phone rejects.
-
 use std::{
     collections::BTreeMap,
     path::PathBuf,
@@ -37,19 +25,12 @@ mod serve;
 use publish::*;
 use serve::*;
 
-/// Largest accepted publish body (compressed).
 pub const PUBLISH_MAX: usize = 100 * 1024 * 1024;
-/// Largest accepted archive once decompressed.
 const UNPACKED_MAX: u64 = 200 * 1024 * 1024;
-/// Largest `update.json` / `body.json`.
 const JSON_MAX: u64 = 8 * 1024 * 1024;
-/// Entries kept per (runtime, platform).
 const KEEP: usize = 5;
 const TMP_PREFIX: &str = ".tmp-";
 const STALE_TMP: Duration = Duration::from_secs(3600);
-/// A runtime (native build) with nothing published for this long is removed, unless it is
-/// one of the [`KEEP_RUNTIMES`] most recently published: phones still on that build keep the
-/// JS they already downloaded, and need an APK update anyway.
 const RUNTIME_IDLE: Duration = Duration::from_secs(120 * 86_400);
 const KEEP_RUNTIMES: usize = 4;
 const JSON_UTF8: &str = "application/json; charset=utf-8";
@@ -91,8 +72,6 @@ pub fn router() -> Router<AppState> {
         .route("/updates/{runtime}/{id}", delete(remove))
 }
 
-// ---------- storage model ----------
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 enum Kind {
@@ -115,7 +94,6 @@ struct Meta {
     assets: BTreeMap<String, String>,
 }
 
-/// `update.json` in the archive.
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct Descriptor {
@@ -158,15 +136,12 @@ struct Directive {
     parameters: Option<Value>,
 }
 
-// ---------- validation helpers ----------
-
 fn valid_runtime(s: &str) -> bool {
     (1..=128).contains(&s.len())
         && s.bytes()
             .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'-'))
         && s != "."
         && s != ".."
-        // Would collide with the temporary extraction dirs next to the runtime dirs.
         && !s.starts_with(TMP_PREFIX)
 }
 
@@ -200,12 +175,10 @@ fn now_millis() -> u64 {
         .unwrap_or(0)
 }
 
-/// `2026-01-31T12:34:56.789Z` from unix millis.
 fn iso_millis(ms: u64) -> String {
     let secs = ms / 1000;
     let days = (secs / 86_400) as i64;
     let rem = secs % 86_400;
-    // Howard Hinnant's civil_from_days.
     let z = days + 719_468;
     let era = z.div_euclid(146_097);
     let doe = z.rem_euclid(146_097);
@@ -228,7 +201,6 @@ fn updates_dir(state: &AppState) -> PathBuf {
     state.config.data_dir.join("updates")
 }
 
-/// Bearer check for the publishing endpoints. No token configured: the feature is off (404).
 fn authorize(state: &AppState, headers: &HeaderMap) -> AppResult<()> {
     let Some(expected) = state.config.updates_publish_token.as_deref() else {
         return Err(AppError::NotFound);
@@ -239,7 +211,6 @@ fn authorize(state: &AppState, headers: &HeaderMap) -> AppResult<()> {
         .and_then(|v| v.strip_prefix("Bearer "))
         .map(str::trim)
         .unwrap_or_default();
-    // Compare digests so the comparison doesn't depend on the token's length either.
     let digest = |s: &str| hex::encode(Sha256::digest(s.as_bytes()));
     if !given.is_empty() && constant_eq(&digest(given), &digest(expected)) {
         Ok(())
@@ -247,16 +218,6 @@ fn authorize(state: &AppState, headers: &HeaderMap) -> AppResult<()> {
         Err(AppError::Unauthorized)
     }
 }
-
-// ---------- reading the store ----------
-
-// ---------- GET /updates/manifest ----------
-
-// ---------- GET /updates/assets/{runtime}/{id}/{name} ----------
-
-// ---------- POST /updates/publish ----------
-
-// ---------- admin ----------
 
 #[cfg(test)]
 mod tests {

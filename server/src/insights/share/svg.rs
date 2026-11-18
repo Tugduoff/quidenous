@@ -9,7 +9,6 @@ pub(super) fn esc(s: &str) -> String {
         .replace('"', "&quot;")
 }
 
-/// Greedy word wrap by an estimated character budget (the display font is ~0.56 em per char).
 pub(super) fn wrap(text: &str, size: f32, width: f32) -> Vec<String> {
     let max = (width / (size * 0.56)).floor().max(8.0) as usize;
     let mut lines: Vec<String> = Vec::new();
@@ -39,7 +38,6 @@ pub(super) const LIME: &str = "#C8FF3D";
 
 pub(super) const PINK: &str = "#FF4FA3";
 
-/// Background, logo, room name and the coloured tag shared by every card.
 pub(super) fn frame(room: &str, tag: &str, tag_color: &str) -> String {
     let tag_w = 28.0 + tag.chars().count() as f32 * 15.5;
     format!(
@@ -65,8 +63,6 @@ pub(super) fn footer(lang: Lang) -> String {
     )
 }
 
-/// A person's round picture centred on (cx, cy): their drawn avatar, else their colour and initial.
-/// `id` must be unique in the card (it names the avatar's clipPath).
 pub(super) fn face(p: &Person, cx: f32, cy: f32, r: f32, font: f32, id: &str) -> String {
     if let Some(avatar) = p
         .avatar
@@ -106,7 +102,6 @@ pub(super) fn svg(card: &Card) -> String {
     }
 }
 
-/// The year at the end of a Wrapped label (« Wrapped 2026 », « Salon · 2026 »).
 pub(super) fn label_year(label: &str) -> Option<&str> {
     label
         .rsplit(' ')
@@ -114,19 +109,15 @@ pub(super) fn label_year(label: &str) -> Option<&str> {
         .filter(|y| y.len() == 4 && y.bytes().all(|b| b.is_ascii_digit()))
 }
 
-/// A Wrapped card: the stat card's layout on a festive ground (the year as a huge watermark,
-/// confetti), the label in the frame instead of the room name.
 pub(super) fn wrapped_svg(card: &StatCard) -> String {
     let label = card.label.as_deref().unwrap_or_default();
     let mut out = frame(label, &card.title.to_uppercase(), PINK);
-    // Under everything but the frame's text: the year, outlined, bleeding off the right edge.
     if let Some(year) = label_year(label) {
         out.push_str(&format!(
             r##"<text x="1250" y="600" text-anchor="end" font-family="Bricolage Grotesque" font-weight="800" font-size="330" fill="none" stroke="{LIME}" stroke-width="3" opacity="0.22" letter-spacing="-8">{year}</text>
 "##
         ));
     }
-    // Confetti: fixed, so the same card always draws the same way.
     for (i, (x, y, r)) in [
         (640.0, 150.0, 10.0),
         (760.0, 205.0, 6.0),
@@ -149,7 +140,6 @@ pub(super) fn wrapped_svg(card: &StatCard) -> String {
     out
 }
 
-/// A stat story: the title in the tag, the figure huge, the punchline, then who it is about.
 pub(super) fn stat_svg(card: &StatCard) -> String {
     let mut out = frame(&card.room, &card.title.to_uppercase(), LIME);
     stat_body(&mut out, card);
@@ -157,9 +147,7 @@ pub(super) fn stat_svg(card: &StatCard) -> String {
     out
 }
 
-/// The figure, the punchline and the faces of a stat card.
 pub(super) fn stat_body(out: &mut String, card: &StatCard) {
-    // Biggest figure that fits the width.
     let mut size: f32 = 168.0;
     while card.big.chars().count() as f32 * size * 0.6 > 1060.0 && size > 72.0 {
         size -= 8.0;
@@ -204,7 +192,6 @@ pub(super) fn stat_body(out: &mut String, card: &StatCard) {
 pub(super) fn question_svg(card: &QuestionCard) -> String {
     let (txt, mut_, lime, pink) = (TXT, MUTED, LIME, "#FF4FA3");
     let area = if card.podium.is_empty() { 300.0 } else { 190.0 };
-    // Biggest size whose wrapped lines fit the area.
     let mut size = 76.0;
     let mut lines = wrap(&card.question, size, 1060.0);
     while (lines.len() as f32) * size * 1.08 > area && size > 36.0 {
@@ -267,7 +254,6 @@ pub(super) fn question_svg(card: &QuestionCard) -> String {
     out
 }
 
-/// A pack: its name big, its description, three sample questions.
 pub(super) fn pack_svg(card: &PackCard) -> String {
     let mut out = frame(
         &i18n::pack_by(card.lang, &card.author),
@@ -313,7 +299,6 @@ pub(super) fn pack_svg(card: &PackCard) -> String {
     out
 }
 
-/// The first wrapped line of a text, with an ellipsis when it goes on.
 pub(super) fn one_line(text: &str, size: f32, width: f32) -> String {
     let lines = wrap(text, size, width);
     match lines.len() {

@@ -1,15 +1,3 @@
-//! What keeps a room moving when people are away (docs/ROOMS.md, "When someone is away").
-//!
-//! - Away members: the last [`game::AWAY_AFTER`] questions closed without them, so the room stops
-//!   waiting for them until they vote again (`game::away`).
-//! - Late quorum: a question open for [`game::QUORUM_HOURS`] closes once half of the people it waits
-//!   for voted (`game::close_if_done`, checked here every few minutes for rooms nobody touches).
-//! - A gone owner: not seen in the room for [`OWNER_GONE_DAYS`] days, the longest-standing member
-//!   seen since takes over (and hears it in the inbox); "only the owner launches the next one" stops
-//!   waiting for an owner unseen for [`OWNER_NEXT_HOURS`] hours (`pacing`).
-//! - A low or empty deck: the owner hears it in the inbox when [`DECK_LOW`] questions are left, and
-//!   when the room has nothing left to open.
-
 use crate::platform::ids::{MemberId, RoomId, RoundId};
 use std::time::Duration;
 
@@ -18,19 +6,14 @@ use crate::{
     realtime::notify::notify_round, rounds::game,
 };
 
-/// Days without using the room after which an owner is replaced.
 pub const OWNER_GONE_DAYS: i64 = 7;
 
-/// Hours "only the owner launches the next one" waits for an owner who isn't around.
 pub const OWNER_NEXT_HOURS: i64 = 24;
 
-/// How often a seat's `active_at` is written at most.
 const TOUCH_EVERY: Duration = Duration::from_secs(10 * 60);
 
-/// How often the scheduler runs the jobs below (every this many pacing ticks).
 pub const EVERY_TICKS: u32 = 15;
 
-/// Records that this seat used its room (any request or live socket for it), at most every 10 minutes.
 pub async fn touch(state: &AppState, member_id: MemberId) {
     if !state.live.mark_active(member_id, TOUCH_EVERY) {
         return;
@@ -46,7 +29,6 @@ pub async fn touch(state: &AppState, member_id: MemberId) {
     }
 }
 
-/// The scheduler's game-flow jobs. Each room is on its own: one failing doesn't stop the others.
 pub async fn tick(state: &AppState) {
     match close_late(state).await {
         Ok(0) => {}
@@ -60,9 +42,6 @@ pub async fn tick(state: &AppState) {
     }
 }
 
-/// Closes the room questions open for more than [`game::QUORUM_HOURS`] that reached their late quorum
-/// (a said question still writing moves on to its guessing, whose own clock starts then).
-/// Returns how many closed.
 pub async fn close_late(state: &AppState) -> AppResult<usize> {
     let late: Vec<(RoundId, RoomId)> = sqlx::query_as(
         "SELECT r.id, r.group_id FROM rounds r \
@@ -97,7 +76,6 @@ async fn close_one(state: &AppState, group_id: RoomId, round_id: RoundId) -> App
     for event in &events {
         state.live.send(group_id, event.clone());
     }
-    // A said question whose writing ended late: its guessing starts (and is announced).
     crate::rounds::said::announce(state, group_id, None, &events).await;
     if closed {
         notify_round(state, group_id, None, opened, true).await;
@@ -105,8 +83,6 @@ async fn close_one(state: &AppState, group_id: RoomId, round_id: RoundId) -> App
     Ok(closed)
 }
 
-/// Every room whose owner hasn't used it for [`OWNER_GONE_DAYS`] days goes to its longest-standing
-/// member seen since; that member hears it in the inbox. Returns how many rooms changed hands.
 pub async fn hand_over(state: &AppState) -> AppResult<usize> {
     let since = format!("-{OWNER_GONE_DAYS} days");
     let rooms: Vec<(RoomId, MemberId, MemberId, String)> = sqlx::query_as(
@@ -141,7 +117,6 @@ async fn hand_room(
     name: &str,
 ) -> AppResult<bool> {
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
-    // Still the same owner, still gone (they may have come back since the scan).
     let demoted = sqlx::query(
         "UPDATE members SET role = 'member' WHERE id = ? AND group_id = ? AND role = 'owner' \
          AND removed_at IS NULL AND COALESCE(active_at, created_at) <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now', ?)",
@@ -177,11 +152,8 @@ async fn hand_room(
     Ok(true)
 }
 
-/// Questions left at which the owner hears the room is running out (once, as it reaches it).
 pub const DECK_LOW: i64 = 3;
 
-/// After a question opened in a room: when that leaves exactly [`DECK_LOW`] questions to ask, its
-/// owner hears it in the inbox (`ask`, a tap opens the Questions tab). Errors are logged.
 pub async fn deck_low(state: &AppState, group_id: RoomId) {
     if let Err(e) = try_deck_low(state, group_id).await {
         tracing::warn!(%group_id, error = ?e, "low deck notice failed");
@@ -212,9 +184,6 @@ async fn try_deck_low(state: &AppState, group_id: RoomId) -> AppResult<()> {
     Ok(())
 }
 
-/// After a question closed (or a pause ended) without opening the next one: when the room is out of
-/// questions (two people or more, not paced, nothing open), its owner hears it in the inbox, with a
-/// tap to the Questions tab. Errors are logged.
 pub async fn deck_empty(state: &AppState, group_id: RoomId) {
     if let Err(e) = try_deck_empty(state, group_id).await {
         tracing::warn!(%group_id, error = ?e, "empty deck notice failed");

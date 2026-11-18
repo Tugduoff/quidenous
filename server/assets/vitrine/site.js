@@ -1,5 +1,3 @@
-// qui de nous ? landing page: question ticker, playable demo round, screenshot rail, parallax, confetti.
-// Vanilla JS, no dependencies. Text comes from the page language (<html lang>).
 (function () {
   'use strict';
   var EN = document.documentElement.lang === 'en';
@@ -95,7 +93,6 @@
     return s;
   }
 
-  // ---- Confetti ---------------------------------------------------------------------------------
   var canvas = $('[data-confetti]');
   var ctx = canvas && canvas.getContext && canvas.getContext('2d');
   var bits = [];
@@ -137,13 +134,11 @@
     burst(r.left + r.width / 2, r.top + r.height / 2, colors, count);
   }
 
-  // ---- Top bar ----------------------------------------------------------------------------------
   var top = $('.top');
   function onScroll() { top.classList.toggle('scrolled', window.scrollY > 8); }
   window.addEventListener('scroll', onScroll, { passive: true });
   onScroll();
 
-  // ---- Question ticker --------------------------------------------------------------------------
   var tickerQ = $('[data-ticker]');
   var tickerN = $('[data-ticker-n]');
   var deck = shuffle(T.questions.slice());
@@ -185,7 +180,6 @@
     rotate();
   });
 
-  // ---- Hero parallax ----------------------------------------------------------------------------
   var vis = $('[data-parallax]');
   if (vis && finePointer && !calm) {
     var layers = $$('[data-depth]', vis);
@@ -209,7 +203,6 @@
     });
   }
 
-  // ---- The demo round ---------------------------------------------------------------------------
   var demo = $('[data-demo]');
   var grid = $('[data-demo-grid]', demo);
   var results = $('[data-demo-results]', demo);
@@ -224,7 +217,6 @@
   var betBox = $('[data-demo-betbox]', demo);
   var betText = $('.bet-text', bet);
   var mascot = $('[data-demo-mascot]', demo);
-  // A mascot reacts to the verdict (decorative). Files from mascots/build.mjs.
   var MASCOTS = { celebrate: 'paillette-celebrate', think: 'pave-think', sad: 'paillette-sad', accuse: 'zeste-accuse' };
   function mascotSrc(mood) { return '/vitrine/mascots/' + MASCOTS[mood] + '.svg?v=1'; }
   var mascotsLoaded = false;
@@ -297,7 +289,6 @@
     betBox.disabled = true;
     bet.classList.add('locked');
     var betting = betBox.checked;
-    // A question has its usual suspects: two favourites get most of the votes.
     var weights = CREW.map(function () { return 1; });
     var favs = shuffle([0, 1, 2, 3, 4, 5]);
     weights[favs[0]] = 6; weights[favs[1]] = 3.5;
@@ -348,7 +339,6 @@
       requestAnimationFrame(function () { requestAnimationFrame(function () { bar.style.width = pct + '%'; }); });
     });
 
-    // The Tripot: you (maybe) and three friends bet 10 chips each on their own vote; the pot goes to the right guesses.
     var bettors = shuffle(votes.slice(1)).slice(0, 3);
     if (betting) bettors.push(votes[0]);
     var pot = bettors.length * 10;
@@ -382,7 +372,6 @@
     small.appendChild(document.createTextNode(line + ' '));
     if (money) small.insertAdjacentHTML('beforeend', money);
     verdict.appendChild(small);
-    // Right guess: Paillette hops. Tie: Pavé thinks. Alone in your vote: Paillette cries. Else Zeste points.
     var mood = iWon ? 'celebrate' : names.length > 1 ? 'think' : others ? 'accuse' : 'sad';
     mascot.src = mascotSrc(mood);
     mascot.setAttribute('data-mood', mood);
@@ -401,7 +390,6 @@
   });
   renderVote();
 
-  // ---- Screenshot rail --------------------------------------------------------------------------
   var rail = $('[data-rail]');
   var slides = $$('.slide', rail);
   var chips = $$('[data-chips] button');
@@ -435,7 +423,6 @@
   window.addEventListener('resize', syncRail);
   syncRail();
 
-  // Tilt the phones under the pointer.
   if (finePointer && !calm) {
     $$('.tilt').forEach(function (p) {
       p.addEventListener('pointermove', function (e) {

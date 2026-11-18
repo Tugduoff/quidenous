@@ -204,7 +204,6 @@ pub(super) async fn room(
             vec![a, b],
         ));
     }
-    // The forecaster: most chips won at the Tripot this year, else the one most often on the winning side.
     let chips: Vec<(MemberId, i64)> = sqlx::query_as(concat!(
         "SELECT b.member_id, SUM(b.payout - b.amount) FROM tripot_bets b JOIN rounds r ON r.id = b.round_id \
          WHERE r.group_id = ?1 AND r.closed_at IS NOT NULL AND ",
@@ -274,7 +273,6 @@ pub(super) async fn room(
             vec![p],
         ));
     }
-    // The longest day streak of the year among the members (the reader's time zone).
     if let Some(r) = Room::load(db, group).await? {
         let now = streaks::now_secs();
         let first = days_from_civil(year, 1, 1);

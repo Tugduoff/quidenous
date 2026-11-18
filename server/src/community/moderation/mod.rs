@@ -1,10 +1,3 @@
-//! Reporting content (messages, members, questions, suggestions, said answers) to whoever moderates, and
-//! blocking people. A block hides their messages, inbox entries and pushes from me and stops
-//! friend requests both ways; the shared game (membership, votes, results) is unchanged.
-//! Chat clean-up: authors delete their messages, owners any message of their room; three
-//! reporters hide a message (or a said answer, docs/SAID.md) until an admin decides. Admins see open reports in `/admin/review`
-//! and close them (dismiss, delete the content, suspend or erase the account).
-
 use crate::platform::ids::{MemberId, MessageId, RoomId, RoundId, UserId};
 use axum::{
     Json,
@@ -23,9 +16,7 @@ use crate::{
 
 const DETAILS_MAX: usize = 500;
 const KINDS: [&str; 5] = ["message", "member", "question", "suggestion", "answer"];
-/// Different people reporting the same message (suggestion, said answer) hide it until an admin decides.
 pub const HIDE_AFTER: i64 = 3;
-/// Open report groups an admin sees at once (oldest first).
 const ADMIN_LIST_MAX: i64 = 100;
 const REASONS: [&str; 5] = ["offensive", "harassment", "sexual", "spam", "other"];
 
@@ -37,7 +28,6 @@ pub struct ReportBody {
     details: Option<String>,
 }
 
-/// What is reported: a snapshot of it, who wrote / is it, and the room it belongs to.
 type Target = (String, Option<UserId>, Option<String>, Option<RoomId>);
 
 async fn target(state: &AppState, me: UserId, kind: &str, id: i64) -> AppResult<Target> {
@@ -57,7 +47,6 @@ async fn target(state: &AppState, me: UserId, kind: &str, id: i64) -> AppResult<
                 .fetch_optional(&state.db)
                 .await?
         }
-        // A said answer, once shown (guessing or done; an admin's delete leaves nothing to report).
         "answer" => {
             sqlx::query_as(
                 "SELECT a.text, m.user_id, m.name, r.group_id FROM said_answers a \
@@ -69,7 +58,6 @@ async fn target(state: &AppState, me: UserId, kind: &str, id: i64) -> AppResult<
             .fetch_optional(&state.db)
             .await?
         }
-        // A suggestion to the shared deck: no room, open ones only.
         "suggestion" => {
             sqlx::query_as(
                 "SELECT s.text, s.user_id, u.name, NULL FROM suggestions s JOIN users u ON u.id = s.user_id \
@@ -80,7 +68,6 @@ async fn target(state: &AppState, me: UserId, kind: &str, id: i64) -> AppResult<
             .await?
         }
         _ => {
-            // A shared-deck question belongs to no room: the room it was asked in, among mine.
             sqlx::query_as(
                 "SELECT q.text, a.user_id, a.name, COALESCE(q.group_id, \
                      (SELECT r.group_id FROM rounds r JOIN members s ON s.group_id = r.group_id \
@@ -96,8 +83,6 @@ async fn target(state: &AppState, me: UserId, kind: &str, id: i64) -> AppResult<
     row.ok_or(AppError::NotFound)
 }
 
-/// Report something from one of my rooms. Stored once per person and target; emailed to
-/// `REPORT_EMAIL` (30 emails an hour at most, server-wide; beyond that, stored only).
 pub async fn report(
     State(state): State<AppState>,
     crate::accounts::auth::Account(me): crate::accounts::auth::Account,
@@ -114,7 +99,6 @@ pub async fn report(
     {
         return Err(AppError::BadRequest("bad_report"));
     }
-    // Suggestions are public: no reports from never-verified e-mail accounts (see packs).
     if body.kind == "suggestion" {
         crate::community::packs::require_verified(&state, me).await?;
     }
@@ -124,7 +108,6 @@ pub async fn report(
         .hit(&limits::REPORT_USER, &me.to_string())?;
     let (content, reported, reported_name, room) = target(&state, me, &body.kind, body.id).await?;
     if body.kind != "suggestion" {
-        // Only from inside the room (and the room still exists).
         let room = room.ok_or(AppError::NotFound)?;
         crate::rooms::access::seat(&state, me, room)
             .await
@@ -212,7 +195,6 @@ pub async fn report(
     Ok(Json(json!({ "ok": true })))
 }
 
-/// People I blocked, most recent first.
 pub async fn list_blocks(
     State(state): State<AppState>,
     SignedIn(me): SignedIn,
@@ -235,8 +217,6 @@ pub async fn list_blocks(
     Ok(Json(json!(list)))
 }
 
-/// Block someone (idempotent); any friendship by code, friend request or room invitation between
-/// us goes, both ways.
 pub async fn block(
     State(state): State<AppState>,
     SignedIn(me): SignedIn,
@@ -245,8 +225,6 @@ pub async fn block(
     if other == me {
         return Err(AppError::BadRequest("bad_target"));
     }
-    // Only people I know (a room shared now or before, or a friend): the blocked list shows names
-    // and photos, so it must not become a way to look up any account by id.
     let known: Option<UserId> = sqlx::query_scalar(
         "SELECT u.id FROM users u WHERE u.id = ?2 AND u.deleted_at IS NULL AND ( \
          EXISTS (SELECT 1 FROM members a JOIN members b ON a.group_id = b.group_id \
@@ -293,11 +271,6 @@ pub async fn unblock(
     Ok(Json(json!({ "ok": true })))
 }
 
-// ---------- hiding, deleting ----------
-
-/// Someone whose reports and suggestion votes count toward hiding or rejecting (`$user`: their
-/// `users.id` in the query): a verified e-mail or a linked provider, and an account more than a day
-/// old. Throwaway accounts can still report (admins read every report); they just can't hide.
 macro_rules! trusted {
     ($user:literal) => {
         concat!(
@@ -316,10 +289,6 @@ pub use admin::*;
 pub use messages::*;
 pub(crate) use trusted;
 
-/// [`HIDE_AFTER`] different trusted people reported it (open reports; for a message the owner
-/// restored, made since): a message disappears for everyone, a said answer shows as hidden (it
-/// stays in the game), a suggestion leaves the vote stack (`rejected`, no `decided_at`), until an
-/// admin decides.
 async fn hide_if_reported(
     state: &AppState,
     kind: &str,
@@ -347,7 +316,6 @@ async fn hide_if_reported(
         .bind(id)
         .fetch_optional(&mut *tx)
         .await?;
-        // Its inbox copies go: a hidden text must not stay readable in the Activity tab.
         if let Some((round_id, author, text, created_at)) = &hidden {
             drop_inbox_copies(&mut tx, *round_id, *author, text, created_at).await?;
         }
@@ -384,8 +352,6 @@ async fn hide_if_reported(
     Ok(())
 }
 
-/// The inbox keeps a copy of a message's text ("message" and "mention" entries): per recipient,
-/// the first one made since it was sent (the same text sent twice, like two "📷 Photo", keeps the other).
 async fn drop_inbox_copies(
     tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
     round_id: RoundId,
@@ -405,5 +371,3 @@ async fn drop_inbox_copies(
     .await?;
     Ok(())
 }
-
-// ---------- admin ----------

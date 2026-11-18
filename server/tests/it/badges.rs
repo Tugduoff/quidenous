@@ -1,6 +1,3 @@
-//! Titles & badges (docs/BADGES.md): metrics, tiers, idempotent awarding with a silent backfill,
-//! the inbox entry, titles and the endpoints.
-
 use quidenous_server::platform::ids::{RoomId, UserId};
 use std::collections::HashMap;
 
@@ -16,7 +13,6 @@ struct World {
     app: Router,
     state: AppState,
     room: i64,
-    /// Ana, Bob, Cyd, Dan: (token, member id, user id).
     people: Vec<(String, i64, i64)>,
 }
 
@@ -100,7 +96,6 @@ impl World {
     }
 }
 
-/// A finished question in `group` (opened 2026-03-01 10:00 UTC), written by `author`.
 async fn ask(
     state: &AppState,
     group: i64,
@@ -144,7 +139,6 @@ async fn vote(state: &AppState, round: i64, voter: i64, target: i64, at: &str) {
     .unwrap();
 }
 
-/// A ranking ballot (first to last); its votes row points at the first.
 async fn rank(state: &AppState, round: i64, voter: i64, order: &[i64], at: &str) {
     for (i, m) in order.iter().enumerate() {
         sqlx::query(
@@ -161,7 +155,6 @@ async fn rank(state: &AppState, round: i64, voter: i64, order: &[i64], at: &str)
     vote(state, round, voter, order[0], at).await;
 }
 
-/// A pick question everyone listed votes on, at noon, in order.
 async fn pick(state: &AppState, group: i64, anonymous: bool, votes: &[(i64, i64)]) -> i64 {
     let r = ask(state, group, "pick", anonymous, None).await;
     for (i, (voter, target)) in votes.iter().enumerate() {
@@ -187,14 +180,11 @@ async fn every_metric_follows_its_rule() {
         .execute(&s.db)
         .await
         .unwrap();
-    // R1, written by Dan: everyone for Bob (Bob for himself), late at night, Ana first.
     let r1 = ask(s, w.room, "pick", false, Some(dan)).await;
     vote(s, r1, ana, bob, "2026-03-01T23:30:00.000Z").await;
     vote(s, r1, bob, bob, "2026-03-01T23:40:00.000Z").await;
     vote(s, r1, cyd, bob, "2026-03-01T23:50:00.000Z").await;
-    // R2, anonymous: everyone for Cyd (Cyd for herself). Who was picked doesn't count.
     pick(s, w.room, true, &[(ana, cyd), (bob, cyd), (cyd, cyd)]).await;
-    // R3, a ranking: Cyd wins on points, Bob voted first.
     let r3 = ask(s, w.room, "rank", false, None).await;
     rank(
         s,
@@ -212,7 +202,6 @@ async fn every_metric_follows_its_rule() {
         "2026-03-01T12:01:00.000Z",
     )
     .await;
-    // A question Dan wrote that was never asked.
     sqlx::query("INSERT INTO questions (group_id, text, author_id, origin) VALUES (?, 'Jamais posée ?', ?, 'written')")
         .bind(w.room)
         .bind(dan)
@@ -237,7 +226,6 @@ async fn every_metric_follows_its_rule() {
         .execute(&s.db)
         .await
         .unwrap();
-    // Tripot: Ana won a bet, Bob lost one, Cyd's was refunded.
     for (member, payout, refunded) in [(ana, 20, false), (bob, 0, false), (cyd, 10, true)] {
         sqlx::query(
             "INSERT INTO tripot_bets (round_id, member_id, target_id, amount, month, payout, refunded) \
@@ -252,7 +240,6 @@ async fn every_metric_follows_its_rule() {
         .await
         .unwrap();
     }
-    // Ana voted at a party; Bob only sat in one.
     let party: i64 = sqlx::query_scalar(
         "INSERT INTO groups (name, join_code, kind) VALUES ('Soirée', ?, 'party') RETURNING id",
     )
@@ -312,7 +299,6 @@ async fn every_metric_follows_its_rule() {
             ("incorruptible", 0),
             ("narcisse", 1),
             ("gachette", 1),
-            // 23:40 UTC is 01:40 in UTC+2; noon is 14:00.
             ("couche_tard", 1),
             ("fetard", 0),
         ],
@@ -322,7 +308,6 @@ async fn every_metric_follows_its_rule() {
         &m,
         &[
             ("pilier", 2),
-            // The ranking; not the anonymous question.
             ("suspect", 1),
             ("evidence", 0),
             ("narcisse", 0),
@@ -343,7 +328,6 @@ async fn every_metric_follows_its_rule() {
 async fn thresholds_make_tiers() {
     let w = World::new().await;
     let (ana, bob) = (w.mid(0), w.mid(1));
-    // 49 votes: no pilier yet.
     for _ in 0..49 {
         pick(&w.state, w.room, false, &[(ana, bob)]).await;
     }
@@ -363,14 +347,12 @@ async fn thresholds_make_tiers() {
     .await
     .unwrap();
     assert_eq!(tiers, vec![1]);
-    // Every catalogue threshold maps to its tier.
     for b in &CATALOGUE {
         assert_eq!(b.tier_for(b.tiers[0] - 1), 0, "{}", b.key);
         assert_eq!(b.tier_for(b.tiers[0]), 1, "{}", b.key);
         assert_eq!(b.tier_for(b.tiers[1]), 2, "{}", b.key);
         assert_eq!(b.tier_for(b.tiers[2]), 3, "{}", b.key);
     }
-    // Skipping a tier records both, the inbox says the highest.
     let silver = badges::find("pilier").unwrap().tiers[1];
     for _ in 0..silver - 50 {
         pick(&w.state, w.room, false, &[(ana, bob)]).await;
@@ -408,7 +390,6 @@ async fn first_evaluation_is_silent_then_one_entry_per_badge() {
         &[(ana, bob), (bob, bob), (cyd, bob)],
     )
     .await;
-    // Backfill: earned, nothing in the inbox.
     let first = w.evaluate(1).await;
     assert!(first.contains(&(w.uid(1), "evidence", 1)), "{first:?}");
     assert_eq!(
@@ -421,7 +402,6 @@ async fn first_evaluation_is_silent_then_one_entry_per_badge() {
             .await,
         1
     );
-    // Four more unanimous questions: evidence silver, suspect and narcisse bronze.
     for _ in 0..4 {
         pick(
             &w.state,
@@ -448,7 +428,6 @@ async fn first_evaluation_is_silent_then_one_entry_per_badge() {
             .iter()
             .any(|e| e.1 == "Nouveau titre : L'évidence (argent)")
     );
-    // Evaluating again adds nothing.
     assert!(w.evaluate(1).await.is_empty());
     assert!(
         badges::evaluate(&w.state, &[w.uid(1)], None)
@@ -461,13 +440,11 @@ async fn first_evaluation_is_silent_then_one_entry_per_badge() {
             .await,
         3
     );
-    // Where it happened.
     assert_eq!(
         w.sql("SELECT COUNT(*) FROM user_badges WHERE key = 'evidence' AND tier = 2 AND group_id IS NOT NULL")
             .await,
         1
     );
-    // In English for an English reader.
     sqlx::query("UPDATE users SET locale = 'en' WHERE id = ?")
         .bind(w.uid(0))
         .execute(&w.state.db)
@@ -512,11 +489,9 @@ async fn incorruptible_is_lost_by_a_self_vote_but_never_taken_back() {
     }
     assert_eq!(w.metrics(0).await["incorruptible"], 30);
     w.evaluate(0).await;
-    // An anonymous self vote doesn't count (nor does the vote).
     pick(&w.state, w.room, true, &[(ana, ana)]).await;
     assert_eq!(w.metrics(0).await["incorruptible"], 30);
     assert_eq!(w.metrics(0).await["narcisse"], 0);
-    // One self vote on a normal question: gone for good.
     pick(&w.state, w.room, false, &[(ana, ana)]).await;
     let m = w.metrics(0).await;
     assert_eq!((m["incorruptible"], m["narcisse"]), (0, 1));
@@ -532,7 +507,6 @@ async fn incorruptible_is_lost_by_a_self_vote_but_never_taken_back() {
 async fn marathon_counts_day_streaks() {
     let w = World::new().await;
     let (ana, bob) = (w.mid(0), w.mid(1));
-    // Seven days in a row, one question each, both voting.
     sqlx::query("UPDATE members SET created_at = '2026-01-01T00:00:00.000Z' WHERE group_id = ?")
         .bind(w.room)
         .execute(&w.state.db)
@@ -587,7 +561,6 @@ async fn titles_and_member_badges() {
         &[(ana, bob), (bob, bob), (cyd, bob)],
     )
     .await;
-    // Bob's collection: evaluated on the way, catalogue order.
     let (s, b) = w.get(1, "/badges").await;
     assert_eq!(s, StatusCode::OK, "{b}");
     assert_eq!(b["total"], 14);
@@ -606,7 +579,6 @@ async fn titles_and_member_badges() {
     assert_eq!(list[0]["hint"], "Vote 50 fois");
     assert_eq!(list[0]["earned_at"], Value::Null);
     assert!(b["earned"].as_i64().unwrap() >= 1);
-    // Titles: unknown, not earned, earned, cleared.
     let (s, b) = w.put_title(1, json!({ "key": "nope" })).await;
     assert_eq!(
         (s, b["error"].as_str()),
@@ -628,7 +600,6 @@ async fn titles_and_member_badges() {
         t,
         json!({ "members": { bob.to_string(): { "key": "evidence", "name": "L'évidence", "icon": "target", "tier": 1 } } })
     );
-    // Someone else's badges, in my room.
     let (s, m) = w.get(0, &format!("/members/{bob}/badges")).await;
     assert_eq!(s, StatusCode::OK, "{m}");
     assert_eq!(m["title"]["key"], "evidence");
@@ -636,7 +607,6 @@ async fn titles_and_member_badges() {
         m["badges"],
         json!([{ "key": "evidence", "name": "L'évidence", "icon": "target", "mascot": "bulle", "tier": 1 }])
     );
-    // Not in my room: 404 (unknown seat, a seat in another room, a seat that left).
     assert_eq!(
         w.get(0, "/members/999999/badges").await.0,
         StatusCode::NOT_FOUND
@@ -661,7 +631,6 @@ async fn titles_and_member_badges() {
         w.get(0, &format!("/members/{elsewhere}/badges")).await.0,
         StatusCode::NOT_FOUND
     );
-    // A member who left is no longer listed.
     sqlx::query(
         "UPDATE members SET removed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
     )
@@ -674,12 +643,10 @@ async fn titles_and_member_badges() {
         w.get(0, &format!("/members/{bob}/badges")).await.0,
         StatusCode::NOT_FOUND
     );
-    // Clearing.
     let (s, b) = w.put_title(1, json!({ "key": null })).await;
     assert_eq!((s, b), (StatusCode::OK, json!({ "title": null })));
     let (s, b) = w.put_title(1, json!({})).await;
     assert_eq!((s, b), (StatusCode::OK, json!({ "title": null })));
-    // In English for an English reader.
     w.put_title(1, json!({ "key": "evidence" })).await;
     sqlx::query("UPDATE members SET removed_at = NULL WHERE id = ?")
         .bind(bob)
@@ -719,7 +686,6 @@ async fn a_closing_question_awards_in_the_background() {
     }
     let (_, r) = w.get(0, &format!("/rounds/{round}")).await;
     assert!(r["closed_at"].is_string(), "{r}");
-    // Spawned after the commit: wait for it.
     let mut evaluated = 0;
     for _ in 0..100 {
         evaluated = w
@@ -736,7 +702,6 @@ async fn a_closing_question_awards_in_the_background() {
             .await,
         1
     );
-    // Silent: everyone's first evaluation.
     assert_eq!(
         w.sql("SELECT COUNT(*) FROM inbox WHERE kind = 'badge'")
             .await,
@@ -747,7 +712,6 @@ async fn a_closing_question_awards_in_the_background() {
 #[tokio::test]
 async fn the_sweep_evaluates_active_accounts() {
     let w = World::new().await;
-    // Every seat was just used (joining touches it).
     sqlx::query("UPDATE members SET active_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')")
         .execute(&w.state.db)
         .await
@@ -760,7 +724,6 @@ async fn the_sweep_evaluates_active_accounts() {
             .await,
         4
     );
-    // Hours later, nobody is active.
     let s = badges::sweep_at(&w.state, now + 5 * 3600).await.unwrap();
     assert_eq!(s.evaluated, 0);
 }
@@ -796,7 +759,6 @@ async fn erasing_an_account_erases_its_badges() {
             .await
             .unwrap();
     assert_eq!((title, at), (None, None));
-    // Their seat is anonymised: no badge comes back for it.
     assert!(
         badges::evaluate(&w.state, &[w.uid(1)], None)
             .await

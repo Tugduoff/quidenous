@@ -24,7 +24,6 @@ use crate::{
 use super::*;
 
 pub(super) async fn publish(State(state): State<AppState>, req: Request) -> AppResult<Response> {
-    // Before reading up to 100 MB of body.
     authorize(&state, req.headers())?;
     let archive = match axum::body::to_bytes(req.into_body(), PUBLISH_MAX).await {
         Ok(b) => b,
@@ -50,8 +49,6 @@ pub(super) async fn publish(State(state): State<AppState>, req: Request) -> AppR
         tokio::task::spawn_blocking(move || store(&job, archive, certificate.as_deref(), &clock))
             .await
             .map_err(|e| AppError::Internal(format!("publish task: {e}")))??;
-    // The update is live: a failed clean-up is logged (the next publish retries it), never
-    // reported as a failed publish.
     if let Err(e) = retain(&updates.join(&meta.runtime_version), &meta.platform).await {
         tracing::warn!(error = ?e, "pruning old updates");
     }
@@ -78,7 +75,6 @@ pub(super) async fn publish(State(state): State<AppState>, req: Request) -> AppR
         .into_response())
 }
 
-/// Removes the temporary dir unless the update made it into place.
 pub(super) struct TmpDir(Option<PathBuf>);
 
 impl Drop for TmpDir {
@@ -89,16 +85,13 @@ impl Drop for TmpDir {
     }
 }
 
-/// What came out of the archive: the two JSON files in memory, assets written to disk.
 #[derive(Default)]
 pub(super) struct Unpacked {
     descriptor: Option<Vec<u8>>,
     body: Option<Vec<u8>>,
-    /// Asset name -> base64url(SHA-256).
     hashes: HashMap<String, String>,
 }
 
-/// Normalized relative path of an archive entry; `..`, absolute paths and oddities refused.
 pub(super) fn entry_path(raw: &[u8]) -> AppResult<String> {
     let unsafe_path = AppError::BadRequest("unsafe_path_in_archive");
     let s = std::str::from_utf8(raw).map_err(|_| AppError::BadRequest("unsafe_path_in_archive"))?;
@@ -180,7 +173,6 @@ pub(super) fn unpack(archive: &[u8], assets_dir: &Path) -> AppResult<Unpacked> {
     Ok(out)
 }
 
-/// Checks one manifest asset against the archive; returns its file name.
 pub(super) fn check_asset(
     a: &ManifestAsset,
     runtime: &str,
@@ -209,7 +201,6 @@ pub(super) fn check_asset(
     Ok(name.to_owned())
 }
 
-/// The base64 signature of an `expo-signature` value (`sig="…", keyid="main"`).
 pub(super) fn signature_value(header: &str) -> Option<&str> {
     header.split(',').find_map(|part| {
         part.trim()
@@ -218,8 +209,6 @@ pub(super) fn signature_value(header: &str) -> Option<&str> {
     })
 }
 
-/// Checks an `expo-signature` (RSA PKCS#1 v1.5 over SHA-256 of the exact body bytes, as
-/// ota-publish.mjs signs and expo-updates verifies) against the configured certificate.
 pub(super) fn verify_signature(certificate: &[u8], signature: &str, body: &[u8]) -> AppResult<()> {
     let key = jsonwebtoken::DecodingKey::from_rsa_pem(certificate)
         .map_err(|e| AppError::Internal(format!("UPDATES_CERTIFICATE unreadable: {e}")))?;
@@ -240,7 +229,6 @@ pub(super) fn verify_signature(certificate: &[u8], signature: &str, body: &[u8])
     }
 }
 
-/// Unix millis of an ISO 8601 UTC date (`2026-01-31T12:34:56.789Z`, fraction optional).
 pub(super) fn parse_iso_millis(s: &str) -> Option<u64> {
     let s = s.strip_suffix('Z').or_else(|| s.strip_suffix("+00:00"))?;
     let (date, time) = s.split_once('T')?;
@@ -256,7 +244,6 @@ pub(super) fn parse_iso_millis(s: &str) -> Option<u64> {
         return None;
     }
     let ms = format!("{frac:0<3}")[..3].parse::<u64>().ok()?;
-    // Howard Hinnant's days_from_civil.
     let y = if m <= 2 { y - 1 } else { y };
     let era = y.div_euclid(400);
     let yoe = y.rem_euclid(400);
@@ -267,7 +254,6 @@ pub(super) fn parse_iso_millis(s: &str) -> Option<u64> {
     Some(((days * 86_400 + hh * 3600 + mm * 60 + ss) * 1000) + ms)
 }
 
-/// `createdAt` of the newest stored update (directives aside) of a runtime and platform.
 pub(super) fn newest_update_time(
     runtime_dir: &Path,
     platform: &str,
@@ -292,8 +278,6 @@ pub(super) fn newest_update_time(
     Ok(newest)
 }
 
-/// Unpacks, validates and moves the archive into place. Runs on a blocking thread, under
-/// the publish lock. `certificate`: signatures are required and checked against it.
 pub(super) fn store(
     updates: &Path,
     archive: Bytes,
@@ -349,9 +333,6 @@ pub(super) fn store(
             if m.runtime_version != runtime {
                 return Err(AppError::BadRequest("runtime_version_mismatch"));
             }
-            // Two CI runs finishing out of order must not serve the older JS as the newest:
-            // phones that already run the newer one would get nothing more until the next
-            // publish, and the others would get the older code. Same time: a re-run, fine.
             let created =
                 parse_iso_millis(&m.created_at).ok_or(AppError::BadRequest("bad_created_at"))?;
             let newest = newest_update_time(&updates.join(&runtime), &descriptor.platform)?;
@@ -369,7 +350,6 @@ pub(super) fn store(
                 let name = check_asset(a, &runtime, &m.id, &unpacked.hashes)?;
                 assets.insert(name, a.content_type.clone());
             }
-            // Only what the manifest references is kept.
             for name in unpacked.hashes.keys() {
                 if !assets.contains_key(name) {
                     std::fs::remove_file(assets_dir.join(name))?;
@@ -440,7 +420,6 @@ pub(super) fn store(
     Ok(meta)
 }
 
-/// Keeps the newest [`KEEP`] entries of a runtime and platform.
 pub(super) async fn retain(runtime_dir: &Path, platform: &str) -> std::io::Result<()> {
     let mut list: Vec<_> = entries(runtime_dir)
         .await?
@@ -455,7 +434,6 @@ pub(super) async fn retain(runtime_dir: &Path, platform: &str) -> std::io::Resul
     Ok(())
 }
 
-/// Removes the runtime dirs of old native builds (see [`RUNTIME_IDLE`]).
 pub(super) async fn prune_runtimes(updates: &Path) -> std::io::Result<()> {
     let mut runtimes = Vec::new();
     let mut dir = tokio::fs::read_dir(updates).await?;
@@ -483,7 +461,6 @@ pub(super) async fn prune_runtimes(updates: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
-/// Removes extraction dirs left behind by a crash (older than an hour).
 pub(super) async fn sweep_tmp(updates: &Path) {
     let Ok(mut dir) = tokio::fs::read_dir(updates).await else {
         return;

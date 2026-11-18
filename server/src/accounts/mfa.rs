@@ -1,5 +1,3 @@
-//! 2FA: TOTP set up / enable / disable, recovery codes, the second sign-in step.
-
 use crate::platform::ids::UserId;
 use axum::{Json, extract::State};
 use serde::Deserialize;
@@ -37,7 +35,6 @@ fn recovery_hash(state: &AppState, user_id: UserId, code: &str) -> String {
         .mac(&["recovery", &user_id.to_string(), &normalize_recovery(code)])
 }
 
-/// A TOTP code (not replayable) or, when allowed, an unused recovery code (then used up).
 pub(super) async fn second_factor(
     state: &AppState,
     acct: &Account,
@@ -53,7 +50,6 @@ pub(super) async fn second_factor(
         let Some(step) = totp_match(&secret, code, now_unix()) else {
             return Ok(false);
         };
-        // Only a step after the last one accepted: a code can't be used twice.
         let done = sqlx::query(
             "UPDATE users SET totp_last_step = ?1 WHERE id = ?2 \
              AND (totp_last_step IS NULL OR totp_last_step < ?1)",
@@ -78,7 +74,6 @@ pub(super) async fn second_factor(
     Ok(done.rows_affected() == 1)
 }
 
-/// Ten new one-time codes; the old ones stop working.
 async fn new_recovery_codes(state: &AppState, user_id: UserId) -> AppResult<Vec<String>> {
     let codes: Vec<String> = (0..RECOVERY_COUNT)
         .map(|_| crypto::recovery_code())
@@ -105,7 +100,6 @@ pub struct ChallengeBody {
     code: String,
 }
 
-/// Second step of signing in: the challenge from the first step + a TOTP or recovery code.
 pub async fn login_2fa(
     State(state): State<AppState>,
     ClientIp(ip): ClientIp,
@@ -119,7 +113,6 @@ pub async fn login_2fa(
     let user_id = row.user_id.ok_or(AppError::BadRequest("bad_code"))?;
     let key = user_id.to_string();
     let limits = &state.auth.limits;
-    // Both budgets are spent before the code is compared, so parallel guesses each pay.
     limits.hit(&limits::MFA_ACCOUNT, &key)?;
     if let Err(e) = codes::take_try(&state, &row).await {
         limits.refund(&limits::MFA_ACCOUNT, &key);
@@ -131,11 +124,9 @@ pub async fn login_2fa(
     }
     limits.refund(&limits::MFA_ACCOUNT, &key);
     codes::consume(&state, row.id).await?;
-    // Suspended since the first step: no session.
     if is_suspended(&state.db, user_id).await? {
         return Err(AppError::Forbidden("suspended"));
     }
-    // Whoever has a second factor doesn't need a pending reset (see `reset_send`): it stops.
     sqlx::query("UPDATE users SET mfa_reset_at = NULL WHERE id = ?")
         .bind(user_id)
         .execute(&state.db)
@@ -147,9 +138,6 @@ pub async fn login_2fa(
     ))
 }
 
-/// A new secret to scan; nothing changes until `enable` gets a valid code from it.
-/// Both steps need a recent re-authentication: a stolen session turning 2FA on would lock the
-/// owner out for good (a password reset keeps 2FA once the e-mail is verified).
 pub async fn setup(State(state): State<AppState>, session: Session) -> AppResult<Json<Value>> {
     let acct = account(&state, session.user_id).await?;
     if acct.totp_secret.is_some() {
@@ -227,7 +215,6 @@ pub struct CodeBody {
     code: String,
 }
 
-/// TOTP or recovery code: 2FA off, recovery codes gone.
 pub async fn disable(
     State(state): State<AppState>,
     ClientIp(ip): ClientIp,
@@ -251,7 +238,6 @@ pub async fn disable(
     Ok(Json(json!({ "ok": true })))
 }
 
-/// A TOTP code → ten new recovery codes (the old ones are dropped).
 pub async fn regenerate(
     State(state): State<AppState>,
     session: Session,
@@ -273,7 +259,6 @@ pub async fn regenerate(
     ))
 }
 
-/// 2FA off: secret, pending set-up, recovery codes and a pending reset go.
 async fn remove_2fa(state: &AppState, user_id: UserId) -> AppResult<()> {
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
     sqlx::query(
@@ -291,18 +276,10 @@ async fn remove_2fa(state: &AppState, user_id: UserId) -> AppResult<()> {
     Ok(())
 }
 
-// ---------- 2FA lost with no recovery code: a delayed reset by e-mail ----------
-
-/// How long after a confirmed request 2FA is removed (unless a signed-in session cancels it).
 pub const MFA_RESET_DELAY: i64 = 24 * 3600;
 
-/// After a password reset by e-mail, how long 2FA can't be reset by e-mail (`403
-/// password_reset_recent`): the mailbox alone must not beat 2FA, the owner gets a week to notice
-/// the reset notice and react.
 pub const RESET_AFTER_PASSWORD_RESET: i64 = 7 * 24 * 3600;
 
-/// `403 password_reset_recent` while a password reset by e-mail is less than
-/// `RESET_AFTER_PASSWORD_RESET` old.
 async fn not_after_password_reset(state: &AppState, user_id: UserId) -> AppResult<()> {
     let at: Option<i64> = sqlx::query_scalar("SELECT password_reset_at FROM users WHERE id = ?")
         .bind(user_id)
@@ -314,7 +291,6 @@ async fn not_after_password_reset(state: &AppState, user_id: UserId) -> AppResul
     Ok(())
 }
 
-/// The account behind a live sign-in challenge (the first step, password or provider, is done).
 async fn challenge_account(state: &AppState, challenge: &str) -> AppResult<(Account, String)> {
     let row = codes::find(state, codes::Kind::Mfa, challenge)
         .await?
@@ -322,7 +298,6 @@ async fn challenge_account(state: &AppState, challenge: &str) -> AppResult<(Acco
     codes::alive(&row)?;
     let user_id = row.user_id.ok_or(AppError::BadRequest("bad_code"))?;
     let acct = account(state, user_id).await?;
-    // Only a verified address can stand in for the second factor.
     let email = match (&acct.email, &acct.email_verified_at) {
         (Some(e), Some(_)) => e.clone(),
         _ => return Err(AppError::BadRequest("no_email")),
@@ -335,8 +310,6 @@ pub struct ResetSendBody {
     challenge: String,
 }
 
-/// Phone lost and no recovery code, at the second sign-in step: a code to the account's
-/// verified e-mail. `no_email` without one (then only the admin can help).
 pub async fn reset_send(
     State(state): State<AppState>,
     ClientIp(ip): ClientIp,
@@ -361,7 +334,6 @@ pub async fn reset_send(
     )
     .await?;
     let lang = crate::platform::i18n::of_user(&state.db, acct.id).await?;
-    // The caller passed the first step: no need to hide whether this address gets the mail.
     if let Err(e) = state
         .auth
         .mailer
@@ -382,8 +354,6 @@ pub struct ResetConfirmBody {
     code: String,
 }
 
-/// The e-mailed code: 2FA will be removed in `MFA_RESET_DELAY` (a notice says so), unless a
-/// signed-in session cancels it or someone signs in with a second factor meanwhile.
 pub async fn reset_confirm(
     State(state): State<AppState>,
     ClientIp(ip): ClientIp,
@@ -410,7 +380,6 @@ pub async fn reset_confirm(
     Ok(Json(json!({ "reset_at": at })))
 }
 
-/// From any signed-in session: the pending 2FA reset is called off.
 pub async fn reset_cancel(
     State(state): State<AppState>,
     session: Session,
@@ -422,7 +391,6 @@ pub async fn reset_cancel(
     Ok(Json(json!({ "ok": true })))
 }
 
-/// At sign-in: a reset whose delay is over removes 2FA (this sign-in then needs no code).
 pub(super) async fn finish_due_reset(state: &AppState, user_id: UserId) -> AppResult<()> {
     let due: Option<(Option<String>,)> = sqlx::query_as(
         "SELECT totp_secret FROM users WHERE id = ? AND mfa_reset_at IS NOT NULL AND mfa_reset_at <= ?",

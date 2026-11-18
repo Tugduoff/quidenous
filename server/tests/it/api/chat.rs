@@ -15,7 +15,6 @@ async fn devices_can_subscribe_to_push() {
     )
     .await;
     assert_eq!(status, StatusCode::OK);
-    // Same endpoint again is an update, not a duplicate.
     let (status, _) = call(&app, "POST", "/push/subscribe", Some(&tug), Some(web)).await;
     assert_eq!(status, StatusCode::OK);
     let (status, _) = call(
@@ -40,7 +39,6 @@ async fn nudges_and_unseen_results() {
     let (tug, tug_id) = join(&app, "Tugdual").await;
     let (louis, louis_id) = join(&app, "Louis").await;
 
-    // Nudge someone who has not voted: once per question, not yourself, not someone who voted.
     let nudge = |id: i64| json!({ "member_id": id });
     let (status, _) = call(
         &app,
@@ -73,7 +71,6 @@ async fn nudges_and_unseen_results() {
     .await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
 
-    // Tug votes, then Louis closes the round while Tug is away.
     let (_, round) = call(&app, "GET", "/round/current", Some(&tug), None).await;
     let first = round["id"].as_i64().unwrap();
     call(
@@ -95,7 +92,6 @@ async fn nudges_and_unseen_results() {
     )
     .await;
 
-    // Back in the app: Tug gets the recap of the finished question first.
     let (_, unseen) = call(&app, "GET", "/round/unseen", Some(&tug), None).await;
     assert_eq!(unseen["id"].as_i64(), Some(first));
     assert!(unseen["result"].is_array());
@@ -118,7 +114,6 @@ async fn unseen_results_can_be_skipped_at_once() {
     let (tug, tug_id) = join(&app, "Tugdual").await;
     let (louis, louis_id) = join(&app, "Louis").await;
 
-    // Three questions finish while Tug is away (he voted on each before leaving the app).
     let mut ids = vec![];
     for _ in 0..3 {
         let (_, round) = call(&app, "GET", "/round/current", Some(&tug), None).await;
@@ -136,13 +131,11 @@ async fn unseen_results_can_be_skipped_at_once() {
         }
     }
 
-    // The oldest comes first, with how many are waiting and the newest of them.
     let (_, unseen) = call(&app, "GET", "/round/unseen", Some(&tug), None).await;
     assert_eq!(unseen["id"].as_i64(), Some(ids[0]));
     assert_eq!(unseen["unseen_count"].as_i64(), Some(3));
     assert_eq!(unseen["unseen_last_id"].as_i64(), Some(ids[2]));
 
-    // One seen: two left.
     call(
         &app,
         "POST",
@@ -155,7 +148,6 @@ async fn unseen_results_can_be_skipped_at_once() {
     assert_eq!(unseen["id"].as_i64(), Some(ids[1]));
     assert_eq!(unseen["unseen_count"].as_i64(), Some(2));
 
-    // Marking the newest seen skips them all; Louis's own recaps are untouched.
     let (status, _) = call(
         &app,
         "POST",
@@ -178,7 +170,6 @@ async fn chat_under_results_and_inbox() {
     let (b, b_id) = join(&app, "Bob").await;
     let (_, open) = call(&app, "GET", "/round/current", Some(&a), None).await;
     let first = open["id"].as_i64().unwrap();
-    // No chat while votes are secret.
     let (s, _) = call(
         &app,
         "POST",
@@ -188,7 +179,6 @@ async fn chat_under_results_and_inbox() {
     )
     .await;
     assert_eq!(s, StatusCode::BAD_REQUEST);
-    // Nudge lands in the inbox.
     call(
         &app,
         "POST",
@@ -230,7 +220,6 @@ async fn chat_under_results_and_inbox() {
     .await;
     assert_eq!(list.as_array().unwrap().len(), 1);
     assert_eq!(list[0]["member_id"], a_id);
-    // Bob's inbox: the result (Bob closed it, so not for him), the message, the nudge.
     let (_, inbox) = call(&app, "GET", "/inbox", Some(&b), None).await;
     let kinds: Vec<&str> = inbox["items"]
         .as_array()
@@ -240,7 +229,6 @@ async fn chat_under_results_and_inbox() {
         .collect();
     assert_eq!(kinds, ["message", "nudge"]);
     assert_eq!(inbox["unread"], 2);
-    // Ana gets the result notice, not her own message (and the first question, opened when Bob joined).
     let (_, inbox_a) = call(&app, "GET", "/inbox", Some(&a), None).await;
     let kinds: Vec<&str> = inbox_a["items"]
         .as_array()
@@ -284,7 +272,6 @@ async fn chat_list_keeps_the_latest_messages() {
     assert_eq!(s, StatusCode::OK);
     let list = list.as_array().unwrap();
     assert_eq!(list.len(), 200);
-    // Oldest first, and the last ones.
     assert_eq!(list[0]["text"], "m30");
     assert_eq!(list[199]["text"], "m229");
 }
@@ -292,7 +279,6 @@ async fn chat_list_keeps_the_latest_messages() {
 #[tokio::test]
 async fn notification_settings_filter_pushes() {
     use quidenous_server::realtime::push::{Kind, Target};
-    // 2026-11-12 00:00 UTC.
     const MIDNIGHT: u64 = 1_794_441_600;
     let noon = MIDNIGHT + 12 * 3600;
     let (app, state) = setup().await;
@@ -328,7 +314,6 @@ async fn notification_settings_filter_pushes() {
         everyone
     );
 
-    // Defaults: everything on, no quiet hours.
     let (status, prefs) = call(&app, "GET", "/notifications", Some(&louis), None).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(
@@ -336,8 +321,6 @@ async fn notification_settings_filter_pushes() {
         json!({ "enabled": true, "off": [], "quiet_start": null, "quiet_end": null, "tz_offset": 0 })
     );
 
-    // A type turned off: no chat pushes, the rest still come; a result with the next
-    // question still comes if only one of the two is off.
     let louis_prefs = json!({ "enabled": true, "off": ["chat", "result"], "quiet_start": null, "quiet_end": null, "tz_offset": 60 });
     let (status, saved) = call(
         &app,
@@ -376,7 +359,6 @@ async fn notification_settings_filter_pushes() {
         vec![louis_user]
     );
 
-    // A muted room: nothing from it; unmuted, back.
     let (status, body) = call(
         &app,
         "PUT",
@@ -411,7 +393,6 @@ async fn notification_settings_filter_pushes() {
     let (status, _) = call(&app, "PUT", "/rooms/999999/mute", Some(&ravenne), None).await;
     assert_eq!(status, StatusCode::FORBIDDEN);
 
-    // Master switch off: nothing at all.
     let off = json!({ "enabled": false, "off": [], "quiet_start": null, "quiet_end": null, "tz_offset": 0 });
     call(&app, "PUT", "/notifications", Some(&ravenne), Some(off)).await;
     assert_eq!(
@@ -419,7 +400,6 @@ async fn notification_settings_filter_pushes() {
         vec![tug_user, louis_user]
     );
 
-    // Quiet hours 22:00 → 08:00 in UTC+1: dropped from 21:00 to 07:00 UTC.
     let quiet = json!({ "enabled": true, "off": [], "quiet_start": 22 * 60, "quiet_end": 8 * 60, "tz_offset": 60 });
     let (status, _) = call(&app, "PUT", "/notifications", Some(&tug), Some(quiet)).await;
     assert_eq!(status, StatusCode::OK);
@@ -442,7 +422,6 @@ async fn notification_settings_filter_pushes() {
         );
     }
 
-    // Bad settings are refused.
     for bad in [
         json!({ "enabled": true, "off": [], "quiet_start": 1440, "quiet_end": 60, "tz_offset": 0 }),
         json!({ "enabled": true, "off": [], "quiet_start": 60, "quiet_end": null, "tz_offset": 0 }),
@@ -459,7 +438,6 @@ async fn notification_settings_filter_pushes() {
 #[tokio::test]
 async fn chat_mentions_are_validated_and_ping_through_the_chat_switch() {
     use quidenous_server::realtime::push::{Kind, Target};
-    // 2026-11-12 12:00 UTC.
     const NOON: u64 = 1_794_441_600 + 12 * 3600;
     let (app, state) = setup().await;
     let mut people = Vec::new();
@@ -485,7 +463,6 @@ async fn chat_mentions_are_validated_and_ping_through_the_chat_switch() {
     for token in [&ana, &bob, &cyd, &dan] {
         vote_as(&app, token, bob_id).await;
     }
-    // Dan leaves the room: no longer someone you can mention.
     sqlx::query("UPDATE members SET removed_at = 'x' WHERE id = ?")
         .bind(dan_id)
         .execute(&state.db)
@@ -499,7 +476,6 @@ async fn chat_mentions_are_validated_and_ping_through_the_chat_switch() {
         )
     };
 
-    // Only current members other than me are kept, once each.
     let (s, msg) = call(
         &app,
         "POST",
@@ -515,13 +491,11 @@ async fn chat_mentions_are_validated_and_ping_through_the_chat_switch() {
     );
     let (_, list) = call(&app, "GET", &path, Some(&cyd), None).await;
     assert_eq!(list[0]["mentions"], json!([bob_id]));
-    // Bob gets a mention, Cyd the plain message.
     let (_, inbox) = call(&app, "GET", "/inbox", Some(&bob), None).await;
     assert_eq!(latest(&inbox), (json!("mention"), json!(ana_id)), "{inbox}");
     assert_eq!(inbox["items"][0]["round_id"], round);
     let (_, inbox) = call(&app, "GET", "/inbox", Some(&cyd), None).await;
     assert_eq!(latest(&inbox), (json!("message"), json!(ana_id)));
-    // An older app sends no mentions: a plain message.
     let (_, msg) = call(
         &app,
         "POST",
@@ -535,7 +509,6 @@ async fn chat_mentions_are_validated_and_ping_through_the_chat_switch() {
         (&json!([]), &json!(false))
     );
 
-    // The push to Bob comes through with chat pushes off, not with mentions off too.
     let to_bob = || Target::Members {
         member_ids: vec![MemberId::from_raw(bob_id)],
         from_user: Some(UserId::from_raw(ana_user)),
@@ -582,7 +555,6 @@ async fn chat_mentions_are_validated_and_ping_through_the_chat_switch() {
         Some(prefs(json!(["chat"]))),
     )
     .await;
-    // A muted room still mutes mentions.
     let (_, rooms) = call(&app, "GET", "/rooms", Some(&bob), None).await;
     let room = rooms[0]["id"].as_i64().unwrap();
     call(
@@ -609,7 +581,6 @@ async fn chat_mentions_are_validated_and_ping_through_the_chat_switch() {
         audience(&state, to_bob(), &mention, NOON).await,
         vec![bob_user]
     );
-    // Removed seats get nothing.
     let to_dan = Target::Members {
         member_ids: vec![MemberId::from_raw(dan_id)],
         from_user: Some(UserId::from_raw(ana_user)),
@@ -619,7 +590,6 @@ async fn chat_mentions_are_validated_and_ping_through_the_chat_switch() {
         Vec::<i64>::new()
     );
 
-    // Bob blocks Ana: her mentions neither push nor show in his inbox.
     let (s, _) = call(
         &app,
         "PUT",
@@ -651,7 +621,6 @@ async fn chat_mentions_are_validated_and_ping_through_the_chat_switch() {
         "{inbox}"
     );
 
-    // @tous: everyone still here gets a mention; again within minutes, a plain message.
     let (_, msg) = call(
         &app,
         "POST",
@@ -676,7 +645,6 @@ async fn chat_mentions_are_validated_and_ping_through_the_chat_switch() {
     assert_eq!(msg["everyone"], true);
     let (_, inbox) = call(&app, "GET", "/inbox", Some(&ana), None).await;
     assert_eq!(latest(&inbox), (json!("message"), json!(cyd_id)));
-    // ...though a name mentioned alongside still pings.
     call(
         &app,
         "POST",

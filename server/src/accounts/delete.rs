@@ -1,7 +1,3 @@
-//! Deleting an account: from the app (re-authenticated) or from the public page `/delete-account`
-//! (a code by email). Rooms are left the usual way, personal data is erased, the votes stay
-//! (attributed to an anonymous member) so the others' history still adds up.
-
 use crate::platform::ids::{RoomId, UserId};
 use axum::{Json, extract::State};
 use serde::Deserialize;
@@ -17,7 +13,6 @@ use crate::{
     rooms::model::MemberRow,
 };
 
-/// What a deleted account and its seats are called from now on.
 pub const DELETED_NAME: &str = "Compte supprimé";
 
 #[derive(Deserialize, Default)]
@@ -26,9 +21,6 @@ pub struct DeleteBody {
     code: Option<String>,
 }
 
-/// From the app. The password, a 2FA (or recovery) code, or a recent re-authentication of this
-/// session (`POST /auth/reauth`, or an OAuth round for provider-only accounts). Legacy accounts
-/// have nothing to prove. `403 reauth_required` otherwise.
 pub async fn delete_account(
     State(state): State<AppState>,
     ClientIp(ip): ClientIp,
@@ -58,7 +50,6 @@ pub struct EmailBody {
     email: String,
 }
 
-/// Public page, step 1: a code to the address, if an account has it (the answer never says).
 pub async fn send(
     State(state): State<AppState>,
     ClientIp(ip): ClientIp,
@@ -67,7 +58,6 @@ pub async fn send(
     if !state.auth.mailer.configured() {
         return Err(AppError::Unavailable("email_not_configured"));
     }
-    // The last send failed (server-wide, never about this address): say so instead of "sent".
     if !state.auth.mailer.healthy() {
         return Err(AppError::Unavailable("email_failed"));
     }
@@ -90,7 +80,6 @@ pub async fn send(
         )
         .await?;
         let lang = crate::platform::i18n::of_user(&state.db, acct.id).await?;
-        // In the background: the answer takes the same time whether the account exists or not.
         let mailer = state.auth.mailer.clone();
         tokio::spawn(async move {
             if let Err(e) = mailer.send(mail::delete_account(&email, &code, lang)).await {
@@ -107,7 +96,6 @@ pub struct ConfirmBody {
     code: String,
 }
 
-/// Public page, step 2: the code deletes the account.
 pub async fn confirm(
     State(state): State<AppState>,
     ClientIp(ip): ClientIp,
@@ -130,17 +118,11 @@ pub async fn confirm(
     Ok(Json(json!({ "deleted": true })))
 }
 
-/// Deletes an account. Every active seat is left like `/rooms/{id}/leave` (owner hands over,
-/// alone = room deleted), then in one transaction: chat messages, reactions and inbox entries go,
-/// seats are anonymised, sessions, codes, providers, push, friends and blocks go, and the users row is
-/// scrubbed (kept: votes, packs and reports point at it). Photos and chat images are removed last.
 pub(crate) async fn erase(state: &AppState, user_id: UserId) -> AppResult<()> {
-    // Signed out everywhere first: nothing the account does can race the rest.
     sqlx::query("DELETE FROM user_tokens WHERE user_id = ?")
         .bind(user_id)
         .execute(&state.db)
         .await?;
-    // Again if someone handed a room over to this account while it was leaving the others.
     for _ in 0..3 {
         let seats: Vec<MemberRow> = sqlx::query_as(
             "SELECT m.* FROM members m JOIN groups g ON g.id = m.group_id AND g.deleted_at IS NULL \
@@ -163,7 +145,6 @@ pub(crate) async fn erase(state: &AppState, user_id: UserId) -> AppResult<()> {
     .bind(user_id)
     .fetch_all(&state.db)
     .await?;
-    // Their chat images (the messages go below).
     let images: Vec<(RoomId, Option<String>)> = sqlx::query_as(
         "SELECT r.group_id, x.media FROM messages x JOIN rounds r ON r.id = x.round_id \
          WHERE x.kind = 'image' AND x.member_id IN (SELECT id FROM members WHERE user_id = ?)",
@@ -178,24 +159,18 @@ pub(crate) async fn erase(state: &AppState, user_id: UserId) -> AppResult<()> {
         .flatten();
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
     for sql in [
-        // Reactions on their messages go with them (cascade); theirs on others' messages here.
         "DELETE FROM message_reactions WHERE member_id IN (SELECT id FROM members WHERE user_id = ?1)",
-        // Their taps on results.
         "DELETE FROM round_reactions WHERE member_id IN (SELECT id FROM members WHERE user_id = ?1)",
         "DELETE FROM messages WHERE member_id IN (SELECT id FROM members WHERE user_id = ?1)",
-        // Their « Qui a dit ça ? » answers: blanked (hidden), the game around them stays.
         "UPDATE said_answers SET text = '', \
          hidden_at = COALESCE(hidden_at, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) \
          WHERE text IS NOT NULL AND member_id IN (SELECT id FROM members WHERE user_id = ?1)",
-        // Inbox entries carry message text and names: theirs and the ones they caused.
         "DELETE FROM inbox WHERE member_id IN (SELECT id FROM members WHERE user_id = ?1) \
          OR actor_id IN (SELECT id FROM members WHERE user_id = ?1)",
         "DELETE FROM push_subscriptions WHERE user_id = ?1 \
          OR member_id IN (SELECT id FROM members WHERE user_id = ?1)",
         "DELETE FROM kicks WHERE target_id IN (SELECT id FROM members WHERE user_id = ?1) \
          OR from_id IN (SELECT id FROM members WHERE user_id = ?1)",
-        // Public links: the ones they made, and stat cards showing them (frozen names). Older cards
-        // don't list their people: matched by first name in that room.
         "DELETE FROM shares WHERE member_id IN (SELECT id FROM members WHERE user_id = ?1)",
         "DELETE FROM stat_shares WHERE member_id IN (SELECT id FROM members WHERE user_id = ?1) \
          OR EXISTS (SELECT 1 FROM members m, json_each(stat_shares.member_ids) j \
@@ -207,7 +182,6 @@ pub(crate) async fn erase(state: &AppState, user_id: UserId) -> AppResult<()> {
     ] {
         sqlx::query(sql).bind(user_id).execute(&mut *tx).await?;
     }
-    // A report about them as a member keeps their name as its snapshot: not any more.
     sqlx::query("UPDATE reports SET content = ?1 WHERE kind = 'member' AND reported_user_id = ?2")
         .bind(DELETED_NAME)
         .bind(user_id)
@@ -231,7 +205,6 @@ pub(crate) async fn erase(state: &AppState, user_id: UserId) -> AppResult<()> {
         "DELETE FROM room_invites WHERE user_id = ?1 OR from_id = ?1",
         "DELETE FROM blocks WHERE user_id = ?1 OR blocked_id = ?1",
         "DELETE FROM notification_prefs WHERE user_id = ?",
-        // Badges (docs/BADGES.md); Wrapped cards showing them went with the stat cards above.
         "DELETE FROM user_badges WHERE user_id = ?",
     ] {
         sqlx::query(sql).bind(user_id).execute(&mut *tx).await?;
@@ -246,7 +219,6 @@ pub(crate) async fn erase(state: &AppState, user_id: UserId) -> AppResult<()> {
             .execute(&mut *tx)
             .await?;
     }
-    // A longer random friend code than the real ones (8 hex): nobody can type it.
     sqlx::query(
         "UPDATE users SET name = ?1, photo = NULL, avatar = NULL, email = NULL, password_hash = NULL, \
          email_verified_at = NULL, totp_secret = NULL, totp_pending = NULL, totp_last_step = NULL, \
@@ -260,7 +232,6 @@ pub(crate) async fn erase(state: &AppState, user_id: UserId) -> AppResult<()> {
     tx.commit().await?;
     let dir = state.config.data_dir.join("photos");
     for photo in photos {
-        // Server-made names only (`<id>-<hex>.jpg`); never a path.
         if !photo.is_empty() && !photo.contains(['/', '\\']) && !photo.starts_with('.') {
             let _ = tokio::fs::remove_file(dir.join(photo)).await;
         }

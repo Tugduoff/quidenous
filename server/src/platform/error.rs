@@ -25,13 +25,10 @@ pub enum AppError {
     Gone(&'static str),
     #[error("{0}")]
     Unavailable(&'static str),
-    /// `413` with its own code (an upload over its size limit).
     #[error("{0}")]
     TooLarge(&'static str),
-    /// `429` with its own code (a quota, not a retry-after rate limit).
     #[error("{0}")]
     TooMany(&'static str),
-    /// Seconds to wait.
     #[error("rate limited")]
     RateLimited(u64),
     #[error("{0}")]
@@ -72,7 +69,6 @@ impl IntoResponse for AppError {
                     Json(json!({ "error": "internal" })),
                 )
                     .into_response();
-                // Logged with the request by `log_server_errors`.
                 res.extensions_mut().insert(InternalError(self.to_string()));
                 return res;
             }
@@ -81,12 +77,9 @@ impl IntoResponse for AppError {
     }
 }
 
-/// The text of the error behind a 500, for the log line.
 #[derive(Clone, Debug)]
 pub struct InternalError(pub String);
 
-/// Logs every 5xx with its method and path (never the query: tokens ride in some) and the
-/// error text when the handler failed with an [`AppError`].
 pub async fn log_server_errors(req: Request, next: Next) -> Response {
     let method = req.method().clone();
     let path = req.uri().path().to_owned();

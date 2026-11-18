@@ -19,7 +19,6 @@ use crate::{
 
 use super::*;
 
-/// Every readable entry of `updates/<runtime>/`.
 pub(super) async fn entries(runtime_dir: &Path) -> std::io::Result<Vec<(PathBuf, Meta)>> {
     let mut out = Vec::new();
     let mut dir = match tokio::fs::read_dir(runtime_dir).await {
@@ -39,7 +38,6 @@ pub(super) async fn entries(runtime_dir: &Path) -> std::io::Result<Vec<(PathBuf,
     Ok(out)
 }
 
-/// The entry served for a runtime and platform: the latest published.
 pub(super) async fn newest(
     runtime_dir: &Path,
     platform: &str,
@@ -120,7 +118,6 @@ pub(super) async fn serve_manifest(
             header("expo-embedded-update-id"),
         );
         if current.is_some() && current == embedded {
-            // Already running the embedded bundle.
             return Ok(no_update());
         }
     }
@@ -133,7 +130,6 @@ pub(super) async fn serve_manifest(
         accept.trim().is_empty() || accept.contains("*/*") || accept.contains("multipart/mixed");
     if !multipart {
         if meta.kind == Kind::Directive {
-            // Directives only travel in multipart responses.
             return Ok(no_update());
         }
         let mut res = (
@@ -184,9 +180,6 @@ pub(super) async fn serve_manifest(
         .into_response())
 }
 
-/// The Content-Type an asset is served with, from its extension (never the publisher's own
-/// value: an HTML or SVG "asset" would otherwise run as a page on our domain). Phones don't
-/// read it (they use the manifest's `contentType`), so anything unexpected is a plain download.
 pub(super) fn asset_content_type(name: &str) -> &'static str {
     let ext = name.rsplit_once('.').map(|(_, e)| e.to_ascii_lowercase());
     match ext.as_deref() {

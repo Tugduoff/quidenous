@@ -1,7 +1,3 @@
-//! Safety rails: room and ownership caps, invisible characters, duplicate questions (Unicode case,
-//! the built-in deck), longer friend codes, loose per-IP buckets, the health check, the oldest app
-//! version served (426) and push settings that don't block start-up.
-
 use crate::common;
 
 use crate::common::{config, join, setup, temp_dir};
@@ -25,7 +21,6 @@ async fn call(
     common::call(app, method, path, token, None, body).await
 }
 
-/// A raw call with extra headers: (status, body text).
 async fn raw(
     app: &Router,
     path: &str,
@@ -58,7 +53,6 @@ async fn a_room_seats_fifty_people() {
         let (token, _) = join(&app, &format!("P{i}")).await;
         first.get_or_insert(token);
     }
-    // By first name (legacy join): full.
     let (s, b) = call(
         &app,
         "POST",
@@ -71,7 +65,6 @@ async fn a_room_seats_fifty_people() {
         (s, b["error"].as_str()),
         (StatusCode::CONFLICT, Some("room_full"))
     );
-    // Someone seated in another room, joining with the code: full too.
     let (_, room) = call(
         &app,
         "POST",
@@ -112,7 +105,6 @@ async fn a_room_seats_fifty_people() {
 #[tokio::test]
 async fn an_account_owns_twenty_rooms_at_most() {
     let (app, _) = setup().await;
-    // Owner of the env room already.
     let (tug, _) = join(&app, "Tug").await;
     let max = quidenous_server::rooms::manage::OWNED_MAX;
     for i in 1..max {
@@ -143,7 +135,6 @@ async fn an_account_owns_twenty_rooms_at_most() {
 #[tokio::test]
 async fn invisible_and_flipped_characters_are_dropped() {
     let (app, state) = setup().await;
-    // A name of zero-width spaces (or a Hangul filler) is no name.
     for name in ["\u{200B}\u{200B}\u{200B}", "\u{3164}", "\u{202E}"] {
         let (s, b) = call(
             &app,
@@ -175,7 +166,6 @@ async fn invisible_and_flipped_characters_are_dropped() {
     let (_, me) = call(&app, "GET", "/me", Some(&ana), None).await;
     assert_eq!(me["name"], "Ana nas");
 
-    // A question of invisible characters is too short; inner line breaks become spaces.
     let (s, b) = call(
         &app,
         "POST",
@@ -199,7 +189,6 @@ async fn invisible_and_flipped_characters_are_dropped() {
     assert_eq!(s, StatusCode::OK, "{q}");
     assert_eq!(q["text"], "Qui est le plus drôle ?");
 
-    // Chat: one blank line in a row at most, nothing invisible.
     let (_, open) = call(&app, "GET", "/round/current", Some(&ana), None).await;
     let round = open["id"].as_i64().unwrap();
     for t in [&ana, &bob] {
@@ -236,7 +225,6 @@ async fn invisible_and_flipped_characters_are_dropped() {
     assert_eq!(s, StatusCode::OK, "{msg}");
     assert_eq!(msg["text"], "bien vu\n\nBob");
 
-    // Room names too.
     let (s, b) = call(
         &app,
         "POST",
@@ -270,7 +258,6 @@ async fn a_question_is_added_once_whatever_its_case_or_the_deck() {
     )
     .await;
     assert_eq!(s, StatusCode::OK);
-    // Same question, other case beyond ASCII and extra spaces: already there.
     let (s, b) = call(
         &app,
         "POST",
@@ -283,7 +270,6 @@ async fn a_question_is_added_once_whatever_its_case_or_the_deck() {
         (s, b["error"].as_str()),
         (StatusCode::CONFLICT, Some("question_exists"))
     );
-    // Import skips it too.
     let (_, r) = call(
         &app,
         "POST",
@@ -297,7 +283,6 @@ async fn a_question_is_added_once_whatever_its_case_or_the_deck() {
         (Some(1), Some(1))
     );
 
-    // The built-in question being asked right now: asked already.
     let (_, open) = call(&app, "GET", "/round/current", Some(&ana), None).await;
     let asked = open["question"].as_str().unwrap().to_owned();
     let (s, b) = call(
@@ -314,7 +299,6 @@ async fn a_question_is_added_once_whatever_its_case_or_the_deck() {
         "{asked}"
     );
 
-    // A built-in question not asked yet, added by hand: the deck leaves it to that copy.
     let (_, queue) = call(&app, "GET", "/questions/queue", Some(&ana), None).await;
     let left = queue["deck_left"].as_i64().unwrap();
     let deck: String = sqlx::query_scalar(
@@ -344,12 +328,9 @@ async fn friend_codes_are_longer_and_ip_buckets_fit_a_party() {
     let (ana, _) = join(&app, "Ana").await;
     let (_, me) = call(&app, "GET", "/friends", Some(&ana), None).await;
     let code = me["code"].as_str().unwrap();
-    // 10 hex digits: 40 bits.
     assert_eq!(code.len(), 10, "{code}");
     use quidenous_server::accounts::limits::{PARTY_GUEST_IP, SIGNUP_IP};
-    // A whole party (40 players) can join from one venue Wi-Fi, more than once an hour.
     const { assert!(PARTY_GUEST_IP.capacity as i64 >= 2 * quidenous_server::party::MAX_PLAYERS) };
-    // A carrier IP shared by many phones (CGNAT) isn't stuck at a handful of sign-ups.
     const { assert!(SIGNUP_IP.capacity >= 30) };
 }
 
@@ -377,7 +358,6 @@ async fn an_app_older_than_min_app_version_is_asked_to_update() {
     let body: Value = serde_json::from_str(&body).unwrap();
     assert_eq!(body["error"], "update_required");
     assert_eq!(body["min_version"], "0.33.0");
-    // What an old app needs to get out of it still answers.
     for path in [
         "/api/health",
         "/api/features",
@@ -387,7 +367,6 @@ async fn an_app_older_than_min_app_version_is_asked_to_update() {
         let (s, _) = raw(&app, path, None, &old).await;
         assert_ne!(s, StatusCode::UPGRADE_REQUIRED, "{path}");
     }
-    // Recent enough, a newer one, no header (a browser, an app from before the header) or garbage: served.
     for headers in [
         vec![("x-app-version", "0.33.0")],
         vec![("x-app-version", "1.0.0")],

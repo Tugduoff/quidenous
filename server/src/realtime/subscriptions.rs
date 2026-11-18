@@ -25,9 +25,6 @@ pub(crate) enum SubscribeBody {
     },
 }
 
-/// Registers this device for pushes, tied to this session (signing out removes it). Web Push
-/// endpoints must be on a known push service; at most [`crate::realtime::push::MAX_DEVICES`] per account,
-/// the oldest go first.
 pub(crate) async fn push_subscribe(
     State(state): State<AppState>,
     Me(me): Me,
@@ -77,7 +74,6 @@ pub(crate) async fn push_subscribe(
     .bind(token_hash)
     .execute(&mut *tx)
     .await?;
-    // Too many devices: the ones not registered again for the longest go (apps register at each start).
     sqlx::query(
         "DELETE FROM push_subscriptions WHERE user_id = ?1 AND id NOT IN \
          (SELECT id FROM push_subscriptions WHERE user_id = ?1 ORDER BY created_at DESC, id DESC LIMIT ?2)",
@@ -100,7 +96,6 @@ pub(crate) async fn push_unsubscribe(
     Me(me): Me,
     Json(body): Json<UnsubscribeBody>,
 ) -> AppResult<Json<Value>> {
-    // Any device of my account (I may have switched rooms since it registered).
     sqlx::query("DELETE FROM push_subscriptions WHERE endpoint = ? AND user_id = ?")
         .bind(body.endpoint)
         .bind(me.user_id)

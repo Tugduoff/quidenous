@@ -1,12 +1,3 @@
-//! The first-run intro (docs/TODAY.md, "Intro"): shown once per account, on any device.
-//!
-//! - `GET /api/intro` → `{show}`: never finished nor skipped, and not a party guest (a guest came to
-//!   play one party, not to learn the app).
-//! - `POST /api/intro` `{skipped?}` → `{ok}`: done (finished or skipped: nothing else is stored).
-//!   Idempotent: the first time is kept.
-//!
-//! Accounts that existed before it were marked done by migration 0053.
-
 use axum::{Json, extract::State};
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -34,7 +25,6 @@ pub async fn get(
 
 #[derive(Deserialize, Default)]
 pub struct DoneBody {
-    /// Skipped rather than finished: accepted, not stored (no product use for it yet).
     #[serde(default)]
     #[allow(dead_code)]
     skipped: bool,

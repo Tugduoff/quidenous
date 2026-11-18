@@ -1,8 +1,3 @@
-//! Tickets: a session token must not sit in a URL (proxy and server logs, browser history). The CSV
-//! link and the live socket can't send an `Authorization` header, so the app first trades its
-//! token for a ticket: random, single use, one purpose, 60 s. Kept in memory (a restart only drops
-//! tickets nobody has used yet). `?token=` keeps working for older apps.
-
 use std::{
     collections::HashMap,
     sync::Mutex,
@@ -22,17 +17,13 @@ use crate::{
 };
 
 pub const TICKET_TTL: Duration = Duration::from_secs(60);
-/// Live tickets at once, server-wide: beyond it (after dropping the expired ones) new ones wait.
 const MAX_TICKETS: usize = 10_000;
-/// Live tickets per session: one more drops that session's oldest (the app uses each at once).
 pub const MAX_PER_SESSION: usize = 20;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Purpose {
-    /// `GET /api/history/export?ticket=`
     Export,
-    /// `GET /api/live?ticket=`
     Live,
 }
 
@@ -51,8 +42,6 @@ impl Tickets {
     fn issue(&self, token_hash: &str, purpose: Purpose) -> AppResult<String> {
         let now = Instant::now();
         let mut map = self.map.lock().unwrap_or_else(|e| e.into_inner());
-        // One session can't fill the store: its expired tickets go, and its oldest live one if
-        // it already has `MAX_PER_SESSION`.
         let mut mine: Vec<(Instant, String)> = Vec::new();
         map.retain(|key, t| {
             if t.token_hash != token_hash {
@@ -88,7 +77,6 @@ impl Tickets {
         Ok(ticket)
     }
 
-    /// The session token hash behind a ticket, once: the ticket is gone whatever the answer.
     pub fn redeem(&self, ticket: &str, purpose: Purpose) -> Option<String> {
         let mut map = self.map.lock().unwrap_or_else(|e| e.into_inner());
         let t = map.remove(&hash_token(ticket))?;
@@ -101,8 +89,6 @@ pub struct TicketBody {
     purpose: Purpose,
 }
 
-/// `{purpose: "export" | "live"}` → `{ticket, expires_in}`. The ticket acts as this session (it
-/// stops working with it) for one request.
 pub async fn create(
     State(state): State<AppState>,
     ClientIp(ip): ClientIp,

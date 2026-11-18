@@ -1,7 +1,3 @@
-//! Group stats: counts, awards, per-member profiles and short stories (French or English, the
-//! reader's language), computed in Rust from
-//! a handful of queries over the finished questions of a period. Contract: `docs/STATS.md`.
-
 use crate::platform::ids::{MemberId, RoomId, RoundId};
 use std::collections::HashSet;
 
@@ -13,20 +9,14 @@ use crate::{
     platform::i18n::Lang,
 };
 
-/// Rough time to read a question, think and vote, for the "time lost" estimate.
 const SECONDS_PER_VOTE: i64 = 20;
-/// Votes needed before someone can be called fast or slow.
 const MIN_VOTES_FOR_SPEED: usize = 3;
 const MAX_STORIES: usize = 6;
 const STORIES_PER_MEMBER: usize = 2;
 const LINE_MAX: usize = 90;
-/// Phones are never more than 14 hours away from UTC.
 const TZ_MAX: i32 = 14 * 60;
 const DAY: i64 = 86_400;
-/// Up to this many days, `all` is bucketed by day; beyond, by week.
 const DAILY_MAX: i64 = 90;
-/// Finished questions of the group opened in the period (`?1` group, `?2` start and `?3` end in
-/// unix seconds, end excluded).
 macro_rules! in_period {
     () => {
         concat!(
@@ -62,7 +52,6 @@ pub enum Period {
 }
 
 impl Period {
-    /// `7d`, `30d`, `all`; missing means `all` (older apps).
     pub fn parse(s: Option<&str>) -> AppResult<Self> {
         match s.map(str::trim) {
             None | Some("" | "all") => Ok(Self::All),
@@ -81,7 +70,6 @@ impl Period {
     }
 }
 
-/// Minutes east of UTC, clamped to ±14 h; anything unreadable is UTC.
 pub fn clamp_tz(tz: i64) -> i32 {
     tz.clamp(-i64::from(TZ_MAX), i64::from(TZ_MAX)) as i32
 }
@@ -96,7 +84,6 @@ pub fn parse_tz(tz: Option<&str>) -> i32 {
 pub struct Award {
     pub member_id: MemberId,
     pub value: i64,
-    /// Denominator, ratio awards only.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub total: Option<i64>,
 }
@@ -110,7 +97,6 @@ pub struct Duo {
     pub total: Option<i64>,
 }
 
-/// Two members, `a_id < b_id`.
 #[derive(Debug, Clone, Serialize)]
 pub struct Pair {
     pub a_id: MemberId,
@@ -122,7 +108,6 @@ pub struct Pair {
 #[derive(Debug, Clone, Serialize)]
 pub struct RankAward {
     pub member_id: MemberId,
-    /// Average position, one decimal.
     pub avg: f64,
     pub count: i64,
 }
@@ -184,7 +169,6 @@ pub struct Edge {
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct Activity {
     pub bucket: &'static str,
-    /// First bucket's local day, `YYYY-MM-DD`.
     pub start: String,
     pub questions: Vec<i64>,
     pub votes: Vec<i64>,
@@ -193,18 +177,14 @@ pub struct Activity {
 #[derive(Debug, Default, Serialize)]
 pub struct Stats {
     pub period: Period,
-    /// Current members.
     pub members: i64,
     pub questions: i64,
     pub votes: i64,
     pub unanimous: i64,
     pub ties: i64,
     pub nudges: i64,
-    /// Estimate: votes × SECONDS_PER_VOTE.
     pub seconds_voting: i64,
-    /// Sum, over finished questions, of the time between the second-to-last vote and the last one.
     pub seconds_waiting_last: i64,
-    /// Median time for a question to go from open to everyone-has-voted.
     pub median_round_seconds: Option<i64>,
     pub most_chosen: Option<Award>,
     pub most_crowned: Option<Award>,
@@ -237,27 +217,19 @@ pub struct Stats {
     pub hottest: Option<QuestionRef>,
     pub stories: Vec<Story>,
     pub edges: Vec<Edge>,
-    /// `[7][24]` votes cast, weekday 0 = Monday, local hours.
     pub heatmap: Vec<Vec<i64>>,
     pub activity: Activity,
     pub profiles: Vec<MemberStats>,
-    /// Days in a row with a vote, all time (docs/STREAKS.md); set by the route, absent for a party.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub day_streaks: Option<crate::insights::streaks::Records>,
 }
 
-// ---------- small helpers ----------
-
-// ---------- rows ----------
-
 struct MemberInfo {
     name: String,
     joined: f64,
-    /// A deleted account: shown as the placeholder in the reader's language.
     deleted: bool,
 }
 
-/// One finished question and what the computation needs about it.
 struct RoundCalc {
     id: RoundId,
     number: i64,
@@ -265,14 +237,9 @@ struct RoundCalc {
     rank: bool,
     opened: f64,
     closed: f64,
-    /// (voter, target, unix time), in vote order. An anonymous question's targets are blanked
-    /// ([`HIDDEN`]) once its tally is counted: it adds to votes cast and received, never to
-    /// who-votes-for-whom (pairs, self votes, twins, contrarian, kingmaker, loyal, the graph).
     votes: Vec<(MemberId, MemberId, f64)>,
     anonymous: bool,
-    /// (target, votes), most voted first, then by id.
     tally: Vec<(MemberId, i64)>,
-    /// Ranking questions: (member, points, average position).
     points: Vec<(MemberId, i64, f64)>,
     winners: Vec<MemberId>,
     messages: i64,
@@ -305,11 +272,9 @@ impl RoundCalc {
 
 type RoundRow = (RoundId, i64, String, String, f64, f64, bool);
 
-/// The target of a vote on an anonymous question, once counted (no member has id 0).
 const HIDDEN: MemberId = MemberId::from_raw(0);
 type MemberRowT = (MemberId, String, f64, bool, bool);
 
-/// [`for_group_in`] French.
 pub async fn for_group(
     db: &SqlitePool,
     group_id: RoomId,
@@ -319,7 +284,6 @@ pub async fn for_group(
     for_group_in(db, group_id, period, tz_minutes, Lang::Fr).await
 }
 
-/// The room's vibe, then [`compute`]. Story texts are in `lang`.
 pub async fn for_group_in(
     db: &SqlitePool,
     group_id: RoomId,
@@ -345,7 +309,6 @@ pub async fn compute(
 ) -> AppResult<Stats> {
     let tz = i64::from(tz_minutes.clamp(-TZ_MAX, TZ_MAX)) * 60;
     let today = local_day(now(), tz);
-    // 7d / 30d: from local midnight N-1 days ago, so the window is exactly the activity buckets.
     let since: f64 = match period.days() {
         Some(n) => ((today - n + 1) * DAY - tz) as f64,
         None => -1e18,
@@ -353,8 +316,6 @@ pub async fn compute(
     compute_range(db, group_id, period, (since, 1e18), tz_minutes, vibe, lang).await
 }
 
-/// [`compute`] over the questions opened in `[since, until)` (unix seconds), e.g. a calendar year
-/// for the Wrapped (docs/WRAPPED.md). `period` only shapes the activity buckets (`All` for a range).
 pub(crate) async fn compute_range(
     db: &SqlitePool,
     group_id: RoomId,
@@ -381,7 +342,6 @@ pub(crate) async fn compute_range(
         ", ",
         unix!("r.closed_at"),
         ", r.anonymous",
-        // Choose and said questions stay out of the stats for now (their votes then drop out too).
         " FROM rounds r JOIN questions q ON q.id = r.question_id WHERE q.kind NOT IN ('choose', 'said') AND ",
         in_period!(),
         " ORDER BY r.number"
@@ -401,7 +361,6 @@ pub(crate) async fn compute_range(
     .bind(since)
     .bind(until)
     .fetch_all(db);
-    // Ranking points per question and member (with N ranked, 1st gets N points, last gets 1).
     let points_q = sqlx::query_as::<_, (RoundId, MemberId, i64, f64)>(concat!(
         "WITH p AS (SELECT r.id FROM rounds r WHERE ",
         in_period!(),
@@ -431,7 +390,6 @@ pub(crate) async fn compute_range(
     .bind(since)
     .bind(until)
     .fetch_all(db);
-    // Questions actually written in the period: pack installs and file imports don't count.
     let authors_q = sqlx::query_as::<_, (MemberId, i64)>(concat!(
         "SELECT author_id, COUNT(*) FROM questions WHERE group_id = ?1 AND author_id IS NOT NULL \
          AND origin = 'written' AND ",
@@ -461,8 +419,6 @@ pub(crate) async fn compute_range(
     )
     .finish(nudges, authors, spicy, lang))
 }
-
-// ---------- stories ----------
 
 #[cfg(test)]
 mod tests {

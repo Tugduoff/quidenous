@@ -1,6 +1,3 @@
-//! "Buy us a coffee" (docs/DONATE.md): `DONATION_URL` turns on `donate` in `/api/features` and
-//! `GET /api/donate`; anything but an https URL is ignored and warned about.
-
 use crate::common;
 
 use crate::common::call;
@@ -31,7 +28,6 @@ async fn url_when_set() {
     config.donation_url = Some("https://ko-fi.com/coflop".into());
     let app = app(state(config).await.unwrap());
     assert!(features(&app).await.contains(&"donate".to_owned()));
-    // No session needed: the page is public.
     let (s, b) = call(&app, "GET", "/donate", None, None, None).await;
     assert_eq!(s, StatusCode::OK, "{b}");
     assert_eq!(b["url"], "https://ko-fi.com/coflop");

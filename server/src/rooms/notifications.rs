@@ -1,6 +1,3 @@
-//! Notification settings: what an account wants pushed, quiet hours, and muted rooms.
-//! Only pushes are filtered (see `push::Push::recipients`); the inbox records everything.
-
 use axum::{Json, extract::State};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -15,7 +12,6 @@ use crate::{
 };
 
 const DAY_MINUTES: i64 = 24 * 60;
-/// UTC-12 to UTC+14.
 const TZ_RANGE: std::ops::RangeInclusive<i64> = -12 * 60..=14 * 60;
 
 #[derive(Serialize, Deserialize)]
@@ -39,7 +35,6 @@ impl Default for Prefs {
     }
 }
 
-/// `off` as stored: comma-separated kinds.
 type PrefsRow = (bool, String, Option<i64>, Option<i64>, i64);
 
 pub async fn get(
@@ -99,7 +94,6 @@ pub async fn put(
     Ok(Json(body))
 }
 
-/// No push at all from this room (PUT), or back on (DELETE).
 pub async fn mute(
     State(state): State<AppState>,
     RoomMember(me): RoomMember,

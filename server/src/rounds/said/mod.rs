@@ -1,17 +1,3 @@
-//! « Qui a dit ça ? » questions (docs/SAID.md): everyone writes a short answer to a prompt, then
-//! everyone matches the answers to their authors.
-//!
-//! One round, three phases: **writing** (`rounds.said_guess_at` null: answers go to `said_answers`,
-//! rewritable, nobody sees them), **guessing** (`said_guess_at` set: answers frozen and shown in a
-//! random fixed order, each member sends a matching as their vote, stored in `said_guesses`), and
-//! **done** (closed: authors and points revealed). The `votes` row is still written when someone
-//! sends their guesses (`target_id` = the voter), so waiting, skips, nudges and closing work
-//! unchanged once the guessing started. While people write, "done" means "has written".
-//!
-//! The round loop calls in here: [`advance`] from `game::close_if_done` (writing → guessing),
-//! [`ballot`] from `game::vote`, [`leave`] when a seat ends, [`view`] for `RoundView.said`, and
-//! [`at_deadline`] from the party sweep.
-
 use crate::platform::ids::{AnswerId, MemberId, RoundId};
 use std::collections::BTreeMap;
 
@@ -20,15 +6,10 @@ use sqlx::SqlitePool;
 
 use crate::platform::error::AppResult;
 
-/// An answer: 1 to this many characters, after `text::line` cleaning.
 pub const ANSWER_MAX: usize = 140;
-/// People a said question needs (in the room, or players at a party): with two there is nothing to guess.
 pub const MIN_PEOPLE: i64 = 3;
-/// Answers needed for the guessing to start.
 pub const MIN_ANSWERS: i64 = 2;
 
-/// SQL: member `$m` is done with open round `$r`: voted, or wrote while its said question is still
-/// in the writing phase (skips, nudges, streak reminders and closing all wait for the same thing).
 macro_rules! done {
     ($r:literal, $m:literal) => {
         concat!(
@@ -50,32 +31,22 @@ mod play;
 pub(crate) use done;
 pub use play::*;
 
-/// Seconds a party gives to write: twice its timer, at least a minute.
 pub fn writing_secs(timer: i64) -> i64 {
     (2 * timer).max(60)
 }
 
-/// Seconds a party gives to guess: twice its timer, at least 45.
 pub fn guessing_secs(timer: i64) -> i64 {
     (2 * timer).max(45)
 }
 
-/// `RoundView.said`: the phase, who wrote, my answer and guesses, the answers once frozen, and
-/// the result once closed. Never an author before the end.
 #[derive(Clone, Debug, Serialize)]
 pub struct SaidView {
-    /// `writing`, `guessing` or `done`.
     pub phase: &'static str,
-    /// When the guessing started.
     pub guess_at: Option<String>,
-    /// Who has written (passes included), member order.
     pub writer_ids: Vec<MemberId>,
     pub my_answer: Option<MyAnswer>,
-    /// Guessing and done: every real answer, by id (a random order fixed for the round).
     pub answers: Option<Vec<SaidAnswer>>,
-    /// Once I sent them.
     pub my_guesses: Option<Vec<Guess>>,
-    /// Done (after a guessing phase) only.
     pub result: Option<SaidResult>,
 }
 
@@ -85,7 +56,6 @@ pub struct MyAnswer {
     pub text: String,
 }
 
-/// One answer as everyone sees it: `text` null when hidden by reports.
 #[derive(Clone, Debug, Serialize)]
 pub struct SaidAnswer {
     pub id: AnswerId,
@@ -93,7 +63,6 @@ pub struct SaidAnswer {
     pub hidden: bool,
 }
 
-/// A guess: answer `answer_id` was written by `member_id`.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Guess {
     pub answer_id: AnswerId,
@@ -102,9 +71,7 @@ pub struct Guess {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct SaidResult {
-    /// Reveal order: most found first, best hidden last.
     pub answers: Vec<AnswerResult>,
-    /// Best first: points, then found, then member id.
     pub scores: Vec<SaidScore>,
 }
 
@@ -112,11 +79,8 @@ pub struct SaidResult {
 pub struct AnswerResult {
     pub id: AnswerId,
     pub author_id: MemberId,
-    /// Guessers who named the author.
     pub found: i64,
-    /// Guessers who named someone else.
     pub fooled: i64,
-    /// Voter order.
     pub guesses: Vec<VoterGuess>,
 }
 
@@ -126,7 +90,6 @@ pub struct VoterGuess {
     pub member_id: MemberId,
 }
 
-/// `found` (+1 per author found) plus `fooled` (+1 per guesser who missed me) = `points`.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct SaidScore {
     pub member_id: MemberId,
@@ -135,8 +98,6 @@ pub struct SaidScore {
     pub fooled: i64,
 }
 
-/// The result from the real answers `(id, author)` and the guesses `(voter, answer, member)`.
-/// Guesses on an answer that isn't there (or on one's own) are ignored.
 pub fn compute(
     answers: &[(AnswerId, MemberId)],
     guesses: &[(MemberId, AnswerId, MemberId)],
@@ -167,7 +128,6 @@ pub fn compute(
             guesses: on_it,
         });
     }
-    // Guessers whose guesses all missed still get their line.
     for &(voter, answer, _) in guesses {
         if answers.iter().any(|&(id, _)| id == answer) {
             score(&mut scores, voter);
@@ -198,7 +158,6 @@ pub fn compute(
     }
 }
 
-/// A member's line in the scores being counted.
 fn score(scores: &mut BTreeMap<MemberId, SaidScore>, member_id: MemberId) -> &mut SaidScore {
     scores.entry(member_id).or_insert(SaidScore {
         member_id,
@@ -208,7 +167,6 @@ fn score(scores: &mut BTreeMap<MemberId, SaidScore>, member_id: MemberId) -> &mu
     })
 }
 
-/// The winners of a result: the top scorers (`points > 0`, ties share) and their points.
 pub fn winners(result: &SaidResult) -> (Vec<MemberId>, i64) {
     let best = result.scores.first().map_or(0, |s| s.points);
     let ids = result
@@ -220,7 +178,6 @@ pub fn winners(result: &SaidResult) -> (Vec<MemberId>, i64) {
     (ids, best)
 }
 
-/// An answer row: (id, author, text, hidden).
 type AnswerRow = (AnswerId, MemberId, Option<String>, bool);
 
 async fn answer_rows(db: &SqlitePool, round_id: RoundId) -> AppResult<Vec<AnswerRow>> {
@@ -245,7 +202,6 @@ async fn guess_rows(
     .await?)
 }
 
-/// When the guessing started (`None` while writing, for other kinds, and for a round that isn't there).
 async fn guess_at<'e, E: sqlx::SqliteExecutor<'e>>(
     db: E,
     round_id: RoundId,
@@ -259,7 +215,6 @@ async fn guess_at<'e, E: sqlx::SqliteExecutor<'e>>(
     )
 }
 
-/// The result of a closed said question, `None` when it closed before any guessing (too few answers).
 pub async fn result(db: &SqlitePool, round_id: RoundId) -> AppResult<Option<SaidResult>> {
     if guess_at(db, round_id).await?.is_none() {
         return Ok(None);
@@ -269,7 +224,6 @@ pub async fn result(db: &SqlitePool, round_id: RoundId) -> AppResult<Option<Said
     Ok(Some(compute(&real(&answers), &guesses)))
 }
 
-/// `(id, author)` of the real answers (a pass from an older app has no text).
 fn real(rows: &[AnswerRow]) -> Vec<(AnswerId, MemberId)> {
     rows.iter()
         .filter(|r| r.2.is_some())
@@ -277,7 +231,6 @@ fn real(rows: &[AnswerRow]) -> Vec<(AnswerId, MemberId)> {
         .collect()
 }
 
-/// The said part of a round view (`None` for other kinds). `me` = null on a party's big screen.
 pub async fn view(
     db: &SqlitePool,
     round_id: RoundId,
@@ -302,7 +255,6 @@ pub async fn view(
         .iter()
         .find(|r| Some(r.1) == me)
         .and_then(|(id, _, text, _)| text.clone().map(|text| MyAnswer { id: *id, text }));
-    // Shown once frozen; a question that closed before any guessing shows none.
     let answers = guess_at.is_some().then(|| {
         rows.iter()
             .filter(|r| r.2.is_some())
@@ -363,21 +315,16 @@ mod tests {
 
     #[test]
     fn points_for_finding_and_fooling() {
-        // Ana (1) wrote 10, Bob (2) wrote 20, Cyd (3) wrote 30.
         let answers = [(10, 1), (20, 2), (30, 3)];
         let guesses = [
-            // Ana: right on Bob, wrong on Cyd.
             (1, 20, 2),
             (1, 30, 1),
-            // Bob: both wrong.
             (2, 10, 3),
             (2, 30, 1),
-            // Cyd: both right.
             (3, 10, 1),
             (3, 20, 2),
         ];
         let r = compute(&typed(&answers), &typed_guesses(&guesses));
-        // Bob's answer found twice, Ana's once (Bob missed), Cyd's never (fooled both).
         let order: Vec<(i64, i64, i64)> = r
             .answers
             .iter()
@@ -402,15 +349,12 @@ mod tests {
             .iter()
             .map(|s| (s.member_id.raw(), s.points, s.found, s.fooled))
             .collect();
-        // Cyd 2 found + 2 fooled; Ana 1 + 1; Bob 0 + 0.
         assert_eq!(scores, [(3, 4, 2, 2), (1, 2, 1, 1), (2, 0, 0, 0)]);
         assert_eq!(winners(&r), (vec![m(3)], 4));
     }
 
     #[test]
     fn ties_passes_and_strays() {
-        // Two answers, a guesser who wrote nothing, a guess on a pass (not in `answers`) and one on
-        // one's own answer: both ignored.
         let answers = [(5, 1), (6, 2)];
         let guesses = [
             (3, 5, 1),
@@ -434,11 +378,9 @@ mod tests {
             .iter()
             .map(|s| (s.member_id.raw(), s.points))
             .collect();
-        // Everyone found everything: the one who guessed both first, then member order.
         assert_eq!(scores, [(3, 2), (1, 1), (2, 1)]);
         assert_eq!(winners(&r), (vec![m(3)], 2));
 
-        // Nobody guessed: no winner.
         let r = compute(&typed(&answers), &[]);
         assert!(r.scores.iter().all(|s| s.points == 0));
         assert_eq!(winners(&r), (vec![], 0));

@@ -1,9 +1,3 @@
-//! Images in the result chat (docs/CHAT_MEDIA.md): uploaded as multipart, sniffed by their first
-//! bytes, re-encoded (which drops EXIF, GPS and every other metadata), stored under
-//! `DATA_DIR/chat/<room>/` and served only through short-lived signed URLs (`/api/media/<token>`)
-//! the room's members get with the messages. Files go with their message, the author's account
-//! or the room.
-
 use crate::platform::ids::{MessageId, RoomId, RoundId};
 use std::{
     io::Cursor,
@@ -33,30 +27,17 @@ use crate::{
     platform::error::{AppError, AppResult},
 };
 
-/// Largest image accepted (`413 too_large` above).
 pub const IMAGE_MAX: usize = 8 * 1024 * 1024;
-/// The whole upload: the image plus a caption and mentions.
 pub const UPLOAD_BODY_MAX: usize = IMAGE_MAX + 64 * 1024;
-/// Longest side of a stored photo (larger ones are scaled down).
 const MAX_SIDE: u32 = 1600;
 const JPEG_QUALITY: u8 = 85;
-/// Pixels on either side, and memory, any image decode may take (decompression bombs). The app
-/// scales photos down before sending them (1600 px in the chat, less for a profile photo).
 const DECODE_MAX_SIDE: u32 = 4096;
 const DECODE_MAX_ALLOC: u64 = 64 * 1024 * 1024;
-/// Image decodes (chat and profile photos) running at once, server-wide: each may take
-/// [`DECODE_MAX_ALLOC`] and its resize, so a burst of uploads can't run the host out of memory.
 const DECODES_AT_ONCE: usize = 2;
-/// Signed URLs expire on a 6-hour grid, 6 to 12 hours ahead: the same URL all along a stretch
-/// of time, so the app's image cache keeps working.
 const URL_PERIOD: u64 = 6 * 3600;
-/// Hex characters of HMAC kept in a token (128 bits).
 const MAC_LEN: usize = 32;
-/// Types an image may be stored and served as.
 const MIMES: [&str; 3] = ["image/jpeg", "image/png", "image/gif"];
 
-/// What older apps, the inbox, pushes and reports show for an image or a GIF (the same in every
-/// language: it is stored once, in `messages.text`).
 pub fn fallback(kind: &str, caption: Option<&str>) -> String {
     let label = if kind == "gif" { "GIF" } else { "📷 Photo" };
     match caption {
@@ -73,7 +54,6 @@ enum Format {
     Gif,
 }
 
-/// The format by magic bytes (not the file name or the declared type): JPEG, PNG, WebP, GIF only.
 fn sniff(bytes: &[u8]) -> Option<Format> {
     if bytes.starts_with(&[0xFF, 0xD8, 0xFF]) {
         Some(Format::Jpeg)
@@ -88,7 +68,6 @@ fn sniff(bytes: &[u8]) -> Option<Format> {
     }
 }
 
-/// A stored image, ready to write.
 struct Processed {
     bytes: Vec<u8>,
     ext: &'static str,
@@ -97,10 +76,6 @@ struct Processed {
     height: u32,
 }
 
-/// Checks and re-encodes an upload (CPU-heavy: call it off the async threads). JPEG and WebP
-/// become a JPEG (a PNG for a WebP with transparency), PNG stays PNG, both turned upright (EXIF
-/// orientation) and at most [`MAX_SIDE`] wide and high; nothing of the original file but its
-/// pixels survives. A GIF is kept as it is (animated; GIF has no EXIF) once its first frame decodes.
 fn process(bytes: Vec<u8>, format: Format) -> AppResult<Processed> {
     let mut reader = ImageReader::with_format(
         Cursor::new(bytes.as_slice()),
@@ -148,7 +123,6 @@ fn process(bytes: Vec<u8>, format: Format) -> AppResult<Processed> {
     })
 }
 
-/// The limits every decode of an uploaded image runs with.
 pub(crate) fn decode_limits() -> image::Limits {
     let mut limits = image::Limits::default();
     limits.max_image_width = Some(DECODE_MAX_SIDE);
@@ -157,9 +131,6 @@ pub(crate) fn decode_limits() -> image::Limits {
     limits
 }
 
-/// Runs an image decode (and its resize, encode) on a blocking thread, [`DECODES_AT_ONCE`] at most
-/// server-wide; the others wait their turn. The slot stays taken until the work is done, even if
-/// the request is dropped meanwhile.
 #[derive(Clone)]
 pub struct Decodes(std::sync::Arc<tokio::sync::Semaphore>);
 
@@ -191,7 +162,6 @@ impl Decodes {
     }
 }
 
-/// A body over the route's limit is `413 too_large`; any other broken upload `400 bad_upload`.
 fn upload_error(e: MultipartError) -> AppError {
     if e.status() == StatusCode::PAYLOAD_TOO_LARGE {
         AppError::TooLarge("too_large")
@@ -200,12 +170,10 @@ fn upload_error(e: MultipartError) -> AppError {
     }
 }
 
-/// A room's image directory.
 fn room_dir(data_dir: &FsPath, room: RoomId) -> PathBuf {
     data_dir.join("chat").join(room.to_string())
 }
 
-/// The file behind an image message's stored media (server-made names only; never a path).
 pub fn file_path(data_dir: &FsPath, room: RoomId, media: Option<&str>) -> Option<PathBuf> {
     let media: Value = serde_json::from_str(media?).ok()?;
     let file = media["file"].as_str()?;
@@ -215,7 +183,6 @@ pub fn file_path(data_dir: &FsPath, room: RoomId, media: Option<&str>) -> Option
     safe.then(|| room_dir(data_dir, room).join(file))
 }
 
-/// Removes image files (best effort: a file already gone is fine).
 pub async fn remove_files(paths: Vec<PathBuf>) {
     for path in paths {
         if let Err(e) = tokio::fs::remove_file(&path).await
@@ -226,7 +193,6 @@ pub async fn remove_files(paths: Vec<PathBuf>) {
     }
 }
 
-/// A deleted room's images, all at once (nobody can open its chat any more).
 pub async fn remove_room(state: &AppState, room: RoomId) {
     let dir = room_dir(&state.config.data_dir, room);
     if let Err(e) = tokio::fs::remove_dir_all(&dir).await
@@ -236,10 +202,6 @@ pub async fn remove_room(state: &AppState, room: RoomId) {
     }
 }
 
-/// `POST /rounds/{id}/messages/image` (multipart): `image` (the file), optional `caption`,
-/// `mentions` (a JSON array of member ids), `everyone` (`1`) and `client_key`. Same rules as a text
-/// message (finished question, chat limits, retries, inbox, pushes, live), plus the image limits.
-/// Answers the message.
 pub(crate) async fn upload(
     State(state): State<AppState>,
     Me(me): Me,
@@ -247,8 +209,6 @@ pub(crate) async fn upload(
     mut multipart: Multipart,
 ) -> AppResult<Json<MessageRow>> {
     let round = crate::chat::messages::chat_round(&state, &me, id).await?;
-    // Charged before the body is read (a retry gives it back below): a flood of uploads costs
-    // its sender, not the server's memory.
     let user = me.user_id;
     if let Some(user) = user {
         crate::platform::quotas::hit_user(&state, &crate::platform::quotas::CHAT_IMAGE_USER, user)?;
@@ -290,7 +250,6 @@ pub(crate) async fn upload(
     let format = sniff(&image).ok_or(AppError::BadRequest("bad_image"))?;
     let caption = crate::chat::messages::clean_caption(caption.as_deref())?;
     let key = crate::chat::messages::client_key(key.as_deref())?;
-    // A retry of an upload whose answer was lost: the image already posted.
     if let Some(posted) = crate::chat::messages::retried(&state, &me, key.as_deref()).await? {
         if let Some(user) = user {
             crate::platform::quotas::refund_user(
@@ -311,7 +270,6 @@ pub(crate) async fn upload(
         .decodes
         .run(move || process(image.to_vec(), format))
         .await?;
-    // A 128-bit random name in the room's directory.
     let file = format!("{}.{}", random_hex(16), image.ext);
     let dir = room_dir(&state.config.data_dir, me.group_id);
     tokio::fs::create_dir_all(&dir).await?;
@@ -333,7 +291,6 @@ pub(crate) async fn upload(
     };
     match crate::chat::messages::post_chat(&state, &me, &round, message).await {
         Ok(posted) => {
-            // The same upload landed twice at once: the first one keeps its file.
             if !posted.fresh {
                 remove_files(vec![path]).await;
             }
@@ -350,18 +307,15 @@ fn now_unix() -> u64 {
     crate::accounts::crypto::now_unix()
 }
 
-/// When a URL signed at `now` expires: the next 6-hour boundary, plus 6 hours.
 pub fn expiry(now: u64) -> u64 {
     now.div_ceil(URL_PERIOD) * URL_PERIOD + URL_PERIOD
 }
 
-/// `base64url(payload).<HMAC>`, keyed by the server's secret (`AUTH_SECRET` / `auth.key`).
 pub fn sign(state: &AppState, purpose: &str, payload: &str) -> String {
     let mac = state.auth.keys.mac(&[purpose, payload]);
     format!("{}.{}", URL_SAFE_NO_PAD.encode(payload), &mac[..MAC_LEN])
 }
 
-/// The payload of a token [`sign`] made for this purpose, or `None`.
 pub fn verify(state: &AppState, purpose: &str, token: &str) -> Option<String> {
     let (payload, mac) = token.split_once('.')?;
     let payload = String::from_utf8(URL_SAFE_NO_PAD.decode(payload).ok()?).ok()?;
@@ -371,8 +325,6 @@ pub fn verify(state: &AppState, purpose: &str, token: &str) -> Option<String> {
 
 const PURPOSE: &str = "chat media";
 
-/// The URL of an image message for the app (`review`: an admin reviewing a report, which also
-/// shows it while hidden).
 pub fn image_url(state: &AppState, message_id: MessageId, review: bool) -> String {
     let exp = expiry(now_unix());
     let payload = if review {
@@ -383,7 +335,6 @@ pub fn image_url(state: &AppState, message_id: MessageId, review: bool) -> Strin
     format!("/api/media/{}", sign(state, PURPOSE, &payload))
 }
 
-/// A message's `media` as the app gets it: fresh URLs, the size, the type (`None` for text).
 pub fn payload(
     state: &AppState,
     message_id: MessageId,
@@ -403,9 +354,6 @@ pub fn payload(
     }
 }
 
-/// `GET /media/{token}` (no sign-in: image tags can't send one; the token is the key). A valid,
-/// unexpired token for an image message that is still there, not hidden by reports (unless the
-/// token is an admin's), in a room that wasn't deleted. `404` otherwise.
 pub async fn serve(
     State(state): State<AppState>,
     Path(token): Path<String>,

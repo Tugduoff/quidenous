@@ -1,18 +1,3 @@
-//! Le Tripot (docs/TRIPOT.md): bets on who wins a question, with chips (`jetons`) that are worth
-//! nothing. No real money, ever: nothing to buy, nothing to win but bragging rights.
-//!
-//! - Chips are per member, per room, per calendar month (UTC): 100 at the start of the month, plus
-//!   [`DAILY`] on the first vote of each UTC day in the room (never above [`CAP`]). On the 1st,
-//!   everyone is back to 100.
-//! - Every chip that moves is a row of `tripot_ledger` (daily bonus, stake, payout, refund); a
-//!   balance is [`START`] plus the month's rows, so every number can be checked.
-//! - One bet per member per open pick or ranking question of a room (not choose, not a party, not
-//!   an anonymous question): who gets the most votes (ranking: who ends up first). While it is open
-//!   only the pot and the number of bettors show (and my own bet), never who bet on whom.
-//! - Pari-mutuel at close ([`settle`], in the close path): the pot goes to the bets on a winner
-//!   (any of the tied ones), in proportion to their stakes; nobody on a winner, a question removed
-//!   or with no winner: everyone gets their stake back. The house takes nothing.
-
 use crate::platform::ids::{MemberId, RoomId, RoundId};
 use axum::{
     Json,
@@ -30,14 +15,10 @@ use crate::{
     rounds::model::RoundRow,
 };
 
-/// Chips everyone starts the month with.
 pub const START: i64 = 100;
-/// Bonus for the first vote of a (UTC) day in the room.
 pub const DAILY: i64 = 20;
-/// The daily bonus never takes a balance above this.
 pub const CAP: i64 = 500;
 
-/// The current month (UTC, `YYYY-MM`), from the database clock.
 macro_rules! month {
     () => {
         "strftime('%Y-%m', 'now')"
@@ -45,7 +26,6 @@ macro_rules! month {
 }
 pub(crate) use month;
 
-/// Tripot is on in this room: a room (never a party) whose owner didn't turn it off.
 pub async fn enabled<'e, E: sqlx::SqliteExecutor<'e>>(db: E, group_id: RoomId) -> AppResult<bool> {
     Ok(
         sqlx::query_scalar("SELECT kind = 'room' AND tripot FROM groups WHERE id = ?")
@@ -56,7 +36,6 @@ pub async fn enabled<'e, E: sqlx::SqliteExecutor<'e>>(db: E, group_id: RoomId) -
     )
 }
 
-/// A member's chips for a month (`None`: the current one).
 pub async fn balance<'e, E: sqlx::SqliteExecutor<'e>>(
     db: E,
     member_id: MemberId,
@@ -74,8 +53,6 @@ pub async fn balance<'e, E: sqlx::SqliteExecutor<'e>>(
     Ok(START + sum)
 }
 
-/// After a vote (its transaction): the day's bonus, on the first vote of the UTC day in the room.
-/// A balance at the cap gets a 0 row, so the day still counts as granted.
 pub async fn on_vote(
     tx: &mut Transaction<'_, Sqlite>,
     group_id: RoomId,
@@ -100,9 +77,6 @@ pub async fn on_vote(
     Ok(())
 }
 
-/// Each bet's payout: `(stake, on a winner)` in settling order (largest stake first, then the
-/// earliest). The pot goes to the bets on a winner in proportion to their stakes, rounded down,
-/// the chips left over one each in that order. `None` when nobody bet on a winner (refund).
 pub fn split(bets: &[(i64, bool)]) -> Option<Vec<i64>> {
     let pot: i64 = bets.iter().map(|b| b.0).sum();
     let winning: i64 = bets.iter().filter(|b| b.1).map(|b| b.0).sum();
@@ -126,7 +100,6 @@ pub fn split(bets: &[(i64, bool)]) -> Option<Vec<i64>> {
     Some(out)
 }
 
-/// Who won a closed question: most votes (pick), most points (ranking); ties all win.
 async fn winners(
     tx: &mut Transaction<'_, Sqlite>,
     round_id: RoundId,
@@ -147,8 +120,6 @@ async fn winners(
         .await?)
 }
 
-/// A question just closed (its transaction): pays out its bets, or refunds them when there is no
-/// winner to bet on. Bets already settled are left alone (idempotent).
 pub async fn settle(tx: &mut Transaction<'_, Sqlite>, round_id: RoundId) -> AppResult<()> {
     let bets: Vec<(i64, MemberId, MemberId, i64, RoomId, String)> = sqlx::query_as(
         "SELECT b.id, b.member_id, b.target_id, b.amount, r.group_id, b.month FROM tripot_bets b \
@@ -188,7 +159,6 @@ pub async fn settle(tx: &mut Transaction<'_, Sqlite>, round_id: RoundId) -> AppR
     Ok(())
 }
 
-/// Records a bet's outcome and its ledger row (none for a lost bet: the stake already left).
 #[allow(clippy::too_many_arguments)]
 async fn pay(
     tx: &mut Transaction<'_, Sqlite>,
@@ -223,7 +193,6 @@ async fn pay(
     Ok(())
 }
 
-/// A question closes without a result (removed): every bet on it comes back.
 pub async fn refund(tx: &mut Transaction<'_, Sqlite>, round_id: RoundId) -> AppResult<()> {
     let bets: Vec<(i64, MemberId, i64, RoomId, String)> = sqlx::query_as(
         "SELECT b.id, b.member_id, b.amount, r.group_id, b.month FROM tripot_bets b \
@@ -238,8 +207,6 @@ pub async fn refund(tx: &mut Transaction<'_, Sqlite>, round_id: RoundId) -> AppR
     Ok(())
 }
 
-/// The owner turned Tripot off, or the open question became anonymous: its bets are refunded and
-/// dropped (turned back on, everyone may bet again). The ledger keeps both moves.
 pub async fn cancel_open(tx: &mut Transaction<'_, Sqlite>, group_id: RoomId) -> AppResult<bool> {
     let open: Option<RoundId> =
         sqlx::query_scalar("SELECT id FROM rounds WHERE group_id = ? AND closed_at IS NULL")
@@ -257,7 +224,6 @@ pub async fn cancel_open(tx: &mut Transaction<'_, Sqlite>, group_id: RoomId) -> 
     Ok(done.rows_affected() > 0)
 }
 
-/// The owner switched it (rooms only; checked by the caller). Off refunds the open question's bets.
 pub async fn set_enabled(
     tx: &mut Transaction<'_, Sqlite>,
     group_id: RoomId,
@@ -274,7 +240,6 @@ pub async fn set_enabled(
     Ok(())
 }
 
-/// The open question just became anonymous (a new room rule): nothing about it may show, its bets go.
 pub async fn after_anonymous(tx: &mut Transaction<'_, Sqlite>, group_id: RoomId) -> AppResult<()> {
     let anonymous: bool = sqlx::query_scalar(
         "SELECT COALESCE((SELECT anonymous FROM rounds WHERE group_id = ? AND closed_at IS NULL), 0)",
@@ -292,44 +257,35 @@ pub async fn after_anonymous(tx: &mut Transaction<'_, Sqlite>, group_id: RoomId)
 pub struct MyBet {
     pub target_id: MemberId,
     pub amount: i64,
-    /// Once settled: what came back (0 = lost; the stake on a refund).
     pub payout: Option<i64>,
 }
 
 #[derive(Clone, Debug, Serialize)]
 pub struct Winner {
-    /// The bettor.
     pub member_id: MemberId,
     pub stake: i64,
     pub won: i64,
 }
 
-/// What a question shows of its bets. Open: the pot, how many bet and my own bet, never who bet on
-/// whom. Closed: who won how much (`winners`), or `refunded`.
 #[derive(Clone, Debug, Serialize)]
 pub struct TripotView {
     pub pot: i64,
     pub bettors: i64,
     pub my_bet: Option<MyBet>,
-    /// My chips this month.
     pub balance: i64,
     pub can_bet: bool,
-    /// Closed only.
     pub winners: Option<Vec<Winner>>,
     pub refunded: bool,
 }
 
-/// A question of this kind takes bets in a room with Tripot on: pick or ranking, not anonymous.
 pub fn takes_bets(kind: &str, anonymous: bool) -> bool {
     matches!(kind, "pick" | "rank") && !anonymous
 }
 
-/// Can this question take bets at all (open or not): [`takes_bets`], in a room with Tripot on.
 async fn bettable<'e, E: sqlx::SqliteExecutor<'e>>(db: E, round: &RoundRow) -> AppResult<bool> {
     Ok(takes_bets(&round.kind, round.anonymous) && enabled(db, round.group_id).await?)
 }
 
-/// The question's Tripot, for a member; `None` where Tripot doesn't apply (and must not show).
 pub async fn view(
     db: &SqlitePool,
     round: &RoundRow,
@@ -396,7 +352,6 @@ pub struct BetBody {
     amount: i64,
 }
 
-/// `POST /rounds/{id}/bet {target, amount}`: one bet on the open question, 1 chip to all of mine.
 pub async fn bet(
     State(state): State<AppState>,
     Me(me): Me,
@@ -481,8 +436,6 @@ pub async fn bet(
     Ok(Json(view(&state.db, &round, me.id).await?))
 }
 
-/// `GET /tripot`: this month's chips of everyone in the room (most first), and last month's top 3
-/// (among those who played then). `403 tripot_off` when the room doesn't have it.
 pub async fn board(State(state): State<AppState>, Me(me): Me) -> AppResult<Json<Value>> {
     if !enabled(&state.db, me.group_id).await? {
         return Err(AppError::Forbidden("tripot_off"));

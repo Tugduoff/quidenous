@@ -1,5 +1,3 @@
-//! Where am I signed in: list, revoke one, revoke the others, sign out.
-
 use axum::{
     Json,
     extract::{Path, State},
@@ -12,7 +10,6 @@ use crate::{
     platform::error::{AppError, AppResult},
 };
 
-/// A session's public id: the first 16 hex characters of its token hash.
 fn public_id(hash: &str) -> &str {
     &hash[..hash.len().min(16)]
 }
@@ -49,7 +46,6 @@ pub async fn revoke(
         return Err(AppError::NotFound);
     }
     let id = id.to_lowercase();
-    // Signing this device out is always fine; another one, not from a claimed session.
     if public_id(&session.token_hash) != id {
         not_claimed(&state, session.user_id, &session.token_hash).await?;
     }

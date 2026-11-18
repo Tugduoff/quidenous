@@ -22,20 +22,15 @@ const QUESTION_MIN: usize = 8;
 
 const QUESTION_MAX: usize = 200;
 
-/// 500 questions of 200 characters, with room for choose items and comments.
 pub(crate) const IMPORT_MAX: usize = 1024 * 1024;
 
-/// Most ids in one `POST /questions/delete`.
 const DELETE_QUESTIONS_MAX: usize = 200;
 
 #[derive(Deserialize)]
 pub(crate) struct QuestionBody {
     text: String,
-    /// 'pick' (default), 'rank', 'choose' or 'said'.
     kind: Option<String>,
-    /// Choose questions: 2 to 4 items.
     items: Option<Vec<String>>,
-    /// Anonymous votes on it (pick and ranking only; the room's rule decides, see `anonymous`).
     #[serde(default)]
     anonymous: bool,
 }
@@ -68,7 +63,6 @@ pub(crate) async fn add_question(
         None
     };
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
-    // Already waiting in this room, or already asked here: once is enough.
     if game::same_question(&mut tx, me.group_id, text)
         .await?
         .is_some()
@@ -95,7 +89,6 @@ pub(crate) async fn add_question(
             question_id: question.id,
         },
     );
-    // A room that had run out of questions starts again: tell everyone.
     if let Some(round_id) = opened {
         state
             .live
@@ -112,8 +105,6 @@ pub(crate) async fn add_question(
     Ok(Json(question))
 }
 
-/// Shuffle the room's upcoming questions: their order keys are dealt out again at random,
-/// so questions added later still go to the end. Same permission as adding questions.
 pub(crate) async fn shuffle_questions(
     State(state): State<AppState>,
     Me(me): Me,
@@ -148,9 +139,6 @@ pub(crate) struct OrderBody {
     ids: Vec<QuestionId>,
 }
 
-/// Put the room's upcoming questions in the given order: their existing order keys are dealt
-/// out again in that order, so questions added later still go to the end. `ids` must be exactly
-/// the upcoming questions (`409 stale_queue` otherwise: the app refetches). Same permission as adding questions.
 pub(crate) async fn order_questions(
     State(state): State<AppState>,
     Me(me): Me,
@@ -174,7 +162,6 @@ pub(crate) async fn order_questions(
         return Err(AppError::Conflict("stale_queue"));
     }
     let mut keys: Vec<i64> = rows.iter().map(|r| r.1).collect();
-    // Equal keys would let the id break the tie: make them strictly increasing.
     for i in 1..keys.len() {
         if keys[i] <= keys[i - 1] {
             keys[i] = keys[i - 1] + 1;
@@ -192,14 +179,11 @@ pub(crate) async fn order_questions(
     Ok(Json(json!({ "ordered": body.ids.len() })))
 }
 
-/// Remove a question that hasn't been asked yet: its author or the room owner. One already asked:
-/// the owner only, and it stays in the history as "Question retirée".
 pub(crate) async fn delete_question(
     State(state): State<AppState>,
     Me(me): Me,
     Path(id): Path<QuestionId>,
 ) -> AppResult<Json<Value>> {
-    // Checked in the write transaction: a vote can't open this very question in between.
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
     let row: Option<(Option<MemberId>, bool)> = sqlx::query_as(concat!(
         "SELECT q.author_id, ",
@@ -222,7 +206,6 @@ pub(crate) async fn delete_question(
     if author != Some(me.id) && !me.is_owner() {
         return Err(AppError::Forbidden("not_author"));
     }
-    // A challenge waiting on this question goes with it.
     sqlx::query("DELETE FROM challenges WHERE question_id = ?")
         .bind(id)
         .execute(&mut *tx)
@@ -238,14 +221,12 @@ pub(crate) async fn delete_question(
     Ok(Json(json!({ "ok": true })))
 }
 
-/// The body of a batch request: `POST /questions/delete`, `POST /packs/delete`.
 #[derive(Deserialize)]
 pub struct IdsBody<Id> {
     ids: Vec<Id>,
 }
 
 impl<Id: Copy + Eq + std::hash::Hash> IdsBody<Id> {
-    /// The ids, each once in request order: `400 too_many` past `max` (counted before removing doubles).
     pub fn distinct(&self, max: usize) -> AppResult<Vec<Id>> {
         if self.ids.len() > max {
             return Err(AppError::BadRequest("too_many"));
@@ -260,10 +241,6 @@ impl<Id: Copy + Eq + std::hash::Hash> IdsBody<Id> {
     }
 }
 
-/// Deletes several questions not asked yet in one go, each by the rule of `DELETE /questions/{id}`
-/// (its author or the owner). The others are skipped and the rest still goes: `not_found` (none
-/// such in this room), `already_asked` (asked or open: retiring stays one by one), `not_author`.
-/// `{deleted: [id], skipped: [{id, error}]}`, both in request order; 200 ids at most (`400 too_many`).
 pub(crate) async fn delete_questions(
     State(state): State<AppState>,
     Me(me): Me,
@@ -271,7 +248,6 @@ pub(crate) async fn delete_questions(
 ) -> AppResult<Json<Value>> {
     let ids = body.distinct(DELETE_QUESTIONS_MAX)?;
     let ids_json = serde_json::to_string(&ids).unwrap_or_else(|_| "[]".into());
-    // Checked and deleted in one write transaction: a vote can't open one of them in between.
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
     let rows: Vec<(QuestionId, Option<MemberId>, bool)> = sqlx::query_as(concat!(
         "SELECT q.id, q.author_id, ",
@@ -299,7 +275,6 @@ pub(crate) async fn delete_questions(
     }
     if !deleted.is_empty() {
         let deleted_json = serde_json::to_string(&deleted).unwrap_or_else(|_| "[]".into());
-        // Challenges waiting on them go with them.
         for sql in [
             "DELETE FROM challenges WHERE question_id IN (SELECT value FROM json_each(?))",
             "DELETE FROM questions WHERE id IN (SELECT value FROM json_each(?))",
@@ -315,13 +290,10 @@ pub(crate) async fn delete_questions(
     Ok(Json(json!({ "deleted": deleted, "skipped": skipped })))
 }
 
-/// Owner only: deletes every upcoming question of the room (the ones `GET /questions/queue` lists:
-/// never the deck, nor one asked or open), like `DELETE /questions/{id}` does one. `{deleted}`.
 pub(crate) async fn clear_queue(
     State(state): State<AppState>,
     Owner(me): Owner,
 ) -> AppResult<Json<Value>> {
-    // One write transaction: a vote can't open one of them in between.
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
     let ids: Vec<QuestionId> = sqlx::query_scalar(concat!(
         "SELECT q.id FROM questions q WHERE q.group_id = ?1 AND ",
@@ -331,7 +303,6 @@ pub(crate) async fn clear_queue(
     .fetch_all(&mut *tx)
     .await?;
     let ids_json = serde_json::to_string(&ids).unwrap_or_else(|_| "[]".into());
-    // Challenges waiting on them go with them.
     for sql in [
         "DELETE FROM challenges WHERE question_id IN (SELECT value FROM json_each(?))",
         "DELETE FROM questions WHERE id IN (SELECT value FROM json_each(?))",
@@ -358,8 +329,6 @@ pub(crate) async fn queue(State(state): State<AppState>, Me(me): Me) -> AppResul
     Ok(Json(json!({ "custom": custom, "deck_left": deck_left })))
 }
 
-/// "No more questions" and only the owner may add some: ask them. An inbox entry and a push
-/// for the owner, at most once every 12 hours per person.
 pub(crate) async fn ask_questions(
     State(state): State<AppState>,
     Me(me): Me,
@@ -410,16 +379,12 @@ pub(crate) struct ImportBody {
     text: String,
 }
 
-/// Bulk import from a file we generate ourselves: one question per line, `#` comments.
-/// They join the shared pool (asked in random order, never twice); duplicates are skipped.
 pub(crate) async fn import_questions(
     State(state): State<AppState>,
     Me(me): Me,
     Json(body): Json<ImportBody>,
 ) -> AppResult<Json<Value>> {
     may_add_questions(&state, &me).await?;
-    // `[classement]` lines become ranking questions, `[choix] … | A | B` choose questions (skipped
-    // when their items are not valid); the length rule applies to the question itself.
     let lines: Vec<String> = body.text.lines().map(crate::platform::text::line).collect();
     let valid: Vec<(&str, &str, Option<String>, bool)> = lines
         .iter()
@@ -435,15 +400,12 @@ pub(crate) async fn import_questions(
                 && (*kind != "choose" || items.is_some())
         })
         .collect();
-    // One write transaction per import: keep it short.
     if valid.len() > crate::platform::quotas::IMPORT_LINES {
         return Err(AppError::BadRequest("too_many_questions"));
     }
     if let Some(user) = me.user_id {
         crate::platform::quotas::hit_user(&state, &crate::platform::quotas::IMPORT_USER, user)?;
     }
-    // Imports belong to this room only (asked before the shared deck, in file order),
-    // never to the deck every room draws from.
     let mut added: u64 = 0;
     {
         let mut tx = crate::platform::db::write_tx(&state.db).await?;

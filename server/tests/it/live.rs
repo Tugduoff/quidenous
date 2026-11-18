@@ -1,5 +1,3 @@
-//! The live WebSocket (`/api/live`) and push subscriptions.
-
 use crate::common::{next_event, serve};
 use quidenous_server::platform::ids::RoomId;
 
@@ -37,7 +35,6 @@ async fn the_live_socket_relays_my_rooms_events() {
         Some(StatusCode::UNAUTHORIZED)
     );
     let mut socket = connect(addr, &format!("token={a}")).await.unwrap();
-    // The socket subscribes once the upgrade is done: ping the room until it hears it.
     let mut heard = None;
     for _ in 0..50 {
         state.live.send(RoomId::from_raw(room), Event::RoomUpdated);
@@ -47,11 +44,9 @@ async fn the_live_socket_relays_my_rooms_events() {
         }
     }
     assert_eq!(heard, Some(json!({ "type": "room_updated" })));
-    // Another room's events don't reach it.
     state
         .live
         .send(RoomId::from_raw(room + 1000), Event::RoomDeleted);
-    // A vote in my room does.
     let (s, _) = call(
         &app,
         "POST",
@@ -71,7 +66,6 @@ async fn the_live_socket_relays_my_rooms_events() {
         event["voter_id"].as_i64(),
         Some(room_member(&state, &b).await)
     );
-    // The app's presence pings are accepted; closing ends it cleanly.
     socket.send(Message::Text("here".into())).await.unwrap();
     socket.close(None).await.unwrap();
 }
@@ -110,7 +104,6 @@ async fn devices_can_unsubscribe_from_push() {
             .unwrap()
         }
     };
-    // Someone else's device stays.
     let (s, _) = call(
         &app,
         "POST",
@@ -122,7 +115,6 @@ async fn devices_can_unsubscribe_from_push() {
     .await;
     assert_eq!(s, StatusCode::OK);
     assert_eq!(count("https://fcm.googleapis.com/fcm/send/bob").await, 1);
-    // Mine goes; doing it again is harmless.
     for _ in 0..2 {
         let (s, _) = call(
             &app,

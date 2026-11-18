@@ -22,10 +22,8 @@ pub struct MemberRow {
     pub removed_at: Option<String>,
     pub user_id: Option<UserId>,
     pub role: Role,
-    /// The seat ended because they left (not removed): the invite code brings them back.
     #[sqlx(default)]
     pub left_by_self: bool,
-    /// Drawn avatar spec (see `avatar`), instead of a photo.
     #[sqlx(default)]
     pub avatar: Option<String>,
 }
@@ -36,10 +34,7 @@ pub struct Member {
     pub name: String,
     pub color: String,
     pub photo_url: Option<String>,
-    /// Drawn avatar spec; old apps ignore it and show the initial.
     pub avatar: Option<String>,
-    /// Only present (`true`) for a deleted account: `name` keeps the stored placeholder for old
-    /// apps, newer ones show their own localised label.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub deleted: bool,
 }

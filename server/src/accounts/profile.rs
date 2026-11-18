@@ -32,7 +32,6 @@ pub(crate) async fn update_me(
     Json(body): Json<UpdateMe>,
 ) -> AppResult<Json<Member>> {
     let name = crate::platform::text::clean_name(&body.name)?;
-    // One person, one name: the account and every room they are in.
     sqlx::query("UPDATE users SET name = ? WHERE id = ?")
         .bind(&name)
         .bind(me.user_id)
@@ -52,7 +51,6 @@ pub(crate) async fn upload_photo(
     Me(me): Me,
     mut multipart: Multipart,
 ) -> AppResult<Json<Member>> {
-    // Charged before the body is read: a flood of uploads costs its sender, not the server's memory.
     if let Some(user) = me.user_id {
         crate::platform::quotas::hit_user(&state, &crate::platform::quotas::PHOTO_USER, user)?;
     }
@@ -72,13 +70,10 @@ pub(crate) async fn upload_photo(
         }
     }
     let bytes = bytes.ok_or(AppError::BadRequest("missing_photo"))?;
-    // A 128-bit random name: photos are public to whoever has the link.
     let file = format!("{}-{}.jpg", me.id, &new_token()[..32]);
     let dir = state.config.data_dir.join("photos");
     tokio::fs::create_dir_all(&dir).await?;
     let path = dir.join(&file);
-    // Decoding and resizing are CPU- and memory-heavy: off the async threads, within size limits,
-    // a couple at a time server-wide.
     state
         .decodes
         .run(move || -> AppResult<()> {
@@ -94,7 +89,6 @@ pub(crate) async fn upload_photo(
             Ok(())
         })
         .await?;
-    // A photo replaces the drawn avatar.
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
     sqlx::query("UPDATE users SET photo = ?, avatar = NULL WHERE id = ?")
         .bind(&file)
@@ -108,14 +102,12 @@ pub(crate) async fn upload_photo(
         .execute(&mut *tx)
         .await?;
     tx.commit().await?;
-    // The old file goes once nothing points at it any more (a failed update keeps it).
     if let Some(old) = &me.photo {
         let _ = tokio::fs::remove_file(dir.join(old)).await;
     }
     profile_changed(&state, &me).await
 }
 
-/// After a name, photo or avatar change (account-wide): every room I sit in hears it live; my seat here comes back.
 async fn profile_changed(state: &AppState, me: &MemberRow) -> AppResult<Json<Member>> {
     let seats: Vec<(MemberId, RoomId)> = sqlx::query_as(
         "SELECT id, group_id FROM members WHERE (user_id = ?1 OR id = ?2) AND removed_at IS NULL",
@@ -138,12 +130,10 @@ async fn profile_changed(state: &AppState, me: &MemberRow) -> AppResult<Json<Mem
 
 #[derive(Deserialize)]
 pub(crate) struct AvatarBody {
-    /// A spec (see `avatar`), or null to go back to the initial.
     #[serde(default)]
     avatar: Option<String>,
 }
 
-/// Pick a drawn avatar (it replaces the photo), or drop it with `null`. Account-wide, like the photo.
 pub(crate) async fn set_avatar(
     State(state): State<AppState>,
     Me(me): Me,
@@ -178,7 +168,6 @@ pub(crate) async fn set_avatar(
             .await?;
         let dir = state.config.data_dir.join("photos");
         for photo in photos {
-            // Server-made names only (`<id>-<hex>.jpg`); never a path.
             if !photo.is_empty() && !photo.contains(['/', '\\']) && !photo.starts_with('.') {
                 let _ = tokio::fs::remove_file(dir.join(photo)).await;
             }

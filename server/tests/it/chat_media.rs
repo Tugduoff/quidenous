@@ -1,7 +1,3 @@
-//! Images and GIFs in the result chat (docs/CHAT_MEDIA.md): uploads (types, size, metadata
-//! stripped), signed media URLs, the rules of the chat, deletions, the fallback text for older
-//! apps, quotas, and GIFs through a mock Klipy.
-
 use crate::common;
 use crate::common::messages;
 use quidenous_server::platform::ids::{MessageId, UserId};
@@ -30,7 +26,6 @@ async fn setup_with(klipy: Option<Klipy>) -> (Router, AppState) {
     (app(state.clone()), state)
 }
 
-/// Ana, Bob and Carl in the env room, the first question closed. (tokens, member ids, round, room)
 async fn chat_in(app: &Router) -> ([String; 3], [i64; 3], i64, i64) {
     let (ana, ana_id) = join(app, "Ana").await;
     let (bob, bob_id) = join(app, "Bob").await;
@@ -53,7 +48,6 @@ async fn chat_in(app: &Router) -> ([String; 3], [i64; 3], i64, i64) {
     ([ana, bob, carl], [ana_id, bob_id, carl_id], round, room)
 }
 
-/// Any request, raw bytes back.
 async fn raw(
     app: &Router,
     method: &str,
@@ -84,7 +78,6 @@ async fn raw(
     (status, headers, bytes)
 }
 
-/// A multipart body: (field name, file name if a file, content).
 fn multipart(fields: &[(&str, Option<&str>, &[u8])]) -> Vec<u8> {
     let mut body = Vec::new();
     for (name, file, content) in fields {
@@ -152,22 +145,19 @@ fn png(w: u32, h: u32) -> Vec<u8> {
     )
 }
 
-/// An APP1 Exif segment: orientation 6 (turned 90°) and a GPS IFD, plus a marker to look for.
 fn exif_segment() -> Vec<u8> {
     let mut tiff = b"II*\0".to_vec();
     tiff.extend(8u32.to_le_bytes());
-    // IFD0 at 8: two entries (orientation, GPS IFD pointer), then no next IFD.
     tiff.extend(2u16.to_le_bytes());
-    tiff.extend(0x0112u16.to_le_bytes()); // Orientation, SHORT, 1, = 6
+    tiff.extend(0x0112u16.to_le_bytes());
     tiff.extend(3u16.to_le_bytes());
     tiff.extend(1u32.to_le_bytes());
     tiff.extend([6, 0, 0, 0]);
-    tiff.extend(0x8825u16.to_le_bytes()); // GPSInfo, LONG, 1, -> 38
+    tiff.extend(0x8825u16.to_le_bytes());
     tiff.extend(4u16.to_le_bytes());
     tiff.extend(1u32.to_le_bytes());
     tiff.extend(38u32.to_le_bytes());
     tiff.extend(0u32.to_le_bytes());
-    // GPS IFD at 38: GPSLatitudeRef "N".
     tiff.extend(1u16.to_le_bytes());
     tiff.extend(1u16.to_le_bytes());
     tiff.extend(2u16.to_le_bytes());
@@ -183,7 +173,6 @@ fn exif_segment() -> Vec<u8> {
     segment
 }
 
-/// A 2000×1000 JPEG with that Exif segment right after its start marker.
 fn jpeg_with_gps() -> Vec<u8> {
     let image = image::RgbImage::from_fn(2000, 1000, |x, y| {
         image::Rgb([(x % 256) as u8, (y % 256) as u8, 120])
@@ -235,10 +224,8 @@ async fn images_are_stripped_resized_and_served_through_signed_urls() {
     assert_eq!(s, StatusCode::OK, "{m}");
     assert_eq!(m["kind"], "image");
     assert_eq!(m["caption"], "Regarde @Bob");
-    // Older apps show the fallback.
     assert_eq!(m["text"], "📷 Photo · Regarde @Bob");
     assert_eq!(m["mentions"], json!([bob_id]));
-    // Turned upright (orientation 6), then at most 1600 px.
     assert_eq!(m["media"]["width"], 800);
     assert_eq!(m["media"]["height"], 1600);
     assert_eq!(m["media"]["mime"], "image/jpeg");
@@ -246,7 +233,6 @@ async fn images_are_stripped_resized_and_served_through_signed_urls() {
     assert!(url.starts_with("/api/media/"), "{url}");
     assert_eq!(m["reactions"], json!([]));
 
-    // Served without a sign-in, metadata gone.
     let (s, h, bytes) = raw(&app, "GET", &url, None, None, None, Vec::new()).await;
     assert_eq!(s, StatusCode::OK);
     assert_eq!(h[header::CONTENT_TYPE], "image/jpeg");
@@ -263,12 +249,10 @@ async fn images_are_stripped_resized_and_served_through_signed_urls() {
     assert!(!contains(&bytes, b"GPSSECRET"));
     let decoded = image::load_from_memory(&bytes).unwrap();
     assert_eq!((decoded.width(), decoded.height()), (800, 1600));
-    // On disk, in the room's directory, as served.
     let files = chat_files(&state, room);
     assert_eq!(files.len(), 1);
     assert_eq!(std::fs::read(&files[0]).unwrap(), bytes);
 
-    // Bob sees the same, with the same (stable) URL; his inbox has the fallback as a mention.
     let list = messages(&app, &bob, room, round).await;
     let seen = find(&list, m["id"].as_i64().unwrap()).unwrap();
     assert_eq!(seen["kind"], "image");
@@ -283,7 +267,6 @@ async fn images_are_stripped_resized_and_served_through_signed_urls() {
             .any(|i| i["kind"] == "mention" && i["text"] == "📷 Photo · Regarde @Bob"),
         "{inbox}"
     );
-    // Text messages: kind text, no media.
     let (_, t) = call(
         &app,
         "POST",
@@ -303,7 +286,6 @@ async fn image_types_and_sizes() {
     let (app, state) = setup_with(None).await;
     let ([ana, ..], _, round, room) = chat_in(&app).await;
 
-    // PNG stays PNG; no caption = the bare fallback.
     let (s, m) = post_image(&app, &ana, room, round, &png(40, 30)).await;
     assert_eq!(s, StatusCode::OK, "{m}");
     assert_eq!(m["media"]["mime"], "image/png");
@@ -326,7 +308,6 @@ async fn image_types_and_sizes() {
     assert_eq!(s, StatusCode::OK);
     assert_eq!(h[header::CONTENT_TYPE], "image/png");
 
-    // WebP (no transparency) becomes a JPEG.
     let webp = encode(
         image::RgbImage::from_pixel(20, 10, image::Rgb([1, 2, 3])).into(),
         image::ImageFormat::WebP,
@@ -335,7 +316,6 @@ async fn image_types_and_sizes() {
     assert_eq!(s, StatusCode::OK, "{m}");
     assert_eq!(m["media"]["mime"], "image/jpeg");
 
-    // A GIF is kept byte for byte.
     let gif = encode(
         image::RgbaImage::from_pixel(12, 9, image::Rgba([9, 9, 9, 255])).into(),
         image::ImageFormat::Gif,
@@ -358,7 +338,6 @@ async fn image_types_and_sizes() {
     assert_eq!(h[header::CONTENT_TYPE], "image/gif");
     assert_eq!(bytes, gif);
 
-    // Not an image (by its bytes, whatever its name), a broken one, or none at all.
     let svg = br#"<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>"#;
     for bad in [
         &b"hello, plain text"[..],
@@ -391,14 +370,12 @@ async fn image_types_and_sizes() {
         (StatusCode::BAD_REQUEST, Some("bad_caption"))
     );
 
-    // At most 4096 px on a side (the app sends 1600).
     let (s, b) = post_image(&app, &ana, room, round, &png(4097, 2)).await;
     assert_eq!(
         (s, b["error"].as_str()),
         (StatusCode::BAD_REQUEST, Some("bad_image"))
     );
 
-    // Over 8 MB: 413, whether the body fits the route's limit or not.
     let mut big = b"\xFF\xD8\xFF\xE0".to_vec();
     big.resize(8 * 1024 * 1024 + 1, 0);
     let (s, b) = post_image(&app, &ana, room, round, &big).await;
@@ -412,7 +389,6 @@ async fn image_types_and_sizes() {
         (s, b["error"].as_str()),
         (StatusCode::PAYLOAD_TOO_LARGE, Some("too_large"))
     );
-    // Only the three accepted images are on disk.
     assert_eq!(chat_files(&state, room).len(), 3);
 }
 
@@ -424,7 +400,6 @@ async fn chat_rules_and_tokens() {
     let id = m["id"].as_i64().unwrap();
     let url = m["media"]["url"].as_str().unwrap().to_owned();
 
-    // The next question is open: no chat there yet.
     let (_, open) = call(&app, "GET", "/round/current", Some(&ana), Some(room), None).await;
     if let Some(next) = open["id"].as_i64().filter(|n| *n != round) {
         let (s, b) = post_image(&app, &ana, room, next, &png(8, 8)).await;
@@ -433,7 +408,6 @@ async fn chat_rules_and_tokens() {
             (StatusCode::BAD_REQUEST, Some("round_open"))
         );
     }
-    // Someone from another room can't post under this question.
     let (dan, _) = join(&app, "Dan").await;
     let (_, other) = call(
         &app,
@@ -458,7 +432,6 @@ async fn chat_rules_and_tokens() {
     .await;
     assert_eq!(s, StatusCode::NOT_FOUND);
 
-    // Tokens: tampered, made up, expired, for a text message.
     let token = url.strip_prefix("/api/media/").unwrap();
     let (payload, mac) = token.split_once('.').unwrap();
     let flipped = if mac.starts_with('0') { "1" } else { "0" };
@@ -499,7 +472,6 @@ async fn chat_rules_and_tokens() {
     let (s, _, _) = raw(&app, "GET", &url, None, None, None, Vec::new()).await;
     assert_eq!(s, StatusCode::OK);
 
-    // Reactions work on images.
     let (s, r) = call(
         &app,
         "POST",
@@ -529,7 +501,6 @@ async fn blocks_reports_and_deletions() {
     let (_, deleted) = post_image(&app, &ana, room, round, &png(10, 10)).await;
     assert_eq!(chat_files(&state, room).len(), 3);
 
-    // Bob blocks Ana: her images leave his chat.
     let (s, _) = call(
         &app,
         "PUT",
@@ -550,7 +521,6 @@ async fn blocks_reports_and_deletions() {
         .is_some()
     );
 
-    // Three reports hide one: no longer served.
     common::trust_all(&state).await;
     let rid = reported["id"].as_i64().unwrap();
     for t in [&bob, &carl, &dan] {
@@ -576,12 +546,10 @@ async fn blocks_reports_and_deletions() {
     )
     .await;
     assert_eq!(s, StatusCode::NOT_FOUND);
-    // An admin reviewing the report still sees it.
     let review = quidenous_server::chat::media::image_url(&state, MessageId::from_raw(rid), true);
     let (s, _, _) = raw(&app, "GET", &review, None, None, None, Vec::new()).await;
     assert_eq!(s, StatusCode::OK);
 
-    // Deleting a message deletes its file, its inbox entries and its URL.
     let did = deleted["id"].as_i64().unwrap();
     let (s, b) = call(
         &app,
@@ -617,7 +585,6 @@ async fn blocks_reports_and_deletions() {
         "the hidden photo's and the deleted one's entries are gone: {inbox}"
     );
 
-    // Ana deletes her account: her images go.
     let (s, b) = call(&app, "DELETE", "/auth/account", Some(&ana), None, None).await;
     assert_eq!(s, StatusCode::OK, "{b}");
     assert!(chat_files(&state, room).is_empty());
@@ -640,7 +607,6 @@ async fn a_deleted_room_takes_its_images() {
     let ([ana, bob, carl], _, round, room) = chat_in(&app).await;
     let (_, m) = post_image(&app, &bob, room, round, &png(8, 8)).await;
     assert_eq!(chat_files(&state, room).len(), 1);
-    // Whoever owns the env room deletes it.
     let mut deleted = false;
     for t in [&ana, &bob, &carl] {
         let (s, _) = call(
@@ -685,7 +651,6 @@ async fn image_quota() {
         .fetch_one(&state.db)
         .await
         .unwrap();
-    // The chat limit (15 a minute) comes first in a burst: use up the hourly image one directly.
     for _ in 0..quidenous_server::platform::quotas::CHAT_IMAGE_USER.capacity {
         quidenous_server::platform::quotas::hit_user(
             &state,
@@ -697,7 +662,6 @@ async fn image_quota() {
     let (s, b) = post_image(&app, &ana, room, round, &png(8, 8)).await;
     assert_eq!(s, StatusCode::TOO_MANY_REQUESTS, "{b}");
     assert!(chat_files(&state, room).is_empty());
-    // Text still goes through.
     let (s, _) = call(
         &app,
         "POST",
@@ -709,8 +673,6 @@ async fn image_quota() {
     .await;
     assert_eq!(s, StatusCode::OK);
 }
-
-// ---------- GIFs ----------
 
 #[tokio::test]
 async fn gifs_are_off_without_a_key() {
@@ -736,13 +698,11 @@ async fn gifs_are_off_without_a_key() {
     );
 }
 
-/// What the mock Klipy was asked: (path, query).
 type Calls = Arc<Mutex<Vec<(String, String)>>>;
 
 const WEBP: &[u8] = b"RIFF\x10\0\0\0WEBPmock animated webp";
 const GIF: &[u8] = b"GIF89amock gif";
 
-/// A Klipy look-alike on a local port: the search and trending endpoints (one fixture) and files.
 async fn mock_klipy() -> (String, Calls) {
     use axum::{extract::OriginalUri, routing::get};
     let calls: Calls = Arc::default();
@@ -811,7 +771,6 @@ async fn gifs_through_klipy() {
     let (_, features) = call(&app, "GET", "/features", None, None, None).await;
     assert!(features.as_array().unwrap().contains(&json!("chat_gifs")));
 
-    // Search: proxied URLs only, ads and foreign hosts left out.
     let (s, found) = call(
         &app,
         "GET",
@@ -866,7 +825,6 @@ async fn gifs_through_klipy() {
             .split('&')
             .find_map(|p| p.strip_prefix("customer_id="))
             .unwrap();
-        // Opaque: an HMAC, not the account or seat id.
         assert_eq!(customer.len(), 32);
         assert!(
             customer.chars().all(|c| c.is_ascii_hexdigit()),
@@ -874,7 +832,6 @@ async fn gifs_through_klipy() {
         );
         assert_ne!(customer, ana_id.to_string());
     }
-    // Empty search: trending.
     let (s, _) = call(&app, "GET", "/gifs", Some(&ana), Some(room), None).await;
     assert_eq!(s, StatusCode::OK);
     assert_eq!(
@@ -882,7 +839,6 @@ async fn gifs_through_klipy() {
         "/api/v1/SECRET-KEY/gifs/trending"
     );
 
-    // The proxy streams the file, publicly cacheable.
     let (s, h, bytes) = raw(
         &app,
         "GET",
@@ -912,7 +868,6 @@ async fn gifs_through_klipy() {
         (StatusCode::OK, "image/gif")
     );
     assert_eq!(bytes, GIF);
-    // ...but only our tokens, for allowed hosts, and images.
     let sign = |url: &str| {
         format!(
             "/api/gifs/media/{}",
@@ -941,7 +896,6 @@ async fn gifs_through_klipy() {
         assert_eq!(s, StatusCode::NOT_FOUND, "{why}");
     }
 
-    // Posting one: the original URLs are stored, fresh proxy URLs come back.
     let (s, m) = call(
         &app,
         "POST",
@@ -977,7 +931,6 @@ async fn gifs_through_klipy() {
     let seen = find(&list, m["id"].as_i64().unwrap()).unwrap();
     assert_eq!(seen["kind"], "gif");
     assert_eq!(seen["media"]["url"], items[0]["url"]);
-    // Reactions work on GIFs.
     let (s, _) = call(
         &app,
         "POST",
@@ -989,7 +942,6 @@ async fn gifs_through_klipy() {
     .await;
     assert_eq!(s, StatusCode::OK);
 
-    // Only URLs we gave out, of plausible sizes.
     for (body, why) in [
         (
             json!({ "id": "1", "url": format!("{base}/files/md.webp"), "width": 10, "height": 10 }),
@@ -1032,7 +984,6 @@ async fn gifs_through_klipy() {
         );
     }
 
-    // A retry with the same client key: the GIF already posted, not a second one.
     let gif = |key: &str| {
         json!({
             "id": items[0]["id"], "url": items[0]["url"], "width": 220, "height": 180,
@@ -1074,8 +1025,6 @@ async fn gifs_through_klipy() {
     assert_ne!(first["id"], other["id"]);
 }
 
-/// Photos follow the text rules: a retry with the same `client_key` is posted (and stored) once,
-/// captions are cleaned like text messages.
 #[tokio::test]
 async fn image_retries_post_once_and_captions_are_cleaned() {
     let (app, state) = setup_with(None).await;
@@ -1098,7 +1047,6 @@ async fn image_retries_post_once_and_captions_are_cleaned() {
     assert_eq!(first["id"], again["id"]);
     assert_eq!(again["kind"], "image");
     assert_eq!(chat_files(&state, room).len(), 1);
-    // Another key is another message; someone else's key is theirs.
     let (_, other) = send("i-2").await;
     assert_ne!(first["id"], other["id"]);
     let (s, bobs) = post_image_with(
@@ -1115,7 +1063,6 @@ async fn image_retries_post_once_and_captions_are_cleaned() {
     assert_eq!(s, StatusCode::OK, "{bobs}");
     assert_ne!(first["id"], bobs["id"]);
     assert_eq!(chat_files(&state, room).len(), 3);
-    // A blank caption is none; an oversized key is refused.
     let (s, m) = post_image_with(
         &app,
         &ana,
@@ -1147,8 +1094,6 @@ async fn image_retries_post_once_and_captions_are_cleaned() {
     );
 }
 
-/// The image message is stored: an inbox failure afterwards doesn't fail the upload, and the
-/// image stays on disk (it isn't removed from under its message).
 #[tokio::test]
 async fn an_image_posted_while_the_inbox_fails_keeps_its_file() {
     let (app, state) = setup_with(None).await;

@@ -1,6 +1,3 @@
-//! Consent (docs/ROOMS.md, Friends): friend requests are accepted or declined, a room add is an
-//! invitation; party guests play in their party only and are purged 30 days after it ends.
-
 use crate::common;
 
 use crate::common::{call, setup};
@@ -8,7 +5,6 @@ use axum::{Router, http::StatusCode};
 use quidenous_server::{AppState, accounts::guests};
 use serde_json::{Value, json};
 
-/// A newcomer with a room of their own (`/start`): (token, user id, room id).
 async fn newcomer(app: &Router, name: &str) -> (String, i64, i64) {
     let (s, b) = call(
         app,
@@ -74,7 +70,6 @@ async fn a_friend_code_sends_a_request_to_accept_or_decline() {
     let bob_code = friends(&app, &bob).await["code"].clone();
     let ana_code = friends(&app, &ana).await["code"].clone();
 
-    // Ana's code-add is a request: nothing changes for Bob until he says yes.
     for _ in 0..2 {
         let (s, r) = by_code(&app, &ana, &bob_code).await;
         assert_eq!(s, StatusCode::OK, "{r}");
@@ -90,10 +85,8 @@ async fn a_friend_code_sends_a_request_to_accept_or_decline() {
     assert_eq!(f["friends"], json!([]));
     assert_eq!(ids(&f["incoming"]), [ana_id]);
     assert_eq!(f["incoming"][0]["name"], "Ana");
-    // Told once (inbox), however many times she asks.
     assert_eq!(kinds(&app, &bob, "friend_request").await, 1);
 
-    // Bob declines: gone on both sides.
     let (s, _) = call(
         &app,
         "DELETE",
@@ -107,7 +100,6 @@ async fn a_friend_code_sends_a_request_to_accept_or_decline() {
     assert_eq!(friends(&app, &ana).await["outgoing"], json!([]));
     assert_eq!(friends(&app, &bob).await["incoming"], json!([]));
 
-    // She asks again; he accepts with her code (or `POST /friends/{id}`): friends both ways.
     by_code(&app, &ana, &bob_code).await;
     let (s, r) = by_code(&app, &bob, &ana_code).await;
     assert_eq!(
@@ -121,7 +113,6 @@ async fn a_friend_code_sends_a_request_to_accept_or_decline() {
     assert_eq!(f["outgoing"], json!([]));
     assert_eq!(ids(&friends(&app, &bob).await["friends"]), [ana_id]);
 
-    // Cancel: Cyd asks Bob, then takes it back.
     let (cyd, cyd_id, _) = newcomer(&app, "Cyd").await;
     by_code(&app, &cyd, &bob_code).await;
     assert_eq!(ids(&friends(&app, &bob).await["incoming"]), [cyd_id]);
@@ -136,7 +127,6 @@ async fn a_friend_code_sends_a_request_to_accept_or_decline() {
     .await;
     assert_eq!(friends(&app, &bob).await["incoming"], json!([]));
 
-    // Keeping a stranger who never asked: unknown.
     let (s, b) = call(
         &app,
         "POST",
@@ -150,7 +140,6 @@ async fn a_friend_code_sends_a_request_to_accept_or_decline() {
         (s, b["error"].as_str()),
         (StatusCode::BAD_REQUEST, Some("not_room_mate"))
     );
-    // Accepting by id once she asks.
     by_code(&app, &cyd, &bob_code).await;
     let (s, b) = call(
         &app,
@@ -167,7 +156,6 @@ async fn a_friend_code_sends_a_request_to_accept_or_decline() {
         "{b}"
     );
 
-    // Someone who asked can be blocked; the request goes with it.
     let (dan, _, _) = newcomer(&app, "Dan").await;
     by_code(&app, &dan, &bob_code).await;
     let dan_id = ids(&friends(&app, &bob).await["incoming"])[0];
@@ -192,7 +180,6 @@ async fn room_mates_ask_too_and_old_friendships_stay() {
     let (bob, _) = common::join(&app, "Bob").await;
     let f = friends(&app, &ana).await;
     let bob_id = f["friends"][0]["user_id"].as_i64().unwrap();
-    // A room-mate is listed; keeping him asks first.
     assert_eq!(f["friends"][0]["requested"], false);
     let (_, r) = call(
         &app,
@@ -210,7 +197,6 @@ async fn room_mates_ask_too_and_old_friendships_stay() {
         (&json!(false), &json!(true))
     );
     assert_eq!(friends(&app, &bob).await["incoming"][0]["name"], "Ana");
-    // A friendship made before requests existed is still one.
     let (_, eve_user, _) = newcomer(&app, "Eve").await;
     for (a, b) in [(bob_id, eve_user), (eve_user, bob_id)] {
         sqlx::query("INSERT INTO friends (user_id, friend_id) VALUES (?, ?)")
@@ -251,7 +237,6 @@ async fn adding_a_friend_to_a_room_is_an_invitation() {
             .await
         }
     };
-    // Not friends yet.
     let (s, b) = invite(ana.clone()).await;
     assert_eq!(
         (s, b["error"].as_str()),
@@ -260,7 +245,6 @@ async fn adding_a_friend_to_a_room_is_an_invitation() {
     by_code(&app, &ana, &bob_code).await;
     by_code(&app, &bob, &ana_code).await;
 
-    // Invited, not seated: Bob sees it and the room sees who is pending.
     let (s, b) = invite(ana.clone()).await;
     assert_eq!((s, &b["invited"]), (StatusCode::OK, &json!(true)), "{b}");
     let (_, g) = call(&app, "GET", "/group", Some(&ana), Some(room), None).await;
@@ -292,7 +276,6 @@ async fn adding_a_friend_to_a_room_is_an_invitation() {
     assert_eq!(inv["invites"][0]["from"]["name"], "Ana");
     assert_eq!(kinds(&app, &bob, "invite").await, 1);
 
-    // Bob declines.
     let id = inv["invites"][0]["id"].as_i64().unwrap();
     let (s, _) = call(
         &app,
@@ -317,7 +300,6 @@ async fn adding_a_friend_to_a_room_is_an_invitation() {
     .await;
     assert_eq!(s, StatusCode::NOT_FOUND);
 
-    // Ana invites again and takes it back.
     invite(ana.clone()).await;
     let (s, _) = call(
         &app,
@@ -340,7 +322,6 @@ async fn adding_a_friend_to_a_room_is_an_invitation() {
     .await;
     assert_eq!(pending["user_ids"], json!([]));
 
-    // Third time: Bob accepts. He is in, and the second person opens the first question.
     invite(ana.clone()).await;
     let (_, inv) = call(&app, "GET", "/invites", Some(&bob), None, None).await;
     let id = inv["invites"][0]["id"].as_i64().unwrap();
@@ -355,7 +336,6 @@ async fn adding_a_friend_to_a_room_is_an_invitation() {
     .await;
     assert_eq!((s, &b["room_id"]), (StatusCode::OK, &json!(room)), "{b}");
     let bob_seat = b["member_id"].clone();
-    // A late second tap (after the first one is done): the same seat, not a 404.
     let (s, b) = call(
         &app,
         "POST",
@@ -379,7 +359,6 @@ async fn adding_a_friend_to_a_room_is_an_invitation() {
         (StatusCode::CONFLICT, Some("already_in_room"))
     );
 
-    // An invitation whose sender has left the room is gone.
     let (cyd, cyd_id, cyd_room) = newcomer(&app, "Cyd").await;
     let cyd_code = friends(&app, &cyd).await["code"].clone();
     by_code(&app, &cyd, &bob_code).await;
@@ -425,7 +404,6 @@ async fn adding_a_friend_to_a_room_is_an_invitation() {
     );
     let _ = cyd_room;
 
-    // Bob left: his accepted invitation answers no more, and Ana can invite him back (his seat back).
     let (s, _) = call(
         &app,
         "POST",
@@ -477,7 +455,6 @@ async fn parties_take_no_invitations() {
     );
 }
 
-/// A party hosted by `host` with one guest: (party id, guest token).
 async fn party_with_guest(app: &Router, host: &str, name: &str) -> (i64, String) {
     let (s, p) = call(app, "POST", "/parties", Some(host), None, Some(json!({}))).await;
     assert_eq!(s, StatusCode::OK, "{p}");
@@ -509,7 +486,6 @@ async fn guests_play_in_their_party_only() {
     let (_, g) = call(&app, "GET", "/group", Some(&host), Some(room), None).await;
     let room_code = g["code"].clone();
 
-    // Their party works.
     let (s, _) = call(
         &app,
         "GET",
@@ -520,7 +496,6 @@ async fn guests_play_in_their_party_only() {
     )
     .await;
     assert_eq!(s, StatusCode::OK);
-    // Everything else is refused.
     for (method, path, body) in [
         ("POST", "/rooms", Some(json!({ "name": "Spam" }))),
         ("POST", "/parties", Some(json!({}))),
@@ -556,7 +531,6 @@ async fn guests_play_in_their_party_only() {
         );
     }
 
-    // Kept as a room, the party is still theirs; they still can't be invited elsewhere.
     let (s, _) = call(
         &app,
         "POST",
@@ -592,7 +566,6 @@ async fn guests_play_in_their_party_only() {
         "{host_friends}"
     );
 
-    // Securing the account lifts it all.
     let (s, b) = call(
         &app,
         "POST",
@@ -627,7 +600,6 @@ async fn guests_are_purged_thirty_days_after_their_party() {
     let (_, zoe) = party_with_guest(&app, &host, "Zoé").await;
     let (kept, max) = party_with_guest(&app, &host, "Max").await;
     let (_, sam) = party_with_guest(&app, &host, "Sam").await;
-    // Sam secures the account; Max's party becomes a room.
     let (s, _) = call(
         &app,
         "POST",
@@ -647,8 +619,6 @@ async fn guests_are_purged_thirty_days_after_their_party() {
         None,
     )
     .await;
-    // Everything old: accounts made 40 days ago, every party ended 31 days ago, but Léa's party
-    // ended only yesterday.
     sqlx::query("UPDATE users SET created_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-40 days')")
         .execute(&state.db)
         .await
@@ -665,7 +635,6 @@ async fn guests_are_purged_thirty_days_after_their_party() {
         party,
     )
     .await;
-    // Only Zoé goes.
     assert_eq!(guests::purge(&state).await.unwrap(), 1);
     assert_eq!(guests::purge(&state).await.unwrap(), 0);
     let (s, _) = call(&app, "GET", "/auth/account", Some(&zoe), None, None).await;
@@ -674,7 +643,6 @@ async fn guests_are_purged_thirty_days_after_their_party() {
         let (s, _) = call(&app, "GET", "/auth/account", Some(token), None, None).await;
         assert_eq!(s, StatusCode::OK);
     }
-    // Léa goes once her party is 30 days old.
     age(
         &state,
         "UPDATE groups SET party_ended_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-30 days', '-1 minutes') WHERE id = ?",
@@ -684,7 +652,6 @@ async fn guests_are_purged_thirty_days_after_their_party() {
     assert_eq!(guests::purge(&state).await.unwrap(), 1);
     let (s, _) = call(&app, "GET", "/auth/account", Some(&lea), None, None).await;
     assert_eq!(s, StatusCode::UNAUTHORIZED);
-    // The party keeps its history; the seat reads as a deleted account.
     let (_, p) = call(
         &app,
         "GET",

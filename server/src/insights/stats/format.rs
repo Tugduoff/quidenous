@@ -27,12 +27,10 @@ pub(super) fn local_hour(t: f64, tz: i64) -> usize {
     (local_secs(t, tz).rem_euclid(DAY) / 3600) as usize
 }
 
-/// Monday = 0 (1970-01-01 was a Thursday).
 pub(super) fn weekday(day: i64) -> usize {
     (day + 3).rem_euclid(7) as usize
 }
 
-/// `YYYY-MM-DD` of a day number since 1970-01-01.
 pub(super) fn date(day: i64) -> String {
     let z = day + 719_468;
     let era = z.div_euclid(146_097);
@@ -63,7 +61,6 @@ pub(super) fn round1(v: f64) -> f64 {
     (v * 10.0).round() / 10.0
 }
 
-/// Highest value (>= `min`), lowest member id on ties, current members only.
 pub(super) fn top(
     counts: &HashMap<MemberId, i64>,
     current: &HashSet<MemberId>,
@@ -80,12 +77,10 @@ pub(super) fn top(
         })
 }
 
-/// `a/b > c/d` without floats.
 pub(super) fn ratio_cmp(a: (i64, i64), b: (i64, i64)) -> std::cmp::Ordering {
     (i128::from(a.0) * i128::from(b.1)).cmp(&(i128::from(b.0) * i128::from(a.1)))
 }
 
-/// Biggest share `value / total`, then higher value, then lower id.
 pub(super) fn top_ratio<K: Ord + Copy>(
     items: impl Iterator<Item = (K, i64, i64)>,
 ) -> Option<(K, i64, i64)> {
@@ -104,7 +99,6 @@ pub(crate) fn pct(value: i64, total: i64) -> i64 {
     }
 }
 
-/// "42 s", "12 min", "3 h 12", "2 j 4 h" (English: "2 d 4 h").
 pub(super) fn duration(secs: i64, lang: Lang) -> String {
     let secs = secs.max(0);
     match secs {
@@ -115,7 +109,6 @@ pub(super) fn duration(secs: i64, lang: Lang) -> String {
     }
 }
 
-/// "2,1": French decimal comma; "2.1" in English.
 pub(super) fn decimal(v: f64, lang: Lang) -> String {
     let s = format!("{v:.1}");
     match lang {
@@ -128,7 +121,6 @@ pub(crate) fn first_name(name: &str) -> String {
     name.split_whitespace().next().unwrap_or("?").to_owned()
 }
 
-/// Award keys each member holds.
 pub(super) fn titles(s: &Stats) -> HashMap<MemberId, Vec<&'static str>> {
     let mut t: HashMap<MemberId, Vec<&'static str>> = HashMap::new();
     let mut add = |key: &'static str, ids: &[MemberId]| {
@@ -184,7 +176,6 @@ pub(super) fn titles(s: &Stats) -> HashMap<MemberId, Vec<&'static str>> {
     t
 }
 
-/// (title in `lang`, lucide icon) of an award key.
 pub fn meta(key: &str, lang: Lang) -> (&'static str, &'static str) {
     let (fr, en, icon) = match key {
         "most_chosen" => ("La star", "The star", "star"),

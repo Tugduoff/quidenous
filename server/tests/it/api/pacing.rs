@@ -8,7 +8,6 @@ async fn only_the_owner_launches_the_next_question_when_set() {
     let (cyd, _) = join(&app, "Cyd").await;
     let (_, g) = call(&app, "GET", "/group", Some(&ana), None).await;
     let room = g["id"].as_i64().unwrap();
-    // Off by default: today's behaviour.
     assert_eq!(g["settings"]["owner_next"], false);
     assert_eq!(g["settings"]["next_delay"], 0);
     assert_eq!(g["pace"]["waiting"], false);
@@ -34,13 +33,11 @@ async fn only_the_owner_launches_the_next_question_when_set() {
     .await;
     assert_eq!(s, StatusCode::OK);
 
-    // The question closes: the result stays up, nothing opens.
     close_round(&app, &[&ana, &bob, &cyd], bob_id).await;
     assert_eq!(current_number(&app, &bob).await, None);
     let (_, g) = call(&app, "GET", "/group", Some(&bob), None).await;
     assert_eq!(g["pace"]["waiting"], true);
     assert!(g["pace"]["next_open_at"].is_null());
-    // Adding a question doesn't open it either.
     let (s, _) = call(
         &app,
         "POST",
@@ -51,7 +48,6 @@ async fn only_the_owner_launches_the_next_question_when_set() {
     .await;
     assert_eq!(s, StatusCode::OK);
     assert_eq!(current_number(&app, &bob).await, None);
-    // A member can't launch it; the owner can.
     let (s, _) = call(&app, "POST", &next, Some(&bob), None).await;
     assert_eq!(s, StatusCode::FORBIDDEN);
     let (s, body) = call(&app, "POST", &next, Some(&ana), None).await;
@@ -63,7 +59,6 @@ async fn only_the_owner_launches_the_next_question_when_set() {
     let (s, _) = call(&app, "POST", &next, Some(&ana), None).await;
     assert_eq!(s, StatusCode::CONFLICT, "nothing is waiting");
 
-    // A new owner takes over the button.
     let (s, _) = call(
         &app,
         "POST",
@@ -81,7 +76,6 @@ async fn only_the_owner_launches_the_next_question_when_set() {
     assert_eq!(s, StatusCode::OK);
     assert_eq!(current_number(&app, &ana).await, Some(3));
 
-    // Switching it off while a question waits opens the next one right away.
     close_round(&app, &[&ana, &bob, &cyd], ana_id).await;
     assert_eq!(current_number(&app, &ana).await, None);
     let (s, _) = call(
@@ -94,7 +88,6 @@ async fn only_the_owner_launches_the_next_question_when_set() {
     .await;
     assert_eq!(s, StatusCode::OK);
     assert_eq!(current_number(&app, &ana).await, Some(4));
-    // And then questions follow each other again.
     close_round(&app, &[&ana, &bob, &cyd], ana_id).await;
     assert_eq!(current_number(&app, &ana).await, Some(5));
 }
@@ -131,7 +124,6 @@ async fn a_delay_opens_the_next_question_through_the_scheduler() {
     assert_eq!(g["settings"]["next_delay"], 3600);
     assert_eq!(g["pace"]["waiting"], true);
     let deadline = g["pace"]["next_open_at"].as_str().unwrap().to_owned();
-    // Delay only: nobody launches it early, not even the owner.
     let (s, _) = call(
         &app,
         "POST",
@@ -142,7 +134,6 @@ async fn a_delay_opens_the_next_question_through_the_scheduler() {
     .await;
     assert_eq!(s, StatusCode::FORBIDDEN);
 
-    // Not yet: the scheduler leaves it alone.
     assert_eq!(
         quidenous_server::rooms::pacing::open_due(&state)
             .await
@@ -158,7 +149,6 @@ async fn a_delay_opens_the_next_question_through_the_scheduler() {
         0
     );
     assert_eq!(current_number(&app, &ana).await, None);
-    // Past the deadline (e.g. the first tick after a restart): it opens.
     let later = db_now_plus(&state, "+2 hours").await;
     assert_eq!(
         quidenous_server::rooms::pacing::open_due_at(&state, &later)
@@ -178,7 +168,6 @@ async fn a_delay_opens_the_next_question_through_the_scheduler() {
         "only once"
     );
 
-    // A shorter delay picked while waiting counts from the close: already over, it opens now.
     close_round(&app, &[&ana, &bob], bob_id).await;
     assert_eq!(current_number(&app, &ana).await, None);
     sqlx::query("UPDATE groups SET paused_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-20 minutes') WHERE id = ?")
@@ -216,7 +205,6 @@ async fn owner_and_delay_together() {
     assert_eq!(s, StatusCode::OK);
     let later = db_now_plus(&state, "+16 minutes").await;
 
-    // The owner can launch it before the deadline.
     close_round(&app, &[&ana, &bob], bob_id).await;
     let (_, g) = call(&app, "GET", "/group", Some(&bob), None).await;
     assert!(g["pace"]["next_open_at"].is_string());
@@ -246,7 +234,6 @@ async fn owner_and_delay_together() {
         0
     );
 
-    // Otherwise it opens at the deadline by itself.
     close_round(&app, &[&ana, &bob], bob_id).await;
     assert_eq!(current_number(&app, &bob).await, None);
     assert_eq!(
@@ -257,7 +244,6 @@ async fn owner_and_delay_together() {
     );
     assert_eq!(current_number(&app, &bob).await, Some(3));
 
-    // Dropping the delay keeps it waiting for the owner, with no deadline.
     close_round(&app, &[&ana, &bob], bob_id).await;
     let (s, _) = call(
         &app,
@@ -271,7 +257,6 @@ async fn owner_and_delay_together() {
     let (_, g) = call(&app, "GET", "/group", Some(&bob), None).await;
     assert_eq!(g["pace"]["waiting"], true);
     assert!(g["pace"]["next_open_at"].is_null());
-    // (Past 24 h with the owner unseen it would open anyway: see flow.rs and tests/flow.rs.)
     assert_eq!(
         quidenous_server::rooms::pacing::open_due_at(
             &state,

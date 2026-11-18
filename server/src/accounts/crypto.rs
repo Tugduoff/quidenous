@@ -1,5 +1,3 @@
-//! Keys, password hashing, keyed code hashes, sealed TOTP secrets, TOTP itself.
-
 use std::{
     path::Path,
     sync::{Arc, OnceLock},
@@ -19,7 +17,6 @@ use tokio::sync::Semaphore;
 
 use crate::platform::error::{AppError, AppResult};
 
-/// Keys derived from `AUTH_SECRET` (or `DATA_DIR/auth.key`).
 pub struct Keys {
     seal: [u8; 32],
     mac: [u8; 32],
@@ -36,7 +33,6 @@ impl Keys {
         Self { seal, mac }
     }
 
-    /// `AUTH_SECRET` when set, else the generated `auth.key` in the data dir (created once, 0600).
     pub fn load(secret: Option<&str>, data_dir: &Path) -> std::io::Result<Self> {
         if let Some(secret) = secret {
             if secret.len() < 32 {
@@ -60,7 +56,6 @@ impl Keys {
         }
     }
 
-    /// Keyed hash of a short secret (codes, challenges, recovery codes), hex.
     pub fn mac(&self, parts: &[&str]) -> String {
         let mut m = <Hmac<Sha256> as KeyInit>::new_from_slice(&self.mac)
             .expect("HMAC takes any key length");
@@ -73,7 +68,6 @@ impl Keys {
         hex::encode(m.finalize().into_bytes())
     }
 
-    /// AES-256-GCM, random nonce, `base64(nonce || ciphertext)`.
     pub fn seal(&self, plain: &[u8]) -> String {
         let cipher = Aes256Gcm::new_from_slice(&self.seal).expect("32-byte key");
         let mut nonce = [0u8; 12];
@@ -129,14 +123,12 @@ pub fn random_b64url(bytes: usize) -> String {
     base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(b)
 }
 
-/// Six digits, uniform.
 pub fn six_digits() -> String {
     format!("{:06}", rand::rng().random_range(0..1_000_000u32))
 }
 
 const RECOVERY_ALPHABET: &[u8] = b"abcdefghjkmnpqrstuvwxyz23456789";
 
-/// `xxxxx-xxxxx`, no look-alikes.
 pub fn recovery_code() -> String {
     let mut rng = rand::rng();
     let mut s = String::with_capacity(11);
@@ -149,7 +141,6 @@ pub fn recovery_code() -> String {
     s
 }
 
-/// What a recovery code is hashed as: lowercase, no dash or spaces.
 pub fn normalize_recovery(code: &str) -> String {
     code.chars()
         .filter(|c| c.is_ascii_alphanumeric())
@@ -165,8 +156,6 @@ pub fn constant_eq(a: &str, b: &str) -> bool {
             == 0
 }
 
-// ---------- passwords ----------
-
 fn argon2() -> Argon2<'static> {
     Argon2::new(
         Algorithm::Argon2id,
@@ -175,7 +164,6 @@ fn argon2() -> Argon2<'static> {
     )
 }
 
-/// At most two hashes at once (each takes 19 MiB and ~50 ms of a core).
 #[derive(Clone)]
 pub struct Hasher(Arc<Semaphore>);
 
@@ -208,7 +196,6 @@ impl Hasher {
         .await?
     }
 
-    /// `None` hash (unknown email, no password): still pays for one hash, then says no.
     pub async fn verify(&self, password: &str, hash: Option<&str>) -> AppResult<bool> {
         let password = password.to_owned();
         let hash = hash.map(str::to_owned);
@@ -240,8 +227,6 @@ fn dummy_hash() -> &'static str {
     })
 }
 
-// ---------- TOTP (RFC 6238: SHA-1, 6 digits, 30 s) ----------
-
 pub const TOTP_PERIOD: u64 = 30;
 
 pub fn new_totp_secret() -> String {
@@ -259,7 +244,6 @@ fn decode_secret(secret_b32: &str) -> Option<Vec<u8>> {
     data_encoding::BASE32_NOPAD.decode(clean.as_bytes()).ok()
 }
 
-/// The code for one 30 s step.
 pub fn totp_at_step(secret_b32: &str, step: u64) -> Option<String> {
     let key = decode_secret(secret_b32)?;
     let mut m = <Hmac<sha1::Sha1> as KeyInit>::new_from_slice(&key).ok()?;
@@ -273,12 +257,10 @@ pub fn totp_at_step(secret_b32: &str, step: u64) -> Option<String> {
     Some(format!("{:06}", bin % 1_000_000))
 }
 
-/// The code at a unix time (what an authenticator app shows).
 pub fn totp_code(secret_b32: &str, unix_time: u64) -> Option<String> {
     totp_at_step(secret_b32, unix_time / TOTP_PERIOD)
 }
 
-/// The step a code matches within ±1 step of now, if any.
 pub fn totp_match(secret_b32: &str, code: &str, unix_time: u64) -> Option<u64> {
     let code = code.trim();
     if code.len() != 6 || !code.bytes().all(|b| b.is_ascii_digit()) {
@@ -297,7 +279,6 @@ pub fn now_unix() -> u64 {
         .unwrap_or(0)
 }
 
-/// Percent-encoding for URL parts (unreserved characters pass).
 pub fn pct(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     for b in s.bytes() {
@@ -327,7 +308,6 @@ mod tests {
 
     #[test]
     fn rfc6238_sha1_vectors() {
-        // RFC 6238 appendix B, the 20-byte ASCII secret "12345678901234567890", 8 digits truncated to 6.
         let secret = data_encoding::BASE32_NOPAD.encode(b"12345678901234567890");
         assert_eq!(totp_code(&secret, 59).unwrap(), "287082");
         assert_eq!(totp_code(&secret, 1111111109).unwrap(), "081804");

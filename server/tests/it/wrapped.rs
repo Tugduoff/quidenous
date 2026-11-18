@@ -1,6 +1,3 @@
-//! The Wrapped (docs/WRAPPED.md): window and previews, personal and room cards, privacy, share
-//! cards, the December notice, erasure.
-
 use crate::common;
 use quidenous_server::platform::ids::UserId;
 
@@ -21,7 +18,6 @@ use quidenous_server::{
 use serde_json::{Value, json};
 use tower::ServiceExt;
 
-/// Open all year, or a single day three months away from today.
 fn window(open: bool) -> WrappedWindow {
     if open {
         return WrappedWindow {
@@ -41,7 +37,6 @@ fn this_year() -> i64 {
     wrapped::civil(now_secs().div_euclid(DAY)).0
 }
 
-/// Account 1 (Ana, the first to join) is an admin.
 async fn setup_with(open: bool, preview: bool) -> (Router, AppState) {
     let config = Config {
         admin_user_ids: vec![UserId::from_raw(1)],
@@ -61,7 +56,6 @@ struct World {
     app: Router,
     state: AppState,
     room: i64,
-    /// Ana, Bob, Cyd, Dan: (token, member id, user id).
     people: Vec<(String, i64, i64)>,
 }
 
@@ -119,7 +113,6 @@ impl World {
         .await
     }
 
-    /// A person in another room only (a seat for an account made here).
     async fn stranger(&self, group: i64, name: &str) -> i64 {
         let user: i64 = sqlx::query_scalar(
             "INSERT INTO users (name, color, friend_code) VALUES (?, '#5BC8FF', ?) RETURNING id",
@@ -156,7 +149,6 @@ async fn group(state: &AppState, name: &str, kind: &str) -> i64 {
         .unwrap()
 }
 
-/// A pick question finished just now in `group`, everyone listed voting in order.
 async fn pick(state: &AppState, group: i64, anonymous: bool, votes: &[(i64, i64)]) -> i64 {
     let question: i64 = sqlx::query_scalar(
         "INSERT INTO questions (group_id, text, origin) VALUES (?, ?, 'written') RETURNING id",
@@ -193,7 +185,6 @@ async fn pick(state: &AppState, group: i64, anonymous: bool, votes: &[(i64, i64)
     round
 }
 
-/// A year worth telling: Bob wins everything, Ana and Bob vote for each other, one hot question.
 async fn seed(w: &World) {
     let (ana, bob, cyd, dan) = (w.mid(0), w.mid(1), w.mid(2), w.mid(3));
     let mut hot = 0;
@@ -253,7 +244,6 @@ async fn outside_the_window_only_admins_preview() {
     let w = World::new(false, false).await;
     seed(&w).await;
     let year = this_year();
-    // Bob: nothing, and no preview.
     let (s, b) = w.wrapped(1, "", None).await;
     assert_eq!(s, StatusCode::OK, "{b}");
     assert_eq!(b["available"], false);
@@ -279,7 +269,6 @@ async fn outside_the_window_only_admins_preview() {
         .share(1, json!({ "scope": "me", "key": "crush" }), None)
         .await;
     assert_eq!(s, StatusCode::NOT_FOUND);
-    // Ana, an admin: can preview, any year.
     let (_, b) = w.wrapped(0, "", None).await;
     assert_eq!(
         (b["available"].clone(), b["can_preview"].clone()),
@@ -297,7 +286,6 @@ async fn outside_the_window_only_admins_preview() {
         (b["year"].clone(), b["cards"].clone()),
         (json!(2020), json!([]))
     );
-    // Sharing a preview card works for her.
     let (s, b) = w
         .share(
             0,
@@ -324,11 +312,9 @@ async fn personal_cards_only_name_people_from_my_rooms() {
     let w = World::new(true, false).await;
     seed(&w).await;
     let (ana, cyd) = (w.mid(0), w.mid(2));
-    // Anonymous questions: Ana and Cyd vote for each other a lot, nobody may know.
     for _ in 0..10 {
         pick(&w.state, w.room, true, &[(ana, cyd), (cyd, ana)]).await;
     }
-    // Eve was in the room and left: Ana voted for her a lot.
     let eve = seat(&w.state, w.room, "Eve", None).await;
     let eve_user: i64 = sqlx::query_scalar(
         "INSERT INTO users (name, color, friend_code) VALUES ('Eve', '#5BC8FF', ?) RETURNING id",
@@ -353,7 +339,6 @@ async fn personal_cards_only_name_people_from_my_rooms() {
     .execute(&w.state.db)
     .await
     .unwrap();
-    // A room Ana left, with Zoe: never counted.
     let old = group(&w.state, "Avant", "room").await;
     let ana_old = seat(&w.state, old, "Ana", Some(w.people[0].2)).await;
     let zoe = w.stranger(old, "Zoe").await;
@@ -414,7 +399,6 @@ async fn personal_cards_only_name_people_from_my_rooms() {
     for c in b["cards"].as_array().unwrap() {
         assert!(c["line"].as_str().unwrap().chars().count() <= 110, "{c}");
     }
-    // Same answer twice (deterministic lines), English for an English reader.
     assert_eq!(w.wrapped(0, "?tz=60", None).await.1, b);
     sqlx::query("UPDATE users SET locale = 'en' WHERE id = ?")
         .bind(w.people[0].2)
@@ -460,7 +444,6 @@ async fn room_scope_needs_a_seat_and_no_party() {
             .unwrap()
             .contains("Test")
     );
-    // Not my room.
     let other = group(&w.state, "Ailleurs", "room").await;
     w.stranger(other, "Zoe").await;
     let (s, b) = w.wrapped(0, "?scope=room", Some(other)).await;
@@ -468,7 +451,6 @@ async fn room_scope_needs_a_seat_and_no_party() {
         (s, b["error"].as_str()),
         (StatusCode::FORBIDDEN, Some("not_in_room"))
     );
-    // A party.
     let party = group(&w.state, "Soirée", "party").await;
     seat(&w.state, party, "Ana", Some(w.people[0].2)).await;
     let (s, b) = w.wrapped(0, "?scope=room", Some(party)).await;
@@ -478,7 +460,6 @@ async fn room_scope_needs_a_seat_and_no_party() {
     );
     let (s, _) = w.wrapped(0, "?scope=all", None).await;
     assert_eq!(s, StatusCode::BAD_REQUEST);
-    // A room card, shared.
     let (s, b) = w
         .share(0, json!({ "scope": "room", "key": "star" }), Some(w.room))
         .await;
@@ -501,7 +482,6 @@ async fn sharing_a_card_and_erasing_an_account() {
     assert_eq!(s, StatusCode::OK, "{b}");
     let token = b["token"].as_str().unwrap().to_owned();
     assert_eq!(b["path"], format!("/s/{token}"));
-    // Same card again: same link.
     let (_, again) = w
         .share(0, json!({ "scope": "me", "key": "crush" }), None)
         .await;
@@ -520,7 +500,6 @@ async fn sharing_a_card_and_erasing_an_account() {
     assert_eq!(label, format!("Wrapped {}", this_year()));
     assert_eq!(member_ids, json!([w.mid(1)]).to_string());
     assert!(people.contains("Bob"));
-    // A question card shows its question on the picture.
     let (s, q) = w
         .share(0, json!({ "scope": "me", "key": "room_question" }), None)
         .await;
@@ -531,7 +510,6 @@ async fn sharing_a_card_and_erasing_an_account() {
         .await
         .unwrap();
     assert!(line.starts_with("« Qui "), "{line}");
-    // The public page and its card.
     let (s, page) = raw_get(&w.app, &format!("/s/{token}")).await;
     assert_eq!(s, StatusCode::OK);
     assert!(
@@ -542,7 +520,6 @@ async fn sharing_a_card_and_erasing_an_account() {
     let (s, png) = raw_get(&w.app, &format!("/s/{token}/card.png")).await;
     assert_eq!(s, StatusCode::OK);
     assert!(png.starts_with(b"\x89PNG"));
-    // My links show the label.
     let (_, mine) = call(&w.app, "GET", "/shares", Some(w.tok(0)), None, None).await;
     assert!(
         mine.as_array()
@@ -551,7 +528,6 @@ async fn sharing_a_card_and_erasing_an_account() {
             .any(|l| l["token"] == token.as_str() && l["room"] == label.as_str()),
         "{mine}"
     );
-    // Bob erases his account: the card showing him goes.
     let (s, b) = call(
         &w.app,
         "DELETE",
@@ -572,7 +548,6 @@ async fn sharing_a_card_and_erasing_an_account() {
         raw_get(&w.app, &format!("/s/{token}")).await.0,
         StatusCode::NOT_FOUND
     );
-    // Ana's own Wrapped no longer names him.
     let (_, b) = w.wrapped(0, "", None).await;
     assert!(!b.to_string().contains("Bob"), "{b}");
 }
@@ -580,7 +555,6 @@ async fn sharing_a_card_and_erasing_an_account() {
 #[tokio::test]
 async fn the_notice_goes_out_once_a_year() {
     let w = World::new(true, false).await;
-    // Ana and Bob voted lately; Cyd and Dan didn't.
     pick(
         &w.state,
         w.room,
@@ -610,7 +584,6 @@ async fn the_notice_goes_out_once_a_year() {
         .await
         .unwrap();
     assert_eq!(year, Some(this_year()));
-    // Outside the window: nothing.
     let closed = World::new(false, false).await;
     pick(
         &closed.state,

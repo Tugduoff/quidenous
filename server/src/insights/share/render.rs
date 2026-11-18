@@ -72,12 +72,10 @@ pub async fn card_png(State(state): State<AppState>, Path(token): Path<String>) 
     png_response(&state.cards, svg(&card)).await
 }
 
-/// Rendered cards kept in memory, by the SHA-256 of their SVG (a changed card is a new entry).
 pub(super) const CARD_CACHE: usize = 64;
 
 pub(super) const CARD_TTL: Duration = Duration::from_secs(10 * 60);
 
-/// Cards rendered at once at most (each takes a 1200×630 pixmap and real CPU).
 pub(super) const CARD_RENDERS: usize = 2;
 
 pub(super) type CardCache = HashMap<[u8; 32], (Instant, axum::body::Bytes)>;
@@ -97,7 +95,6 @@ impl Default for Cards {
     }
 }
 
-/// The PNG of a card SVG: from the cache, else rendered off the async threads (a few at a time).
 pub async fn card(cards: &Cards, svg: String) -> Option<axum::body::Bytes> {
     use sha2::{Digest, Sha256};
     let key: [u8; 32] = Sha256::digest(svg.as_bytes()).into();
@@ -112,7 +109,6 @@ pub async fn card(cards: &Cards, svg: String) -> Option<axum::body::Bytes> {
         return Some(png);
     }
     let _permit = cards.renders.acquire().await.ok()?;
-    // Someone else may have rendered it while this one waited.
     if let Some(png) = cached(Instant::now()) {
         return Some(png);
     }
@@ -134,7 +130,6 @@ pub async fn card(cards: &Cards, svg: String) -> Option<axum::body::Bytes> {
     Some(png)
 }
 
-/// Renders a card (or takes it from the cache) and answers it as a PNG.
 pub(super) async fn png_response(cards: &Cards, svg: String) -> Response {
     match card(cards, svg).await {
         Some(png) => (

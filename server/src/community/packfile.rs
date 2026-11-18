@@ -1,33 +1,21 @@
-//! Pack files (docs/PACK_FILES.md): a `.txt` of questions, one per line (`[classement]`, `[choix] … | A | B`),
-//! whose top `#` lines may carry the pack's metadata (`# titre: …`, `# description: …`, `# catégorie: …`,
-//! `# langue: …`, `# 16+: …`). The app reads the same header (app/src/lib/pack-file.ts); the room import
-//! reads the same file and skips every `#` line.
-
 use crate::{community::deck, community::packs::CATEGORIES, platform::i18n::Lang};
 
-/// Categories kept from a header (the server's limit, `packs::MAX_TAGS`).
 const HEADER_TAGS: usize = 3;
 
-/// A pack file's metadata. Absent keys stay `None` / empty.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct Header {
     pub title: Option<String>,
     pub description: Option<String>,
     pub categories: Vec<&'static str>,
     pub lang: Option<Lang>,
-    /// `# 16+:`, forced `true` with the `pimente` category.
     pub spicy: Option<bool>,
 }
 
-/// One question line, parsed like the room import (`deck::parse_tagged`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Line {
     pub text: String,
-    /// `pick` | `rank` | `choose` | `said` (said lines are left out of packs, see `packs::clean_questions`).
     pub kind: &'static str,
-    /// A choose line's answers, when they hold (2 to 4, 1 to 40 characters, distinct); `None` otherwise.
     pub items: Option<Vec<String>>,
-    /// `[anonyme]` / `[anonymous]` on a pick or ranking line (docs/ANONYMOUS.md).
     pub anonymous: bool,
 }
 
@@ -37,7 +25,6 @@ pub struct PackFile {
     pub lines: Vec<Line>,
 }
 
-/// Lowercase, Latin accents folded, trimmed: `Catégorie ` → `categorie`.
 pub fn fold(s: &str) -> String {
     s.trim()
         .chars()
@@ -75,7 +62,6 @@ fn key(k: &str) -> Option<Key> {
     })
 }
 
-/// A category from its id or its French / English name (`Pimenté 16+`, `Party`).
 pub fn category(name: &str) -> Option<&'static str> {
     let folded = fold(name);
     let name = folded.strip_suffix("16+").unwrap_or(&folded).trim();
@@ -107,8 +93,6 @@ fn yes_no(value: &str) -> Option<bool> {
     }
 }
 
-/// Reads a pack file: its header (the `#` lines before the first question; unknown keys and plain
-/// comments ignored) and its question lines (every other non-blank line not starting with `#`).
 pub fn parse(content: &str) -> PackFile {
     let mut out = PackFile::default();
     let mut in_header = true;
@@ -176,7 +160,6 @@ fn read_header_line(header: &mut Header, comment: &str) {
     }
 }
 
-/// The AI template (`/pack-template.md`, `/en/pack-template.md`): the format, limits, tone and examples.
 pub const TEMPLATES: [(Lang, &str); 2] = [
     (
         Lang::Fr,
@@ -202,7 +185,6 @@ pub fn template(lang: Lang) -> &'static str {
         .unwrap_or(TEMPLATES[0].1)
 }
 
-/// The template as a download: `text/markdown`, `quidenous-pack-template.md`.
 pub fn template_response(lang: Lang) -> impl axum::response::IntoResponse {
     use axum::http::header;
     (
@@ -258,7 +240,6 @@ mod tests {
 ",
         );
         let flags: Vec<_> = anon.lines.iter().map(|l| (l.kind, l.anonymous)).collect();
-        // Choose questions are never anonymous: the tag is dropped.
         assert_eq!(flags, [("pick", true), ("rank", true), ("choose", false)]);
         assert_eq!(anon.lines[1].text, "Rank us.");
 
@@ -267,7 +248,6 @@ mod tests {
         );
         assert_eq!(en.header.categories, ["pimente", "soiree"]);
         assert_eq!(en.header.lang, Some(Lang::En));
-        // Forced with the spicy category.
         assert_eq!(en.header.spicy, Some(true));
 
         let none = parse("# 16+: maybe\n# langue: de\n# catégorie: sport\nQui ?");

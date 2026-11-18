@@ -1,5 +1,3 @@
-//! The showcase page at `/` and `/en`, its files, and who still lands in the web app at `/`.
-
 use crate::common;
 
 use crate::common::temp_dir;
@@ -15,7 +13,6 @@ use tower::ServiceExt;
 const APP_INDEX: &str =
     "<html><head><script>var app = 1;</script></head><body>FAKE-WEB-APP-BUILD</body></html>";
 
-/// A server that also serves a (fake) web app build.
 async fn with_web_app() -> Router {
     let web = temp_dir("qdn-vitrine-web");
     std::fs::write(web.join("index.html"), APP_INDEX).unwrap();
@@ -56,11 +53,9 @@ async fn the_showcase_in_both_languages() {
             html.contains("og:image\" content=\"https://qdn.coflop.fr/vitrine/og.jpg\""),
             "{path}"
         );
-        // Calls to action: the Android beta in the page's language and the web app's sign-in.
         let beta = if lang == "en" { "/en/beta" } else { "/beta" };
         assert!(html.contains(&format!("href=\"{beta}\"")), "{path}");
         assert!(html.contains("href=\"/join\""), "{path}");
-        // Footer: the legal pages in the same language.
         let prefix = if lang == "en" { "/en" } else { "" };
         for page in ["/privacy", "/terms", "/delete-account"] {
             assert!(
@@ -69,7 +64,6 @@ async fn the_showcase_in_both_languages() {
             );
         }
         assert!(html.contains("mailto:contact@coflop.fr"), "{path}");
-        // Indexable, with its own strict policy (the inline redirect script by hash only).
         assert!(h.get("x-robots-tag").is_none(), "{path}");
         let csp = h["content-security-policy"].to_str().unwrap();
         assert!(csp.contains("script-src 'self' 'sha256-"), "{csp}");
@@ -110,10 +104,7 @@ async fn every_file_the_pages_use_is_served() {
             seen += 1;
         }
     }
-    // Both pages: CSS, JS, fonts, icon, og image, the eight store screenshots (two in the hero) and
-    // the mascots (the band in the hero, one beside two section titles).
     assert!(seen >= 2 * 18, "{seen}");
-    // The demo's verdict mascots, only named in site.js.
     let (_, _, js) = get(&app, "/vitrine/site.js", None).await;
     let js = String::from_utf8(js).unwrap();
     for name in [
@@ -138,13 +129,11 @@ async fn every_file_the_pages_use_is_served() {
 async fn players_still_land_in_the_app() {
     let app = with_web_app().await;
     let is_app = |body: &[u8]| String::from_utf8_lossy(body).contains("FAKE-WEB-APP-BUILD");
-    // A stranger: the showcase, also with tracking tags on the link.
     for path in ["/", "/?utm_source=play&utm_medium=listing", "/?fbclid=x"] {
         let (s, _, body) = get(&app, path, None).await;
         assert_eq!(s, StatusCode::OK, "{path}");
         assert!(!is_app(&body), "{path}");
     }
-    // This browser plays (cookie from the app's index.html), or the link is for the app: the app.
     let (_, h, body) = get(&app, "/", Some("theme=dark; qdn_app=1")).await;
     assert!(is_app(&body));
     assert_eq!(h["vary"], "Cookie");
@@ -161,7 +150,6 @@ async fn players_still_land_in_the_app() {
         let (_, _, body) = get(&app, path, None).await;
         assert!(is_app(&body), "{path}");
     }
-    // The app's other routes never see the showcase; /en is always the page.
     for path in ["/join", "/oauth?code=x", "/round/12", "/party/join/ABCD"] {
         let (s, _, body) = get(&app, path, None).await;
         assert_eq!(s, StatusCode::OK, "{path}");

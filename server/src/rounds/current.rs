@@ -28,8 +28,6 @@ pub(crate) async fn current_round(
     Ok(Json(Some(for_client(&state, &headers, me.id, view).await?)))
 }
 
-/// Apps that don't know choose or said questions (`x-kinds: choose,said`, a comma list) get their
-/// text as "update the app to answer: …"; their single pick still counts (see `game::vote`).
 pub(crate) async fn for_client(
     state: &AppState,
     headers: &axum::http::HeaderMap,
@@ -50,11 +48,8 @@ pub(crate) async fn for_client(
 #[derive(Deserialize)]
 pub(crate) struct VoteBody {
     target_id: Option<MemberId>,
-    /// Ranking questions: every member, first to last.
     ranking: Option<Vec<MemberId>>,
-    /// Choose questions: every member wired to an item.
     choices: Option<Vec<crate::rounds::model::Choice>>,
-    /// Said questions: every answer but mine matched to its author.
     guesses: Option<Vec<crate::rounds::said::Guess>>,
 }
 
@@ -77,8 +72,6 @@ pub(crate) async fn vote(
     Ok(Json(json!({ "ok": true })))
 }
 
-/// After a vote (or a said answer) committed: the room hears it, a said question's guessing is
-/// announced, and a question it closed is notified.
 pub(crate) async fn after_vote(
     state: &AppState,
     group_id: RoomId,
@@ -112,8 +105,6 @@ pub(crate) async fn round(
     Ok(Json(for_client(&state, &headers, me.id, view).await?))
 }
 
-/// The oldest result I missed, plus how many I missed (`unseen_count`) and the newest of them
-/// (`unseen_last_id`): marking that one seen skips them all.
 #[derive(Serialize)]
 pub(crate) struct UnseenView {
     #[serde(flatten)]

@@ -48,7 +48,6 @@ pub(crate) async fn history(
     Ok(Json(history_items(&state.db, rounds).await?))
 }
 
-/// Every pinned result, newest question first (not paged: pins are few).
 pub(crate) async fn pinned_history(
     State(state): State<AppState>,
     Me(me): Me,
@@ -73,7 +72,6 @@ async fn history_items(
     for (id, number, question, closed_at, pinned, kind, anonymous) in rounds {
         let tallies = game::tallies(db, id).await?;
         let top_count = tallies.first().map_or(0, |t| t.count);
-        // Said questions: the top scorers (none when nobody scored, or it closed before any guessing).
         if kind == "said" {
             let (winner_ids, top_count) = crate::rounds::said::result(db, id)
                 .await?
@@ -93,7 +91,6 @@ async fn history_items(
             });
             continue;
         }
-        // Choose questions: the winners are the best guessers (none when nobody guessed right).
         if kind == "choose" {
             let scores = game::choose_result(db, id).await?.scores;
             let best = scores.first().map_or(0, |s| s.hits);
@@ -115,7 +112,6 @@ async fn history_items(
             });
             continue;
         }
-        // Ranking questions: the winner is the top of the points table.
         if kind == "rank" {
             let ranking = game::borda(db, id).await?;
             let best = ranking.first().map_or(0, |r| r.points);
@@ -159,16 +155,12 @@ async fn history_items(
 
 #[derive(Deserialize)]
 pub(crate) struct ExportQuery {
-    /// Older apps: the session token itself.
     token: Option<String>,
-    /// A 60 s single-use ticket from `POST /auth/ticket` (`purpose: "export"`).
     ticket: Option<String>,
     room: Option<RoomId>,
-    /// Minutes east of UTC, for the dates (default: the account's notification setting, else UTC).
     tz: Option<String>,
 }
 
-/// The whole history as a CSV file, from a plain link (browser download): see `member_from_query`.
 pub(crate) async fn export_history(
     State(state): State<AppState>,
     Query(q): Query<ExportQuery>,
@@ -193,7 +185,6 @@ pub(crate) async fn export_history(
         .map(|(id, name, user_id)| (id, i18n::member_name(lang, &name, user_id)))
         .collect();
     let name = |id: MemberId| names.get(&id).cloned().unwrap_or_else(|| "?".into());
-    // Dates in the reader's time zone: a question closed at 00:30 in Paris is dated that day.
     let tz = match q.tz.as_deref() {
         Some(tz) => crate::insights::stats::parse_tz(Some(tz)),
         None => {
@@ -215,7 +206,6 @@ pub(crate) async fn export_history(
     .fetch_all(&state.db)
     .await?;
     let cell = csv_cell;
-    // BOM so Excel reads the accents right.
     let mut csv = format!("\u{feff}{}\n", i18n::csv_header(lang));
     for (id, number, question, closed_at, kind) in rounds {
         let tallies = game::tallies(&state.db, id).await?;
@@ -225,8 +215,6 @@ pub(crate) async fn export_history(
         } else {
             Vec::new()
         };
-        // A ranking question is won on points (the podium), not on who came first most often;
-        // a choose question by the best guessers.
         let said = if kind == "said" {
             crate::rounds::said::result(&state.db, id).await?
         } else {
@@ -286,7 +274,6 @@ pub(crate) async fn export_history(
                 tallies
                     .iter()
                     .map(|t| {
-                        // An anonymous question: counts only (its tallies carry no voters).
                         if t.voter_ids.is_empty() {
                             return format!("{} ({})", name(t.target_id), t.count);
                         }
@@ -319,8 +306,6 @@ pub(crate) async fn export_history(
     )))
 }
 
-/// One quoted CSV cell. Text a spreadsheet would run as a formula (`=`, `+`, `-`, `@`, tab or
-/// carriage return first) gets a leading `'`, so a question like `=HYPERLINK(...)` stays text.
 pub fn csv_cell(v: &str) -> String {
     let guard = if v.starts_with(['=', '+', '-', '@', '\t', '\r']) {
         "'"
@@ -330,7 +315,6 @@ pub fn csv_cell(v: &str) -> String {
     format!("\"{guard}{}\"", v.replace('"', "\"\""))
 }
 
-/// Pinned results per room at most.
 const PINS_MAX: i64 = 100;
 
 pub(crate) async fn pin(
@@ -373,7 +357,6 @@ pub(crate) async fn unpin(
     Path(id): Path<RoundId>,
 ) -> AppResult<Json<Value>> {
     game::round(&state.db, me.group_id, id).await?;
-    // Whoever pinned it, or the owner (not anyone undoing everyone's pins).
     let by: Option<MemberId> = sqlx::query_scalar("SELECT member_id FROM pins WHERE round_id = ?")
         .bind(id)
         .fetch_optional(&state.db)

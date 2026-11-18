@@ -9,17 +9,13 @@ use std::{
 use serde::Serialize;
 use tokio::sync::broadcast;
 
-/// Live sockets open at once, per account, per IP (a whole party behind one Wi-Fi) and in all.
 pub const SOCKETS_PER_USER: usize = 8;
 pub const SOCKETS_PER_IP: usize = 64;
 pub const SOCKETS_TOTAL: usize = 2000;
 
-/// A party's "Suivante" taps and reactions can come in bursts (40 phones): one `PartyUpdated` per party per this gap.
 pub const PARTY_UPDATE_GAP: Duration = Duration::from_millis(500);
-/// Taps on a result come in bursts too: one `ResultReacted` per round right away, then the taps of this gap merged.
 pub const RESULT_REACT_GAP: Duration = Duration::from_millis(300);
 
-/// Something every phone of a group should know about right away.
 #[derive(Clone, Debug, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Event {
@@ -39,8 +35,6 @@ pub enum Event {
     RoundOpened {
         round_id: RoundId,
     },
-    /// A question changed in place: a said question's guessing started, or one of its answers was
-    /// hidden or brought back (docs/SAID.md). Apps refetch it.
     RoundUpdated {
         round_id: RoundId,
     },
@@ -60,36 +54,29 @@ pub enum Event {
     MemberRemoved {
         member_id: MemberId,
     },
-    /// `member_id` / `user_id` (author, null once deleted): the app can hide people it blocked.
     MessagePosted {
         round_id: RoundId,
         message_id: MessageId,
         member_id: MemberId,
         user_id: Option<UserId>,
     },
-    /// Deleted (by its author, the owner or an admin) or hidden by reports.
     MessageDeleted {
         round_id: RoundId,
         message_id: MessageId,
     },
-    /// Someone added or took back a reaction on a chat message (no inbox entry, no push).
     MessageReacted {
         round_id: RoundId,
         message_id: MessageId,
     },
     InboxChanged,
     RoomUpdated,
-    /// A party's "Suivante" taps or reactions changed.
     PartyUpdated {
         round_id: RoundId,
     },
     RoomDeleted,
-    /// Someone bet on the open question (Tripot): its pot and bettor count changed.
     TripotUpdated {
         round_id: RoundId,
     },
-    /// Taps on a revealed result (docs/REACTIONS.md), coalesced per round. Only to sockets opened
-    /// with `events=reactions` (see [`OptIns`]).
     ResultReacted {
         round_id: RoundId,
         taps: Vec<Tap>,
@@ -104,7 +91,6 @@ impl Event {
     }
 }
 
-/// Someone's taps on one emoji of a result. `user_id` (null once deleted): the app can drop people it blocked.
 #[derive(Clone, Debug, Serialize, PartialEq)]
 pub struct Tap {
     pub member_id: MemberId,
@@ -113,7 +99,6 @@ pub struct Tap {
     pub count: i64,
 }
 
-/// Adds `taps` into `into`, one entry per member and emoji.
 fn merge_taps(into: &mut Vec<Tap>, taps: Vec<Tap>) {
     for tap in taps {
         match into
@@ -126,11 +111,8 @@ fn merge_taps(into: &mut Vec<Tap>, taps: Vec<Tap>) {
     }
 }
 
-/// What a live socket asked for with `?events=` (comma-separated): events older apps don't know
-/// (they refetch everything on an unknown one), so they only go to sockets that want them.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct OptIns {
-    /// `reactions`: `ResultReacted`.
     pub reactions: bool,
 }
 
@@ -145,7 +127,6 @@ impl OptIns {
         o
     }
 
-    /// Does a socket with these opt-ins get `event`?
     pub fn wants(&self, event: &Event) -> bool {
         match event {
             Event::ResultReacted { .. } => self.reactions,
@@ -160,14 +141,12 @@ pub struct GroupEvent {
     pub event: Event,
 }
 
-/// The last `PartyUpdated` sent for a party, and whether a later one is waiting for the gap to pass.
 struct PartyThrottle {
     last: Instant,
     round_id: RoundId,
     waiting: bool,
 }
 
-/// The last `ResultReacted` sent for a round, and the taps waiting for the gap to pass.
 struct ReactThrottle {
     last: Instant,
     pending: Vec<Tap>,
@@ -178,10 +157,8 @@ struct ReactThrottle {
 pub struct Live {
     tx: broadcast::Sender<GroupEvent>,
     party: Arc<Mutex<HashMap<RoomId, PartyThrottle>>>,
-    /// Per (group, round).
     reacted: Arc<Mutex<HashMap<(RoomId, RoundId), ReactThrottle>>>,
     sockets: Arc<Mutex<SocketCounts>>,
-    /// When each seat's `active_at` was last written (see `flow::touch`), to spare the SD card.
     active: Arc<Mutex<HashMap<MemberId, Instant>>>,
 }
 
@@ -192,7 +169,6 @@ struct SocketCounts {
     total: usize,
 }
 
-/// One open live socket, counted until it is dropped.
 pub struct SocketSlot {
     counts: Arc<Mutex<SocketCounts>>,
     user: Option<UserId>,
@@ -234,7 +210,6 @@ impl Live {
         }
     }
 
-    /// `true` when this seat's activity should be written now (at most once per `every`).
     pub fn mark_active(&self, member_id: MemberId, every: std::time::Duration) -> bool {
         let mut active = self.active.lock().unwrap_or_else(|e| e.into_inner());
         if active.get(&member_id).is_some_and(|t| t.elapsed() < every) {
@@ -247,8 +222,6 @@ impl Live {
         true
     }
 
-    /// A place for one more live socket, or `None` when this account, this IP or the server
-    /// already has too many open.
     pub fn take_socket(&self, user: Option<UserId>, ip: Option<IpAddr>) -> Option<SocketSlot> {
         let ip = ip.map(crate::accounts::limits::ip_key);
         let mut c = self.sockets.lock().unwrap_or_else(|e| e.into_inner());
@@ -285,12 +258,9 @@ impl Live {
     }
 
     fn emit(&self, group_id: RoomId, event: Event) {
-        // No subscriber is fine: nobody has the app open.
         let _ = self.tx.send(GroupEvent { group_id, event });
     }
 
-    /// At most one `PartyUpdated` per party per `PARTY_UPDATE_GAP`: the first goes out right away, the ones
-    /// in the gap become a single trailing one (latest round), so the last change is never lost.
     fn party_updated(&self, group_id: RoomId, round_id: RoundId) {
         let now = Instant::now();
         let mut parties = self.party.lock().unwrap_or_else(|e| e.into_inner());
@@ -334,8 +304,6 @@ impl Live {
         }
     }
 
-    /// At most one `ResultReacted` per round per `RESULT_REACT_GAP`: the first goes out right away, the
-    /// taps in the gap are merged (per member and emoji) into a single trailing one.
     fn result_reacted(&self, group_id: RoomId, round_id: RoundId, taps: Vec<Tap>) {
         let key = (group_id, round_id);
         let now = Instant::now();
@@ -414,7 +382,6 @@ mod tests {
         }
     }
 
-    /// The `ResultReacted` events waiting in `rx`: (group, round, taps).
     fn reacted(rx: &mut broadcast::Receiver<GroupEvent>) -> Vec<(i64, i64, Vec<Tap>)> {
         let mut seen = Vec::new();
         while let Ok(e) = rx.try_recv() {
@@ -429,7 +396,6 @@ mod tests {
     async fn result_taps_are_coalesced_per_round() {
         let live = Live::new();
         let mut rx = live.subscribe();
-        // The first goes out right away (its own duplicates merged).
         live.send(
             RoomId::from_raw(7),
             Event::ResultReacted {
@@ -438,7 +404,6 @@ mod tests {
             },
         );
         assert_eq!(reacted(&mut rx), vec![(7, 1, vec![tap(1, "😂", 3)])]);
-        // A burst: held back, other rounds and rooms are not.
         live.send(
             RoomId::from_raw(7),
             Event::ResultReacted {
@@ -478,7 +443,6 @@ mod tests {
             reacted(&mut rx),
             vec![(7, 2, vec![tap(1, "👀", 1)]), (8, 1, vec![tap(3, "💀", 1)])]
         );
-        // One trailing event with the sums, per member and emoji, in first-seen order.
         let e = tokio::time::timeout(RESULT_REACT_GAP * 2, rx.recv())
             .await
             .expect("a trailing event")
@@ -491,7 +455,6 @@ mod tests {
         tokio::time::sleep(RESULT_REACT_GAP * 2).await;
         assert_eq!(reacted(&mut rx), vec![], "only one trailing event");
 
-        // Quiet for a gap: right away again.
         live.send(
             RoomId::from_raw(7),
             Event::ResultReacted {

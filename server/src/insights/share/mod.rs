@@ -1,13 +1,3 @@
-//! Public share links: `/s/{token}` is a small page with link-preview tags (WhatsApp, iMessage, Discord…)
-//! and `/s/{token}/card.png` the picture they show. Only the question, the room name and, if the sharer
-//! chose it, the podium (first names and counts) are visible. No votes, no other data.
-//! A token can also be a shared stat story: a frozen snapshot of its title, figure, punchline and the
-//! first names, colours and drawn avatars of the people in it.
-//! Cards and pages speak the sharer's language at share time (`shares.lang`, `stat_shares.lang`).
-//! `/p/{id}` (and `/p/{id}/card.png`) is the same kind of page for a public community pack, in its language.
-//! Links expire after 90 days (older ones never do), their sharer or the room's owner can
-//! revoke them (`DELETE /api/shares/{token}`), and no page is meant for search engines (`noindex`).
-
 use crate::platform::ids::{MemberId, RoomId, RoundId, UserId};
 use axum::{
     Json,
@@ -27,14 +17,12 @@ use crate::{
 
 const W: u32 = 1200;
 const H: u32 = 630;
-/// SQL: a link (alias `s`) that hasn't expired.
 macro_rules! live_sql {
     () => {
         "(s.expires_at IS NULL OR s.expires_at > strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
     };
 }
 pub(crate) use live_sql;
-/// SQL: the expiry of a link made now (90 days).
 macro_rules! expires_sql {
     () => {
         "strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '+90 days')"
@@ -54,7 +42,6 @@ pub struct ShareBody {
     result: bool,
 }
 
-/// Make (or reuse) the public link for a question of my room.
 pub async fn create(
     State(state): State<AppState>,
     Me(me): Me,
@@ -62,7 +49,6 @@ pub async fn create(
     Json(body): Json<ShareBody>,
 ) -> AppResult<Json<Value>> {
     let round = game::round(&state.db, me.group_id, round_id).await?;
-    // A result can only be shown once the question is closed.
     let with_result = body.result && round.closed_at.is_some();
     let lang = i18n::of_member(&state.db, me.id).await?;
     let existing: Option<String> = sqlx::query_scalar(concat!(
@@ -105,12 +91,10 @@ pub struct StatShareBody {
     #[serde(default)]
     period: Option<String>,
     key: String,
-    /// Minutes east of UTC.
     #[serde(default)]
     tz: Option<i64>,
 }
 
-/// Freeze one story of my room's stats into a public link.
 pub async fn create_stat(
     State(state): State<AppState>,
     Me(me): Me,
@@ -125,7 +109,6 @@ pub async fn create_stat(
         .into_iter()
         .find(|st| st.key == body.key)
         .ok_or(AppError::NotFound)?;
-    // Frozen as `[[first name, colour, avatar|null], ...]` (rows from before avatars have 2 items).
     let mut people: Vec<(String, String, Option<String>)> = Vec::new();
     for id in &story.member_ids {
         let (name, color, avatar, user_id): (String, String, Option<String>, Option<UserId>) =
@@ -164,26 +147,19 @@ pub async fn create_stat(
     ))
 }
 
-/// A stat card about to be frozen into a public link.
 pub(crate) struct Frozen<'a> {
     pub group_id: RoomId,
-    /// The sharer's seat.
     pub member_id: MemberId,
     pub key: &'a str,
     pub title: &'a str,
     pub big: &'a str,
     pub line: &'a str,
-    /// JSON `[[first name, colour, avatar|null], ...]`.
     pub people: &'a str,
     pub lang: Lang,
-    /// JSON array of the seats shown (erasing one of their accounts removes the link).
     pub member_ids: &'a str,
-    /// Shown in the frame instead of the room name (Wrapped cards).
     pub label: Option<&'a str>,
 }
 
-/// The token of a frozen stat card. Sharing the same card again gives the same link (not one more
-/// public row per tap).
 pub(crate) async fn freeze_stat(db: &sqlx::SqlitePool, f: Frozen<'_>) -> AppResult<String> {
     let existing: Option<String> = sqlx::query_scalar(concat!(
         "SELECT token FROM stat_shares s WHERE group_id = ? AND member_id = ? AND key = ? AND big = ? \
@@ -227,7 +203,6 @@ pub(crate) async fn freeze_stat(db: &sqlx::SqlitePool, f: Frozen<'_>) -> AppResu
     Ok(token)
 }
 
-/// `GET /shares`: my public links that still work (every room, newest first), for "My links".
 pub async fn mine(
     State(state): State<AppState>,
     crate::accounts::auth::SignedIn(me): crate::accounts::auth::SignedIn,
@@ -268,14 +243,11 @@ pub async fn mine(
     Ok(Json(json!(out)))
 }
 
-/// `DELETE /shares/{token}`: revoke a public link (its page, card and "play" stop working). By
-/// whoever made it, or the owner of its room. `404` for anyone else.
 pub async fn revoke(
     State(state): State<AppState>,
     crate::accounts::auth::SignedIn(me): crate::accounts::auth::SignedIn,
     Path(token): Path<String>,
 ) -> AppResult<Json<Value>> {
-    // Mine, or in a room I own.
     macro_rules! revoke_sql {
         ($table:literal) => {
             concat!(
@@ -319,7 +291,6 @@ impl Card {
 struct StatCard {
     lang: Lang,
     room: String,
-    /// A Wrapped card: what the frame says instead of the room name (« Wrapped 2026 »).
     label: Option<String>,
     title: String,
     big: String,
@@ -327,7 +298,6 @@ struct StatCard {
     people: Vec<Person>,
 }
 
-/// Someone on a card: name, colour and drawn avatar (spec), if they have one.
 struct Person {
     name: String,
     color: String,
@@ -340,7 +310,6 @@ struct QuestionCard {
     number: i64,
     question: String,
     rank: bool,
-    /// The top 3 and their score, when the sharer shows the result.
     podium: Vec<(Person, String)>,
 }
 
@@ -372,7 +341,6 @@ async fn load(state: &AppState, token: &str) -> AppResult<Card> {
             .fetch_one(&db)
             .await
             .unwrap_or_else(|_| ("?".into(), "#8D8D99".into(), None, None));
-            // First names only, as on stat cards.
             let name = if i18n::is_deleted(&row.0, row.3) {
                 i18n::deleted_name(lang).to_owned()
             } else {
@@ -388,7 +356,6 @@ async fn load(state: &AppState, token: &str) -> AppResult<Card> {
     let mut podium = Vec::new();
     if with_result && round.closed_at.is_some() {
         if round.kind == "said" {
-            // The top scorers (points for finding authors and fooling guessers).
             let result = crate::rounds::said::result(&state.db, round_id).await?;
             for s in result
                 .into_iter()
@@ -458,8 +425,6 @@ async fn load_stat(state: &AppState, token: &str) -> AppResult<StatCard> {
     })
 }
 
-/// `stat_shares.people`: `[[first name, colour, avatar|null], ...]`, or `[[first name, colour], ...]`
-/// for shares made before avatars.
 fn parse_people(json: &str) -> Vec<Person> {
     let rows: Vec<Vec<Value>> = serde_json::from_str(json).unwrap_or_default();
     rows.into_iter()
@@ -501,7 +466,6 @@ mod tests {
                 .map(|i| Person {
                     name: format!("P{i}"),
                     color: "#FF7A45".into(),
-                    // Every other one drawn; a stale spec falls back to the initial.
                     avatar: match i % 3 {
                         0 => Some(spec.clone()),
                         1 => None,

@@ -32,8 +32,6 @@ pub struct StartBody {
     app_redirect: String,
     #[serde(default)]
     link: bool,
-    /// Signed in: this round only proves the session's owner (the identity must already be linked
-    /// to the account); `redeem` answers `{reauth: true}` and the session may make sensitive changes.
     #[serde(default)]
     reauth: bool,
 }
@@ -58,7 +56,6 @@ pub async fn start(
         (true, Some(s)) if reauth => Some(s),
         (true, Some(s)) => {
             not_claimed(&state, s.user_id, &s.token_hash).await?;
-            // Linking adds a way into the account: a stolen session must not add its own.
             let acct = account(&state, s.user_id).await?;
             require_reauth(&state, &acct, &s.token_hash).await?;
             Some(s)
@@ -84,7 +81,6 @@ pub async fn start(
             "key_hash": key_hash(&state, &key),
             "link": link_user.is_some() && !reauth,
             "reauth": reauth,
-            // Link and re-auth modes: the session that asked, checked again on redeem.
             "session": link.as_ref().map(|s| s.token_hash.clone()),
         })),
     )
@@ -135,9 +131,6 @@ pub(super) fn expired_page() -> Response {
         .into_response()
 }
 
-/// The provider sends the browser back here; the browser goes on to the app with a one-time code.
-/// Only the verified identity is kept: nothing is linked or created before `redeem` brings the key
-/// (a victim's browser finishing an attacker's link-mode URL must not attach the victim's identity).
 pub async fn callback(
     State(state): State<AppState>,
     Path(provider): Path<String>,
@@ -155,7 +148,6 @@ pub async fn callback(
     let Some(app_redirect) = data["app_redirect"].as_str().map(str::to_owned) else {
         return expired_page();
     };
-    // Single use, whatever happens next.
     if codes::consume(&state, row.id).await.is_err() {
         return expired_page();
     }
@@ -191,7 +183,6 @@ pub async fn callback(
         "session": data["session"],
         "reauth": data["reauth"],
     });
-    // user_id: the account to link to (link mode), none otherwise.
     if let Err(e) = codes::create(
         &state,
         codes::Kind::OAuthResult,
@@ -215,7 +206,6 @@ pub(super) struct TokenResponse {
     id_token: Option<String>,
 }
 
-/// Trades the code for tokens, then reads who signed in.
 pub(super) async fn identify(
     state: &AppState,
     provider: &str,
@@ -317,8 +307,6 @@ pub struct RedeemBody {
     key: String,
 }
 
-/// The app trades the one-time code from the redirect + the key from `start` for the result:
-/// only then is the identity linked, matched to an account or turned into a new one.
 pub async fn redeem(
     State(state): State<AppState>,
     ClientIp(ip): ClientIp,
@@ -349,7 +337,6 @@ pub async fn redeem(
     }
     let link_user = row.user_id;
     if let Some(user) = link_user {
-        // The session that started the link must still be there, and not a claimed one.
         let session = data["session"].as_str().unwrap_or_default();
         not_claimed(&state, user, session).await?;
     }
@@ -371,8 +358,6 @@ pub async fn redeem(
     ))
 }
 
-/// A re-auth round: the provider must vouch for an identity already linked to the session's
-/// account (`403 wrong_account` otherwise); then that session may make sensitive changes.
 pub(super) async fn reauth_result(
     state: &AppState,
     user: Option<UserId>,
@@ -391,7 +376,6 @@ pub(super) async fn reauth_result(
     if owner != Some(user) {
         return Err(AppError::Forbidden("wrong_account"));
     }
-    // The session that started the round, if it still exists.
     let session = data["session"].as_str().unwrap_or_default();
     if !mark_reauth(state, user, session).await? {
         return Err(AppError::Unauthorized);
@@ -399,7 +383,6 @@ pub(super) async fn reauth_result(
     Ok(Json(json!({ "reauth": true })))
 }
 
-/// Unlink a provider, unless it is the last way to sign in. Needs a recent re-authentication.
 pub async fn unlink(
     State(state): State<AppState>,
     session: Session,

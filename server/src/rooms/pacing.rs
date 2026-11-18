@@ -1,14 +1,3 @@
-//! Room pacing (owner settings, both off by default): after a question closes, the next one can
-//! wait for the owner (`owner_next`) and/or open by itself after a delay (`next_delay`).
-//!
-//! A paced room that closes a question is *paused* (`groups.paused_at`): no question opens until it
-//! is released, by the owner (`POST /rooms/{id}/next`), by the scheduler once `next_open_at` has
-//! passed, or by the owner switching pacing off. The deadline lives in the database, so a restart
-//! loses nothing: the scheduler catches up on its first tick.
-//!
-//! "Only the owner launches the next one" doesn't wait for an owner who is gone: a room waiting for
-//! [`crate::rooms::flow::OWNER_NEXT_HOURS`] hours whose owner hasn't used it in that time is released too.
-
 use crate::platform::ids::{MemberId, RoomId, RoundId};
 use axum::{Json, extract::State};
 use serde_json::{Value, json};
@@ -23,13 +12,10 @@ use crate::{
     rounds::game,
 };
 
-/// Delays the owner can pick, in seconds (0 = the next question opens right away).
 pub const DELAYS: [i64; 6] = [0, 900, 3600, 10800, 43200, 86400];
 
-/// How often the scheduler looks for rooms whose delay is over.
 const TICK: std::time::Duration = std::time::Duration::from_secs(20);
 
-/// Called when a question closes: pauses the room if it is paced. `true` = paused (don't open the next).
 pub async fn pause(tx: &mut Transaction<'_, Sqlite>, group_id: RoomId) -> AppResult<bool> {
     let done = sqlx::query(
         "UPDATE groups SET paused_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), \
@@ -43,7 +29,6 @@ pub async fn pause(tx: &mut Transaction<'_, Sqlite>, group_id: RoomId) -> AppRes
     Ok(done.rows_affected() > 0)
 }
 
-/// Ends the pause and opens the next question if one can open. Returns the new round, if any.
 async fn release(tx: &mut Transaction<'_, Sqlite>, group_id: RoomId) -> AppResult<Option<RoundId>> {
     sqlx::query("UPDATE groups SET paused_at = NULL, next_open_at = NULL WHERE id = ?")
         .bind(group_id)
@@ -52,8 +37,6 @@ async fn release(tx: &mut Transaction<'_, Sqlite>, group_id: RoomId) -> AppResul
     game::ensure_open_round(tx, group_id).await
 }
 
-/// Tells the room the pause is over, and pushes "Nouvelle question" when one opened (when none
-/// could, the owner hears the room is out of questions).
 async fn announce(
     state: &AppState,
     group_id: RoomId,
@@ -69,8 +52,6 @@ async fn announce(
     }
 }
 
-/// After a change that can give an idle room something to ask (vibe, language): opens the next
-/// question if none is open and the room isn't waiting (a paced room keeps its pause).
 pub async fn open_if_idle(
     state: &AppState,
     group_id: RoomId,
@@ -86,9 +67,6 @@ pub async fn open_if_idle(
     Ok(())
 }
 
-/// SQL (`groups g`, `?1` = now): the room waits for the next question and that wait is over: its
-/// delay has passed, or it waits for an owner who hasn't used the room for `OWNER_NEXT_HOURS`
-/// (and has been waiting at least that long).
 macro_rules! due {
     () => {
         "g.deleted_at IS NULL AND ((g.next_open_at IS NOT NULL AND g.next_open_at <= ?1) \
@@ -103,8 +81,6 @@ fn owner_wait() -> String {
     format!("-{} hours", crate::rooms::flow::OWNER_NEXT_HOURS)
 }
 
-/// Where the room stands: `waiting` = a closed question (`round_id`, the latest) waits for the next one;
-/// `next_open_at` = when it opens by itself (null: only the owner can launch it).
 pub async fn view(state: &AppState, group_id: RoomId) -> AppResult<Value> {
     let (paused, next_open_at): (bool, Option<String>) =
         sqlx::query_as("SELECT paused_at IS NOT NULL, next_open_at FROM groups WHERE id = ?")
@@ -124,8 +100,6 @@ pub async fn view(state: &AppState, group_id: RoomId) -> AppResult<Value> {
     Ok(json!({ "waiting": paused, "next_open_at": next_open_at, "round_id": round_id }))
 }
 
-/// After the owner changed `owner_next` / `next_delay`: a waiting room follows the new rules
-/// (new deadline counted from the close; released if nothing holds it any more or the deadline has passed).
 pub async fn settings_changed(state: &AppState, group_id: RoomId) -> AppResult<()> {
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
     sqlx::query(
@@ -155,8 +129,6 @@ pub async fn settings_changed(state: &AppState, group_id: RoomId) -> AppResult<(
     Ok(())
 }
 
-/// Owner only, when "only the owner launches the next one" is on: open the next question now
-/// (also before the delay is over). `round_id` is null when there is no question left to open.
 pub async fn launch(
     State(state): State<AppState>,
     RoomOwner(me): RoomOwner,
@@ -183,9 +155,6 @@ pub async fn launch(
     Ok(Json(json!({ "round_id": opened })))
 }
 
-/// Opens the next question of every waiting room whose deadline is at or before `now`
-/// (`YYYY-MM-DDTHH:MM:SS.sssZ`, the format of the database). Returns how many rooms were released.
-/// A room that fails is logged and skipped: the others still open (it is retried next tick).
 pub async fn open_due_at(state: &AppState, now: &str) -> AppResult<usize> {
     let due: Vec<RoomId> = sqlx::query_scalar(concat!("SELECT g.id FROM groups g WHERE ", due!()))
         .bind(now)
@@ -203,7 +172,6 @@ pub async fn open_due_at(state: &AppState, now: &str) -> AppResult<usize> {
     Ok(released)
 }
 
-/// Releases one due room. `false` when it no longer is due (the owner launched it meanwhile).
 async fn open_due_room(state: &AppState, room: RoomId, now: &str) -> AppResult<bool> {
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
     let still: Option<RoomId> = sqlx::query_scalar(concat!(
@@ -224,7 +192,6 @@ async fn open_due_room(state: &AppState, room: RoomId, now: &str) -> AppResult<b
     Ok(true)
 }
 
-/// [`open_due_at`] with the database clock.
 pub async fn open_due(state: &AppState) -> AppResult<usize> {
     let now: String = sqlx::query_scalar("SELECT strftime('%Y-%m-%dT%H:%M:%fZ', 'now')")
         .fetch_one(&state.db)
@@ -232,7 +199,6 @@ pub async fn open_due(state: &AppState) -> AppResult<usize> {
     open_due_at(state, &now).await
 }
 
-/// The background task that opens delayed questions (first run right away: catches up after a restart).
 pub fn spawn_scheduler(state: AppState) {
     tokio::spawn(async move {
         let mut tick = tokio::time::interval(TICK);
@@ -245,7 +211,6 @@ pub fn spawn_scheduler(state: AppState) {
                 Ok(n) => tracing::info!(rooms = n, "delayed questions opened"),
                 Err(e) => tracing::warn!(error = ?e, "pacing scheduler"),
             }
-            // Late questions and gone owners: every few minutes is plenty.
             if ticks.is_multiple_of(crate::rooms::flow::EVERY_TICKS) {
                 crate::rooms::flow::tick(&state).await;
             }

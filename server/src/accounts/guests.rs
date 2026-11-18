@@ -1,19 +1,9 @@
-//! Party guests (`users.guest`, see `docs/PARTY.md`): token-only accounts made by joining a party
-//! without one. They play in their party only ([`crate::accounts::auth::Account`] turns them away from the
-//! rest) and are erased like a deleted account [`GUEST_TTL_DAYS`] after their last party ends,
-//! unless they secured the account (e-mail + password or a linked provider) or the party was kept
-//! as a room they are still in. A background task purges them hourly (first run at startup).
-
 use crate::platform::ids::UserId;
 use crate::{AppState, accounts::auth::guest_sql, platform::error::AppResult};
 
-/// Days a guest account lives after its last party ends.
 pub const GUEST_TTL_DAYS: i64 = 30;
-/// How often the purge runs.
 const EVERY: std::time::Duration = std::time::Duration::from_secs(3600);
 
-/// Erases every guest whose parties all ended more than [`GUEST_TTL_DAYS`] before `now`
-/// (`YYYY-MM-DDTHH:MM:SS.sssZ`, the database format) and who sits in no room. Returns how many.
 pub async fn purge_at(state: &AppState, now: &str) -> AppResult<usize> {
     let cutoff: String =
         sqlx::query_scalar("SELECT strftime('%Y-%m-%dT%H:%M:%fZ', ?, '-' || ? || ' days')")
@@ -21,8 +11,6 @@ pub async fn purge_at(state: &AppState, now: &str) -> AppResult<usize> {
             .bind(GUEST_TTL_DAYS)
             .fetch_one(&state.db)
             .await?;
-    // Kept: a seat in a party that hasn't ended or ended after the cutoff (left or not), or an
-    // active seat in a room (a party kept as a room). A guest made after the cutoff is kept too.
     let users: Vec<UserId> = sqlx::query_scalar(concat!(
         "SELECT u.id FROM users u WHERE u.guest = 1 AND u.deleted_at IS NULL AND ",
         guest_sql!("u"),
@@ -45,7 +33,6 @@ pub async fn purge_at(state: &AppState, now: &str) -> AppResult<usize> {
     Ok(purged)
 }
 
-/// [`purge_at`] with the database clock.
 pub async fn purge(state: &AppState) -> AppResult<usize> {
     let now: String = sqlx::query_scalar("SELECT strftime('%Y-%m-%dT%H:%M:%fZ', 'now')")
         .fetch_one(&state.db)
@@ -53,7 +40,6 @@ pub async fn purge(state: &AppState) -> AppResult<usize> {
     purge_at(state, &now).await
 }
 
-/// The hourly purge (first run right away), with the idle sessions and the inbox.
 pub fn spawn_purger(state: AppState) {
     tokio::spawn(async move {
         let mut tick = tokio::time::interval(EVERY);
@@ -65,13 +51,11 @@ pub fn spawn_purger(state: AppState) {
                 Ok(n) => tracing::info!(purged = n, "guest purge"),
                 Err(e) => tracing::warn!(error = ?e, "guest purge"),
             }
-            // Same hourly round: the inbox stays bounded (docs/DATABASE.md).
             match crate::chat::inbox::prune(&state.db).await {
                 Ok(0) => {}
                 Ok(n) => tracing::info!(deleted = n, "inbox pruned"),
                 Err(e) => tracing::warn!(error = ?e, "inbox prune"),
             }
-            // Same hourly round: sessions unused for 180 days (see docs/AUTH.md).
             match crate::accounts::purge_idle_sessions(&state).await {
                 Ok(0) => {}
                 Ok(n) => tracing::info!(revoked = n, "idle sessions purged"),

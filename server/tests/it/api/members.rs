@@ -12,7 +12,6 @@ async fn the_group_can_skip_someone_who_does_not_vote() {
     for t in [&a, &b, &c] {
         vote_as(&app, t, a_id).await;
     }
-    // Can't skip yourself, nor someone who already voted.
     let (s, _) = call(
         &app,
         "PUT",
@@ -22,7 +21,6 @@ async fn the_group_can_skip_someone_who_does_not_vote() {
     )
     .await;
     assert_eq!(s, StatusCode::CONFLICT);
-    // Majority of the 3 others = 2.
     let (s, body) = call(
         &app,
         "PUT",
@@ -85,7 +83,6 @@ async fn a_majority_can_remove_someone() {
     )
     .await;
     assert_eq!(body["removed"], true);
-    // Out of the group, signed out, can't come back under the same name.
     let (_, group) = call(&app, "GET", "/group", Some(&a), None).await;
     assert_eq!(group["members"].as_array().unwrap().len(), 3);
     let (s, _) = call(&app, "GET", "/round/current", Some(&d), None).await;
@@ -99,7 +96,6 @@ async fn a_majority_can_remove_someone() {
     )
     .await;
     assert_eq!(s, StatusCode::FORBIDDEN);
-    // The question was only waiting for them: it closed.
     let (_, next) = call(&app, "GET", "/round/current", Some(&a), None).await;
     assert_eq!(next["number"], 2);
     assert_eq!(next["member_count"], 3);
@@ -121,7 +117,6 @@ async fn a_newcomer_starts_with_their_own_room() {
     let (_, g) = call(&app, "GET", "/group", Some(&token), None).await;
     assert_eq!(g["name"], "Les voisins");
     assert_eq!(g["my_role"], "owner");
-    // Alone in the room: no question until someone joins.
     let (_, current) = call(&app, "GET", "/round/current", Some(&token), None).await;
     assert!(current.is_null(), "{current}");
     let (s, _) = call(
@@ -176,7 +171,6 @@ async fn leaving_is_not_being_removed() {
     let bob_seat = members[1].0;
     let cyd_seat = members[2].0;
 
-    // Bob leaves: shown as a former member, not a current one.
     let (s, _) = call(
         &app,
         "POST",
@@ -189,7 +183,6 @@ async fn leaving_is_not_being_removed() {
     let (members, former) = roster(&app, &ana, room).await;
     assert_eq!(members.len(), 2);
     assert_eq!(former, [bob_seat]);
-    // He comes back with the code: same seat, so his history reconnects.
     let (s, body) = call(
         &app,
         "POST",
@@ -203,7 +196,6 @@ async fn leaving_is_not_being_removed() {
     assert!(members.iter().any(|m| m.0 == bob_seat && m.2 == "member"));
     assert!(former.is_empty());
 
-    // Cyd is removed by the owner: the code doesn't bring her back.
     let (s, _) = call(
         &app,
         "DELETE",
@@ -226,7 +218,6 @@ async fn leaving_is_not_being_removed() {
         (StatusCode::FORBIDDEN, Some("removed")),
         "{body}"
     );
-    // Only the owner can add her back.
     let cyd_user = call(&app, "GET", "/friends", Some(&ana), None).await.1["friends"]
         .as_array()
         .unwrap()
@@ -304,7 +295,6 @@ async fn a_room_never_loses_its_owner() {
     let (_, g) = call(&app, "GET", "/group", Some(&ana), None).await;
     let main = g["id"].as_i64().unwrap();
     assert_eq!(g["my_role"], "owner");
-    // No vote removes the owner.
     for t in [&bob, &cyd, &dan] {
         let (s, body) = call(
             &app,
@@ -320,7 +310,6 @@ async fn a_room_never_loses_its_owner() {
             "{body}"
         );
     }
-    // The owner leaves: the longest-standing member takes over.
     call(
         &app,
         "POST",
@@ -362,7 +351,6 @@ async fn rooms_without_an_owner_are_repaired_at_startup() {
     let (_, bob_id) = join(&app, "Bob").await;
     let (_, g) = call(&app, "GET", "/group", Some(&ana), None).await;
     let main = g["id"].as_i64().unwrap();
-    // A room broken by an older version: its owner seat ended without a hand-over.
     sqlx::query("UPDATE members SET removed_at = 'x', role = 'member' WHERE group_id = ? AND role = 'owner'")
         .bind(main)
         .execute(&first.db)
@@ -386,7 +374,6 @@ async fn majority_votes_need_three_people() {
     let app = test_app().await;
     let (ana, _) = join(&app, "Ana").await;
     let (bob, bob_id) = join(&app, "Bob").await;
-    // Two people: one can't skip or remove the other alone.
     let (s, body) = call(
         &app,
         "PUT",
@@ -411,7 +398,6 @@ async fn majority_votes_need_three_people() {
     assert_eq!(s, StatusCode::FORBIDDEN);
     let (_, g) = call(&app, "GET", "/group", Some(&ana), None).await;
     assert_eq!(g["votes"], false);
-    // Three: both others must agree.
     let (cyd, cyd_id) = join(&app, "Cyd").await;
     let (_, g) = call(&app, "GET", "/group", Some(&ana), None).await;
     assert_eq!(g["votes"], true);

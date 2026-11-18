@@ -42,7 +42,6 @@ pub struct AppState {
     pub updates: updates::Publisher,
 }
 
-/// Opens the database and migrates it (see [`db::connect`]).
 pub async fn connect(url: &str) -> anyhow_free::Result<SqlitePool> {
     db::connect(url).await
 }
@@ -52,7 +51,6 @@ pub async fn state(config: Config) -> anyhow_free::Result<AppState> {
     state_with_mailer(config, mailer).await
 }
 
-/// Same as [`state`], with a chosen mailer (tests record the emails).
 pub async fn state_with_mailer(
     config: Config,
     mailer: Arc<dyn accounts::Mailer>,
@@ -82,8 +80,6 @@ pub async fn state_with_mailer(
             "a room still uses the public join code BANDE-42: its owner should get a new code in the app"
         );
     }
-    // A push setting that doesn't work turns that kind of push off, loudly, instead of keeping
-    // the whole app down (a crash loop that a rollback to the previous image can't fix either).
     let vapid = config.vapid_private_key.as_ref().and_then(|key| {
         push::Vapid::new(key, config.vapid_subject.clone())
             .inspect_err(|e| {
@@ -160,7 +156,6 @@ pub fn app(state: AppState) -> Router {
     .with_state(state)
 }
 
-/// Tiny boxed-error result so main and tests can use `?` on any error.
 pub mod anyhow_free {
     pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 }

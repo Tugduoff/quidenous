@@ -1,14 +1,8 @@
-//! The global question of the day (docs/GLOBAL_QUESTION.md): one deck question per day and
-//! language for every room, one final vote per seat about someone of its room, the room's tally
-//! and anonymous aggregates across rooms (only from 5 rooms, never a name or another room's ids).
-
 use crate::common::{call, join, setup};
 use axum::{Router, http::StatusCode};
 use quidenous_server::{AppState, platform::i18n::Lang, rooms::model::MemberRow, rounds::global};
 use serde_json::{Value, json};
 
-/// A room in `lang` with `names` (the first one owns it, then they join in order): its id and,
-/// per person, (token, member id in that room).
 async fn room(
     app: &Router,
     state: &AppState,
@@ -108,12 +102,10 @@ async fn one_question_per_day_and_language() {
     );
     assert_ne!(q1["question"], q3["question"]);
     assert!(q1["question"].as_str().unwrap().starts_with("Qui"), "{q1}");
-    // Stable within the day.
     assert_eq!(get(&app, &a[2].0, fr1).await["question"], q1["question"]);
     let today = q1["day"].as_str().unwrap().to_owned();
     assert_eq!(today, global::today(&state.db).await.unwrap());
 
-    // Only deck questions any room can take: pick, family or work vibes, never spicy.
     let (id, _) = global::question_for(&state.db, Lang::Fr, &today)
         .await
         .unwrap()
@@ -131,7 +123,6 @@ async fn one_question_per_day_and_language() {
     );
     assert!(!vibes.contains("pimente"), "{vibes}");
 
-    // A new one the next day, and none twice over the next 60 days.
     let tomorrow = shift(&state, &today, 1).await;
     let next = global::question_for(&state.db, Lang::Fr, &tomorrow)
         .await
@@ -146,7 +137,6 @@ async fn one_question_per_day_and_language() {
             .unwrap()
             .unwrap();
         assert!(seen.insert(q), "repeated on day +{n}");
-        // Asking again the same day gives the same one.
         assert_eq!(
             global::question_for(&state.db, Lang::Fr, &day)
                 .await
@@ -175,7 +165,6 @@ async fn one_final_vote_for_someone_of_my_room() {
     );
     assert_eq!(before["room"]["members"], 3);
 
-    // Someone of another room (or no one) is not a choice.
     let (s, b) = vote(&app, ana, r, q[0].1).await;
     assert_eq!(
         (s, b["error"].as_str()),
@@ -192,7 +181,6 @@ async fn one_final_vote_for_someone_of_my_room() {
         after["room"]["tally"],
         json!([{ "target_id": bob_id, "count": 1 }])
     );
-    // Final.
     let (s, b) = vote(&app, ana, r, ana_id).await;
     assert_eq!(
         (s, b["error"].as_str()),
@@ -200,7 +188,6 @@ async fn one_final_vote_for_someone_of_my_room() {
     );
     assert_eq!(get(&app, ana, r).await["my_vote"], bob_id);
 
-    // Myself is a choice; the tally has counts, never who voted.
     let (s, b) = vote(&app, &p[1].0, r, bob_id).await;
     assert_eq!(s, StatusCode::OK, "{b}");
     assert_eq!(
@@ -209,12 +196,10 @@ async fn one_final_vote_for_someone_of_my_room() {
     );
     assert!(!b.to_string().contains("voter_id"), "{b}");
 
-    // The other room sees its own (empty) tally, and only once it voted.
     let theirs = get(&app, &q[0].0, other).await;
     assert_eq!(theirs["room"]["voters"], 0);
     assert_eq!(theirs["room"]["tally"], Value::Null);
 
-    // The same person in another room votes there too (one vote per seat): Ana joins Dan's room.
     let code: String = sqlx::query_scalar("SELECT join_code FROM groups WHERE id = ?")
         .bind(other)
         .fetch_one(&state.db)
@@ -237,14 +222,12 @@ async fn one_final_vote_for_someone_of_my_room() {
         json!([{ "target_id": q[1].1, "count": 1 }])
     );
 
-    // Not in the room's history: no round, no vote rows.
     let votes: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM votes")
         .fetch_one(&state.db)
         .await
         .unwrap();
     assert_eq!(votes, 0);
 
-    // Needs a seat.
     let (s, _) = call(&app, "GET", "/global", None, None, None).await;
     assert_eq!(s, StatusCode::UNAUTHORIZED);
 }
@@ -266,7 +249,6 @@ async fn parties_and_small_rooms_have_none() {
         (StatusCode::FORBIDDEN, Some("small_room"))
     );
 
-    // A third person: it opens.
     let code: String = sqlx::query_scalar("SELECT join_code FROM groups WHERE id = ?")
         .bind(small)
         .fetch_one(&state.db)
@@ -284,7 +266,6 @@ async fn parties_and_small_rooms_have_none() {
     .await;
     assert_eq!(get(&app, &p[0].0, small).await["available"], true);
 
-    // A party (host and guests alike).
     let (s, party) = call(
         &app,
         "POST",
@@ -333,12 +314,6 @@ async fn parties_and_small_rooms_have_none() {
 #[tokio::test]
 async fn aggregates_from_five_rooms_without_names() {
     let (app, state) = setup().await;
-    // Five rooms of three: owner O, then A, then B (the newest). Votes (voter -> target):
-    //   1: O->O A->O B->O  unanimous, the owner, 1 for themselves
-    //   2: O->B A->B       unanimous, the newest
-    //   3: O->A A->O B->A  A
-    //   4: O->B A->O B->B  the newest, 1 for themselves
-    //   5: O->A A->A B->O  A, 1 for themselves
     let plan: [&[(usize, usize)]; 5] = [
         &[(0, 0), (1, 0), (2, 0)],
         &[(0, 2), (1, 2)],
@@ -357,11 +332,9 @@ async fn aggregates_from_five_rooms_without_names() {
     for n in &names {
         rooms.push(room(&app, &state, "fr", n).await);
     }
-    // A sixth room with one vote only: not counted (a room needs two).
     let (lone, l) = room(&app, &state, "fr", &["Prosper", "Quentin", "Romeo"]).await;
     let (s, _) = vote(&app, &l[0].0, lone, l[1].1).await;
     assert_eq!(s, StatusCode::OK);
-    // An English room: another question, other aggregates.
     let (en, e) = room(&app, &state, "en", &["Sacha", "Tess", "Uma"]).await;
     vote(&app, &e[0].0, en, e[1].1).await;
     vote(&app, &e[1].0, en, e[1].1).await;
@@ -385,7 +358,6 @@ async fn aggregates_from_five_rooms_without_names() {
     }
 
     let (r2, p2) = &rooms[1];
-    // Firmin (room 2) did not vote: the count, not the facts.
     let g = get(&app, &p2[2].0, *r2).await;
     assert_eq!(g["my_vote"], Value::Null);
     assert_eq!(g["global"]["rooms"], 5);
@@ -407,11 +379,9 @@ async fn aggregates_from_five_rooms_without_names() {
     assert_eq!(facts["unanimous"], 40);
     assert_eq!(facts["owner"], 20);
     assert_eq!(facts["newest"], 40);
-    assert_eq!(facts["self"], 21); // 3 of 14 voters
-    assert_eq!(facts["top_share"], 80); // (1 + 1 + 2/3 * 3) / 5
-    // No closed question in these rooms yet: no "same as the last winner" fact.
+    assert_eq!(facts["self"], 21);
+    assert_eq!(facts["top_share"], 80);
     assert!(!facts.contains_key("last_winner"));
-    // Most striking first.
     let pcts: Vec<i64> = g["global"]["facts"]
         .as_array()
         .unwrap()
@@ -420,7 +390,6 @@ async fn aggregates_from_five_rooms_without_names() {
         .collect();
     assert!(pcts.windows(2).all(|w| w[0] >= w[1]), "{pcts:?}");
 
-    // Nothing about anyone: no names at all, no ids of another room.
     let text = g.to_string();
     for n in names
         .iter()
@@ -441,12 +410,10 @@ async fn aggregates_from_five_rooms_without_names() {
         json!([{ "target_id": p2[2].1, "count": 2 }])
     );
 
-    // The English room is alone in its language.
     let g = get(&app, &e[0].0, en).await;
     assert_eq!(g["global"]["rooms"], 1);
     assert_eq!(g["global"]["facts"], Value::Null);
 
-    // The next day: a new question, nobody voted yet, yesterday's final numbers.
     let today = global::today(&state.db).await.unwrap();
     let tomorrow = shift(&state, &today, 1).await;
     let me = member(&state, p2[0].1).await;
@@ -460,8 +427,6 @@ async fn aggregates_from_five_rooms_without_names() {
     assert_eq!(y["tally"], json!([{ "target_id": p2[2].1, "count": 2 }]));
     assert_eq!(y["facts"].as_array().map(Vec::len), Some(5));
 
-    // Votes from or for someone who left stop counting: room 1 loses its owner, so its three
-    // votes for them, and is down to two people (no card there any more).
     let (r1, p1) = &rooms[0];
     sqlx::query(
         "UPDATE members SET removed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
@@ -489,8 +454,6 @@ async fn last_winner_fact_counts_rooms_with_a_closed_question() {
         let names: Vec<&str> = names.iter().map(String::as_str).collect();
         rooms.push(room(&app, &state, "fr", &names).await);
     }
-    // Each room's open question: everyone picks the third person, then it closes. Today, rooms
-    // 0-2 pick that same person again, rooms 3-4 someone else.
     for (i, (id, people)) in rooms.iter().enumerate() {
         let round: i64 =
             sqlx::query_scalar("SELECT id FROM rounds WHERE group_id = ? AND closed_at IS NULL")

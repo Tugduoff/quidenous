@@ -1,5 +1,3 @@
-//! The round loop: one open question per group, closed when every member has voted.
-
 use crate::platform::ids::{QuestionId, RoomId, RoundId};
 use sqlx::{Sqlite, SqlitePool, Transaction};
 
@@ -18,15 +16,12 @@ macro_rules! round_select {
     };
 }
 
-/// A choose question nobody can vote on (no items): never opened (older servers made such copies).
 macro_rules! votable {
     () => {
         "NOT (q.kind = 'choose' AND q.items IS NULL)"
     };
 }
 
-/// What a room can draw: a party only pick and said questions; a said question needs
-/// [`crate::rounds::said::MIN_PEOPLE`] people (`?1` = the room).
 macro_rules! drawable {
     () => {
         "(q.kind IN ('pick', 'said') OR (SELECT kind FROM groups WHERE id = ?1) = 'room') \
@@ -41,10 +36,6 @@ macro_rules! unused {
 }
 pub(crate) use unused;
 
-/// The room's own question with this text, else a built-in one the room was already asked, if
-/// any: the one rule for "already in this room" when adding a question, importing a file,
-/// installing a pack or playing a shared question. Case-insensitive beyond ASCII ("ÉTÉ" = "été",
-/// see [`crate::platform::text::key`]): same length in SQL, then compared here.
 pub(crate) async fn same_question(
     tx: &mut Transaction<'_, Sqlite>,
     group_id: RoomId,
@@ -76,7 +67,6 @@ pub async fn open_round(db: &SqlitePool, group_id: RoomId) -> AppResult<Option<R
     .await?)
 }
 
-/// Oldest finished question I voted on whose result I have not seen yet.
 pub async fn unseen_round(
     db: &SqlitePool,
     me: &crate::rooms::model::MemberRow,
@@ -93,8 +83,6 @@ pub async fn unseen_round(
     .await?)
 }
 
-/// Every finished question I voted on whose result I have not seen, newest first (ids): how many, and
-/// the one to mark seen to catch up at once (`seen_round` only moves forward).
 pub async fn unseen_ids(
     db: &SqlitePool,
     me: &crate::rooms::model::MemberRow,
@@ -120,9 +108,6 @@ pub async fn round(db: &SqlitePool, group_id: RoomId, round_id: RoundId) -> AppR
         .ok_or(AppError::NotFound)
 }
 
-/// Built-in deck questions this room can still get (the deck of its language), with their vibe tags.
-/// Parties draw pick and said questions only, said ones with 3 people or more (see [`drawable`]).
-/// One the room has its own copy of (added by hand) is left to that copy.
 async fn deck_candidates<'e, E: sqlx::SqliteExecutor<'e>>(
     db: E,
     group_id: RoomId,
@@ -142,14 +127,12 @@ async fn deck_candidates<'e, E: sqlx::SqliteExecutor<'e>>(
     .await?)
 }
 
-/// A party's settings: seconds per question, and whether it is over (`party_ends_at` passed).
 #[derive(Debug, Clone, Copy)]
 pub struct Party {
     pub timer: i64,
     pub over: bool,
 }
 
-/// `Some` when the room is a party (see `party`).
 pub async fn party<'e, E: sqlx::SqliteExecutor<'e>>(
     db: E,
     group_id: RoomId,
@@ -178,7 +161,6 @@ async fn room_vibe<'e, E: sqlx::SqliteExecutor<'e>>(
         .flatten())
 }
 
-/// Deck questions left for this room, given its vibe and language.
 pub async fn deck_left(db: &SqlitePool, group_id: RoomId) -> AppResult<i64> {
     let draws = crate::rooms::vibes::draws(room_vibe(db, group_id).await?.as_deref());
     Ok(deck_candidates(db, group_id)
@@ -192,7 +174,6 @@ pub async fn deck_left(db: &SqlitePool, group_id: RoomId) -> AppResult<i64> {
         .count() as i64)
 }
 
-/// Questions a room can still open: its own unasked ones plus what's left in its deck.
 pub async fn questions_left(db: &SqlitePool, group_id: RoomId) -> AppResult<i64> {
     let custom: i64 = sqlx::query_scalar(concat!(
         "SELECT COUNT(*) FROM questions q WHERE q.group_id = ?1 AND ",
@@ -206,9 +187,6 @@ pub async fn questions_left(db: &SqlitePool, group_id: RoomId) -> AppResult<i64>
     Ok(custom + deck_left(db, group_id).await?)
 }
 
-/// Group questions first (queue order: oldest first unless shuffled; a said question waits while the
-/// room is too small), then a random deck question
-/// the group has not seen, in the room's language, from its vibe (its favourite tag first).
 async fn next_question(
     tx: &mut Transaction<'_, Sqlite>,
     group_id: RoomId,
@@ -244,10 +222,6 @@ async fn next_question(
     Ok(None)
 }
 
-/// Opens the next round when none is open and at least two people are in the room (alone,
-/// there is nobody to vote for: the room waits for its second member). Returns the new round id, if any.
-/// A party question gets a deadline (now + the party's timer; a said question's writing phase, see
-/// [`crate::rounds::said::writing_secs`]) and the list of who may vote on it.
 pub async fn ensure_open_round(
     tx: &mut Transaction<'_, Sqlite>,
     group_id: RoomId,
@@ -259,7 +233,6 @@ pub async fn ensure_open_round(
     if party.is_some_and(|p| p.over) {
         return Ok(None);
     }
-    // Paced room: the closed question waits for the owner or the delay (see `pacing`).
     let paused: bool = sqlx::query_scalar("SELECT paused_at IS NOT NULL FROM groups WHERE id = ?")
         .bind(group_id)
         .fetch_optional(&mut **tx)
@@ -318,8 +291,6 @@ pub async fn ensure_open_round(
     Ok(Some(id))
 }
 
-/// A room with active members always has an owner: when none is left, the longest-standing
-/// active member takes over. `true` when someone was promoted.
 pub async fn ensure_owner(tx: &mut Transaction<'_, Sqlite>, group_id: RoomId) -> AppResult<bool> {
     let promoted = sqlx::query(
         "UPDATE members SET role = 'owner' WHERE id = \
@@ -332,7 +303,6 @@ pub async fn ensure_owner(tx: &mut Transaction<'_, Sqlite>, group_id: RoomId) ->
     Ok(promoted.rows_affected() > 0)
 }
 
-/// Startup repair: every live room with members but no active owner gets one. Idempotent.
 pub async fn repair_owners(db: &SqlitePool) -> AppResult<u64> {
     let done = sqlx::query(
         "UPDATE members SET role = 'owner' WHERE id IN \
@@ -344,10 +314,6 @@ pub async fn repair_owners(db: &SqlitePool) -> AppResult<u64> {
     Ok(done.rows_affected())
 }
 
-/// Startup repair: a choose question copied into a room without its items (a share or a
-/// challenge, before they copied them) gets the items of the question it was copied from (same
-/// text). Its open round, which nobody could vote on, becomes playable again. Idempotent.
-/// Returns (repaired, left without items).
 pub async fn repair_choose_items(db: &SqlitePool) -> AppResult<(u64, i64)> {
     let done = sqlx::query(
         "UPDATE questions SET items = \
@@ -367,8 +333,6 @@ pub async fn repair_choose_items(db: &SqlitePool) -> AppResult<(u64, i64)> {
     Ok((done.rows_affected(), left))
 }
 
-/// SQL: the seat `m` (a `members` alias) is away (see [`away`]); `$after` is the parameter bound to
-/// [`AWAY_AFTER`]. One rule for one room ([`away`]) and for all of an account's rooms (`today`).
 macro_rules! away_sql {
     ($after:literal) => {
         concat!(

@@ -1,37 +1,16 @@
-// Vendored copy of the Petons rig source ("la bande": Zeste, Bulle, Pavé, Paillette, Roupi), from the
-// mascot design repo (a2/petons/rig.mjs), the same rig the app ports. Only the board-only exports (INFO, ROLES,
-// partSvg) were dropped; keep the rest in sync with the source rather than editing it here.
-// build.mjs (next to this file) turns it into the showcase page's SVGs.
-//
-// A · Petons: the same five friends as La Bande, re-proportioned into a chunky toy family.
-// Squat bodies, tiny stubby legs ("petons"), bigger eyes with a big highlight, a heavier ink line, short arms.
-//
-// Every character = a BODY (fixed silhouette + anchors) + shared PARTS (eyes, brows, mouth, arms, legs, props).
-// Parts are authored once, in local coordinates:
-//   - face parts around the face centre (0,0), eyes at x = ±20, mouth at y ≈ 16..33;
-//   - arm AND leg parts for a RIGHT socket (+x = outward, +y = down); the left socket uses the same part mirrored;
-//   - top props (zzz, "?") around the body's `prop` anchor; sparkles in absolute 200×200 space.
-// A leg part may carry `lift` (whole body moves up for a hop, down for a sit): the legs decide the stance.
-// Colour tokens ('ink', 'body', 'shade', 'cheek', 'white', 'acc2') are resolved per character.
-
 export const INK = '#121216';
 export const WHITE = '#FFFFFF';
-export const GROUND = 187; // feet rest here; tilt / squash pivot
+export const GROUND = 187;
 
-// ---------- tiny element helpers (plain {t, ...attrs} objects) ----------
 const P = (d, o = {}) => ({ t: 'path', d, ...o });
 const C = (cx, cy, r, o = {}) => ({ t: 'circle', cx, cy, r, ...o });
 const E = (cx, cy, rx, ry, o = {}) => ({ t: 'ellipse', cx, cy, rx, ry, ...o });
-const LW = 5.5; // face line weight (A: 4.5)
+const LW = 5.5;
 const line = (d, sw = LW) => P(d, { fill: 'none', stroke: 'ink', sw, cap: 'round', join: 'round' });
-// An outlined tube: ink stroke, then a narrower stroke in `inner` colour on top (arms, legs, stems, letters).
 const tube = (d, w = 22, inner = 'body', outline = 5.5) => [
   P(d, { fill: 'none', stroke: 'ink', sw: w, cap: 'round', join: 'round' }),
   P(d, { fill: 'none', stroke: inner, sw: w - 2 * outline, cap: 'round', join: 'round' }),
 ];
-// Joint: the inner colour of a limb tube, redrawn OVER the body outline where the limb leaves the body, so limbs
-// grow out of one continuous silhouette (no ink gap, which on dark backgrounds made hands and feet look detached).
-// Supports 'M x y Q x y x y' and 'M x y L x y'. axis/lo/hi = the stretch of the curve to redraw (local coords).
 function joint(d, w, inner, outline, axis, lo, hi) {
   const n = d.match(/-?[\d.]+/g).map(Number);
   const [p0, p1, p2] = n.length === 6 ? [[n[0], n[1]], [n[2], n[3]], [n[4], n[5]]] : [[n[0], n[1]], null, [n[2], n[3]]];
@@ -65,9 +44,7 @@ const drop = (x, y, h, fill = '#BDEBFF') =>
     sw: 4,
     join: 'round',
   });
-// Both eyes from one recipe (x = -20 left eye, +20 right; side = -1 left, +1 right).
 const EX = 20;
-// Sole seen from the front when sitting: an egg, wide at the toes, splayed outward.
 export const sole = (x, y, rot) => {
   const transform = `translate(${x} ${y}) rotate(${rot})`;
   return [
@@ -80,8 +57,6 @@ export const sole = (x, y, rot) => {
 };
 const both = (f) => [...f(-EX, -1), ...f(EX, 1)];
 
-// ---------- BODIES: silhouette + anchors (face, arm sockets, LEG sockets, prop anchor) ----------
-// All bodies sit on the same baseline: body bottom ≈ 166, leg sockets at y = 158, feet on GROUND (187).
 export const BODIES = {
   zeste: {
     name: 'Zeste',
@@ -90,7 +65,6 @@ export const BODIES = {
     cheek: '#FF8FA8',
     acc2: '#7BB300',
     shape: 'haricot',
-    // short bean (A: 144 tall, here 108)
     d: 'M100 58C132 58 150 80 152 108C154 134 156 152 146 160C138 166 120 166 100 166C80 166 62 166 54 160C44 152 46 134 48 108C50 80 68 58 100 58Z',
     gloss: 'M62 106Q63 86 76 74',
     face: { x: 100, y: 106, s: 1 },
@@ -109,7 +83,6 @@ export const BODIES = {
     cheek: '#FF8FC0',
     acc2: '#2FA6E0',
     shape: 'boule',
-    // wide puff with a tuft
     d: 'M100 68C140 68 168 92 168 121C168 151 142 166 100 166C58 166 32 151 32 121C32 92 60 68 100 68Z',
     gloss: 'M48 114Q50 94 66 82',
     face: { x: 100, y: 118, s: 1 },
@@ -135,7 +108,6 @@ export const BODIES = {
     cheek: '#FF7A5C',
     acc2: '#F08F1F',
     shape: 'pavé',
-    // squat block, very round corners
     d: 'M68 72H132C155 72 162 82 163 102L164 142C164 160 156 166 136 166H64C44 166 36 160 36 142L37 102C38 82 45 72 68 72Z',
     gloss: 'M50 124V104Q50 88 62 84',
     face: { x: 100, y: 116, s: 1 },
@@ -145,7 +117,6 @@ export const BODIES = {
     shadow: 60,
     back: [...tube('M94 74C88 64 94 54 106 54C102 59 104 64 110 68', 14, 'body', 4.8)],
     front: [],
-    // round glasses: lenses under the eyes, frames over them
     faceUnder: [
       { t: 'rect', x: -36, y: -16, width: 32, height: 30, rx: 12, fill: 'white', opacity: 0.5 },
       { t: 'rect', x: 4, y: -16, width: 32, height: 30, rx: 12, fill: 'white', opacity: 0.5 },
@@ -163,7 +134,6 @@ export const BODIES = {
     cheek: '#FF3F8C',
     acc2: '#E8479A',
     shape: 'goutte',
-    // squat drop with a flicked tip
     d: 'M126 34C120 50 100 62 82 74C58 90 38 108 38 132C38 154 62 166 100 166C138 166 162 154 162 132C162 108 151 92 139 79C129 67 121 52 126 34Z',
     gloss: 'M54 126Q56 106 70 94',
     face: { x: 100, y: 126, s: 1 },
@@ -173,7 +143,6 @@ export const BODIES = {
     shadow: 56,
     back: [],
     front: [],
-    // lashes + beauty mark: the drama queen
     faceExtras: [
       P('M-26 -10L-30 -17M-29.5 -4.5L-36.5 -8M26 -10L30 -17M29.5 -4.5L36.5 -8', { fill: 'none', stroke: 'ink', sw: 4.4, cap: 'round' }),
       C(31, 22, 2.8, { fill: 'ink' }),
@@ -186,7 +155,6 @@ export const BODIES = {
     cheek: '#F08CE0',
     acc2: '#5EF2B0',
     shape: 'dôme',
-    // wide low dome + menthe nightcap
     d: 'M26 150C26 112 58 86 100 86C142 86 174 112 174 150C174 160 168 166 158 166H42C32 166 26 160 26 150Z',
     gloss: 'M40 140Q42 120 56 108',
     face: { x: 100, y: 133, s: 0.86 },
@@ -211,7 +179,6 @@ export const BODIES = {
 
 export const CAST = Object.keys(BODIES);
 
-// ---------- PARTS: one shared library ----------
 const hi = (x, y = -4.8, r = 4.4) => [C(x - 3.2, y, r, { fill: 'white' }), C(x + 3.8, y + 9.4, 1.9, { fill: 'white' })];
 
 const arm = (d, rest) => ({ z: 'back', els: [...tube(d), ...rest], joint: armJoint(d) });
@@ -220,9 +187,7 @@ const leg = (d, rest, lift = 0, w = 20) => ({ z: 'back', lift, els: [...tube(d, 
 export const PARTS = {
   eyes: {
     open: both((x) => [E(x, 0, 10, 12.5, { fill: 'ink' }), ...hi(x)]),
-    // half-lidded (bored / smug / sleepy-happy)
     lazy: both((x) => [P(`M${x - 9.85} -1A10 12.5 0 0 0 ${x + 9.85} -1Z`, { fill: 'ink' }), C(x - 3, 3.5, 2.6, { fill: 'white' }), line(`M${x - 12} -2L${x + 12} -2`, 6)]),
-    // suspicious: lid slanted down toward the nose
     squint: both((x, s) => [
       P(`M${x - 9.85} 2A10 12.5 0 0 0 ${x + 9.85} 2Z`, { fill: 'ink' }),
       C(x - 3 * s, 6, 2.4, { fill: 'white' }),
@@ -260,7 +225,6 @@ export const PARTS = {
     hmm: [line('M-3 22L11 19')],
     wobble: [line('M-12 23Q-8 18.5 -4 23T4 23T12 23', 5)],
   },
-  // One side only, for the RIGHT socket. Shorter than A (stubby toy arms). `joint` = redrawn over the body outline.
   arms: {
     rest: arm('M-8 -2Q2 4 5 12', [mitt(6, 15)]),
     wave: arm('M-8 0Q8 -2 12 -18', [mitt(13, -22)]),
@@ -272,22 +236,14 @@ export const PARTS = {
     hands: arm('M-8 0Q8 -2 9 -14', [mitt(9, -18, 13.5)]),
     none: { z: 'back', els: [], joint: [] },
   },
-  // NEW: legs, one side only, for the RIGHT leg socket (hip). `lift` moves the whole body (- = up, + = down).
   legs: {
     stand: leg('M0 -6L2 13', [foot(5, 21)]),
-    // planted wide (accusing, sure of themselves)
     wide: leg('M0 -6L8 13', [foot(12, 21)]),
-    // pigeon-toed (shy, sad)
     shy: leg('M0 -6L-2 13', [foot(-1, 21, 13.5, 8.5, -18)]),
-    // toes up, heel down: tapping (thinking)
     tap: leg('M0 -6L3 11', [foot(9, 16, 13.5, 8, -24)]),
-    // on tiptoe: body up a little, feet pointing down
     tiptoe: leg('M0 -6L1 15', [foot(2, 24, 9.5, 10.5)], -6),
-    // jump: body high, feet kicked outward, the shadow stays on the ground
     hop: leg('M0 -4Q4 8 10 13', [foot(14, 18, 12.5, 8, 28)], -15),
-    // startled jump: feet hanging together under the body
     dangle: leg('M0 -4L-2 13', [foot(-2, 20, 11, 8, -14)], -11, 18),
-    // sitting on the ground: body lowered, soles facing us, splayed outward
     sit: { z: 'front', lift: 13, els: sole(2, 2, 28), joint: [] },
     none: { z: 'back', lift: 0, els: [], joint: [] },
   },
@@ -321,7 +277,6 @@ export const PARTS = {
   },
 };
 
-// ---------- MOODS: part names (+ a small whole-body transform). Legs pick the stance. ----------
 export const MOODS = {
   happy: { eyes: 'open', brows: 'none', mouth: 'smile', arms: ['rest', 'wave'], legs: ['stand', 'stand'] },
   accuse: { eyes: 'squint', brows: 'sus', mouth: 'smirk', arms: ['rest', 'point'], legs: ['wide', 'wide'], tilt: 4, dx: -10 },
@@ -329,12 +284,10 @@ export const MOODS = {
   celebrate: { eyes: 'happy', brows: 'up', mouth: 'grin', arms: ['up', 'up'], legs: ['hop', 'hop'], prop: 'sparkles' },
   sad: { eyes: 'teary', brows: 'sad', mouth: 'frown', arms: ['droop', 'droop'], legs: ['shy', 'shy'], prop: 'tear', squash: [1.04, 0.96] },
   think: { eyes: 'side', brows: 'think', mouth: 'hmm', arms: ['rest', 'finger'], legs: ['stand', 'tap'], prop: 'ask' },
-  // extra: the one everybody points at (jumps out of their skin)
   caught: { eyes: 'wide', brows: 'worried', mouth: 'wobble', arms: ['hands', 'hands'], legs: ['dangle', 'dangle'], prop: 'sweat' },
 };
 export const MOOD_KEYS = ['happy', 'accuse', 'sleepy', 'celebrate', 'sad', 'think'];
 
-// Personality = a few part swaps on top of the shared moods.
 export const QUIRKS = {
   zeste: { accuse: { mouth: 'grin', brows: 'up' }, happy: { mouth: 'grin' } },
   bulle: { happy: { arms: ['rest', 'rest'], eyes: 'side', legs: ['shy', 'shy'] }, accuse: { eyes: 'side', mouth: 'wobble', brows: 'worried', tilt: 2, legs: ['shy', 'shy'] } },
@@ -362,7 +315,6 @@ export function resolve(who, mood) {
   return m;
 }
 
-// ---------- compose: parts -> SVG string ----------
 const ATTR = { sw: 'stroke-width', cap: 'stroke-linecap', join: 'stroke-linejoin' };
 const fmt = (n) => (typeof n === 'number' ? +n.toFixed(2) : n);
 
@@ -378,12 +330,8 @@ function el(e, pal) {
 }
 
 const g = (tr, els, pal) => `<g transform="${tr}">${els.map((e) => el(e, pal)).join('')}</g>`;
-export const BODY_SW = 7.5; // A: 5.5
+export const BODY_SW = 7.5;
 
-/**
- * compose('zeste', 'accuse') or compose('roupi', { eyes: 'lazy', arms: ['point', 'rest'], legs: ['sit', 'sit'] }).
- * opts.uid: unique id prefix; opts.size: width/height; opts.mono: silhouette test; opts.noShadow; opts.bare (no face).
- */
 export function compose(who, mood = 'happy', opts = {}) {
   const b = BODIES[who];
   const m = resolve(who, mood);
@@ -444,7 +392,6 @@ export function compose(who, mood = 'happy', opts = {}) {
     layer(legs, 'front') +
     layer(arms, 'front') +
     propSvg;
-  // The shadow stays on the ground: smaller and lighter when the body is in the air.
   const air = m.lift < 0;
   const shadow = opts.noShadow
     ? ''

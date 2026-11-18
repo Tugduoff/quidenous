@@ -12,7 +12,6 @@ async fn packs_have_categories_spicy_opt_in_likes_and_sorts() {
     let (_, features) = call(app, "GET", "/features", None, None).await;
     assert!(features.as_array().unwrap().contains(&json!("community")));
 
-    // Categories: known ids, 3 at most.
     for tags in [
         json!(["nope"]),
         json!(["potes", "boulot", "famille", "culture"]),
@@ -36,7 +35,6 @@ async fn packs_have_categories_spicy_opt_in_likes_and_sorts() {
         json!({ "name": "Classiques", "questions": questions("a", 5), "tags": ["potes", "potes"] }),
     )
     .await;
-    // Tagged pimente: always 16+.
     let p2 = publish(
         app,
         &ana,
@@ -49,7 +47,6 @@ async fn packs_have_categories_spicy_opt_in_likes_and_sorts() {
         json!({ "name": "Soirée", "questions": questions("c", 5), "tags": ["soiree"], "spicy": true }),
     )
     .await;
-    // 16+: hidden from someone who didn't opt in, even by id.
     let (s, _) = call(app, "GET", &format!("/packs/{p2}"), Some(&bob), None).await;
     assert_eq!(s, StatusCode::NOT_FOUND);
     let (_, d) = call(app, "GET", &format!("/packs/{p2}"), Some(&ana), None).await;
@@ -73,7 +70,6 @@ async fn packs_have_categories_spicy_opt_in_likes_and_sorts() {
         assert!(d.get(key).is_some(), "{key} in {d}");
     }
 
-    // 16+ packs: hidden until opted in.
     let (_, list) = call(app, "GET", "/packs", Some(&bob), None).await;
     assert_eq!(ids(&list), [p1]);
     let (_, list) = call(app, "GET", "/packs?tag=pimente", Some(&bob), None).await;
@@ -98,7 +94,6 @@ async fn packs_have_categories_spicy_opt_in_likes_and_sorts() {
     assert_eq!(ids(&list), [p3, p2, p1]);
     let (_, list) = call(app, "GET", "/packs?tag=pimente", Some(&bob), None).await;
     assert_eq!(ids(&list), [p2]);
-    // ... or in a room whose vibe is pimente.
     let hot_room = room_with(app, &cyd, "Hot", &[], Some("pimente")).await;
     let (_, test_room) = call(app, "GET", "/group", Some(&admin), None).await;
     let test_room = test_room["id"].as_i64().unwrap();
@@ -107,7 +102,6 @@ async fn packs_have_categories_spicy_opt_in_likes_and_sorts() {
     let (_, list) = call_room(app, "GET", "/packs?sort=new", &cyd, test_room, None).await;
     assert_eq!(ids(&list), [p1]);
 
-    // One like per person, never on my own pack.
     for _ in 0..2 {
         let (s, b) = call(app, "POST", &format!("/packs/{p1}/like"), Some(&bob), None).await;
         assert_eq!(s, StatusCode::OK);
@@ -127,7 +121,6 @@ async fn packs_have_categories_spicy_opt_in_likes_and_sorts() {
         (s, b["error"].as_str()),
         (StatusCode::BAD_REQUEST, Some("own_pack"))
     );
-    // Likes: p2 ×2, p1 ×1.
     call(app, "POST", &format!("/packs/{p2}/like"), Some(&bob), None).await;
     call(app, "POST", &format!("/packs/{p2}/like"), Some(&cyd), None).await;
     call(app, "POST", &format!("/packs/{p1}/like"), Some(&cyd), None).await;
@@ -135,7 +128,6 @@ async fn packs_have_categories_spicy_opt_in_likes_and_sorts() {
     assert_eq!(ids(&list), [p2, p1, p3]);
     assert_eq!(list[0]["liked"], true);
     assert_eq!(list[0]["likes"], 2);
-    // Trending: p3 installed in two rooms this week (2), p2 liked twice (2, fewer installs), p1 (1).
     let bob_room = room_with(app, &bob, "Chez Bob", &[], None).await;
     for room in [bob_room, test_room] {
         let (s, b) = call_room(
@@ -153,7 +145,6 @@ async fn packs_have_categories_spicy_opt_in_likes_and_sorts() {
     assert_eq!(ids(&list), [p3, p2, p1]);
     let (_, list) = call(app, "GET", "/packs", Some(&bob), None).await;
     assert_eq!(ids(&list), [p3, p2, p1], "trending is the default");
-    // Featured: admins only.
     let (s, b) = call(
         app,
         "POST",
@@ -178,7 +169,6 @@ async fn packs_have_categories_spicy_opt_in_likes_and_sorts() {
     let (_, list) = call(app, "GET", "/packs?sort=featured", Some(&bob), None).await;
     assert_eq!(ids(&list), [p1]);
     assert_eq!(list[0]["featured"], true);
-    // Languages: all by default, filtered when asked.
     let p4 = publish(
         app,
         &cyd,
@@ -255,7 +245,6 @@ async fn installs_count_per_room_and_authors_edit_and_delete() {
         (json!(2), json!(true))
     );
 
-    // Editing: only the author; new questions bump the version, reinstalling adds only those.
     let mut qs = questions("p", 6);
     qs.push(json!({ "text": "Qui est arrivé avec la version deux ?", "kind": "rank" }));
     let (s, b) = call(
@@ -322,7 +311,6 @@ async fn installs_count_per_room_and_authors_edit_and_delete() {
     let (_, d) = call(app, "GET", &format!("/packs/{pack}"), Some(&bob), None).await;
     assert_eq!(d["installs"], 2);
 
-    // Mine, then delete.
     let (_, mine) = call(app, "GET", "/packs/mine", Some(&ana), None).await;
     assert_eq!(ids(&mine), [pack]);
     assert_eq!(mine[0]["status"], "public");
@@ -348,7 +336,6 @@ async fn installs_count_per_room_and_authors_edit_and_delete() {
         (StatusCode::FORBIDDEN, Some("pack_removed"))
     );
 
-    // Ten packs in public/review; deleted and removed ones don't count.
     let mut made = Vec::new();
     for i in 0..10 {
         made.push(
@@ -434,7 +421,6 @@ async fn reports_send_a_pack_to_review_and_admins_decide() {
         (s, b["error"].as_str()),
         (StatusCode::BAD_REQUEST, Some("bad_report"))
     );
-    // Old apps send no body at all.
     let (s, _) = call(
         app,
         "POST",
@@ -463,7 +449,6 @@ async fn reports_send_a_pack_to_review_and_admins_decide() {
         Some(json!({ "reason": "offensive" })),
     )
     .await;
-    // Once per person: no new report, no new e-mail.
     call(
         app,
         "POST",
@@ -483,7 +468,6 @@ async fn reports_send_a_pack_to_review_and_admins_decide() {
     let (s, _) = call(app, "GET", &format!("/packs/{pack}"), Some(&admin), None).await;
     assert_eq!(s, StatusCode::OK);
 
-    // Each report was e-mailed; the third says it went to review.
     for _ in 0..100 {
         if t.mail.count("contact@coflop.fr") >= 3 {
             break;
@@ -503,7 +487,6 @@ async fn reports_send_a_pack_to_review_and_admins_decide() {
         assert!(reports[0].text.contains("En revue : non"));
     }
 
-    // Admin review.
     let (s, b) = call(app, "GET", "/admin/review", Some(&bob), None).await;
     assert_eq!(
         (s, b["error"].as_str()),
@@ -536,7 +519,6 @@ async fn reports_send_a_pack_to_review_and_admins_decide() {
     assert_eq!((s, b["status"].clone()), (StatusCode::OK, json!("public")));
     let (_, list) = call(app, "GET", "/packs", Some(&bob), None).await;
     assert_eq!(ids(&list), [pack]);
-    // Reports were cleared: one new report doesn't send it back.
     call(
         app,
         "POST",
@@ -548,7 +530,6 @@ async fn reports_send_a_pack_to_review_and_admins_decide() {
     let (_, list) = call(app, "GET", "/packs", Some(&bob), None).await;
     assert_eq!(ids(&list), [pack]);
 
-    // Creator page: public packs only; mine even when empty.
     let (s, c) = call(
         app,
         "GET",
@@ -587,7 +568,6 @@ async fn reports_send_a_pack_to_review_and_admins_decide() {
     .await;
     assert_eq!(s, StatusCode::NOT_FOUND);
 
-    // Removed: its author sees why; nobody else sees it.
     let (s, b) = call(
         app,
         "POST",
@@ -659,7 +639,6 @@ async fn public_pack_pages() {
     assert_eq!(res.headers()["content-type"], "image/png");
     let png = res.into_body().collect().await.unwrap().to_bytes();
     assert_eq!(&png[1..4], b"PNG");
-    // Not public: 404.
     call(app, "DELETE", &format!("/packs/{fr}"), Some(&ana), None).await;
     let (s, _) = page(app, &format!("/p/{fr}")).await;
     assert_eq!(s, StatusCode::NOT_FOUND);

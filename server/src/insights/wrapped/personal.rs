@@ -21,7 +21,6 @@ pub(super) async fn personal(
     lang: Lang,
 ) -> AppResult<Vec<Card>> {
     let db = &state.db;
-    // My seats in the rooms I'm in now: group → my member id.
     let mine: Vec<(MemberId, RoomId, String)> = sqlx::query_as(
         "SELECT m.id, m.group_id, g.name FROM members m \
          JOIN groups g ON g.id = m.group_id AND g.kind = 'room' AND g.deleted_at IS NULL \
@@ -129,7 +128,6 @@ pub(super) async fn personal(
             },
         );
     }
-    // People I may name: someone else with a seat now in one of my rooms; shown with their latest one.
     let mut faces: HashMap<UserId, MemberId> = HashMap::new();
     for (id, s) in &seats {
         if let Some(u) = s.user
@@ -210,7 +208,6 @@ pub(super) async fn personal(
         if winners.contains(&me) {
             wins += 1;
         }
-        // Who voted for whom: never on an anonymous question.
         if !r.anonymous {
             for &(voter, target, _) in &r.votes {
                 if voter == me && target != me {
@@ -236,7 +233,6 @@ pub(super) async fn personal(
             }
         }
         if total >= 3 && mine > 0 {
-            // Biggest share, then more votes, then the latest.
             let better = best_q.is_none_or(|(v, t, _)| {
                 (i128::from(mine) * i128::from(t))
                     .cmp(&(i128::from(v) * i128::from(total)))
@@ -480,7 +476,6 @@ pub(super) async fn personal(
             Vec::new(),
         ));
     }
-    // Best day streak of the year, any of my rooms, in the reader's time zone.
     let now = streaks::now_secs();
     let first_day = days_from_civil(year, 1, 1);
     let last_day = days_from_civil(year + 1, 1, 1) - 1;

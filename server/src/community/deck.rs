@@ -3,7 +3,6 @@ use sqlx::{Sqlite, SqlitePool, Transaction};
 
 use crate::platform::i18n::Lang;
 
-/// The built-in decks, one per language (same vibe tags). A room draws the one of its language.
 pub const DECKS: [(Lang, &str); 2] = [
     (
         Lang::Fr,
@@ -15,15 +14,12 @@ pub const DECKS: [(Lang, &str); 2] = [
     ),
 ];
 
-/// A deck file's question lines (no blanks, no `#` comments).
 fn deck_lines(deck: &str) -> impl Iterator<Item = &str> {
     deck.lines()
         .map(str::trim)
         .filter(|l| !l.is_empty() && !l.starts_with('#'))
 }
 
-/// Inserts deck questions that are not in the database yet, and keeps their vibe tags in sync.
-/// One transaction: hundreds of autocommit writes would each sync to disk.
 pub async fn seed(db: &SqlitePool) -> sqlx::Result<u64> {
     let mut tx = crate::platform::db::write_tx(db).await?;
     let mut added = 0;
@@ -52,7 +48,6 @@ pub async fn seed(db: &SqlitePool) -> sqlx::Result<u64> {
     Ok(added)
 }
 
-/// Adds a deck file's questions to the shared deck of `lang`, skipping ones already known.
 pub async fn import_lang(db: &SqlitePool, text: &str, lang: Lang) -> sqlx::Result<u64> {
     let mut tx = crate::platform::db::write_tx(db).await?;
     let added = insert_lines(&mut tx, text, lang).await?;
@@ -86,20 +81,11 @@ async fn insert_lines(
     Ok(added)
 }
 
-/// `[classement] Classe-nous…` is a ranking question, `[choix] Qui prendrait quoi ? | A | B` a
-/// "who would choose what" question (see [`choose_items`]), `[quiadit] Le pire cadeau ?` a "who
-/// said that" question (docs/SAID.md); anything else picks one person.
-/// Vibe tags (`[famille]`) are dropped: only the built-in deck uses them.
 pub fn parse_line(line: &str) -> (&str, &'static str) {
     let (text, kind, _) = parse_tagged(line);
     (text, kind)
 }
 
-/// A line's leading tags, in any order: `[classement]` / `[rank]` make it a ranking question,
-/// `[choix]` / `[choose]` a choose question (its text stops at the first `|`), `[quiadit]` /
-/// `[said]` a said question,
-/// known vibe tags (`[famille]`) are returned, `[anonyme]` / `[anonymous]` is dropped (see
-/// [`tagged_anonymous`]). The first unknown `[…]` is part of the question.
 pub fn parse_tagged(line: &str) -> (&str, &'static str, Vec<String>) {
     let mut rest = line.trim();
     let mut kind = "pick";
@@ -132,8 +118,6 @@ fn is_anonymous_tag(tag: &str) -> bool {
     tag == "anonyme" || tag == "anonymous"
 }
 
-/// Does the line carry `[anonyme]` / `[anonymous]` among its leading tags (anonymous votes,
-/// docs/ANONYMOUS.md)? It combines with the others: `[classement] [anonyme] Classe-nous…`.
 pub fn tagged_anonymous(line: &str) -> bool {
     let mut rest = line.trim();
     while let Some(after) = rest.strip_prefix('[') {
@@ -153,12 +137,10 @@ pub fn tagged_anonymous(line: &str) -> bool {
     false
 }
 
-/// Items of a choose question: 2 to 4, each 1 to 40 characters.
 pub const ITEMS_MIN: usize = 2;
 pub const ITEMS_MAX: usize = 4;
 pub const ITEM_MAX: usize = 40;
 
-/// A choose line's items (the parts after the question, `|`-separated), when they are valid.
 pub fn choose_items(line: &str) -> Option<Vec<String>> {
     if parse_tagged(line).1 != "choose" {
         return None;
@@ -173,7 +155,6 @@ pub fn choose_items(line: &str) -> Option<Vec<String>> {
     clean_items(items)
 }
 
-/// Cleaned items (one line, nothing invisible), when there are 2 to 4 of them, each 1 to 40 characters, no two alike (case-insensitive).
 pub fn clean_items(items: Vec<String>) -> Option<Vec<String>> {
     let items: Vec<String> = items
         .iter()
@@ -187,14 +168,10 @@ pub fn clean_items(items: Vec<String>) -> Option<Vec<String>> {
     ok.then_some(items)
 }
 
-/// A choose line's items as stored (`questions.items`, a JSON array); `None` for other lines.
 pub fn items_json(line: &str) -> Option<String> {
     choose_items(line).map(|i| serde_json::to_string(&i).unwrap_or_default())
 }
 
-/// Creates the configured group (`GROUP_NAME`, `JOIN_CODE`) on first start, when there is no
-/// group at all. Afterwards it never touches it: its name and code belong to its owner (a code
-/// rotated in the app stays rotated). Returns the first group's id.
 pub async fn ensure_group(db: &SqlitePool, name: &str, code: &str) -> sqlx::Result<RoomId> {
     let existing: Option<RoomId> = sqlx::query_scalar("SELECT id FROM groups ORDER BY id LIMIT 1")
         .fetch_optional(db)
@@ -211,9 +188,6 @@ pub async fn ensure_group(db: &SqlitePool, name: &str, code: &str) -> sqlx::Resu
     }
 }
 
-/// `server --import <file> --room <id>`: adds a file's questions (one per line, `#` comments,
-/// `[classement]` / `[choix] … | A | B` / `[quiadit]` like the in-app import) to a room's own queue, skipping
-/// ones it already has. `None` when the room does not exist (or was deleted).
 pub async fn import_room(db: &SqlitePool, room: RoomId, text: &str) -> sqlx::Result<Option<u64>> {
     let mut tx = crate::platform::db::write_tx(db).await?;
     let live: Option<RoomId> =
@@ -332,10 +306,8 @@ mod tests {
             ("Le pire cadeau ?", "said", vec!["potes".to_owned()])
         );
         assert_eq!(parse_line("[Said] Worst gift?"), ("Worst gift?", "said"));
-        // Never anonymous: the tag is read past, the question isn't (see `anonymous::wanted`).
         assert!(tagged_anonymous("[quiadit] [anonyme] Le pire cadeau ?"));
         assert!(!crate::rooms::anonymous::wanted("said", true));
-        // Every built-in line parses to a non-empty question.
         for (_, deck) in DECKS {
             for line in deck_lines(deck) {
                 let (text, kind, _) = parse_tagged(line);

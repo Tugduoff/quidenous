@@ -1,6 +1,3 @@
-//! Writes that land at the same moment (`BEGIN IMMEDIATE`, docs/DATABASE.md), removals that race,
-//! and side effects that fail after a write committed.
-
 use crate::common::user_of;
 
 use crate::common::{call, join, room_id, setup};
@@ -8,7 +5,6 @@ use axum::{Router, http::StatusCode};
 use quidenous_server::AppState;
 use serde_json::{Value, json};
 
-/// Runs these calls at the same time (each on its own task): their (status, body), in order.
 async fn all_at_once(
     app: &Router,
     calls: Vec<(&'static str, String, String, Option<Value>)>,
@@ -75,8 +71,6 @@ async fn everyone_voting_at_once_gets_through() {
     assert_ne!(next, first, "the next question opened, once");
 }
 
-/// O (owner), A, B, C and T: A and B already voted T out, then C's and O's votes land together
-/// with T leaving.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn a_removal_racing_a_leave_happens_once() {
     for _ in 0..3 {
@@ -112,7 +106,6 @@ async fn a_removal_racing_a_leave_happens_once() {
             ],
         )
         .await;
-        // Late ones find nobody to remove (404) or no seat to leave (403): never a 500.
         for (s, b) in &results {
             assert!(
                 [StatusCode::OK, StatusCode::NOT_FOUND, StatusCode::FORBIDDEN].contains(s),
@@ -126,7 +119,6 @@ async fn a_removal_racing_a_leave_happens_once() {
                 .await
                 .unwrap();
         assert!(removed);
-        // Whoever came first decided; no kick vote is left behind for a later return.
         let stale: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM kicks WHERE target_id = ?")
             .bind(t_id)
             .fetch_one(&state.db)
@@ -186,7 +178,6 @@ async fn a_late_removal_does_not_overwrite_a_leave() {
     )
     .await;
     assert_eq!(s, StatusCode::OK);
-    // The seat is already empty: a vote or the owner finds nobody to remove.
     let (s, _) = call(
         &app,
         "PUT",
@@ -282,7 +273,6 @@ async fn reordering_while_someone_adds_never_fails_with_500() {
     }
 }
 
-/// The next queued question is deleted just as the last vote opens it: one of them wins cleanly.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn deleting_the_question_that_is_opening_is_clean() {
     let (app, state) = setup().await;
@@ -327,8 +317,6 @@ async fn deleting_the_question_that_is_opening_is_clean() {
         assert_eq!(results[0].0, StatusCode::OK, "{}", results[0].1);
         let (_, opened) = open_round(&state, room).await.unwrap();
         match results[1].0 {
-            // The owner may remove an asked question too: it is then retired (kept in history), not
-            // deleted, and its open question closes with no result: the next one is open.
             StatusCode::OK if results[1].1["retired"] == true => {
                 assert_ne!(opened, qid);
                 let (closed, votes): (bool, i64) = sqlx::query_as(
@@ -352,7 +340,6 @@ async fn deleting_the_question_that_is_opening_is_clean() {
     }
 }
 
-/// The closing vote committed: an inbox failure afterwards must not turn it into an error.
 #[tokio::test]
 async fn a_vote_that_committed_succeeds_even_if_the_inbox_fails() {
     let (app, state) = setup().await;
@@ -386,7 +373,6 @@ async fn a_vote_that_committed_succeeds_even_if_the_inbox_fails() {
     assert!(closed);
 }
 
-/// One room failing doesn't stop the scheduler from opening the others.
 #[tokio::test]
 async fn one_failing_room_does_not_stop_the_pacing_tick() {
     let (app, state) = setup().await;
@@ -415,7 +401,6 @@ async fn one_failing_room_does_not_stop_the_pacing_tick() {
     )
     .await;
     assert_eq!(s, StatusCode::OK);
-    // Both rooms wait for a delay that is over; the first one can't be updated.
     sqlx::query(
         "UPDATE groups SET next_delay = 3600, paused_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-2 hours'), \
          next_open_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-1 hours') WHERE id IN (?, ?)",
@@ -447,9 +432,6 @@ async fn one_failing_room_does_not_stop_the_pacing_tick() {
     assert_eq!(waiting, [(broken, true), (other, false)]);
 }
 
-// ---------- checks inside the write transaction (joins, invitations, transfers, leaves, caps) ----------
-
-/// Runs these calls at the same time (each on its own task), with or without a token.
 async fn same_time(
     app: &Router,
     calls: Vec<(&'static str, String, Option<String>, Option<Value>)>,
@@ -478,7 +460,6 @@ async fn code_of(state: &AppState, room: i64) -> String {
         .unwrap()
 }
 
-/// A room of `token`'s: its id.
 async fn new_room(app: &Router, token: &str, name: &str) -> i64 {
     let (s, b) = call(
         app,
@@ -538,8 +519,6 @@ fn twice(
     vec![(method, path, Some(token.to_owned()), body); 2]
 }
 
-/// A double tap on "Rejoindre" (room code, party code) or "Accepter" (an invitation): one seat,
-/// and both taps get the same answer instead of a 500.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn double_taps_on_a_join_take_one_seat() {
     let (app, state) = setup().await;
@@ -548,7 +527,6 @@ async fn double_taps_on_a_join_take_one_seat() {
     let (carl, carl_m) = join(&app, "Carl").await;
     let (bob_id, carl_id) = (user_of(&state, bob_m).await, user_of(&state, carl_m).await);
 
-    // Room code.
     let room = new_room(&app, &ana, "Cousins").await;
     let code = code_of(&state, room).await;
     let taps = same_time(
@@ -566,7 +544,6 @@ async fn double_taps_on_a_join_take_one_seat() {
     }
     assert_eq!(seats(&state, room, bob_id).await, 1);
 
-    // Party code, signed in: the same seat both times.
     let (s, party) = call(&app, "POST", "/parties", Some(&ana), None, Some(json!({}))).await;
     assert_eq!(s, StatusCode::OK, "{party}");
     let taps = same_time(
@@ -586,7 +563,6 @@ async fn double_taps_on_a_join_take_one_seat() {
     let party = party["id"].as_i64().unwrap();
     assert_eq!(seats(&state, party, bob_id).await, 1);
 
-    // An invitation.
     add_friend(&app, &ana, &friend_code(&app, &carl).await).await;
     let (s, b) = add_friend(&app, &carl, &friend_code(&app, &ana).await).await;
     assert_eq!(s, StatusCode::OK, "{b}");
@@ -614,7 +590,6 @@ async fn double_taps_on_a_join_take_one_seat() {
     assert_eq!(seats(&state, room, carl_id).await, 1);
 }
 
-/// Guests scanning the QR code together can't push a party past 40 players, nor share a name.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn guests_at_once_cannot_beat_the_party_cap_or_share_a_name() {
     let (app, state) = setup().await;
@@ -630,7 +605,6 @@ async fn guests_at_once_cannot_beat_the_party_cap_or_share_a_name() {
     let (_, party) = call(&app, "POST", "/parties", Some(&ana), None, Some(json!({}))).await;
     let id = party["id"].as_i64().unwrap();
     let max = quidenous_server::party::MAX_PLAYERS;
-    // The owner and 36 guests: 3 seats left for 6 guests.
     for i in 0..max - 4 {
         let (s, b) = same_time(&app, vec![guest(&party["code"], format!("G{i}"))]).await[0].clone();
         assert_eq!(s, StatusCode::OK, "{b}");
@@ -667,7 +641,6 @@ async fn guests_at_once_cannot_beat_the_party_cap_or_share_a_name() {
     .unwrap();
     assert_eq!(players, max);
 
-    // Four "Léa" at once: one gets in.
     let (_, party) = call(&app, "POST", "/parties", Some(&ana), None, Some(json!({}))).await;
     let results = same_time(
         &app,
@@ -693,8 +666,6 @@ async fn guests_at_once_cannot_beat_the_party_cap_or_share_a_name() {
     );
 }
 
-/// Two transfers at once (to Bob and to Carl) leave one owner; a double tap on the same transfer
-/// answers ok twice.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn transfers_at_once_leave_one_owner() {
     let (app, state) = setup().await;
@@ -753,7 +724,6 @@ async fn transfers_at_once_leave_one_owner() {
     assert_eq!(now.len(), 1);
     let (_, new_owner) = seat.values().find(|(id, _)| *id == now[0]).unwrap();
 
-    // The new owner taps "hand over to Ana" twice.
     let ana_seat: i64 = sqlx::query_scalar(
         "SELECT id FROM members WHERE group_id = ? AND user_id = (SELECT user_id FROM members WHERE id = ?)",
     )
@@ -778,9 +748,6 @@ async fn transfers_at_once_leave_one_owner() {
     assert_eq!(owners(&state, room).await, [ana_seat]);
 }
 
-/// The owner, alone, leaves (the room is deleted) while someone joins with the code: either the
-/// join lands first and the room is handed over, or it finds the room gone. Never a seat in a
-/// deleted room.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn an_owner_leaving_alone_and_a_join_at_once() {
     let (app, state) = setup().await;
@@ -839,7 +806,6 @@ async fn an_owner_leaving_alone_and_a_join_at_once() {
     }
 }
 
-/// Rooms created and packs published at the same moment can't beat their caps.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn simultaneous_creates_respect_the_caps() {
     let (app, state) = setup().await;
@@ -855,7 +821,6 @@ async fn simultaneous_creates_respect_the_caps() {
         .await
         .unwrap()
     };
-    // One room short of the cap (filled directly: the daily creation quota is the same size).
     let max = 20;
     for i in owned().await..max - 1 {
         let room: i64 =
@@ -905,7 +870,6 @@ async fn simultaneous_creates_respect_the_caps() {
     );
     assert_eq!(owned().await, max);
 
-    // Packs (a verified e-mail publishes): 8 published, then 4 at once for the last 2 places.
     sqlx::query(
         "UPDATE users SET email = 'ana@example.com', email_verified_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
     )
@@ -951,8 +915,6 @@ async fn simultaneous_creates_respect_the_caps() {
     assert_eq!(packs, 10);
 }
 
-// ---------- side effects after a commit ----------
-
 async fn break_inbox(state: &AppState) {
     sqlx::query(
         "CREATE TRIGGER inbox_broken BEFORE INSERT ON inbox BEGIN SELECT RAISE(ABORT, 'disk full'); END",
@@ -962,8 +924,6 @@ async fn break_inbox(state: &AppState) {
     .unwrap();
 }
 
-/// A chat message, a nudge, a friend request and a room invitation are stored: an inbox failure
-/// afterwards is logged, the request succeeds (no retry posting the message twice).
 #[tokio::test]
 async fn stored_messages_nudges_and_requests_succeed_even_if_the_inbox_fails() {
     let (app, state) = setup().await;
@@ -1047,8 +1007,6 @@ async fn stored_messages_nudges_and_requests_succeed_even_if_the_inbox_fails() {
     assert_eq!(invites, 1);
 }
 
-/// Room settings are checked first and saved together: a bad field saves nothing, and a pacing
-/// failure after the save doesn't turn it into an error.
 #[tokio::test]
 async fn room_settings_are_saved_together() {
     let (app, state) = setup().await;
@@ -1082,7 +1040,6 @@ async fn room_settings_are_saved_together() {
     assert_eq!(s, StatusCode::BAD_REQUEST);
     assert_eq!(saved().await, before);
 
-    // Waiting for its next question, and the pacing update after the save fails.
     sqlx::query("UPDATE groups SET paused_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?")
         .bind(room)
         .execute(&state.db)
@@ -1102,7 +1059,6 @@ async fn room_settings_are_saved_together() {
         saved().await,
         ("Nouveau".to_owned(), !before.1, 3600, before.3.clone())
     );
-    // "" still clears the vibe.
     let (s, _) = settings(json!({ "vibe": "" })).await;
     assert_eq!(s, StatusCode::OK);
     assert_eq!(saved().await.3, None);

@@ -1,6 +1,3 @@
-//! Pack files (docs/PACK_FILES.md): headers, choose questions in packs, admins without a pack limit,
-//! `seed-packs`, the community packs in server/packs and the AI template.
-
 use crate::common;
 use quidenous_server::platform::ids::UserId;
 
@@ -21,7 +18,6 @@ use quidenous_server::{
 use serde_json::{Value, json};
 use tower::ServiceExt;
 
-/// A fresh server; the first account to join (user 1) is the admin.
 async fn setup() -> (Router, AppState) {
     let dir = common::temp_dir("qdn-packfiles");
     let config = Config {
@@ -77,7 +73,6 @@ async fn a_pack_file_carries_its_header_and_choose_questions() {
         assert!(f.as_array().unwrap().contains(&json!(flag)), "{flag}");
     }
 
-    // The header fills what the body leaves out; the bad choose line is left out.
     let (s, b) = common::call(
         &app,
         "POST",
@@ -106,7 +101,6 @@ async fn a_pack_file_carries_its_header_and_choose_questions() {
     );
     assert_eq!(qs[0]["items"], Value::Null);
 
-    // The body wins over the header; a pimente category forces 16+.
     let spicy = FILE.replace("Entre potes, Soirée", "pimente");
     let (s, b) = common::call(
         &app,
@@ -136,7 +130,6 @@ async fn a_pack_file_carries_its_header_and_choose_questions() {
         (json!(["pimente"]), json!(true))
     );
 
-    // From a list: choose questions with valid answers stay, others are left out.
     let mut list: Vec<Value> = (0..5)
         .map(|i| json!({ "text": format!("Qui de nous ferait le numéro {i} ?"), "kind": "pick" }))
         .collect();
@@ -156,8 +149,6 @@ async fn a_pack_file_carries_its_header_and_choose_questions() {
     assert_eq!(b["count"], 6);
     let listed = b["id"].as_i64().unwrap();
 
-    // An app from before `pack_choose` edits the pack: its choose question comes back without
-    // answers and keeps the stored ones.
     let (_, p) = common::call(&app, "GET", &format!("/packs/{id}"), Some(&ana), None, None).await;
     let old_app: Vec<Value> = p["questions"]
         .as_array()
@@ -182,7 +173,6 @@ async fn a_pack_file_carries_its_header_and_choose_questions() {
         json!(["La grande chambre", "Le canapé", "Près de la cuisine"])
     );
 
-    // Installed into a room, they are real choose questions.
     let room = common::room_id(&app, &ana).await;
     let (s, b) = common::call(
         &app,
@@ -224,7 +214,6 @@ async fn a_pack_file_carries_its_header_and_choose_questions() {
         .unwrap();
     assert_eq!(n, 2);
 
-    // A pack published from the room's own questions keeps its choose questions.
     let (s, b) = common::call(
         &app,
         "POST",
@@ -252,7 +241,6 @@ async fn a_pack_file_carries_its_header_and_choose_questions() {
         .count();
     assert_eq!(chooses, 2);
 
-    // The room import reads the same file and skips the header.
     let (_, room2) = common::call(
         &app,
         "POST",
@@ -318,7 +306,6 @@ async fn admins_have_no_pack_limit_and_publish_into_the_selection() {
         .collect();
     assert_eq!(names, ["Admin 0"]);
 
-    // Others: `featured` is ignored, and the limit holds.
     for i in 0..10 {
         let (s, b) = common::call(
             &app,
@@ -432,7 +419,6 @@ async fn seed_packs_publishes_a_folder_once() {
         json!(["The sofa", "The kitchen"])
     );
 
-    // Again: nothing new.
     let again = packs::seed_dir(&state.db, &dir, UserId::from_raw(author), true, false)
         .await
         .unwrap();
@@ -444,7 +430,6 @@ async fn seed_packs_publishes_a_folder_once() {
         .unwrap();
     assert_eq!(total, 2);
 
-    // A deleted pack doesn't count: seeding publishes it again.
     sqlx::query("UPDATE packs SET status = 'deleted' WHERE id = ?")
         .bind(en)
         .execute(&state.db)
@@ -466,8 +451,6 @@ async fn seed_packs_publishes_a_folder_once() {
     std::fs::remove_dir_all(&dir).ok();
 }
 
-/// Every community pack in server/packs is a complete, valid pack file with nothing left out, and
-/// each French pack has its English twin with as many questions of each kind.
 #[test]
 fn the_community_packs_are_valid() {
     fn walk(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
@@ -532,7 +515,6 @@ fn the_community_packs_are_valid() {
     }
 }
 
-/// The AI template's example files are valid pack files, and both languages are served.
 #[tokio::test]
 async fn the_ai_template_is_served_and_its_examples_parse() {
     for (lang, template) in packfile::TEMPLATES {

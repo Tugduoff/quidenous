@@ -5,7 +5,6 @@ async fn rooms_create_join_switch_and_leave() {
     let app = test_app().await;
     let (ana, _) = join(&app, "Ana").await;
     let (bob, _) = join(&app, "Bob").await;
-    // The first member of the env group owns it.
     let (_, g) = call(&app, "GET", "/group", Some(&ana), None).await;
     assert_eq!(g["my_role"], "owner");
     let main = g["id"].as_i64().unwrap();
@@ -26,7 +25,6 @@ async fn rooms_create_join_switch_and_leave() {
     let code = g["code"].as_str().unwrap().to_owned();
     assert_eq!(code.len(), 6);
 
-    // Ana isn't in it yet; then joins with the code, same account.
     let (s, _) = call_room(&app, "GET", "/group", &ana, cousins, None).await;
     assert_eq!(s, StatusCode::FORBIDDEN);
     let (s, _) = call(
@@ -46,13 +44,11 @@ async fn rooms_create_join_switch_and_leave() {
         .map(|r| r["name"].as_str().unwrap())
         .collect();
     assert_eq!(names, ["Les cousins", "Test"], "last joined first");
-    // Without X-Room, the last used room.
     let (_, g) = call(&app, "GET", "/group", Some(&ana), None).await;
     assert_eq!(g["id"], cousins);
     let (_, g) = call_room(&app, "GET", "/group", &ana, main, None).await;
     assert_eq!(g["id"], main);
 
-    // Ana leaves; the room keeps Bob.
     let (s, _) = call(
         &app,
         "POST",
@@ -64,7 +60,6 @@ async fn rooms_create_join_switch_and_leave() {
     assert_eq!(s, StatusCode::OK);
     let (_, rooms) = call(&app, "GET", "/rooms", Some(&ana), None).await;
     assert_eq!(rooms.as_array().unwrap().len(), 1);
-    // Bob (owner, now alone) leaves: the room is gone.
     let (_, body) = call(
         &app,
         "POST",
@@ -86,7 +81,6 @@ async fn owner_powers_and_settings() {
     let (cyd, cyd_id) = join(&app, "Cyd").await;
     let (_, g) = call(&app, "GET", "/group", Some(&ana), None).await;
     let room = g["id"].as_i64().unwrap();
-    // Members can't do owner things.
     let (s, _) = call(
         &app,
         "PATCH",
@@ -105,7 +99,6 @@ async fn owner_powers_and_settings() {
     )
     .await;
     assert_eq!(s, StatusCode::FORBIDDEN);
-    // Owner: rename, switch votes off, questions for the owner only.
     let (s, _) = call(&app, "PATCH", &format!("/rooms/{room}"), Some(&ana),
         Some(json!({ "name": "La bande", "skip_vote": false, "kick_vote": false, "questions_by": "owner" }))).await;
     assert_eq!(s, StatusCode::OK);
@@ -139,7 +132,6 @@ async fn owner_powers_and_settings() {
     )
     .await;
     assert_eq!(s, StatusCode::OK);
-    // New code: the old one stops working.
     let old = g["code"].as_str().unwrap().to_owned();
     let (_, fresh) = call(
         &app,
@@ -159,7 +151,6 @@ async fn owner_powers_and_settings() {
     )
     .await;
     assert_eq!(s, StatusCode::BAD_REQUEST);
-    // Force kick, no vote.
     let (s, _) = call(
         &app,
         "DELETE",
@@ -171,7 +162,6 @@ async fn owner_powers_and_settings() {
     assert_eq!(s, StatusCode::OK);
     let (s, _) = call(&app, "GET", "/group", Some(&cyd), None).await;
     assert_eq!(s, StatusCode::UNAUTHORIZED);
-    // Hand over, then the old owner is a member.
     let (s, _) = call(
         &app,
         "POST",
@@ -183,7 +173,6 @@ async fn owner_powers_and_settings() {
     assert_eq!(s, StatusCode::OK);
     let (_, g) = call(&app, "GET", "/group", Some(&ana), None).await;
     assert_eq!(g["my_role"], "member");
-    // A late second tap of the same hand-over (the first one already committed) is a no-op, not a 403.
     let (s, b) = call(
         &app,
         "POST",
@@ -195,7 +184,6 @@ async fn owner_powers_and_settings() {
     assert_eq!(s, StatusCode::OK, "{b}");
     let (_, g) = call(&app, "GET", "/group", Some(&bob), None).await;
     assert_eq!(g["my_role"], "owner");
-    // Delete: gone for everyone.
     let (s, _) = call(&app, "DELETE", &format!("/rooms/{room}"), Some(&ana), None).await;
     assert_eq!(s, StatusCode::FORBIDDEN);
     let (s, _) = call(&app, "DELETE", &format!("/rooms/{room}"), Some(&bob), None).await;
@@ -222,7 +210,6 @@ async fn keep_a_room_mate_as_a_friend() {
     .await;
     assert_eq!(s, StatusCode::OK, "{kept}");
     assert_eq!(kept["name"], "Bob");
-    // A request first: Bob sees it and accepts by keeping Ana back.
     assert_eq!(kept["status"], "requested");
     let (_, bf) = call(&app, "GET", "/friends", Some(&bob), None).await;
     assert_eq!(bf["incoming"][0]["name"], "Ana");
@@ -236,7 +223,6 @@ async fn keep_a_room_mate_as_a_friend() {
     )
     .await;
     assert_eq!((s, &kept["status"]), (StatusCode::OK, &json!("friends")));
-    // Both ways, and still friends once Bob leaves the room.
     let (_, rooms) = call(&app, "GET", "/rooms", Some(&bob), None).await;
     let room = rooms[0]["id"].as_i64().unwrap();
     let (s, _) = call(
@@ -255,7 +241,6 @@ async fn keep_a_room_mate_as_a_friend() {
     let (_, bf) = call(&app, "GET", "/friends", Some(&bob), None).await;
     assert_eq!(bf["friends"][0]["name"], "Ana");
     assert_eq!(bf["friends"][0]["added"], true);
-    // Not a room-mate (or myself): refused.
     let (_, eve) = call(
         &app,
         "POST",
@@ -289,11 +274,9 @@ async fn friends_by_code_and_into_a_room() {
     let app = test_app().await;
     let (ana, _) = join(&app, "Ana").await;
     let (bob, _) = join(&app, "Bob").await;
-    // Room-mates are friends already.
     let (_, f) = call(&app, "GET", "/friends", Some(&ana), None).await;
     assert_eq!(f["friends"][0]["name"], "Bob");
     assert_eq!(f["friends"][0]["rooms_in_common"], 1);
-    // Eve has her own room: add her by code.
     let (_, room) = call(
         &app,
         "POST",
@@ -322,14 +305,12 @@ async fn friends_by_code_and_into_a_room() {
         None,
     )
     .await;
-    // Ana and Eve share nothing: Ana can't add her to a room.
     let (_, ana_rooms) = call(&app, "GET", "/rooms", Some(&ana), None).await;
     let main = ana_rooms[0]["id"].as_i64().unwrap();
     let (_, ef) = call(&app, "GET", "/friends", Some(&eve), None).await;
     let eve_id = {
         let (_, me) = call(&app, "GET", "/me", Some(&eve), None).await;
         let _ = me;
-        // Eve's user id comes back when Ana adds her code.
         let (s, added) = call(
             &app,
             "POST",
@@ -342,7 +323,6 @@ async fn friends_by_code_and_into_a_room() {
         assert_eq!(added["status"], "requested");
         added["user_id"].as_i64().unwrap()
     };
-    // Not friends until Eve accepts: Ana can't invite her yet.
     let (s, _) = call(
         &app,
         "POST",
@@ -384,7 +364,6 @@ async fn friends_by_code_and_into_a_room() {
     )
     .await;
     assert_eq!(s, StatusCode::BAD_REQUEST, "can't befriend yourself");
-    // Now Ana invites Eve into the main room (twice is fine); Eve gets told and accepts.
     for _ in 0..2 {
         let (s, b) = call(
             &app,
@@ -433,7 +412,6 @@ async fn friends_by_code_and_into_a_room() {
     assert_eq!(s, StatusCode::CONFLICT);
     let (_, rooms) = call(&app, "GET", "/rooms", Some(&eve), None).await;
     assert!(rooms.as_array().unwrap().iter().any(|r| r["id"] == main));
-    // A stranger can't be added.
     let (_, stranger) = call(
         &app,
         "POST",
@@ -490,11 +468,9 @@ async fn blocking_hides_messages_and_friend_requests() {
     let (_, inbox) = call(&app, "GET", "/inbox", Some(&ana), None).await;
     assert_eq!(
         (&inbox["items"][0]["kind"], &inbox["unread"]),
-        // The message, the result, and the first question (opened when Bob joined).
         (&json!("message"), &json!(3))
     );
 
-    // Not myself, not someone who doesn't exist.
     let (s, b) = call(
         &app,
         "PUT",
@@ -509,7 +485,6 @@ async fn blocking_hides_messages_and_friend_requests() {
     );
     let (s, _) = call(&app, "PUT", "/blocks/999999", Some(&ana), None).await;
     assert_eq!(s, StatusCode::NOT_FOUND);
-    // Friends by code first, then the block undoes it.
     let (_, bob_friends) = call(&app, "GET", "/friends", Some(&bob), None).await;
     let bob_code = bob_friends["code"].as_str().unwrap().to_owned();
     let (_, ana_friends) = call(&app, "GET", "/friends", Some(&ana), None).await;
@@ -541,7 +516,6 @@ async fn blocking_hides_messages_and_friend_requests() {
         (&json!(bob_user), &json!("Bob"))
     );
 
-    // Ana no longer sees Bob's messages nor the inbox entries he caused; Bob still sees his own.
     let (_, list) = call(&app, "GET", &messages, Some(&ana), None).await;
     assert_eq!(list, json!([]));
     let (_, list) = call(&app, "GET", &messages, Some(&bob), None).await;
@@ -554,11 +528,9 @@ async fn blocking_hides_messages_and_friend_requests() {
             .iter()
             .all(|i| i["kind"] != "message")
     );
-    // Left: the result and the first question.
     assert_eq!(inbox["unread"], 2);
     let (_, rooms) = call(&app, "GET", "/rooms", Some(&ana), None).await;
     assert_eq!(rooms[0]["unread"], 2);
-    // No friend requests either way (looks like a wrong code), and he's off her friends list.
     let (_, f) = call(&app, "GET", "/friends", Some(&ana), None).await;
     assert_eq!(f["friends"], json!([]));
     let (s, b) = call(
@@ -585,11 +557,9 @@ async fn blocking_hides_messages_and_friend_requests() {
         (s, b["error"].as_str()),
         (StatusCode::BAD_REQUEST, Some("bad_code"))
     );
-    // The game itself is shared: Bob is still in the room.
     let (_, g) = call(&app, "GET", "/group", Some(&ana), None).await;
     assert_eq!(g["members"].as_array().unwrap().len(), 2);
 
-    // Unblocking brings everything back.
     let (s, _) = call(
         &app,
         "DELETE",
@@ -616,7 +586,6 @@ async fn blocking_hides_messages_and_friend_requests() {
     assert_eq!(s, StatusCode::OK);
 }
 
-/// `GET /api/rooms/preview`: what an invite link shows before joining, public and per-IP limited.
 #[tokio::test]
 async fn invite_preview_shows_the_room_without_ids() {
     let config = Config {
@@ -670,7 +639,6 @@ async fn invite_preview_shows_the_room_without_ids() {
         assert_eq!(s, StatusCode::OK);
     }
 
-    // Name, head count, the owner's first name then the next ones (3 at most): nothing else.
     let (s, p) = get(code.to_lowercase(), "203.0.113.1").await;
     assert_eq!(s, StatusCode::OK, "{p}");
     assert_eq!(
@@ -678,7 +646,6 @@ async fn invite_preview_shows_the_room_without_ids() {
         json!({ "name": "Les cousins", "member_count": 4, "names": ["Bob", "Ana", "Chloé"] })
     );
 
-    // Unknown codes, parties and deleted rooms: 404.
     let (s, p) = get("ZZZZZZ".into(), "203.0.113.1").await;
     assert_eq!(
         (s, p["error"].as_str()),
@@ -701,7 +668,6 @@ async fn invite_preview_shows_the_room_without_ids() {
     let (s, _) = get(code.clone(), "203.0.113.1").await;
     assert_eq!(s, StatusCode::NOT_FOUND);
 
-    // 30 looks per 10 minutes per IP (the misses above count too).
     for _ in 0..26 {
         let (s, _) = get("ZZZZZZ".into(), "203.0.113.1").await;
         assert_eq!(s, StatusCode::NOT_FOUND);

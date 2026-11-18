@@ -1,6 +1,3 @@
-//! Push notifications: Web Push (RFC 8030 + 8291 aes128gcm + 8292 VAPID) for the web app,
-//! FCM HTTP v1 for the Android build. Pure Rust, no OpenSSL.
-
 use crate::platform::ids::{MemberId, RoomId, UserId};
 use std::{sync::Arc, time::Duration};
 
@@ -21,13 +18,10 @@ pub use webpush::*;
 const RECORD_SIZE: u32 = 4096;
 const TTL_SECONDS: &str = "86400";
 const JWT_LIFETIME_SECONDS: u64 = 12 * 3600;
-/// Push services and Google's token endpoint get this long to answer.
 const HTTP_TIMEOUT: Duration = Duration::from_secs(10);
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
-/// Push devices per account at most (registering one more drops the stalest).
 pub const MAX_DEVICES: i64 = 10;
 
-/// What a push is about: each kind can be turned off in the notification settings.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Kind {
@@ -37,9 +31,7 @@ pub enum Kind {
     Nudge,
     Added,
     Ask,
-    /// Someone wrote my name (or @tous) in a chat: on even when chat pushes are off.
     Mention,
-    /// "Your N-day streak ends tonight" (docs/STREAKS.md).
     Streak,
 }
 
@@ -75,27 +67,21 @@ impl Kind {
 
 #[derive(Clone, Debug)]
 pub struct Notification {
-    /// Sent if the person wants any of these (a result with the next question is both).
     pub kinds: Vec<Kind>,
-    /// In both languages: each device gets its account's (`users.locale`).
     pub title: Text,
     pub body: Text,
-    /// Groups notifications on the phone: a newer one replaces the older one.
     pub tag: String,
-    /// Path in the app; the room is added as `?room=` on the way out, so a tap opens the right room.
     pub url: String,
     pub room: RoomId,
 }
 
 impl Notification {
-    /// `url` with the room in it (`/round/3?room=7`).
     fn with_room_link(mut self) -> Self {
         let sep = if self.url.contains('?') { '&' } else { '?' };
         self.url = format!("{}{sep}room={}", self.url, self.room);
         self
     }
 
-    /// What the web app's service worker gets, in one language.
     fn payload(&self, lang: Lang) -> serde_json::Value {
         serde_json::json!({
             "title": self.title.get(lang),
@@ -107,7 +93,6 @@ impl Notification {
     }
 }
 
-/// A push as a device would have received it (tests record them instead of sending).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Sent {
     pub user_id: Option<UserId>,
@@ -115,7 +100,6 @@ pub struct Sent {
     pub body: String,
 }
 
-/// One device, the room it would hear about, and what its owner wants pushed.
 #[derive(sqlx::FromRow)]
 pub struct Recipient {
     id: i64,
@@ -135,13 +119,10 @@ pub struct Recipient {
 }
 
 impl Recipient {
-    /// The language this device's account reads.
     pub fn lang(&self) -> Lang {
         Lang::from_db(self.locale.as_deref())
     }
 
-    /// Their settings let this through: room not muted, master switch on, one of the kinds on,
-    /// and not their quiet hours (dropped then: the inbox has it).
     fn wants(&self, kinds: &[Kind], now: u64) -> bool {
         let off = self.off.as_deref().unwrap_or("");
         let wanted = kinds
@@ -157,7 +138,6 @@ impl Recipient {
     }
 }
 
-/// `now` (unix seconds) falls in [start, end) local time; minutes after midnight, may wrap.
 pub fn in_quiet_hours(start: i64, end: i64, tz_offset: i64, now: u64) -> bool {
     let local = (now as i64 / 60 + tz_offset).rem_euclid(24 * 60);
     if start == end {
@@ -175,7 +155,6 @@ pub struct Push {
     vapid: Option<Arc<Vapid>>,
     fcm: Option<Arc<Fcm>>,
     presence: Presence,
-    /// Tests: pushes are recorded here instead of sent, once [`Push::record`] is called.
     recorded: Arc<std::sync::Mutex<Option<Vec<Sent>>>>,
 }
 
@@ -183,21 +162,18 @@ pub enum Target {
     Group {
         group_id: RoomId,
         skip_member: Option<MemberId>,
-        /// Whoever caused it (an account): people who blocked them get nothing.
         from_user: Option<UserId>,
     },
     Member {
         member_id: MemberId,
         from_user: Option<UserId>,
     },
-    /// Some active members of one room (the people a message mentions, or everyone else).
     Members {
         member_ids: Vec<MemberId>,
         from_user: Option<UserId>,
     },
 }
 
-/// What happened to one delivery: keep the subscription, or drop it because the device is gone.
 enum Delivery {
     Sent,
     Gone,
@@ -210,7 +186,6 @@ impl Push {
             http: reqwest::Client::builder()
                 .timeout(HTTP_TIMEOUT)
                 .connect_timeout(CONNECT_TIMEOUT)
-                // A push service never needs to send us elsewhere.
                 .redirect(reqwest::redirect::Policy::none())
                 .build()
                 .unwrap_or_default(),
@@ -221,13 +196,11 @@ impl Push {
         }
     }
 
-    /// From now on, keep pushes in memory instead of sending them (tests).
     pub fn record(&self) {
         let mut rec = self.recorded.lock().unwrap_or_else(|e| e.into_inner());
         rec.get_or_insert_with(Vec::new);
     }
 
-    /// Pushes recorded since [`Push::record`].
     pub fn recorded(&self) -> Vec<Sent> {
         let rec = self.recorded.lock().unwrap_or_else(|e| e.into_inner());
         rec.clone().unwrap_or_default()
@@ -241,7 +214,6 @@ impl Push {
         self.vapid.as_ref().map(|v| v.public_b64.as_str())
     }
 
-    /// Sends to every device of the group's members, except `skip_member`. Runs in the background.
     pub fn notify_group(
         &self,
         db: SqlitePool,
@@ -260,7 +232,6 @@ impl Push {
         );
     }
 
-    /// Sends to every device of one member, unless they blocked `from_user`. Runs in the background.
     pub fn notify_member(
         &self,
         db: SqlitePool,
@@ -278,8 +249,6 @@ impl Push {
         );
     }
 
-    /// Sends to every device of these members of one room, except people who blocked `from`.
-    /// Runs in the background.
     pub fn notify_members(
         &self,
         db: SqlitePool,
@@ -319,7 +288,6 @@ impl Push {
                     return;
                 }
             }
-            // Everyone at once: a slow push service must not delay the others.
             let results =
                 futures::future::join_all(subs.iter().map(|sub| push.deliver(sub, &n))).await;
             for (sub, result) in subs.iter().zip(results) {
@@ -339,8 +307,6 @@ impl Push {
         });
     }
 
-    /// The devices a push for `target` goes to at `now` (unix seconds), after blocks, the app
-    /// being open on the room, room mutes and notification settings.
     pub async fn recipients(
         &self,
         db: &SqlitePool,
@@ -348,7 +314,6 @@ impl Push {
         kinds: &[Kind],
         now: u64,
     ) -> sqlx::Result<Vec<Recipient>> {
-        // Same columns for both, written out: sqlx wants static SQL.
         macro_rules! select {
             ($where:literal) => {
                 concat!(
@@ -363,7 +328,6 @@ impl Push {
             };
         }
         let subs: Vec<Recipient> = match target {
-            // Every device of every active member's account (one account can sit in several rooms).
             Target::Group {
                 group_id,
                 skip_member,
@@ -407,7 +371,6 @@ impl Push {
         };
         Ok(subs
             .into_iter()
-            // The app is open on this room: the screen already shows it, no notification.
             .filter(|s| {
                 !s.user_id
                     .is_some_and(|u| self.presence.is_here(u, s.group_id))
@@ -431,7 +394,6 @@ impl Push {
         let (Some(p256dh), Some(auth)) = (&sub.p256dh, &sub.auth) else {
             return Delivery::Gone;
         };
-        // Registered before the allowlist: not a push service, never posted to.
         if !web_endpoint_allowed(&sub.endpoint) {
             return Delivery::Gone;
         }
@@ -466,10 +428,6 @@ impl Push {
         }
     }
 
-    /// Silent FCM data messages to home-screen widgets (`tokens`: account, FCM token), see
-    /// `widget::ping_room`. Nothing shown: the app's background task refreshes its widgets. Collapsed
-    /// per room and normal priority (no wake-up from Doze: it waits for the phone's next window).
-    /// A dead FCM token is dropped from its widget token. Runs in the background.
     pub fn widget_ping(&self, db: SqlitePool, group_id: RoomId, tokens: Vec<(UserId, String)>) {
         {
             let mut rec = self.recorded.lock().unwrap_or_else(|e| e.into_inner());
@@ -637,7 +595,6 @@ mod tests {
         assert!(fcm_token_gone(400, bad_token));
         let field = r#"{"error":{"status":"INVALID_ARGUMENT","details":[{"@type":"type.googleapis.com/google.rpc.BadRequest","fieldViolations":[{"field":"message.token","description":"Invalid registration token"}]}]}}"#;
         assert!(fcm_token_gone(400, field));
-        // Our payload is wrong: every device would be wiped if that counted.
         let payload = r#"{"error":{"code":400,"message":"Invalid value at 'message.android.notification.tag'","status":"INVALID_ARGUMENT","details":[{"@type":"type.googleapis.com/google.rpc.BadRequest","fieldViolations":[{"field":"message.android.notification.tag"}]}]}}"#;
         assert!(!fcm_token_gone(400, payload));
         assert!(!fcm_token_gone(500, "internal"));
@@ -647,7 +604,6 @@ mod tests {
         ));
     }
 
-    /// Decrypts like a browser would (RFC 8291 from the user agent side) to check `encrypt`.
     fn decrypt(body: &[u8], ua_secret: &SecretKey, auth: &[u8]) -> Vec<u8> {
         let salt = &body[..16];
         let id_len = body[20] as usize;
@@ -716,15 +672,12 @@ mod quiet_hours_tests {
     #[test]
     fn quiet_hours_wrap_past_midnight_and_follow_the_offset() {
         let at = |h: u64, m: u64| h * 3600 + m * 60;
-        // 22:00 → 08:00 local.
         assert!(in_quiet_hours(1320, 480, 0, at(23, 0)));
         assert!(in_quiet_hours(1320, 480, 0, at(0, 0)));
         assert!(!in_quiet_hours(1320, 480, 0, at(8, 0)));
         assert!(!in_quiet_hours(1320, 480, 0, at(21, 59)));
-        // UTC-5: 02:00 UTC is 21:00 local, 04:00 UTC is 23:00.
         assert!(!in_quiet_hours(1320, 480, -300, at(2, 0)));
         assert!(in_quiet_hours(1320, 480, -300, at(4, 0)));
-        // 13:00 → 14:00, and an empty window.
         assert!(in_quiet_hours(780, 840, 0, at(13, 30)));
         assert!(!in_quiet_hours(780, 840, 0, at(14, 0)));
         assert!(!in_quiet_hours(600, 600, 0, at(10, 0)));

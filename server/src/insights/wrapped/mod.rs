@@ -1,13 +1,3 @@
-//! The Wrapped (docs/WRAPPED.md): « Ton année qui de nous » (personal, across the rooms I'm in) and
-//! « L'année de <salon> » (one room), a story of ~10 cards about a calendar year, shareable as
-//! server-drawn cards. Shown from `WRAPPED_FROM` (Dec 1) to `WRAPPED_UNTIL` (Jan 31): a window that
-//! spans New Year shows the year it started in. Admins (and `WRAPPED_PREVIEW=1` servers) preview it
-//! any time.
-//!
-//! Privacy: only finished questions of the year; only rooms where the reader has a seat now; only
-//! people who share one of those rooms with them now, by first name; an anonymous question never
-//! says who voted for whom (it still counts in votes received and in who won).
-
 use crate::platform::ids::{MemberId, UserId};
 use axum::{
     Json,
@@ -28,14 +18,10 @@ use crate::{
     rooms::model::MemberRow,
 };
 
-/// Longest punchline.
 const LINE_MAX: usize = 110;
-/// Fewer data cards than this (intro and outro aside): nothing to show.
 const MIN_CARDS: usize = 3;
-/// The "your year is ready" notice goes to accounts that voted in the last this many days.
 const ACTIVE_DAYS: i64 = 60;
 
-/// Finished questions of the rooms `?1` (JSON array) opened in `[?2, ?3)` (unix seconds).
 macro_rules! in_year {
     () => {
         concat!(
@@ -56,9 +42,6 @@ use cards::*;
 use personal::*;
 use room::*;
 
-// ---------- dates and the window ----------
-
-/// Days since 1970-01-01 of a civil date.
 pub fn days_from_civil(y: i64, m: u32, d: u32) -> i64 {
     let (m, d) = (i64::from(m), i64::from(d));
     let y = if m <= 2 { y - 1 } else { y };
@@ -69,7 +52,6 @@ pub fn days_from_civil(y: i64, m: u32, d: u32) -> i64 {
     era * 146_097 + doe - 719_468
 }
 
-/// The civil date of a day number since 1970-01-01.
 pub fn civil(day: i64) -> (i64, u32, u32) {
     let z = day + 719_468;
     let era = z.div_euclid(146_097);
@@ -82,8 +64,6 @@ pub fn civil(day: i64) -> (i64, u32, u32) {
     (yoe + era * 400 + i64::from(m <= 2), m, d)
 }
 
-/// The year whose Wrapped shows on this date, if any. A window that wraps past New Year
-/// (`12-01` → `01-31`) shows year Y from Dec 1 of Y to Jan 31 of Y+1.
 pub fn window_year(w: WrappedWindow, (y, m, d): (i64, u32, u32)) -> Option<i64> {
     let md = (m, d);
     if w.from <= w.until {
@@ -97,7 +77,6 @@ pub fn window_year(w: WrappedWindow, (y, m, d): (i64, u32, u32)) -> Option<i64> 
     }
 }
 
-/// `YYYY-MM-DD` of the first and last day of the window showing `year`.
 pub fn bounds(w: WrappedWindow, year: i64) -> (String, String) {
     let until_year = if w.from <= w.until { year } else { year + 1 };
     (
@@ -106,7 +85,6 @@ pub fn bounds(w: WrappedWindow, year: i64) -> (String, String) {
     )
 }
 
-/// What a reader gets to see, decided from the date alone.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Access {
     pub year: i64,
@@ -115,9 +93,6 @@ pub struct Access {
     pub can_preview: bool,
 }
 
-/// `today`: the reader's local date. `can_preview`: an admin, or a `WRAPPED_PREVIEW` server
-/// (`always`, which previews without asking). Outside the window, without a preview: not available.
-/// A `year` other than the window's is only accepted when previewing (`400 bad_year`).
 pub fn access(
     w: WrappedWindow,
     today: (i64, u32, u32),
@@ -143,15 +118,12 @@ pub fn access(
     })
 }
 
-// ---------- the cards ----------
-
 #[derive(Debug, Clone, Serialize)]
 pub struct Person {
     pub name: String,
     pub color: String,
     pub photo_url: Option<String>,
     pub avatar: Option<String>,
-    /// Their seat (share links list it, so erasing the account removes the card).
     #[serde(skip)]
     pub member_id: MemberId,
 }
@@ -189,13 +161,6 @@ pub struct Wrapped {
     pub cards: Vec<Card>,
 }
 
-// ---------- personal ----------
-
-// ---------- room ----------
-
-// ---------- API ----------
-
-/// Who asks: the account, and the seat (scope `room`).
 struct Reader {
     user: UserId,
     seat: Option<MemberRow>,
@@ -231,7 +196,6 @@ async fn reader(state: &AppState, headers: &HeaderMap, scope: &str) -> AppResult
     }
 }
 
-/// The Wrapped a reader gets (empty cards when not available).
 async fn build(
     state: &AppState,
     r: &Reader,
@@ -305,12 +269,10 @@ fn parse_year(v: Option<&str>) -> AppResult<Option<i64>> {
 pub struct WrappedQuery {
     scope: Option<String>,
     year: Option<String>,
-    /// Minutes east of UTC.
     tz: Option<String>,
     preview: Option<String>,
 }
 
-/// `GET /wrapped?scope=me|room&year=&tz=&preview=1`.
 pub async fn get(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -337,9 +299,6 @@ pub struct ShareBody {
     preview: Option<bool>,
 }
 
-/// `POST /wrapped/share {scope, year, key, tz, preview?}` → `{token, path}`: one card of my current
-/// Wrapped frozen into a public link (`stat_shares`, key `wrapped_<key>`). `404` if that card isn't
-/// in it or isn't shareable.
 pub async fn share(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -354,7 +313,6 @@ pub async fn share(
         .find(|c| c.key == body.key && c.shareable)
         .ok_or(AppError::NotFound)?;
     let lang = crate::platform::i18n::of_user(&state.db, r.user).await?;
-    // The link belongs to a seat: mine in the room, or (personal) the room I use most.
     let (seat, group) = match &r.seat {
         Some(me) => (me.id, me.group_id),
         None => {
@@ -374,7 +332,6 @@ pub async fn share(
         .map(|p| (p.name.clone(), p.color.clone(), p.avatar.clone()))
         .collect();
     let member_ids: Vec<MemberId> = card.people.iter().map(|p| p.member_id).collect();
-    // On the picture, a question card shows its question rather than the punchline.
     let line = match &card.question {
         Some(q) => lang.pick(format!("« {q} »"), format!("“{q}”")),
         None => card.line.clone(),
@@ -400,9 +357,6 @@ pub async fn share(
     ))
 }
 
-/// In the window (UTC date at `now`), the "your year is ready" inbox entry, once per account and
-/// year (`users.wrapped_notified`), to every account that voted in the last [`ACTIVE_DAYS`] days, on
-/// its current room seat. No push. Returns how many went out.
 pub async fn notify_at(state: &AppState, now: i64) -> AppResult<usize> {
     let Some(year) = window_year(state.config.wrapped, civil(now.div_euclid(DAY))) else {
         return Ok(0);
@@ -487,7 +441,6 @@ mod tests {
             bounds(W, 2026),
             ("2026-12-01".to_owned(), "2027-01-31".to_owned())
         );
-        // A window inside one year.
         let nov = WrappedWindow {
             from: (11, 1),
             until: (11, 30),
@@ -503,7 +456,6 @@ mod tests {
     #[test]
     fn access_rules() {
         let a = |today, year, asked, can, always| access(W, today, year, asked, can, always);
-        // Outside the window: not available, the year in progress.
         let out = a((2026, 11, 17), None, false, false, false).unwrap();
         assert_eq!(
             out,
@@ -514,13 +466,11 @@ mod tests {
                 can_preview: false
             }
         );
-        // Asking for a preview without the right: ignored.
         assert!(
             !a((2026, 11, 17), None, true, false, false)
                 .unwrap()
                 .available
         );
-        // An admin previewing.
         let admin = a((2026, 11, 17), None, true, true, false).unwrap();
         assert!(admin.available && admin.preview && admin.can_preview);
         assert_eq!(
@@ -529,10 +479,8 @@ mod tests {
                 .year,
             2025
         );
-        // A dev server: always, as a preview.
         let dev = a((2026, 6, 1), None, false, false, true).unwrap();
         assert!(dev.available && dev.preview && dev.can_preview);
-        // In January, last year's Wrapped; another year only when previewing.
         let jan = a((2027, 1, 15), None, false, false, false).unwrap();
         assert_eq!((jan.year, jan.available, jan.preview), (2026, true, false));
         assert!(a((2027, 1, 15), Some(2026), false, false, false).is_ok());

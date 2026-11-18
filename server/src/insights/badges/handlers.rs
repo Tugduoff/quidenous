@@ -51,7 +51,6 @@ impl TitleChip {
     }
 }
 
-/// An account's earned badges: key → (highest tier, when it was earned).
 pub async fn earned(db: &SqlitePool, user_id: UserId) -> AppResult<HashMap<String, (i64, String)>> {
     let rows: Vec<(String, i64, String)> = sqlx::query_as(
         "SELECT key, tier, earned_at FROM user_badges b WHERE user_id = ? \
@@ -66,7 +65,6 @@ pub async fn earned(db: &SqlitePool, user_id: UserId) -> AppResult<HashMap<Strin
         .collect())
 }
 
-/// `GET /badges`: my collection, in catalogue order (evaluated first, so a fresh threshold shows).
 pub async fn list(
     State(state): State<AppState>,
     SignedIn(user): SignedIn,
@@ -120,7 +118,6 @@ pub struct TitleBody {
     key: Option<Value>,
 }
 
-/// `PUT /me/title {key}`: display one of my titles (`null` clears). `400 bad_title`, `403 not_earned`.
 pub async fn set_title(
     State(state): State<AppState>,
     SignedIn(user): SignedIn,
@@ -151,8 +148,6 @@ pub async fn set_title(
     Ok(Json(json!({ "title": key })))
 }
 
-/// `GET /titles`: `{members: {"<member id>": TitleChip}}`, current members of my room who display a
-/// title they hold. A party answers `{members: {}}`.
 pub async fn titles(State(state): State<AppState>, Me(me): Me) -> AppResult<Json<Value>> {
     let lang = crate::platform::i18n::of_member(&state.db, me.id).await?;
     let rows: Vec<(MemberId, String, i64)> = sqlx::query_as(
@@ -174,8 +169,6 @@ pub async fn titles(State(state): State<AppState>, Me(me): Me) -> AppResult<Json
     Ok(Json(json!({ "members": members })))
 }
 
-/// `GET /members/{id}/badges`: a member of my room's earned badges (highest tier each) and the
-/// title they display. `404` unless they are in my room.
 pub async fn member(
     State(state): State<AppState>,
     Me(me): Me,

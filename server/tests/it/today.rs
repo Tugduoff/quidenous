@@ -1,6 +1,3 @@
-//! Today (docs/TODAY.md): every room of mine at a glance (`GET /today`), the live socket's
-//! `room_activity` for my other rooms (`others=1`), and the first-run intro (`GET/POST /intro`).
-
 use crate::common;
 use crate::common::{Socket, connect, serve};
 use quidenous_server::platform::ids::{MemberId, RoomId};
@@ -21,14 +18,12 @@ use sqlx::{
 };
 use tokio_tungstenite::tungstenite::Message;
 
-/// My rooms on Today, in their order.
 async fn today(app: &Router, token: &str) -> Vec<Value> {
     let (s, b) = call(app, "GET", "/today", Some(token), None, None).await;
     assert_eq!(s, StatusCode::OK, "{b}");
     b["rooms"].as_array().unwrap().clone()
 }
 
-/// One room's line on my Today.
 async fn line(app: &Router, token: &str, room: i64) -> Value {
     today(app, token)
         .await
@@ -41,7 +36,6 @@ fn ids(rooms: &[Value]) -> Vec<i64> {
     rooms.iter().map(|r| r["id"].as_i64().unwrap()).collect()
 }
 
-/// A room I create, and its invite code.
 async fn new_room(app: &Router, token: &str, name: &str) -> (i64, String) {
     let (s, b) = call(
         app,
@@ -71,7 +65,6 @@ async fn enter(app: &Router, token: &str, code: &str) {
     assert_eq!(s, StatusCode::OK, "{b}");
 }
 
-/// My seat in a room.
 async fn seat(state: &AppState, token: &str, room: i64) -> i64 {
     quidenous_server::accounts::auth::member_in_room(state, token, Some(RoomId::from_raw(room)))
         .await
@@ -85,7 +78,6 @@ async fn ok(app: &Router, method: &str, path: &str, token: &str, room: i64, body
     assert_eq!(s, StatusCode::OK, "{method} {path}: {b}");
 }
 
-/// I vote for `target` (a seat) on the room's open pick question.
 async fn vote(app: &Router, token: &str, room: i64, target: i64) {
     ok(
         app,
@@ -103,7 +95,6 @@ async fn open_round(app: &Router, token: &str, room: i64) -> i64 {
     r["id"].as_i64().unwrap()
 }
 
-/// Owner settings of a room.
 async fn settings(app: &Router, token: &str, room: i64, body: Value) {
     ok(
         app,
@@ -139,14 +130,11 @@ async fn parties_deleted_rooms_and_removed_seats_are_left_out() {
     let (cyd, _) = join(&app, "Cyd").await;
     let main = room_id(&app, &ana).await;
 
-    // A party Ana hosts.
     let (s, party) = call(&app, "POST", "/parties", Some(&ana), None, Some(json!({}))).await;
     assert_eq!(s, StatusCode::OK, "{party}");
-    // A room Ana deletes, with Bob in it.
     let (gone, code) = new_room(&app, &ana, "Supprimée").await;
     enter(&app, &bob, &code).await;
     ok(&app, "DELETE", &format!("/rooms/{gone}"), &ana, gone, None).await;
-    // A room Ana left.
     let (left, code) = new_room(&app, &bob, "Quittée").await;
     enter(&app, &ana, &code).await;
     ok(
@@ -158,7 +146,6 @@ async fn parties_deleted_rooms_and_removed_seats_are_left_out() {
         None,
     )
     .await;
-    // Bob's own room, Ana isn't in it.
     let (bobs, code) = new_room(&app, &bob, "Chez Bob").await;
     enter(&app, &cyd, &code).await;
 
@@ -170,7 +157,6 @@ async fn parties_deleted_rooms_and_removed_seats_are_left_out() {
     cyd_rooms.sort();
     assert_eq!(cyd_rooms, [main, bobs]);
 
-    // Cyd leaves both: nothing left.
     for room in [main, bobs] {
         ok(
             &app,
@@ -184,7 +170,6 @@ async fn parties_deleted_rooms_and_removed_seats_are_left_out() {
     }
     assert!(today(&app, &cyd).await.is_empty());
 
-    // A party guest (no room at all) has an empty Today too.
     let (s, b) = call(
         &app,
         "POST",
@@ -226,7 +211,6 @@ async fn an_open_question_asks_for_my_vote_then_waits_for_the_others() {
     assert!(l["next_open_at"].is_null());
     assert_eq!(line(&app, &bob, room).await["role"], "member");
 
-    // Ana votes: she waits for the others; they still have to vote.
     vote(&app, &ana, room, bob_id).await;
     let l = line(&app, &ana, room).await;
     assert_eq!(l["state"], "wait", "{l}");
@@ -235,7 +219,6 @@ async fn an_open_question_asks_for_my_vote_then_waits_for_the_others() {
     let l = line(&app, &bob, room).await;
     assert_eq!((&l["state"], &l["votes"]), (&json!("vote"), &json!(1)));
 
-    // Ana and Bob agree to skip Cyd: the question no longer waits for her, nor asks her.
     for t in [&ana, &bob] {
         ok(
             &app,
@@ -252,7 +235,6 @@ async fn an_open_question_asks_for_my_vote_then_waits_for_the_others() {
     assert_eq!(l["round"]["id"], round);
     assert_eq!(line(&app, &ana, room).await["needed"], 2);
     assert_eq!(line(&app, &bob, room).await["state"], "vote");
-    // The same count as the question itself.
     let (_, current) = call(&app, "GET", "/round/current", Some(&ana), Some(room), None).await;
     assert_eq!(current["member_count"], 2, "{current}");
 }
@@ -289,7 +271,6 @@ async fn tripot_asks_for_a_bet_once_i_voted() {
     let room = room_id(&app, &ana).await;
     let round = open_round(&app, &ana, room).await;
 
-    // Before voting, the vote comes first (a bet is possible already).
     let l = line(&app, &ana, room).await;
     assert_eq!(l["state"], "vote");
     assert_eq!(l["tripot"]["can_bet"], true, "{l}");
@@ -318,7 +299,6 @@ async fn tripot_asks_for_a_bet_once_i_voted() {
     assert_eq!(l["tripot"]["can_bet"], false);
     assert_eq!(l["tripot"]["balance"], balance - 10);
 
-    // Tripot off: no Tripot on the line at all.
     settings(&app, &ana, room, json!({ "tripot": false })).await;
     assert!(line(&app, &bob, room).await["tripot"].is_null());
 }
@@ -329,7 +309,6 @@ async fn results_i_havent_seen_then_nothing_to_do() {
     let (ana, ana_id) = join(&app, "Ana").await;
     let (bob, bob_id) = join(&app, "Bob").await;
     let room = room_id(&app, &ana).await;
-    // Only the owner launches the next question: a close leaves the room without one.
     settings(&app, &ana, room, json!({ "owner_next": true })).await;
     let first = open_round(&app, &ana, room).await;
     vote(&app, &ana, room, bob_id).await;
@@ -345,7 +324,6 @@ async fn results_i_havent_seen_then_nothing_to_do() {
     assert!(l["round"].is_null());
     assert_eq!((&l["votes"], &l["needed"]), (&json!(0), &json!(0)));
 
-    // A second one: the newest comes, both count.
     ok(
         &app,
         "POST",
@@ -357,7 +335,6 @@ async fn results_i_havent_seen_then_nothing_to_do() {
     .await;
     let second = open_round(&app, &ana, room).await;
     assert_ne!(first, second);
-    // A question to vote on comes before a result.
     assert_eq!(line(&app, &ana, room).await["state"], "vote");
     vote(&app, &ana, room, bob_id).await;
     vote(&app, &bob, room, ana_id).await;
@@ -368,7 +345,6 @@ async fn results_i_havent_seen_then_nothing_to_do() {
         "{l}"
     );
 
-    // Seen (the newest catches up on all): nothing left for Ana; Bob still has his.
     ok(
         &app,
         "POST",
@@ -423,10 +399,8 @@ async fn the_most_pressing_room_comes_first() {
     let (app, state) = setup().await;
     let (ana, _) = join(&app, "Ana").await;
     let (bob, _) = join(&app, "Bob").await;
-    // The env room: an open question Ana hasn't answered.
     let to_vote = room_id(&app, &ana).await;
 
-    // Rooms made in the wrong order, each in one state.
     let mut made = Vec::new();
     for name in ["Rien", "Attente", "Tripot", "Résultat"] {
         let (room, code) = new_room(&app, &ana, name).await;
@@ -471,7 +445,6 @@ async fn the_most_pressing_room_comes_first() {
     assert_eq!(ids(&rooms), [to_vote, result, bet, wait, idle]);
 }
 
-/// Everyone listed votes for the first one on the room's open question, which closes: its id.
 async fn closed(app: &Router, state: &AppState, room: i64, people: &[&str]) -> i64 {
     let round = open_round(app, people[0], room).await;
     let target = seat(state, people[0], room).await;
@@ -491,7 +464,6 @@ async fn unread_chat_per_room_without_blocked_people() {
     let (other, code) = new_room(&app, &ana, "Cousins").await;
     enter(&app, &bob, &code).await;
 
-    // A finished question in each room (chat opens on results).
     let main_round = closed(&app, &state, main, &[&ana, &bob, &cyd]).await;
     let other_round = closed(&app, &state, other, &[&ana, &bob]).await;
     let say = |token: &str, room: i64, round: i64| {
@@ -513,10 +485,8 @@ async fn unread_chat_per_room_without_blocked_people() {
     say(&bob, other, other_round).await;
     assert_eq!(line(&app, &ana, main).await["unread"], 2);
     assert_eq!(line(&app, &ana, other).await["unread"], 1);
-    // Their own messages aren't unread for them.
     assert_eq!(line(&app, &bob, main).await["unread"], 1);
 
-    // Blocked: Cyd's message no longer counts.
     let cyd_user = quidenous_server::accounts::auth::member_in_room(
         &state,
         &cyd,
@@ -537,7 +507,6 @@ async fn unread_chat_per_room_without_blocked_people() {
     .await;
     assert_eq!(line(&app, &ana, main).await["unread"], 1);
 
-    // Read in one room: the other keeps its count.
     ok(&app, "POST", "/inbox/read", &ana, other, None).await;
     assert_eq!(line(&app, &ana, other).await["unread"], 0);
     assert_eq!(line(&app, &ana, main).await["unread"], 1);
@@ -584,7 +553,6 @@ async fn the_intro_shows_once_per_account_and_never_to_guests() {
     };
     let first = done_at().await;
     assert!(first.is_some());
-    // Again (skipped, or no body at all): fine, the first time is kept.
     let (s, _) = call(
         &app,
         "POST",
@@ -600,11 +568,9 @@ async fn the_intro_shows_once_per_account_and_never_to_guests() {
     assert_eq!(done_at().await, first);
     assert!(!show(ana.clone()).await);
 
-    // Someone else still has theirs.
     let (bob, _) = join(&app, "Bob").await;
     assert!(show(bob.clone()).await);
 
-    // A party guest never sees it.
     let (s, party) = call(&app, "POST", "/parties", Some(&bob), None, Some(json!({}))).await;
     assert_eq!(s, StatusCode::OK, "{party}");
     let (s, b) = call(
@@ -620,7 +586,6 @@ async fn the_intro_shows_once_per_account_and_never_to_guests() {
     assert!(!show(b["token"].as_str().unwrap().to_owned()).await);
 }
 
-/// A database in `dir` migrated up to (and including) `last` (as in tests/db.rs).
 async fn old_database(dir: &std::path::Path, last: i64) -> SqlitePool {
     let options = SqliteConnectOptions::from_str(&format!(
         "sqlite://{}?mode=rwc",
@@ -671,14 +636,12 @@ async fn accounts_from_before_the_intro_never_see_it() {
         .await
         .unwrap();
     assert!(done.is_some());
-    // A new account, after the upgrade, gets it.
     let app = quidenous_server::app(upgraded.clone());
     let (ana, _) = join(&app, "Ana").await;
     let (_, b) = call(&app, "GET", "/intro", Some(&ana), None, None).await;
     assert_eq!(b["show"], true);
 }
 
-/// The next text frame other than `room_updated` (the pings of [`subscribed`]), within `ms`.
 async fn next_event(socket: &mut Socket, ms: u64) -> Option<Value> {
     loop {
         let msg = tokio::time::timeout(std::time::Duration::from_millis(ms), socket.next())
@@ -694,7 +657,6 @@ async fn next_event(socket: &mut Socket, ms: u64) -> Option<Value> {
     }
 }
 
-/// Waits until the socket hears its own room (it subscribes once the upgrade is done).
 async fn subscribed(state: &AppState, socket: &mut Socket, room: i64) {
     for _ in 0..50 {
         state.live.send(RoomId::from_raw(room), Event::RoomUpdated);
@@ -726,7 +688,6 @@ async fn the_live_socket_tells_about_my_other_rooms() {
     subscribed(&state, &mut socket, main).await;
     subscribed(&state, &mut plain, main).await;
 
-    // A room I'm not in: nothing. Mine: a compact `room_activity`, only where asked for.
     state
         .live
         .send(RoomId::from_raw(not_mine), Event::RoomUpdated);
@@ -735,7 +696,6 @@ async fn the_live_socket_tells_about_my_other_rooms() {
     assert_eq!(next_event(&mut socket, 2000).await, Some(activity.clone()));
     assert_eq!(next_event(&mut plain, 300).await, None);
 
-    // A burst within the gap: one trailing event, then quiet.
     for _ in 0..3 {
         state.live.send(RoomId::from_raw(mine), Event::RoomUpdated);
     }
