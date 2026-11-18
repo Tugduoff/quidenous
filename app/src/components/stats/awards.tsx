@@ -53,7 +53,7 @@ type GroupKey = 'titles' | 'votes' | 'chat' | 'questions';
  * The award cards, in titled groups; an award nobody holds this period is left out, and so is an empty group.
  * Call at render: the texts are in the current language.
  */
-export function awardGroups(s: Stats, name: Name) {
+function awardGroups(s: Stats, name: Name) {
   const solo = (key: string): Item | null => {
     const a = s[key as keyof Stats] as Award | null;
     return a ? { key, ids: [a.member_id], who: name(a.member_id), ...SOLO[key](a), quip: quip(key) } : null;

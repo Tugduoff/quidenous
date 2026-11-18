@@ -7,7 +7,7 @@ import { fr, type Messages } from '@/locales/fr';
 export type Lang = 'fr' | 'en';
 
 /** A string that depends on a count: `{ one: '{count} vote', other: '{count} votes' }`. */
-export type Plural = { zero?: string; one: string; other: string };
+type Plural = { zero?: string; one: string; other: string };
 export type Params = Record<string, string | number>;
 
 /** Every key of `locales/fr`, dotted: `'common.cancel'`, `'vote.votes'`. */

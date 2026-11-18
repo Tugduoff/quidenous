@@ -37,11 +37,11 @@ export const introPreview = (search: string) => new URLSearchParams(search).get(
 // ---------- the demo round ----------
 
 /** Who each Peton votes for: the band always picks Bulle (the shy one, always the one who gets picked); Bulle blames Pavé. */
-export const DEMO_VOTES: Record<Who, Who> = { zeste: 'bulle', pave: 'bulle', paillette: 'bulle', roupi: 'bulle', bulle: 'pave' };
+const DEMO_VOTES: Record<Who, Who> = { zeste: 'bulle', pave: 'bulle', paillette: 'bulle', roupi: 'bulle', bulle: 'pave' };
 /** The order their votes come in after mine: Roupi, asleep, last. */
 export const DEMO_ORDER: Who[] = ['zeste', 'paillette', 'pave', 'bulle', 'roupi'];
 
-export type Voter = Who | 'me';
+type Voter = Who | 'me';
 export type DemoRow = { who: Who; voters: Voter[]; pct: number; win: boolean };
 
 /** The result once I voted for `pick`: one row per Peton with votes, most first (the cast's order on a tie). */

@@ -8,7 +8,7 @@ import { useFeatures } from '@/lib/api/features';
 
 export type WrappedScope = 'me' | 'room';
 /** Someone shown on a card (only people who share a room with me). */
-export type WrappedPerson = { name: string; color: string; photo_url: string | null; avatar: string | null };
+type WrappedPerson = { name: string; color: string; photo_url: string | null; avatar: string | null };
 export type WrappedCard = {
   /** Unique in the list: 'intro', 'crush', 'nemesis', … */
   key: string;
@@ -49,7 +49,7 @@ export type Wrapped = {
 /** Minutes east of UTC: the year's days are cut in my time zone. */
 const tz = () => -new Date().getTimezoneOffset();
 
-export const wrappedKeys = {
+const wrappedKeys = {
   all: ['wrapped'] as const,
   view: (scope: WrappedScope, preview: boolean) => ['wrapped', scope, preview ? 'preview' : 'live'] as const,
 };

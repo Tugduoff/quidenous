@@ -8,7 +8,7 @@ import { storage } from '@/lib/device/storage';
 import { featuresQuery } from '@/lib/api/features';
 
 /** `?intro=1` on the web (read at load: the router drops the query). */
-export const INTRO_PREVIEW = Platform.OS === 'web' && typeof location !== 'undefined' && introPreview(location.search);
+const INTRO_PREVIEW = Platform.OS === 'web' && typeof location !== 'undefined' && introPreview(location.search);
 
 const remember = (mark: IntroMark) => storage.set(INTRO_KEY, mark).catch(() => {});
 

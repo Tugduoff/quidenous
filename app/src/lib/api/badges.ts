@@ -26,7 +26,7 @@ export type Badge = {
 export type TitleChip = { key: string; name: string; icon: string; tier: 1 | 2 | 3 };
 export type Badges = { title: string | null; earned: number; total: number; badges: Badge[] };
 /** `GET /titles`: the titles the room's current members display, by member id. */
-export type Titles = { members: Record<string, TitleChip> };
+type Titles = { members: Record<string, TitleChip> };
 /** `GET /members/{id}/badges`: someone's earned badges (highest tier each), in my room. */
 export type MemberBadges = { title: TitleChip | null; badges: Pick<Badge, 'key' | 'name' | 'icon' | 'mascot' | 'tier'>[] };
 
@@ -52,12 +52,6 @@ function useTitlesOn() {
 
 const titlesQuery = { queryKey: badgeKeys.titles, queryFn: () => api<Titles>('/titles'), staleTime: 60_000 };
 
-/** Every displayed title of the room (one request, shared by every chip). */
-export function useTitles() {
-  const on = useTitlesOn();
-  const query = useQuery({ ...titlesQuery, enabled: on });
-  return on ? query.data : undefined;
-}
 
 /**
  * Someone's displayed title in this room, or null. Each chip selects its own member out of the one `/titles` query:

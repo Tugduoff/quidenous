@@ -9,8 +9,8 @@ export type PackTag = (typeof PACK_TAGS)[number];
 export const isPackTag = (id: string): id is PackTag => (PACK_TAGS as readonly string[]).includes(id);
 export const MAX_TAGS = 3;
 
-export type PackStatus = 'public' | 'review' | 'removed' | 'deleted';
-export type PackKind = 'pick' | 'rank';
+type PackStatus = 'public' | 'review' | 'removed' | 'deleted';
+type PackKind = 'pick' | 'rank';
 /** `choose` (with its 2 to 4 `items`) only from a server with `pack_choose`. */
 /** `anonymous`: its votes will be anonymous once installed (absent from an older server). */
 export type PackQuestion = { text: string; kind: PackKind | 'choose'; items?: string[] | null; anonymous?: boolean };
@@ -45,8 +45,8 @@ export type CommunityMe = { admin: boolean; show_spicy: boolean; suggestions_lef
 
 export type ReportReason = 'offensive' | 'sexual' | 'spam' | 'other';
 export const REPORT_REASONS: ReportReason[] = ['offensive', 'sexual', 'spam', 'other'];
-export type PackReport = { reason: string | null; details: string | null; created_at: string };
-export type ReviewSuggestion = { id: number; text: string; kind: PackKind; lang: string; status: string; up: number; down: number; author: string };
+type PackReport = { reason: string | null; details: string | null; created_at: string };
+type ReviewSuggestion = { id: number; text: string; kind: PackKind; lang: string; status: string; up: number; down: number; author: string };
 /** Open reports on one thing (a chat message, a member, a question, a suggestion), oldest first. */
 export type ReviewReport = {
   kind: 'message' | 'member' | 'question' | 'suggestion';

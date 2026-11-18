@@ -24,7 +24,7 @@ export type GlobalView =
 
 export type GlobalOpen = Extract<GlobalView, { available: true }>;
 
-export const globalKeys = {
+const globalKeys = {
   all: ['global'] as const,
 };
 

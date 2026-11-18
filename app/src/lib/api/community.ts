@@ -38,8 +38,6 @@ export type Challenge = {
   private?: boolean;
 };
 
-/** How many suggestions a day (the server's rolling 24 h limit). */
-export const SUGGESTIONS_PER_DAY = 5;
 export const SUGGESTION_MIN = 8;
 export const SUGGESTION_MAX = 200;
 

@@ -12,7 +12,7 @@ export const ITEMS_MAX = 4;
 export const ITEM_MAX = 40;
 
 /** What's wrong with a line (shown as `questions.problem.*`). `items`: a choose line whose items don't hold. */
-export type DraftProblem = 'short' | 'long' | 'duplicate' | 'items';
+type DraftProblem = 'short' | 'long' | 'duplicate' | 'items';
 
 export type DraftKind = 'pick' | 'rank' | 'choose';
 

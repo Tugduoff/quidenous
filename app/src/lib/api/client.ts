@@ -4,7 +4,7 @@ import { appVersion } from '@/lib/device/update';
 import type { Member } from '@/lib/api/group';
 
 /** Same origin on web (served by the Rust server); on phones, the build URL or the one typed at join. */
-export const DEFAULT_API_URL =
+const DEFAULT_API_URL =
   process.env.EXPO_PUBLIC_API_URL ??
   (Platform.OS === 'web' && typeof location !== 'undefined' ? location.origin : '');
 export const SERVER_FIELD = Platform.OS !== 'web' && !process.env.EXPO_PUBLIC_API_URL;

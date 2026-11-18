@@ -22,7 +22,7 @@ const ICONS: Record<string, LucideIcon> = {
   sparkles: Sparkles,
 };
 
-export const vibeIcon = (name: string | undefined): LucideIcon => (name && ICONS[name]) || Sparkles;
+const vibeIcon = (name: string | undefined): LucideIcon => (name && ICONS[name]) || Sparkles;
 
 export const VibeIcon = ({ name, ...props }: LucideProps & { name: string | undefined }) => createElement(vibeIcon(name), props);
 
@@ -30,7 +30,7 @@ export const VibeIcon = ({ name, ...props }: LucideProps & { name: string | unde
 const KNOWN = ['potes', 'pimente', 'boulot', 'famille'] as const;
 const known = (id: string): id is (typeof KNOWN)[number] => (KNOWN as readonly string[]).includes(id);
 export const vibeName = (v: Vibe) => (known(v.id) ? tr(`room.vibes.${v.id}.name`) : v.name);
-export const vibeDescription = (v: Vibe) => (known(v.id) ? tr(`room.vibes.${v.id}.description`) : v.description);
+const vibeDescription = (v: Vibe) => (known(v.id) ? tr(`room.vibes.${v.id}.description`) : v.description);
 
 /** The tones as selectable cards (icon, name, one line). Picking "Pimenté" (16+ questions) asks for the age first. */
 export function VibeCards({ vibes, value, onChange }: { vibes: Vibe[]; value: string | null; onChange: (id: string) => void }) {

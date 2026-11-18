@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { cancelAnimation, Easing, makeMutable, ReduceMotion, type SharedValue, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
 
-export const MASCOT_LOOP = 120;
+const MASCOT_LOOP = 120;
 
 export const mascotClock = makeMutable(0);
 let users = 0;

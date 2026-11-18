@@ -19,7 +19,7 @@ export const shareKeys = {
   mine: ['shares'] as const,
 };
 
-export const myLinks = () => api<MyLink[]>('/shares');
+const myLinks = () => api<MyLink[]>('/shares');
 
 export const useMyLinks = (enabled: boolean) => useQuery({ queryKey: shareKeys.mine, queryFn: myLinks, enabled });
 

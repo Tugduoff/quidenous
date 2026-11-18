@@ -5,9 +5,8 @@ export const RESULT_REACTIONS = ['😂', '🔥', '😱', '👀', '💀', '❤️
 /** Taps per person per result, all emojis together (`reactions::RESULT_CAP`); the server's answer has its own `cap`. */
 export const RESULT_CAP = 30;
 /** Taps wait this long and go in one request. */
-export const BATCH_MS = 250;
+const BATCH_MS = 250;
 
-export type ResultEmoji = (typeof RESULT_REACTIONS)[number];
 export type Tap = { emoji: string; count: number };
 /** One person's taps in a live event; `user_id` lets the app drop the people I blocked. */
 export type LiveTap = Tap & { member_id: number; user_id: number };

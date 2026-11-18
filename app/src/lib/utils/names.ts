@@ -7,10 +7,10 @@ const DELETED_NAME = 'Compte supprimé';
 type Named = { name: string; deleted?: boolean };
 
 /** A deleted account: flagged by the server, or the French placeholder name of an older one. */
-export const isDeleted = (m: Named) => !!m.deleted || m.name === DELETED_NAME;
+const isDeleted = (m: Named) => !!m.deleted || m.name === DELETED_NAME;
 
 /** The same person with the name to show (the same object when nothing changes). */
-export function localizeMember<T extends Named>(m: T): T {
+function localizeMember<T extends Named>(m: T): T {
   return isDeleted(m) ? { ...m, name: t('common.deletedAccount') } : m;
 }
 

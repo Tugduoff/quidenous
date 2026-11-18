@@ -26,7 +26,7 @@ const setAsking = (next: Ask | null) => {
   listeners.forEach((l) => l());
 };
 
-export function askReauth(account: Account): Promise<boolean> {
+function askReauth(account: Account): Promise<boolean> {
   asking?.resolve(false);
   return new Promise((resolve) => setAsking({ account, resolve }));
 }

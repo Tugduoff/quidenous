@@ -6,8 +6,8 @@ import { statsKeys } from '@/lib/api/stats';
 import { useFeatures } from '@/lib/api/features';
 
 /** Le Tripot (docs/TRIPOT.md): bets on who wins a question, with chips worth nothing (no real money, ever). */
-export type MyBet = { target_id: number; amount: number; payout: number | null };
-export type TripotWinner = { member_id: number; stake: number; won: number };
+type MyBet = { target_id: number; amount: number; payout: number | null };
+type TripotWinner = { member_id: number; stake: number; won: number };
 /** On a round: open, only the pot, the number of bettors and my own bet; closed, who won how much (or `refunded`). */
 export type Tripot = {
   pot: number;
@@ -18,7 +18,7 @@ export type Tripot = {
   winners: TripotWinner[] | null;
   refunded: boolean;
 };
-export type ChipCount = { member_id: number; balance: number };
+type ChipCount = { member_id: number; balance: number };
 /** `GET /tripot`: this month's chips (most first), last month's top 3. */
 export type TripotBoard = {
   month: string;
@@ -34,12 +34,12 @@ export type TripotBoard = {
 export const CHIPS = [10, 25, 50] as const;
 
 /** Under the stats key: a closed question (live event) refreshes it with them. */
-export const tripotKeys = {
+const tripotKeys = {
   board: [...statsKeys.all, 'tripot'] as const,
 };
 
 /** Tripot is on here: the server has it, the room is not a party, and its owner left it on. */
-export function useTripotOn() {
+function useTripotOn() {
   const { tripot } = useFeatures();
   const { data: group } = useGroup();
   return tripot && !!group && group.kind !== 'party' && group.settings.tripot === true;

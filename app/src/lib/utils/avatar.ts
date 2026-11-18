@@ -22,10 +22,10 @@ export type Shape = {
   layer?: 'back';
 };
 
-export const FIELDS = ['face', 'skin', 'hair', 'hairColor', 'eyes', 'brows', 'mouth', 'glasses', 'beard', 'extra', 'bg'] as const;
+const FIELDS = ['face', 'skin', 'hair', 'hairColor', 'eyes', 'brows', 'mouth', 'glasses', 'beard', 'extra', 'bg'] as const;
 export type Field = (typeof FIELDS)[number];
 export type PaletteField = 'skin' | 'hairColor' | 'bg';
-export type PartField = Exclude<Field, PaletteField>;
+type PartField = Exclude<Field, PaletteField>;
 export type Avatar = Record<Field, number>;
 
 type Parts = { fields: string[]; base: Shape[]; presets: string[] } & Record<PaletteField, [string, string][]> & Record<PartField, Shape[][]>;

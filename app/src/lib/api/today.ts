@@ -11,7 +11,7 @@ export const todayKeys = {
 };
 
 /** What a room wants from me, most pressing first (the server orders the rooms by it). */
-export type TodayState = 'vote' | 'result' | 'tripot' | 'wait' | 'idle';
+type TodayState = 'vote' | 'result' | 'tripot' | 'wait' | 'idle';
 
 export type TodayRoom = {
   id: number;

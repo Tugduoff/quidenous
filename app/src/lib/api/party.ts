@@ -11,7 +11,7 @@ import { getHistoryPage, HISTORY_PAGE, type HistoryItem } from '@/lib/api/histor
 import { authError } from '@/lib/api/errors';
 import { featuresQuery } from '@/lib/api/features';
 
-export type PartyPhase = 'lobby' | 'voting' | 'reveal' | 'over';
+type PartyPhase = 'lobby' | 'voting' | 'reveal' | 'over';
 export type PartyPlayer = Member & { role: Role; guest: boolean };
 export type PartyRound = {
   id: number;

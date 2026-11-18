@@ -14,7 +14,7 @@ import { useFeatures } from '@/lib/api/features';
  * The three metals: `fill` the disc, `light` its shine, `rim` its edge, `ink` the tier's name as text (darker on the light
  * background, for 4.5:1). The icon on a disc is always near-black: every fill is light enough for it.
  */
-export const TIERS = {
+const TIERS = {
   1: { key: 'bronze', fill: '#D9935A', light: '#F4C79F', rim: '#9A5A2A', inkLight: '#8A4B1C', inkDark: '#E8A673' },
   2: { key: 'silver', fill: '#C3CBD6', light: '#F2F5F9', rim: '#7D8794', inkLight: '#56606E', inkDark: '#D5DCE5' },
   3: { key: 'gold', fill: '#F2C230', light: '#FFE89A', rim: '#B07F00', inkLight: '#805C00', inkDark: '#F5C542' },

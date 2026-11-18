@@ -9,9 +9,9 @@ import { useFeatures } from '@/lib/api/features';
  * app and the APK installed by hand. Never in the Google Play bundle (built and OTA-exported without
  * EXPO_PUBLIC_DISTRIBUTION=sideload) nor in an iOS build: their billing policies cover tips to the developer.
  */
-export const DONATE_ALLOWED = Platform.OS === 'web' || SIDELOAD;
+const DONATE_ALLOWED = Platform.OS === 'web' || SIDELOAD;
 
-export const donateKeys = {
+const donateKeys = {
   url: ['donate'] as const,
 };
 

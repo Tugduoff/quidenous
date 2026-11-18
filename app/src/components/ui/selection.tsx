@@ -132,7 +132,7 @@ export function SelectionHeader<K>({ sel }: { sel: Selection<K> }) {
 }
 
 /** The import list's tick box, shared: filled with the accent and a check when on. */
-export function Checkbox({ checked, disabled }: { checked: boolean; disabled?: boolean }) {
+function Checkbox({ checked, disabled }: { checked: boolean; disabled?: boolean }) {
   const t = useTheme();
   const pop = usePop(checked, 1.15, checked);
   return (

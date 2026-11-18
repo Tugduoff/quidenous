@@ -12,7 +12,7 @@ export const notificationKeys = {
 };
 
 /** Minutes east of UTC, as the server wants it. */
-export const tzOffset = () => -new Date().getTimezoneOffset();
+const tzOffset = () => -new Date().getTimezoneOffset();
 
 const getPrefs = () => api<NotifPrefs>('/notifications');
 const putPrefs = (p: NotifPrefs) => api<NotifPrefs>('/notifications', { method: 'PUT', json: { ...p, tz_offset: tzOffset() } });

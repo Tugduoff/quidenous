@@ -39,7 +39,7 @@ export function appVersion() {
 }
 
 /** `a` is a later version than `b` (x.y.z, a leading "v" ignored). */
-export function isNewer(a: string, b: string) {
+function isNewer(a: string, b: string) {
   const parse = (v: string) =>
     v
       .replace(/^v/, '')

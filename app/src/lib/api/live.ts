@@ -198,5 +198,5 @@ export function connectLive(qc: QueryClient, token: string): () => void {
  * The live socket. `reactions`: also send `result_reacted` (only to apps that handle it, docs/REACTIONS.md).
  * `others`: also a `room_activity` event for my other rooms (the server has `today`, docs/TODAY.md).
  */
-export const liveUrl = async (t: string, tickets: boolean, reactions = false, others = false) =>
+const liveUrl = async (t: string, tickets: boolean, reactions = false, others = false) =>
   `${API_URL.replace(/^http/, 'ws')}/api/live?${await urlAuth('live', tickets, t)}${roomQuery()}${reactions ? '&events=reactions' : ''}${others ? '&others=1' : ''}`;

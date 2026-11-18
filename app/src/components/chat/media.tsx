@@ -16,7 +16,7 @@ export const MEDIA_RADIUS = 14;
 export const NO_DRAG = Platform.OS === 'web' ? ({ userSelect: 'none', WebkitUserDrag: 'none' } as unknown as ImageStyle) : null;
 
 /** A photo or GIF at chat size, rounded; `children` float over it (the time, a spinner). */
-export function MediaFrame({ uri, width, height, label, dim, children }: { uri: string; width: number; height: number; label?: string; dim?: boolean; children?: ReactNode }) {
+function MediaFrame({ uri, width, height, label, dim, children }: { uri: string; width: number; height: number; label?: string; dim?: boolean; children?: ReactNode }) {
   const t = useTheme();
   const { width: screen } = useWindowDimensions();
   const size = frameSize(width, height, screen);
@@ -35,7 +35,7 @@ export function MediaFrame({ uri, width, height, label, dim, children }: { uri: 
 }
 
 /** The time over a photo without a caption: white on a dark pill, bottom right. */
-export function MediaTime({ at }: { at: string }) {
+function MediaTime({ at }: { at: string }) {
   const t = useTheme();
   return (
     <View style={{ position: 'absolute', right: 8, bottom: 8, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8, backgroundColor: 'rgba(0,0,0,0.45)' }}>

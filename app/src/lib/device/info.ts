@@ -26,7 +26,7 @@ function system(ua: string) {
 }
 
 /** What this device is called in the sessions list (generic words in the language of the moment): "iPhone 15 · iOS 18", "Android · Pixel 8", "Web · Safari (iPhone)". */
-export function deviceLabel(): string {
+function deviceLabel(): string {
   if (Platform.OS === 'web') {
     const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
     const os = system(ua);

@@ -6,7 +6,7 @@ import { type Lang, type Params, type TKey, tIn } from '@/lib/i18n-core';
 import { storage } from '@/lib/device/storage';
 import { setMyLocale, getMyLocale } from '@/lib/api/me';
 
-export { type Lang, type Plural, type TKey, tidy, tIn } from '@/lib/i18n-core';
+export { type Lang, type TKey, tidy } from '@/lib/i18n-core';
 /** The Profile setting: follow the phone, or a fixed language. */
 export type LangPref = 'auto' | Lang;
 
@@ -108,7 +108,7 @@ export function useLang(): { lang: Lang; pref: LangPref } {
 }
 
 /** BCP 47 tag for Intl: dates, times and numbers in the current language. */
-export const intlLocale = () => (lang === 'fr' ? 'fr-FR' : 'en-GB');
+const intlLocale = () => (lang === 'fr' ? 'fr-FR' : 'en-GB');
 
 const formatters = new Map<string, Intl.DateTimeFormat | Intl.NumberFormat>();
 

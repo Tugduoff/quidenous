@@ -7,7 +7,7 @@ import { roomKeys } from '@/lib/api/rooms';
 import { inboxKeys } from '@/lib/api/inbox';
 import { chatKeys } from '@/lib/api/chat';
 
-export const moderationKeys = {
+const moderationKeys = {
   blocks: ['blocks'] as const,
 };
 

@@ -17,7 +17,7 @@ export {
   type ResultReactions,
 } from '@/lib/utils/result-taps';
 
-export const reactionKeys = {
+const reactionKeys = {
   all: ['reactions'] as const,
   round: (roundId: number) => ['reactions', roundId] as const,
 };

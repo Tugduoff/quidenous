@@ -14,7 +14,7 @@ const MAX_SIDE = 1600;
 const DECODE_MAX = 3200;
 
 /** The server's cap on one upload. */
-export const MAX_BYTES = 8 * 1024 * 1024;
+const MAX_BYTES = 8 * 1024 * 1024;
 
 /** A photo ready to send: a file on the phone (a blob: or data: URL on the web), its size, its type. */
 export type ImageDraft = { uri: string; width: number; height: number; mime: string };

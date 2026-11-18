@@ -271,8 +271,8 @@ export function ResultSummary({
 }
 
 // Bars start 120 ms in, each row 70 ms after the previous one, and take 450 ms to fill.
-export const fillDelay = (i: number) => 120 + Math.min(i, 6) * 70;
-export const FILL_MS = 450;
+const fillDelay = (i: number) => 120 + Math.min(i, 6) * 70;
+const FILL_MS = 450;
 
 /** A result row; the winner's lands with a small bump once its own bar is full. */
 export function Land({ on, style, children }: { on: boolean; style: StyleProp<ViewStyle>; children: ReactNode }) {

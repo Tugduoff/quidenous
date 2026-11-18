@@ -7,11 +7,11 @@ import raw from '@/lib/utils/mascot-parts.json';
 export type Shape = AvatarShape & { hd?: 1 };
 export type Who = 'zeste' | 'bulle' | 'pave' | 'paillette' | 'roupi';
 export type Mood = 'happy' | 'accuse' | 'sleepy' | 'celebrate' | 'sad' | 'think' | 'caught';
-export type Eyes = 'open' | 'lazy' | 'squint' | 'closed' | 'happy' | 'side' | 'wide' | 'teary' | 'stars';
-export type Brows = 'none' | 'up' | 'sus' | 'sad' | 'think' | 'worried';
-export type Mouth = 'smile' | 'grin' | 'smirk' | 'o' | 'gasp' | 'frown' | 'wail' | 'hmm' | 'wobble';
-export type Arm = 'rest' | 'wave' | 'up' | 'point' | 'aim' | 'droop' | 'finger' | 'hands' | 'none';
-export type Leg = 'stand' | 'wide' | 'shy' | 'tap' | 'tiptoe' | 'hop' | 'dangle' | 'sit' | 'none';
+type Eyes = 'open' | 'lazy' | 'squint' | 'closed' | 'happy' | 'side' | 'wide' | 'teary' | 'stars';
+type Brows = 'none' | 'up' | 'sus' | 'sad' | 'think' | 'worried';
+type Mouth = 'smile' | 'grin' | 'smirk' | 'o' | 'gasp' | 'frown' | 'wail' | 'hmm' | 'wobble';
+type Arm = 'rest' | 'wave' | 'up' | 'point' | 'aim' | 'droop' | 'finger' | 'hands' | 'none';
+type Leg = 'stand' | 'wide' | 'shy' | 'tap' | 'tiptoe' | 'hop' | 'dangle' | 'sit' | 'none';
 export type Prop = 'none' | 'zzz' | 'ask' | 'sparkles' | 'tear' | 'tears' | 'sweat';
 /** Level of detail: `lo` (under 48 px) drops brows, gloss, shading and small highlights so the face stays readable. */
 export type Lod = 'hi' | 'lo';
@@ -68,23 +68,10 @@ type Parts = {
 };
 export const MASCOT = raw as unknown as Parts;
 export const CAST = MASCOT.cast;
-export const INK = MASCOT.ink;
+const INK = MASCOT.ink;
 export const GROUND = MASCOT.ground;
 export const MOODS = Object.keys(MASCOT.moods) as Mood[];
 
-/** Who plays which moment, so a moment always gets the same friend. */
-export const ROLE = {
-  /** Waiting, sleepy, the calm: never stands up. */
-  sleepy: 'roupi',
-  /** Drama: crashes, sad states, big joy. */
-  drama: 'paillette',
-  /** Thinking, figuring things out. */
-  smart: 'pave',
-  /** Asks the question, points the finger. */
-  instigator: 'zeste',
-  /** The shy one, always the one who gets picked. */
-  target: 'bulle',
-} as const satisfies Record<string, Who>;
 
 /** The pose a character takes for a mood: the shared mood, then its quirks, then the lift its legs give. */
 export function resolvePose(who: Who, mood: Mood | Pose): Required<Pose> {

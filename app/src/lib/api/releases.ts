@@ -18,7 +18,7 @@ export async function latestRelease(): Promise<Release | null> {
   return { version: body.tag_name.replace(/^v/, ''), notes: body.body ?? '', url: apk.browser_download_url, size: apk.size, sha256 };
 }
 
-export const LATEST = 'https://api.github.com/repos/Tugduoff/quidenous/releases/latest';
+const LATEST = 'https://api.github.com/repos/Tugduoff/quidenous/releases/latest';
 
 /** `sha256`: the APK's SHA-256 (hex) that GitHub computed when the asset was uploaded. */
 export type Release = { version: string; notes: string; url: string; size: number; sha256: string };

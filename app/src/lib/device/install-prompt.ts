@@ -1,6 +1,6 @@
 import { Platform } from 'react-native';
 
-export type InstallPrompt = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }> };
+type InstallPrompt = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }> };
 
 let deferred: InstallPrompt | null = null;
 const waiting = new Set<() => void>();

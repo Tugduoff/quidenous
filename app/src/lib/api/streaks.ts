@@ -5,12 +5,12 @@ import { roundKeys } from '@/lib/api/rounds';
 import { useFeatures } from '@/lib/api/features';
 
 /** Days in a row with a vote (docs/STREAKS.md): `current` (today counts once voted) and the best ever. */
-export type Streak = { current: number; best: number };
+type Streak = { current: number; best: number };
 /** `GET /streaks`: per current member (by id) and for the whole room; a party has none. */
 export type Streaks = { members: Record<string, Streak>; room: Streak | null };
 
 /** Under the open question's key: every vote, new question or arrival (live events) refreshes it with it. */
-export const streakKeys = {
+const streakKeys = {
   room: [...roundKeys.current, 'streaks'] as const,
 };
 

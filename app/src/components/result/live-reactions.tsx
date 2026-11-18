@@ -55,7 +55,7 @@ function start(p: SharedValue<number>, b: SharedValue<Burst>, burst: Burst, dela
  * A pool of `size` burst slots, and `fire(emoji, x, y)` to play one from there (in the layer's coordinates). Nothing
  * under reduced motion.
  */
-export function useBurstPool(size: number, style: BurstStyle = PHONE) {
+function useBurstPool(size: number, style: BurstStyle = PHONE) {
   const reduced = useReducedMotion();
   const [slots] = useState<Slot[]>(() => Array.from({ length: size }, () => ({ p: makeMutable(0), b: makeMutable(IDLE) })));
   const cursor = useRef(0);
@@ -85,7 +85,7 @@ export function useBurstPool(size: number, style: BurstStyle = PHONE) {
 }
 
 /** The slots of a pool, drawn over whatever is under them (never touchable, never read out). */
-export function BurstLayer({ slots, size, clip }: { slots: Slot[]; size: number; clip?: boolean }) {
+function BurstLayer({ slots, size, clip }: { slots: Slot[]; size: number; clip?: boolean }) {
   return (
     <View aria-hidden pointerEvents="none" style={[StyleSheet.absoluteFill, clip && { overflow: 'hidden' }]}>
       {slots.map((slot, i) => (

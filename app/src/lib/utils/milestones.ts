@@ -1,6 +1,6 @@
 import { type Lang, tIn, type TKey } from '@/lib/i18n-core';
 
-export type Theme =
+type Theme =
   | 'confetti'
   | 'emoji'
   | 'gold'

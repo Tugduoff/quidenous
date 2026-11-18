@@ -115,7 +115,7 @@ const list = <T,>(v: unknown): T[] => (Array.isArray(v) ? (v as T[]) : []);
 const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
 
 /** Whatever the server sent (an older one has fewer fields), as a complete `Stats`. */
-export function normalizeStats(raw: Partial<Stats> | null, period: StatsPeriod): Stats {
+function normalizeStats(raw: Partial<Stats> | null, period: StatsPeriod): Stats {
   const r = (raw ?? {}) as Record<string, unknown>;
   const s = { ...r } as Record<string, unknown>;
   for (const k of STATS_NULLABLE) s[k] = r[k] ?? null;

@@ -9,7 +9,7 @@ export const everyone = () => t('chat.everyone');
 const EVERYONE_WORDS = [...new Set([fr.chat.everyone, en.chat.everyone])];
 
 /** Lower case, no accents: "Éloïse" → "eloise". */
-export const fold = (s: string) => (typeof s.normalize === 'function' ? s.normalize('NFD').replace(/[\u0300-\u036f]/g, '') : s).toLowerCase();
+const fold = (s: string) => (typeof s.normalize === 'function' ? s.normalize('NFD').replace(/[\u0300-\u036f]/g, '') : s).toLowerCase();
 
 const isSpace = (c: string | undefined) => c == null || /\s/.test(c);
 /** Part of a name: a letter (any script), a digit, `-`, `_` or an apostrophe. Ends a token when it isn't. */
@@ -39,7 +39,7 @@ function tokenAt(text: string, token: string, i: number) {
   return text.slice(i, i + token.length).toLowerCase() === token.toLowerCase() && isSpace(text[i - 1]) && !isNameChar(text[i + token.length]);
 }
 
-export function hasToken(text: string, token: string) {
+function hasToken(text: string, token: string) {
   for (let i = text.indexOf('@'); i >= 0; i = text.indexOf('@', i + 1)) if (tokenAt(text, token, i)) return true;
   return false;
 }
