@@ -42,6 +42,7 @@ macro_rules! month {
         "strftime('%Y-%m', 'now')"
     };
 }
+pub(crate) use month;
 
 /// Tripot is on in this room: a room (never a party) whose owner didn't turn it off.
 pub async fn enabled<'e, E: sqlx::SqliteExecutor<'e>>(db: E, group_id: i64) -> AppResult<bool> {
@@ -317,12 +318,14 @@ pub struct TripotView {
     pub refunded: bool,
 }
 
-/// Can this question take bets at all (open or not): a pick or ranking question, not anonymous,
-/// in a room with Tripot on.
+/// A question of this kind takes bets in a room with Tripot on: pick or ranking, not anonymous.
+pub fn takes_bets(kind: &str, anonymous: bool) -> bool {
+    matches!(kind, "pick" | "rank") && !anonymous
+}
+
+/// Can this question take bets at all (open or not): [`takes_bets`], in a room with Tripot on.
 async fn bettable<'e, E: sqlx::SqliteExecutor<'e>>(db: E, round: &RoundRow) -> AppResult<bool> {
-    Ok(matches!(round.kind.as_str(), "pick" | "rank")
-        && !round.anonymous
-        && enabled(db, round.group_id).await?)
+    Ok(takes_bets(&round.kind, round.anonymous) && enabled(db, round.group_id).await?)
 }
 
 /// The question's Tripot, for a member; `None` where Tripot doesn't apply (and must not show).

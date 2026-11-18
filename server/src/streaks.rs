@@ -155,6 +155,9 @@ pub fn streak(days: &Days, today: i64) -> Streak {
     Streak { current, best }
 }
 
+/// A seat as loaded for [`Room::assemble`]: (id, joined, left, owner, tz).
+type SeatRow = (i64, i64, Option<i64>, bool, Option<i64>);
+
 impl Room {
     /// Everything streaks need from one room. `None` for a party or a deleted room (no streaks).
     pub async fn load(db: &SqlitePool, group_id: i64) -> AppResult<Option<Room>> {
@@ -217,7 +220,110 @@ impl Room {
         .bind(group_id)
         .fetch_all(db);
         let (rounds, seats, votes, skips) = tokio::try_join!(rounds_q, seats_q, votes_q, skips_q)?;
+        Ok(Some(Room::assemble(rounds, seats, votes, skips)))
+    }
 
+    /// The rooms of these seats (one per room, rooms only, not deleted), keyed by room, in a fixed
+    /// number of queries whatever their count (`GET /today`). Only these seats' votes and skips are
+    /// loaded: enough for [`Room::member`] and [`Room::voted_today`] of these seats, not for anyone
+    /// else's streak nor the room's.
+    pub async fn load_seats(db: &SqlitePool, seats: &[i64]) -> AppResult<HashMap<i64, Room>> {
+        let seats_json = serde_json::to_string(seats).unwrap_or_else(|_| "[]".into());
+        // `?1` = the seats; their rooms, when they still count for streaks.
+        macro_rules! rooms {
+            () => {
+                "(SELECT m.group_id FROM members m JOIN groups g ON g.id = m.group_id \
+                  AND g.kind = 'room' AND g.deleted_at IS NULL WHERE m.id IN (SELECT value FROM json_each(?1)))"
+            };
+        }
+        let rounds_q = sqlx::query_as::<_, (i64, i64, i64, Option<i64>)>(concat!(
+            "SELECT r.group_id, r.id, ",
+            secs!("r.opened_at"),
+            ", ",
+            secs!("r.closed_at"),
+            " FROM rounds r WHERE r.group_id IN ",
+            rooms!(),
+            " AND ",
+            counts!(),
+            " ORDER BY r.group_id, r.number"
+        ))
+        .bind(&seats_json)
+        .fetch_all(db);
+        let seats_q =
+            sqlx::query_as::<_, (i64, i64, i64, Option<i64>, bool, Option<i64>)>(concat!(
+                "SELECT m.group_id, m.id, ",
+                secs!("m.created_at"),
+                ", ",
+                secs!("m.removed_at"),
+                ", m.role = 'owner' AND m.removed_at IS NULL, p.tz_offset FROM members m \
+             LEFT JOIN notification_prefs p ON p.user_id = m.user_id WHERE m.group_id IN ",
+                rooms!(),
+                " ORDER BY m.id"
+            ))
+            .bind(&seats_json)
+            .fetch_all(db);
+        // Through the rooms' rounds: votes and skips are indexed by round.
+        let votes_q = sqlx::query_as::<_, (i64, i64, i64, i64)>(concat!(
+            "SELECT r.group_id, v.voter_id, v.round_id, ",
+            secs!("v.created_at"),
+            " FROM rounds r JOIN votes v ON v.round_id = r.id WHERE r.group_id IN ",
+            rooms!(),
+            " AND r.deadline_at IS NULL AND v.voter_id IN (SELECT value FROM json_each(?1)) \
+             ORDER BY v.created_at"
+        ))
+        .bind(&seats_json)
+        .fetch_all(db);
+        let skips_q = sqlx::query_as::<_, (i64, i64, i64, i64)>(concat!(
+            "SELECT r.group_id, s.round_id, s.target_id, COUNT(*) FROM rounds r \
+             JOIN skips s ON s.round_id = r.id WHERE r.group_id IN ",
+            rooms!(),
+            " AND r.deadline_at IS NULL AND s.target_id IN (SELECT value FROM json_each(?1)) \
+             GROUP BY s.round_id, s.target_id"
+        ))
+        .bind(&seats_json)
+        .fetch_all(db);
+        let (rounds, all_seats, votes, skips) =
+            tokio::try_join!(rounds_q, seats_q, votes_q, skips_q)?;
+
+        type Parts = (
+            Vec<(i64, i64, Option<i64>)>,
+            Vec<SeatRow>,
+            Vec<(i64, i64, i64)>,
+            Vec<(i64, i64, i64)>,
+        );
+        let mut parts: HashMap<i64, Parts> = HashMap::new();
+        for (g, id, opened, closed) in rounds {
+            parts.entry(g).or_default().0.push((id, opened, closed));
+        }
+        for (g, id, joined, left, owner, tz) in all_seats {
+            parts
+                .entry(g)
+                .or_default()
+                .1
+                .push((id, joined, left, owner, tz));
+        }
+        for (g, voter, round, at) in votes {
+            parts.entry(g).or_default().2.push((voter, round, at));
+        }
+        for (g, round, target, n) in skips {
+            parts.entry(g).or_default().3.push((round, target, n));
+        }
+        Ok(parts
+            .into_iter()
+            .map(|(g, (rounds, seats, votes, skips))| {
+                (g, Room::assemble(rounds, seats, votes, skips))
+            })
+            .collect())
+    }
+
+    /// A room from its rows: rounds (id, opened, closed), seats (id, joined, left, owner, tz), votes
+    /// (voter, round, at) in time order, skips (round, target, how many asked).
+    fn assemble(
+        rounds: Vec<(i64, i64, Option<i64>)>,
+        seats: Vec<SeatRow>,
+        votes: Vec<(i64, i64, i64)>,
+        skips: Vec<(i64, i64, i64)>,
+    ) -> Room {
         let seats: Vec<Seat> = seats
             .into_iter()
             .map(|(id, joined, left, owner, tz)| Seat {
@@ -235,7 +341,7 @@ impl Room {
         for (voter, round, at) in votes {
             by_member.entry(voter).or_default().push((round, at));
         }
-        Ok(Some(Room {
+        Room {
             rounds: rounds
                 .into_iter()
                 .map(|(id, opened, closed)| Round { id, opened, closed })
@@ -247,7 +353,7 @@ impl Room {
                 .filter(|s| s.2 >= needed)
                 .map(|(round, member, _)| (round, member))
                 .collect(),
-        }))
+        }
     }
 
     /// The room's time zone (minutes east of UTC): its owner's, else UTC.

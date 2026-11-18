@@ -31,6 +31,9 @@ export async function registerNativePush() {
   await api('/push/subscribe', { method: 'POST', json: { kind: 'fcm', token } });
 }
 
+/** Android: the app was opened (or brought back) by a tap on a notification not handled yet: it opens that screen. */
+export const openedFromNotification = () => Platform.OS === 'android' && !!Notifications.getLastNotificationResponse();
+
 /** The app path of a notification (`/round/12?room=3` → `/round/12`): the room is switched to before. */
 const pathOf = (url: unknown) => {
   if (typeof url !== 'string' || !url.startsWith('/')) return '/';

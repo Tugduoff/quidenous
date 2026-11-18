@@ -112,6 +112,8 @@ pub fn router() -> Router<AppState> {
         .route("/members/{member_id}/badges", get(crate::badges::member))
         .route("/wrapped", get(crate::wrapped::get))
         .route("/wrapped/share", post(crate::wrapped::share))
+        .route("/today", get(crate::today::get))
+        .route("/intro", get(crate::intro::get).post(crate::intro::done))
         .route("/rounds/{id}/bet", post(crate::tripot::bet))
         .route("/stats/share", post(crate::share::create_stat))
         .route("/shares", get(crate::share::mine))
@@ -291,6 +293,10 @@ async fn features(State(state): State<AppState>) -> Json<Value> {
         // Titles & badges, and the year's Wrapped (docs/BADGES.md, docs/WRAPPED.md).
         "badges",
         "wrapped",
+        // All my rooms at a glance (`GET /today`) and `room_activity` on the live socket (`others=1`).
+        "today",
+        // The first-run intro, once per account (`GET/POST /intro`).
+        "intro",
     ];
     if state.config.klipy.is_some() {
         f.push("chat_gifs");
@@ -1947,6 +1953,8 @@ struct LiveQuery {
     screen: Option<String>,
     /// Events this app understands beyond the old ones, comma-separated (`crate::live::OptIns`).
     events: Option<String>,
+    /// `1`: also a compact `room_activity` for the account's other rooms (docs/TODAY.md).
+    others: Option<String>,
 }
 
 /// The app only ever sends "here" / "away": anything bigger is cut off at the frame.
@@ -2050,7 +2058,13 @@ async fn live(
         .take_socket(watcher.user_id(), ip)
         .ok_or(AppError::TooMany("too_many_sockets"))?;
     let opt_ins = crate::live::OptIns::parse(q.events.as_deref());
-    Ok(ws.on_upgrade(move |socket| relay(socket, state, group_id, watcher, opt_ins, slot)))
+    let others = match (q.others.as_deref(), watcher.user_id()) {
+        (Some("1" | "true"), Some(user)) => {
+            Some(crate::today::OtherRooms::open(&state.db, user, group_id).await?)
+        }
+        _ => None,
+    };
+    Ok(ws.on_upgrade(move |socket| relay(socket, state, group_id, watcher, opt_ins, others, slot)))
 }
 
 async fn relay(
@@ -2059,6 +2073,7 @@ async fn relay(
     group_id: i64,
     watcher: Watcher,
     opt_ins: crate::live::OptIns,
+    mut others: Option<crate::today::OtherRooms>,
     _slot: crate::live::SocketSlot,
 ) {
     use std::time::Instant;
@@ -2073,6 +2088,8 @@ async fn relay(
     // Why the server hangs up, if it does (a policy close tells the app not to hurry back).
     let mut close: Option<&'static str> = None;
     loop {
+        // The next trailing `room_activity` of another room, if one waits.
+        let due = others.as_ref().and_then(crate::today::OtherRooms::next_due);
         tokio::select! {
             event = rx.recv() => match event {
                 Ok(e) if e.group_id == group_id && opt_ins.wants(&e.event) => {
@@ -2083,7 +2100,14 @@ async fn relay(
                         break;
                     }
                 }
-                Ok(_) => {}
+                Ok(e) => {
+                    let room = others.as_mut().and_then(|o| o.hear(e.group_id, &e.event, Instant::now()));
+                    if let Some(room) = room
+                        && socket.send(Message::Text(crate::today::activity_frame(room).into())).await.is_err()
+                    {
+                        break;
+                    }
+                }
                 // Lagged behind: tell the app to refetch everything.
                 Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
                     if socket.send(Message::Text(r#"{"type":"resync"}"#.into())).await.is_err() { break; }
@@ -2125,6 +2149,19 @@ async fn relay(
                     close = Some("gone");
                     break;
                 }
+                // Same for the other rooms: the last list stays until a check succeeds.
+                if let Some(o) = others.as_mut() {
+                    let _ = o.refresh(&state.db).await;
+                }
+            },
+            _ = tokio::time::sleep_until(due.unwrap_or_else(Instant::now).into()), if due.is_some() => {
+                let rooms = others.as_mut().map(|o| o.due(Instant::now())).unwrap_or_default();
+                let mut sent = true;
+                for room in rooms {
+                    sent = socket.send(Message::Text(crate::today::activity_frame(room).into())).await.is_ok();
+                    if !sent { break; }
+                }
+                if !sent { break; }
             },
         }
     }

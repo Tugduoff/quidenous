@@ -25,6 +25,15 @@ const ROOM_PARAM =
 /** Room carried by a tapped notification (`/round/12?room=3`): the app opens in it. */
 export const presetRoom = () => ROOM_PARAM;
 
+// The bare home page (the installed web app adds `?source=pwa`): no link or notification chose a screen (lib/today.ts).
+const PLAIN_START =
+  Platform.OS === 'web' && typeof location !== 'undefined'
+    ? location.pathname.replace(/\/+$/, '') === '' && [...new URLSearchParams(location.search).keys()].every((k) => k === 'source')
+    : false;
+
+/** Web: the page was opened at `/` without a link's parameters. */
+export const plainStart = () => PLAIN_START;
+
 /** Friend code carried by a friend link `/?friend=…` (QR code). */
 export const presetFriendCode = () => FRIEND_CODE;
 
@@ -484,9 +493,12 @@ export const photoUrl = (m: Member) => (m.photo_url ? `${API_URL}${m.photo_url}`
 /** A media path from the server (`/api/…`) on the server in use; an absolute URL as is. */
 export const mediaUrl = (url: string) => (url.startsWith('/') ? `${API_URL}${url}` : url);
 
-/** The live socket. `reactions`: also send `result_reacted` (only to apps that handle it, docs/REACTIONS.md). */
-export const liveUrl = async (t: string, tickets: boolean, reactions = false) =>
-  `${API_URL.replace(/^http/, 'ws')}/api/live?${await urlAuth('live', tickets, t)}${roomQuery()}${reactions ? '&events=reactions' : ''}`;
+/**
+ * The live socket. `reactions`: also send `result_reacted` (only to apps that handle it, docs/REACTIONS.md).
+ * `others`: also a `room_activity` event for my other rooms (the server has `today`, docs/TODAY.md).
+ */
+export const liveUrl = async (t: string, tickets: boolean, reactions = false, others = false) =>
+  `${API_URL.replace(/^http/, 'ws')}/api/live?${await urlAuth('live', tickets, t)}${roomQuery()}${reactions ? '&events=reactions' : ''}${others ? '&others=1' : ''}`;
 
 /** Multipart upload (photo). Content type is set by fetch with the boundary. */
 export async function apiUpload<T>(path: string, form: FormData, method = 'PUT'): Promise<T> {

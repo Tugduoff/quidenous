@@ -1,6 +1,16 @@
 import { CloudOff } from 'lucide-react-native';
-import { type ComponentRef, type ReactNode, type RefObject, useEffect, useRef } from 'react';
-import { KeyboardAvoidingView, type NativeScrollEvent, Platform, ScrollView, type ScrollViewProps, Text, View, type ViewStyle } from 'react-native';
+import { type ComponentRef, type ReactElement, type ReactNode, type RefObject, useEffect, useRef } from 'react';
+import {
+  KeyboardAvoidingView,
+  type NativeScrollEvent,
+  Platform,
+  type RefreshControlProps,
+  ScrollView,
+  type ScrollViewProps,
+  Text,
+  View,
+  type ViewStyle,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useT } from '@/lib/i18n';
@@ -20,6 +30,7 @@ export function Screen({
   onContentSizeChange,
   overlay,
   scrollEnabled = true,
+  refreshControl,
 }: {
   children: ReactNode;
   footer?: ReactNode;
@@ -35,6 +46,8 @@ export function Screen({
   overlay?: ReactNode;
   /** Off while something on the page is being dragged. */
   scrollEnabled?: boolean;
+  /** Pull to refresh. */
+  refreshControl?: ReactElement<RefreshControlProps>;
 }) {
   const t = useTheme();
   // The web's ScrollView keeps the ref it was mounted with: one of our own, handed out after each render.
@@ -53,6 +66,7 @@ export function Screen({
         <ScrollView
           ref={inner}
           scrollEnabled={scrollEnabled}
+          refreshControl={refreshControl}
           contentContainerStyle={{ padding: 20, gap: 16, flexGrow: 1 }}
           scrollEventThrottle={onScroll ? 32 : 200}
           onContentSizeChange={onContentSizeChange}

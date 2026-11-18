@@ -1017,3 +1017,22 @@ mod parties {
         assert!(s["round"].is_null(), "{s}");
     }
 }
+
+/// Today (docs/TODAY.md): writing counts as voted while the question is in its writing phase.
+#[tokio::test]
+async fn today_counts_a_written_answer() {
+    let (app, _state) = setup().await;
+    let people = room_with_said(&app, &["Ana", "Bob", "Cyd"]).await;
+    let room = |b: &Value| b["rooms"][0].clone();
+    let (s, before) = call(&app, "GET", "/today", Some(&people[0].0), None).await;
+    assert_eq!(s, StatusCode::OK, "{before}");
+    assert_eq!(room(&before)["voted"], false, "{before}");
+    assert_eq!(room(&before)["votes"], 0, "{before}");
+    let w = write(&app, &people[0].0, "Une plante en plastique").await;
+    assert_eq!(w.0, StatusCode::OK, "{:?}", w.1);
+    let (_, after) = call(&app, "GET", "/today", Some(&people[0].0), None).await;
+    assert_eq!(room(&after)["voted"], true, "{after}");
+    assert_eq!(room(&after)["votes"], 1, "{after}");
+    let (_, other) = call(&app, "GET", "/today", Some(&people[1].0), None).await;
+    assert_eq!(room(&other)["voted"], false, "{other}");
+}

@@ -34,35 +34,41 @@ export const useUnreachable = () => useSyncExternalStore(subscribe, () => unreac
 
 type LiveEvent = { type: string; round_id?: number };
 
-/** The queries each server event touches (server/src/live.rs). Unknown events: everything, like `resync`. */
+/**
+ * The queries each server event touches (server/src/live.rs). Unknown events: everything, like `resync`.
+ * `keys.today` (all my rooms) follows what changes a room's card: votes, questions, chat, bets, who's in.
+ */
 function touched(event: LiveEvent): QueryKey[] | 'all' {
   switch (event.type) {
     case 'party_updated':
       return [];
+    // Something happened in another room of mine (`others=1`): only « Aujourd'hui » and the room list show it.
+    case 'room_activity':
+      return [keys.today, keys.rooms];
     case 'vote_cast':
     case 'skip_voted':
     // Someone bet on the open question (Tripot): its pot changed.
     case 'tripot_updated':
-      return [keys.current];
+      return [keys.current, keys.today];
     // A « Qui a dit ça ? » question went from writing to guessing (docs/SAID.md).
     case 'round_updated':
-      return event.round_id ? [keys.current, keys.round(event.round_id)] : [keys.current];
+      return event.round_id ? [keys.current, keys.round(event.round_id), keys.today] : [keys.current, keys.today];
     case 'round_opened':
-      return [['round'], keys.historyList, keys.queue, keys.stats];
+      return [['round'], keys.historyList, keys.queue, keys.stats, keys.today];
     // A closed question can cross a badge threshold (mine arrives as an inbox entry; the room's titles may follow).
     case 'round_closed':
-      return [['round'], keys.historyList, keys.queue, keys.stats, titlesKey];
+      return [['round'], keys.historyList, keys.queue, keys.stats, titlesKey, keys.today];
     case 'message_posted':
-      return event.round_id ? [keys.messages(event.round_id)] : [];
+      return event.round_id ? [keys.messages(event.round_id), keys.today] : [keys.today];
     // Someone reacted to a message (or took their reaction back).
     case 'message_reacted':
       return event.round_id ? [keys.messages(event.round_id)] : [];
     // Deleted by its author, the owner or an admin, or hidden by reports.
     case 'message_deleted':
-      return event.round_id ? [keys.messages(event.round_id), keys.inbox] : [keys.inbox];
+      return event.round_id ? [keys.messages(event.round_id), keys.inbox, keys.today] : [keys.inbox, keys.today];
     // Also a friend request, a room invitation or a new badge for me.
     case 'inbox_changed':
-      return [keys.inbox, keys.friends, keys.invites, badgesKey, titlesKey];
+      return [keys.inbox, keys.friends, keys.invites, badgesKey, titlesKey, keys.today];
     case 'kick_voted':
       return [keys.group];
     case 'round_pinned':
@@ -71,16 +77,16 @@ function touched(event: LiveEvent): QueryKey[] | 'all' {
       return [keys.queue];
     // Settings, owner, pacing, invite code: the room and its open question (skip rules, next opening).
     case 'room_updated':
-      return [keys.group, keys.rooms, keys.current, keys.queue];
+      return [keys.group, keys.rooms, keys.current, keys.queue, keys.today];
     // Who's in: the room, the counts on the open question and in the room list.
     case 'member_joined':
     case 'member_removed':
-      return [keys.group, keys.current, keys.rooms, ['invites']];
+      return [keys.group, keys.current, keys.rooms, ['invites'], keys.today];
     // A new name or photo: also shown on results and in the chat.
     case 'member_updated':
       return [keys.group, ['round'], ['messages']];
     case 'room_deleted':
-      return [keys.group, keys.rooms, keys.current];
+      return [keys.group, keys.rooms, keys.current, keys.today];
     // Taps on a result: handed to its screen (receiveReacted), never a refetch (they come in bursts).
     case 'result_reacted':
       return [];
@@ -146,9 +152,10 @@ export function useLive(token: string | null, room: number | null) {
       async () => {
         // A short-lived ticket instead of the token in the URL, when the server has them. Features not known yet
         // (cold start): fetched first; unreachable: no socket this time (retried), never the token by default.
+        // With « Aujourd'hui », my other rooms' activity too.
         const features = await qc.ensureQueryData(featuresQuery);
         // `result_reacted` only for an app that knows it (an older one would refetch everything on each).
-        return liveUrl(token, features.includes('tickets'), features.includes('result_reactions'));
+        return liveUrl(token, features.includes('tickets'), features.includes('result_reactions'), features.includes('today'));
       },
       {
         onOpen: () => {

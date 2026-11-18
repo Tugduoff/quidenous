@@ -159,6 +159,8 @@ export function useFeatures() {
     streaks: on.has('streaks'),
     /** Anonymous votes: the room rule, per-question flag, counts-only results (docs/ANONYMOUS.md). */
     anonymousVotes: on.has('anonymous_votes'),
+    /** « Aujourd'hui »: every room on one screen (`GET /today`) and other rooms' activity on the live socket (`others=1`). */
+    today: on.has('today'),
     /** Le Tripot: bets with chips worth nothing (`/rounds/{id}/bet`, `/tripot`; docs/TRIPOT.md). */
     tripot: on.has('tripot'),
     /** Live emoji reactions on results, taps with bursts (`/rounds/{id}/reactions`, `result_reacted`; docs/REACTIONS.md). */

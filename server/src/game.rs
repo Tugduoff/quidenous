@@ -589,19 +589,32 @@ pub const AWAY_AFTER: i64 = 3;
 /// Hours after which an open question closes once at least half of the people it waits for voted.
 pub const QUORUM_HOURS: i64 = 24;
 
+/// SQL: the seat `m` (a `members` alias) is away (see [`away`]); `$after` is the parameter bound to
+/// [`AWAY_AFTER`]. One rule for one room ([`away`]) and for all of an account's rooms (`today`).
+macro_rules! away_sql {
+    ($after:literal) => {
+        concat!(
+            "((SELECT kind FROM groups WHERE id = m.group_id) = 'room' \
+             AND (SELECT COUNT(*) FROM rounds r WHERE r.group_id = m.group_id AND r.closed_at IS NOT NULL \
+                  AND r.closed_at >= m.created_at AND EXISTS (SELECT 1 FROM votes x WHERE x.round_id = r.id) \
+                  AND r.number > COALESCE((SELECT MAX(r2.number) FROM votes v JOIN rounds r2 ON r2.id = v.round_id \
+                                           WHERE v.voter_id = m.id AND r2.group_id = m.group_id), 0)) >= ",
+            $after,
+            ")"
+        )
+    };
+}
+pub(crate) use away_sql;
+
 /// Members who are away: the last [`AWAY_AFTER`] questions of the room closed without their vote
 /// (closed since they joined; a removed question nobody could answer doesn't count). The room
 /// stops waiting for them until they vote again. Rooms only.
 pub async fn away(tx: &mut Transaction<'_, Sqlite>, group_id: i64) -> AppResult<Vec<i64>> {
-    Ok(sqlx::query_scalar(
-        "SELECT m.id FROM members m WHERE m.group_id = ?1 AND m.removed_at IS NULL \
-         AND (SELECT kind FROM groups WHERE id = ?1) = 'room' \
-         AND (SELECT COUNT(*) FROM rounds r WHERE r.group_id = ?1 AND r.closed_at IS NOT NULL \
-              AND r.closed_at >= m.created_at AND EXISTS (SELECT 1 FROM votes x WHERE x.round_id = r.id) \
-              AND r.number > COALESCE((SELECT MAX(r2.number) FROM votes v JOIN rounds r2 ON r2.id = v.round_id \
-                                       WHERE v.voter_id = m.id AND r2.group_id = ?1), 0)) >= ?2 \
-         ORDER BY m.id",
-    )
+    Ok(sqlx::query_scalar(concat!(
+        "SELECT m.id FROM members m WHERE m.group_id = ?1 AND m.removed_at IS NULL AND ",
+        away_sql!("?2"),
+        " ORDER BY m.id"
+    ))
     .bind(group_id)
     .bind(AWAY_AFTER)
     .fetch_all(&mut **tx)
