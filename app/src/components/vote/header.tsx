@@ -1,6 +1,6 @@
 import { useTheme } from '@/lib/theme';
 import { useT } from '@/lib/i18n';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { type PushState, pushState, refreshPush, enablePush } from '@/lib/device/web-push';
 import { Pressable, Text, View } from 'react-native';
 import { BellOff, Bell, ChevronDown, Inbox, Users } from 'lucide-react-native';
@@ -16,14 +16,15 @@ import { useSession } from '@/lib/session';
 import { Logo } from '@/components/ui/text';
 import { RoomStreak } from '@/components/streaks/streaks';
 import { Avatar } from '@/components/ui/avatar';
+import { useMountEffect } from '@/lib/hooks/use-mount-effect';
 
 function PushBell() {
   const t = useTheme();
   const tr = useT();
   const [state, setState] = useState<PushState>(pushState);
-  useEffect(() => {
+  useMountEffect(() => {
     refreshPush().catch(() => {});
-  }, []);
+  });
   // Only shown while notifications can still be turned on.
   if (state === 'unsupported' || state === 'granted') return null;
   const denied = state === 'denied';

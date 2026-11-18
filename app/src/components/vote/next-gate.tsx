@@ -1,6 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Hourglass, Play } from 'lucide-react-native';
-import { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { useT } from '@/lib/i18n';
@@ -12,18 +11,7 @@ import { Button } from '@/components/ui/button';
 import { launchNext, type Group, groupKeys } from '@/lib/api/group';
 import { questionKeys } from '@/lib/api/questions';
 import { roundKeys } from '@/lib/api/rounds';
-
-/** Re-renders every 30 s while a countdown is on screen. */
-function useNow(on: boolean) {
-  const [now, setNow] = useState(Date.now);
-  useEffect(() => {
-    if (!on) return;
-    setNow(Date.now());
-    const id = setInterval(() => setNow(Date.now()), 30_000);
-    return () => clearInterval(id);
-  }, [on]);
-  return now;
-}
+import { useNow } from '@/lib/hooks/use-now';
 
 /**
  * Paced room, a closed question waiting for the next one (instead of "Suivante"): the owner's
@@ -35,7 +23,7 @@ export function NextGate({ group, onLaunched }: { group: Group; onLaunched?: () 
   const qc = useQueryClient();
   const { me } = useSession();
   const deadline = group.pace?.next_open_at ?? null;
-  const now = useNow(!!deadline);
+  const now = useNow(deadline ? 30_000 : null);
   const owner = group.members.some((m) => m.id === me?.id && m.role === 'owner');
   const launch = useMutation({
     mutationFn: () => launchNext(group.id),

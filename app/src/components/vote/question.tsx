@@ -1,7 +1,7 @@
 import { type Round, retireRoundQuestion, roundKeys } from '@/lib/api/rounds';
 import { useTheme } from '@/lib/theme';
 import { useT, t as translate } from '@/lib/i18n';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useMembers, useGroup } from '@/lib/api/group';
 import { useQueryClient } from '@tanstack/react-query';
 import { useFeatures } from '@/lib/api/features';
@@ -22,17 +22,12 @@ import { PressableScale } from '@/components/ui/pressable-scale';
 import { Check, Share2 } from 'lucide-react-native';
 import { Display } from '@/components/ui/text';
 import { tidy } from '@/lib/utils/text';
-
-// The last question shown to vote on, so it slides in only when a new one opens (not when Ballot turns into Waiting).
-let lastQuestion: number | null = null;
+import { useFreshQuestion } from '@/lib/hooks/use-fresh-question';
 
 export function Question({ round, result }: { round: Round; result?: boolean }) {
   const t = useTheme();
   const tr = useT();
-  const [fresh] = useState(() => !result && round.id !== lastQuestion);
-  useEffect(() => {
-    if (!result) lastQuestion = round.id;
-  }, [result, round.id]);
+  const fresh = useFreshQuestion(round.id, !!result);
   const { byId } = useMembers();
   const qc = useQueryClient();
   const { data: group } = useGroup();

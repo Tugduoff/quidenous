@@ -1,4 +1,4 @@
-import { type ComponentRef, type ReactNode, type RefObject, useEffect, useRef, useState, useEffectEvent } from 'react';
+import { type ComponentRef, type ReactNode, type RefObject, useRef, useState } from 'react';
 import { Dimensions, type NativeScrollEvent, Platform, type ScrollView, type ViewStyle } from 'react-native';
 import { GestureDetector, GestureHandlerRootView, usePanGesture } from 'react-native-gesture-handler';
 import Animated, { ReduceMotion, type SharedValue, useAnimatedReaction, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
@@ -8,6 +8,9 @@ import { useT } from '@/lib/i18n';
 import { EASE, motion } from '@/lib/motion';
 import { useTheme } from '@/lib/theme';
 import { impactHaptic } from '@/lib/device/haptics';
+import { useLatest } from '@/lib/hooks/use-latest';
+import { useOnChange } from '@/lib/hooks/use-on-change';
+import { useUnmountEffect } from '@/lib/hooks/use-mount-effect';
 
 // A list whose rows can be put in another order: hold one (~300 ms), it lifts, drag it, the others make room.
 // Rows are absolutely positioned from their measured heights, so a drop never waits on React to re-lay them out.
@@ -104,14 +107,13 @@ export function ReorderList<T extends { id: number }>({
 }) {
   const ids = items.map((i) => i.id);
   const key = ids.join(',');
-  const latest = useRef(ids);
-  latest.current = ids;
+  const latest = useLatest(ids);
   const heights = useRef<Record<number, number>>({});
   const [height, setHeight] = useState(0);
   const dragging = useRef(false);
   const s: Shared = {
     order: useSharedValue(ids),
-    layout: useSharedValue<Layout>({ h: {}, top: {} }),
+    layout: useSharedValue<Layout>({ h: {}, top: tops(ids, {}) }),
     active: useSharedValue(-1),
     lifted: useSharedValue(false),
     startTop: useSharedValue(0),
@@ -128,7 +130,7 @@ export function ReorderList<T extends { id: number }>({
     s.layout.value = { h, top: tops(latest.current, h) };
     setHeight(total(latest.current, h));
   };
-  const onOrderChange = useEffectEvent(() => {
+  const onOrderChange = () => {
     if (dragging.current && !latest.current.includes(s.active.value)) {
       dragging.current = false;
       s.lifted.value = false;
@@ -138,8 +140,8 @@ export function ReorderList<T extends { id: number }>({
       onDragChange?.(false);
     }
     sync();
-  });
-  useEffect(() => onOrderChange(), [key]);
+  };
+  useOnChange(key, onOrderChange);
   // Heights arrive one row at a time: applied together on the next frame, so the first layout doesn't cascade.
   const frame = useRef<number | null>(null);
   const measured = (id: number, h: number) => {
@@ -208,14 +210,11 @@ export function ReorderList<T extends { id: number }>({
     };
     loop.current = requestAnimationFrame(tick);
   };
-  useEffect(
-    () => () => {
-      if (loop.current != null) cancelAnimationFrame(loop.current);
-      if (frame.current != null) cancelAnimationFrame(frame.current);
-      pageScroll(true);
-    },
-    [],
-  );
+  useUnmountEffect(() => {
+    if (loop.current != null) cancelAnimationFrame(loop.current);
+    if (frame.current != null) cancelAnimationFrame(frame.current);
+    pageScroll(true);
+  });
 
   const lift = () => {
     dragging.current = true;
