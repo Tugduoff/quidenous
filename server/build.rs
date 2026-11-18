@@ -4,8 +4,9 @@ use std::{
     process::Command,
 };
 
+#[allow(clippy::print_stdout)]
 fn main() {
-    let manifest = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").expect("set by cargo"));
+    let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-env-changed=QUIDENOUS_VERSION");
     println!("cargo:rerun-if-env-changed=QUIDENOUS_GIT_SHA");
@@ -53,6 +54,7 @@ fn git(dir: &Path, args: &[&str]) -> Option<String> {
     (!s.is_empty()).then_some(s)
 }
 
+#[allow(clippy::print_stdout)]
 fn git_sha(dir: &Path) -> Option<String> {
     let sha = git(dir, &["rev-parse", "HEAD"])?;
     if sha.len() != 40 || !sha.bytes().all(|b| b.is_ascii_hexdigit()) {

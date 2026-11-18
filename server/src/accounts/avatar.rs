@@ -51,37 +51,42 @@ struct Parts {
 
 const PALETTES: [&str; 3] = ["skin", "hairColor", "bg"];
 
+#[allow(clippy::expect_used)]
 fn parts() -> &'static Parts {
     static PARTS: OnceLock<Parts> = OnceLock::new();
     PARTS.get_or_init(|| {
-        let def: Def = serde_json::from_str(include_str!(concat!(
+        load_parts(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/assets/avatar.json"
         )))
-        .expect("assets/avatar.json is invalid");
-        let mut palettes = HashMap::new();
-        let mut shapes = HashMap::new();
-        for field in &def.fields {
-            let Some(value) = def.options.get(field) else {
-                continue;
-            };
-            if PALETTES.contains(&field.as_str()) {
-                let p: Vec<Vec<String>> = serde_json::from_value(value.clone())
-                    .unwrap_or_else(|e| panic!("assets/avatar.json: palette {field}: {e}"));
-                palettes.insert(field.clone(), p);
-            } else {
-                let s: Vec<Vec<Shape>> = serde_json::from_value(value.clone())
-                    .unwrap_or_else(|e| panic!("assets/avatar.json: part {field}: {e}"));
-                shapes.insert(field.clone(), s);
-            }
+        .expect("assets/avatar.json is valid")
+    })
+}
+
+fn load_parts(json: &str) -> Result<Parts, String> {
+    let def: Def = serde_json::from_str(json).map_err(|e| e.to_string())?;
+    let mut palettes = HashMap::new();
+    let mut shapes = HashMap::new();
+    for field in &def.fields {
+        let Some(value) = def.options.get(field) else {
+            continue;
+        };
+        if PALETTES.contains(&field.as_str()) {
+            let p: Vec<Vec<String>> = serde_json::from_value(value.clone())
+                .map_err(|e| format!("palette {field}: {e}"))?;
+            palettes.insert(field.clone(), p);
+        } else {
+            let s: Vec<Vec<Shape>> =
+                serde_json::from_value(value.clone()).map_err(|e| format!("part {field}: {e}"))?;
+            shapes.insert(field.clone(), s);
         }
-        Parts {
-            fields: def.fields,
-            base: def.base,
-            presets: def.presets,
-            palettes,
-            shapes,
-        }
+    }
+    Ok(Parts {
+        fields: def.fields,
+        base: def.base,
+        presets: def.presets,
+        palettes,
+        shapes,
     })
 }
 

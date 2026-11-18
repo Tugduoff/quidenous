@@ -23,6 +23,7 @@ pub struct Keys {
 }
 
 impl Keys {
+    #[allow(clippy::expect_used)]
     pub fn from_secret(secret: &[u8]) -> Self {
         let hk = Hkdf::<Sha256>::new(Some(b"quidenous auth v1"), secret);
         let (mut seal, mut mac) = ([0u8; 32], [0u8; 32]);
@@ -56,6 +57,7 @@ impl Keys {
         }
     }
 
+    #[allow(clippy::expect_used)]
     pub fn mac(&self, parts: &[&str]) -> String {
         let mut m = <Hmac<Sha256> as KeyInit>::new_from_slice(&self.mac)
             .expect("HMAC takes any key length");
@@ -68,8 +70,9 @@ impl Keys {
         hex::encode(m.finalize().into_bytes())
     }
 
+    #[allow(clippy::expect_used)]
     pub fn seal(&self, plain: &[u8]) -> String {
-        let cipher = Aes256Gcm::new_from_slice(&self.seal).expect("32-byte key");
+        let cipher = Aes256Gcm::new(&self.seal.into());
         let mut nonce = [0u8; 12];
         rand::rng().fill_bytes(&mut nonce);
         let mut out = nonce.to_vec();
@@ -88,8 +91,7 @@ impl Keys {
         }
         let (nonce, ct) = bytes.split_at(12);
         let nonce: [u8; 12] = nonce.try_into().ok()?;
-        Aes256Gcm::new_from_slice(&self.seal)
-            .ok()?
+        Aes256Gcm::new(&self.seal.into())
             .decrypt(&Nonce::from(nonce), ct)
             .ok()
     }
@@ -156,6 +158,7 @@ pub fn constant_eq(a: &str, b: &str) -> bool {
             == 0
 }
 
+#[allow(clippy::expect_used)]
 fn argon2() -> Argon2<'static> {
     Argon2::new(
         Algorithm::Argon2id,

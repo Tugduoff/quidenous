@@ -62,6 +62,7 @@ fn unhealthy(what: &str) -> Response {
 }
 
 #[cfg(unix)]
+#[allow(unsafe_code)]
 fn free_bytes(dir: &Path) -> Option<u64> {
     use std::os::unix::ffi::OsStrExt;
     let path = std::ffi::CString::new(dir.as_os_str().as_bytes()).ok()?;

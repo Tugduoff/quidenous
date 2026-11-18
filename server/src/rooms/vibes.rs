@@ -15,6 +15,7 @@ pub struct Vibe {
     pub draws: Vec<String>,
 }
 
+#[allow(clippy::expect_used)]
 pub static VIBES: LazyLock<Vec<Vibe>> = LazyLock::new(|| {
     serde_json::from_str(include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

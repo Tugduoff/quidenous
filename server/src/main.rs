@@ -20,6 +20,7 @@ fn health(port: u16) -> std::process::ExitCode {
 }
 
 #[tokio::main]
+#[allow(clippy::print_stdout)]
 async fn main() -> quidenous_server::anyhow_free::Result<()> {
     if std::env::args().any(|a| a == "--gen-vapid") {
         let (private, public) = quidenous_server::realtime::push::generate_vapid();
@@ -90,6 +91,7 @@ async fn main() -> quidenous_server::anyhow_free::Result<()> {
     Ok(())
 }
 
+#[allow(clippy::print_stdout)]
 async fn seed_packs(args: &[String]) -> quidenous_server::anyhow_free::Result<()> {
     use quidenous_server::community::packs::SeedAction;
     const USAGE: &str =
