@@ -27,8 +27,9 @@ use crate::{
     AppState,
     accounts::auth::Me,
     accounts::crypto::{constant_eq, random_hex},
+    chat::messages::MessageRow,
+    chat::messages::NewMessage,
     platform::error::{AppError, AppResult},
-    routes::{MessageRow, NewMessage},
 };
 
 /// Largest image accepted (`413 too_large` above).
@@ -244,7 +245,7 @@ pub(crate) async fn upload(
     Path(id): Path<i64>,
     mut multipart: Multipart,
 ) -> AppResult<Json<MessageRow>> {
-    let round = crate::routes::chat_round(&state, &me, id).await?;
+    let round = crate::chat::messages::chat_round(&state, &me, id).await?;
     // Charged before the body is read (a retry gives it back below): a flood of uploads costs
     // its sender, not the server's memory.
     let user = me.user_id;
@@ -286,10 +287,10 @@ pub(crate) async fn upload(
         return Err(AppError::TooLarge("too_large"));
     }
     let format = sniff(&image).ok_or(AppError::BadRequest("bad_image"))?;
-    let caption = crate::routes::clean_caption(caption.as_deref())?;
-    let key = crate::routes::client_key(key.as_deref())?;
+    let caption = crate::chat::messages::clean_caption(caption.as_deref())?;
+    let key = crate::chat::messages::client_key(key.as_deref())?;
     // A retry of an upload whose answer was lost: the image already posted.
-    if let Some(posted) = crate::routes::retried(&state, &me, key.as_deref()).await? {
+    if let Some(posted) = crate::chat::messages::retried(&state, &me, key.as_deref()).await? {
         if let Some(user) = user {
             crate::platform::quotas::refund_user(
                 &state,
@@ -304,7 +305,7 @@ pub(crate) async fn upload(
         }
         return Ok(Json(posted));
     }
-    crate::routes::chat_quota(&state, &me)?;
+    crate::chat::messages::chat_quota(&state, &me)?;
     let image = state
         .decodes
         .run(move || process(image.to_vec(), format))
@@ -329,7 +330,7 @@ pub(crate) async fn upload(
         everyone,
         client_key: key,
     };
-    match crate::routes::post_chat(&state, &me, &round, message).await {
+    match crate::chat::messages::post_chat(&state, &me, &round, message).await {
         Ok(posted) => {
             // The same upload landed twice at once: the first one keeps its file.
             if !posted.fresh {

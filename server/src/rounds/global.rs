@@ -416,7 +416,7 @@ async fn get_today(State(state): State<AppState>, Me(me): Me) -> AppResult<Json<
 }
 
 #[derive(Deserialize)]
-struct VoteBody {
+pub(crate) struct VoteBody {
     #[serde(alias = "target_id")]
     target: i64,
 }

@@ -578,7 +578,7 @@ pub(crate) async fn retire_question(state: &AppState, id: i64) -> AppResult<i64>
     }
     state.live.send(room, Event::InboxChanged);
     if opened.is_some() {
-        crate::routes::notify_round(state, room, None, opened, false).await;
+        crate::realtime::notify::notify_round(state, room, None, opened, false).await;
     }
     Ok(room)
 }

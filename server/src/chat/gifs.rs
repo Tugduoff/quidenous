@@ -19,10 +19,11 @@ use crate::{
     AppState,
     accounts::auth::Me,
     chat::media::{sign, verify},
+    chat::messages::MessageRow,
+    chat::messages::NewMessage,
     platform::config::Klipy,
     platform::error::{AppError, AppResult},
     platform::i18n,
-    routes::{MessageRow, NewMessage},
 };
 
 /// GIFs per page of results.
@@ -352,7 +353,7 @@ pub(crate) async fn post(
     Json(body): Json<GifBody>,
 ) -> AppResult<Json<MessageRow>> {
     klipy(&state)?;
-    let round = crate::routes::chat_round(&state, &me, id).await?;
+    let round = crate::chat::messages::chat_round(&state, &me, id).await?;
     let bad = || AppError::BadRequest("bad_gif");
     let gif_id = match &body.id {
         Value::String(s) => s.trim().to_owned(),
@@ -372,12 +373,12 @@ pub(crate) async fn post(
     if !side.contains(&body.width) || !side.contains(&body.height) {
         return Err(bad());
     }
-    let caption = crate::routes::clean_caption(body.caption.as_deref())?;
-    let key = crate::routes::client_key(body.client_key.as_deref())?;
-    if let Some(posted) = crate::routes::retried(&state, &me, key.as_deref()).await? {
+    let caption = crate::chat::messages::clean_caption(body.caption.as_deref())?;
+    let key = crate::chat::messages::client_key(body.client_key.as_deref())?;
+    if let Some(posted) = crate::chat::messages::retried(&state, &me, key.as_deref()).await? {
         return Ok(Json(posted));
     }
-    crate::routes::chat_quota(&state, &me)?;
+    crate::chat::messages::chat_quota(&state, &me)?;
     let message = NewMessage {
         kind: "gif",
         text: crate::chat::media::fallback("gif", caption.as_deref()),
@@ -396,7 +397,7 @@ pub(crate) async fn post(
         client_key: key,
     };
     Ok(Json(
-        crate::routes::post_chat(&state, &me, &round, message)
+        crate::chat::messages::post_chat(&state, &me, &round, message)
             .await?
             .row,
     ))

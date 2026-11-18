@@ -21,8 +21,8 @@ use crate::{
     accounts::auth::UserId,
     platform::error::{AppError, AppResult},
     realtime::live::Event,
+    realtime::notify::notify_round,
     rounds::game,
-    routes::notify_round,
 };
 
 /// Delays the owner can pick, in seconds (0 = the next question opens right away).

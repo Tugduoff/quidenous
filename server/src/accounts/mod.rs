@@ -12,6 +12,7 @@ pub mod mail;
 mod mfa;
 pub mod oauth;
 mod password;
+pub mod profile;
 mod reauth;
 mod sessions;
 pub mod tickets;
@@ -27,7 +28,7 @@ use axum::{
     Router,
     extract::{ConnectInfo, FromRequestParts},
     http::{HeaderMap, request::Parts},
-    routing::{delete, get, post},
+    routing::{delete, get, post, put},
 };
 use serde_json::{Value, json};
 
@@ -81,6 +82,20 @@ impl Auth {
 }
 
 pub fn router() -> Router<AppState> {
+    Router::new()
+        .nest("/auth", auth_router())
+        .route("/me", get(profile::me).put(profile::update_me))
+        .route(
+            "/me/photo",
+            put(profile::upload_photo).layer(axum::extract::DefaultBodyLimit::max(
+                profile::PHOTO_UPLOAD_MAX,
+            )),
+        )
+        .route("/me/avatar", put(profile::set_avatar))
+        .route("/intro", get(intro::get).post(intro::done))
+}
+
+fn auth_router() -> Router<AppState> {
     Router::new()
         .route("/email", post(password::email_exists))
         .route("/signup", post(password::signup))

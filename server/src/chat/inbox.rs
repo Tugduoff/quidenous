@@ -1,10 +1,15 @@
 //! In-app notifications: one row per recipient, read all at once from the inbox screen.
 //! The text is stored in the recipient's language (`users.locale`) at the time it is written.
 
+use axum::{Json, extract::State};
 use serde::Serialize;
+use serde_json::{Value, json};
 use sqlx::SqlitePool;
 
-use crate::{platform::error::AppResult, platform::i18n::Text, rooms::model::MemberRow};
+use crate::{
+    AppState, accounts::auth::Me, platform::error::AppResult, platform::i18n::Text,
+    rooms::model::MemberRow,
+};
 
 /// The recipient's language (`u` = their account): `?en` when English, else `?fr`.
 macro_rules! text_for {
@@ -171,4 +176,20 @@ pub async fn prune(db: &SqlitePool) -> AppResult<u64> {
     .execute(db)
     .await?;
     Ok(old.rows_affected() + extra.rows_affected())
+}
+
+pub(crate) async fn inbox(State(state): State<AppState>, Me(me): Me) -> AppResult<Json<Value>> {
+    let (items, unread) = crate::chat::inbox::list(&state.db, &me).await?;
+    Ok(Json(json!({ "items": items, "unread": unread })))
+}
+
+pub(crate) async fn read_inbox(
+    State(state): State<AppState>,
+    Me(me): Me,
+) -> AppResult<Json<Value>> {
+    sqlx::query("UPDATE inbox SET read_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE member_id = ? AND read_at IS NULL")
+        .bind(me.id)
+        .execute(&state.db)
+        .await?;
+    Ok(Json(json!({ "ok": true })))
 }

@@ -14,7 +14,7 @@ use std::time::Duration;
 
 use crate::{
     AppState, platform::error::AppResult, platform::i18n::Text, realtime::live::Event,
-    rounds::game, routes::notify_round,
+    realtime::notify::notify_round, rounds::game,
 };
 
 /// Days without using the room after which an owner is replaced.

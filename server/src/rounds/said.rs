@@ -715,11 +715,11 @@ pub async fn answer(
     Json(body): Json<AnswerBody>,
 ) -> AppResult<Json<RoundView>> {
     let (round_id, events) = write(&state.db, me.group_id, me.id, &body.text).await?;
-    crate::routes::after_vote(&state, me.group_id, me.id, events).await;
+    crate::rounds::current::after_vote(&state, me.group_id, me.id, events).await;
     let round = game::round(&state.db, me.group_id, round_id).await?;
     let view = game::view(&state.db, round, me.id).await?;
     Ok(Json(
-        crate::routes::for_client(&state, &headers, me.id, view).await?,
+        crate::rounds::current::for_client(&state, &headers, me.id, view).await?,
     ))
 }
 

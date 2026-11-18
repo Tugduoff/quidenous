@@ -27,10 +27,10 @@ use crate::{
     accounts::auth::UserId,
     platform::error::{AppError, AppResult},
     platform::i18n::{self, Lang},
+    platform::text::clean_name,
     realtime::live::Event,
     rooms::model::{Member, MemberRow},
     rounds::game,
-    routes::clean_name,
 };
 
 /// Seconds per question the owner can pick.
@@ -925,7 +925,7 @@ async fn join(
             return Err(AppError::Forbidden("removed"));
         }
         (Some(_), Some(m)) if m.removed_at.is_some() => {
-            crate::routes::rejoin_seat(&mut tx, m.id).await?;
+            crate::rooms::members::rejoin_seat(&mut tx, m.id).await?;
             (m.id, true)
         }
         (Some(_), Some(m)) => (m.id, false),
@@ -1286,7 +1286,7 @@ async fn keep(
     state.live.send(id, Event::RoomUpdated);
     if let Some(round_id) = opened {
         state.live.send(id, Event::RoundOpened { round_id });
-        crate::routes::notify_round(&state, id, Some(me.id), Some(round_id), false).await;
+        crate::realtime::notify::notify_round(&state, id, Some(me.id), Some(round_id), false).await;
     }
     Ok(Json(json!({ "id": id })))
 }

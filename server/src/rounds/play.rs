@@ -126,7 +126,7 @@ async fn send(
     if kind == "choose" && items.is_none() {
         return Err(AppError::BadRequest("bad_items"));
     }
-    crate::routes::may_add_questions(state, target).await?;
+    crate::rounds::queue::may_add_questions(state, target).await?;
     let room = target.group_id;
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
     let played: Option<i64> = sqlx::query_scalar(
@@ -198,7 +198,8 @@ async fn send(
     );
     if let Some(round_id) = opened {
         state.live.send(room, Event::RoundOpened { round_id });
-        crate::routes::notify_round(state, room, Some(target.id), Some(round_id), false).await;
+        crate::realtime::notify::notify_round(state, room, Some(target.id), Some(round_id), false)
+            .await;
     }
     Ok((question, challenge))
 }

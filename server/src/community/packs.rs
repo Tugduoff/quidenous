@@ -737,7 +737,7 @@ pub async fn install(
     Me(me): Me,
     Path(id): Path<i64>,
 ) -> AppResult<Json<Value>> {
-    crate::routes::may_add_questions(&state, &me).await?;
+    crate::rounds::queue::may_add_questions(&state, &me).await?;
     let available: Option<i64> = sqlx::query_scalar(
         "SELECT id FROM packs WHERE id = ? \
          AND (status = 'public' OR (author_id = ? AND status = 'review'))",
@@ -799,7 +799,14 @@ pub async fn install(
         state
             .live
             .send(me.group_id, Event::RoundOpened { round_id });
-        crate::routes::notify_round(&state, me.group_id, Some(me.id), Some(round_id), false).await;
+        crate::realtime::notify::notify_round(
+            &state,
+            me.group_id,
+            Some(me.id),
+            Some(round_id),
+            false,
+        )
+        .await;
     }
     state
         .live
@@ -1008,7 +1015,7 @@ pub async fn delete(
 pub async fn delete_many(
     State(state): State<AppState>,
     UserId(me): UserId,
-    Json(body): Json<crate::routes::IdsBody>,
+    Json(body): Json<crate::rounds::queue::IdsBody>,
 ) -> AppResult<Json<Value>> {
     let ids = body.distinct(DELETE_MANY_MAX)?;
     let (mut deleted, mut skipped) = (Vec::new(), Vec::new());

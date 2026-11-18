@@ -18,9 +18,9 @@ use crate::{
     platform::i18n::{self, Text},
     realtime::live::Event,
     realtime::push::{Kind, Notification},
+    rooms::members::COLORS,
     rooms::rooms::seat,
     rounds::game,
-    routes::COLORS,
 };
 
 /// Is `other` a friend of `me` (added, or sharing an active room), with no block either way?
@@ -548,7 +548,7 @@ pub async fn accept_invite(
         }
         Some((member_id, Some(_), _)) => {
             crate::rooms::rooms::seat_free(&mut *tx, room).await?;
-            crate::routes::rejoin_seat(&mut tx, member_id).await?;
+            crate::rooms::members::rejoin_seat(&mut tx, member_id).await?;
             member_id
         }
         None => {
@@ -588,7 +588,8 @@ pub async fn accept_invite(
     state.live.send(room, Event::MemberJoined { member_id });
     if let Some(round_id) = opened {
         state.live.send(room, Event::RoundOpened { round_id });
-        crate::routes::notify_round(&state, room, Some(member_id), Some(round_id), false).await;
+        crate::realtime::notify::notify_round(&state, room, Some(member_id), Some(round_id), false)
+            .await;
     }
     Ok(Json(json!({ "room_id": room, "member_id": member_id })))
 }

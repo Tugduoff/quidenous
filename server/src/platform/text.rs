@@ -2,6 +2,8 @@
 //! invisible characters (zero-width spaces, bidi overrides, control characters) and runs of
 //! blank space, so nothing shows up empty, reversed or a screen tall.
 
+use crate::platform::error::{AppError, AppResult};
+
 /// Characters that are never shown on their own and only serve to hide or flip text: zero-width
 /// spaces and marks, bidi embeddings/overrides/isolates, word joiners, the BOM, soft hyphens,
 /// Hangul fillers and the blank Braille pattern (both used for "empty" names). The zero-width
@@ -89,4 +91,15 @@ mod tests {
         assert_eq!(key("ÉTÉ  à la PLAGE"), key("été à la plage"));
         assert_ne!(key("été"), key("ete"));
     }
+}
+
+const NAME_MAX: usize = 24;
+
+/// A first name: one line, no invisible characters, 1 to 24 characters.
+pub(crate) fn clean_name(name: &str) -> AppResult<String> {
+    let name = crate::platform::text::line(name);
+    if name.is_empty() || name.chars().count() > NAME_MAX {
+        return Err(AppError::BadRequest("bad_name"));
+    }
+    Ok(name)
 }

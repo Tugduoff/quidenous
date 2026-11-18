@@ -2,7 +2,11 @@ use axum::{extract::FromRequestParts, http::request::Parts};
 use rand::Rng;
 use sha2::{Digest, Sha256};
 
-use crate::{AppState, platform::error::AppError, rooms::model::MemberRow};
+use crate::{
+    AppState,
+    platform::error::{AppError, AppResult},
+    rooms::model::MemberRow,
+};
 
 pub fn new_token() -> String {
     let mut bytes = [0u8; 32];
@@ -173,4 +177,27 @@ impl FromRequestParts<AppState> for Account {
         }
         Ok(Account(user))
     }
+}
+
+/// The session behind `?ticket=` (single use, for one purpose) or, from older apps, `?token=`:
+/// a plain link (browser download) or a socket can't send an `Authorization` header.
+pub(crate) async fn member_from_query(
+    state: &AppState,
+    token: Option<&str>,
+    ticket: Option<&str>,
+    purpose: crate::accounts::tickets::Purpose,
+    room: Option<i64>,
+) -> AppResult<(MemberRow, String)> {
+    if let Some(ticket) = ticket {
+        let hash = state
+            .auth
+            .tickets
+            .redeem(ticket, purpose)
+            .ok_or(AppError::Unauthorized)?;
+        let me = crate::accounts::auth::member_in_room_by_hash(state, &hash, room).await?;
+        return Ok((me, hash));
+    }
+    let token = token.ok_or(AppError::Unauthorized)?;
+    let me = crate::accounts::auth::member_in_room(state, token, room).await?;
+    Ok((me, hash_token(token)))
 }

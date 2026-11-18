@@ -14,7 +14,8 @@ use crate::{
     AppState,
     platform::error::{AppError, AppResult},
     platform::i18n::Notice,
-    routes::{COLORS, clean_name},
+    platform::text::clean_name,
+    rooms::members::COLORS,
 };
 
 fn is_unique_violation(e: &sqlx::Error) -> bool {

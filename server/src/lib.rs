@@ -1,4 +1,5 @@
 pub mod accounts;
+pub mod api;
 pub mod chat;
 pub mod community;
 pub mod insights;
@@ -7,7 +8,6 @@ pub mod platform;
 pub mod realtime;
 pub mod rooms;
 pub mod rounds;
-pub mod routes;
 pub mod site;
 
 pub use platform::config;
@@ -138,7 +138,7 @@ pub async fn state_with_mailer(
 pub fn app(state: AppState) -> Router {
     let photos = ServeDir::new(state.config.data_dir.join("photos"));
     let mut app = Router::new()
-        .nest("/api", routes::router())
+        .nest("/api", api::router())
         .route("/s/{token}", axum::routing::get(share::page))
         .route("/s/{token}/card.png", axum::routing::get(share::card_png))
         .route("/p/{id}", axum::routing::get(share::pack_page))

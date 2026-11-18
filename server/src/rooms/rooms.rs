@@ -14,9 +14,11 @@ use crate::{
     platform::error::{AppError, AppResult},
     platform::i18n::Lang,
     realtime::live::Event,
+    realtime::notify::notify_round,
+    rooms::members::COLORS,
+    rooms::members::remove_member,
     rooms::model::{Member, MemberRow},
     rounds::game,
-    routes::{COLORS, notify_round, remove_member},
 };
 
 const ROOM_NAME_MAX: usize = 40;
@@ -323,7 +325,7 @@ pub async fn join(
         }
         // Left on their own: their old seat comes back, history included.
         Some(m) if m.removed_at.is_some() => {
-            crate::routes::rejoin_seat(&mut tx, m.id).await?;
+            crate::rooms::members::rejoin_seat(&mut tx, m.id).await?;
             Some(m.id)
         }
         Some(_) => None,
@@ -658,10 +660,10 @@ pub(crate) async fn leave_seat(state: &AppState, me: &MemberRow) -> AppResult<bo
         return Ok(true);
     }
     // Already removed (a vote landed first): that removal stands.
-    let removal = crate::routes::take_seat(&mut tx, room, me.id, true).await?;
+    let removal = crate::rooms::members::take_seat(&mut tx, room, me.id, true).await?;
     tx.commit().await?;
     if let Some(removal) = removal {
-        crate::routes::announce_removal(state, me.id, removal).await;
+        crate::rooms::members::announce_removal(state, me.id, removal).await;
         state.live.send(room, Event::RoomUpdated);
     }
     Ok(false)
@@ -724,8 +726,8 @@ pub async fn start(
     crate::accounts::Device(device): crate::accounts::Device,
     Json(body): Json<StartBody>,
 ) -> AppResult<Json<Value>> {
-    crate::routes::legacy_gate(&state, ip)?;
-    let name = &crate::routes::clean_name(&body.name)?;
+    crate::rooms::members::legacy_gate(&state, ip)?;
+    let name = &crate::platform::text::clean_name(&body.name)?;
     let room = clean_room_name(&body.room)?;
     clean_vibe(body.vibe.as_deref())?;
     let token = crate::accounts::auth::new_token();

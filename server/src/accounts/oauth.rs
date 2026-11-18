@@ -30,7 +30,7 @@ use crate::{
     platform::config::{Config, OAuthClient, OAuthEndpoints},
     platform::error::{AppError, AppResult},
     platform::i18n::Notice,
-    routes::COLORS,
+    rooms::members::COLORS,
 };
 
 /// `google` → `Google`, for the security notices.
