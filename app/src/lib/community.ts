@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { api, ApiError, API_URL } from './api';
-import { authError, useFeatures } from './auth';
-import { getLang, t, type TKey } from './i18n';
+import { api, ApiError, API_URL } from '@/lib/api';
+import { authError, useFeatures } from '@/lib/auth';
+import { getLang, t, type TKey } from '@/lib/i18n';
 
 /** Suggestions to the official deck, share → play and challenges (docs/COMMUNITY.md). */
 

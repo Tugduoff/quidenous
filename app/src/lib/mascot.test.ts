@@ -4,7 +4,7 @@ import { spawnSync } from 'node:child_process';
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 
-import { CAST, compose, darken, type Group, MASCOT, MOODS, type Pose, resolvePose } from './mascot';
+import { CAST, compose, darken, type Group, MASCOT, MOODS, type Pose, resolvePose } from '@/lib/mascot';
 
 const TOKENS = new Set(['ink', 'body', 'shade', 'cheek', 'white', 'acc2']);
 const groups = (c: ReturnType<typeof compose>): Group[] => [...c.back, ...c.over, c.under, c.eyes, ...(c.blink ? [c.blink] : []), c.face, ...c.front, ...(c.prop ? [c.prop] : [])];

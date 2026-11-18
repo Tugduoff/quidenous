@@ -1,11 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 
-import { api } from './api';
-import { useFeatures } from './auth';
-import { keys, useGroup } from './queries';
-import { useSession } from './session';
-import { storage } from './storage';
+import { api } from '@/lib/api';
+import { useFeatures } from '@/lib/auth';
+import { keys, useGroup } from '@/lib/queries';
+import { useSession } from '@/lib/session';
+import { storage } from '@/lib/storage';
 
 /** Days in a row with a vote (docs/STREAKS.md): `current` (today counts once voted) and the best ever. */
 export type Streak = { current: number; best: number };

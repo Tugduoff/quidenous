@@ -2,13 +2,13 @@ import { type QueryKey, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useSyncExternalStore } from 'react';
 import { AppState } from 'react-native';
 
-import { liveUrl } from './api';
-import { featuresQuery } from './auth';
-import { badgesKey, titlesKey } from './badges';
-import { PARTY_EVENTS, partyKeys } from './party';
-import { keys, refreshHistory } from './queries';
-import { type ReactedEvent, receiveReacted } from './result-reactions';
-import { openSocket } from './ws';
+import { liveUrl } from '@/lib/api';
+import { featuresQuery } from '@/lib/auth';
+import { badgesKey, titlesKey } from '@/lib/badges';
+import { PARTY_EVENTS, partyKeys } from '@/lib/party';
+import { keys, refreshHistory } from '@/lib/queries';
+import { type ReactedEvent, receiveReacted } from '@/lib/result-reactions';
+import { openSocket } from '@/lib/ws';
 
 /** While on the screen, the app tells the server every so often, so it sends no push for this room. */
 const HERE_MS = 20_000;

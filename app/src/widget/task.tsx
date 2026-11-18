@@ -9,8 +9,8 @@ import { getWidgetInfo, registerWidgetTaskHandler, requestWidgetUpdate, type Wid
 
 import { deviceLang } from '@/lib/i18n';
 
-import { forgetWidgetToken, loadWidgetView, type WidgetView } from './state';
-import { renderBoth } from './widget';
+import { forgetWidgetToken, loadWidgetView, type WidgetView } from '@/widget/state';
+import { renderBoth } from '@/widget/widget';
 
 /** The widget names in app.json (react-native-android-widget's plugin): same drawing, two default sizes. */
 export const WIDGETS = ['QdnSmall', 'QdnMedium'] as const;

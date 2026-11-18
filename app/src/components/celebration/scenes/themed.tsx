@@ -7,8 +7,8 @@ import Svg, { Circle, Defs, Ellipse, G, LinearGradient, Path, RadialGradient, Re
 import { useT } from '@/lib/i18n';
 import type { Theme } from '@/lib/theme';
 
-import { BigNumber, burst, type Clock, Flash, Glow, paper, type Particle, Particles, Pop, Rays, Shockwave, Slam, sparks } from '../engine';
-import { Headline, numberSize, party, type SceneFactory, type SceneProps } from '../scene';
+import { BigNumber, burst, type Clock, Flash, Glow, paper, type Particle, Particles, Pop, Rays, Shockwave, Slam, sparks } from '@/components/celebration/engine';
+import { Headline, numberSize, party, type SceneFactory, type SceneProps } from '@/components/celebration/scene';
 
 // ——— Local helpers ———
 

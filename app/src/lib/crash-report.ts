@@ -1,7 +1,7 @@
 import { Platform } from 'react-native';
 
-import { api, ApiError } from './api';
-import { appVersion } from './update';
+import { api, ApiError } from '@/lib/api';
+import { appVersion } from '@/lib/update';
 
 /** At most this many reports per session: a crash loop can't burn the server's per-IP limit (20 / 10 min). */
 const MAX_REPORTS = 5;

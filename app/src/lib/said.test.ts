@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 
-import type { SaidView } from './api';
+import type { SaidView } from '@/lib/api';
 import {
   guessGroups,
   holderOf,
@@ -20,7 +20,7 @@ import {
   toGuess,
   toGuesses,
   topScorers,
-} from './said';
+} from '@/lib/said';
 
 const run = (s: Match, ...actions: MatchAction[]) => actions.reduce(matchReducer, s);
 

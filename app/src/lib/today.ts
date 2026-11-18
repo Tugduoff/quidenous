@@ -6,11 +6,11 @@ import * as Linking from 'expo-linking';
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { Platform } from 'react-native';
 
-import { api, plainStart, type QuestionKind, type Role } from './api';
-import { useFeatures } from './auth';
-import { openedFromNotification } from './native-push';
-import { keys, useRooms } from './queries';
-import { storage } from './storage';
+import { api, plainStart, type QuestionKind, type Role } from '@/lib/api';
+import { useFeatures } from '@/lib/auth';
+import { openedFromNotification } from '@/lib/native-push';
+import { keys, useRooms } from '@/lib/queries';
+import { storage } from '@/lib/storage';
 
 /** What a room wants from me, most pressing first (the server orders the rooms by it). */
 export type TodayState = 'vote' | 'result' | 'tripot' | 'wait' | 'idle';

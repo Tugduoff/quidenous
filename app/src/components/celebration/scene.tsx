@@ -6,7 +6,7 @@ import type { Milestone } from '@/lib/milestones';
 import { tidy } from '@/lib/text';
 import { type Theme, themes } from '@/lib/theme';
 
-import { type Clock, type Impact, type Rand, Reveal } from './engine';
+import { type Clock, type Impact, type Rand, Reveal } from '@/components/celebration/engine';
 
 export type SceneProps = {
   clock: Clock;

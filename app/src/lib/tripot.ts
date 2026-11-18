@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { api, type Round } from './api';
-import { useFeatures } from './auth';
-import { keys, useGroup } from './queries';
+import { api, type Round } from '@/lib/api';
+import { useFeatures } from '@/lib/auth';
+import { keys, useGroup } from '@/lib/queries';
 
 /** Le Tripot (docs/TRIPOT.md): bets on who wins a question, with chips worth nothing (no real money, ever). */
 export type MyBet = { target_id: number; amount: number; payout: number | null };

@@ -3,9 +3,9 @@ import Animated, { Extrapolation, interpolate, useAnimatedStyle } from 'react-na
 
 import { Mascot } from '@/components/mascot';
 
-import type { Clock } from '../engine';
-import { numberSize, type SceneFactory, type SceneProps } from '../scene';
-import { medium, small } from './basic';
+import type { Clock } from '@/components/celebration/engine';
+import { numberSize, type SceneFactory, type SceneProps } from '@/components/celebration/scene';
+import { medium, small } from '@/components/celebration/scenes/basic';
 
 const SIZE = 150;
 

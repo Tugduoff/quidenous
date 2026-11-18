@@ -1,8 +1,8 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { api, type Member } from './api';
-import { keys } from './queries';
-import { useSession } from './session';
+import { api, type Member } from '@/lib/api';
+import { keys } from '@/lib/queries';
+import { useSession } from '@/lib/session';
 
 /** `answer`: an answer to a « Qui a dit ça ? » question (docs/SAID.md). */
 export type ReportKind = 'message' | 'member' | 'question' | 'suggestion' | 'answer';

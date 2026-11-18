@@ -9,8 +9,8 @@ import { type TitleChip as Chip, type Tier, useBadges, useMemberTitle, useMyTitl
 import { type t as translate, useT } from '@/lib/i18n';
 import { useScheme, useTheme } from '@/lib/theme';
 
-import { iconFor } from './stats/common';
-import { Card } from './ui';
+import { iconFor } from '@/components/stats/common';
+import { Card } from '@/components/ui';
 
 /**
  * The three metals: `fill` the disc, `light` its shine, `rim` its edge, `ink` the tier's name as text (darker on the light

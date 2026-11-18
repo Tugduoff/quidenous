@@ -3,8 +3,8 @@ import { AppState, Platform } from 'react-native';
 
 import { showToast } from '@/components/toast';
 
-import { ApiError } from './api';
-import { authError } from './auth';
+import { ApiError } from '@/lib/api';
+import { authError } from '@/lib/auth';
 
 declare module '@tanstack/react-query' {
   interface Register {

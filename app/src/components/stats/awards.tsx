@@ -9,7 +9,7 @@ import { t, type TKey, useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
 import { useTheme } from '@/lib/theme';
 
-import { AWARD_ICONS, awardTitle, Caps, duration, iconFor, int, pct, place, Section } from './common';
+import { AWARD_ICONS, awardTitle, Caps, duration, iconFor, int, pct, place, Section } from '@/components/stats/common';
 
 /** One award ready to show: who, the figure, and a quip. */
 type Item = { key: string; ids: number[]; who: string; big: string; unit: string; quip: string };

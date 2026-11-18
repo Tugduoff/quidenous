@@ -1,4 +1,4 @@
-import type { Messages } from '../fr';
+import type { Messages } from '@/locales/fr';
 
 export const errors: Messages['errors'] = {
   bad_email: 'Invalid email',

@@ -19,9 +19,9 @@ import {
   Shockwave,
   Slam,
   sparks,
-} from '../engine';
+} from '@/components/celebration/engine';
 import { useT } from '@/lib/i18n';
-import { GOLD, Headline, numberSize, type SceneFactory, type SceneProps } from '../scene';
+import { GOLD, Headline, numberSize, type SceneFactory, type SceneProps } from '@/components/celebration/scene';
 
 const clamp01 = (v: number) => {
   'worklet';

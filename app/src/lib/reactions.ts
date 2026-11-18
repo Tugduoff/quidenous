@@ -1,8 +1,8 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
-import { api, type Message, type Reaction } from './api';
-import { keys } from './queries';
-import { useSession } from './session';
+import { api, type Message, type Reaction } from '@/lib/api';
+import { keys } from '@/lib/queries';
+import { useSession } from '@/lib/session';
 
 /** The reactions a chat message can get, in the order the server lists them. */
 export const CHAT_REACTIONS = ['❤️', '😂', '😮', '😢', '👍', '🔥'] as const;

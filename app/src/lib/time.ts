@@ -1,4 +1,4 @@
-import { dateFormat, t } from './i18n';
+import { dateFormat, t } from '@/lib/i18n';
 
 /** "il y a 5 min", "hier", "12 nov." (in the current language). */
 export function ago(iso: string) {

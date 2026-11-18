@@ -1,5 +1,5 @@
-import type { Group, Member } from './api';
-import { getLang, t } from './i18n';
+import type { Group, Member } from '@/lib/api';
+import { getLang, t } from '@/lib/i18n';
 
 /** What the server writes in place of a deleted account's name (French, before `deleted` existed). */
 const DELETED_NAME = 'Compte supprimé';

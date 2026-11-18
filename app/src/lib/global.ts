@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { api } from './api';
-import { featuresQuery } from './auth';
+import { api } from '@/lib/api';
+import { featuresQuery } from '@/lib/auth';
 
 /** The global question of the day (docs/GLOBAL_QUESTION.md). */
 export type GlobalCount = { target_id: number; count: number };

@@ -2,8 +2,8 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 
-import { demoTally, introAnswer, introPlan, introPreview, readMark } from './intro';
-import { CAST } from './mascot';
+import { demoTally, introAnswer, introPlan, introPreview, readMark } from '@/lib/intro';
+import { CAST } from '@/lib/mascot';
 
 describe('intro gating', () => {
   test('a remembered answer is never asked again', () => {

@@ -1,6 +1,6 @@
 import { Platform } from 'react-native';
 
-import { api } from './api';
+import { api } from '@/lib/api';
 
 export type PushState = 'unsupported' | 'default' | 'denied' | 'granted';
 

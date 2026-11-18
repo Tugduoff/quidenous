@@ -13,7 +13,7 @@ import { motion } from '@/lib/motion';
 import { shareStory } from '@/lib/share';
 import { useTheme } from '@/lib/theme';
 
-import { AWARD_ICONS, awardTitle, Caps, iconFor } from './common';
+import { AWARD_ICONS, awardTitle, Caps, iconFor } from '@/components/stats/common';
 
 const HEIGHT = 300;
 /** Text on a member's colour (they are all light and bright), same as the initials on avatars. */

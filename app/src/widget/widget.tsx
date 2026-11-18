@@ -7,8 +7,8 @@ import { FlexWidget, SvgWidget, TextWidget } from 'react-native-android-widget';
 import { tIn, type Lang } from '@/lib/i18n-core';
 import { themes } from '@/lib/theme';
 
-import { ART, type ArtKey } from './art';
-import type { WidgetView } from './state';
+import { ART, type ArtKey } from '@/widget/art';
+import type { WidgetView } from '@/widget/state';
 
 type Mode = 'light' | 'dark';
 

@@ -15,7 +15,7 @@ import {
   TapBatcher,
   tapsLeft,
   visibleTaps,
-} from './result-taps';
+} from '@/lib/result-taps';
 
 const live = (member_id: number, user_id: number, emoji: string, count: number): LiveTap => ({ member_id, user_id, emoji, count });
 

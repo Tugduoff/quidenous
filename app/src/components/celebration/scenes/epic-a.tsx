@@ -25,8 +25,8 @@ import {
   Shockwave,
   Slam,
   sparks,
-} from '../engine';
-import { GOLD, Headline, numberSize, type SceneFactory, type SceneProps } from '../scene';
+} from '@/components/celebration/engine';
+import { GOLD, Headline, numberSize, type SceneFactory, type SceneProps } from '@/components/celebration/scene';
 
 const MONO = Platform.OS === 'web' ? 'ui-monospace, Menlo, Consolas, monospace' : 'monospace';
 

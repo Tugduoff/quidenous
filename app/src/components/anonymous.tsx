@@ -6,7 +6,7 @@ import type { AnonymousMode } from '@/lib/api';
 import { useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 
-import { Segmented } from './ui';
+import { Segmented } from '@/components/ui';
 
 /** Next to the question's tag: nobody will see who voted for whom. */
 export function AnonymousBadge() {

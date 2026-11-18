@@ -10,7 +10,7 @@ import { useMemberBadges } from '@/lib/badges';
 import { useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 
-import { AWARD_ICONS, awardTitle, Caps, duration, iconFor, int, pct, place } from './common';
+import { AWARD_ICONS, awardTitle, Caps, duration, iconFor, int, pct, place } from '@/components/stats/common';
 
 function Mini({ value, label }: { value: string; label: string }) {
   const t = useTheme();

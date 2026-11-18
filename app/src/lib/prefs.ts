@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react';
 
-import { storage } from './storage';
+import { storage } from '@/lib/storage';
 
 /** Hide who I voted for on the waiting screen, for when friends can see my phone. */
 const KEY = 'qdn.hideVote';

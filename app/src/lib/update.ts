@@ -5,7 +5,7 @@ import * as IntentLauncher from 'expo-intent-launcher';
 import { useEffect, useSyncExternalStore } from 'react';
 import { AppState, Platform } from 'react-native';
 
-import { storage } from './storage';
+import { storage } from '@/lib/storage';
 
 /**
  * In-app updates for the APK installed by hand (GitHub Releases). Only in builds made with

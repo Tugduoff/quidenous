@@ -10,9 +10,9 @@ import { milestone as describe, PREVIEW_AT, playPreview, SPECIAL_NUMBERS, STREAK
 import { tidy } from '@/lib/text';
 import { useTheme } from '@/lib/theme';
 
-import { BigNumber, makeRand, useClock, useShake } from './engine';
-import { numberSize } from './scene';
-import { sceneFor } from './scenes';
+import { BigNumber, makeRand, useClock, useShake } from '@/components/celebration/engine';
+import { numberSize } from '@/components/celebration/scene';
+import { sceneFor } from '@/components/celebration/scenes';
 
 /**
  * Full-screen party for a milestone, drawn over the app (`streak`: my days in a row instead of the room's questions).

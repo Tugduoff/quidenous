@@ -1,6 +1,6 @@
 // The first-run intro (app/intro.tsx): when to show it, and the demo round the Petons play in it.
 // Plain logic only (no React Native import): tested by `bun test src/lib/intro.test.ts`. The device side is lib/intro-sync.ts.
-import { CAST, type Who } from './mascot';
+import { CAST, type Who } from '@/lib/mascot';
 
 /**
  * What this device remembers for the signed-in session (`qdn.introDone`), cleared on sign-out and at each sign-in:

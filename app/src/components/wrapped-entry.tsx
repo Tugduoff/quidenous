@@ -10,7 +10,7 @@ import { motion } from '@/lib/motion';
 import { useTheme } from '@/lib/theme';
 import { useWrappedEntry } from '@/lib/wrapped';
 
-import { Card, PressableScale } from './ui';
+import { Card, PressableScale } from '@/components/ui';
 
 const INK = '#121216';
 const open = (ask: boolean) => router.push(ask ? '/wrapped?preview=1' : '/wrapped');

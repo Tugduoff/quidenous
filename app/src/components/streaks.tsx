@@ -9,8 +9,8 @@ import { useSession } from '@/lib/session';
 import { HOT_FROM, SHOWN_FROM, useMemberStreak, useStreaks } from '@/lib/streaks';
 import { useTheme } from '@/lib/theme';
 
-import { Caps, int, Section } from './stats/common';
-import { Avatar, AvatarStack, PressableScale } from './ui';
+import { Caps, int, Section } from '@/components/stats/common';
+import { Avatar, AvatarStack, PressableScale } from '@/components/ui';
 
 /** A flame and a number: muted, in the accent colour from a week. */
 function FlameCount({ n, size = 13, label }: { n: number; size?: number; label: string }) {

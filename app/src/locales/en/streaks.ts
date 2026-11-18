@@ -1,4 +1,4 @@
-import type { Messages } from '../fr';
+import type { Messages } from '@/locales/fr';
 
 export const streaks: Messages['streaks'] = {
   a11y: { one: '{count}-day streak', other: '{count}-day streak' },

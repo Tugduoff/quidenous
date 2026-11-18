@@ -3,9 +3,9 @@
 import { type QueryClient, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect } from 'react';
 
-import { api } from './api';
-import { useFeatures } from './auth';
-import { addMine, applyLive, emptyReactions, type LiveTap, type ReactedEvent, type ResultReactions, type Tap, TapBatcher, tapsLeft, visibleTaps } from './result-taps';
+import { api } from '@/lib/api';
+import { useFeatures } from '@/lib/auth';
+import { addMine, applyLive, emptyReactions, type LiveTap, type ReactedEvent, type ResultReactions, type Tap, TapBatcher, tapsLeft, visibleTaps } from '@/lib/result-taps';
 
 export {
   RESULT_CAP,
@@ -16,7 +16,7 @@ export {
   type ReactedEvent,
   type ResultReaction,
   type ResultReactions,
-} from './result-taps';
+} from '@/lib/result-taps';
 
 export const reactionKeys = {
   all: ['reactions'] as const,

@@ -3,9 +3,9 @@ import { Platform } from 'react-native';
 
 import { errors } from '@/locales/fr/errors';
 
-import { API_URL, api, ApiError, presetJoinCode } from './api';
-import { deviceHeader } from './device';
-import { getLang, t } from './i18n';
+import { API_URL, api, ApiError, presetJoinCode } from '@/lib/api';
+import { deviceHeader } from '@/lib/device';
+import { getLang, t } from '@/lib/i18n';
 
 export type Provider = 'google' | 'discord';
 export const PROVIDERS: Provider[] = ['google', 'discord'];

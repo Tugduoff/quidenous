@@ -3,9 +3,9 @@ import { router } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { Platform } from 'react-native';
 
-import { ApiError } from './api';
-import { auth, flow, isChallenge, type AuthResult, type OAuthMode, type Provider, type RedeemResult } from './auth';
-import { useSession } from './session';
+import { ApiError } from '@/lib/api';
+import { auth, flow, isChallenge, type AuthResult, type OAuthMode, type Provider, type RedeemResult } from '@/lib/auth';
+import { useSession } from '@/lib/session';
 
 const web = Platform.OS === 'web';
 const KEY = 'qdn.oauth';

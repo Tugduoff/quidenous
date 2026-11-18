@@ -2,13 +2,13 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 
-import { api, API_URL, ApiError, type Member, type QuestionKind, type Role, type SaidGuess, type SaidView, type Tally } from './api';
-import { authError, featuresQuery } from './auth';
-import { t, type TKey } from './i18n';
-import { localizeMembers } from './names';
-import { type ReactedEvent, receiveReacted } from './result-reactions';
-import { appUrl } from './share';
-import { openSocket } from './ws';
+import { api, API_URL, ApiError, type Member, type QuestionKind, type Role, type SaidGuess, type SaidView, type Tally } from '@/lib/api';
+import { authError, featuresQuery } from '@/lib/auth';
+import { t, type TKey } from '@/lib/i18n';
+import { localizeMembers } from '@/lib/names';
+import { type ReactedEvent, receiveReacted } from '@/lib/result-reactions';
+import { appUrl } from '@/lib/share';
+import { openSocket } from '@/lib/ws';
 
 export type PartyPhase = 'lobby' | 'voting' | 'reveal' | 'over';
 export type PartyPlayer = Member & { role: Role; guest: boolean };

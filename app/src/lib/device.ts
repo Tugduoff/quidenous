@@ -3,7 +3,7 @@ import { Platform } from 'react-native';
 
 /** A generic word of the name, in the current language. Required at call time: api → device → i18n → api would be a require cycle. */
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const word = (k: 'browser' | 'phone'): string => (require('./i18n') as typeof import('./i18n')).t(`security.devices.${k}`);
+const word = (k: 'browser' | 'phone'): string => (require('@/lib/i18n') as typeof import('@/lib/i18n')).t(`security.devices.${k}`);
 
 function browser(ua: string) {
   if (/EdgA?\//.test(ua)) return 'Edge';

@@ -6,7 +6,7 @@ import type { Member } from '@/lib/api';
 import { motion, usePop } from '@/lib/motion';
 import { useTheme } from '@/lib/theme';
 
-import { Avatar, PressableScale } from './ui';
+import { Avatar, PressableScale } from '@/components/ui';
 
 /** Above this many people, ballots switch from wide cards to a grid of faces. */
 export const BIG_GROUP = 6;

@@ -6,7 +6,7 @@ import type { Stats } from '@/lib/api';
 import { useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 
-import { duration, int } from './common';
+import { duration, int } from '@/components/stats/common';
 
 function Tile({ Icon, value, label }: { Icon: LucideIcon; value: string; label: string }) {
   const t = useTheme();

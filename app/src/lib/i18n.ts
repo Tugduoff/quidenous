@@ -2,11 +2,11 @@ import { getLocales } from 'expo-localization';
 import { useSyncExternalStore } from 'react';
 import { Platform } from 'react-native';
 
-import { api } from './api';
-import { type Lang, type Params, type TKey, tIn } from './i18n-core';
-import { storage } from './storage';
+import { api } from '@/lib/api';
+import { type Lang, type Params, type TKey, tIn } from '@/lib/i18n-core';
+import { storage } from '@/lib/storage';
 
-export { type Lang, type Plural, type TKey, tidy, tIn } from './i18n-core';
+export { type Lang, type Plural, type TKey, tidy, tIn } from '@/lib/i18n-core';
 /** The Profile setting: follow the phone, or a fixed language. */
 export type LangPref = 'auto' | Lang;
 

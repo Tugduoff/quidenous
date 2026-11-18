@@ -17,9 +17,9 @@ import { BOUNCE, EASE } from '@/lib/motion';
 import { ordinal } from '@/lib/text';
 import { useTheme } from '@/lib/theme';
 
-import { Mascot } from './mascot';
-import { MemberTitle } from './title-chip';
-import { Avatar, AvatarStack, PressableScale } from './ui';
+import { Mascot } from '@/components/mascot';
+import { MemberTitle } from '@/components/title-chip';
+import { Avatar, AvatarStack, PressableScale } from '@/components/ui';
 
 /** Rows shown before "Voir tout": a big group's result stays one screen tall. */
 const TOP = 5;

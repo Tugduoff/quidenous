@@ -2,8 +2,8 @@ import { requireOptionalNativeModule } from 'expo';
 import { useSyncExternalStore } from 'react';
 import { Platform } from 'react-native';
 
-import { t } from './i18n';
-import { storage } from './storage';
+import { t } from '@/lib/i18n';
+import { storage } from '@/lib/storage';
 
 type LocalAuth = typeof import('expo-local-authentication');
 

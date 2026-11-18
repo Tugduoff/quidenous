@@ -1,4 +1,4 @@
-import type { Messages } from '../fr';
+import type { Messages } from '@/locales/fr';
 
 export const install: Messages['install'] = {
   banner: 'Install the app',

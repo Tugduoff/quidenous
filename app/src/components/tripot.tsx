@@ -14,10 +14,10 @@ import { useSession } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
 import { CHIPS, type Tripot, useBet, useTripotBoard } from '@/lib/tripot';
 
-import { burst, makeRand, Particles, useClock } from './celebration/engine';
-import { MemberGrid, MemberTile } from './member-grid';
-import { int, Section } from './stats/common';
-import { Avatar, Card, Dialog, DialogActions, DialogTitle, PressableScale } from './ui';
+import { burst, makeRand, Particles, useClock } from '@/components/celebration/engine';
+import { MemberGrid, MemberTile } from '@/components/member-grid';
+import { int, Section } from '@/components/stats/common';
+import { Avatar, Card, Dialog, DialogActions, DialogTitle, PressableScale } from '@/components/ui';
 
 /** Gold that reads on both themes (the accent is for my own things). */
 const GOLD = '#F2B705';

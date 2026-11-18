@@ -2,10 +2,10 @@ import { type QueryKey, useQueryClient } from '@tanstack/react-query';
 import { router, useGlobalSearchParams } from 'expo-router';
 import { useEffect, useRef } from 'react';
 
-import { api, setApiRoom, type RoomSummary } from './api';
-import { keys } from './queries';
-import { clearRoomData } from './query-client';
-import { useSession } from './session';
+import { api, setApiRoom, type RoomSummary } from '@/lib/api';
+import { keys } from '@/lib/queries';
+import { clearRoomData } from '@/lib/query-client';
+import { useSession } from '@/lib/session';
 
 /**
  * After leaving or deleting the current room: on to another room I'm in. None left: join or create one (/setup).

@@ -2,10 +2,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useState } from 'react';
 import { AppState, Platform } from 'react-native';
 
-import { api } from './api';
-import { useFeatures } from './auth';
-import { nativePushState, registerNativePush } from './native-push';
-import { enablePush, pushState, webSubscribed } from './push';
+import { api } from '@/lib/api';
+import { useFeatures } from '@/lib/auth';
+import { nativePushState, registerNativePush } from '@/lib/native-push';
+import { enablePush, pushState, webSubscribed } from '@/lib/push';
 
 /** What a push can be about (the inbox keeps everything; these only silence pushes). */
 export type NotifKind = 'question' | 'result' | 'chat' | 'mention' | 'nudge' | 'added' | 'ask' | 'streak';

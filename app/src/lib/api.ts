@@ -1,8 +1,8 @@
 import { Platform } from 'react-native';
 
-import { deviceHeader } from './device';
-import type { Tripot } from './tripot';
-import { appVersion } from './update';
+import { deviceHeader } from '@/lib/device';
+import type { Tripot } from '@/lib/tripot';
+import { appVersion } from '@/lib/update';
 
 /** Same origin on web (served by the Rust server); on phones, the build URL or the one typed at join. */
 export const DEFAULT_API_URL =

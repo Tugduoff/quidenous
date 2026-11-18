@@ -1,8 +1,8 @@
 /** The two generic parties: every 50 (small) and round hundreds / fun numbers without a scene of their own (medium). */
 import { useMemo } from 'react';
 
-import { BigNumber, burst, Flash, firework, Glow, paper, Particles, Rays, RollNumber, Shockwave, Slam, rain } from '../engine';
-import { GOLD, Headline, numberSize, party, type SceneFactory, type SceneProps } from '../scene';
+import { BigNumber, burst, Flash, firework, Glow, paper, Particles, Rays, RollNumber, Shockwave, Slam, rain } from '@/components/celebration/engine';
+import { GOLD, Headline, numberSize, party, type SceneFactory, type SceneProps } from '@/components/celebration/scene';
 
 /** Every 50: two confetti cannons, the number rolls up, a little pop when it lands. About 2.5 s. */
 export const small: SceneFactory = (m, t) => {

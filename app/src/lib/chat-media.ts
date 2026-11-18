@@ -8,10 +8,10 @@ import { Platform } from 'react-native';
 
 import { showToast } from '@/components/toast';
 
-import { api, ApiError, apiUpload, mediaUrl, type Message, type MessageMedia } from './api';
-import { authError } from './auth';
-import { keys } from './queries';
-import { queryClient } from './query-client';
+import { api, ApiError, apiUpload, mediaUrl, type Message, type MessageMedia } from '@/lib/api';
+import { authError } from '@/lib/auth';
+import { keys } from '@/lib/queries';
+import { queryClient } from '@/lib/query-client';
 
 /** Longest side of a photo sent in the chat (the server resizes again, to the same size). */
 const MAX_SIDE = 1600;

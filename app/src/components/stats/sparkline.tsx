@@ -7,7 +7,7 @@ import type { Activity } from '@/lib/api';
 import { dateFormat, useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 
-import { dec, int } from './common';
+import { dec, int } from '@/components/stats/common';
 
 const HEIGHT = 72;
 const PAD = 4;

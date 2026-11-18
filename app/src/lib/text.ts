@@ -1,7 +1,7 @@
-import { getLang, t as translate } from './i18n';
+import { getLang, t as translate } from '@/lib/i18n';
 
 /** French no-break spaces around ? ! : ; « » (lives in i18n, which applies it to every French string). */
-export { tidy } from './i18n';
+export { tidy } from '@/lib/i18n';
 
 /** "1er", "2e" / "1st", "2nd", "3rd", "11th": a place in a ranking. */
 export function ordinal(n: number) {

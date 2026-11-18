@@ -3,10 +3,10 @@ import { type Href, router } from 'expo-router';
 import { useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
 
-import { api } from './api';
-import type { PushState } from './push';
-import { useSwitchRoomHere } from './rooms';
-import { useSession } from './session';
+import { api } from '@/lib/api';
+import type { PushState } from '@/lib/push';
+import { useSwitchRoomHere } from '@/lib/rooms';
+import { useSession } from '@/lib/session';
 
 /** Android: 'denied' once the system won't ask again (only the phone's settings can turn them back on). */
 export async function nativePushState(): Promise<PushState> {

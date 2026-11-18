@@ -1,12 +1,12 @@
 import { type Milestone, tier } from '@/lib/milestones';
 import type { Theme } from '@/lib/theme';
 
-import type { SceneFactory } from '../scene';
-import { medium, small } from './basic';
-import { SCENES as EPIC_A } from './epic-a';
-import { SCENES as EPIC_B } from './epic-b';
-import { streak } from './streak';
-import { SCENES as THEMED } from './themed';
+import type { SceneFactory } from '@/components/celebration/scene';
+import { medium, small } from '@/components/celebration/scenes/basic';
+import { SCENES as EPIC_A } from '@/components/celebration/scenes/epic-a';
+import { SCENES as EPIC_B } from '@/components/celebration/scenes/epic-b';
+import { streak } from '@/components/celebration/scenes/streak';
+import { SCENES as THEMED } from '@/components/celebration/scenes/themed';
 
 /** Numbers with a scene of their own. */
 const BESPOKE: Record<number, SceneFactory> = { ...THEMED, ...EPIC_A, ...EPIC_B };

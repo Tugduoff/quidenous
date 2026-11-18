@@ -1,4 +1,4 @@
-import type { Messages } from '../fr';
+import type { Messages } from '@/locales/fr';
 
 export const share: Messages['share'] = {
   friend: 'Add me as a friend on qui de nous ? 👉 {link}\n(friend code: {code})',

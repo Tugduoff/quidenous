@@ -1,4 +1,4 @@
-import type { PackTag } from './packs';
+import type { PackTag } from '@/lib/packs';
 
 /** What a pack file's header says (absent = not said). */
 export type PackHeader = { title?: string; description?: string; categories: PackTag[]; lang?: 'fr' | 'en'; spicy?: boolean };

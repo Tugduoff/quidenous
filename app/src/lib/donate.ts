@@ -1,9 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { Platform } from 'react-native';
 
-import { api } from './api';
-import { useFeatures } from './auth';
-import { SIDELOAD } from './update';
+import { api } from '@/lib/api';
+import { useFeatures } from '@/lib/auth';
+import { SIDELOAD } from '@/lib/update';
 
 /**
  * "Buy us a coffee" (docs/DONATE.md), only where store rules allow a link to an outside payment page: the web

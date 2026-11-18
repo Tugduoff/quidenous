@@ -3,10 +3,10 @@
 import type { QueryClient } from '@tanstack/react-query';
 import { Platform } from 'react-native';
 
-import { api } from './api';
-import { featuresQuery } from './auth';
-import { INTRO_KEY, introAnswer, introPlan, introPreview, type IntroMark, readMark } from './intro';
-import { storage } from './storage';
+import { api } from '@/lib/api';
+import { featuresQuery } from '@/lib/auth';
+import { INTRO_KEY, introAnswer, introPlan, introPreview, type IntroMark, readMark } from '@/lib/intro';
+import { storage } from '@/lib/storage';
 
 /** `?intro=1` on the web (read at load: the router drops the query). */
 export const INTRO_PREVIEW = Platform.OS === 'web' && typeof location !== 'undefined' && introPreview(location.search);

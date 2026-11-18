@@ -6,7 +6,7 @@ import { Celebration } from '@/components/celebration';
 import { isMilestone } from '@/lib/milestones';
 import { useMembers, useRound } from '@/lib/queries';
 
-import { Result } from '../(tabs)/index';
+import { Result } from '@/app/(tabs)/index';
 
 /** A finished question, opened from the history. A milestone question replays its party. */
 export default function RoundScreen() {

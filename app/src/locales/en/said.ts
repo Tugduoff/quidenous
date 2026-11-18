@@ -1,4 +1,4 @@
-import type { Messages } from '../fr';
+import type { Messages } from '@/locales/fr';
 
 /** "Who said that?" (docs/SAID.md): write an answer, guess who wrote what, the reveal. */
 export const said: Messages['said'] = {

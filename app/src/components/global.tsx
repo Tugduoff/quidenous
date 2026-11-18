@@ -8,7 +8,7 @@ import { type GlobalFact, type GlobalFactId, useGlobal } from '@/lib/global';
 import { motion } from '@/lib/motion';
 import { useTheme } from '@/lib/theme';
 
-import { PressableScale } from './ui';
+import { PressableScale } from '@/components/ui';
 
 /** Home (Vote tab): today's global question in one line, tap to answer it or see the numbers. Nothing when the room has none. */
 export function GlobalCard() {
