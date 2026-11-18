@@ -1,10 +1,10 @@
 import { dateFormat, t as translate } from '@/lib/i18n';
 import type { HistoryItem } from '@/lib/api/history';
 
-export const dayKey = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+const dayKey = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
 
 /** "Aujourd'hui", "Hier", else "dimanche 8 novembre" (with the year when it is not this one). */
-export function dayLabel(d: Date) {
+function dayLabel(d: Date) {
   const now = new Date();
   const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
   if (dayKey(d) === dayKey(now)) return translate('history.today');
