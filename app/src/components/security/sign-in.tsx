@@ -4,7 +4,7 @@ import { useRef, useState } from 'react';
 import { View } from 'react-native';
 import { withReauth } from '@/components/security/reauth';
 import { ApiError } from '@/lib/api/client';
-import { authKeys, auth, authError, looksLikeEmail, PASSWORD_MIN, useFeatures, type Account } from '@/lib/api/auth';
+import { authKeys, auth, type Account } from '@/lib/api/auth';
 import { useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 import { Toggle } from '@/components/ui/toggle';
@@ -13,6 +13,9 @@ import { ErrorText, TextLink } from '@/components/ui/text';
 import { Pill } from '@/components/ui/pill';
 import { Row, Section } from '@/components/ui/section';
 import { useCooldown } from '@/lib/hooks/use-cooldown';
+import { looksLikeEmail, PASSWORD_MIN } from '@/lib/utils/credentials';
+import { authError } from '@/lib/api/errors';
+import { useFeatures } from '@/lib/api/features';
 
 /** Email (+ its code) and password; a legacy account adds both here. */
 export function SignInSection({ account }: { account: Account }) {

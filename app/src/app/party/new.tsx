@@ -5,7 +5,6 @@ import { useEffect, useState } from 'react';
 import { Text, TextInput, View } from 'react-native';
 import { Screen } from '@/components/ui/screen';
 import { VibeCards } from '@/components/rooms/vibes';
-import { useFeatures } from '@/lib/api/auth';
 import { getLang, useT } from '@/lib/i18n';
 import { HOURS, partyApi, partyError, TIMERS } from '@/lib/api/party';
 import { useSwitchRoom } from '@/lib/hooks/use-switch-room';
@@ -16,6 +15,7 @@ import { Display, ErrorText } from '@/components/ui/text';
 import { Segmented } from '@/components/ui/segmented';
 import { BackButton } from '@/components/ui/back-button';
 import { useVibes } from '@/lib/api/group';
+import { useFeatures } from '@/lib/api/features';
 
 /** `/party/new`: name (optional), vibe, how long the party lasts and the time per question. Then its lobby. */
 export default function NewParty() {

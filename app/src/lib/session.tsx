@@ -1,15 +1,17 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { createContext, type PropsWithChildren, useContext, useEffect, useState } from 'react';
 import { forgetWidget } from '@/widget/task';
-import { API_URL, api, ApiError, apiRoom, setApiRoom, setApiToken, setApiUrl, setOnSignedOut } from '@/lib/api/client';
-import { auth, flow, pendingJoinCode, setPendingCode, type SessionResult } from '@/lib/api/auth';
-import { deviceHeader } from '@/lib/device/info';
+import { API_URL, ApiError, apiRoom, setApiRoom, setApiToken, setApiUrl, setOnSignedOut } from '@/lib/api/client';
+import { auth, type SessionResult, joinLegacy, startLegacy, type LegacyEntry } from '@/lib/api/auth';
 import { adoptAccountLang, loadLang, syncLang } from '@/lib/i18n';
 import { introAtSignIn, introAtStart, introFinish, introForget } from '@/lib/api/intro';
 import { clearRoomData } from '@/lib/api/query-client';
 import { ROOM_KEY, SERVER_KEY, storage, TOKEN_KEY } from '@/lib/device/storage';
 import { presetRoom } from '@/lib/device/launch-params';
 import type { Member } from '@/lib/api/group';
+import { flow, pendingJoinCode, setPendingCode } from '@/lib/auth-flow';
+import { listRooms, joinRoom } from '@/lib/api/rooms';
+import { getMe } from '@/lib/api/me';
 
 /** Set while the account is in no room: the next start asks for the room list instead of a `/me` known to fail. */
 const ROOMLESS_KEY = 'qdn.roomless';
@@ -62,11 +64,11 @@ async function loadMe(): Promise<Member | 'no_room' | 'out' | 'offline'> {
 async function askMe(): Promise<Member | 'no_room' | 'out' | 'offline'> {
   // In no room last time and still none: `/me` would only answer 403 (an error in the console on every start).
   if (apiRoom() == null && (await storage.get(ROOMLESS_KEY))) {
-    const rooms = await api<unknown[]>('/rooms').catch(() => null);
+    const rooms = await listRooms().catch(() => null);
     if (Array.isArray(rooms) && !rooms.length) return 'no_room';
   }
   try {
-    return await api<Member>('/me');
+    return await getMe();
   } catch (e) {
     if (!(e instanceof ApiError)) return 'offline';
     if (e.status === 403 && e.code === 'no_room') return 'no_room';
@@ -97,7 +99,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
     setRoomState(id);
     // My seat (name, photo) can differ per room.
     try {
-      setMe(await api<Member>('/me'));
+      setMe(await getMe());
     } catch {}
   };
 
@@ -134,12 +136,12 @@ export function SessionProvider({ children }: PropsWithChildren) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const join = (code: string, name: string, server?: string) => enter('/join', { code, name }, server);
-  const start = (name: string, room: string, server?: string) => enter('/start', { name, room }, server);
+  const join = (code: string, name: string, server?: string) => enter(() => joinLegacy(code, name), server);
+  const start = (name: string, room: string, server?: string) => enter(() => startLegacy(name, room), server);
 
-  const enter = async (path: string, json: Record<string, string>, server?: string) => {
+  const enter = async (call: () => Promise<LegacyEntry>, server?: string) => {
     if (server) setApiUrl(server);
-    const res = await api<{ token: string; member: Member; room_id: number }>(path, { method: 'POST', json, headers: deviceHeader() });
+    const res = await call();
     setApiRoom(res.room_id);
     setRoomState(res.room_id);
     await storage.set(ROOM_KEY, String(res.room_id));
@@ -163,7 +165,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
     const code = pendingJoinCode();
     if (code) {
       try {
-        const joined = await api<{ id: number }>('/rooms/join', { method: 'POST', json: { code } });
+        const joined = await joinRoom(code);
         setPendingCode(null);
         setApiRoom(joined.id);
         await storage.set(ROOM_KEY, String(joined.id));

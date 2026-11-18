@@ -9,17 +9,20 @@ import { MascotBand } from '@/components/mascot/band';
 import { Countdown, JoinQr, PlayerChips, Reactions, VotedLine, WinnerReveal } from '@/components/party/party';
 import { SaidScreenQuestion, SaidScreenResult } from '@/components/party/said';
 import { ResultBars } from '@/components/result/result-bars';
-import { useFeatures } from '@/lib/api/auth';
 import { showLang, useT } from '@/lib/i18n';
 import { useSession } from '@/lib/session';
 import { motion } from '@/lib/motion';
-import { type Party, partyApi, partyError, partyKeys, type PartyRound, tallies, useCountdown, useRefetchAtZero, useScreenLive } from '@/lib/api/party';
+import { type Party, partyApi, partyError, partyKeys, type PartyRound, useScreenLive } from '@/lib/api/party';
 import { tidy } from '@/lib/utils/text';
 import { useTheme } from '@/lib/theme';
 import { Tag } from '@/components/ui/tag';
 import { CodeText, Display, Logo } from '@/components/ui/text';
 import type { Member } from '@/lib/api/group';
 import { partyJoinLink } from '@/lib/links';
+import { useFeatures } from '@/lib/api/features';
+import { useCountdown } from '@/lib/hooks/use-countdown';
+import { useRefetchAtZero } from '@/lib/hooks/use-refetch-at-zero';
+import { tallies } from '@/lib/utils/party';
 
 /**
  * `/party/screen/[code]`: the party on a TV or a laptop, no account. The QR code and the code to join on one side,

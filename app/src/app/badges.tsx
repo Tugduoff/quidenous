@@ -8,7 +8,6 @@ import { Screen } from '@/components/ui/screen';
 import { Caps } from '@/components/stats/common';
 import { MedalDisc, TierPips, TitleChip, tierName, useTierInk } from '@/components/badges/title-chip';
 import { showToast } from '@/lib/toast';
-import { useFeatures } from '@/lib/api/auth';
 import { type Badge, chipOf, useBadges, useMyTitle, useSetTitle } from '@/lib/api/badges';
 import { formatNumber, useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
@@ -19,6 +18,7 @@ import { Card } from '@/components/ui/card';
 import { Display } from '@/components/ui/text';
 import { Dialog } from '@/components/ui/dialog';
 import { BackButton } from '@/components/ui/back-button';
+import { useFeatures } from '@/lib/api/features';
 
 const GAP = 10;
 

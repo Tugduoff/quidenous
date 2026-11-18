@@ -1,7 +1,8 @@
 import type { Person } from '@/lib/api/friends';
-import type { Role } from '@/lib/api/group';
-import { useQuery } from '@tanstack/react-query';
+import { type Role, groupKeys, getGroup } from '@/lib/api/group';
+import { useQuery, type QueryKey } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
+import { roundKeys, getCurrentRound, getUnseenRound, getRound } from '@/lib/api/rounds';
 
 export const roomKeys = {
   all: ['rooms'] as const,
@@ -72,3 +73,29 @@ export const cancelRoomInvite = (roomId: number, userId: number) => api(`/rooms/
 export const acceptInvite = (inviteId: number) => api<{ room_id: number }>(`/invites/${inviteId}/accept`, { method: 'POST' });
 
 export const declineInvite = (inviteId: number) => api(`/invites/${inviteId}`, { method: 'DELETE' });
+
+/** How long a switch waits for the next room's first screen (`warmRoom`) on top of `/me`, before going anyway. */
+const WARM_MS = 500;
+
+/**
+ * Fetches what the vote tab shows first in room `id` (the room, its open question, a result I haven't seen) while the
+ * switch asks for my seat there, so the tab opens filled in instead of blank. What isn't back in time loads on screen.
+ */
+export async function warmRoom(id: number) {
+  const got: [QueryKey, unknown][] = [];
+  const get = <T>(key: QueryKey, load: () => Promise<T>) =>
+    load().then(
+      (data) => {
+        got.push([key, data]);
+        return data;
+      },
+      () => undefined,
+    );
+  const all = Promise.all([
+    get(groupKeys.all, () => getGroup(id)),
+    get(roundKeys.current, () => getCurrentRound(id)),
+    get(roundKeys.unseen, () => getUnseenRound(id)).then((u) => u && get(roundKeys.detail(u.id), () => getRound(u.id, id))),
+  ]);
+  await Promise.race([all, new Promise((done) => setTimeout(done, WARM_MS))]);
+  return [...got];
+}

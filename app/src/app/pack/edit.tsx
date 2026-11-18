@@ -10,12 +10,11 @@ import { Screen } from '@/components/ui/screen';
 import { type BatchAction, confirmBatch, SelectableRow, SelectButton, SelectionBar, SelectionHeader, useSelection } from '@/components/ui/selection';
 import { TemplateLink } from '@/components/packs/template-link';
 import { ApiError } from '@/lib/api/client';
-import { useFeatures } from '@/lib/api/auth';
-import { itemsOk, parseQuestions, pickTextFile, splitTag } from '@/lib/utils/import-draft';
+import { itemsOk, parseQuestions, splitTag } from '@/lib/utils/import-draft';
 import { getLang, type Lang, useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
 import { parsePackHeader } from '@/lib/utils/pack-file';
-import { isPackTag, MAX_TAGS, PACK_TAGS, packError, packKeys, type PackQuestion, type PackTag, TAG_ICONS, useCommunityMe, usePackDetail, updatePack, createPack } from '@/lib/api/packs';
+import { isPackTag, MAX_TAGS, PACK_TAGS, packError, packKeys, type PackQuestion, type PackTag, useCommunityMe, usePackDetail, updatePack, createPack } from '@/lib/api/packs';
 import { tidy } from '@/lib/utils/text';
 import { useTheme } from '@/lib/theme';
 import { PressableScale } from '@/components/ui/pressable-scale';
@@ -27,6 +26,9 @@ import { Segmented } from '@/components/ui/segmented';
 import { askConfirm } from '@/lib/confirm';
 import { useGroup } from '@/lib/api/group';
 import { useQueue } from '@/lib/api/questions';
+import { useFeatures } from '@/lib/api/features';
+import { TAG_ICONS } from '@/components/packs/tag-icons';
+import { pickTextFile } from '@/lib/device/files';
 
 /** The server refuses a pack under 5 questions: said before the tap. */
 const PACK_MIN = 5;

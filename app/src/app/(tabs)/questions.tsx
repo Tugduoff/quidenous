@@ -13,9 +13,8 @@ import { confirmBatch, SelectableRow, SelectButton, SelectionBar, SelectionHeade
 import { TemplateLink } from '@/components/packs/template-link';
 import { Tip } from '@/components/ui/tip';
 import { ApiError } from '@/lib/api/client';
-import { useFeatures } from '@/lib/api/auth';
 import { useT } from '@/lib/i18n';
-import { ITEM_MAX, ITEMS_MAX, ITEMS_MIN, itemsOk, pickQuestionFile, splitTag, takeHandedDraft, type DraftLine } from '@/lib/utils/import-draft';
+import { ITEM_MAX, ITEMS_MAX, ITEMS_MIN, itemsOk, splitTag, type DraftLine } from '@/lib/utils/import-draft';
 import { motion, useArrivals } from '@/lib/motion';
 import { useSession } from '@/lib/session';
 import { tidy } from '@/lib/utils/text';
@@ -29,10 +28,11 @@ import { Toggle } from '@/components/ui/toggle';
 import { Segmented } from '@/components/ui/segmented';
 import { askConfirm } from '@/lib/confirm';
 import { ConfirmModal } from '@/components/ui/dialog';
-import type { QuestionKind } from '@/lib/api/rounds';
+import { type QuestionKind, roundKeys } from '@/lib/api/rounds';
 import { type Queue, useQueue, questionKeys, deleteQuestion, addQuestion, importQuestions, shuffleQueue, emptyQueue, reorderQueue, deleteQuestions } from '@/lib/api/questions';
 import { useGroup, useMembers } from '@/lib/api/group';
-import { roundKeys } from '@/lib/api/rounds';
+import { useFeatures } from '@/lib/api/features';
+import { pickQuestionFile, takeHandedDraft } from '@/lib/device/files';
 
 const MIN = 8;
 

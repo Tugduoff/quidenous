@@ -8,7 +8,6 @@ import { QueryState } from '@/components/ui/query-state';
 import { Screen } from '@/components/ui/screen';
 import { showToast } from '@/lib/toast';
 import { VibeCards, vibeIcon, vibeName } from '@/components/rooms/vibes';
-import { authError, useFeatures } from '@/lib/api/auth';
 import { type Lang, t as tr, useT } from '@/lib/i18n';
 import { useRoomGone } from '@/lib/hooks/use-switch-room';
 import { useSession } from '@/lib/session';
@@ -25,6 +24,8 @@ import { Dialog, DialogActions, DialogTitle } from '@/components/ui/dialog';
 import { BackButton } from '@/components/ui/back-button';
 import { type Group, type Member, useGroup, useVibes, groupKeys, type RoomPatch, updateRoom, renewRoomCode, transferOwnership, deleteRoom } from '@/lib/api/group';
 import { roomKeys } from '@/lib/api/rooms';
+import { authError } from '@/lib/api/errors';
+import { useFeatures } from '@/lib/api/features';
 
 type Patch = RoomPatch;
 

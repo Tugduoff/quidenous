@@ -5,13 +5,14 @@ import { ScanButton } from '@/components/ui/qr-scanner';
 import { Screen } from '@/components/ui/screen';
 import { TermsCheck } from '@/components/auth/terms';
 import { ApiError, SERVER_FIELD } from '@/lib/api/client';
-import { authError, pendingJoinCode } from '@/lib/api/auth';
 import { type TKey, useT } from '@/lib/i18n';
 import { useSession } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Logo } from '@/components/ui/text';
+import { pendingJoinCode } from '@/lib/auth-flow';
+import { authError } from '@/lib/api/errors';
 
 /** Codes that read differently here than in `authError` (a room code, not an emailed one). */
 const ERRORS: Record<string, TKey> = {

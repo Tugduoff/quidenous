@@ -13,10 +13,9 @@ import { ResultBars } from '@/components/result/result-bars';
 import { Screen } from '@/components/ui/screen';
 import { showToast } from '@/lib/toast';
 import { ApiError, setApiRoom } from '@/lib/api/client';
-import { useFeatures } from '@/lib/api/auth';
 import { dateFormat, useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
-import { type Party, partyApi, partyKeys, partyError, type PartyRound, tallies, TIMERS, useCountdown, useParty, useRefetchAtZero, useSetParty, usePartyMemory } from '@/lib/api/party';
+import { type Party, partyApi, partyKeys, partyError, type PartyRound, TIMERS, useParty, useSetParty, usePartyMemory } from '@/lib/api/party';
 import { tidy } from '@/lib/utils/text';
 import { useRoomGone, useSwitchRoom } from '@/lib/hooks/use-switch-room';
 import { useSession } from '@/lib/session';
@@ -35,6 +34,10 @@ import { SoftButton } from '@/components/ui/soft-button';
 import { copyText } from '@/lib/device/clipboard';
 import { type Member, useMembers, removeMember } from '@/lib/api/group';
 import { partyJoinLink, partyScreenLink } from '@/lib/links';
+import { useFeatures } from '@/lib/api/features';
+import { useCountdown } from '@/lib/hooks/use-countdown';
+import { useRefetchAtZero } from '@/lib/hooks/use-refetch-at-zero';
+import { tallies } from '@/lib/utils/party';
 
 /** `/party/[id]`: the whole party on one screen, following its phase (lobby, question, result, memory). */
 export default function PartyScreen() {

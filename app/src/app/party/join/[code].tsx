@@ -7,7 +7,6 @@ import Animated from 'react-native-reanimated';
 import { Screen } from '@/components/ui/screen';
 import { TermsCheck } from '@/components/auth/terms';
 import { ApiError } from '@/lib/api/client';
-import { setPendingCode } from '@/lib/api/auth';
 import { PARTS } from '@/lib/utils/avatar';
 import { useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
@@ -19,6 +18,7 @@ import { Avatar, AvatarStack } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Display, Logo, ErrorText, TextLink } from '@/components/ui/text';
+import { setPendingCode } from '@/lib/auth-flow';
 
 /** The avatar backgrounds people already pick from, minus the dark one (the initial drawn on it would not show). */
 const COLORS = PARTS.bg.map(([c]) => c).filter((c) => c.toUpperCase() !== '#2E2E38');

@@ -25,16 +25,15 @@ import { NextGate } from '@/components/vote/next-gate';
 import { NoQuestions, SoloInvite } from '@/components/vote/vote-empty';
 import { Mascot } from '@/components/mascot/mascot';
 import { ApiError } from '@/lib/api/client';
-import { authError, useFeatures } from '@/lib/api/auth';
 import { showToast } from '@/lib/toast';
 import { getLang, t as translate, useT } from '@/lib/i18n';
 import { EASE, motion, usePop } from '@/lib/motion';
 import { ordinal, tidy } from '@/lib/utils/text';
 import { useSession } from '@/lib/session';
 import { setHideVote, useHideVote } from '@/lib/device/prefs';
-import { confirmPublic, publicLink, shareText } from '@/lib/device/share';
+import { confirmPublic, shareText } from '@/lib/device/share';
 import { useTheme } from '@/lib/theme';
-import { useLandOnToday } from '@/lib/api/today';
+import { useLandOnToday } from '@/lib/hooks/use-today-tab';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Avatar, AvatarStack } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -50,6 +49,9 @@ import { useInbox } from '@/lib/api/inbox';
 import { useRooms } from '@/lib/api/rooms';
 import { historyKeys } from '@/lib/api/history';
 import { questionMessage, resultMessage } from '@/lib/links';
+import { authError } from '@/lib/api/errors';
+import { useFeatures } from '@/lib/api/features';
+import { publicLink } from '@/lib/api/share';
 
 function PushBell() {
   const t = useTheme();

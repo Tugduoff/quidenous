@@ -2,9 +2,9 @@ import { getLocales } from 'expo-localization';
 import { useSyncExternalStore } from 'react';
 import { Platform } from 'react-native';
 
-import { api } from '@/lib/api/client';
 import { type Lang, type Params, type TKey, tIn } from '@/lib/i18n-core';
 import { storage } from '@/lib/device/storage';
+import { setMyLocale, getMyLocale } from '@/lib/api/me';
 
 export { type Lang, type Plural, type TKey, tidy, tIn } from '@/lib/i18n-core';
 /** The Profile setting: follow the phone, or a fixed language. */
@@ -60,7 +60,7 @@ export async function syncLang() {
   const state = `${lang}:${pref}`;
   if ((await storage.get(SYNCED_KEY).catch(() => null)) === state) return;
   try {
-    await api('/me/locale', { method: 'PUT', json: { locale: lang, pref } });
+    await setMyLocale(lang, pref);
     await storage.set(SYNCED_KEY, state);
   } catch {} // old server or offline: retried next start
 }
@@ -69,7 +69,7 @@ export async function syncLang() {
 export async function adoptAccountLang() {
   if (prefSaved) return syncLang();
   try {
-    const acc = await api<{ locale: Lang | null; pref: LangPref | null }>('/me/locale');
+    const acc = await getMyLocale();
     if (acc?.pref) return setLangPref(acc.pref, acc.pref === 'auto');
   } catch {}
   return syncLang();

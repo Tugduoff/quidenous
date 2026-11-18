@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { Pressable, Text } from 'react-native';
 import { BrandIcon } from '@/components/auth/brand-icons';
 import { withReauth } from '@/components/security/reauth';
-import { authKeys, auth, authError, isLinked, PROVIDER_NAMES, useAccount, useFeatures, type Account, type DeviceSession, type Provider, useDeviceSessions } from '@/lib/api/auth';
+import { authKeys, auth, isLinked, PROVIDER_NAMES, useAccount, type Account, type DeviceSession, type Provider, useDeviceSessions } from '@/lib/api/auth';
 import { t as translate, useT } from '@/lib/i18n';
 import { lockMethod, lockSupported, setLock, useLock } from '@/lib/device/lock';
 import { useSession } from '@/lib/session';
@@ -16,6 +16,8 @@ import { askConfirm } from '@/lib/confirm';
 import { ErrorText, TextLink } from '@/components/ui/text';
 import { Pill } from '@/components/ui/pill';
 import { Row, Section } from '@/components/ui/section';
+import { authError } from '@/lib/api/errors';
+import { useFeatures } from '@/lib/api/features';
 
 /** Google / Discord: link (the web leaves for the provider and comes back on /oauth), unlink. */
 export function ProvidersSection({ account }: { account: Account }) {

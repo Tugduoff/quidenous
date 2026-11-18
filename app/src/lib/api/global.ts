@@ -1,7 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-
 import { api } from '@/lib/api/client';
-import { featuresQuery } from '@/lib/api/auth';
+import { featuresQuery } from '@/lib/api/features';
 
 /** The global question of the day (docs/GLOBAL_QUESTION.md). */
 export type GlobalCount = { target_id: number; count: number };
@@ -25,13 +24,15 @@ export type GlobalView =
 
 export type GlobalOpen = Extract<GlobalView, { available: true }>;
 
-export const globalKey = ['global'] as const;
+export const globalKeys = {
+  all: ['global'] as const,
+};
 
 /** Today's global question in the current room, only asked of a server that has it. */
 export function useGlobal() {
   const { data: features } = useQuery(featuresQuery);
   const on = !!features?.includes('global_question');
-  return useQuery({ queryKey: globalKey, queryFn: () => api<GlobalView>('/global'), enabled: on });
+  return useQuery({ queryKey: globalKeys.all, queryFn: () => api<GlobalView>('/global'), enabled: on });
 }
 
 /** Votes (final): the answer is the new view (my room's tally, the aggregates). */
@@ -39,8 +40,8 @@ export function useGlobalVote() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (target: number) => api<GlobalView>('/global/vote', { method: 'POST', json: { target } }),
-    onSuccess: (view) => qc.setQueryData(globalKey, view),
+    onSuccess: (view) => qc.setQueryData(globalKeys.all, view),
     // Voted already (another phone), someone left: show what is true now.
-    onError: () => qc.invalidateQueries({ queryKey: globalKey }),
+    onError: () => qc.invalidateQueries({ queryKey: globalKeys.all }),
   });
 }

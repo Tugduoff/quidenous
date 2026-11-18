@@ -6,7 +6,6 @@ import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { RoomForms } from '@/components/rooms/room-forms';
 import { Screen } from '@/components/ui/screen';
-import { pendingPlayToken, setPendingPlay } from '@/lib/api/auth';
 import { communityError, playInto, usePlay } from '@/lib/api/community';
 import { useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
@@ -19,6 +18,7 @@ import { Tag } from '@/components/ui/tag';
 import { Card } from '@/components/ui/card';
 import { Display, Logo } from '@/components/ui/text';
 import { useRooms } from '@/lib/api/rooms';
+import { pendingPlayToken, setPendingPlay } from '@/lib/auth-flow';
 
 /**
  * `/play?share={token}`: a question shared from another room. Add it to one of my rooms (it comes next there)

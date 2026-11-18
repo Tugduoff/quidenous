@@ -5,11 +5,12 @@ import { LockSection, ProvidersSection, SessionsSection, SignOutButton } from '@
 import { ReauthHost } from '@/components/security/reauth';
 import { SignInSection } from '@/components/security/sign-in';
 import { TwoFactorSection } from '@/components/security/two-factor';
-import { authError, useAccount } from '@/lib/api/auth';
+import { useAccount } from '@/lib/api/auth';
 import { useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 import { Display, ErrorText } from '@/components/ui/text';
 import { BackButton } from '@/components/ui/back-button';
+import { authError } from '@/lib/api/errors';
 
 /** Profile > Sécurité: email, password, 2FA, linked accounts, devices, blocked people, app lock, sign out, delete the account. */
 export default function Security() {

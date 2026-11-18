@@ -1,6 +1,6 @@
 import { Platform } from 'react-native';
 
-import { api } from '@/lib/api/client';
+import { getPushConfig, subscribePush } from '@/lib/api/push';
 
 export type PushState = 'unsupported' | 'default' | 'denied' | 'granted';
 
@@ -29,7 +29,7 @@ export async function enablePush(): Promise<PushState> {
   if (!supported()) return 'unsupported';
   const permission = await Notification.requestPermission();
   if (permission !== 'granted') return permission as PushState;
-  const { vapid_public_key } = await api<{ vapid_public_key: string | null }>('/push/config');
+  const { vapid_public_key } = await getPushConfig();
   if (!vapid_public_key) throw new Error('push_not_configured');
   const registration = await navigator.serviceWorker.register('/sw.js');
   await navigator.serviceWorker.ready;
@@ -44,14 +44,11 @@ export async function enablePush(): Promise<PushState> {
 }
 
 async function sendSubscription(subscription: PushSubscription) {
-  await api('/push/subscribe', {
-    method: 'POST',
-    json: {
-      kind: 'web',
-      endpoint: subscription.endpoint,
-      p256dh: toB64Url(subscription.getKey('p256dh')),
-      auth: toB64Url(subscription.getKey('auth')),
-    },
+  await subscribePush({
+    kind: 'web',
+    endpoint: subscription.endpoint,
+    p256dh: toB64Url(subscription.getKey('p256dh')),
+    auth: toB64Url(subscription.getKey('auth')),
   });
 }
 

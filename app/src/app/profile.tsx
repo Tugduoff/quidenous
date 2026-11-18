@@ -13,7 +13,7 @@ import { BadgesRow, MyTitle } from '@/components/badges/title-chip';
 import { VersionLine } from '@/components/update/update';
 import { WrappedRow } from '@/components/wrapped/entry';
 import { API_URL, ApiError } from '@/lib/api/client';
-import { useAccount, useFeatures } from '@/lib/api/auth';
+import { useAccount } from '@/lib/api/auth';
 import { useDonateUrl } from '@/lib/api/donate';
 import { type LangPref, setLangPref, type TKey, useLang, useT } from '@/lib/i18n';
 import { useSession } from '@/lib/session';
@@ -24,10 +24,10 @@ import { Card } from '@/components/ui/card';
 import { Display } from '@/components/ui/text';
 import { Dialog, DialogTitle } from '@/components/ui/dialog';
 import { BackButton } from '@/components/ui/back-button';
-import type { Member } from '@/lib/api/group';
-import { groupKeys } from '@/lib/api/group';
+import { type Member, groupKeys } from '@/lib/api/group';
 import { uploadMyPhoto, setMyName } from '@/lib/api/me';
 import { photoForm } from '@/lib/device/photo';
+import { useFeatures } from '@/lib/api/features';
 
 
 const THEMES: { pref: ThemePref; Icon: typeof Sun; label: TKey }[] = [

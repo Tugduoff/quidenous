@@ -1,14 +1,14 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ChevronRight, Link2, Trash2 } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { showToast } from '@/lib/toast';
-import { useFeatures } from '@/lib/api/auth';
 import { dateFormat, useT } from '@/lib/i18n';
-import { type MyLink, myLinks, myLinksKey, revokeLink } from '@/lib/device/share';
 import { useTheme } from '@/lib/theme';
 import { Card } from '@/components/ui/card';
 import { Dialog, DialogTitle } from '@/components/ui/dialog';
+import { useFeatures } from '@/lib/api/features';
+import { type MyLink, shareKeys, revokeLink, useMyLinks } from '@/lib/api/share';
 
 /** Profile > "Mes liens": my public share links, each deletable. Hidden while there are none. */
 export function MyLinksRow() {
@@ -16,7 +16,7 @@ export function MyLinksRow() {
   const tr = useT();
   const { shareLinks } = useFeatures();
   const [open, setOpen] = useState(false);
-  const { data: links } = useQuery({ queryKey: myLinksKey, queryFn: myLinks, enabled: shareLinks });
+  const { data: links } = useMyLinks(shareLinks);
   // The last one deleted: nothing left to show.
   const empty = !!links && !links.length;
   useEffect(() => {
@@ -52,7 +52,7 @@ function LinkRow({ link }: { link: MyLink }) {
   const revoke = useMutation({
     mutationFn: () => revokeLink(link.token),
     onSuccess: () => {
-      qc.setQueryData<MyLink[]>(myLinksKey, (all) => all?.filter((l) => l.token !== link.token));
+      qc.setQueryData<MyLink[]>(shareKeys.mine, (all) => all?.filter((l) => l.token !== link.token));
       showToast(tr('share.links.revoked'));
     },
   });

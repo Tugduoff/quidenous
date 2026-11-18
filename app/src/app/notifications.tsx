@@ -4,10 +4,9 @@ import { type ReactNode, useRef, useState } from 'react';
 import { ActivityIndicator, Linking, Platform, Pressable, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { Screen } from '@/components/ui/screen';
-import { useFeatures } from '@/lib/api/auth';
 import { type TKey, useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
-import { notifKey, type NotifKind, type NotifPrefs, useDevicePush, useNotifPrefs, useSaveNotifPrefs } from '@/lib/api/notifications';
+import { notificationKeys, type NotifKind, type NotifPrefs, useNotifPrefs, useSaveNotifPrefs } from '@/lib/api/notifications';
 import { useTheme } from '@/lib/theme';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Card } from '@/components/ui/card';
@@ -16,6 +15,8 @@ import { Toggle } from '@/components/ui/toggle';
 import { Dialog, DialogTitle } from '@/components/ui/dialog';
 import { BackButton } from '@/components/ui/back-button';
 import { Section } from '@/components/ui/section';
+import { useFeatures } from '@/lib/api/features';
+import { useDevicePush } from '@/lib/hooks/use-device-push';
 
 const KINDS: { kind: NotifKind; label: TKey; Icon: LucideIcon }[] = [
   { kind: 'question', label: 'notifications.kinds.question', Icon: Sparkles },
@@ -94,7 +95,7 @@ export default function NotificationsScreen() {
 
   // From the cache, not this render: two quick taps both land.
   const set = (patch: Partial<NotifPrefs>) => {
-    const current = qc.getQueryData<NotifPrefs>(notifKey);
+    const current = qc.getQueryData<NotifPrefs>(notificationKeys.prefs);
     if (current) save.mutate({ ...current, ...patch });
   };
 

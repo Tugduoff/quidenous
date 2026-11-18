@@ -8,17 +8,18 @@ import { MiniTag, PageHeader } from '@/components/packs/pack-card';
 import { Screen } from '@/components/ui/screen';
 import { confirmBatch, eachOf, type Selection, SelectableRow, SelectButton, SelectionBar, SelectionHeader, useSelection } from '@/components/ui/selection';
 import { showToast } from '@/lib/toast';
-import { useFeatures } from '@/lib/api/auth';
 import { dateFormat, useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
 import { REASONS } from '@/lib/api/moderation';
-import { type PackTag, packKeys, type ReportAction, REPORT_REASONS, type ReportReason, type Review, type ReviewReport, TAG_ICONS, useCommunityMe, useReview, removePack, rejectSuggestion, approvePack, approveSuggestion, closeReport } from '@/lib/api/packs';
+import { type PackTag, packKeys, type ReportAction, REPORT_REASONS, type ReportReason, type Review, type ReviewReport, useCommunityMe, useReview, removePack, rejectSuggestion, approvePack, approveSuggestion, closeReport } from '@/lib/api/packs';
 import { useTheme } from '@/lib/theme';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Card } from '@/components/ui/card';
 import { Display, QuestionText } from '@/components/ui/text';
 import { askConfirm } from '@/lib/confirm';
 import { ConfirmModal } from '@/components/ui/dialog';
+import { useFeatures } from '@/lib/api/features';
+import { TAG_ICONS } from '@/components/packs/tag-icons';
 
 /** The built-in deck's tones a suggestion can join (none picked: the server files it under `potes`). */
 const DECK_TAGS: PackTag[] = ['potes', 'pimente', 'boulot', 'famille'];

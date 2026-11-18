@@ -2,7 +2,6 @@ import { type QueryKey, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useSyncExternalStore } from 'react';
 import { AppState } from 'react-native';
 import { API_URL, urlAuth, roomQuery } from '@/lib/api/client';
-import { featuresQuery } from '@/lib/api/auth';
 import { badgeKeys } from '@/lib/api/badges';
 import { PARTY_EVENTS, partyKeys } from '@/lib/api/party';
 import { type ReactedEvent, receiveReacted } from '@/lib/api/result-reactions';
@@ -17,8 +16,11 @@ import { statsKeys } from '@/lib/api/stats';
 import { questionKeys } from '@/lib/api/questions';
 import { inboxKeys } from '@/lib/api/inbox';
 import { roomKeys } from '@/lib/api/rooms';
+import { featuresQuery } from '@/lib/api/features';
 
 /** While on the screen, the app tells the server every so often, so it sends no push for this room. */
+const startsWith = (key: QueryKey, prefix: QueryKey) => prefix.every((k, i) => key[i] === k);
+
 const HERE_MS = 20_000;
 /** Events in a burst (a round closing, guests joining a party) refetch each query once. */
 const BATCH_MS = 250;
@@ -62,10 +64,10 @@ function touched(event: LiveEvent): QueryKey[] | 'all' {
     case 'round_updated':
       return event.round_id ? [roundKeys.current, roundKeys.detail(event.round_id), todayKeys.all] : [roundKeys.current, todayKeys.all];
     case 'round_opened':
-      return [['round'], historyKeys.list, questionKeys.queue, statsKeys.all, todayKeys.all];
+      return [roundKeys.all, historyKeys.list, questionKeys.queue, statsKeys.all, todayKeys.all];
     // A closed question can cross a badge threshold (mine arrives as an inbox entry; the room's titles may follow).
     case 'round_closed':
-      return [['round'], historyKeys.list, questionKeys.queue, statsKeys.all, badgeKeys.titles, todayKeys.all];
+      return [roundKeys.all, historyKeys.list, questionKeys.queue, statsKeys.all, badgeKeys.titles, todayKeys.all];
     case 'message_posted':
       return event.round_id ? [chatKeys.messages(event.round_id), todayKeys.all] : [todayKeys.all];
     // Someone reacted to a message (or took their reaction back).
@@ -89,10 +91,10 @@ function touched(event: LiveEvent): QueryKey[] | 'all' {
     // Who's in: the room, the counts on the open question and in the room list.
     case 'member_joined':
     case 'member_removed':
-      return [groupKeys.all, roundKeys.current, roomKeys.all, ['invites'], todayKeys.all];
+      return [groupKeys.all, roundKeys.current, roomKeys.all, roomKeys.invites, todayKeys.all];
     // A new name or photo: also shown on results and in the chat.
     case 'member_updated':
-      return [groupKeys.all, ['round'], ['messages']];
+      return [groupKeys.all, roundKeys.all, chatKeys.all];
     case 'room_deleted':
       return [groupKeys.all, roomKeys.all, roundKeys.current, todayKeys.all];
     // Taps on a result: handed to its screen (receiveReacted), never a refetch (they come in bursts).
@@ -115,7 +117,7 @@ export function useLive(token: string | null, room: number | null) {
     const flush = () => {
       flushTimer = null;
       if (batchAll) {
-        qc.invalidateQueries({ predicate: (q) => q.queryKey[0] !== 'history' || q.queryKey[1] !== 'list' });
+        qc.invalidateQueries({ predicate: (q) => !startsWith(q.queryKey, historyKeys.list) });
         refreshHistory(qc).catch(() => {});
       } else
         for (const queryKey of batch.values()) {
@@ -170,7 +172,7 @@ export function useLive(token: string | null, room: number | null) {
           reached();
           presence();
           // Everything but the history list's pages (one refetch each): only its newest page.
-          qc.invalidateQueries({ predicate: (q) => q.queryKey[0] !== 'history' || q.queryKey[1] !== 'list' });
+          qc.invalidateQueries({ predicate: (q) => !startsWith(q.queryKey, historyKeys.list) });
           refreshHistory(qc).catch(() => {});
         },
         onClose: dropped,

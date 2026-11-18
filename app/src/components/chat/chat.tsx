@@ -8,13 +8,12 @@ import { AttachButton, MediaViewer, MessageMediaFrame, PendingBubble } from '@/c
 import { HeartBurst, ReactionBar, ReactionChips, WhoReacted } from '@/components/chat/reactions';
 import { ModerationDialog, type ModTarget } from '@/components/moderation/moderation';
 import { ProfileSheet } from '@/components/stats/profile-sheet';
-import { useFeatures } from '@/lib/api/auth';
-import { mediaOf, usePending } from '@/lib/chat-outbox';
+import { usePending } from '@/lib/chat-outbox';
 import { dateFormat, useT } from '@/lib/i18n';
 import { activeMention, everyone, matches, outgoing, segments } from '@/lib/utils/mentions';
 import { useBlocks } from '@/lib/api/moderation';
 import { motion, useArrivals } from '@/lib/motion';
-import { HEART, useReact, type Message, useMessages, chatKeys, deleteMessage, restoreMessage, postMessage, type NewMessage } from '@/lib/api/chat';
+import { useReact, type Message, useMessages, chatKeys, deleteMessage, restoreMessage, postMessage, type NewMessage } from '@/lib/api/chat';
 import { sendOnEnter } from '@/lib/utils/submit';
 import { useSession } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
@@ -24,6 +23,8 @@ import { Card } from '@/components/ui/card';
 import { DialogTitle } from '@/components/ui/dialog';
 import { type Member, useGroup, useMembers } from '@/lib/api/group';
 import { useStats } from '@/lib/api/stats';
+import { mediaOf, HEART } from '@/lib/utils/chat';
+import { useFeatures } from '@/lib/api/features';
 
 const MAX = 500;
 /** One suggestion row; the list shows about five and a half, so a longer one visibly scrolls. */

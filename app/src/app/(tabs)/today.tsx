@@ -13,15 +13,16 @@ import { dateFormat, useLang, useT } from '@/lib/i18n';
 import { EASE, motion, useArrivals } from '@/lib/motion';
 import { useSwitchRoom } from '@/lib/hooks/use-switch-room';
 import { useSession } from '@/lib/session';
-import { HOT_FROM } from '@/lib/api/streaks';
 import { useTheme } from '@/lib/theme';
 import { until } from '@/lib/utils/time';
-import { cardQuestion, missing, needsMe, streakAtRisk, type TodayRoom, useToday, todayKeys } from '@/lib/api/today';
+import { type TodayRoom, useToday, todayKeys } from '@/lib/api/today';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Avatar } from '@/components/ui/avatar';
 import { TAG_BG } from '@/components/ui/tag';
 import { Card } from '@/components/ui/card';
 import { Display, Logo, QuestionText } from '@/components/ui/text';
+import { HOT_FROM } from '@/lib/utils/streaks';
+import { cardQuestion, missing, needsMe, streakAtRisk } from '@/lib/utils/today';
 
 export default function TodayScreen() {
   const focused = useIsFocused();

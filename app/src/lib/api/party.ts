@@ -1,16 +1,16 @@
 // Party mode (docs/PARTY.md): one question at a time for everyone in the room, a countdown, a big reveal.
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { api, API_URL, ApiError } from '@/lib/api/client';
-import { authError, featuresQuery } from '@/lib/api/auth';
 import { t, type TKey } from '@/lib/i18n';
 import { localizeMembers } from '@/lib/utils/names';
 import { type ReactedEvent, receiveReacted } from '@/lib/api/result-reactions';
 import { openSocket } from '@/lib/api/socket';
-import type { Member, Role } from '@/lib/api/group';
-import type { QuestionKind, SaidGuess, SaidView, Tally } from '@/lib/api/rounds';
-import { leaveRoom } from '@/lib/api/group';
+import { type Member, type Role, leaveRoom } from '@/lib/api/group';
+import type { QuestionKind, SaidGuess, SaidView } from '@/lib/api/rounds';
 import { getHistoryPage, HISTORY_PAGE, type HistoryItem } from '@/lib/api/history';
+import { authError } from '@/lib/api/errors';
+import { featuresQuery } from '@/lib/api/features';
 
 export type PartyPhase = 'lobby' | 'voting' | 'reveal' | 'over';
 export type PartyPlayer = Member & { role: Role; guest: boolean };
@@ -126,64 +126,6 @@ export function useSetParty(id: number) {
   const qc = useQueryClient();
   return (p: Party) => qc.setQueryData(partyKeys.party(id), p);
 }
-
-/**
- * Milliseconds left until `deadline` on the server's clock, in whole seconds (rounded up, as the screen shows them),
- * 0 once past, null without a deadline. Ticks once a second, right as the second changes, so the screen re-renders 1x/s.
- */
-export function useCountdown(deadline: string | null | undefined, clock: number) {
-  const end = deadline ? Date.parse(deadline) : NaN;
-  const [ms, setMs] = useState<number | null>(() => (Number.isFinite(end) ? wholeSeconds(end - (Date.now() + clock)) : null));
-  useEffect(() => {
-    if (!Number.isFinite(end)) return;
-    let timer: ReturnType<typeof setTimeout>;
-    const tick = () => {
-      const left = Math.max(0, end - (Date.now() + clock));
-      setMs(wholeSeconds(left));
-      // The next change is when `left` drops under the whole second below it.
-      if (left > 0) timer = setTimeout(tick, left - (wholeSeconds(left) - 1000) + 5);
-    };
-    tick();
-    return () => clearTimeout(timer);
-  }, [end, clock]);
-  return Number.isFinite(end) ? ms : null;
-}
-
-const wholeSeconds = (ms: number) => Math.max(0, Math.ceil(ms / 1000) * 1000);
-
-/** Once the countdown hits 0: refetch a little later (and again every few seconds), in case the closing event got lost. */
-export function useRefetchAtZero(ms: number | null, refetch: () => void) {
-  const over = ms === 0;
-  useEffect(() => {
-    if (!over) return;
-    let again: ReturnType<typeof setInterval>;
-    const first = setTimeout(() => {
-      refetch();
-      again = setInterval(refetch, 4000);
-    }, 1500);
-    return () => {
-      clearTimeout(first);
-      clearInterval(again);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [over]);
-}
-
-/**
- * The current phase's length in seconds, for the countdown's bar: a pick question's timer; a said question's writing
- * (`max(60, 2 × timer)`), then its guessing (`max(45, 2 × timer)`), read from the deadlines when they're there.
- */
-export function phaseSeconds(round: Pick<PartyRound, 'opened_at' | 'deadline_at' | 'said'>, timer: number): number {
-  const said = round.said;
-  const fallback = !said ? timer : said.phase === 'guessing' ? Math.max(45, 2 * timer) : Math.max(60, 2 * timer);
-  const start = said?.phase === 'guessing' ? said.guess_at : round.opened_at;
-  const s = (Date.parse(round.deadline_at ?? '') - Date.parse(start ?? '')) / 1000;
-  return Number.isFinite(s) && s > 0 ? Math.round(s) : fallback;
-}
-
-/** A result as the shared result bars draw it. */
-export const tallies = (round: PartyRound): Tally[] =>
-  (round.results ?? []).map((r) => ({ target_id: r.member_id, count: r.votes, voter_ids: r.voters })).sort((a, b) => b.count - a.count);
 
 /**
  * The big-screen view's live socket (no account: the party's code instead of a token). Taps on a result

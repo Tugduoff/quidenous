@@ -16,7 +16,6 @@ import { TermsGate } from '@/components/auth/terms';
 import { ToastHost } from '@/components/ui/toast';
 import { OtaToast, UpdateDialog } from '@/components/update/update';
 import { UpdateRequired } from '@/components/update/update-required';
-import { pendingJoinCode, pendingPlayToken, setPendingCode } from '@/lib/api/auth';
 import { installGlobalErrorHandlers } from '@/lib/device/crash-report';
 import { useLang } from '@/lib/i18n';
 import { useLive } from '@/lib/api/live';
@@ -32,6 +31,7 @@ import { useScheme, useTheme, useThemeLoaded } from '@/lib/theme';
 import { useUpdateCheck } from '@/lib/device/update';
 import { ConfirmHost } from '@/components/ui/confirm';
 import { presetJoinCode } from '@/lib/device/launch-params';
+import { pendingJoinCode, pendingPlayToken, setPendingCode } from '@/lib/auth-flow';
 
 // A screen that crashes shows "Something went wrong / Retry" and reports the error (POST /api/client-errors).
 export { ErrorBoundary } from '@/components/ui/error-boundary';

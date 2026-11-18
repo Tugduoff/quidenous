@@ -5,6 +5,7 @@ import type { Member } from '@/lib/api/group';
 import { friendKeys } from '@/lib/api/friends';
 import { roomKeys } from '@/lib/api/rooms';
 import { inboxKeys } from '@/lib/api/inbox';
+import { chatKeys } from '@/lib/api/chat';
 
 export const moderationKeys = {
   blocks: ['blocks'] as const,
@@ -47,7 +48,7 @@ export function useBlockActions() {
   const qc = useQueryClient();
   const refresh = () => {
     qc.invalidateQueries({ queryKey: moderationKeys.blocks });
-    qc.invalidateQueries({ queryKey: ['messages'] });
+    qc.invalidateQueries({ queryKey: chatKeys.all });
     qc.invalidateQueries({ queryKey: inboxKeys.all });
     qc.invalidateQueries({ queryKey: friendKeys.all });
     qc.invalidateQueries({ queryKey: roomKeys.all });

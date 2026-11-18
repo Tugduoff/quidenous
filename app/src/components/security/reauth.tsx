@@ -2,7 +2,7 @@ import { useState, useSyncExternalStore } from 'react';
 import { View } from 'react-native';
 import { BrandIcon } from '@/components/auth/brand-icons';
 import { ApiError } from '@/lib/api/client';
-import { auth, authError, isReauth, PROVIDER_NAMES, useFeatures, type Account, type Provider } from '@/lib/api/auth';
+import { auth, isReauth, PROVIDER_NAMES, type Account, type Provider } from '@/lib/api/auth';
 import { useT } from '@/lib/i18n';
 import { oauth } from '@/lib/sign-in';
 import { Dialog, DialogActions, DialogTitle } from '@/components/ui/dialog';
@@ -10,6 +10,8 @@ import { Field, PasswordField } from '@/components/ui/field';
 import { SoftButton } from '@/components/ui/soft-button';
 import { ErrorText, TextLink } from '@/components/ui/text';
 import { Pill } from '@/components/ui/pill';
+import { authError } from '@/lib/api/errors';
+import { useFeatures } from '@/lib/api/features';
 
 /**
  * Sensitive changes (2FA on, linking / unlinking, a first password, deleting the account) answer `403 reauth_required`

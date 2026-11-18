@@ -5,7 +5,6 @@ import { useState } from 'react';
 import { Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import { useT } from '@/lib/i18n';
-import { useFeatures } from '@/lib/api/auth';
 import { shareText } from '@/lib/device/share';
 import { useTheme } from '@/lib/theme';
 import { PressableScale } from '@/components/ui/pressable-scale';
@@ -20,6 +19,7 @@ import { useGroup, groupKeys, renewRoomCode } from '@/lib/api/group';
 import { useInvites, useRoomInvites, roomKeys, addToRoom, cancelRoomInvite, acceptInvite, declineInvite } from '@/lib/api/rooms';
 import { roundKeys } from '@/lib/api/rounds';
 import { inviteLink, inviteMessage } from '@/lib/links';
+import { useFeatures } from '@/lib/api/features';
 
 /** `true` for a moment after a successful copy (a "Copié" tick). */
 function useFlash(): [boolean, (ok: boolean) => void] {

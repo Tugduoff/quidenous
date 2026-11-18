@@ -1,31 +1,16 @@
-import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
-import { api } from '@/lib/api/client';
+import { useMutation, useQueryClient, useQuery, useInfiniteQuery } from '@tanstack/react-query';
+import { api, apiUpload, readUriBlob } from '@/lib/api/client';
 import { useSession } from '@/lib/session';
+import { Platform } from 'react-native';
+import { File as FsFile } from 'expo-file-system';
+import type { ImageDraft } from '@/lib/device/media';
+import { toggled } from '@/lib/utils/chat';
 
 export const chatKeys = {
   all: ['messages'] as const,
   messages: (roundId: number) => ['messages', roundId] as const,
   gifs: (q: string) => ['gifs', q] as const,
 };
-
-/** The reactions a chat message can get, in the order the server lists them. */
-export const CHAT_REACTIONS = ['❤️', '😂', '😮', '😢', '👍', '🔥'] as const;
-export const HEART = CHAT_REACTIONS[0];
-
-const rank = (emoji: string) => {
-  const i = (CHAT_REACTIONS as readonly string[]).indexOf(emoji);
-  return i < 0 ? CHAT_REACTIONS.length : i;
-};
-
-/** The reactions once I add (`on`) or take back `emoji`: what the server will answer, shown before it does. */
-export function toggled(list: Reaction[] | undefined, emoji: string, me: number, on: boolean): Reaction[] {
-  const rest = (list ?? []).filter((r) => r.emoji !== emoji);
-  const r = list?.find((x) => x.emoji === emoji);
-  const members = (r?.members ?? []).filter((id) => id !== me);
-  if (on) members.push(me);
-  const next = members.length ? [...rest, { emoji, count: members.length, mine: on, members }] : rest;
-  return next.sort((a, b) => rank(a.emoji) - rank(b.emoji));
-}
 
 /** Requests in flight per message: only the last answer is taken as is (an earlier one may land after it). */
 const inFlight = new Map<number, number>();
@@ -112,3 +97,52 @@ export const postMessage = (roundId: number, message: NewMessage) => api<Message
 export const deleteMessage = (roundId: number, id: number) => api(`/rounds/${roundId}/messages/${id}`, { method: 'DELETE' });
 
 export const restoreMessage = (roundId: number, id: number) => api(`/rounds/${roundId}/messages/${id}/restore`, { method: 'POST' });
+
+export type Ping = { mentions: number[]; everyone: boolean };
+
+/** `POST /rounds/{id}/messages/image`, multipart: `image` (the file), `caption`, `mentions` (a JSON array), `everyone` ("1"). */
+export async function uploadImage(roundId: number, img: ImageDraft, caption: string, ping: Ping, clientKey: string) {
+  const form = new FormData();
+  form.append('client_key', clientKey);
+  if (caption) form.append('caption', caption);
+  if (ping.mentions.length) form.append('mentions', JSON.stringify(ping.mentions));
+  if (ping.everyone) form.append('everyone', '1');
+  const name = img.mime === 'image/gif' ? 'image.gif' : 'photo.jpg';
+  if (Platform.OS === 'web') form.append('image', await readUriBlob(img.uri), name);
+  // expo/fetch (the global fetch since SDK 58) can't send React Native's { uri } parts; a file-system File it can.
+  else form.append('image', new FsFile(img.uri), name);
+  return apiUpload<Message>(`/rounds/${roundId}/messages/image`, form, 'POST');
+}
+
+/** One GIF of a search, its URLs already through our server (`/api/gifs/media/…`). */
+export type Gif = { id: string | number; title?: string | null; width: number; height: number; preview_url: string; url: string };
+
+type GifPage = { items: Gif[]; next: boolean };
+
+/** KLIPY's trending GIFs (empty `q`) or a search, page after page (`GET /gifs?q=&page=`, pages from 1). */
+export function useGifs(q: string, enabled: boolean) {
+  return useInfiniteQuery({
+    queryKey: chatKeys.gifs(q),
+    queryFn: ({ pageParam }) => api<GifPage>(`/gifs?q=${encodeURIComponent(q)}&page=${pageParam}`),
+    initialPageParam: 1,
+    getNextPageParam: (last, all) => (last?.next ? all.length + 1 : undefined),
+    enabled,
+    staleTime: 5 * 60_000,
+  });
+}
+
+/** `POST /rounds/{id}/messages/gif` with the GIF as /gifs gave it. */
+export const postGif = (roundId: number, g: Gif, ping: Ping, clientKey: string) =>
+  api<Message>(`/rounds/${roundId}/messages/gif`, {
+    method: 'POST',
+    json: {
+      id: g.id,
+      url: g.url,
+      preview_url: g.preview_url,
+      width: g.width,
+      height: g.height,
+      ...(ping.mentions.length ? { mentions: ping.mentions } : {}),
+      ...(ping.everyone ? { everyone: true } : {}),
+      client_key: clientKey,
+    },
+  });

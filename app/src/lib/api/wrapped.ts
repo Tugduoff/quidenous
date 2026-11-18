@@ -1,10 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
-import { useFeatures } from '@/lib/api/auth';
 import { t } from '@/lib/i18n';
 import type { Mood, Who } from '@/lib/utils/mascot';
 import { shareCard } from '@/lib/device/share';
 import { useGroup } from '@/lib/api/group';
+import { useFeatures } from '@/lib/api/features';
 
 export type WrappedScope = 'me' | 'room';
 /** Someone shown on a card (only people who share a room with me). */
@@ -49,7 +49,10 @@ export type Wrapped = {
 /** Minutes east of UTC: the year's days are cut in my time zone. */
 const tz = () => -new Date().getTimezoneOffset();
 
-const wrappedKey = (scope: WrappedScope, preview: boolean) => ['wrapped', scope, preview ? 'preview' : 'live'] as const;
+export const wrappedKeys = {
+  all: ['wrapped'] as const,
+  view: (scope: WrappedScope, preview: boolean) => ['wrapped', scope, preview ? 'preview' : 'live'] as const,
+};
 
 /** Whatever the server sent, with the lists the screens rely on. */
 function normalize(w: Wrapped): Wrapped {
@@ -68,7 +71,7 @@ export function useWrapped(scope: WrappedScope, preview = false) {
   const { wrapped } = useFeatures();
   const roomOk = useRoomWrappedOk();
   return useQuery({
-    queryKey: wrappedKey(scope, preview),
+    queryKey: wrappedKeys.view(scope, preview),
     queryFn: async () =>
       normalize(await api<Wrapped>(`/wrapped?scope=${scope}&tz=${tz()}${preview ? '&preview=1' : ''}`)),
     enabled: wrapped && (scope === 'me' || roomOk),

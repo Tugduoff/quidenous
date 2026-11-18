@@ -1,10 +1,10 @@
 import { focusManager, MutationCache, QueryClient } from '@tanstack/react-query';
 import { AppState, Platform } from 'react-native';
-
 import { showToast } from '@/lib/toast';
-
 import { ApiError } from '@/lib/api/client';
-import { authError } from '@/lib/api/auth';
+import { authError } from '@/lib/api/errors';
+import { featureKeys } from '@/lib/api/features';
+import { todayKeys } from '@/lib/api/today';
 
 declare module '@tanstack/react-query' {
   interface Register {
@@ -36,9 +36,11 @@ export const queryClient = new QueryClient({
  * (`features`): the live socket needs it at once to ask for a ticket instead of putting the token in its URL.
  * Nor « Aujourd'hui » (`today`): all my rooms, the same whichever is on screen (signing out clears everything).
  */
+const KEPT_ACROSS_ROOMS = new Set<unknown>([featureKeys.all[0], todayKeys.all[0]]);
+
 export function clearRoomData(qc: QueryClient) {
   qc.getMutationCache().clear();
-  qc.removeQueries({ predicate: (q) => q.queryKey[0] !== 'features' && q.queryKey[0] !== 'today' });
+  qc.removeQueries({ predicate: (q) => !KEPT_ACROSS_ROOMS.has(q.queryKey[0]) });
 }
 
 // On a phone, coming back to the app counts as focus: what's on screen refreshes (the web does this by itself).

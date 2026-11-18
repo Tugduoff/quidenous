@@ -5,11 +5,11 @@ import { Pressable, Text, View } from 'react-native';
 import { RoomInvites } from '@/components/rooms/invite';
 import { RoomForms } from '@/components/rooms/room-forms';
 import { Screen } from '@/components/ui/screen';
-import { pendingJoinCode } from '@/lib/api/auth';
 import { useT } from '@/lib/i18n';
 import { useSession } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
 import { Display, Logo } from '@/components/ui/text';
+import { pendingJoinCode } from '@/lib/auth-flow';
 
 /** Signed in, no room yet: join one with a code (an invite link fills it in) or create one. */
 export default function Setup() {

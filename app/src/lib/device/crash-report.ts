@@ -1,7 +1,8 @@
 import { Platform } from 'react-native';
 
-import { api, ApiError } from '@/lib/api/client';
+import { ApiError } from '@/lib/api/client';
 import { appVersion } from '@/lib/device/update';
+import { postClientError } from '@/lib/api/client-errors';
 
 /** At most this many reports per session: a crash loop can't burn the server's per-IP limit (20 / 10 min). */
 const MAX_REPORTS = 5;
@@ -47,16 +48,13 @@ export async function reportClientError(error: unknown, extra?: { componentStack
     if (!message.trim() || sent.has(message) || sent.size >= MAX_REPORTS) return;
     sent.add(message);
     const stack = error instanceof Error && typeof error.stack === 'string' ? error.stack.slice(0, 4000) : undefined;
-    await api('/client-errors', {
-      method: 'POST',
-      json: {
-        message,
-        stack,
-        componentStack: extra?.componentStack?.slice(0, 4000),
-        platform: Platform.OS,
-        version: appVersion(),
-        route: route(),
-      },
+    await postClientError({
+      message,
+      stack,
+      componentStack: extra?.componentStack?.slice(0, 4000),
+      platform: Platform.OS,
+      version: appVersion(),
+      route: route(),
     });
   } catch {
     // A report that can't be sent is dropped.

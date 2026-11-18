@@ -2,10 +2,9 @@
 // events handed to whoever shows that result. The pure part (merging, the cap, applying taps) is in result-taps.ts.
 import { type QueryClient, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect } from 'react';
-
 import { api } from '@/lib/api/client';
-import { useFeatures } from '@/lib/api/auth';
 import { addMine, applyLive, emptyReactions, type LiveTap, type ReactedEvent, type ResultReactions, type Tap, TapBatcher, tapsLeft, visibleTaps } from '@/lib/utils/result-taps';
+import { useFeatures } from '@/lib/api/features';
 
 export {
   RESULT_CAP,

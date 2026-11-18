@@ -10,7 +10,6 @@ import { ModerationDialog, type ModTarget } from '@/components/moderation/modera
 import { QueryState } from '@/components/ui/query-state';
 import { Screen } from '@/components/ui/screen';
 import { communityError, type Suggestion, SUGGESTION_MAX, SUGGESTION_MIN, type SuggestionVote, useMySuggestions, useNextSuggestions, useSuggest, useVoteSuggestion, VOTE_KEY } from '@/lib/api/community';
-import { useFeatures } from '@/lib/api/auth';
 import { useT } from '@/lib/i18n';
 import { EASE, motion, SPRING } from '@/lib/motion';
 import { sendOnEnter } from '@/lib/utils/submit';
@@ -20,6 +19,7 @@ import { Card } from '@/components/ui/card';
 import { Display, QuestionText } from '@/components/ui/text';
 import { Toggle } from '@/components/ui/toggle';
 import { BackButton } from '@/components/ui/back-button';
+import { useFeatures } from '@/lib/api/features';
 
 /** "Proposer": write a question for the official deck, vote on others' suggestions, follow mine. */
 export default function SuggestScreen() {

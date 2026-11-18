@@ -2,7 +2,7 @@ import { Trash2 } from 'lucide-react-native';
 import { useState } from 'react';
 import { Pressable, Text } from 'react-native';
 import { needsReauth, ReauthProviders } from '@/components/security/reauth';
-import { auth, authError, type Account } from '@/lib/api/auth';
+import { auth, type Account } from '@/lib/api/auth';
 import { useT } from '@/lib/i18n';
 import { blockedAsMember, useBlockActions, useBlocks } from '@/lib/api/moderation';
 import { useSession } from '@/lib/session';
@@ -13,6 +13,7 @@ import { Field, PasswordField } from '@/components/ui/field';
 import { ErrorText, TextLink } from '@/components/ui/text';
 import { Pill } from '@/components/ui/pill';
 import { Row, Section } from '@/components/ui/section';
+import { authError } from '@/lib/api/errors';
 
 /** People I blocked, each with "Débloquer"; nothing when there is nobody. */
 export function BlockedSection() {

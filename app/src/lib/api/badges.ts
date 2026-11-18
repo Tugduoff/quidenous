@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
-import { useFeatures } from '@/lib/api/auth';
 import type { Who } from '@/lib/utils/mascot';
 import { useGroup, groupKeys } from '@/lib/api/group';
+import { useFeatures } from '@/lib/api/features';
 
 /** 1 bronze, 2 silver, 3 gold (0: not earned yet). */
 export type Tier = 0 | 1 | 2 | 3;

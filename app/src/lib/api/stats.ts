@@ -150,3 +150,6 @@ export const useStats = (period: StatsPeriod, enabled = true) =>
     queryFn: async () => normalizeStats(await api<Partial<Stats> | null>(`/stats?period=${period}&tz=${-new Date().getTimezoneOffset()}`), period),
     placeholderData: keepPreviousData,
   });
+
+export const snapshotStory = (period: StatsPeriod, key: string) =>
+  api<{ token: string; path: string }>('/stats/share', { method: 'POST', json: { period, key, tz: -new Date().getTimezoneOffset() } });

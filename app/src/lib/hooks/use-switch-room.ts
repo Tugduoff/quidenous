@@ -1,12 +1,10 @@
-import { type QueryKey, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { router, useGlobalSearchParams } from 'expo-router';
 import { useEffect, useRef } from 'react';
-import { api, setApiRoom } from '@/lib/api/client';
+import { setApiRoom } from '@/lib/api/client';
 import { clearRoomData } from '@/lib/api/query-client';
 import { useSession } from '@/lib/session';
-import type { RoomSummary } from '@/lib/api/rooms';
-import { roundKeys } from '@/lib/api/rounds';
-import { groupKeys } from '@/lib/api/group';
+import { listRooms, warmRoom } from '@/lib/api/rooms';
 
 /**
  * After leaving or deleting the current room: on to another room I'm in. None left: join or create one (/setup).
@@ -19,7 +17,7 @@ export function useRoomGone() {
     // Requests stop naming the room at once; the room on screen only changes once the next one is known, so the
     // live socket and `/me` aren't asked again for no room right before the "join or create" screen.
     setApiRoom(null);
-    const rooms = await api<{ id: number }[]>('/rooms').catch(() => null);
+    const rooms = await listRooms().catch(() => null);
     // From a page deep in the stack (the room's settings): back to the bottom first.
     if (router.canDismiss()) router.dismissAll();
     if (rooms?.length) {
@@ -35,32 +33,6 @@ export function useRoomGone() {
       router.replace('/rooms');
     }
   };
-}
-
-/** How long a switch waits for the next room's first screen (`warmRoom`) on top of `/me`, before going anyway. */
-const WARM_MS = 500;
-
-/**
- * Fetches what the vote tab shows first in room `id` (the room, its open question, a result I haven't seen) while the
- * switch asks for my seat there, so the tab opens filled in instead of blank. What isn't back in time loads on screen.
- */
-async function warmRoom(id: number) {
-  const got: [QueryKey, unknown][] = [];
-  const get = <T>(key: QueryKey, path: string) =>
-    api<T>(path, { room: id }).then(
-      (data) => {
-        got.push([key, data]);
-        return data;
-      },
-      () => undefined,
-    );
-  const all = Promise.all([
-    get(groupKeys.all, '/group'),
-    get(roundKeys.current, '/round/current'),
-    get<{ id: number } | null>(roundKeys.unseen, '/round/unseen').then((u) => u && get(roundKeys.detail(u.id), `/rounds/${u.id}`)),
-  ]);
-  await Promise.race([all, new Promise((done) => setTimeout(done, WARM_MS))]);
-  return [...got];
 }
 
 /**
@@ -88,7 +60,7 @@ export function useSwitchRoomHere() {
   const qc = useQueryClient();
   const { setRoom } = useSession();
   return async (id: number) => {
-    const rooms = await api<RoomSummary[]>('/rooms').catch(() => null);
+    const rooms = await listRooms().catch(() => null);
     if (rooms && !rooms.some((r) => r.id === id)) return false;
     setApiRoom(id);
     clearRoomData(qc);

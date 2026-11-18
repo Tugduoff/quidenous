@@ -1,18 +1,16 @@
 import { Tabs } from 'expo-router';
 import { ChartNoAxesColumn, History, MessageCircleQuestion, Sun, Vote } from 'lucide-react-native';
-import type { ComponentType } from 'react';
-import { useEffect } from 'react';
+import { type ComponentType, useEffect } from 'react';
 import { Platform, View, type ViewStyle } from 'react-native';
 import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSpring } from 'react-native-reanimated';
-
 import { Celebration } from '@/components/celebration';
 import { TabSwipe } from '@/components/ui/tab-swipe';
 import { type TKey, useT } from '@/lib/i18n';
-import { useMilestone } from '@/lib/utils/milestones';
-import { useStreakMilestone } from '@/lib/api/streaks';
-import { useTodayTab } from '@/lib/api/today';
+import { useTodayTab } from '@/lib/hooks/use-today-tab';
 import { BOUNCE, SPRING, usePop } from '@/lib/motion';
 import { useTheme } from '@/lib/theme';
+import { useStreakMilestone } from '@/lib/hooks/use-streak-milestone';
+import { useMilestone } from '@/lib/hooks/use-milestone';
 
 type Icon = ComponentType<{ size?: number; color?: string }>;
 

@@ -11,7 +11,7 @@ import { Screen } from '@/components/ui/screen';
 import { ApiError, isNotFound } from '@/lib/api/client';
 import { useT } from '@/lib/i18n';
 import { motion, usePop } from '@/lib/motion';
-import { isPackTag, packError, packKeys, type PackDetail, REPORT_REASONS, type ReportReason, TAG_ICONS, useCommunityMe, usePackDetail, installPack, likePack, featurePack, deletePack, reportPack } from '@/lib/api/packs';
+import { isPackTag, packError, packKeys, type PackDetail, REPORT_REASONS, type ReportReason, useCommunityMe, usePackDetail, installPack, likePack, featurePack, deletePack, reportPack } from '@/lib/api/packs';
 import { useSession } from '@/lib/session';
 import { shareText } from '@/lib/device/share';
 import { useTheme } from '@/lib/theme';
@@ -25,6 +25,7 @@ import { useRooms } from '@/lib/api/rooms';
 import { roundKeys } from '@/lib/api/rounds';
 import { questionKeys } from '@/lib/api/questions';
 import { packLink } from '@/lib/links';
+import { TAG_ICONS } from '@/components/packs/tag-icons';
 
 /** One pack: its questions, like, install (into a room I pick when I have several), share, report; edit and delete (author); feature (admin). */
 export default function PackScreen() {

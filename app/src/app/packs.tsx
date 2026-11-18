@@ -9,12 +9,13 @@ import { QueryState } from '@/components/ui/query-state';
 import { Screen } from '@/components/ui/screen';
 import { useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
-import { type CommunityMe, PACK_TAGS, type PackSort, type PackTag, packKeys, TAG_ICONS, useCommunityMe, usePackList, setShowSpicy } from '@/lib/api/packs';
+import { type CommunityMe, PACK_TAGS, type PackSort, type PackTag, packKeys, useCommunityMe, usePackList, setShowSpicy } from '@/lib/api/packs';
 import { useTheme } from '@/lib/theme';
 import { Card } from '@/components/ui/card';
 import { Display } from '@/components/ui/text';
 import { askConfirm } from '@/lib/confirm';
 import { useGroup } from '@/lib/api/group';
+import { TAG_ICONS } from '@/components/packs/tag-icons';
 
 const SORTS: PackSort[] = ['trending', 'new', 'liked', 'featured'];
 

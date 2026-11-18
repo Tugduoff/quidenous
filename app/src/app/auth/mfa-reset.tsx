@@ -2,12 +2,14 @@ import { Redirect, router } from 'expo-router';
 import { useState } from 'react';
 import { AuthScreen } from '@/components/auth/auth-screen';
 import { ApiError } from '@/lib/api/client';
-import { auth, authError, flow } from '@/lib/api/auth';
+import { auth } from '@/lib/api/auth';
 import { dateFormat, useT } from '@/lib/i18n';
 import { Button } from '@/components/ui/button';
 import { CODE_LENGTH, CodeField } from '@/components/ui/field';
 import { ErrorText, TextLink } from '@/components/ui/text';
 import { useCooldown } from '@/lib/hooks/use-cooldown';
+import { flow } from '@/lib/auth-flow';
+import { authError } from '@/lib/api/errors';
 
 /** 2FA lost with no recovery code (from the 2FA step): a code by e-mail, then 2FA is removed 24 h later. */
 export default function MfaResetStep() {

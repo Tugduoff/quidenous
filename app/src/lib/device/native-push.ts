@@ -3,10 +3,10 @@ import { type Href, router } from 'expo-router';
 import { useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
 
-import { api } from '@/lib/api/client';
 import type { PushState } from '@/lib/device/web-push';
 import { useSwitchRoomHere } from '@/lib/hooks/use-switch-room';
 import { useSession } from '@/lib/session';
+import { subscribePush } from '@/lib/api/push';
 
 /** Android: 'denied' once the system won't ask again (only the phone's settings can turn them back on). */
 export async function nativePushState(): Promise<PushState> {
@@ -28,7 +28,7 @@ export async function registerNativePush() {
   const granted = current.granted || (await Notifications.requestPermissionsAsync()).granted;
   if (!granted) return;
   const { data: token } = await Notifications.getDevicePushTokenAsync();
-  await api('/push/subscribe', { method: 'POST', json: { kind: 'fcm', token } });
+  await subscribePush({ kind: 'fcm', token });
 }
 
 /** Android: the app was opened (or brought back) by a tap on a notification not handled yet: it opens that screen. */

@@ -8,13 +8,16 @@ import { QueryState } from '@/components/ui/query-state';
 import { LegacyJoin } from '@/components/rooms/legacy-join';
 import { MascotBand } from '@/components/mascot/band';
 import { Screen } from '@/components/ui/screen';
-import { authError, isLinked, isReauth, pendingJoinCode, PROVIDER_NAMES, setPendingCode, useFeatures, type Provider } from '@/lib/api/auth';
+import { isLinked, isReauth, PROVIDER_NAMES, type Provider } from '@/lib/api/auth';
 import { useT } from '@/lib/i18n';
 import { oauth, useFinishSignIn } from '@/lib/sign-in';
 import { useTheme } from '@/lib/theme';
 import { Button } from '@/components/ui/button';
 import { Logo, ErrorText } from '@/components/ui/text';
 import { SoftButton } from '@/components/ui/soft-button';
+import { pendingJoinCode, setPendingCode } from '@/lib/auth-flow';
+import { authError } from '@/lib/api/errors';
+import { useFeatures } from '@/lib/api/features';
 
 /** The entry screen. An invite link (`?code=`) is kept for after signing in. An older server keeps the old join screen. */
 export default function Entry() {

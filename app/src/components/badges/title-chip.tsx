@@ -3,12 +3,12 @@ import { ChevronRight, Lock, Medal } from 'lucide-react-native';
 import { memo, useId } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import Svg, { Circle, Defs, RadialGradient, Stop } from 'react-native-svg';
-import { useFeatures } from '@/lib/api/auth';
 import { type TitleChip as Chip, type Tier, useBadges, useMemberTitle, useMyTitle } from '@/lib/api/badges';
 import { type t as translate, useT } from '@/lib/i18n';
 import { useScheme, useTheme } from '@/lib/theme';
 import { iconFor } from '@/components/stats/common';
 import { Card } from '@/components/ui/card';
+import { useFeatures } from '@/lib/api/features';
 
 /**
  * The three metals: `fill` the disc, `light` its shine, `rim` its edge, `ink` the tier's name as text (darker on the light

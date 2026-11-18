@@ -2,11 +2,10 @@
 // The rules themselves are in lib/intro.ts.
 import type { QueryClient } from '@tanstack/react-query';
 import { Platform } from 'react-native';
-
 import { api } from '@/lib/api/client';
-import { featuresQuery } from '@/lib/api/auth';
 import { INTRO_KEY, introAnswer, introPlan, introPreview, type IntroMark, readMark } from '@/lib/utils/intro';
 import { storage } from '@/lib/device/storage';
+import { featuresQuery } from '@/lib/api/features';
 
 /** `?intro=1` on the web (read at load: the router drops the query). */
 export const INTRO_PREVIEW = Platform.OS === 'web' && typeof location !== 'undefined' && introPreview(location.search);

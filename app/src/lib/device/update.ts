@@ -4,8 +4,8 @@ import { Directory, File, Paths } from 'expo-file-system';
 import * as IntentLauncher from 'expo-intent-launcher';
 import { useEffect, useSyncExternalStore } from 'react';
 import { AppState, Platform } from 'react-native';
-
 import { storage } from '@/lib/device/storage';
+import { latestRelease, type Release } from '@/lib/api/releases';
 
 /**
  * In-app updates for the APK installed by hand (GitHub Releases). Only in builds made with
@@ -21,17 +21,12 @@ const PREVIEW =
 
 /** Updates can be offered here (or mocked for a screenshot). */
 export const UPDATES = SIDELOAD || PREVIEW != null;
-
-const LATEST = 'https://api.github.com/repos/Tugduoff/quidenous/releases/latest';
 const CHECKED_KEY = 'qdn.update.checked';
 const LATER_KEY = 'qdn.update.later';
 const EVERY = 6 * 3600_000;
 const LATER_FOR = 24 * 3600_000;
 const APK_TYPE = 'application/vnd.android.package-archive';
 const FLAG_GRANT_READ_URI_PERMISSION = 1;
-
-/** `sha256`: the APK's SHA-256 (hex) that GitHub computed when the asset was uploaded. */
-export type Release = { version: string; notes: string; url: string; size: number; sha256: string };
 type Status = 'idle' | 'checking' | 'latest' | 'failed' | 'download' | 'blocked' | 'error';
 type State = { release: Release | null; open: boolean; status: Status; progress: number };
 
@@ -89,23 +84,6 @@ export function useUpdate() {
   );
 }
 
-async function latest(): Promise<Release | null> {
-  const res = await fetch(LATEST, { headers: { Accept: 'application/vnd.github+json' } });
-  if (!res.ok) throw new Error(`GitHub ${res.status}`);
-  const body = (await res.json()) as {
-    tag_name: string;
-    body?: string | null;
-    draft?: boolean;
-    prerelease?: boolean;
-    assets: { name: string; size: number; browser_download_url: string; digest?: string | null }[];
-  };
-  const apk = body.assets.find((a) => a.name.endsWith('.apk'));
-  // No checksum to verify the download against: not offered.
-  const sha256 = /^sha256:([0-9a-f]{64})$/i.exec(apk?.digest ?? '')?.[1]?.toLowerCase();
-  if (!apk || !sha256 || body.draft || body.prerelease) return null;
-  return { version: body.tag_name.replace(/^v/, ''), notes: body.body ?? '', url: apk.browser_download_url, size: apk.size, sha256 };
-}
-
 /**
  * Looks for a newer release. Automatic checks run at most every 6 h and respect "Plus tard"
  * (asked again for the next version, or after 24 h); a manual check always shows what it finds.
@@ -120,7 +98,7 @@ export async function checkForUpdate(manual = false) {
   if (!manual && now - Number((await storage.get(CHECKED_KEY)) ?? 0) < EVERY) return;
   if (manual) set({ status: 'checking' });
   try {
-    const release = await latest();
+    const release = await latestRelease();
     await storage.set(CHECKED_KEY, String(now));
     if (!release || !isNewer(release.version, appVersion())) {
       set({ release: null, open: false, status: manual ? 'latest' : 'idle' });

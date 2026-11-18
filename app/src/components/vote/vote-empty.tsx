@@ -7,9 +7,7 @@ import Animated from 'react-native-reanimated';
 import { AddFriends, InviteCard } from '@/components/rooms/invite';
 import { Mascot } from '@/components/mascot/mascot';
 import { ApiError } from '@/lib/api/client';
-import { useFeatures } from '@/lib/api/auth';
 import { useT } from '@/lib/i18n';
-import { handOffDraft, pickQuestionFile } from '@/lib/utils/import-draft';
 import { motion } from '@/lib/motion';
 import { useTheme } from '@/lib/theme';
 import { PressableScale } from '@/components/ui/pressable-scale';
@@ -18,6 +16,8 @@ import { Card } from '@/components/ui/card';
 import { Display } from '@/components/ui/text';
 import { useGroup, groupKeys } from '@/lib/api/group';
 import { askForQuestions } from '@/lib/api/questions';
+import { useFeatures } from '@/lib/api/features';
+import { pickQuestionFile, handOffDraft } from '@/lib/device/files';
 
 /** Alone in the room: nothing to vote on until someone joins, so the whole tab is the invite. */
 export function SoloInvite() {

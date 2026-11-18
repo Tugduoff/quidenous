@@ -1,13 +1,16 @@
 import { Linking, Platform, Share } from 'react-native';
 import { showToast } from '@/lib/toast';
-import { api, appUrl } from '@/lib/api/client';
-import { featuresQuery } from '@/lib/api/auth';
+import { appUrl, readUriBlob } from '@/lib/api/client';
 import { getLang, t } from '@/lib/i18n';
 import { queryClient } from '@/lib/api/query-client';
 import { storage } from '@/lib/device/storage';
 import { askConfirm } from '@/lib/confirm';
 import { historyExportUrl } from '@/lib/api/history';
 import type { StatsPeriod, Story } from '@/lib/api/stats';
+import { featuresQuery } from '@/lib/api/features';
+import { shareKeys } from '@/lib/api/share';
+import { snapshotStory } from '@/lib/api/stats';
+import { getPackTemplate } from '@/lib/api/packs';
 
 /** The first public link on this device asks first: anyone with it sees the card and the room's name. */
 const PUBLIC_OK = 'qdn.publicShareOk';
@@ -16,33 +19,6 @@ export async function confirmPublic(): Promise<boolean> {
   const ok = await askConfirm(t('share.public.title'), t('share.public.message'), t('share.public.action'), 'acc');
   if (ok) storage.set(PUBLIC_OK, '1').catch(() => {});
   return ok;
-}
-
-/** One of my public links (`GET /shares`): a question (with its result or not) or a stats story. */
-export type MyLink = {
-  token: string;
-  path: string;
-  kind: 'question' | 'stat';
-  title: string;
-  room: string;
-  with_result: boolean;
-  created_at: string;
-  /** Null for links made before links expired. */
-  expires_at: string | null;
-};
-export const myLinksKey = ['shares'] as const;
-export const myLinks = () => api<MyLink[]>('/shares');
-export const revokeLink = (token: string) => api(`/shares/${token}`, { method: 'DELETE' });
-
-/** Public link to a card of this question (with its podium when `result`), previewed as an image in chats. */
-export async function publicLink(roundId: number, result: boolean): Promise<string | null> {
-  try {
-    const r = await api<{ path: string }>(`/rounds/${roundId}/share`, { method: 'POST', json: { result } });
-    queryClient.invalidateQueries({ queryKey: myLinksKey });
-    return `${appUrl()}${r.path}`;
-  } catch {
-    return null;
-  }
 }
 
 /** Native share sheet; on the web, the browser's share or the clipboard. Returns 'copied' when it fell back to the clipboard. */
@@ -69,7 +45,7 @@ export async function shareText(message: string): Promise<'shared' | 'copied' | 
  */
 export async function shareStory(period: StatsPeriod, story: Story): Promise<'shared' | 'copied' | 'failed'> {
   return shareCard(
-    () => api<{ token: string; path: string }>('/stats/share', { method: 'POST', json: { period, key: story.key, tz: -new Date().getTimezoneOffset() } }),
+    () => snapshotStory(period, story.key),
     t('share.story', { title: story.title, line: story.line }),
   );
 }
@@ -84,11 +60,11 @@ export async function shareCard(snapshot: () => Promise<{ path: string }>, text:
   try {
     const r = await snapshot();
     link = `${appUrl()}${r.path}`;
-    queryClient.invalidateQueries({ queryKey: myLinksKey });
+    queryClient.invalidateQueries({ queryKey: shareKeys.mine });
   } catch {}
   if (link && Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.canShare && typeof File !== 'undefined') {
     try {
-      const blob = await (await fetch(`${link}/card.png`)).blob();
+      const blob = await readUriBlob(`${link}/card.png`);
       const file = new File([blob], 'qui-de-nous.png', { type: 'image/png' });
       if (navigator.canShare({ files: [file] })) {
         await navigator.share({ files: [file], text: `${text}\n${link}` });
@@ -127,9 +103,7 @@ export async function downloadHistory() {
 export async function downloadPackTemplate() {
   const url = `${appUrl()}${getLang() === 'en' ? '/en' : ''}/pack-template.md`;
   try {
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const text = await res.text();
+    const text = await getPackTemplate(url);
     if (Platform.OS === 'web' && typeof document !== 'undefined') {
       const href = URL.createObjectURL(new Blob([text], { type: 'text/markdown' }));
       const a = document.createElement('a');

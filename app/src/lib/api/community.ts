@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-
 import { api, ApiError, API_URL, appUrl } from '@/lib/api/client';
-import { authError, useFeatures } from '@/lib/api/auth';
 import { getLang, t, type TKey } from '@/lib/i18n';
+import { authError } from '@/lib/api/errors';
+import { useFeatures } from '@/lib/api/features';
+import { shareRound } from '@/lib/api/share';
 
 /** Suggestions to the official deck, share → play and challenges (docs/COMMUNITY.md). */
 
@@ -137,7 +138,7 @@ export const challengeRoom = (roundId: number, roomId: number) =>
 
 /** A public link to this question (no podium) whose page leads to /play. */
 export async function questionShareLink(roundId: number): Promise<string> {
-  const r = await api<{ token?: string; path: string }>(`/rounds/${roundId}/share`, { method: 'POST', json: { result: false } });
+  const r = await shareRound(roundId, false);
   const base = appUrl();
   return `${base}${r.token ? `/s/${r.token}` : r.path}`;
 }

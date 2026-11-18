@@ -8,7 +8,6 @@ import { QueryState } from '@/components/ui/query-state';
 import { Screen } from '@/components/ui/screen';
 import { type BatchAction, confirmBatch, eachOf, SelectableRow, SelectButton, SelectionBar, SelectionHeader, useSelection } from '@/components/ui/selection';
 import { showToast } from '@/lib/toast';
-import { useFeatures } from '@/lib/api/auth';
 import { useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
 import { packKeys, type PackItem, useMyPacks, deletePacks, installPack } from '@/lib/api/packs';
@@ -18,6 +17,7 @@ import { Display } from '@/components/ui/text';
 import { useGroup } from '@/lib/api/group';
 import { roundKeys } from '@/lib/api/rounds';
 import { questionKeys } from '@/lib/api/questions';
+import { useFeatures } from '@/lib/api/features';
 
 /** Whether a pack of mine can go into a room: public, or still in review (as on its page). */
 const installable = (p: PackItem) => p.status === 'public' || p.status === 'review';

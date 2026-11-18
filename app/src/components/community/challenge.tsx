@@ -3,11 +3,10 @@ import { Check, ChevronRight, Hourglass, Link2, Swords } from 'lucide-react-nati
 import { useState } from 'react';
 import { ActivityIndicator, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
-import { useFeatures } from '@/lib/api/auth';
 import { challengeRoom, communityError, communityKeys, type PodiumEntry, questionShareLink, useChallenges } from '@/lib/api/community';
 import { useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
-import { confirmPublic, myLinksKey, shareText } from '@/lib/device/share';
+import { confirmPublic, shareText } from '@/lib/device/share';
 import { useTheme } from '@/lib/theme';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Avatar } from '@/components/ui/avatar';
@@ -16,6 +15,8 @@ import { Dialog, DialogTitle } from '@/components/ui/dialog';
 import type { Round } from '@/lib/api/rounds';
 import { useGroup } from '@/lib/api/group';
 import { useRooms } from '@/lib/api/rooms';
+import { useFeatures } from '@/lib/api/features';
+import { shareKeys } from '@/lib/api/share';
 
 /** "Défier un autre salon" on a closed result: send it to another of my rooms, or share a link to play it. */
 export function ChallengeButton({ round }: { round: Round }) {
@@ -67,7 +68,7 @@ function ChallengeDialog({ round, onDone }: { round: Round; onDone: () => void }
     mutationFn: async () => {
       if (!(await confirmPublic())) return 'failed' as const;
       const url = await questionShareLink(round.id);
-      qc.invalidateQueries({ queryKey: myLinksKey });
+      qc.invalidateQueries({ queryKey: shareKeys.mine });
       return shareText(tr('community.challenge.share', { question: round.question, link: url }));
     },
     onMutate: () => setError(null),

@@ -6,7 +6,6 @@ import { RoomInvites } from '@/components/rooms/invite';
 import { RoomForms } from '@/components/rooms/room-forms';
 import { QueryState } from '@/components/ui/query-state';
 import { Screen } from '@/components/ui/screen';
-import { pendingJoinCode, setPendingCode, useFeatures } from '@/lib/api/auth';
 import { useT } from '@/lib/i18n';
 import { useSwitchRoom } from '@/lib/hooks/use-switch-room';
 import { useSession } from '@/lib/session';
@@ -16,6 +15,8 @@ import { Card } from '@/components/ui/card';
 import { Display } from '@/components/ui/text';
 import { BackButton } from '@/components/ui/back-button';
 import { type RoomSummary, useRooms } from '@/lib/api/rooms';
+import { pendingJoinCode, setPendingCode } from '@/lib/auth-flow';
+import { useFeatures } from '@/lib/api/features';
 
 /** All my rooms, to switch between them, plus create one or join one with a code. */
 export default function RoomsScreen() {

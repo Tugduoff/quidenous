@@ -7,7 +7,6 @@ import { InvitePreview } from '@/components/rooms/invite-preview';
 import { ScanButton } from '@/components/ui/qr-scanner';
 import { VibeCards } from '@/components/rooms/vibes';
 import { ApiError } from '@/lib/api/client';
-import { authError, useFeatures } from '@/lib/api/auth';
 import { getLang, type Lang, type TKey, useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
 import { useTheme } from '@/lib/theme';
@@ -17,6 +16,8 @@ import { Display } from '@/components/ui/text';
 import { Segmented } from '@/components/ui/segmented';
 import { useVibes } from '@/lib/api/group';
 import { createRoom, joinRoom } from '@/lib/api/rooms';
+import { authError } from '@/lib/api/errors';
+import { useFeatures } from '@/lib/api/features';
 
 const ERRORS: Record<string, TKey> = {
   bad_code: 'room.errors.badCode',

@@ -5,7 +5,6 @@ import { memo, useCallback, useRef, useState } from 'react';
 import { Platform, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Animated, { Easing, FadeIn, makeMutable, ReduceMotion, type SharedValue, useAnimatedStyle, useReducedMotion, withDelay, withTiming } from 'react-native-reanimated';
 import { scheduleOnUI } from 'react-native-worklets';
-import { useFeatures } from '@/lib/api/auth';
 import { formatNumber, useT } from '@/lib/i18n';
 import { useBlocks } from '@/lib/api/moderation';
 import { usePop } from '@/lib/motion';
@@ -16,6 +15,7 @@ import { PressableScale } from '@/components/ui/pressable-scale';
 import { Avatar } from '@/components/ui/avatar';
 import { Dialog } from '@/components/ui/dialog';
 import type { Member } from '@/lib/api/group';
+import { useFeatures } from '@/lib/api/features';
 
 // The burst pool: a fixed set of slots, each a little window onto a strip of the 8 emojis. A burst only writes shared
 // values (which emoji, where, how it drifts, then its progress 0 → 1) and the UI thread does the rest: no React render,

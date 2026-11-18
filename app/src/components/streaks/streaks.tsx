@@ -4,13 +4,14 @@ import Animated from 'react-native-reanimated';
 import { useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
 import { useSession } from '@/lib/session';
-import { HOT_FROM, SHOWN_FROM, useMemberStreak, useStreaks } from '@/lib/api/streaks';
+import { useMemberStreak, useStreaks } from '@/lib/api/streaks';
 import { useTheme } from '@/lib/theme';
 import { Caps, int, Section } from '@/components/stats/common';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Avatar, AvatarStack } from '@/components/ui/avatar';
 import type { Member } from '@/lib/api/group';
 import type { Stats } from '@/lib/api/stats';
+import { HOT_FROM, SHOWN_FROM } from '@/lib/utils/streaks';
 
 /** A flame and a number: muted, in the accent colour from a week. */
 function FlameCount({ n, size = 13, label }: { n: number; size?: number; label: string }) {

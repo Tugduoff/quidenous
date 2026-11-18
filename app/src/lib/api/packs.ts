@@ -1,21 +1,11 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { Beer, BookOpen, Briefcase, Flame, House, type LucideIcon, PartyPopper, Sparkles } from 'lucide-react-native';
-import { api, isNotFound } from '@/lib/api/client';
+import { api, isNotFound, fetchExternal } from '@/lib/api/client';
 import type { TKey } from '@/lib/i18n';
 import type { Member } from '@/lib/api/group';
 
 /** Pack categories (docs/COMMUNITY.md "Categories"): fixed ids, the app names and draws them. `pimente` means 16+. */
 export const PACK_TAGS = ['potes', 'pimente', 'boulot', 'famille', 'soiree', 'culture', 'absurde'] as const;
 export type PackTag = (typeof PACK_TAGS)[number];
-export const TAG_ICONS: Record<PackTag, LucideIcon> = {
-  potes: Beer,
-  pimente: Flame,
-  boulot: Briefcase,
-  famille: House,
-  soiree: PartyPopper,
-  culture: BookOpen,
-  absurde: Sparkles,
-};
 export const isPackTag = (id: string): id is PackTag => (PACK_TAGS as readonly string[]).includes(id);
 export const MAX_TAGS = 3;
 
@@ -180,3 +170,9 @@ export const rejectSuggestion = (id: number) => adminPost(`/suggestions/${id}/re
 
 export const closeReport = (report: Pick<ReviewReport, 'kind' | 'id'>, action: ReportAction) =>
   adminPost('/reports', { kind: report.kind, id: report.id, action });
+
+export async function getPackTemplate(url: string): Promise<string> {
+  const res = await fetchExternal(url);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.text();
+}

@@ -11,7 +11,6 @@ import { Screen } from '@/components/ui/screen';
 import { StreakBadge } from '@/components/streaks/streaks';
 import { MemberTitle } from '@/components/badges/title-chip';
 import { showToast } from '@/lib/toast';
-import { authError, useFeatures } from '@/lib/api/auth';
 import { useT } from '@/lib/i18n';
 import { usePop } from '@/lib/motion';
 import { useRoomGone } from '@/lib/hooks/use-switch-room';
@@ -24,6 +23,8 @@ import { Display } from '@/components/ui/text';
 import { askConfirm } from '@/lib/confirm';
 import { type RoomSummary, useRooms, roomKeys, setRoomMuted } from '@/lib/api/rooms';
 import { useGroup, groupKeys, removeMember, voteKick, leaveRoom } from '@/lib/api/group';
+import { authError } from '@/lib/api/errors';
+import { useFeatures } from '@/lib/api/features';
 
 /** Ask before leaving, in the app's own dialog. */
 const confirm = (message: string, title: string, action: string) => askConfirm(title, message, action);

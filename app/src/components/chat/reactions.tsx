@@ -3,12 +3,13 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withSequence, withSpring, withTiming } from 'react-native-reanimated';
 import { useT } from '@/lib/i18n';
 import { BOUNCE, EASE, usePop } from '@/lib/motion';
-import { CHAT_REACTIONS, HEART, type Reaction } from '@/lib/api/chat';
+import type { Reaction } from '@/lib/api/chat';
 import { useTheme } from '@/lib/theme';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Avatar } from '@/components/ui/avatar';
 import { Dialog } from '@/components/ui/dialog';
 import { useMembers } from '@/lib/api/group';
+import { CHAT_REACTIONS, HEART } from '@/lib/utils/chat';
 
 /** The six reactions, on top of a message's long-press menu; mine are highlighted. */
 export function ReactionBar({ reactions, onPick }: { reactions?: Reaction[]; onPick: (emoji: string) => void }) {
