@@ -1,263 +1,34 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { EyeOff, Send, Users } from 'lucide-react-native';
+import { Send } from 'lucide-react-native';
 import { type ComponentRef, useRef, useState } from 'react';
-import { Platform, Pressable, ScrollView, Text, TextInput, type TextInputProps, type TextStyle, View, type ViewStyle } from 'react-native';
-import Animated from 'react-native-reanimated';
-import { AttachButton, MediaViewer, MessageMediaFrame, PendingBubble } from '@/components/chat/media';
-import { HeartBurst, ReactionBar, ReactionChips, WhoReacted } from '@/components/chat/reactions';
+import { Platform, Text, TextInput, type TextInputProps, View } from 'react-native';
+import { AttachButton } from '@/components/chat/attach-button';
+import { Bubble } from '@/components/chat/bubble';
+import { PendingBubble } from '@/components/chat/media';
+import { MediaViewer } from '@/components/chat/media-viewer';
+import { MentionList, type Suggestion } from '@/components/chat/mention-list';
+import { ReactionBar, WhoReacted } from '@/components/chat/reactions';
 import { ModerationDialog, type ModTarget } from '@/components/moderation/moderation';
 import { ProfileSheet } from '@/components/stats/profile-sheet';
-import { newClientKey, usePending } from '@/lib/chat-outbox';
-import { dateFormat, useT } from '@/lib/i18n';
-import { activeMention, everyone, matches, outgoing, segments } from '@/lib/utils/mentions';
-import { useBlocks } from '@/lib/api/moderation';
-import { motion, useArrivals } from '@/lib/motion';
-import { useReact, type Message, useMessages, chatKeys, deleteMessage, restoreMessage, postMessage, type NewMessage } from '@/lib/api/chat';
-import { isSendKey, SEND_KEY } from '@/components/ui/send-on-enter';
-import { useSession } from '@/lib/session';
-import { useTheme } from '@/lib/theme';
-import { PressableScale } from '@/components/ui/pressable-scale';
-import { Avatar } from '@/components/ui/avatar';
 import { Card } from '@/components/ui/card';
 import { DialogTitle } from '@/components/ui/dialog';
-import { type Member, useGroup, useMembers } from '@/lib/api/group';
-import { useStats } from '@/lib/api/stats';
-import { mediaOf, HEART } from '@/lib/utils/chat';
+import { PressableScale } from '@/components/ui/pressable-scale';
+import { isSendKey, SEND_KEY } from '@/components/ui/send-on-enter';
+import { chatKeys, deleteMessage, type Message, type NewMessage, postMessage, restoreMessage, useMessages, useReact } from '@/lib/api/chat';
 import { useFeatures } from '@/lib/api/features';
-import { impactHaptic } from '@/lib/device/haptics';
-import { useUnmountEffect } from '@/lib/hooks/use-mount-effect';
+import { useGroup, useMembers } from '@/lib/api/group';
+import { useBlocks } from '@/lib/api/moderation';
+import { useStats } from '@/lib/api/stats';
+import { newClientKey, usePending } from '@/lib/chat-outbox';
 import { useAutoGrowTextArea } from '@/lib/hooks/use-auto-grow';
+import { useT } from '@/lib/i18n';
+import { useArrivals } from '@/lib/motion';
+import { useSession } from '@/lib/session';
+import { useTheme } from '@/lib/theme';
+import { insertMention } from '@/lib/utils/chat';
+import { activeMention, everyone, matches, outgoing } from '@/lib/utils/mentions';
 
 const MAX = 500;
-/** One suggestion row; the list shows about five and a half, so a longer one visibly scrolls. */
-const ROW = 40;
-
-/** `#rrggbb` → the same colour, faint (a mention's background). */
-const soft = (color: string) => (/^#[0-9a-f]{6}$/i.test(color) ? `${color}33` : 'rgba(127,127,127,0.18)');
-/** Two taps closer than this on a message: ❤️. */
-const DOUBLE_TAP_MS = 280;
-
-/** Web: a double tap (❤️) doesn't select a word, a long press doesn't open the iOS text callout over the menu. */
-const NO_SELECT = Platform.OS === 'web' ? ({ userSelect: 'none', WebkitTouchCallout: 'none' } as unknown as ViewStyle) : null;
-
-const haptic = () => {
-  impactHaptic();
-};
-
-/** One message. A component of its own, so a new message does not redraw the others. */
-function Bubble({
-  m,
-  author,
-  userId,
-  fresh,
-  onReport,
-  onProfile,
-  onDelete,
-  onRestore,
-  onReact,
-  onWho,
-  onOpen,
-}: {
-  m: Message;
-  author?: Member;
-  userId?: number | null;
-  fresh: boolean;
-  onReport: (target: ModTarget) => void;
-  onProfile: (id: number) => void;
-  /** I may delete it (mine, or I own the room): offered on long-press. */
-  onDelete?: () => Promise<unknown>;
-  /** Hidden by reports, in a room I own: I may bring it back (long-press). */
-  onRestore?: () => Promise<unknown>;
-  /** The server has reactions: toggles mine (true: added). The long-press menu then opens on every message, mine too. */
-  onReact?: (emoji: string) => boolean;
-  onWho: (emoji: string) => void;
-  /** A photo or GIF was tapped: full screen. */
-  onOpen: (m: Message) => void;
-}) {
-  const t = useTheme();
-  const tr = useT();
-  const { me } = useSession();
-  const { byId } = useMembers();
-  const mine = m.member_id === me?.id;
-  const mentionStyle = (mine: boolean, color: string): TextStyle =>
-    // On my own bubble (my colour behind): dark text on a darker wash, like the rest of the bubble.
-    mine
-      ? { fontFamily: t.font.bold, color: '#121216', backgroundColor: 'rgba(0,0,0,0.12)', borderRadius: 5, paddingHorizontal: 3 }
-      : { fontFamily: t.font.bold, color, backgroundColor: soft(color), borderRadius: 5, paddingHorizontal: 3 };
-  const target = (): ModTarget =>
-    mine
-      ? { kind: 'message', id: m.id, own: true, onDelete, onRestore }
-      : {
-          kind: 'message',
-          id: m.id,
-          person:
-            author && userId != null
-              ? { user_id: userId, name: author.name, color: author.color, photo: author.photo_url, avatar: author.avatar }
-              : undefined,
-          onDelete,
-          onRestore,
-        };
-  const bubble = useRef<ComponentRef<typeof View>>(null);
-  // Double tap: the time of the last tap, and of the last tap on a mention (that one opens a profile, nothing else).
-  const lastTap = useRef(0);
-  const mentionTap = useRef(0);
-  const [burst, setBurst] = useState(0);
-  // A photo or a GIF (null: a text, or a kind from a newer server, shown as its text).
-  const media = mediaOf(m);
-  // A tap on a photo opens it, once it's clear it isn't the first of a double tap (❤️).
-  const opening = useRef<ReturnType<typeof setTimeout>>(undefined);
-  useUnmountEffect(() => clearTimeout(opening.current));
-  const heart = () => {
-    if (onReact?.(HEART)) setBurst((b) => b + 1);
-  };
-  const onPress =
-    onReact || media
-      ? () => {
-          const now = Date.now();
-          if (now - mentionTap.current < 300) return;
-          if (onReact && now - lastTap.current < DOUBLE_TAP_MS) {
-            lastTap.current = 0;
-            clearTimeout(opening.current);
-            heart();
-            return;
-          }
-          lastTap.current = now;
-          if (!media) return;
-          if (onReact) opening.current = setTimeout(() => onOpen(m), DOUBLE_TAP_MS);
-          else onOpen(m);
-        }
-      : undefined;
-  // With reactions: a menu floating by the message (reactions on top, then delete / report / block).
-  const menu = () => {
-    lastTap.current = 0;
-    haptic();
-    const at = target();
-    if (!bubble.current) return onReport(at);
-    bubble.current.measureInWindow((_x, y, _w, height) =>
-      onReport(Number.isFinite(y) && height > 0 ? { ...at, anchor: { y, height, side: mine ? 'right' : 'left' } } : at),
-    );
-  };
-  const onLongPress = onReact || onRestore ? menu : mine ? onDelete && (() => onReport(target())) : () => onReport(target());
-  const hint = onReact
-    ? tr(mine ? (onDelete ? 'chat.reactions.ownHint' : 'chat.reactions.ownOnlyHint') : 'chat.reactions.hint')
-    : mine
-      ? onDelete
-        ? tr('chat.longPressOwnHint')
-        : undefined
-      : tr('chat.longPressHint');
-  const reactions = m.reactions?.filter((r) => r.count > 0) ?? [];
-  const ink = mine ? '#121216' : t.txt;
-  // The text, or a photo's caption, with its mentions.
-  const rich = (text: string) => (
-    <Text style={{ fontFamily: t.font.regular, fontSize: 15, lineHeight: 20, color: ink, paddingHorizontal: media ? 10 : 0 }}>
-      {segments(
-        text,
-        (m.mentions ?? []).map((id) => byId.get(id)).filter((x): x is Member => !!x),
-        !!m.everyone,
-      ).map(({ member, ...p }, i) =>
-        member ? (
-          <Text
-            key={i}
-            accessibilityRole="link"
-            accessibilityHint={tr('chat.seeProfile')}
-            onPress={() => {
-              mentionTap.current = Date.now();
-              onProfile(member.id);
-            }}
-            onLongPress={onLongPress}
-            style={mentionStyle(mine, member.color)}>
-            {p.text}
-          </Text>
-        ) : p.everyone ? (
-          <Text key={i} style={mine ? mentionStyle(true, '') : { ...mentionStyle(false, t.accInk), backgroundColor: t.accSoft }}>
-            {p.text}
-          </Text>
-        ) : (
-          p.text
-        ),
-      )}
-    </Text>
-  );
-  const mediaLabel = media ? tr(m.kind === 'gif' ? 'chat.media.gifBy' : 'chat.media.photoBy', { name: (mine ? me?.name : author?.name) ?? '?' }) : '';
-  return (
-    <Animated.View key={m.id} entering={fresh ? motion.rise : undefined} style={{ gap: 4 }}>
-      <View style={{ flexDirection: mine ? 'row-reverse' : 'row', gap: 8, alignItems: 'flex-end', opacity: m.hidden ? 0.45 : 1 }}>
-        {!mine && <Avatar member={author} size={28} />}
-        <Pressable
-          ref={bubble}
-          onPress={onPress}
-          onLongPress={onLongPress}
-          delayLongPress={400}
-          accessibilityLabel={media ? (m.caption ? `${mediaLabel}, ${m.caption}` : mediaLabel) : undefined}
-          accessibilityHint={media ? [tr('chat.media.open'), hint].filter(Boolean).join('. ') : hint}
-          accessibilityActions={onReact ? [{ name: 'heart', label: tr('chat.reactions.react', { emoji: HEART }) }] : undefined}
-          onAccessibilityAction={onReact ? (e) => e.nativeEvent.actionName === 'heart' && heart() : undefined}
-          style={[
-            NO_SELECT,
-            {
-              maxWidth: '78%',
-              // A photo: a thin frame of the bubble around it, the name and caption inset like a text.
-              paddingHorizontal: media ? 4 : 14,
-              paddingTop: media ? 4 : 9,
-              paddingBottom: media ? (m.caption ? 7 : 4) : 9,
-              borderRadius: 18,
-              borderBottomLeftRadius: mine ? 18 : 6,
-              borderBottomRightRadius: mine ? 6 : 18,
-              // My own bubbles in my colour: lime is for actions (Suivante, Envoyer).
-              backgroundColor: mine ? (me?.color ?? t.card2) : t.card,
-              gap: 2,
-            },
-          ]}>
-          {!mine && (
-            <Text
-              numberOfLines={1}
-              style={{
-                fontFamily: t.font.bold,
-                fontSize: 12,
-                color: author?.color ?? t.mut,
-                paddingHorizontal: media ? 10 : 0,
-                paddingTop: media ? 3 : 0,
-                paddingBottom: media ? 2 : 0,
-              }}>
-              {author?.name ?? '?'}
-            </Text>
-          )}
-          {media ? (
-            <>
-              <MessageMediaFrame m={m} media={media} label={mediaLabel} />
-              {!!m.caption && rich(m.caption)}
-            </>
-          ) : (
-            rich(m.text)
-          )}
-          {/* A photo without a caption has its time on it. */}
-          {(!media || !!m.caption) && (
-            <Text
-              style={{
-                fontFamily: t.font.regular,
-                fontSize: 10,
-                color: mine ? '#121216' : t.mut,
-                opacity: 0.7,
-                alignSelf: 'flex-end',
-                paddingHorizontal: media ? 10 : 0,
-              }}>
-              {dateFormat({ hour: '2-digit', minute: '2-digit' }).format(new Date(m.created_at))}
-            </Text>
-          )}
-          {!!onReact && <HeartBurst trigger={burst} />}
-        </Pressable>
-      </View>
-      {reactions.length > 0 && <ReactionChips reactions={reactions} mine={mine} onToggle={onReact && ((e) => void onReact(e))} onWho={onWho} />}
-      {/* Hidden by reports: only I (the owner) see it, faded, until I restore or delete it. */}
-      {!!m.hidden && (
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: mine ? 'flex-end' : 'flex-start', marginLeft: mine ? 0 : 36 }}>
-          <EyeOff size={13} color={t.mut} />
-          <Text style={{ fontFamily: t.font.semibold, fontSize: 12, color: t.mut }}>{tr('chat.hidden')}</Text>
-        </View>
-      )}
-    </Animated.View>
-  );
-}
 
 /** The conversation under a result, oldest first. Part of the page's own scroll (no box of its own: one scroll at a time). */
 export function ChatMessages({ roundId }: { roundId: number }) {
@@ -364,8 +135,6 @@ export function ChatMessages({ roundId }: { roundId: number }) {
   );
 }
 
-type Suggestion = { key: string; insert: string; member?: Member };
-
 /**
  * The message box, meant for the screen footer (always reachable, above Suivante, rises with the keyboard).
  * Typing `@` offers the people of the room (and `@tous`) right above the field.
@@ -410,11 +179,7 @@ export function ChatInput({ roundId, onFocus, onSent }: { roundId: number; onFoc
 
   const pick = (row: Suggestion) => {
     if (!typing) return;
-    // "@lo|u" → "@Louis |": the whole word typed so far is replaced, one space after (not two).
-    const after = text.slice(typing.at + 1 + typing.query.length).replace(/^\S*/, '');
-    const head = `${text.slice(0, typing.at)}${row.insert} `;
-    const next = (head + after.replace(/^ /, '')).slice(0, MAX);
-    const pos = Math.min(head.length, next.length);
+    const { next, pos } = insertMention(text, typing, row.insert, MAX);
     setText(next);
     setSel({ start: pos, end: pos });
     const picked = row.member?.id;
@@ -480,42 +245,7 @@ export function ChatInput({ roundId, onFocus, onSent }: { roundId: number; onFoc
 
   return (
     <Card style={{ padding: 6, gap: 4 }}>
-      {open && (
-        <Animated.View entering={motion.rise} style={{ borderBottomWidth: 1, borderColor: t.card2, paddingBottom: 4 }}>
-          <ScrollView style={{ maxHeight: ROW * 5.5 }} keyboardShouldPersistTaps="handled" nestedScrollEnabled>
-            {rows.map((r, i) => (
-              <Pressable
-                key={r.key}
-                accessibilityRole="button"
-                accessibilityLabel={r.member ? tr('chat.mention', { name: r.member.name }) : tr('chat.mentionAll')}
-                onPress={() => pick(r)}
-                onHoverIn={() => setHighlight({ key: listKey, i })}
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: 10,
-                  height: ROW,
-                  paddingHorizontal: 8,
-                  borderRadius: 14,
-                  backgroundColor: i === active ? t.card2 : undefined,
-                }}>
-                {r.member ? (
-                  <Avatar member={r.member} size={28} />
-                ) : (
-                  <View
-                    style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: t.accSoft, alignItems: 'center', justifyContent: 'center' }}>
-                    <Users size={15} color={t.accInk} />
-                  </View>
-                )}
-                <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>
-                  {r.member ? r.member.name : everyone()}
-                </Text>
-                {!r.member && <Text style={{ fontFamily: t.font.regular, fontSize: 13, color: t.mut }}>{tr('chat.everyoneRow')}</Text>}
-              </Pressable>
-            ))}
-          </ScrollView>
-        </Animated.View>
-      )}
+      {open && <MentionList rows={rows} active={active} onPick={pick} onHover={(i) => setHighlight({ key: listKey, i })} />}
       <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 8, paddingLeft: features.chatImages || features.chatGifs ? 0 : 10 }}>
         <AttachButton
           roundId={roundId}
