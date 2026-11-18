@@ -28,6 +28,9 @@ updates:
       - dependency-name: "react-dom"
       - dependency-name: "react-native"
       - dependency-name: "react-native-*"
+      # eslint-config-expo's plugins (import, react) don't accept eslint 10 yet (#65): majors move with the Expo SDK.
+      - dependency-name: "eslint"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: docker
     directory: /
     schedule:
