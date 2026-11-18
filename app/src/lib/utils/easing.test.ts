@@ -1,8 +1,13 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
-import { backOut, clamp01, easeInOutCubic, easeOutCubic, noise } from '@/lib/utils/easing';
+import { backOut, clamp, clamp01, easeInOutCubic, easeOutCubic, noise } from '@/lib/utils/easing';
 
 describe('easing', () => {
+  test('clamp', () => {
+    assert.equal(clamp(-1, 0, 5), 0);
+    assert.equal(clamp(3, 0, 5), 3);
+    assert.equal(clamp(9, 0, 5), 5);
+  });
   test('clamp01', () => {
     assert.equal(clamp01(-2), 0);
     assert.equal(clamp01(0.3), 0.3);

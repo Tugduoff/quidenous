@@ -11,6 +11,7 @@ import { impactHaptic } from '@/lib/device/haptics';
 import { useLatest } from '@/lib/hooks/use-latest';
 import { useOnChange } from '@/lib/hooks/use-on-change';
 import { useUnmountEffect } from '@/lib/hooks/use-mount-effect';
+import { clamp } from '@/lib/utils/easing';
 
 // A list whose rows can be put in another order: hold one (~300 ms), it lifts, drag it, the others make room.
 // Rows are absolutely positioned from their measured heights, so a drop never waits on React to re-lay them out.
@@ -208,7 +209,7 @@ export function ReorderList<T extends { id: number }>({
       else if (p > view.top + view.height - EDGE) v = SPEED * Math.min(1, (p - (view.top + view.height - EDGE)) / EDGE);
       if (v) {
         const max = Math.max(0, tracker.content() - view.height);
-        const next = Math.max(0, Math.min(max, tracker.y() + v));
+        const next = clamp(tracker.y() + v, 0, max);
         if (next !== tracker.y()) {
           tracker.scrolledTo(next);
           scroller.current?.scrollTo({ y: next, animated: false });
@@ -252,7 +253,7 @@ export function ReorderList<T extends { id: number }>({
   const move = (id: number, action: 'moveUp' | 'moveDown' | 'moveTop') => {
     const order = [...latest.current];
     const from = order.indexOf(id);
-    const to = action === 'moveTop' ? 0 : Math.max(0, Math.min(order.length - 1, from + (action === 'moveUp' ? -1 : 1)));
+    const to = action === 'moveTop' ? 0 : clamp(from + (action === 'moveUp' ? -1 : 1), 0, order.length - 1);
     if (from < 0 || to === from) return;
     order.splice(to, 0, order.splice(from, 1)[0]);
     onReorder(order);

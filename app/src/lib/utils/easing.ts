@@ -1,6 +1,11 @@
+export function clamp(v: number, min: number, max: number) {
+  'worklet';
+  return Math.min(max, Math.max(min, v));
+}
+
 export function clamp01(v: number) {
   'worklet';
-  return Math.min(1, Math.max(0, v));
+  return clamp(v, 0, 1);
 }
 
 export function easeOutCubic(x: number) {

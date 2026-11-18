@@ -7,6 +7,7 @@ import { type GlobalFact, type GlobalFactId, useGlobal } from '@/lib/api/global'
 import { motion } from '@/lib/motion';
 import { useTheme } from '@/lib/theme';
 import { PressableScale } from '@/components/ui/pressable-scale';
+import { clamp } from '@/lib/utils/easing';
 
 /** Home (Vote tab): today's global question in one line, tap to answer it or see the numbers. Nothing when the room has none. */
 export function GlobalCard() {
@@ -78,7 +79,7 @@ export function FactRows({ facts }: { facts: GlobalFact[] }) {
                 {tr(`globalQuestion.facts.${f.id}`, { pct: formatNumber(f.pct / 100, { style: 'percent' }) })}
               </Text>
               <View style={{ height: 4, borderRadius: 2, backgroundColor: t.card2, overflow: 'hidden' }}>
-                <View style={{ width: `${Math.max(0, Math.min(100, f.pct))}%`, height: 4, borderRadius: 2, backgroundColor: t.acc }} />
+                <View style={{ width: `${clamp(f.pct, 0, 100)}%`, height: 4, borderRadius: 2, backgroundColor: t.acc }} />
               </View>
             </View>
           </View>

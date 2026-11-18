@@ -146,10 +146,6 @@ const shortCount = (n: number) => (n < 1000 ? formatNumber(n) : `${formatNumber(
 /** Under this window width the emojis shrink so they stay inside their buttons. */
 const NARROW = 380;
 
-const haptic = () => {
-  impactHaptic();
-};
-
 /**
  * The 8 reactions under a result: a tap sends one (a burst from that button), the counts under them, mine tinted.
  * Long-press one with taps: who reacted. Nothing on a server without `result_reactions`. `me`: my seat in the
@@ -181,7 +177,7 @@ function Bar({ roundId, byId, me }: { roundId: number; byId: Map<number, Member>
   const onTap = useCallback(
     (emoji: string) => {
       if (!tap(emoji)) return;
-      haptic();
+      impactHaptic();
       fire(emoji, centerOf(emoji), EMOJI_Y);
     },
     [tap, fire, centerOf],

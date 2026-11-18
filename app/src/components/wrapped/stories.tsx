@@ -15,6 +15,7 @@ import { CardBody } from '@/components/wrapped/card-body';
 import { ShareButton } from '@/components/wrapped/share-button';
 import { StorySegment } from '@/components/wrapped/story-segment';
 import { closeWrapped, INK, sys } from '@/components/wrapped/constants';
+import { clamp } from '@/lib/utils/easing';
 
 /** How long a card stays before the next one (auto-advance). */
 const CARD_MS = 6000;
@@ -37,7 +38,7 @@ export function Stories({ w, chrome }: { w: Wrapped; chrome: (ink: string) => Re
 
   const go = (d: number) => {
     setIndex((i) => {
-      const next = Math.max(0, Math.min(count - 1, i + d));
+      const next = clamp(i + d, 0, count - 1);
       if (next !== i) setPrev(i);
       return next;
     });

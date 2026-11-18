@@ -11,6 +11,7 @@ import { Avatar, AvatarStack } from '@/components/ui/avatar';
 import { QuestionText } from '@/components/ui/text';
 import type { Member } from '@/lib/api/group';
 import type { Award, Duo, Pair, QuestionRef, RankAward, Stats } from '@/lib/api/stats';
+import { firstName } from '@/lib/utils/names';
 
 /** One award ready to show: who, the figure, and a quip. */
 type Item = { key: string; ids: number[]; who: string; big: string; unit: string; quip: string };
@@ -20,7 +21,6 @@ type UnitKey = 'votes' | 'wins' | 'nightVotes' | 'messages' | 'nudges' | 'questi
 const n = (v: number, unit: UnitKey) => ({ big: int(v), unit: t(`stats.unit.${unit}`, { count: v }) });
 const quip = (key: string) => t(`stats.quip.${key}` as TKey);
 /** "Léa Martin" → "Léa": two names fit on the award's one line. */
-const first = (name: string) => name.trim().split(/\s+/)[0] || name;
 
 /** Single-person awards: the figure and its unit, from its value (and total, for ratios). */
 const SOLO: Record<string, (a: Award) => { big: string; unit: string }> = {
@@ -63,7 +63,7 @@ function awardGroups(s: Stats, name: Name) {
       ? {
           key,
           ids: [d.voter_id, d.target_id],
-          who: t('stats.forWhom', { a: first(name(d.voter_id)), b: first(name(d.target_id)) }),
+          who: t('stats.forWhom', { a: firstName(name(d.voter_id)), b: firstName(name(d.target_id)) }),
           big: unit(d)[0],
           unit: unit(d)[1],
           quip: quip(key),
@@ -74,7 +74,7 @@ function awardGroups(s: Stats, name: Name) {
       ? {
           key: 'twins',
           ids: [p.a_id, p.b_id],
-          who: t('stats.pair', { a: first(name(p.a_id)), b: first(name(p.b_id)) }),
+          who: t('stats.pair', { a: firstName(name(p.a_id)), b: firstName(name(p.b_id)) }),
           big: `${p.value}/${p.total}`,
           unit: t('stats.unit.sameVotes'),
           quip: quip('twins'),
