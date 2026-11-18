@@ -56,7 +56,8 @@ pub async fn tick(state: &AppState) {
     }
 }
 
-/// Closes the room questions open for more than [`game::QUORUM_HOURS`] that reached their late quorum.
+/// Closes the room questions open for more than [`game::QUORUM_HOURS`] that reached their late quorum
+/// (a said question still writing moves on to its guessing, whose own clock starts then).
 /// Returns how many closed.
 pub async fn close_late(state: &AppState) -> AppResult<usize> {
     let late: Vec<(i64, i64)> = sqlx::query_as(
@@ -82,18 +83,22 @@ async fn close_one(state: &AppState, group_id: i64, round_id: i64) -> AppResult<
     let mut tx = crate::db::write_tx(&state.db).await?;
     let events = game::close_if_done(&mut tx, group_id, round_id).await?;
     tx.commit().await?;
-    if events.is_empty() {
-        return Ok(false);
-    }
+    let closed = events
+        .iter()
+        .any(|e| matches!(e, Event::RoundClosed { .. }));
     let opened = events.iter().find_map(|e| match e {
         Event::RoundOpened { round_id } => Some(*round_id),
         _ => None,
     });
-    for event in events {
-        state.live.send(group_id, event);
+    for event in &events {
+        state.live.send(group_id, event.clone());
     }
-    notify_round(state, group_id, None, opened, true).await;
-    Ok(true)
+    // A said question whose writing ended late: its guessing starts (and is announced).
+    crate::said::announce(state, group_id, None, &events).await;
+    if closed {
+        notify_round(state, group_id, None, opened, true).await;
+    }
+    Ok(closed)
 }
 
 /// Every room whose owner hasn't used it for [`OWNER_GONE_DAYS`] days goes to its longest-standing

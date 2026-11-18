@@ -60,6 +60,7 @@ pub fn router() -> Router<AppState> {
         .route("/group", get(group))
         .route("/round/current", get(current_round))
         .route("/round/current/vote", post(vote))
+        .route("/round/current/answer", post(crate::said::answer))
         .route("/round/unseen", get(unseen_round))
         .route("/round/current/nudge", post(nudge))
         .route("/round/current/skip/{member_id}", put(skip).delete(unskip))
@@ -278,6 +279,8 @@ async fn features(State(state): State<AppState>) -> Json<Value> {
         "tripot",
         // Several questions or packs deleted in one request (`POST /questions/delete`, `/packs/delete`).
         "batch_delete",
+        // « Qui a dit ça ? » questions (docs/SAID.md).
+        "said",
     ];
     if state.config.klipy.is_some() {
         f.push("chat_gifs");
@@ -776,9 +779,9 @@ async fn current_round(
     Ok(Json(Some(for_client(&state, &headers, me.id, view).await?)))
 }
 
-/// Apps that don't know choose questions (no `x-kinds: choose` header) get their text as
-/// "update the app to answer: …"; their single pick still counts as a vote (see `game::vote`).
-async fn for_client(
+/// Apps that don't know choose or said questions (`x-kinds: choose,said`, a comma list) get their
+/// text as "update the app to answer: …"; their single pick still counts (see `game::vote`).
+pub(crate) async fn for_client(
     state: &AppState,
     headers: &axum::http::HeaderMap,
     me: i64,
@@ -787,8 +790,8 @@ async fn for_client(
     let knows = headers
         .get("x-kinds")
         .and_then(|v| v.to_str().ok())
-        .is_some_and(|v| v.split(',').any(|k| k.trim() == "choose"));
-    if view.kind == "choose" && !knows {
+        .is_some_and(|v| v.split(',').any(|k| k.trim() == view.kind));
+    if matches!(view.kind.as_str(), "choose" | "said") && !knows {
         let lang = i18n::of_member(&state.db, me).await?;
         view.question = i18n::update_to_answer(lang, &view.question);
     }
@@ -802,6 +805,8 @@ struct VoteBody {
     ranking: Option<Vec<i64>>,
     /// Choose questions: every member wired to an item.
     choices: Option<Vec<crate::models::Choice>>,
+    /// Said questions: every answer but mine matched to its author.
+    guesses: Option<Vec<crate::said::Guess>>,
 }
 
 async fn vote(
@@ -816,8 +821,16 @@ async fn vote(
         body.target_id,
         body.ranking,
         body.choices,
+        body.guesses,
     )
     .await?;
+    after_vote(&state, me.group_id, me.id, events).await;
+    Ok(Json(json!({ "ok": true })))
+}
+
+/// After a vote (or a said answer) committed: the room hears it, a said question's guessing is
+/// announced, and a question it closed is notified.
+pub(crate) async fn after_vote(state: &AppState, group_id: i64, actor: i64, events: Vec<Event>) {
     let closed = events
         .iter()
         .any(|e| matches!(e, Event::RoundClosed { .. }));
@@ -825,13 +838,13 @@ async fn vote(
         Event::RoundOpened { round_id } => Some(*round_id),
         _ => None,
     });
-    for event in events {
-        state.live.send(me.group_id, event);
+    for event in &events {
+        state.live.send(group_id, event.clone());
     }
+    crate::said::announce(state, group_id, Some(actor), &events).await;
     if closed {
-        notify_round(&state, me.group_id, Some(me.id), opened, true).await;
+        notify_round(state, group_id, Some(actor), opened, true).await;
     }
-    Ok(Json(json!({ "ok": true })))
 }
 
 async fn round(
@@ -899,6 +912,26 @@ async fn history_items(
     for (id, number, question, closed_at, pinned, kind, anonymous) in rounds {
         let tallies = game::tallies(db, id).await?;
         let top_count = tallies.first().map_or(0, |t| t.count);
+        // Said questions: the top scorers (none when nobody scored, or it closed before any guessing).
+        if kind == "said" {
+            let (winner_ids, top_count) = crate::said::result(db, id)
+                .await?
+                .map(|r| crate::said::winners(&r))
+                .unwrap_or_default();
+            items.push(HistoryItem {
+                id,
+                number,
+                question,
+                closed_at,
+                winner_ids,
+                top_count,
+                vote_count: tallies.iter().map(|t| t.count).sum(),
+                pinned,
+                kind,
+                anonymous,
+            });
+            continue;
+        }
         // Choose questions: the winners are the best guessers (none when nobody guessed right).
         if kind == "choose" {
             let scores = game::choose_result(db, id).await?.scores;
@@ -1056,7 +1089,25 @@ async fn export_history(
         };
         // A ranking question is won on points (the podium), not on who came first most often;
         // a choose question by the best guessers.
-        let (winners, top, detail): (Vec<String>, i64, Vec<String>) = if kind == "choose" {
+        let said = if kind == "said" {
+            crate::said::result(&state.db, id).await?
+        } else {
+            None
+        };
+        let (winners, top, detail): (Vec<String>, i64, Vec<String>) = if let Some(result) = said {
+            let (ids, top) = crate::said::winners(&result);
+            (
+                ids.into_iter().map(name).collect(),
+                top,
+                result
+                    .scores
+                    .iter()
+                    .map(|s| format!("{} ({} pts)", name(s.member_id), s.points))
+                    .collect(),
+            )
+        } else if kind == "said" {
+            (Vec::new(), 0, Vec::new())
+        } else if kind == "choose" {
             let scores = game::choose_result(&state.db, id).await?.scores;
             let top = scores.first().map_or(0, |s| s.hits);
             (
@@ -1201,10 +1252,11 @@ async fn skip(
             .fetch_optional(&mut *tx)
             .await?
             .ok_or(AppError::Conflict("no_open_round"))?;
-    let waiting: Option<i64> = sqlx::query_scalar(
-        "SELECT id FROM members m WHERE m.id = ? AND m.group_id = ? AND m.removed_at IS NULL \
-         AND NOT EXISTS (SELECT 1 FROM votes v WHERE v.round_id = ? AND v.voter_id = m.id)",
-    )
+    // Not done yet (on a said question still writing: not written).
+    let waiting: Option<i64> = sqlx::query_scalar(concat!(
+        "SELECT id FROM members m WHERE m.id = ?1 AND m.group_id = ?2 AND m.removed_at IS NULL AND NOT ",
+        crate::said::done!("?3", "m.id")
+    ))
     .bind(member_id)
     .bind(me.group_id)
     .bind(round_id)
@@ -1260,9 +1312,10 @@ async fn after_round_change(
         _ => None,
     });
     state.live.send(group_id, Event::SkipVoted { round_id });
-    for event in events {
-        state.live.send(group_id, event);
+    for event in &events {
+        state.live.send(group_id, event.clone());
     }
+    crate::said::announce(state, group_id, Some(actor), &events).await;
     if closed {
         notify_round(state, group_id, Some(actor), opened, true).await;
     }
@@ -1385,8 +1438,10 @@ pub(crate) async fn take_seat(
             .bind(member_id)
             .execute(&mut **tx)
             .await?;
-        // Their rank / choose ballot goes too: it no longer counts, like their vote.
+        // Their rank / choose / said ballot goes too: it no longer counts, like their vote; so
+        // does their said answer, with the guesses on it.
         game::clear_ballot(tx, round_id, member_id).await?;
+        crate::said::leave(tx, round_id, member_id).await?;
         events = game::close_if_done(tx, group_id, round_id).await?;
     }
     Ok(Some(Removal {
@@ -1545,7 +1600,7 @@ async fn stats(
 #[derive(Deserialize)]
 struct QuestionBody {
     text: String,
-    /// 'pick' (default), 'rank' or 'choose'.
+    /// 'pick' (default), 'rank', 'choose' or 'said'.
     kind: Option<String>,
     /// Choose questions: 2 to 4 items.
     items: Option<Vec<String>>,
@@ -1571,6 +1626,7 @@ async fn add_question(
     let kind = match body.kind.as_deref() {
         Some("rank") => "rank",
         Some("choose") => "choose",
+        Some("said") => "said",
         _ => "pick",
     };
     let items = if kind == "choose" {
@@ -2735,7 +2791,8 @@ struct NudgeBody {
     member_id: i64,
 }
 
-/// "Hurry up": a push to one member who has not voted on the open question. Once per question.
+/// "Hurry up": a push to one member who has not voted on the open question (a said question still
+/// writing: not written). Once per question.
 async fn nudge(
     State(state): State<AppState>,
     Me(me): Me,
@@ -2751,10 +2808,11 @@ async fn nudge(
     let round = game::open_round(&state.db, me.group_id)
         .await?
         .ok_or(AppError::Conflict("no_open_round"))?;
-    let target: Option<i64> = sqlx::query_scalar(
-        "SELECT id FROM members m WHERE m.id = ? AND m.group_id = ? AND m.removed_at IS NULL \
-         AND NOT EXISTS (SELECT 1 FROM votes v WHERE v.round_id = ? AND v.voter_id = m.id)",
-    )
+    // Not done yet (on a said question still writing: not written).
+    let target: Option<i64> = sqlx::query_scalar(concat!(
+        "SELECT id FROM members m WHERE m.id = ?1 AND m.group_id = ?2 AND m.removed_at IS NULL AND NOT ",
+        crate::said::done!("?3", "m.id")
+    ))
     .bind(body.member_id)
     .bind(me.group_id)
     .bind(round.id)

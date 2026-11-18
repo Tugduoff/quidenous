@@ -1,5 +1,5 @@
 //! Party mode (contract: `docs/PARTY.md`): a room with `kind = 'party'` for an evening in the same
-//! place. One pick question at a time for everyone, a countdown (`rounds.deadline_at`), a reveal,
+//! place. One pick (or said, docs/SAID.md) question at a time for everyone, a countdown (`rounds.deadline_at`), a reveal,
 //! then the next question when the owner taps "Suivante" or 75 % of the players did.
 //!
 //! Rounds, votes and members are the room ones: `game::ensure_open_round` gives a party question its
@@ -67,6 +67,7 @@ pub fn router() -> Router<AppState> {
         .route("/parties/{id}", get(get_state).patch(update))
         .route("/parties/{id}/start", post(start))
         .route("/parties/{id}/vote", post(vote))
+        .route("/parties/{id}/answer", post(answer_said))
         .route("/parties/{id}/next", post(tap).delete(untap))
         .route("/parties/{id}/react", post(react))
         .route("/parties/{id}/end", post(end))
@@ -331,14 +332,15 @@ async fn round_view(
     players: i64,
     over: bool,
 ) -> AppResult<Value> {
-    let (number, question, opened_at, deadline_at, closed_at): (
+    let (number, question, opened_at, deadline_at, closed_at, kind): (
         i64,
         String,
         String,
         Option<String>,
         Option<String>,
+        String,
     ) = sqlx::query_as(
-        "SELECT r.number, q.text, r.opened_at, r.deadline_at, r.closed_at \
+        "SELECT r.number, q.text, r.opened_at, r.deadline_at, r.closed_at, q.kind \
          FROM rounds r JOIN questions q ON q.id = r.question_id WHERE r.id = ?",
     )
     .bind(round_id)
@@ -367,6 +369,8 @@ async fn round_view(
         None => None,
     };
     let closed = closed_at.is_some();
+    // A said question: its phase and answers (`my_*` null on the big screen).
+    let said = crate::said::view(&state.db, round_id, &kind, closed, me.map(|m| m.id)).await?;
     let (results, next, reactions) = if closed {
         let results: Vec<Value> = game::tallies(&state.db, round_id)
             .await?
@@ -412,6 +416,8 @@ async fn round_view(
         "id": round_id,
         "number": number,
         "question": question,
+        "kind": kind,
+        "said": said,
         "opened_at": opened_at,
         "deadline_at": deadline_at,
         "closed_at": closed_at,
@@ -647,15 +653,22 @@ pub async fn sweep_at(state: &AppState, now: &str) -> AppResult<Swept> {
     Ok(swept)
 }
 
-/// Closes one party question past its deadline. `false` when it was already closed.
+/// Closes one party question past its deadline (a said question with answers enough moves on to
+/// its guessing instead, with a new deadline). `false` when it didn't close.
 async fn close_due(state: &AppState, id: i64, round_id: i64, now: &str) -> AppResult<bool> {
     let mut tx = crate::db::write_tx(&state.db).await?;
-    let events = game::close_party_round(&mut tx, id, round_id, Some(now)).await?;
+    let events = match crate::said::at_deadline(&mut tx, id, round_id, now).await? {
+        Some(events) => events,
+        None => game::close_party_round(&mut tx, id, round_id, Some(now)).await?,
+    };
     tx.commit().await?;
-    let closed = !events.is_empty();
-    for e in events {
-        state.live.send(id, e);
+    let closed = events
+        .iter()
+        .any(|e| matches!(e, Event::RoundClosed { .. }));
+    for e in &events {
+        state.live.send(id, e.clone());
     }
+    crate::said::announce(state, id, None, &events).await;
     Ok(closed)
 }
 
@@ -1030,7 +1043,11 @@ async fn start(
 
 #[derive(Deserialize)]
 pub struct VoteBody {
-    target_id: i64,
+    #[serde(default)]
+    target_id: Option<i64>,
+    /// A said question's guesses (docs/SAID.md).
+    #[serde(default)]
+    guesses: Option<Vec<crate::said::Guess>>,
 }
 
 async fn vote(
@@ -1040,10 +1057,37 @@ async fn vote(
     Json(body): Json<VoteBody>,
 ) -> AppResult<Json<Value>> {
     let (me, _) = party_seat(&state, user, id).await?;
-    let events = game::vote(&state.db, id, me.id, Some(body.target_id), None, None).await?;
-    for e in events {
-        state.live.send(id, e);
+    let events = game::vote(
+        &state.db,
+        id,
+        me.id,
+        body.target_id,
+        None,
+        None,
+        body.guesses,
+    )
+    .await?;
+    for e in &events {
+        state.live.send(id, e.clone());
     }
+    crate::said::announce(&state, id, Some(me.id), &events).await;
+    answer(&state, id, &me).await
+}
+
+#[derive(Deserialize)]
+pub struct AnswerBody {
+    text: String,
+}
+
+/// A said question's answer (docs/SAID.md): `POST /parties/{id}/answer {text}`.
+async fn answer_said(
+    State(state): State<AppState>,
+    UserId(user): UserId,
+    Path(id): Path<i64>,
+    Json(body): Json<AnswerBody>,
+) -> AppResult<Json<Value>> {
+    let (me, _) = party_seat(&state, user, id).await?;
+    crate::said::party_answer(&state, id, me.id, &body.text).await?;
     answer(&state, id, &me).await
 }
 

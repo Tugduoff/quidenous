@@ -77,8 +77,32 @@ export type Round = {
   anonymous?: boolean;
   /** Le Tripot (docs/TRIPOT.md): bets on the winner; absent where it doesn't apply (and from an older server). */
   tripot?: Tripot;
+  /** « Qui a dit ça ? » question (docs/SAID.md): its phase, answers and result (null otherwise; absent from an older server). */
+  said?: SaidView | null;
 };
-export type QuestionKind = 'pick' | 'rank' | 'choose';
+export type QuestionKind = 'pick' | 'rank' | 'choose' | 'said';
+/** One answer of a said question. `text` null: hidden by reports (`hidden`), or a pass from an older app (not guessable). */
+export type SaidAnswer = { id: number; text: string | null; hidden: boolean };
+/** A guess: answer `answer_id` was written by `member_id`. */
+export type SaidGuess = { answer_id: number; member_id: number };
+/** Done only. `answers` in reveal order (most found first, best hidden last); `scores` best first. */
+export type SaidResult = {
+  answers: { id: number; author_id: number; found: number; fooled: number; guesses: { voter_id: number; member_id: number }[] }[];
+  scores: { member_id: number; points: number; found: number; fooled: number }[];
+};
+/** `RoundView.said` (docs/SAID.md): writing, then guessing who wrote what, then the reveal. */
+export type SaidView = {
+  phase: 'writing' | 'guessing' | 'done';
+  guess_at: string | null;
+  /** Who has written (passes included), member order. */
+  writer_ids: number[];
+  my_answer: { id: number; text: string } | null;
+  /** Guessing and done: every real answer in a random fixed order, mine included. */
+  answers: SaidAnswer[] | null;
+  /** Once I sent them. */
+  my_guesses: SaidGuess[] | null;
+  result: SaidResult | null;
+};
 export type AnonymousMode = 'never' | 'per_question' | 'always';
 /** A wire: this person (`member_id`) takes `items[item]`. */
 export type Choice = { member_id: number; item: number };
@@ -172,7 +196,7 @@ export type HistoryItem = {
   top_count: number;
   vote_count: number;
   pinned: boolean;
-  /** Choose: `winner_ids` are the best guessers, `top_count` their hits. */
+  /** Choose: `winner_ids` are the best guessers, `top_count` their hits. Said: the top scorers, `top_count` their points. */
   kind: QuestionKind;
   anonymous?: boolean;
 };
@@ -431,11 +455,11 @@ async function fetchWithin(url: string, init: RequestInit, ms: number): Promise<
 
 /** `room`: this call is about another room than the current one (`X-Room` for it alone). */
 export async function api<T>(path: string, init: RequestInit & { json?: unknown; room?: number } = {}): Promise<T> {
-  // `x-kinds`: this app answers choose questions (an older one gets them as a plain pick).
+  // `x-kinds`: this app answers choose and said questions (an older one gets them as a plain pick).
   // `x-app-version`: a server that no longer serves it answers 426 (the app asks to update).
   const headers: Record<string, string> = {
     ...deviceHeader(),
-    'x-kinds': 'choose',
+    'x-kinds': 'choose,said',
     'x-app-version': appVersion(),
     ...(init.headers as Record<string, string>),
   };
@@ -469,7 +493,7 @@ export async function apiUpload<T>(path: string, form: FormData, method = 'PUT')
   const res = await fetchWithin(`${API_URL}/api${path}`, {
     method,
     headers: {
-      'x-kinds': 'choose',
+      'x-kinds': 'choose,said',
       'x-app-version': appVersion(),
       ...(token ? { authorization: `Bearer ${token}`, ...(room != null ? { 'x-room': String(room) } : {}) } : {}),
     },

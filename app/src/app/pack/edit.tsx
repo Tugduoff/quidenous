@@ -78,12 +78,12 @@ export default function PackEditScreen() {
     setQuestions(pack.questions);
   } else if (!seeded && id == null && queue && loaded) {
     setSeeded(true);
-    // A new pack starts from the room's own questions (choose ones only when the server takes them in packs).
+    // A new pack starts from the room's own questions (choose ones only when the server takes them in packs; never said ones).
     setQuestions((qs) =>
       merge(
         qs,
         queue.custom
-          .filter((q) => packChoose || q.kind !== 'choose')
+          .flatMap((q) => (q.kind === 'said' || (!packChoose && q.kind === 'choose') ? [] : [{ ...q, kind: q.kind }]))
           .map((q) => ({ text: q.text, kind: q.kind, items: q.items, anonymous: q.anonymous })),
       ),
     );

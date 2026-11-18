@@ -8,7 +8,7 @@ The server has no daily-question clock: a room opens the next question as soon a
 
 For a member in a room, each day is one of:
 
-- **voted**: they voted on a question of the room that day (pick, rank or choose, any of them). The streak goes on.
+- **voted**: they voted on a question of the room that day (pick, rank or choose, any of them; writing a said answer counts too, docs/SAID.md). The streak goes on.
 - **missed**: a question was open that day that they could still vote on (they were in the room, hadn't answered it yet, and weren't skipped by the group on it), and they didn't vote that day. The streak ends.
 - **neutral**, anything else: nothing open (room paused, waiting for its owner, out of questions), not in the room yet, only questions they had already answered, or questions the group skipped them on. It neither extends nor breaks the streak.
 

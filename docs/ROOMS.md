@@ -84,7 +84,7 @@ Results I missed: `GET /round/unseen` is the oldest finished question I voted on
 
 Also: changing the vibe or the language of an idle room opens a question right away, and the owner hears in the inbox (`ask`: a tap opens the Questions tab) when a question opening leaves only 3 to ask (its own plus the deck's), then when the room runs out (2 people or more, not paced, nothing left to open).
 
-Ballots: a rank or choose ballot leaves with its voter (leaving, removal, account deletion during the question), like the vote. A new ballot from the same seat replaces any older one. Chat messages can carry a `client_key` (up to 64 chars): posting again with the same key returns the message already posted.
+Ballots: a rank, choose or said ballot (and a said answer, with the guesses on it) leaves with its voter (leaving, removal, account deletion during the question), like the vote. A new ballot from the same seat replaces any older one. Chat messages can carry a `client_key` (up to 64 chars): posting again with the same key returns the message already posted.
 
 ## Abuse limits
 

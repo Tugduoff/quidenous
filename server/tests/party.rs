@@ -25,6 +25,11 @@ async fn setup() -> (Router, AppState) {
         ..Config::default()
     };
     let state = state(config).await.unwrap();
+    // These tests vote by picking someone: no said questions (tests/said.rs plays them).
+    sqlx::query("DELETE FROM questions WHERE group_id IS NULL AND kind = 'said'")
+        .execute(&state.db)
+        .await
+        .unwrap();
     (app(state.clone()), state)
 }
 

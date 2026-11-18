@@ -70,7 +70,7 @@ Filed in the Play Console on 2026-11-17 for v0.39.0 (closed test). These are the
 | Crude humour (bodily functions) | **No** | Nothing about burps, farts or vomit; "Who spends the longest in the bathroom?" doesn't count. |
 | Realistic crime, terrorism, Nazi symbols, Korean national identity | **No** | Jokes about prison or scams don't describe crimes. |
 | Users can interact or share content | **Yes** | Chat under every result: text, photos, GIFs, reactions, mentions. |
-| Users or UGC can be blocked / reported | **Yes / Yes** | Block a user; report a message, question, member, pack or suggestion. |
+| Users or UGC can be blocked / reported | **Yes / Yes** | Block a user; report a message, question, member, pack, suggestion or « Qui a dit ça ? » answer. |
 | Moderated chat | **Yes** | Authors, owners and admins delete messages; three reports hide a message; admins review reports. |
 | Interactions limited to invited friends | **Yes** | Rooms are private, joined with a code; public packs are only questions; the world question only shows anonymous percentages. |
 | Shares precise location | **No** | Only a time-zone offset is stored. |

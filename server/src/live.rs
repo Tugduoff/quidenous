@@ -38,6 +38,11 @@ pub enum Event {
     RoundOpened {
         round_id: i64,
     },
+    /// A question changed in place: a said question's guessing started, or one of its answers was
+    /// hidden or brought back (docs/SAID.md). Apps refetch it.
+    RoundUpdated {
+        round_id: i64,
+    },
     QuestionAdded {
         question_id: i64,
     },

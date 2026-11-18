@@ -19,7 +19,7 @@ Bets on who wins a question, with chips (`jetons`) that are worth nothing. Featu
 
 ## Bets
 
-- On an **open pick or ranking question of a room**: who gets the most votes (ranking: who ends up first, Borda points as the result shows them). Not on choose questions, not in parties, not on anonymous questions (`rounds.anonymous`, docs/ANONYMOUS.md): there the API sends nothing about Tripot at all.
+- On an **open pick or ranking question of a room**: who gets the most votes (ranking: who ends up first, Borda points as the result shows them). Not on choose or said questions (docs/SAID.md), not in parties, not on anonymous questions (`rounds.anonymous`, docs/ANONYMOUS.md): there the API sends nothing about Tripot at all.
 - One bet per member per question; no change, no cancel. Amount 1 to my whole balance (the app offers 10 / 25 / 50 / Tapis). Betting on yourself is allowed, before or after voting.
 - Bets close when the question closes.
 - **While open** everyone sees only the pot and the number of bettors, plus their own bet. Never who bet on whom, nor anyone else's stake.

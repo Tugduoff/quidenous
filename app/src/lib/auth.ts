@@ -163,6 +163,8 @@ export function useFeatures() {
     tripot: on.has('tripot'),
     /** Live emoji reactions on results, taps with bursts (`/rounds/{id}/reactions`, `result_reacted`; docs/REACTIONS.md). */
     resultReactions: on.has('result_reactions'),
+    /** « Qui a dit ça ? » questions: write, guess who wrote what (docs/SAID.md). */
+    said: on.has('said'),
   };
 }
 

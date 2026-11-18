@@ -30,6 +30,7 @@ pub mod quotas;
 pub mod reactions;
 pub mod rooms;
 pub mod routes;
+pub mod said;
 pub mod share;
 pub mod stats;
 pub mod streaks;

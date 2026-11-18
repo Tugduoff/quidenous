@@ -2,7 +2,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 
-import { api, API_URL, ApiError, type Member, type Role, type Tally } from './api';
+import { api, API_URL, ApiError, type Member, type QuestionKind, type Role, type SaidGuess, type SaidView, type Tally } from './api';
 import { authError, featuresQuery } from './auth';
 import { t, type TKey } from './i18n';
 import { localizeMembers } from './names';
@@ -16,7 +16,12 @@ export type PartyRound = {
   id: number;
   number: number;
   question: string;
+  /** `pick` or `said` (absent from an older server: a pick). */
+  kind?: QuestionKind;
+  /** A said question (docs/SAID.md): its phase, answers and result; `my_*` null on the big screen. */
+  said?: SaidView | null;
   opened_at: string;
+  /** The current phase's deadline (a said question: the writing's, then the guessing's). */
   deadline_at: string | null;
   closed_at: string | null;
   /** Who was there when it opened: only they vote, only they can be picked. */
@@ -60,6 +65,8 @@ export const REACTIONS = ['😂', '🔥', '😱', '👀', '💀', '❤️'] as c
 export const PARTY_EVENTS = new Set([
   'member_joined',
   'vote_cast',
+  // A said question's guessing started (docs/SAID.md).
+  'round_updated',
   'round_closed',
   'round_opened',
   'member_removed',
@@ -94,6 +101,10 @@ export const partyApi = {
   screen: (code: string) => call(`/parties/screen/${encodeURIComponent(code)}`),
   start: (id: number) => post(`/parties/${id}/start`),
   vote: (id: number, target_id: number) => post(`/parties/${id}/vote`, { target_id }),
+  /** A said question: write (or rewrite) my answer, until the writing deadline. */
+  answer: (id: number, text: string) => post(`/parties/${id}/answer`, { text }),
+  /** A said question: who wrote what, one guess per answer that isn't mine. */
+  guess: (id: number, guesses: SaidGuess[]) => post(`/parties/${id}/vote`, { guesses }),
   next: (id: number) => post(`/parties/${id}/next`),
   unnext: (id: number) => call(`/parties/${id}/next`, { method: 'DELETE' }),
   react: (id: number, round_id: number, emoji: string) => post(`/parties/${id}/react`, { round_id, emoji }),
@@ -160,6 +171,18 @@ export function useRefetchAtZero(ms: number | null, refetch: () => void) {
   }, [over]);
 }
 
+/**
+ * The current phase's length in seconds, for the countdown's bar: a pick question's timer; a said question's writing
+ * (`max(60, 2 × timer)`), then its guessing (`max(45, 2 × timer)`), read from the deadlines when they're there.
+ */
+export function phaseSeconds(round: Pick<PartyRound, 'opened_at' | 'deadline_at' | 'said'>, timer: number): number {
+  const said = round.said;
+  const fallback = !said ? timer : said.phase === 'guessing' ? Math.max(45, 2 * timer) : Math.max(60, 2 * timer);
+  const start = said?.phase === 'guessing' ? said.guess_at : round.opened_at;
+  const s = (Date.parse(round.deadline_at ?? '') - Date.parse(start ?? '')) / 1000;
+  return Number.isFinite(s) && s > 0 ? Math.round(s) : fallback;
+}
+
 /** A result as the shared result bars draw it. */
 export const tallies = (round: PartyRound): Tally[] =>
   (round.results ?? []).map((r) => ({ target_id: r.member_id, count: r.votes, voter_ids: r.voters })).sort((a, b) => b.count - a.count);
@@ -197,6 +220,10 @@ const ERRORS: Record<string, TKey> = {
   need_two: 'party.errors.needTwo',
   joined_late: 'party.vote.late',
   time_up: 'party.vote.timeUp',
+  not_writing: 'said.write.tooLate',
+  not_guessing: 'said.party.notGuessing',
+  bad_answer: 'said.write.failed',
+  bad_guesses: 'said.guess.failed',
   bad_name: 'party.errors.badName',
   bad_color: 'party.errors.badColor',
   not_party: 'party.errors.notParty',

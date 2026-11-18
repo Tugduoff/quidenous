@@ -8,6 +8,7 @@ import { ScreenBursts, ScreenCounts } from '@/components/live-reactions';
 import { Mascot } from '@/components/mascot';
 import { MascotBand } from '@/components/mascot-band';
 import { Countdown, JoinQr, PlayerChips, Reactions, VotedLine, WinnerReveal } from '@/components/party';
+import { SaidScreenQuestion, SaidScreenResult } from '@/components/party-said';
 import { ResultBars } from '@/components/result-bars';
 import { CodeText, Display, Logo, Tag } from '@/components/ui';
 import type { Member } from '@/lib/api';
@@ -66,6 +67,9 @@ export default function PartyBigScreen() {
       </View>
     );
 
+  // A said question's answers and reveal take the whole screen (nobody joins mid-question anyway): the code goes on top.
+  const said = p.round?.kind === 'said' ? p.round.said : null;
+  const full = !!said && said.phase !== 'writing' && (p.phase === 'voting' || p.phase === 'reveal');
   const qr = Math.round(Math.max(160, Math.min(wide ? height * 0.42 : width * 0.5, 420)));
   const side = (
     <View style={{ alignItems: 'center', gap: 18, width: wide ? qr + 80 : '100%' }}>
@@ -87,10 +91,16 @@ export default function PartyBigScreen() {
           <Logo size={28} />
           <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: t.font.bold, fontSize: 22, color: t.mut }}>
             {p.name || tr('party.name')}
+            {full && (
+              <Text style={{ fontFamily: t.font.semibold }}>
+                {'  ·  '}
+                {tr('said.party.code')} <Text style={{ fontFamily: t.font.display, color: t.txt, letterSpacing: 2 }}>{p.code}</Text>
+              </Text>
+            )}
           </Text>
         </View>
         <View style={{ flex: 1, flexDirection: wide ? 'row' : 'column-reverse', alignItems: wide ? 'center' : 'stretch', gap: 48 }}>
-          {side}
+          {!full && side}
           <View style={{ flex: wide ? 1 : undefined, minWidth: 0, justifyContent: 'center', gap: 32 }}>
             <Stage party={p} unit={Math.max(0.6, unit)} wide={wide} reactions={resultReactions} />
           </View>
@@ -109,6 +119,11 @@ function Stage({ party, unit, wide, reactions }: { party: Party; unit: number; w
   const t = useTheme();
   const tr = useT();
   const big = (n: number) => Math.round(n * unit);
+  const said = party.round?.kind === 'said' ? party.round.said : null;
+  if (party.phase === 'voting' && party.round && said)
+    return <SaidScreenQuestion key={`${party.round.id}-${said.phase}`} party={party} round={party.round} said={said} unit={unit} wide={wide} />;
+  if (party.phase === 'reveal' && party.round && said)
+    return <SaidScreenResult key={party.round.id} party={party} round={party.round} said={said} unit={unit} wide={wide} reactions={reactions} />;
   if (party.phase === 'voting' && party.round) return <Question key={party.round.id} party={party} round={party.round} unit={unit} />;
   if (party.phase === 'reveal' && party.round) return <Result key={party.round.id} party={party} round={party.round} unit={unit} wide={wide} reactions={reactions} />;
   if (party.phase === 'over')

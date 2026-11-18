@@ -420,6 +420,8 @@ fn from_list(list: Vec<QuestionIn>, known: &[PackQuestion]) -> Vec<PackQuestion>
             let kind = match q.kind.as_deref() {
                 Some("rank") => "rank",
                 Some("choose") => "choose",
+                // Not in packs yet (docs/SAID.md): dropped by `clean_questions`, never a pick.
+                Some("said") => "said",
                 _ => "pick",
             };
             let items = match (kind, q.items) {
@@ -447,13 +449,14 @@ fn from_list(list: Vec<QuestionIn>, known: &[PackQuestion]) -> Vec<PackQuestion>
 }
 
 /// Questions of the right length, each once (case-insensitive), choose ones with valid answers,
-/// 5 to 300 of them.
+/// no said ones (not in packs yet), 5 to 300 of them.
 pub fn clean_questions(mut questions: Vec<PackQuestion>) -> AppResult<Vec<PackQuestion>> {
     for q in &mut questions {
         q.text = crate::text::line(&q.text);
     }
     questions.retain(|q| {
-        (QUESTION_MIN..=QUESTION_MAX).contains(&q.text.chars().count())
+        q.kind != "said"
+            && (QUESTION_MIN..=QUESTION_MAX).contains(&q.text.chars().count())
             && (q.kind != "choose" || q.items.clone().and_then(crate::deck::clean_items).is_some())
     });
     for q in &mut questions {

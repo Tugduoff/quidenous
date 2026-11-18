@@ -3,6 +3,7 @@ export const moderation = {
   reasons: { offensive: 'Offensant', harassment: 'Harcèlement', sexual: 'Contenu sexuel', spam: 'Spam', other: 'Autre' },
   reportMessage: 'Signaler ce message',
   reportQuestion: 'Signaler cette question',
+  reportAnswer: 'Signaler cette réponse',
   reportPerson: 'Signaler {name}',
   report: 'Signaler',
   block: 'Bloquer {name}',

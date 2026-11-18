@@ -23,7 +23,7 @@ pub struct Header {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Line {
     pub text: String,
-    /// `pick` | `rank` | `choose`.
+    /// `pick` | `rank` | `choose` | `said` (said lines are left out of packs, see `packs::clean_questions`).
     pub kind: &'static str,
     /// A choose line's answers, when they hold (2 to 4, 1 to 40 characters, distinct); `None` otherwise.
     pub items: Option<Vec<String>>,

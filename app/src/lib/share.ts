@@ -78,6 +78,15 @@ export function resultMessage(round: Round, byId: Map<number, Member>) {
       .map((p) => `${byId.get(p.member_id)?.name ?? '?'} · ${items[p.real!] ?? '?'}`);
     return t('share.result', { number: round.number, question: round.question, lines: lines.join('\n'), url: appUrl() });
   }
+  // A said question: its top scorers.
+  if (round.said?.result) {
+    const medals = ['🥇', '🥈', '🥉'];
+    const lines = round.said.result.scores
+      .filter((s) => s.points > 0)
+      .slice(0, 3)
+      .map((s, i) => `${medals[i]} ${byId.get(s.member_id)?.name ?? '?'} · ${t('share.points', { points: s.points })}`);
+    return t('share.result', { number: round.number, question: round.question, lines: lines.join('\n'), url: appUrl() });
+  }
   if (round.ranking) {
     const medals = ['🥇', '🥈', '🥉'];
     const lines = round.ranking

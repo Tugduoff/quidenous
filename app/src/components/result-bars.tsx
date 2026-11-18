@@ -11,7 +11,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-import type { ChooseResult, Member, RankEntry, Tally } from '@/lib/api';
+import type { ChooseResult, Member, RankEntry, SaidResult, Tally } from '@/lib/api';
 import { useT } from '@/lib/i18n';
 import { BOUNCE, EASE } from '@/lib/motion';
 import { ordinal } from '@/lib/text';
@@ -180,6 +180,7 @@ export function ResultSummary({
   result,
   ranking,
   choose,
+  said,
   byId,
   onPress,
 }: {
@@ -187,6 +188,8 @@ export function ResultSummary({
   ranking: RankEntry[] | null;
   /** A choose question: its best guesser, hits out of guesses. */
   choose?: ChooseResult | null;
+  /** A « Qui a dit ça ? » question: its top scorer, their points. */
+  said?: SaidResult | null;
   byId: Map<number, Member>;
   onPress: () => void;
 }) {
@@ -194,24 +197,41 @@ export function ResultSummary({
   const tr = useT();
   const total = result.reduce((n, r) => n + r.count, 0) || 1;
   const guesser = choose?.scores[0];
-  // A choose question nobody guessed right crowns nobody.
-  const nobody = !!choose && !guesser?.hits;
-  const winnerId = choose ? (nobody ? undefined : guesser?.member_id) : ranking ? ranking[0]?.member_id : result[0]?.target_id;
+  const scorer = said?.scores[0];
+  // A choose question nobody guessed right crowns nobody; nor does a said question nobody scored on.
+  const nobody = said ? !scorer?.points : !!choose && !guesser?.hits;
+  const winnerId = said
+    ? nobody
+      ? undefined
+      : scorer?.member_id
+    : choose
+      ? nobody
+        ? undefined
+        : guesser?.member_id
+      : ranking
+        ? ranking[0]?.member_id
+        : result[0]?.target_id;
   const m = winnerId != null ? byId.get(winnerId) : undefined;
-  const score = choose
-    ? `${guesser?.hits ?? 0}/${guesser?.total ?? 0}`
-    : ranking
-      ? tr('results.points', { count: ranking[0]?.points ?? 0 })
-      : `${Math.round(((result[0]?.count ?? 0) / total) * 100)}%`;
+  const score = said
+    ? tr('results.points', { count: scorer?.points ?? 0 })
+    : choose
+      ? `${guesser?.hits ?? 0}/${guesser?.total ?? 0}`
+      : ranking
+        ? tr('results.points', { count: ranking[0]?.points ?? 0 })
+        : `${Math.round(((result[0]?.count ?? 0) / total) * 100)}%`;
   // Several people sharing first place: "+1" after the name.
-  const tied = choose
+  const tied = said
     ? nobody
       ? 0
-      : choose.scores.filter((s) => s.hits === guesser?.hits && s.total === guesser?.total).length - 1
-    : ranking
-      ? ranking.filter((r) => r.points === ranking[0]?.points).length - 1
-      : result.filter((r) => r.count === result[0]?.count).length - 1;
-  const name = nobody ? tr('history.nobodyGuessed') : (m?.name ?? '?');
+      : said.scores.filter((s) => s.points === scorer?.points).length - 1
+    : choose
+      ? nobody
+        ? 0
+        : choose.scores.filter((s) => s.hits === guesser?.hits && s.total === guesser?.total).length - 1
+      : ranking
+        ? ranking.filter((r) => r.points === ranking[0]?.points).length - 1
+        : result.filter((r) => r.count === result[0]?.count).length - 1;
+  const name = nobody ? tr(said ? 'said.result.nobody' : 'history.nobodyGuessed') : (m?.name ?? '?');
   return (
     <PressableScale
       accessibilityRole="button"
@@ -232,13 +252,15 @@ export function ResultSummary({
       ]}>
       {!nobody && <Avatar member={m} size={32} />}
       {!nobody && <Crown size={16} color={m?.color ?? t.mut} />}
-      <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: t.font.bold, fontSize: 16, color: nobody ? t.mut : t.txt, paddingLeft: nobody ? 6 : 0 }}>
+      <Text
+        numberOfLines={1}
+        style={{ flexShrink: 1, fontFamily: t.font.bold, fontSize: 16, color: nobody ? t.mut : t.txt, paddingLeft: nobody ? 6 : 0 }}>
         {name}
       </Text>
       {tied > 0 && <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut }}>+{tied}</Text>}
       <Text style={{ marginLeft: 'auto', fontFamily: t.font.display, fontSize: 18, color: t.txt }}>{score}</Text>
       {/* A reaction sticker: Zeste points at the winner, Paillette cheers the best guesser, Pavé wonders when nobody saw it coming. */}
-      {choose ? (
+      {choose || said ? (
         <Mascot who={nobody ? 'pave' : 'paillette'} mood={nobody ? 'think' : 'celebrate'} prop="none" size={40} style={{ marginVertical: -6 }} />
       ) : (
         <Mascot who="zeste" mood="accuse" size={40} style={{ marginVertical: -6, transform: [{ scaleX: -1 }] }} />

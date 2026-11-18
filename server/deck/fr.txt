@@ -275,3 +275,33 @@ Qui en sait trop sur tout le monde ici ?
 [choix] [potes] [famille] [boulot] Qui écoute quoi en voiture ? | Rap | Variété française | Podcast | Silence
 [choix] [potes] Qui finit la soirée comment ? | Kebab | Dodo direct | Afterparty | Il pleure
 [choix] [potes] [famille] Qui gagnerait à quoi aux JO ? | Sprint | Natation | Échecs | Rien du tout
+# « Qui a dit ça ? » (docs/SAID.md) : chacun écrit sa réponse, puis on devine qui a écrit quoi.
+[quiadit] [potes] [famille] Le pire cadeau qu'on t'ait fait ?
+[quiadit] [potes] [famille] [boulot] Ton plat de flemme quand tu rentres tard ?
+[quiadit] [potes] [famille] La chanson que tu connais par cœur sans jamais l'avoir assumée ?
+[quiadit] [potes] [famille] [boulot] L'excuse que tu sors le plus souvent pour annuler ?
+[quiadit] [potes] Ton pire souvenir de lendemain de soirée ?
+[quiadit] [potes] [famille] La dernière chose que tu as cherchée sur internet ?
+[quiadit] [potes] [famille] [boulot] Ta peur la plus ridicule ?
+[quiadit] [potes] [famille] Le métier que tu voulais faire à 8 ans ?
+[quiadit] [potes] [famille] [boulot] Le truc que tu ne prêterais jamais, même à nous ?
+[quiadit] [potes] Le surnom le plus gênant qu'on t'ait donné ?
+[quiadit] [potes] [famille] Ton talent caché complètement inutile ?
+[quiadit] [potes] [famille] [boulot] Ce que tu commanderais pour ton dernier repas ?
+[quiadit] [potes] La pire coupe de cheveux de ta vie ?
+[quiadit] [famille] [potes] La bêtise d'enfance que tes parents ne connaissent toujours pas ?
+[quiadit] [famille] Le plat de famille que tu détestes en secret ?
+[quiadit] [famille] [potes] Ton souvenir de vacances le plus marquant ?
+[quiadit] [famille] Le conseil de tes parents que tu n'as jamais suivi ?
+[quiadit] [boulot] La réunion la plus inutile de ta vie ?
+[quiadit] [boulot] [potes] Ton pire job d'été ?
+[quiadit] [boulot] Le mot de jargon de bureau que tu ne supportes plus ?
+[quiadit] [boulot] [potes] La première chose que tu ferais si tu gagnais au loto demain ?
+[quiadit] [boulot] Ta technique pour avoir l'air occupé ?
+[quiadit] [pimente] L'endroit le plus improbable où tu as embrassé quelqu'un ?
+[quiadit] [pimente] Ta pire phrase de drague (dite ou entendue) ?
+[quiadit] [pimente] La première chose que tu regardes chez quelqu'un ?
+[quiadit] [pimente] Ton pire rencard en trois mots ?
+[quiadit] [pimente] Le message de 2 h du matin que tu regrettes encore ?
+[quiadit] [potes] [boulot] L'appli sur laquelle tu perds le plus de temps ?
+[quiadit] [potes] [famille] [boulot] Ton plaisir coupable à la télé ?

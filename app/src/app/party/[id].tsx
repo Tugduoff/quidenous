@@ -25,6 +25,7 @@ import { Mascot } from '@/components/mascot';
 import { LiveReactions } from '@/components/live-reactions';
 import { BIG_GROUP, gridColumns, MemberGrid, MemberTile } from '@/components/member-grid';
 import { Countdown, JoinQr, NextButton, PlayerChips, Reactions, VotedLine, WinnerReveal } from '@/components/party';
+import { PartySaidResult, PartySaidVoting, saidBoardKey } from '@/components/party-said';
 import { ResultBars } from '@/components/result-bars';
 import { Screen } from '@/components/screen';
 import { showToast } from '@/components/toast';
@@ -93,6 +94,23 @@ export default function PartyScreen() {
       </Screen>
     );
   if (p.phase === 'lobby') return <Lobby party={p} />;
+  const said = p.round?.kind === 'said' ? p.round.said : null;
+  if (p.phase === 'voting' && p.round && said)
+    return (
+      <PartySaidVoting
+        // Each phase starts fresh; the board too if its answers change (someone left).
+        key={`${p.round.id}-${said.phase}-${saidBoardKey(said)}`}
+        party={p}
+        round={p.round}
+        said={said}
+        top={
+          <>
+            <Header party={p} />
+            <Question round={p.round} size={32} />
+          </>
+        }
+      />
+    );
   if (p.phase === 'voting' && p.round) return <Voting key={p.round.id} party={p} round={p.round} />;
   if (p.phase === 'reveal' && p.round) return <Reveal key={p.round.id} party={p} round={p.round} />;
   if (p.phase === 'over') return <Memory party={p} />;
@@ -400,11 +418,12 @@ function ScreenLink({ code }: { code: string }) {
   );
 }
 
-/** The question number and text. */
+/** The question number (and kind, for a said one) and text. */
 function Question({ round, size }: { round: PartyRound; size: number }) {
+  const tr = useT();
   return (
     <Animated.View entering={motion.question} style={{ gap: 12 }}>
-      <Tag label={`#${round.number}`} />
+      <Tag label={round.kind === 'said' ? `#${round.number} · ${tr('said.reveal.title')}` : `#${round.number}`} />
       <Display size={size}>{tidy(round.question)}</Display>
     </Animated.View>
   );
@@ -531,6 +550,7 @@ function Voting({ party, round }: { party: Party; round: PartyRound }) {
 /** The result: the winner big, the bars with who voted, reactions, and "Suivante". */
 function Reveal({ party, round }: { party: Party; round: PartyRound }) {
   const t = useTheme();
+  const tr = useT();
   const qc = useQueryClient();
   const setParty = useSetParty(party.id);
   const [error, setError] = useState<string | null>(null);
@@ -554,6 +574,7 @@ function Reveal({ party, round }: { party: Party; round: PartyRound }) {
     onError: refetch,
   });
   const list = tallies(round);
+  const said = round.kind === 'said' ? round.said : null;
   return (
     <Screen
       tabs={false}
@@ -567,13 +588,19 @@ function Reveal({ party, round }: { party: Party; round: PartyRound }) {
       }>
       <Header party={party} />
       <View style={{ gap: 8 }}>
-        <Tag label={`#${round.number}`} tone="acc" />
+        <Tag label={said ? `#${round.number} · ${tr('said.reveal.title')}` : `#${round.number}`} tone="acc" />
         <Text style={{ fontFamily: t.font.bold, fontSize: 18, lineHeight: 24, color: t.txt }}>{tidy(round.question)}</Text>
       </View>
-      <View style={{ paddingVertical: 8 }}>
-        <WinnerReveal round={round} byId={byId} size={112} />
-      </View>
-      {list.length > 0 && <ResultBars result={list} byId={byId} />}
+      {said ? (
+        <PartySaidResult round={round} said={said} byId={byId} me={party.me?.member_id} />
+      ) : (
+        <>
+          <View style={{ paddingVertical: 8 }}>
+            <WinnerReveal round={round} byId={byId} size={112} />
+          </View>
+          {list.length > 0 && <ResultBars result={list} byId={byId} />}
+        </>
+      )}
       {/* Taps with bursts on a newer server (its own counts); the old toggles otherwise. */}
       {resultReactions ? (
         party.me && <LiveReactions roundId={round.id} byId={byId} me={party.me.member_id} />

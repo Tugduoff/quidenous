@@ -182,6 +182,10 @@ pub(crate) async fn erase(state: &AppState, user_id: i64) -> AppResult<()> {
         // Their taps on results.
         "DELETE FROM round_reactions WHERE member_id IN (SELECT id FROM members WHERE user_id = ?1)",
         "DELETE FROM messages WHERE member_id IN (SELECT id FROM members WHERE user_id = ?1)",
+        // Their « Qui a dit ça ? » answers: blanked (hidden), the game around them stays.
+        "UPDATE said_answers SET text = '', \
+         hidden_at = COALESCE(hidden_at, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) \
+         WHERE text IS NOT NULL AND member_id IN (SELECT id FROM members WHERE user_id = ?1)",
         // Inbox entries carry message text and names: theirs and the ones they caused.
         "DELETE FROM inbox WHERE member_id IN (SELECT id FROM members WHERE user_id = ?1) \
          OR actor_id IN (SELECT id FROM members WHERE user_id = ?1)",

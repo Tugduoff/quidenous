@@ -42,6 +42,8 @@ export default function QuestionsScreen() {
   // A choose question ("Choix"): the question and its 2 to 4 items.
   const [choose, setChoose] = useState(false);
   const [items, setItems] = useState<string[]>(['', '']);
+  // A « Qui a dit ça ? » question: everyone writes an answer, then guesses who wrote what (docs/SAID.md).
+  const [said, setSaid] = useState(false);
   // Anonymous votes on it (the room's rule is "per question"); `[anonyme]` typed by hand works too.
   const [anon, setAnon] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
@@ -62,10 +64,10 @@ export default function QuestionsScreen() {
   const typed = splitTag(text.trim());
   // A server without choose questions can't take a typed `[choix]` one either.
   const typedChoose = typed.kind === 'choose' && features.choose;
-  const kind: QuestionKind = choose || typedChoose ? 'choose' : rank || typed.rank ? 'rank' : 'pick';
+  const kind: QuestionKind = said && features.said ? 'said' : choose || typedChoose ? 'choose' : rank || typed.rank ? 'rank' : 'pick';
   const chosenItems = choose ? items.map((i) => i.trim()) : (typed.items ?? []);
   const perQuestion = features.anonymousVotes && group?.settings.anonymous_votes === 'per_question';
-  const anonymous = perQuestion && kind !== 'choose' && (anon || typed.anonymous);
+  const anonymous = perQuestion && kind !== 'choose' && kind !== 'said' && (anon || typed.anonymous);
   const sameItems = new Set(chosenItems.filter(Boolean).map((i) => i.toLowerCase())).size < chosenItems.filter(Boolean).length;
   const add = useMutation({
     // A bad list of answers shows under it; any other failure in a toast.
@@ -73,12 +75,18 @@ export default function QuestionsScreen() {
     mutationFn: () =>
       api('/questions', {
         method: 'POST',
-        json: kind === 'choose' ? { text: typed.text, kind, items: chosenItems } : { text: typed.text, kind, ...(anonymous ? { anonymous } : {}) },
+        json:
+          kind === 'choose'
+            ? { text: typed.text, kind, items: chosenItems }
+            : kind === 'said'
+              ? { text: typed.text, kind }
+              : { text: typed.text, kind, ...(anonymous ? { anonymous } : {}) },
       }),
     onSuccess: () => {
       setText('');
       setRank(false);
       setChoose(false);
+      setSaid(false);
       setItems(['', '']);
       setAnon(false);
       setAddError(null);
@@ -259,6 +267,7 @@ export default function QuestionsScreen() {
           text={q.text}
           rank={q.kind === 'rank'}
           choose={q.kind === 'choose'}
+          said={q.kind === 'said'}
           style={{ fontFamily: t.font.semibold, fontSize: 15, lineHeight: 20, color: t.txt }}
         />
         {/* A choose question's items, in one line. */}
@@ -363,7 +372,15 @@ export default function QuestionsScreen() {
               <TextInput
                 ref={composer}
                 accessibilityLabel={tr('questions.newQuestion')}
-                placeholder={choose ? tr('questions.placeholderChoose') : rank ? tr('questions.placeholderRank') : tr('questions.placeholder')}
+                placeholder={
+                  kind === 'said'
+                    ? tr('said.composer.placeholder')
+                    : choose
+                      ? tr('questions.placeholderChoose')
+                      : rank
+                        ? tr('questions.placeholderRank')
+                        : tr('questions.placeholder')
+                }
                 placeholderTextColor={t.mut}
                 value={text}
                 onChangeText={setText}
@@ -462,21 +479,23 @@ export default function QuestionsScreen() {
                 <Segmented
                   fill
                   label={tr('questions.kind')}
-                  value={rank ? 'rank' : choose ? 'choose' : 'pick'}
+                  value={rank ? 'rank' : choose ? 'choose' : kind === 'said' ? 'said' : 'pick'}
                   onChange={(k) => {
                     setRank(k === 'rank');
                     setChoose(k === 'choose');
+                    setSaid(k === 'said');
                     setAddError(null);
                   }}
                   options={[
                     { id: 'pick', name: tr('vote.kind.pick') },
                     { id: 'rank', name: tr('vote.kind.rank') },
                     ...(features.choose ? [{ id: 'choose' as const, name: tr('vote.kind.choose') }] : []),
+                    ...(features.said ? [{ id: 'said' as const, name: tr('said.short') }] : []),
                   ]}
                 />
               </View>
-              {/* A choose question is never anonymous: who took what is its whole point. */}
-              {perQuestion && kind !== 'choose' && <AnonymousToggle value={anonymous} onChange={setAnon} />}
+              {/* A choose question is never anonymous: who took what is its whole point. Nor a said one (no votes on people). */}
+              {perQuestion && kind !== 'choose' && kind !== 'said' && <AnonymousToggle value={anonymous} onChange={setAnon} />}
             </View>
           </Card>
           {/* Or many at once. */}

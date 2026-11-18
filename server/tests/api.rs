@@ -2533,6 +2533,7 @@ fn deck_with(tag: &str) -> Vec<String> {
                 && !l.starts_with('#')
                 && !l.starts_with("[classement]")
                 && !l.starts_with("[choix]")
+                && !l.starts_with("[quiadit]")
         })
         .filter_map(|l| {
             let mut rest = l;

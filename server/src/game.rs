@@ -28,6 +28,15 @@ macro_rules! votable {
     };
 }
 
+/// What a room can draw: a party only pick and said questions; a said question needs
+/// [`crate::said::MIN_PEOPLE`] people (`?1` = the room).
+macro_rules! drawable {
+    () => {
+        "(q.kind IN ('pick', 'said') OR (SELECT kind FROM groups WHERE id = ?1) = 'room') \
+         AND (q.kind <> 'said' OR (SELECT COUNT(*) FROM members WHERE group_id = ?1 AND removed_at IS NULL) >= 3)"
+    };
+}
+
 macro_rules! unused {
     () => {
         "NOT EXISTS (SELECT 1 FROM rounds r WHERE r.group_id = ?1 AND r.question_id = q.id)"
@@ -112,7 +121,8 @@ pub async fn round(db: &SqlitePool, group_id: i64, round_id: i64) -> AppResult<R
 }
 
 /// Built-in deck questions this room can still get (the deck of its language), with their vibe tags.
-/// Parties draw pick questions only. One the room has its own copy of (added by hand) is left to that copy.
+/// Parties draw pick and said questions only, said ones with 3 people or more (see [`drawable`]).
+/// One the room has its own copy of (added by hand) is left to that copy.
 async fn deck_candidates<'e, E: sqlx::SqliteExecutor<'e>>(
     db: E,
     group_id: i64,
@@ -120,8 +130,9 @@ async fn deck_candidates<'e, E: sqlx::SqliteExecutor<'e>>(
     Ok(sqlx::query_as(concat!(
         "SELECT q.id, q.vibes FROM questions q WHERE q.group_id IS NULL \
          AND q.lang = (SELECT language FROM groups WHERE id = ?1) \
-         AND (q.kind = 'pick' OR (SELECT kind FROM groups WHERE id = ?1) = 'room') \
          AND NOT EXISTS (SELECT 1 FROM questions c WHERE c.group_id = ?1 AND lower(c.text) = lower(q.text)) AND ",
+        drawable!(),
+        " AND ",
         votable!(),
         " AND ",
         unused!()
@@ -195,13 +206,15 @@ pub async fn questions_left(db: &SqlitePool, group_id: i64) -> AppResult<i64> {
     Ok(custom + deck_left(db, group_id).await?)
 }
 
-/// Group questions first (queue order: oldest first unless shuffled), then a random deck question
+/// Group questions first (queue order: oldest first unless shuffled; a said question waits while the
+/// room is too small), then a random deck question
 /// the group has not seen, in the room's language, from its vibe (its favourite tag first).
 async fn next_question(tx: &mut Transaction<'_, Sqlite>, group_id: i64) -> AppResult<Option<i64>> {
     use rand::seq::IndexedRandom;
     let custom: Option<i64> = sqlx::query_scalar(concat!(
-        "SELECT q.id FROM questions q WHERE q.group_id = ?1 \
-         AND (q.kind = 'pick' OR (SELECT kind FROM groups WHERE id = ?1) = 'room') AND ",
+        "SELECT q.id FROM questions q WHERE q.group_id = ?1 AND ",
+        drawable!(),
+        " AND ",
         votable!(),
         " AND ",
         unused!(),
@@ -230,7 +243,8 @@ async fn next_question(tx: &mut Transaction<'_, Sqlite>, group_id: i64) -> AppRe
 
 /// Opens the next round when none is open and at least two people are in the room (alone,
 /// there is nobody to vote for: the room waits for its second member). Returns the new round id, if any.
-/// A party question gets a deadline (now + the party's timer) and the list of who may vote on it.
+/// A party question gets a deadline (now + the party's timer; a said question's writing phase, see
+/// [`crate::said::writing_secs`]) and the list of who may vote on it.
 pub async fn ensure_open_round(
     tx: &mut Transaction<'_, Sqlite>,
     group_id: i64,
@@ -262,6 +276,20 @@ pub async fn ensure_open_round(
     let Some(question_id) = next_question(tx, group_id).await? else {
         return Ok(None);
     };
+    let seconds = match party {
+        Some(p) => {
+            let kind: String = sqlx::query_scalar("SELECT kind FROM questions WHERE id = ?")
+                .bind(question_id)
+                .fetch_one(&mut **tx)
+                .await?;
+            Some(if kind == "said" {
+                crate::said::writing_secs(p.timer)
+            } else {
+                p.timer
+            })
+        }
+        None => None,
+    };
     let id: i64 = sqlx::query_scalar(
         "INSERT INTO rounds (group_id, question_id, number, deadline_at) \
          VALUES (?1, ?2, (SELECT COALESCE(MAX(number), 0) + 1 FROM rounds WHERE group_id = ?1), \
@@ -270,7 +298,7 @@ pub async fn ensure_open_round(
     )
     .bind(group_id)
     .bind(question_id)
-    .bind(party.map(|p| p.timer))
+    .bind(seconds)
     .fetch_one(&mut **tx)
     .await?;
     crate::anonymous::decide(tx, id).await?;
@@ -288,6 +316,7 @@ pub async fn ensure_open_round(
 }
 
 /// Records a vote; closes the round and opens the next one when everyone has voted.
+/// `guesses`: a said question's matching (see [`crate::said::ballot`]).
 pub async fn vote(
     db: &SqlitePool,
     group_id: i64,
@@ -295,6 +324,7 @@ pub async fn vote(
     target_id: Option<i64>,
     ranking: Option<Vec<i64>>,
     choices: Option<Vec<Choice>>,
+    guesses: Option<Vec<crate::said::Guess>>,
 ) -> AppResult<Vec<Event>> {
     let mut tx = crate::db::write_tx(db).await?;
     // A party that is over is a read-only memory.
@@ -325,8 +355,11 @@ pub async fn vote(
         return Err(AppError::Conflict("alone"));
     }
     // A ranking must place every active member exactly once; its #1 is also stored as the vote.
-    let target_id = if (kind == "rank" && ranking.is_none()
-        || kind == "choose" && choices.is_none())
+    let target_id = if kind == "said" {
+        // Guesses (or an older app's pass); the votes row points at the voter.
+        crate::said::ballot(&mut tx, round_id, voter_id, target_id, guesses).await?;
+        voter_id
+    } else if (kind == "rank" && ranking.is_none() || kind == "choose" && choices.is_none())
         && target_id.is_some()
     {
         // An app too old to know ranking (or choose) questions sends a single pick: it counts as
@@ -423,7 +456,7 @@ pub async fn vote(
     Ok(events)
 }
 
-/// Drops a member's rank / choose ballot on a question (their seat ended, or a new ballot replaces it).
+/// Drops a member's rank / choose / said ballot on a question (their seat ended, or a new ballot replaces it).
 pub async fn clear_ballot(
     tx: &mut Transaction<'_, Sqlite>,
     round_id: i64,
@@ -432,6 +465,7 @@ pub async fn clear_ballot(
     for sql in [
         "DELETE FROM rankings WHERE round_id = ? AND voter_id = ?",
         "DELETE FROM choices WHERE round_id = ? AND voter_id = ?",
+        "DELETE FROM said_guesses WHERE round_id = ? AND voter_id = ?",
     ] {
         sqlx::query(sql)
             .bind(round_id)
@@ -443,7 +477,7 @@ pub async fn clear_ballot(
 }
 
 /// Was this member in the party when the question opened?
-async fn party_player(
+pub(crate) async fn party_player(
     tx: &mut Transaction<'_, Sqlite>,
     round_id: i64,
     member_id: i64,
@@ -528,19 +562,21 @@ pub async fn active_count(tx: &mut Transaction<'_, Sqlite>, group_id: i64) -> Ap
     )
 }
 
-/// Members the group agreed not to wait for on this question (and who still have not voted).
+/// Members the group agreed not to wait for on this question (and who still have not voted; on a
+/// said question still writing, not written).
 pub async fn skipped(
     tx: &mut Transaction<'_, Sqlite>,
     group_id: i64,
     round_id: i64,
 ) -> AppResult<Vec<i64>> {
     let needed = majority(active_count(tx, group_id).await?);
-    Ok(sqlx::query_scalar(
+    Ok(sqlx::query_scalar(concat!(
         "SELECT s.target_id FROM skips s JOIN members m ON m.id = s.target_id AND m.removed_at IS NULL \
          JOIN members f ON f.id = s.from_id AND f.removed_at IS NULL \
-         WHERE s.round_id = ? AND NOT EXISTS (SELECT 1 FROM votes v WHERE v.round_id = s.round_id AND v.voter_id = s.target_id) \
-         GROUP BY s.target_id HAVING COUNT(*) >= ?",
-    )
+         WHERE s.round_id = ? AND NOT ",
+        crate::said::done!("s.round_id", "s.target_id"),
+        " GROUP BY s.target_id HAVING COUNT(*) >= ?"
+    ))
     .bind(round_id)
     .bind(needed)
     .fetch_all(&mut **tx)
@@ -590,16 +626,51 @@ fn union(a: &[i64], b: &[i64]) -> usize {
     all.len()
 }
 
+/// How many people a room's open question waits for: its active members minus the skipped and the away.
+pub(crate) async fn waiting_for(
+    tx: &mut Transaction<'_, Sqlite>,
+    group_id: i64,
+    round_id: i64,
+) -> AppResult<i64> {
+    let (skipped, away) = not_waited(tx, group_id, round_id).await?;
+    Ok(active_count(tx, group_id).await? - union(&skipped, &away) as i64)
+}
+
+/// Open for [`QUORUM_HOURS`] (a said question's guessing: counted from its start), so half of the
+/// people it waits for is enough.
+pub(crate) async fn late(tx: &mut Transaction<'_, Sqlite>, round_id: i64) -> AppResult<bool> {
+    Ok(sqlx::query_scalar(
+        "SELECT COALESCE(said_guess_at, opened_at) <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now', ?) \
+         FROM rounds WHERE id = ?",
+    )
+    .bind(format!("-{QUORUM_HOURS} hours"))
+    .bind(round_id)
+    .fetch_one(&mut **tx)
+    .await?)
+}
+
 /// Closes the round once every active member has voted or been skipped, and opens the next one
 /// (unless the room is paced: then it waits for the owner or the delay, see `pacing`).
 /// A party question closes once everyone it was opened for and still there has voted, and never
 /// opens the next one by itself (the reveal waits for the taps, see `party`).
+/// A said question still writing moves on to its guessing instead (see [`crate::said::advance`]).
 pub async fn close_if_done(
     tx: &mut Transaction<'_, Sqlite>,
     group_id: i64,
     round_id: i64,
 ) -> AppResult<Vec<Event>> {
-    if party(&mut **tx, group_id).await?.is_some() {
+    let party = party(&mut **tx, group_id).await?;
+    let mut events = Vec::new();
+    match crate::said::advance(tx, group_id, round_id).await? {
+        crate::said::Step::Writing => return Ok(events),
+        crate::said::Step::TooFew if party.is_some() => {
+            return close_party_round(tx, group_id, round_id, None).await;
+        }
+        crate::said::Step::TooFew => return close_room_round(tx, group_id, round_id).await,
+        crate::said::Step::Guessing => events.push(Event::RoundUpdated { round_id }),
+        crate::said::Step::NotWriting => {}
+    }
+    if party.is_some() {
         let (eligible, voted): (i64, i64) = sqlx::query_as(
             "SELECT COUNT(*), COALESCE(SUM(EXISTS (SELECT 1 FROM votes v WHERE v.round_id = p.round_id \
                                                    AND v.voter_id = p.member_id)), 0) \
@@ -610,9 +681,9 @@ pub async fn close_if_done(
         .fetch_one(&mut **tx)
         .await?;
         if voted >= eligible {
-            return close_party_round(tx, group_id, round_id, None).await;
+            events.extend(close_party_round(tx, group_id, round_id, None).await?);
         }
-        return Ok(Vec::new());
+        return Ok(events);
     }
     let votes: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM votes v JOIN members m ON m.id = v.voter_id AND m.removed_at IS NULL WHERE v.round_id = ?",
@@ -620,39 +691,41 @@ pub async fn close_if_done(
     .bind(round_id)
     .fetch_one(&mut **tx)
     .await?;
-    let (skipped, away) = not_waited(tx, group_id, round_id).await?;
-    let waiting_for = active_count(tx, group_id).await? - union(&skipped, &away) as i64;
+    let waiting_for = waiting_for(tx, group_id, round_id).await?;
     // Open for a day: half of the people it waits for is enough (a holiday doesn't stop the room).
-    let late: bool = sqlx::query_scalar(
-        "SELECT opened_at <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now', ?) FROM rounds WHERE id = ?",
-    )
-    .bind(format!("-{QUORUM_HOURS} hours"))
-    .bind(round_id)
-    .fetch_one(&mut **tx)
-    .await?;
-    let mut events = Vec::new();
+    let late = late(tx, round_id).await?;
     if votes > 0 && (votes >= waiting_for || late && 2 * votes >= waiting_for) {
-        let done = sqlx::query("UPDATE rounds SET closed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ? AND closed_at IS NULL")
-            .bind(round_id)
-            .execute(&mut **tx)
-            .await?;
-        // Already closed (by someone else just before): nothing to announce twice.
-        if done.rows_affected() == 0 {
-            return Ok(events);
-        }
-        crate::tripot::settle(tx, round_id).await?;
-        events.push(Event::RoundClosed { round_id });
-        if crate::pacing::pause(tx, group_id).await? {
-            events.push(Event::RoomUpdated);
-        } else if let Some(next) = ensure_open_round(tx, group_id).await? {
-            events.push(Event::RoundOpened { round_id: next });
-        }
+        events.extend(close_room_round(tx, group_id, round_id).await?);
     }
     Ok(events)
 }
 
-/// Closes an open question with no result (its question was removed): every vote, ballot and
-/// skip on it goes, then the next question opens (a party pauses for its reveal, as at a deadline).
+/// Closes a room question now, settles its bets and opens the next one (unless the room is paced).
+async fn close_room_round(
+    tx: &mut Transaction<'_, Sqlite>,
+    group_id: i64,
+    round_id: i64,
+) -> AppResult<Vec<Event>> {
+    let done = sqlx::query("UPDATE rounds SET closed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ? AND closed_at IS NULL")
+        .bind(round_id)
+        .execute(&mut **tx)
+        .await?;
+    // Already closed (by someone else just before): nothing to announce twice.
+    if done.rows_affected() == 0 {
+        return Ok(Vec::new());
+    }
+    crate::tripot::settle(tx, round_id).await?;
+    let mut events = vec![Event::RoundClosed { round_id }];
+    if crate::pacing::pause(tx, group_id).await? {
+        events.push(Event::RoomUpdated);
+    } else if let Some(next) = ensure_open_round(tx, group_id).await? {
+        events.push(Event::RoundOpened { round_id: next });
+    }
+    Ok(events)
+}
+
+/// Closes an open question with no result (its question was removed): every vote, ballot, said
+/// answer and skip on it goes, then the next question opens (a party pauses for its reveal, as at a deadline).
 /// A room never counts such a question as missed (see [`away`]).
 pub async fn drop_round(
     tx: &mut Transaction<'_, Sqlite>,
@@ -663,6 +736,8 @@ pub async fn drop_round(
         "DELETE FROM votes WHERE round_id = ?",
         "DELETE FROM rankings WHERE round_id = ?",
         "DELETE FROM choices WHERE round_id = ?",
+        "DELETE FROM said_guesses WHERE round_id = ?",
+        "DELETE FROM said_answers WHERE round_id = ?",
         "DELETE FROM skips WHERE round_id = ?",
     ] {
         sqlx::query(sql).bind(round_id).execute(&mut **tx).await?;
@@ -842,7 +917,16 @@ pub async fn view(db: &SqlitePool, round: RoundRow, me: i64) -> AppResult<RoundV
     .fetch_optional(db)
     .await?;
     let tripot = crate::tripot::view(db, &round, me).await?;
+    let said = crate::said::view(
+        db,
+        round.id,
+        &round.kind,
+        round.closed_at.is_some(),
+        Some(me),
+    )
+    .await?;
     Ok(RoundView {
+        said,
         tripot,
         anonymous: round.anonymous,
         id: round.id,

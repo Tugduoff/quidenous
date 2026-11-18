@@ -27,6 +27,8 @@ They run at start-up, before the server listens (`db::migrate`):
 2. **Backup**: when migrations are pending on an existing database, `VACUUM INTO DATA_DIR/pre-migrate-<current version>.db` first (a consistent, compact copy). The newest 3 are kept. If the backup fails, the server doesn't migrate (and doesn't start).
 3. sqlx runs the pending migrations.
 
+`0051_said.sql` (docs/SAID.md) is the second such rebuild (`questions` for the `'said'` kind, `reports` for `'answer'`), with its own probe.
+
 Rules for new migrations:
 
 - Prefer normal (transactional) migrations: sqlx records them in the same transaction.

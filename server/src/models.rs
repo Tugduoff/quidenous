@@ -78,7 +78,8 @@ pub struct RoundView {
     pub number: i64,
     pub question: String,
     pub custom: bool,
-    /// 'pick' (one person), 'rank' (everyone, first to last) or 'choose' (everyone wired to an item).
+    /// 'pick' (one person), 'rank' (everyone, first to last), 'choose' (everyone wired to an item)
+    /// or 'said' (everyone writes, then guesses who wrote what).
     pub kind: String,
     pub opened_at: String,
     pub closed_at: Option<String>,
@@ -111,6 +112,8 @@ pub struct RoundView {
     pub choose: Option<ChooseResult>,
     /// Anonymous votes: `result` has counts only (empty `voter_ids`), see `anonymous`.
     pub anonymous: bool,
+    /// Said questions: the phase, the answers, my guesses, the result (see `said`).
+    pub said: Option<crate::said::SaidView>,
     /// Bets on the winner (see `tripot`); absent where Tripot doesn't apply.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tripot: Option<crate::tripot::TripotView>,
