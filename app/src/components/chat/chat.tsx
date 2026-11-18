@@ -1,5 +1,4 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import * as Haptics from 'expo-haptics';
 import { EyeOff, Send, Users } from 'lucide-react-native';
 import { type ComponentRef, useEffect, useRef, useState } from 'react';
 import { Platform, Pressable, ScrollView, Text, TextInput, type TextInputProps, type TextStyle, View, type ViewStyle } from 'react-native';
@@ -25,6 +24,7 @@ import { type Member, useGroup, useMembers } from '@/lib/api/group';
 import { useStats } from '@/lib/api/stats';
 import { mediaOf, HEART } from '@/lib/utils/chat';
 import { useFeatures } from '@/lib/api/features';
+import { impactHaptic } from '@/lib/device/haptics';
 
 const MAX = 500;
 /** One suggestion row; the list shows about five and a half, so a longer one visibly scrolls. */
@@ -39,7 +39,7 @@ const DOUBLE_TAP_MS = 280;
 const NO_SELECT = Platform.OS === 'web' ? ({ userSelect: 'none', WebkitTouchCallout: 'none' } as unknown as ViewStyle) : null;
 
 const haptic = () => {
-  if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+  impactHaptic();
 };
 
 /** One message. A component of its own, so a new message does not redraw the others. */

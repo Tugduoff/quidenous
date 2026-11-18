@@ -1,7 +1,6 @@
-import * as Haptics from 'expo-haptics';
 import type { ReactNode } from 'react';
 import { useLayoutEffect, useRef } from 'react';
-import { Platform, View } from 'react-native';
+import { View } from 'react-native';
 import {
   GestureDetector,
   GestureHandlerRootView,
@@ -12,6 +11,7 @@ import {
 } from 'react-native-gesture-handler';
 import { useSharedValue } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
+import { impactHaptic } from '@/lib/device/haptics';
 
 // Sideways travel that makes it a swipe, and up/down travel that makes it a scroll instead (checked first).
 const ACTIVE_X = 18;
@@ -34,7 +34,7 @@ export function TabSwipe({ onSwipe, children }: { onSwipe: (dir: 1 | -1) => void
     latest.current = onSwipe;
   });
   const go = (dir: 1 | -1) => {
-    if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    impactHaptic();
     latest.current(dir);
   };
   // Where and when the finger came down; `on` once it's a swipe (then only letting go matters).

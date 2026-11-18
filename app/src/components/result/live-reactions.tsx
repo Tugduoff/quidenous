@@ -1,8 +1,7 @@
 // Live reactions on a result (docs/REACTIONS.md): the bar of 8 emojis with their counts, the bursts that float up
 // when someone taps one, and the big screen's version of both.
-import * as Haptics from 'expo-haptics';
 import { memo, useCallback, useRef, useState } from 'react';
-import { Platform, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Animated, { Easing, FadeIn, makeMutable, ReduceMotion, type SharedValue, useAnimatedStyle, useReducedMotion, withDelay, withTiming } from 'react-native-reanimated';
 import { scheduleOnUI } from 'react-native-worklets';
 import { formatNumber, useT } from '@/lib/i18n';
@@ -16,6 +15,7 @@ import { Avatar } from '@/components/ui/avatar';
 import { Dialog } from '@/components/ui/dialog';
 import type { Member } from '@/lib/api/group';
 import { useFeatures } from '@/lib/api/features';
+import { impactHaptic } from '@/lib/device/haptics';
 
 // The burst pool: a fixed set of slots, each a little window onto a strip of the 8 emojis. A burst only writes shared
 // values (which emoji, where, how it drifts, then its progress 0 → 1) and the UI thread does the rest: no React render,
@@ -146,7 +146,7 @@ const shortCount = (n: number) => (n < 1000 ? formatNumber(n) : `${formatNumber(
 const NARROW = 380;
 
 const haptic = () => {
-  if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+  impactHaptic();
 };
 
 /**

@@ -1,4 +1,3 @@
-import * as Haptics from 'expo-haptics';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Animated, { FadeIn, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
@@ -12,6 +11,7 @@ import { numberSize } from '@/components/celebration/scene';
 import { sceneFor } from '@/components/celebration/scenes';
 import { Dialog, DialogTitle } from '@/components/ui/dialog';
 import { PREVIEW_AT, playPreview, STREAK_PREVIEW, usePreview } from '@/lib/hooks/use-milestone';
+import { impactHaptic } from '@/lib/device/haptics';
 
 /**
  * Full-screen party for a milestone, drawn over the app (`streak`: my days in a row instead of the room's questions).
@@ -50,9 +50,7 @@ export function Celebration({ count, onDone, frozen, streak }: { count: number; 
         timers.push(
           setTimeout(
             () =>
-              Haptics.impactAsync(
-                i.amp >= 8 ? Haptics.ImpactFeedbackStyle.Heavy : i.amp >= 4 ? Haptics.ImpactFeedbackStyle.Medium : Haptics.ImpactFeedbackStyle.Light,
-              ).catch(() => {}),
+              impactHaptic(i.amp >= 8 ? 'heavy' : i.amp >= 4 ? 'medium' : 'light'),
             i.at,
           ),
         );

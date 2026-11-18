@@ -1,4 +1,3 @@
-import * as Haptics from 'expo-haptics';
 import { type ComponentRef, type ReactNode, type RefObject, useEffect, useRef, useState } from 'react';
 import { Dimensions, type NativeScrollEvent, Platform, type ScrollView, type ViewStyle } from 'react-native';
 import { GestureDetector, GestureHandlerRootView, usePanGesture } from 'react-native-gesture-handler';
@@ -8,6 +7,7 @@ import { scheduleOnRN } from 'react-native-worklets';
 import { useT } from '@/lib/i18n';
 import { EASE, motion } from '@/lib/motion';
 import { useTheme } from '@/lib/theme';
+import { impactHaptic } from '@/lib/device/haptics';
 
 // A list whose rows can be put in another order: hold one (~300 ms), it lifts, drag it, the others make room.
 // Rows are absolutely positioned from their measured heights, so a drop never waits on React to re-lay them out.
@@ -221,7 +221,7 @@ export function ReorderList<T extends { id: number }>({
     dragging.current = true;
     onDragChange?.(true);
     pageScroll(false);
-    if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    impactHaptic();
     startScroll();
   };
   const drop = (id: number, order: number[], moved: boolean) => {

@@ -4,10 +4,9 @@
 // SaidResultView) only take props: no room query in them, so a party screen can reuse them. `SaidRound` is the room's
 // open question (it talks to `/round/current/*`).
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import * as Haptics from 'expo-haptics';
 import { ArrowRight, Check, EyeOff, Pencil, Quote, RotateCcw, Trophy, X } from 'lucide-react-native';
 import { memo, type ReactNode, useCallback, useEffect, useMemo, useReducer, useState, useSyncExternalStore } from 'react';
-import { Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown, ReduceMotion, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withRepeat, withSequence, withSpring, withTiming } from 'react-native-reanimated';
 import { Mascot } from '@/components/mascot/mascot';
 import { ModerationDialog, type ModTarget } from '@/components/moderation/moderation';
@@ -28,14 +27,15 @@ import type { Member } from '@/lib/api/group';
 import type { Round, SaidAnswer, SaidGuess, SaidResult, SaidView } from '@/lib/api/rounds';
 import { roundKeys, answerCurrent, voteCurrent } from '@/lib/api/rounds';
 import { groupKeys } from '@/lib/api/group';
+import { impactHaptic, selectionHaptic } from '@/lib/device/haptics';
 
 const sys = ReduceMotion.System;
 
 const tap = () => {
-  if (Platform.OS !== 'web') Haptics.selectionAsync().catch(() => {});
+  selectionHaptic();
 };
 const thud = () => {
-  if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+  impactHaptic();
 };
 
 /** "Léa Martin" → "Léa": chips and signatures stay short. */

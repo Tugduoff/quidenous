@@ -1,5 +1,4 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import * as Haptics from 'expo-haptics';
 import { ArrowRight, Check, CircleCheck, Crown, List, Sparkles } from 'lucide-react-native';
 import { type ComponentRef, type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, Text, useWindowDimensions, View } from 'react-native';
@@ -21,6 +20,7 @@ import type { Member } from '@/lib/api/group';
 import type { Choice, ChooseResult as ChooseData, Round } from '@/lib/api/rounds';
 import { roundKeys, voteCurrent } from '@/lib/api/rounds';
 import { groupKeys } from '@/lib/api/group';
+import { impactHaptic } from '@/lib/device/haptics';
 
 // "Qui choisirait quoi ?" (docs/CHOOSE.md): wire every member to an item (mine: my real choice, the others: my guesses),
 // then the result person by person.
@@ -50,7 +50,7 @@ function itemsWidth(items: string[]) {
 }
 
 const haptic = () => {
-  if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+  impactHaptic();
 };
 
 // ---------------------------------------------------------------------------------------------------------------------

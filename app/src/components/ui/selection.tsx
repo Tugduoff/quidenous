@@ -1,4 +1,3 @@
-import * as Haptics from 'expo-haptics';
 import { useFocusEffect } from 'expo-router';
 import { Check, ListChecks, type LucideIcon, X } from 'lucide-react-native';
 import { type ReactNode, useCallback, useEffect, useState } from 'react';
@@ -9,6 +8,7 @@ import { LAYOUT_EASE, motion, usePop } from '@/lib/motion';
 import { useTheme } from '@/lib/theme';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { askConfirm } from '@/lib/confirm';
+import { impactHaptic, selectionHaptic } from '@/lib/device/haptics';
 
 // Acting on several items of a list at once, the same way on every list:
 // hold an item (or tap the header's "Sélectionner", the only way in on lists whose hold already means
@@ -19,10 +19,10 @@ import { askConfirm } from '@/lib/confirm';
 const REDUCE = ReduceMotion.System;
 
 const tick = () => {
-  if (Platform.OS !== 'web') Haptics.selectionAsync().catch(() => {});
+  selectionHaptic();
 };
 const thud = () => {
-  if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+  impactHaptic();
 };
 
 export type Selection<K> = {
