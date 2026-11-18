@@ -18,7 +18,7 @@ usage() {
 ./check            everything below except smoke: run it before calling a change done
 ./check repo       comment ban on deploy and CI files, toolchain pins, markdown allow list
 ./check server     comment ban, file size budgets, append-only migrations, cargo fmt, clippy (warnings are errors), tests
-./check app        comment ban, tsc, eslint, knip, generated files, i18n, unit tests, native runtime, web export
+./check app        comment ban, tsc, eslint, knip, generated files, i18n, unit tests, native runtime, web export, Android bundle
 ./check smoke      real server + exported web app driven by Playwright; screenshots in /tmp/qdn-smoke
 
 Machine settings (CARGO_TARGET_DIR, PLAYWRIGHT_DIR, LD_LIBRARY_PATH, PATH) are read from
@@ -87,6 +87,24 @@ check_app() {
   node "$repo/scripts/native-runtime.mjs"
   step "app: web export"
   export_web
+  step "app: Android bundle"
+  bundle_android
+}
+
+bundle_android() {
+  cd "$repo/app"
+  local bundle
+  bundle="$(mktemp -d)"
+  local bytecode=()
+  case "$(uname -sm)" in
+    "Linux x86_64" | Darwin*) ;;
+    *) bytecode=(--no-bytecode) ;;
+  esac
+  CI=1 npx expo export --platform android ${bytecode[@]+"${bytecode[@]}"} --output-dir "$bundle" || {
+    rm -rf "$bundle"
+    return 1
+  }
+  rm -rf "$bundle"
 }
 
 smoke() {
