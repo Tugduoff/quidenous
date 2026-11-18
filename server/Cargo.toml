@@ -40,6 +40,12 @@ http-body-util = "0.1.5"
 tokio-tungstenite = { version = "0.30.0", default-features = false, features = ["handshake"] }
 tower = "0.5.3"
 
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+debug = false
+
 # Password hashing is far too slow unoptimized (tests sign up and in a lot).
 [profile.dev.package.argon2]
 opt-level = 3

@@ -363,7 +363,7 @@ mod tests {
         // Regenerate both with `node scripts/avatar-parts.mjs` (from app/).
         assert!(
             include_str!("../assets/avatar.json")
-                == include_str!("../../app/src/lib/avatar-parts.json"),
+                == include_str!("../../app/src/lib/utils/avatar-parts.json"),
             "server/assets/avatar.json and app/src/lib/avatar-parts.json differ"
         );
     }
@@ -373,7 +373,7 @@ mod tests {
         // The mascots (app/scripts/mascot-parts.mjs) are kept here for share cards; regenerate both from app/.
         assert!(
             include_str!("../assets/mascot.json")
-                == include_str!("../../app/src/lib/mascot-parts.json"),
+                == include_str!("../../app/src/lib/utils/mascot-parts.json"),
             "server/assets/mascot.json and app/src/lib/mascot-parts.json differ"
         );
     }
