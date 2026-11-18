@@ -16,8 +16,8 @@ web_build="${QDN_WEB_BUILD:-${TMPDIR:-/tmp}/qdn-web-build}"
 usage() {
   cat <<'USAGE'
 ./check            everything below except smoke: run it before calling a change done
-./check repo       comment ban on deploy and CI files, toolchain pins
-./check server     comment ban, file size budgets, cargo fmt, clippy (warnings are errors), tests
+./check repo       comment ban on deploy and CI files, toolchain pins, markdown allow list
+./check server     comment ban, file size budgets, append-only migrations, cargo fmt, clippy (warnings are errors), tests
 ./check app        comment ban, tsc, eslint, knip, generated files, i18n, unit tests, native runtime, web export
 ./check smoke      real server + exported web app driven by Playwright; screenshots in /tmp/qdn-smoke
 
@@ -35,6 +35,8 @@ check_repo() {
   node "$repo/scripts/comments.mjs" check deploy Dockerfile .github .gitignore .dockerignore
   step "repo: toolchain pins agree"
   node "$repo/scripts/pins.mjs"
+  step "repo: markdown stays on the short list"
+  node "$repo/scripts/markdown.mjs"
 }
 
 check_server() {
@@ -43,6 +45,8 @@ check_server() {
   node "$repo/scripts/comments.mjs" server
   step "server: file size budgets"
   node "$repo/scripts/budgets.mjs"
+  step "server: migrations are append-only"
+  node "$repo/scripts/migrations.mjs"
   step "server: fmt"
   cargo fmt --check
   step "server: clippy"
