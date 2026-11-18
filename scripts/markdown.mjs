@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { execFileSync } from 'node:child_process';
-import { lstatSync, readFileSync, readlinkSync } from 'node:fs';
+import { existsSync, lstatSync, readFileSync, readlinkSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -29,6 +29,16 @@ const problems = markdownFiles
     (file) =>
       `${file}: no plans, design notes or extra READMEs in the repository. Say it in code (a test, a type, a --help text); what a person must know goes in README.md, what an agent must know and tooling cannot check goes in AGENTS.md.`,
   );
+
+const LOCAL_LINK = /\]\((?!https?:|mailto:|#)([^)#\s]+)(?:#[^)]*)?\)/g;
+for (const file of markdownFiles) {
+  const text = readFileSync(join(REPO, file), 'utf8');
+  for (const [, target] of text.matchAll(LOCAL_LINK)) {
+    if (!existsSync(resolve(REPO, dirname(file), target))) {
+      problems.push(`${file}: links to ${target}, which does not exist.`);
+    }
+  }
+}
 
 const agentsLines = readFileSync(join(REPO, 'AGENTS.md'), 'utf8').split('\n').length - 1;
 if (agentsLines > AGENTS_MAX_LINES) {

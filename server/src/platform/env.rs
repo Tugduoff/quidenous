@@ -236,7 +236,7 @@ pub(crate) const REPORT_EMAIL: Var = var(
 pub(crate) const UPDATES_PUBLISH_TOKEN: Var = var(
     "UPDATES_PUBLISH_TOKEN",
     Fallback::None,
-    "Over-the-air app updates: the token CI uses to publish JS bundles (docs/OTA.md). Unset: publishing is off",
+    "Over-the-air app updates: the token CI uses to publish JS bundles. Unset: publishing is off",
 );
 pub(crate) const UPDATES_CERTIFICATE: Var = var(
     "UPDATES_CERTIFICATE",
@@ -246,7 +246,7 @@ pub(crate) const UPDATES_CERTIFICATE: Var = var(
 pub(crate) const KLIPY_API_KEY: Var = var(
     "KLIPY_API_KEY",
     Fallback::None,
-    "GIFs in the chat through Klipy (docs/CHAT_MEDIA.md); the server searches and proxies every GIF. Unset: no GIF button",
+    "GIFs in the chat through Klipy; the server searches and proxies every GIF. Unset: no GIF button",
 );
 pub(crate) const KLIPY_CONTENT_FILTER: Var = var(
     "KLIPY_CONTENT_FILTER",
@@ -276,7 +276,7 @@ pub(crate) const MIN_APP_VERSION: Var = var(
 pub(crate) const DONATION_URL: Var = var(
     "DONATION_URL",
     Fallback::None,
-    "https:// donation page linked from the web app and sideloaded APK only (docs/DONATE.md). Not https: ignored, warned about",
+    "https:// donation page linked from the web app and sideloaded APK only. Not https: ignored, warned about",
 );
 pub(crate) const WRAPPED_FROM: Var = var(
     "WRAPPED_FROM",
