@@ -121,7 +121,7 @@ pub(crate) async fn messages(
          ORDER BY x.id DESC LIMIT ?"
     ))
     .bind(id)
-    .bind(me.role == "owner")
+    .bind(me.is_owner())
     .bind(me.user_id)
     .bind(MESSAGES_SHOWN)
     .fetch_all(&state.db)

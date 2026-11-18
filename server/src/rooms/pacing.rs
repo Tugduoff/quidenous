@@ -166,7 +166,7 @@ pub async fn launch(
     Path(room): Path<RoomId>,
 ) -> AppResult<Json<Value>> {
     let me = crate::rooms::manage::seat(&state, user, room).await?;
-    if me.role != "owner" {
+    if !me.is_owner() {
         return Err(AppError::Forbidden("owner_only"));
     }
     let mut tx = crate::platform::db::write_tx(&state.db).await?;

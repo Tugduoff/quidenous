@@ -21,6 +21,7 @@ use crate::{
     realtime::push::{Kind, Notification},
     rooms::manage::seat,
     rooms::members::COLORS,
+    rooms::model::Role,
     rounds::game,
 };
 
@@ -384,7 +385,7 @@ pub async fn add_to_room(
     match existing {
         Some((None, _)) => return Err(AppError::Conflict("already_in_room")),
         // Removed by the owner (or a vote): inviting them back is the owner's call.
-        Some((Some(_), false)) if my_seat.role != "owner" => {
+        Some((Some(_), false)) if !my_seat.is_owner() => {
             return Err(AppError::Forbidden("owner_only"));
         }
         _ => {}
@@ -531,7 +532,7 @@ pub async fn accept_invite(
         return Err(AppError::Gone("invite_gone"));
     }
     // Valid: the inviter is still in the room.
-    let inviter_role: String = sqlx::query_scalar(
+    let inviter_role: Role = sqlx::query_scalar(
         "SELECT role FROM members WHERE group_id = ? AND user_id = ? AND removed_at IS NULL",
     )
     .bind(room)
@@ -545,7 +546,7 @@ pub async fn accept_invite(
             return Ok(Json(json!({ "room_id": room, "member_id": member_id })));
         }
         // Removed by the owner (or a vote): only an invitation from the owner brings them back.
-        Some((_, Some(_), false)) if inviter_role != "owner" => {
+        Some((_, Some(_), false)) if inviter_role != Role::Owner => {
             drop_invite().execute(&mut *tx).await?;
             tx.commit().await?;
             return Err(AppError::Forbidden("removed"));
@@ -643,7 +644,7 @@ pub async fn cancel_room_invite(
     .bind(room)
     .bind(user)
     .bind(me)
-    .bind(my_seat.role == "owner")
+    .bind(my_seat.is_owner())
     .execute(&state.db)
     .await?;
     Ok(Json(json!({ "ok": true })))

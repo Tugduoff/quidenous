@@ -34,7 +34,7 @@ pub(crate) async fn may_add_questions(state: &AppState, me: &MemberRow) -> AppRe
         .bind(me.group_id)
         .fetch_one(&state.db)
         .await?;
-    if by == "owner" && me.role != "owner" {
+    if by == "owner" && !me.is_owner() {
         return Err(AppError::Forbidden("owner_only"));
     }
     Ok(())
@@ -224,14 +224,14 @@ pub(crate) async fn delete_question(
     .await?;
     let (author, unused) = row.ok_or(AppError::NotFound)?;
     if !unused {
-        if me.role != "owner" {
+        if !me.is_owner() {
             return Err(AppError::Conflict("already_asked"));
         }
         drop(tx);
         crate::community::moderation::retire_question(&state, id).await?;
         return Ok(Json(json!({ "ok": true, "retired": true })));
     }
-    if author != Some(me.id) && me.role != "owner" {
+    if author != Some(me.id) && !me.is_owner() {
         return Err(AppError::Forbidden("not_author"));
     }
     // A challenge waiting on this question goes with it.
@@ -301,9 +301,7 @@ pub(crate) async fn delete_questions(
         let error = match found.get(&id) {
             None => Some("not_found"),
             Some((_, false)) => Some("already_asked"),
-            Some((author, true)) if *author != Some(me.id) && me.role != "owner" => {
-                Some("not_author")
-            }
+            Some((author, true)) if *author != Some(me.id) && !me.is_owner() => Some("not_author"),
             Some(_) => None,
         };
         match error {
@@ -335,7 +333,7 @@ pub(crate) async fn clear_queue(
     State(state): State<AppState>,
     Me(me): Me,
 ) -> AppResult<Json<Value>> {
-    if me.role != "owner" {
+    if !me.is_owner() {
         return Err(AppError::Forbidden("owner_only"));
     }
     // One write transaction: a vote can't open one of them in between.

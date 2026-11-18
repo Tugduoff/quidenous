@@ -23,7 +23,7 @@ pub async fn restore_message(
     Me(me): Me,
     Path((round_id, message_id)): Path<(RoundId, MessageId)>,
 ) -> AppResult<Json<Value>> {
-    if me.role != "owner" {
+    if !me.is_owner() {
         return Err(AppError::Forbidden("owner_only"));
     }
     crate::rounds::game::round(&state.db, me.group_id, round_id).await?;
@@ -116,7 +116,7 @@ pub async fn delete_message(
             .fetch_optional(&state.db)
             .await?
             .ok_or(AppError::NotFound)?;
-    if author != me.id && me.role != "owner" {
+    if author != me.id && !me.is_owner() {
         return Err(AppError::Forbidden("not_author"));
     }
     if !erase_message(&state, message_id).await? {
@@ -212,7 +212,7 @@ pub async fn retire_round_question(
     Me(me): Me,
     Path(round_id): Path<RoundId>,
 ) -> AppResult<Json<Value>> {
-    if me.role != "owner" {
+    if !me.is_owner() {
         return Err(AppError::Forbidden("owner_only"));
     }
     let question: QuestionId =

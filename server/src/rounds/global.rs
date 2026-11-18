@@ -21,7 +21,7 @@ use crate::{
     accounts::auth::Me,
     platform::error::{AppError, AppResult},
     platform::i18n::Lang,
-    rooms::model::MemberRow,
+    rooms::model::{MemberRow, Role},
 };
 
 /// A room needs this many people for the global question (fewer: the card is hidden).
@@ -271,17 +271,17 @@ async fn aggregates(
             themselves.add(voter == target);
         }
         // The owner, and whoever joined last (the owner never counts as the newcomer).
-        let people: Vec<(MemberId, String)> = sqlx::query_as(
+        let people: Vec<(MemberId, Role)> = sqlx::query_as(
             "SELECT id, role FROM members WHERE group_id = ? AND removed_at IS NULL \
              ORDER BY created_at DESC, id DESC",
         )
         .bind(room)
         .fetch_all(db)
         .await?;
-        if let Some((id, _)) = people.iter().find(|(_, role)| role == "owner") {
+        if let Some((id, _)) = people.iter().find(|(_, role)| *role == Role::Owner) {
             owner.add(won.contains(id));
         }
-        if let Some((id, _)) = people.iter().find(|(_, role)| role != "owner") {
+        if let Some((id, _)) = people.iter().find(|(_, role)| *role != Role::Owner) {
             newest.add(won.contains(id));
         }
         // The room's latest closed pick question that got votes (a skipped one keeps none).

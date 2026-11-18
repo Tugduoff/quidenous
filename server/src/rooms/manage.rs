@@ -18,7 +18,7 @@ use crate::{
     realtime::notify::notify_round,
     rooms::members::COLORS,
     rooms::members::remove_member,
-    rooms::model::{Member, MemberRow},
+    rooms::model::{Member, MemberRow, Role},
     rounds::game,
 };
 
@@ -106,7 +106,7 @@ pub async fn seat(state: &AppState, user_id: UserId, room: RoomId) -> AppResult<
 
 async fn owner_seat(state: &AppState, user_id: UserId, room: RoomId) -> AppResult<MemberRow> {
     let me = seat(state, user_id, room).await?;
-    if me.role != "owner" {
+    if !me.is_owner() {
         return Err(AppError::Forbidden("owner_only"));
     }
     Ok(me)
@@ -116,7 +116,7 @@ async fn owner_seat(state: &AppState, user_id: UserId, room: RoomId) -> AppResul
 type RoomRow = (
     RoomId,
     String,
-    String,
+    Role,
     i64,
     Option<i64>,
     bool,

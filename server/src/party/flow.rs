@@ -32,7 +32,7 @@ pub(super) async fn owner_seat(
     id: RoomId,
 ) -> AppResult<(MemberRow, PartyRow)> {
     let (me, p) = party_seat(state, user, id).await?;
-    if me.role != "owner" {
+    if !me.is_owner() {
         return Err(AppError::Forbidden("owner_only"));
     }
     Ok((me, p))

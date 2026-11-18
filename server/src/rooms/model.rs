@@ -1,6 +1,14 @@
 use crate::platform::ids::{MemberId, RoomId, UserId};
 use serde::Serialize;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, sqlx::Type)]
+#[serde(rename_all = "lowercase")]
+#[sqlx(rename_all = "lowercase")]
+pub enum Role {
+    Owner,
+    Member,
+}
+
 #[derive(Clone, Debug, sqlx::FromRow)]
 pub struct MemberRow {
     pub id: MemberId,
@@ -13,7 +21,7 @@ pub struct MemberRow {
     pub seen_round: i64,
     pub removed_at: Option<String>,
     pub user_id: Option<UserId>,
-    pub role: String,
+    pub role: Role,
     /// The seat ended because they left (not removed): the invite code brings them back.
     #[sqlx(default)]
     pub left_by_self: bool,
@@ -34,6 +42,12 @@ pub struct Member {
     /// apps, newer ones show their own localised label.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub deleted: bool,
+}
+
+impl MemberRow {
+    pub fn is_owner(&self) -> bool {
+        self.role == Role::Owner
+    }
 }
 
 impl From<&MemberRow> for Member {

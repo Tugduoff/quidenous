@@ -408,7 +408,7 @@ pub(super) async fn tap(
     let Some((round_id, true)) = latest_round(&state, id).await? else {
         return Err(AppError::Conflict("not_reveal"));
     };
-    if me.role == "owner" {
+    if me.is_owner() {
         open_next(&state, id, Some(round_id)).await?;
     } else {
         let added =

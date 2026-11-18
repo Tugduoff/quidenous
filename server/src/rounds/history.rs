@@ -378,7 +378,7 @@ pub(crate) async fn unpin(
         .bind(id)
         .fetch_optional(&state.db)
         .await?;
-    if by.is_some_and(|by| by != me.id) && me.role != "owner" {
+    if by.is_some_and(|by| by != me.id) && !me.is_owner() {
         return Err(AppError::Forbidden("not_pinner"));
     }
     sqlx::query("DELETE FROM pins WHERE round_id = ?")

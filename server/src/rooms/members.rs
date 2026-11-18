@@ -11,7 +11,7 @@ use crate::{
     accounts::auth::{Me, hash_token, new_token},
     platform::error::{AppError, AppResult},
     realtime::live::Event,
-    rooms::model::{Member, MemberRow},
+    rooms::model::{Member, MemberRow, Role},
     rounds::game,
 };
 
@@ -442,17 +442,17 @@ pub(crate) async fn kick(
     // The vote, the count and the removal in one write transaction: two votes landing together
     // (or a vote and the target leaving) can't both remove the seat.
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
-    let target: Option<String> = sqlx::query_scalar(
+    let target: Option<Role> = sqlx::query_scalar(
         "SELECT role FROM members WHERE id = ? AND group_id = ? AND removed_at IS NULL",
     )
     .bind(member_id)
     .bind(me.group_id)
     .fetch_optional(&mut *tx)
     .await?;
-    match target.as_deref() {
+    match target {
         None => return Err(AppError::NotFound),
         // The owner runs the room: no vote removes them (they can hand it over, or leave).
-        Some("owner") => return Err(AppError::Forbidden("owner")),
+        Some(Role::Owner) => return Err(AppError::Forbidden("owner")),
         Some(_) => {}
     }
     sqlx::query("INSERT OR IGNORE INTO kicks (target_id, from_id) VALUES (?, ?)")

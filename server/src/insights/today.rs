@@ -26,6 +26,7 @@ use crate::{
     insights::streaks,
     platform::error::{AppError, AppResult},
     realtime::live::Event,
+    rooms::model::Role,
     rounds::game,
     rounds::tripot::{self, month},
 };
@@ -39,7 +40,7 @@ pub struct Today {
 pub struct TodayRoom {
     pub id: RoomId,
     pub name: String,
-    pub role: String,
+    pub role: Role,
     pub members: i64,
     pub muted: bool,
     /// `vote` | `result` | `tripot` | `wait` | `idle`, see [`Status`].
@@ -131,7 +132,7 @@ struct Seat {
     room: RoomId,
     name: String,
     seat: MemberId,
-    role: String,
+    role: Role,
     muted: bool,
     members: i64,
     tripot: bool,
