@@ -7,7 +7,6 @@ import { useFeatures } from '@/lib/api/features';
 import { useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 
-/** Many questions at once: packs, a file, a suggestion for the official deck, and the file format for an AI to write one. */
 export function QuestionSources({ importing, onPickFile }: { importing: boolean; onPickFile: () => void }) {
   const t = useTheme();
   const tr = useT();

@@ -4,7 +4,6 @@ import { deleteQuestion, questionKeys } from '@/lib/api/questions';
 import { useT } from '@/lib/i18n';
 import { tidy } from '@/lib/utils/text';
 
-/** Its author or the room owner takes a question out before it's asked. */
 export function DeleteQuestionModal({ question, onClose }: { question: { id: number; text: string } | null; onClose: () => void }) {
   const tr = useT();
   const qc = useQueryClient();

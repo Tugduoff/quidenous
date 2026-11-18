@@ -6,7 +6,6 @@ import { useTheme } from '@/lib/theme';
 import type { DraftLine } from '@/lib/utils/import-draft';
 import { tidy } from '@/lib/utils/text';
 
-/** One line of a picked question file: ticked to import it, dimmed with its problem when it can't be. */
 export function DraftLineRow({ line: l, anonymousVotes, onToggle }: { line: DraftLine; anonymousVotes: boolean; onToggle: () => void }) {
   const t = useTheme();
   const tr = useT();

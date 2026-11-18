@@ -5,7 +5,6 @@ import { useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 import { ITEM_MAX, ITEMS_MAX, ITEMS_MIN } from '@/lib/utils/import-draft';
 
-/** A choose question's items: 2 to 4, one per line, with what's wrong with them on the right. */
 export function ChooseItemsEditor({
   items,
   setItems,

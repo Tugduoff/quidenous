@@ -10,7 +10,6 @@ import { useTheme } from '@/lib/theme';
 import type { DraftLine } from '@/lib/utils/import-draft';
 import { shuffled } from '@/lib/utils/shuffle';
 
-/** A picked question file, line by line: tick what to import, in the file's order or a random one. */
 export function ImportDraftCard({
   draft,
   setDraft,

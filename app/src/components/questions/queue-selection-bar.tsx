@@ -5,7 +5,6 @@ import { deleteQuestions, questionKeys, type QueuedQuestion } from '@/lib/api/qu
 import { roundKeys } from '@/lib/api/rounds';
 import { useT } from '@/lib/i18n';
 
-/** The ticked questions: first or last in the queue, or deleted (someone else's can be moved, not deleted). */
 export function QueueSelectionBar({
   sel,
   queue,

@@ -6,7 +6,6 @@ import { downloadHistory } from '@/lib/device/share';
 import { useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 
-/** The title, and the export once there is something to export. */
 export function HistoryHeader({ canExport }: { canExport: boolean }) {
   const t = useTheme();
   const tr = useT();
