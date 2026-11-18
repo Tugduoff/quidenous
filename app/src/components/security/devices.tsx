@@ -1,12 +1,12 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { Fingerprint, Globe, Lock, LogOut, ScanFace, Smartphone, X } from 'lucide-react-native';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Pressable, Text } from 'react-native';
 import { BrandIcon } from '@/components/auth/brand-icons';
 import { withReauth } from '@/components/security/reauth';
 import { authKeys, auth, isLinked, PROVIDER_NAMES, useAccount, type Account, type DeviceSession, type Provider, useDeviceSessions } from '@/lib/api/auth';
 import { t as translate, useT } from '@/lib/i18n';
-import { lockMethod, lockSupported, setLock, useLock } from '@/lib/device/lock';
+import { lockSupported, setLock, useLock } from '@/lib/device/lock';
 import { useSession } from '@/lib/session';
 import { oauth } from '@/lib/sign-in';
 import { useTheme } from '@/lib/theme';
@@ -18,6 +18,7 @@ import { Pill } from '@/components/ui/pill';
 import { Row, Section } from '@/components/ui/section';
 import { authError } from '@/lib/api/errors';
 import { useFeatures } from '@/lib/api/features';
+import { useLockMethod } from '@/lib/hooks/use-app-lock';
 
 /** Google / Discord: link (the web leaves for the provider and comes back on /oauth), unlink. */
 export function ProvidersSection({ account }: { account: Account }) {
@@ -158,10 +159,7 @@ export function LockSection() {
   const { enabled } = useLock();
   const [error, setError] = useState<string | null>(null);
   // Say what it actually asks for: "Face ID" means nothing on a phone with a fingerprint reader.
-  const [method, setMethod] = useState<'face' | 'fingerprint' | 'code'>('code');
-  useEffect(() => {
-    lockMethod().then(setMethod);
-  }, []);
+  const method = useLockMethod();
   if (!lockSupported) return null;
   const label = tr(`security.lock.${method}`);
   const Icon = method === 'face' ? ScanFace : method === 'fingerprint' ? Fingerprint : Lock;

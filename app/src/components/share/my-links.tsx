@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ChevronRight, Link2, Trash2 } from 'lucide-react-native';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { showToast } from '@/lib/toast';
 import { dateFormat, useT } from '@/lib/i18n';
@@ -19,9 +19,7 @@ export function MyLinksRow() {
   const { data: links } = useMyLinks(shareLinks);
   // The last one deleted: nothing left to show.
   const empty = !!links && !links.length;
-  useEffect(() => {
-    if (empty) setOpen(false);
-  }, [empty]);
+  if (empty && open) setOpen(false);
   if (!links?.length && !open) return null;
   return (
     <>

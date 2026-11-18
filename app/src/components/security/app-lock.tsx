@@ -1,54 +1,20 @@
 import { Lock } from 'lucide-react-native';
-import { useEffect, useRef, useState, useEffectEvent } from 'react';
-import { AppState, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { useT } from '@/lib/i18n';
-import { unlock, useLock } from '@/lib/device/lock';
+import { useLock } from '@/lib/device/lock';
+import { useAppLock } from '@/lib/hooks/use-app-lock';
 import { useTheme } from '@/lib/theme';
 import { Button } from '@/components/ui/button';
 import { Logo } from '@/components/ui/text';
-
-const AWAY_MS = 5 * 60_000;
 
 /** When the app lock is on: covers everything at a cold start and after 5 min away, until Face ID / fingerprint / passcode. */
 export function AppLock({ active }: { active: boolean }) {
   const t = useTheme();
   const tr = useT();
   const { enabled } = useLock();
-  const on = enabled && active;
-  // Rendered once the saved choice is known: a cold start with the lock on starts locked.
-  const [locked, setLocked] = useState(on);
-  const leftAt = useRef<number | null>(null);
-  const asking = useRef(false);
+  const { locked, ask } = useAppLock(enabled && active);
 
-  const ask = async () => {
-    if (asking.current) return;
-    asking.current = true;
-    try {
-      if (await unlock()) setLocked(false);
-    } finally {
-      asking.current = false;
-    }
-  };
-
-  useEffect(() => {
-    if (!on) return setLocked(false);
-    const sub = AppState.addEventListener('change', (state) => {
-      // Only 'background' counts: the Face ID sheet itself makes the app 'inactive' on iPhone.
-      if (state === 'background') leftAt.current = Date.now();
-      if (state === 'active' && leftAt.current != null) {
-        if (Date.now() - leftAt.current > AWAY_MS) setLocked(true);
-        leftAt.current = null;
-      }
-    });
-    return () => sub.remove();
-  }, [on]);
-
-  const askNow = useEffectEvent(() => ask());
-  useEffect(() => {
-    if (locked && AppState.currentState === 'active') askNow();
-  }, [locked]);
-
-  if (!locked || !on) return null;
+  if (!locked) return null;
   return (
     <View style={[StyleSheet.absoluteFill, { backgroundColor: t.bg, alignItems: 'center', justifyContent: 'center', gap: 28, padding: 32 }]}>
       <Logo size={34} />
