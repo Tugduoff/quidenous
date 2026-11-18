@@ -27,6 +27,7 @@ mod privacy;
 mod rails;
 mod reactions;
 mod result_reactions;
+mod routes;
 mod said;
 mod stats;
 mod streaks;
