@@ -1,7 +1,7 @@
 import { keepPreviousData, type InfiniteData, type QueryClient, useInfiniteQuery, useQuery } from '@tanstack/react-query';
 
-import { api, type Friends, type Group, type RoomSummary, type HistoryItem, type InboxItem, type Message, type Member, type Queue, type RoomInvite, type Round, normalizeStats, type Stats, type StatsPeriod, type Vibe } from '@/lib/api';
-import { localizeGroup } from '@/lib/names';
+import { api, type Friends, type Group, type RoomSummary, type HistoryItem, type InboxItem, type Message, type Member, type Queue, type RoomInvite, type Round, normalizeStats, type Stats, type StatsPeriod, type Vibe } from '@/lib/api/client';
+import { localizeGroup } from '@/lib/utils/names';
 
 export const keys = {
   group: ['group'] as const,

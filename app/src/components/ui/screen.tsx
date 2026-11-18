@@ -14,7 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useT } from '@/lib/i18n';
-import { useUnreachable } from '@/lib/live';
+import { useUnreachable } from '@/lib/api/live';
 import { useTheme } from '@/lib/theme';
 
 // Home screen web app on iPhone: the safe-area inset is only known to CSS (same as the tab bar).

@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { ScrollView } from 'react-native-gesture-handler';
 import Svg, { Circle, G, Rect, Text as SvgText } from 'react-native-svg';
-import type { Member, Stats } from '@/lib/api';
+import type { Member, Stats } from '@/lib/api/client';
 import { useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 import { Avatar } from '@/components/ui/avatar';

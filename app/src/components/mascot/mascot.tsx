@@ -23,7 +23,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import Svg, { Circle, ClipPath, Defs, Ellipse, G, Path, Rect } from 'react-native-svg';
 
-import { compose, type Composed, type Group, GROUND, type Mood, type Pose, type Prop, type Shape, type Who } from '@/lib/mascot';
+import { compose, type Composed, type Group, GROUND, type Mood, type Pose, type Prop, type Shape, type Who } from '@/lib/utils/mascot';
 import { useScheme } from '@/lib/theme';
 
 // ---------- the shared clock ----------

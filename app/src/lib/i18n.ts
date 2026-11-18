@@ -2,9 +2,9 @@ import { getLocales } from 'expo-localization';
 import { useSyncExternalStore } from 'react';
 import { Platform } from 'react-native';
 
-import { api } from '@/lib/api';
+import { api } from '@/lib/api/client';
 import { type Lang, type Params, type TKey, tIn } from '@/lib/i18n-core';
-import { storage } from '@/lib/storage';
+import { storage } from '@/lib/device/storage';
 
 export { type Lang, type Plural, type TKey, tidy, tIn } from '@/lib/i18n-core';
 /** The Profile setting: follow the phone, or a fixed language. */

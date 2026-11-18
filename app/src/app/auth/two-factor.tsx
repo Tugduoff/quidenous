@@ -1,8 +1,8 @@
 import { Redirect, router } from 'expo-router';
 import { useState } from 'react';
 import { AuthScreen } from '@/components/auth/auth-screen';
-import { ApiError } from '@/lib/api';
-import { auth, authError, flow, useFeatures } from '@/lib/auth';
+import { ApiError } from '@/lib/api/client';
+import { auth, authError, flow, useFeatures } from '@/lib/api/auth';
 import { useT } from '@/lib/i18n';
 import { useSession } from '@/lib/session';
 import { Button } from '@/components/ui/button';

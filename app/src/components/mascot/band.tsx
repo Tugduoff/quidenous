@@ -4,7 +4,7 @@ import { memo, useState } from 'react';
 import { type StyleProp, View, type ViewStyle } from 'react-native';
 
 import { Mascot } from '@/components/mascot/mascot';
-import type { Pose, Who } from '@/lib/mascot';
+import type { Pose, Who } from '@/lib/utils/mascot';
 
 type Motion = 'caught' | 'accuse' | 'happy' | 'celebrate';
 // [who, pose, size, left, bottom, z, motion] in a 850 × 270 stage: legs do half the acting.

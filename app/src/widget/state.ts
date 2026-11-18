@@ -5,7 +5,7 @@ import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
 import type { Lang } from '@/lib/i18n';
-import { ROOM_KEY, SERVER_KEY, storage, TOKEN_KEY } from '@/lib/storage';
+import { ROOM_KEY, SERVER_KEY, storage, TOKEN_KEY } from '@/lib/device/storage';
 
 /** `GET /api/widget` (server/src/widget.rs). */
 export type WidgetRound = { id: number; number: number; question: string; kind: 'pick' | 'rank' | 'choose' };

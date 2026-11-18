@@ -1,7 +1,7 @@
 import { RotateCw } from 'lucide-react-native';
 import { ActivityIndicator, Text, View, type ViewStyle } from 'react-native';
 import { Mascot } from '@/components/mascot/mascot';
-import { ApiError } from '@/lib/api';
+import { ApiError } from '@/lib/api/client';
 import { useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 import { PressableScale } from '@/components/ui/pressable-scale';

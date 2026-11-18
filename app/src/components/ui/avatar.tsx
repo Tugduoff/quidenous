@@ -1,6 +1,6 @@
-import { type Member, photoUrl } from '@/lib/api';
+import { type Member, photoUrl } from '@/lib/api/client';
 import { useTheme } from '@/lib/theme';
-import { parseAvatar } from '@/lib/avatar';
+import { parseAvatar } from '@/lib/utils/avatar';
 import { View, Text } from 'react-native';
 import { Image } from 'expo-image';
 import { AvatarArt } from '@/components/ui/avatar-art';

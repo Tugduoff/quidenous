@@ -1,7 +1,7 @@
 import { Sparkles } from 'lucide-react-native';
 import { Text, type ViewStyle } from 'react-native';
 import { useT } from '@/lib/i18n';
-import { downloadPackTemplate } from '@/lib/share';
+import { downloadPackTemplate } from '@/lib/device/share';
 import { useTheme } from '@/lib/theme';
 import { PressableScale } from '@/components/ui/pressable-scale';
 

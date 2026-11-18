@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Linking, Platform, Text, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import { withReauth } from '@/components/security/reauth';
-import { accountKey, auth, authError, type Account } from '@/lib/auth';
+import { accountKey, auth, authError, type Account } from '@/lib/api/auth';
 import { dateFormat, useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 import { PressableScale } from '@/components/ui/pressable-scale';

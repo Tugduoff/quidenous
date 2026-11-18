@@ -3,9 +3,9 @@ import { ChevronRight, ShieldAlert, X } from 'lucide-react-native';
 import { useSyncExternalStore } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
-import { useAccount } from '@/lib/auth';
+import { useAccount } from '@/lib/api/auth';
 import { useT } from '@/lib/i18n';
-import { storage } from '@/lib/storage';
+import { storage } from '@/lib/device/storage';
 import { useTheme } from '@/lib/theme';
 
 const KEY = 'qdn.secureDismissed';

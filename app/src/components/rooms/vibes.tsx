@@ -1,6 +1,6 @@
 import { Beer, Briefcase, Coffee, Flame, Heart, House, type LucideIcon, PartyPopper, Sparkles, Users, Wine } from 'lucide-react-native';
 import { Text, View } from 'react-native';
-import type { Vibe } from '@/lib/api';
+import type { Vibe } from '@/lib/api/client';
 import { t as tr, useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 import { PressableScale } from '@/components/ui/pressable-scale';

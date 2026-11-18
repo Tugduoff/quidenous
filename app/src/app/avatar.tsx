@@ -6,8 +6,8 @@ import { Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-na
 import Animated from 'react-native-reanimated';
 import { AvatarArt } from '@/components/ui/avatar-art';
 import { Screen } from '@/components/ui/screen';
-import { api, type Member } from '@/lib/api';
-import { type Avatar, type Field, formatAvatar, optionCount, PARTS, type PaletteField, parseAvatar, PRESETS, randomAvatar, startingAvatar } from '@/lib/avatar';
+import { api, type Member } from '@/lib/api/client';
+import { type Avatar, type Field, formatAvatar, optionCount, PARTS, type PaletteField, parseAvatar, PRESETS, randomAvatar, startingAvatar } from '@/lib/utils/avatar';
 import { type TKey, useT } from '@/lib/i18n';
 import { usePop } from '@/lib/motion';
 import { keys } from '@/lib/queries';

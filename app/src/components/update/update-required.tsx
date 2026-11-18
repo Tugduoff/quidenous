@@ -2,11 +2,11 @@ import * as Updates from 'expo-updates';
 import { useState, useSyncExternalStore } from 'react';
 import { Linking, Platform, StyleSheet, Text, View } from 'react-native';
 import { Mascot } from '@/components/mascot/mascot';
-import { setOnUpdateRequired } from '@/lib/api';
+import { setOnUpdateRequired } from '@/lib/api/client';
 import { useT } from '@/lib/i18n';
-import { OTA } from '@/lib/ota';
+import { OTA } from '@/lib/device/ota';
 import { useTheme } from '@/lib/theme';
-import { checkForUpdate, SIDELOAD } from '@/lib/update';
+import { checkForUpdate, SIDELOAD } from '@/lib/device/update';
 import { Button } from '@/components/ui/button';
 
 const PLAY = 'com.tugduoff.quidenous';

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { AuthScreen } from '@/components/auth/auth-screen';
-import { auth, authError, flow } from '@/lib/auth';
+import { auth, authError, flow } from '@/lib/api/auth';
 import { useT } from '@/lib/i18n';
 import { useSession } from '@/lib/session';
 import { Button } from '@/components/ui/button';

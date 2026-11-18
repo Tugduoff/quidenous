@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Platform, View } from 'react-native';
 import { AuthScreen } from '@/components/auth/auth-screen';
 import { showToast } from '@/lib/toast';
-import { authError, isChallenge, isLinked, isReauth } from '@/lib/auth';
+import { authError, isChallenge, isLinked, isReauth } from '@/lib/api/auth';
 import { useT } from '@/lib/i18n';
 import { redeem, takeWebOAuthKey, useFinishSignIn } from '@/lib/sign-in';
 import { useTheme } from '@/lib/theme';

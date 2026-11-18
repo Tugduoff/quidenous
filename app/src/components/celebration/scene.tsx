@@ -2,8 +2,8 @@ import type { ComponentType, ReactNode } from 'react';
 import { Text, View } from 'react-native';
 
 import { useT } from '@/lib/i18n';
-import type { Milestone } from '@/lib/milestones';
-import { tidy } from '@/lib/text';
+import type { Milestone } from '@/lib/utils/milestones';
+import { tidy } from '@/lib/utils/text';
 import { type Theme, themes } from '@/lib/theme';
 
 import { type Clock, type Impact, type Rand, Reveal } from '@/components/celebration/engine';

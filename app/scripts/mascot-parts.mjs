@@ -1,4 +1,4 @@
-// Builds the mascots ("la bande", Petons rig) into the one JSON read by the app (src/lib/mascot-parts.json, drawn by
+// Builds the mascots ("la bande", Petons rig) into the one JSON read by the app (src/lib/utils/mascot-parts.json, drawn by
 // components/mascot.tsx) and the server (server/assets/mascot.json, byte-identical, for share cards later).
 // Run from app/: `node scripts/mascot-parts.mjs` (`--check` only verifies both files are up to date).
 //
@@ -7,7 +7,7 @@
 //   - face parts around the face centre (0,0), eyes at x = ±20, mouth at y ≈ 16..33;
 //   - arm and leg parts for the RIGHT socket (+x = outward); the left socket draws the same part mirrored;
 //   - `prop` props around the body's prop anchor, `face` props in face space, `abs` props in the 200×200 box.
-// Shapes use the avatar format (lib/avatar.ts `Shape`): strokes are round-capped. Colours may be tokens resolved per
+// Shapes use the avatar format (lib/utils/avatar.ts `Shape`): strokes are round-capped. Colours may be tokens resolved per
 // character at draw time: ink, body, shade, cheek, white, acc2. `hd: 1` = detail dropped at small sizes (LOD).
 // Every transform of the original rig (rotated feet, sitting soles) is baked into the geometry: no transform attributes.
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -414,7 +414,7 @@ for (const [where, m] of [...Object.entries(MOODS), ...Object.entries(QUIRKS).fl
 
 const json = JSON.stringify(data) + '\n';
 const root = new URL('../..', import.meta.url).pathname;
-const targets = [`${root}app/src/lib/mascot-parts.json`, `${root}server/assets/mascot.json`];
+const targets = [`${root}app/src/lib/utils/mascot-parts.json`, `${root}server/assets/mascot.json`];
 if (process.argv.includes('--check')) {
   const stale = targets.filter((f) => {
     try {

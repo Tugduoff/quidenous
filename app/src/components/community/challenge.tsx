@@ -3,13 +3,13 @@ import { Check, ChevronRight, Hourglass, Link2, Swords } from 'lucide-react-nati
 import { useState } from 'react';
 import { ActivityIndicator, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
-import type { Round } from '@/lib/api';
-import { useFeatures } from '@/lib/auth';
-import { challengeRoom, communityError, communityKeys, type PodiumEntry, questionShareLink, useChallenges } from '@/lib/community';
+import type { Round } from '@/lib/api/client';
+import { useFeatures } from '@/lib/api/auth';
+import { challengeRoom, communityError, communityKeys, type PodiumEntry, questionShareLink, useChallenges } from '@/lib/api/community';
 import { useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
 import { useGroup, useRooms } from '@/lib/queries';
-import { confirmPublic, myLinksKey, shareText } from '@/lib/share';
+import { confirmPublic, myLinksKey, shareText } from '@/lib/device/share';
 import { useTheme } from '@/lib/theme';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Avatar } from '@/components/ui/avatar';

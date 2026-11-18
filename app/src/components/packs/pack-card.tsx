@@ -3,7 +3,7 @@ import { Check, ChevronLeft, Download, Heart, Star } from 'lucide-react-native';
 import type { ReactNode } from 'react';
 import { Text, View } from 'react-native';
 import { formatNumber, useT } from '@/lib/i18n';
-import type { PackItem } from '@/lib/packs';
+import type { PackItem } from '@/lib/api/packs';
 import { useTheme } from '@/lib/theme';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { TAG_BG } from '@/components/ui/tag';

@@ -5,7 +5,7 @@ import { Pressable, Text, View } from 'react-native';
 import { RoomInvites } from '@/components/rooms/invite';
 import { RoomForms } from '@/components/rooms/room-forms';
 import { Screen } from '@/components/ui/screen';
-import { pendingJoinCode } from '@/lib/auth';
+import { pendingJoinCode } from '@/lib/api/auth';
 import { useT } from '@/lib/i18n';
 import { useSession } from '@/lib/session';
 import { useTheme } from '@/lib/theme';

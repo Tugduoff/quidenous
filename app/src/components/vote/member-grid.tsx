@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
-import type { Member } from '@/lib/api';
+import type { Member } from '@/lib/api/client';
 import { motion, usePop } from '@/lib/motion';
 import { useTheme } from '@/lib/theme';
 import { PressableScale } from '@/components/ui/pressable-scale';

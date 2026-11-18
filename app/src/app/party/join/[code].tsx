@@ -6,12 +6,12 @@ import { ActivityIndicator, Pressable, Text, TextInput, View } from 'react-nativ
 import Animated from 'react-native-reanimated';
 import { Screen } from '@/components/ui/screen';
 import { TermsCheck } from '@/components/auth/terms';
-import { ApiError } from '@/lib/api';
-import { setPendingCode } from '@/lib/auth';
-import { PARTS } from '@/lib/avatar';
+import { ApiError } from '@/lib/api/client';
+import { setPendingCode } from '@/lib/api/auth';
+import { PARTS } from '@/lib/utils/avatar';
 import { useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
-import { partyApi, partyError, partyKeys } from '@/lib/party';
+import { partyApi, partyError, partyKeys } from '@/lib/api/party';
 import { useSession } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
 import { PressableScale } from '@/components/ui/pressable-scale';

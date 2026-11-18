@@ -8,11 +8,11 @@ import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withTimin
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
 import { showToast } from '@/lib/toast';
-import { mediaUrl, type Member, type Message, type MessageMedia } from '@/lib/api';
-import { authError, useFeatures } from '@/lib/auth';
-import { canShareFiles, discardPending, type Gif, type ImageDraft, mediaOf, type Pending, prepareImage, retryPending, sendGif, sendImage, shareMedia, useGifs } from '@/lib/chat-media';
+import { mediaUrl, type Member, type Message, type MessageMedia } from '@/lib/api/client';
+import { authError, useFeatures } from '@/lib/api/auth';
+import { canShareFiles, discardPending, type Gif, type ImageDraft, mediaOf, type Pending, prepareImage, retryPending, sendGif, sendImage, shareMedia, useGifs } from '@/lib/chat-outbox';
 import { dateFormat, useT } from '@/lib/i18n';
-import { outgoing } from '@/lib/mentions';
+import { outgoing } from '@/lib/utils/mentions';
 import { EASE } from '@/lib/motion';
 import { useMembers } from '@/lib/queries';
 import { useSession } from '@/lib/session';

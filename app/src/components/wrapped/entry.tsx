@@ -7,7 +7,7 @@ import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
 import { useTheme } from '@/lib/theme';
-import { useWrappedEntry } from '@/lib/wrapped';
+import { useWrappedEntry } from '@/lib/api/wrapped';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Card } from '@/components/ui/card';
 

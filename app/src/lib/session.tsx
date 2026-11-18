@@ -3,13 +3,13 @@ import { createContext, type PropsWithChildren, useContext, useEffect, useState 
 
 import { forgetWidget } from '@/widget/task';
 
-import { API_URL, api, ApiError, apiRoom, presetRoom, setApiRoom, setApiToken, setApiUrl, setOnSignedOut, type Member } from '@/lib/api';
-import { auth, flow, pendingJoinCode, setPendingCode, type SessionResult } from '@/lib/auth';
-import { deviceHeader } from '@/lib/device';
+import { API_URL, api, ApiError, apiRoom, presetRoom, setApiRoom, setApiToken, setApiUrl, setOnSignedOut, type Member } from '@/lib/api/client';
+import { auth, flow, pendingJoinCode, setPendingCode, type SessionResult } from '@/lib/api/auth';
+import { deviceHeader } from '@/lib/device/info';
 import { adoptAccountLang, loadLang, syncLang } from '@/lib/i18n';
-import { introAtSignIn, introAtStart, introFinish, introForget } from '@/lib/intro-sync';
-import { clearRoomData } from '@/lib/query-client';
-import { ROOM_KEY, SERVER_KEY, storage, TOKEN_KEY } from '@/lib/storage';
+import { introAtSignIn, introAtStart, introFinish, introForget } from '@/lib/api/intro';
+import { clearRoomData } from '@/lib/api/query-client';
+import { ROOM_KEY, SERVER_KEY, storage, TOKEN_KEY } from '@/lib/device/storage';
 
 /** Set while the account is in no room: the next start asks for the room list instead of a `/me` known to fail. */
 const ROOMLESS_KEY = 'qdn.roomless';

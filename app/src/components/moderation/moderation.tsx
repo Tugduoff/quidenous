@@ -1,9 +1,9 @@
 import { Ban, Check, Eye, Flag, type LucideIcon, Trash2 } from 'lucide-react-native';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
-import { authError } from '@/lib/auth';
+import { authError } from '@/lib/api/auth';
 import { useT } from '@/lib/i18n';
-import { REASONS, report, useBlockActions, useBlocks, type Blocked, type ReportKind, type ReportReason } from '@/lib/moderation';
+import { REASONS, report, useBlockActions, useBlocks, type Blocked, type ReportKind, type ReportReason } from '@/lib/api/moderation';
 import { useTheme } from '@/lib/theme';
 import { type Anchor, Dialog, DialogActions, DialogTitle } from '@/components/ui/dialog';
 import { Field } from '@/components/ui/field';

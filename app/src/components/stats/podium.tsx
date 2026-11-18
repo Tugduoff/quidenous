@@ -1,7 +1,7 @@
 import { Crown } from 'lucide-react-native';
 import { Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
-import type { Member, MemberStats } from '@/lib/api';
+import type { Member, MemberStats } from '@/lib/api/client';
 import { useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
 import { useTheme } from '@/lib/theme';

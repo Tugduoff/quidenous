@@ -3,7 +3,7 @@ import { ChartPie, Check, ChevronRight, Crown, Globe, type LucideIcon, Repeat, S
 import { Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { formatNumber, useT } from '@/lib/i18n';
-import { type GlobalFact, type GlobalFactId, useGlobal } from '@/lib/global';
+import { type GlobalFact, type GlobalFactId, useGlobal } from '@/lib/api/global';
 import { motion } from '@/lib/motion';
 import { useTheme } from '@/lib/theme';
 import { PressableScale } from '@/components/ui/pressable-scale';

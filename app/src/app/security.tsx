@@ -5,7 +5,7 @@ import { LockSection, ProvidersSection, SessionsSection, SignOutButton } from '@
 import { ReauthHost } from '@/components/security/reauth';
 import { SignInSection } from '@/components/security/sign-in';
 import { TwoFactorSection } from '@/components/security/two-factor';
-import { authError, useAccount } from '@/lib/auth';
+import { authError, useAccount } from '@/lib/api/auth';
 import { useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 import { Display, ErrorText } from '@/components/ui/text';

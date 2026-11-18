@@ -1,4 +1,4 @@
-import { type Milestone, tier } from '@/lib/milestones';
+import { type Milestone, tier } from '@/lib/utils/milestones';
 import type { Theme } from '@/lib/theme';
 
 import type { SceneFactory } from '@/components/celebration/scene';

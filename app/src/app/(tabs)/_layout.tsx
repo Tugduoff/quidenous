@@ -8,9 +8,9 @@ import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSprin
 import { Celebration } from '@/components/celebration';
 import { TabSwipe } from '@/components/ui/tab-swipe';
 import { type TKey, useT } from '@/lib/i18n';
-import { useMilestone } from '@/lib/milestones';
-import { useStreakMilestone } from '@/lib/streaks';
-import { useTodayTab } from '@/lib/today';
+import { useMilestone } from '@/lib/utils/milestones';
+import { useStreakMilestone } from '@/lib/api/streaks';
+import { useTodayTab } from '@/lib/api/today';
 import { BOUNCE, SPRING, usePop } from '@/lib/motion';
 import { useTheme } from '@/lib/theme';
 

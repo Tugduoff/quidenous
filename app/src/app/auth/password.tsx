@@ -3,7 +3,7 @@ import { type ComponentRef, useRef, useState } from 'react';
 import { Text, TextInput } from 'react-native';
 import { AuthScreen } from '@/components/auth/auth-screen';
 import { TermsCheck } from '@/components/auth/terms';
-import { auth, authError, flow, PASSWORD_MIN, useFeatures } from '@/lib/auth';
+import { auth, authError, flow, PASSWORD_MIN, useFeatures } from '@/lib/api/auth';
 import { useT } from '@/lib/i18n';
 import { useSession } from '@/lib/session';
 import { useFinishSignIn } from '@/lib/sign-in';

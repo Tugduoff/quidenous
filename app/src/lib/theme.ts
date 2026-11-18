@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import { useColorScheme } from 'react-native';
 
-import { storage } from '@/lib/storage';
+import { storage } from '@/lib/device/storage';
 
 const shared = {
   acc: '#C8FF3D',

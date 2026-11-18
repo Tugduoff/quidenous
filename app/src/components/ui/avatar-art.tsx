@@ -1,7 +1,7 @@
 import { memo } from 'react';
 import Svg, { Circle, Ellipse, Path, Rect } from 'react-native-svg';
 
-import { type Avatar, avatarShapes, parseAvatar, type Shape } from '@/lib/avatar';
+import { type Avatar, avatarShapes, parseAvatar, type Shape } from '@/lib/utils/avatar';
 
 function shape(s: Shape, i: number) {
   const paint = {

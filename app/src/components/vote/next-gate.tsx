@@ -3,12 +3,12 @@ import { Hourglass, Play } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
-import { launchNext, type Group } from '@/lib/api';
+import { launchNext, type Group } from '@/lib/api/client';
 import { useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
 import { keys } from '@/lib/queries';
 import { useSession } from '@/lib/session';
-import { until } from '@/lib/time';
+import { until } from '@/lib/utils/time';
 import { useTheme } from '@/lib/theme';
 import { Button } from '@/components/ui/button';
 

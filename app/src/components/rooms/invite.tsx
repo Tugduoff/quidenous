@@ -4,11 +4,11 @@ import { Check, ChevronRight, Copy, RefreshCw, Search, Share2, UserPlus, X } fro
 import { useState } from 'react';
 import { Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
-import { api, type Friend } from '@/lib/api';
+import { api, type Friend } from '@/lib/api/client';
 import { useT } from '@/lib/i18n';
-import { useFeatures } from '@/lib/auth';
+import { useFeatures } from '@/lib/api/auth';
 import { keys, useFriends, useGroup, useInvites, useRoomInvites } from '@/lib/queries';
-import { inviteLink, inviteMessage, shareText } from '@/lib/share';
+import { inviteLink, inviteMessage, shareText } from '@/lib/device/share';
 import { useTheme } from '@/lib/theme';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Avatar } from '@/components/ui/avatar';

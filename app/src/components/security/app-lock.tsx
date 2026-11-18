@@ -2,7 +2,7 @@ import { Lock } from 'lucide-react-native';
 import { useEffect, useRef, useState } from 'react';
 import { AppState, StyleSheet, View } from 'react-native';
 import { useT } from '@/lib/i18n';
-import { unlock, useLock } from '@/lib/lock';
+import { unlock, useLock } from '@/lib/device/lock';
 import { useTheme } from '@/lib/theme';
 import { Button } from '@/components/ui/button';
 import { Logo } from '@/components/ui/text';

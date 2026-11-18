@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Ticket } from 'lucide-react-native';
 import { Text, View } from 'react-native';
-import { api } from '@/lib/api';
+import { api } from '@/lib/api/client';
 import { useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 import { Card } from '@/components/ui/card';

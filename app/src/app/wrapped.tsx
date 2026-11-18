@@ -11,12 +11,12 @@ import { scheduleOnRN } from 'react-native-worklets';
 import { Mascot } from '@/components/mascot/mascot';
 import { QueryState } from '@/components/ui/query-state';
 import { Caps, iconFor } from '@/components/stats/common';
-import type { Member } from '@/lib/api';
-import { useFeatures } from '@/lib/auth';
+import type { Member } from '@/lib/api/client';
+import { useFeatures } from '@/lib/api/auth';
 import { dateFormat, useT } from '@/lib/i18n';
 import { LAYOUT_EASE, SPRING } from '@/lib/motion';
 import { useTheme } from '@/lib/theme';
-import { shareWrappedCard, useRoomWrappedOk, useWrapped, type Wrapped, type WrappedCard, type WrappedScope } from '@/lib/wrapped';
+import { shareWrappedCard, useRoomWrappedOk, useWrapped, type Wrapped, type WrappedCard, type WrappedScope } from '@/lib/api/wrapped';
 import { Avatar } from '@/components/ui/avatar';
 
 /** How long a card stays before the next one (auto-advance). */

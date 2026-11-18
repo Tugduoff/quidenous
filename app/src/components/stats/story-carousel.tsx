@@ -4,11 +4,11 @@ import { ActivityIndicator, Pressable, type ScrollViewInstance, Text, View } fro
 import { ScrollView } from 'react-native-gesture-handler';
 import Animated from 'react-native-reanimated';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
-import { type Member, photoUrl, type StatsPeriod, type Story } from '@/lib/api';
-import { parseAvatar } from '@/lib/avatar';
+import { type Member, photoUrl, type StatsPeriod, type Story } from '@/lib/api/client';
+import { parseAvatar } from '@/lib/utils/avatar';
 import { useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
-import { shareStory } from '@/lib/share';
+import { shareStory } from '@/lib/device/share';
 import { useTheme } from '@/lib/theme';
 import { AWARD_ICONS, awardTitle, Caps, iconFor } from '@/components/stats/common';
 import { PressableScale } from '@/components/ui/pressable-scale';

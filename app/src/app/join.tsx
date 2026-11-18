@@ -8,7 +8,7 @@ import { QueryState } from '@/components/ui/query-state';
 import { LegacyJoin } from '@/components/rooms/legacy-join';
 import { MascotBand } from '@/components/mascot/band';
 import { Screen } from '@/components/ui/screen';
-import { authError, isLinked, isReauth, pendingJoinCode, PROVIDER_NAMES, setPendingCode, useFeatures, type Provider } from '@/lib/auth';
+import { authError, isLinked, isReauth, pendingJoinCode, PROVIDER_NAMES, setPendingCode, useFeatures, type Provider } from '@/lib/api/auth';
 import { useT } from '@/lib/i18n';
 import { oauth, useFinishSignIn } from '@/lib/sign-in';
 import { useTheme } from '@/lib/theme';

@@ -4,7 +4,7 @@ import Animated from 'react-native-reanimated';
 
 import { useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
-import { dismissTip, useTipVisible } from '@/lib/prefs';
+import { dismissTip, useTipVisible } from '@/lib/device/prefs';
 import { useTheme } from '@/lib/theme';
 
 /** A one-line first-run hint with an X; once closed it never comes back (kept per device). */

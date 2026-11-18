@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { AuthScreen } from '@/components/auth/auth-screen';
-import { auth, authError, flow, looksLikeEmail } from '@/lib/auth';
+import { auth, authError, flow, looksLikeEmail } from '@/lib/api/auth';
 import { useT } from '@/lib/i18n';
 import { Button } from '@/components/ui/button';
 import { Field } from '@/components/ui/field';

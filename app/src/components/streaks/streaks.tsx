@@ -1,11 +1,11 @@
 import { Flame, Users } from 'lucide-react-native';
 import { Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
-import type { Member, Stats } from '@/lib/api';
+import type { Member, Stats } from '@/lib/api/client';
 import { useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
 import { useSession } from '@/lib/session';
-import { HOT_FROM, SHOWN_FROM, useMemberStreak, useStreaks } from '@/lib/streaks';
+import { HOT_FROM, SHOWN_FROM, useMemberStreak, useStreaks } from '@/lib/api/streaks';
 import { useTheme } from '@/lib/theme';
 import { Caps, int, Section } from '@/components/stats/common';
 import { PressableScale } from '@/components/ui/pressable-scale';

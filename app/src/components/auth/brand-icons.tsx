@@ -1,6 +1,6 @@
 import Svg, { Path } from 'react-native-svg';
 
-import type { Provider } from '@/lib/auth';
+import type { Provider } from '@/lib/api/auth';
 
 function Google({ size }: { size: number }) {
   return (

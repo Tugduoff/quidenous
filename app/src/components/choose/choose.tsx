@@ -9,7 +9,7 @@ import Svg, { Circle, G, Path } from 'react-native-svg';
 import { scheduleOnRN } from 'react-native-worklets';
 import { Screen } from '@/components/ui/screen';
 import { Tip } from '@/components/ui/tip';
-import { api, type Choice, type ChooseResult as ChooseData, type Member, type Round } from '@/lib/api';
+import { api, type Choice, type ChooseResult as ChooseData, type Member, type Round } from '@/lib/api/client';
 import { useT } from '@/lib/i18n';
 import { BOUNCE, EASE, SPRING, usePop } from '@/lib/motion';
 import { keys } from '@/lib/queries';

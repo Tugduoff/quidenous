@@ -2,7 +2,7 @@ import { type ReactNode, useState } from 'react';
 import { useTheme } from '@/lib/theme';
 import { Text, View, type TextStyle, type ViewStyle, Pressable } from 'react-native';
 import { Trophy, Cable, MessageSquareQuote } from 'lucide-react-native';
-import { tidy } from '@/lib/text';
+import { tidy } from '@/lib/utils/text';
 
 export function Display({ children, size = 34 }: { children: ReactNode; size?: number }) {
   const t = useTheme();

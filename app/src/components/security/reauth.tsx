@@ -1,8 +1,8 @@
 import { useState, useSyncExternalStore } from 'react';
 import { View } from 'react-native';
 import { BrandIcon } from '@/components/auth/brand-icons';
-import { ApiError } from '@/lib/api';
-import { auth, authError, isReauth, PROVIDER_NAMES, useFeatures, type Account, type Provider } from '@/lib/auth';
+import { ApiError } from '@/lib/api/client';
+import { auth, authError, isReauth, PROVIDER_NAMES, useFeatures, type Account, type Provider } from '@/lib/api/auth';
 import { useT } from '@/lib/i18n';
 import { oauth } from '@/lib/sign-in';
 import { Dialog, DialogActions, DialogTitle } from '@/components/ui/dialog';

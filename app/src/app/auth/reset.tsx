@@ -2,7 +2,7 @@ import { Redirect } from 'expo-router';
 import { type ComponentRef, useRef, useState } from 'react';
 import { TextInput } from 'react-native';
 import { AuthScreen } from '@/components/auth/auth-screen';
-import { auth, authError, flow, PASSWORD_MIN } from '@/lib/auth';
+import { auth, authError, flow, PASSWORD_MIN } from '@/lib/api/auth';
 import { useT } from '@/lib/i18n';
 import { useFinishSignIn } from '@/lib/sign-in';
 import { Button } from '@/components/ui/button';

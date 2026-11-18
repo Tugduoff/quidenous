@@ -1,13 +1,13 @@
 // Writes src/widget/art.ts: the Petons mascots of the home-screen widget (docs/WIDGET.md), as static SVG strings.
 // A widget can't run react-native-svg or animate: its art is plain SVG, drawn once by the launcher.
 //
-//   bun scripts/widget-art.mjs [path/to/lib/mascot.ts]     (from app/; default src/lib/mascot.ts, see docs/MASCOTS.md)
+//   bun scripts/widget-art.mjs [path/to/lib/utils/mascot.ts]     (from app/; default src/lib/utils/mascot.ts, see docs/MASCOTS.md)
 //
 // Same drawing as components/mascot.tsx at rest (eyes open, no blink, props in place), with the ground shadow.
 import { writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-const src = resolve(process.argv[2] ?? 'src/lib/mascot.ts');
+const src = resolve(process.argv[2] ?? 'src/lib/utils/mascot.ts');
 // mascot.ts is TypeScript: run this with bun (it imports .ts directly).
 const { compose, GROUND } = await import(src);
 

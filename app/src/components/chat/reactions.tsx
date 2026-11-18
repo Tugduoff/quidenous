@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withSequence, withSpring, withTiming } from 'react-native-reanimated';
-import type { Reaction } from '@/lib/api';
+import type { Reaction } from '@/lib/api/client';
 import { useT } from '@/lib/i18n';
 import { BOUNCE, EASE, usePop } from '@/lib/motion';
 import { useMembers } from '@/lib/queries';
-import { CHAT_REACTIONS, HEART } from '@/lib/reactions';
+import { CHAT_REACTIONS, HEART } from '@/lib/api/chat';
 import { useTheme } from '@/lib/theme';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Avatar } from '@/components/ui/avatar';
