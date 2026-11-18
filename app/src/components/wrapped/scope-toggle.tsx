@@ -20,7 +20,7 @@ export function ScopeToggle({ value, onChange, ink, track }: { value: WrappedSco
             onPress={() => !on && onChange(s)}
             hitSlop={{ top: 7, bottom: 7 }}
             style={{ height: 30, paddingHorizontal: 14, borderRadius: 999, alignItems: 'center', justifyContent: 'center', backgroundColor: on ? ink : 'transparent' }}>
-            <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: on ? (ink === INK ? '#FFFFFF' : t.bg) : ink }}>{tr(`wrapped.scope.${s}`)}</Text>
+            <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: on ? (ink === INK ? t.onStrong : t.bg) : ink }}>{tr(`wrapped.scope.${s}`)}</Text>
           </Pressable>
         );
       })}

@@ -12,6 +12,7 @@ import { useLatest } from '@/lib/hooks/use-latest';
 import { useOnChange } from '@/lib/hooks/use-on-change';
 import { useUnmountEffect } from '@/lib/hooks/use-mount-effect';
 import { clamp } from '@/lib/utils/easing';
+import { COLORS } from '@/lib/tokens';
 
 const GAP = 16;
 const HOLD = 300;
@@ -352,5 +353,5 @@ const LIFT_SHADOW: ViewStyle = {
   right: 0,
   top: 0,
   bottom: 0,
-  boxShadow: '0 12px 28px rgba(0, 0, 0, 0.35)',
+  boxShadow: COLORS.liftShadow,
 };

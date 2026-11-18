@@ -9,7 +9,6 @@ import { useSecretPicker } from '@/components/celebration';
 import { router } from 'expo-router';
 import { useInbox } from '@/lib/api/inbox';
 import { PressableScale } from '@/components/ui/pressable-scale';
-import { TAG_BG } from '@/components/ui/tag';
 import { SecureCard } from '@/components/security/secure-card';
 import { GlobalCard } from '@/components/global/global';
 import { useSession } from '@/lib/session';
@@ -92,11 +91,11 @@ function InboxButton() {
             height: 18,
             paddingHorizontal: 4,
             borderRadius: 9,
-            backgroundColor: TAG_BG,
+            backgroundColor: t.tagFill,
             alignItems: 'center',
             justifyContent: 'center',
           }}>
-          <Text style={{ fontFamily: t.font.bold, fontSize: 10, color: '#fff' }}>{unread > 9 ? '9+' : unread}</Text>
+          <Text style={{ fontFamily: t.font.bold, fontSize: 10, color: t.onStrong }}>{unread > 9 ? '9+' : unread}</Text>
         </View>
       )}
     </PressableScale>

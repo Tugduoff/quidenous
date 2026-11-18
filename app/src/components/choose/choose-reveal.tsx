@@ -132,7 +132,7 @@ function RevealStage({ p, items, byId }: { p: Person; items: string[]; byId: Map
                       .damping(12)
                       .reduceMotion(sys)}
                     style={{ width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: color }}>
-                    <Check size={13} color="#121216" strokeWidth={3} />
+                    <Check size={13} color={t.ink} strokeWidth={3} />
                   </Animated.View>
                 )}
               </View>

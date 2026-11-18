@@ -20,9 +20,10 @@ import { Card } from '@/components/ui/card';
 import { Dialog, DialogActions, DialogTitle } from '@/components/ui/dialog';
 import type { Member } from '@/lib/api/group';
 import type { Round } from '@/lib/api/rounds';
+import { COLORS } from '@/lib/tokens';
 
-const GOLD = '#F2B705';
-const GOLD_COIN = { faces: ['#FFD54A', '#FFC107', '#F2B705', '#FFE082'], edge: '#B8860B' } as const;
+const GOLD = COLORS.gold;
+const GOLD_COIN = COLORS.coin;
 
 export function BetRow({ round, members, byId }: { round: Round; members: Member[]; byId: Map<number, Member> }) {
   const t = useTheme();
@@ -314,7 +315,7 @@ export function TripotBoard({ byId, onOpen }: { byId: Map<number, Member>; onOpe
                           borderWidth: 2,
                           borderColor: t.card,
                         }}>
-                        <Text style={{ fontFamily: t.font.bold, fontSize: 10, color: i === 0 ? '#121216' : t.txt }}>{i + 1}</Text>
+                        <Text style={{ fontFamily: t.font.bold, fontSize: 10, color: i === 0 ? t.ink : t.txt }}>{i + 1}</Text>
                       </View>
                     </View>
                     <Text numberOfLines={1} style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.txt, maxWidth: '100%' }}>

@@ -169,11 +169,11 @@ function Viewer({ m, media, onClose }: { m: Message; media: MessageMedia; onClos
   };
   const sharing = canShareFiles();
   const ShareIcon = sharing ? Share : Download;
-  const round = { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.45)' } as const;
+  const round = { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: t.media.scrimLight } as const;
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: '#000' }, backdrop]} />
+      <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: t.media.backdrop }, backdrop]} />
       <GestureDetector gesture={gesture} touchAction="none">
         <Animated.View
           accessibilityViewIsModal
@@ -195,20 +195,20 @@ function Viewer({ m, media, onClose }: { m: Message; media: MessageMedia; onClos
         pointerEvents="box-none"
         style={[{ position: 'absolute', top: insets.top + 8, left: 12, right: 12, flexDirection: 'row', justifyContent: 'space-between' }, chrome]}>
         <PressableScale accessibilityRole="button" accessibilityLabel={tr('common.close')} onPress={onClose} style={round}>
-          <X size={22} color="#fff" />
+          <X size={22} color={t.media.on} />
         </PressableScale>
         <PressableScale accessibilityRole="button" accessibilityLabel={tr(sharing ? 'chat.media.share' : 'chat.media.save')} onPress={share} style={round}>
-          {busy ? <ActivityIndicator color="#fff" /> : <ShareIcon size={20} color="#fff" />}
+          {busy ? <ActivityIndicator color={t.media.on} /> : <ShareIcon size={20} color={t.media.on} />}
         </PressableScale>
       </Animated.View>
       {!!m.caption && (
         <Animated.View
           pointerEvents="none"
-          style={[{ position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 20, paddingTop: 14, paddingBottom: insets.bottom + 18, backgroundColor: 'rgba(0,0,0,0.5)', gap: 2 }, chrome]}>
-          <Text numberOfLines={1} style={{ fontFamily: t.font.bold, fontSize: 13, color: '#fff', opacity: 0.8 }}>
+          style={[{ position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 20, paddingTop: 14, paddingBottom: insets.bottom + 18, backgroundColor: t.media.scrim, gap: 2 }, chrome]}>
+          <Text numberOfLines={1} style={{ fontFamily: t.font.bold, fontSize: 13, color: t.media.on, opacity: 0.8 }}>
             {name}
           </Text>
-          <Text style={{ fontFamily: t.font.regular, fontSize: 15, lineHeight: 21, color: '#fff' }}>{m.caption}</Text>
+          <Text style={{ fontFamily: t.font.regular, fontSize: 15, lineHeight: 21, color: t.media.on }}>{m.caption}</Text>
         </Animated.View>
       )}
     </GestureHandlerRootView>

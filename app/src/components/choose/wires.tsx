@@ -3,6 +3,7 @@ import { Circle, G, Path } from 'react-native-svg';
 import { useAnimateOnChange } from '@/lib/hooks/use-animate-on-change';
 import { BOUNCE } from '@/lib/motion';
 import { type Rect, wirePath } from '@/lib/utils/choose';
+import { COLORS } from '@/lib/tokens';
 
 const APath = Animated.createAnimatedComponent(Path);
 const ACircle = Animated.createAnimatedComponent(Circle);
@@ -39,9 +40,9 @@ export function Wire({
   const plug = useAnimatedProps(() => ({ cx: ex.value, cy: ey.value }));
   return (
     <G>
-      <APath animatedProps={path} stroke="#000" strokeOpacity={0.22} strokeWidth={7} strokeLinecap="round" fill="none" />
+      <APath animatedProps={path} stroke={COLORS.wireShadow} strokeOpacity={0.22} strokeWidth={7} strokeLinecap="round" fill="none" />
       <APath animatedProps={path} stroke={color} strokeWidth={4.5} strokeLinecap="round" fill="none" />
-      <ACircle animatedProps={plug} r={5.5} fill={color} stroke="#000" strokeOpacity={0.25} strokeWidth={1.5} />
+      <ACircle animatedProps={plug} r={5.5} fill={color} stroke={COLORS.wireShadow} strokeOpacity={0.25} strokeWidth={1.5} />
     </G>
   );
 }
@@ -71,9 +72,9 @@ export function DragWire({
   }));
   return (
     <G>
-      <APath animatedProps={path} stroke="#000" strokeOpacity={0.22} strokeWidth={7} strokeLinecap="round" fill="none" />
+      <APath animatedProps={path} stroke={COLORS.wireShadow} strokeOpacity={0.22} strokeWidth={7} strokeLinecap="round" fill="none" />
       <APath animatedProps={path} stroke={color} strokeWidth={4.5} strokeLinecap="round" fill="none" />
-      <ACircle animatedProps={plug} r={7} fill={color} stroke="#000" strokeOpacity={0.25} strokeWidth={1.5} />
+      <ACircle animatedProps={plug} r={7} fill={color} stroke={COLORS.wireShadow} strokeOpacity={0.25} strokeWidth={1.5} />
     </G>
   );
 }
@@ -100,7 +101,7 @@ export function FlyingWire({
   }));
   return (
     <G>
-      <APath animatedProps={path} stroke="#000" strokeOpacity={0.22} strokeWidth={7} strokeLinecap="round" fill="none" />
+      <APath animatedProps={path} stroke={COLORS.wireShadow} strokeOpacity={0.22} strokeWidth={7} strokeLinecap="round" fill="none" />
       <APath animatedProps={path} stroke={color} strokeWidth={4.5} strokeLinecap="round" fill="none" />
       <ACircle animatedProps={plug} r={5.5} fill={color} />
     </G>

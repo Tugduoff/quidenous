@@ -20,7 +20,7 @@ export function Dialog({ visible, onClose, anchor, children }: { visible: boolea
         <Pressable
           accessibilityLabel={tr('common.close')}
           onPress={onClose}
-          style={[StyleSheet.absoluteFill, { backgroundColor: anchor ? '#0006' : '#0008' }]}
+          style={[StyleSheet.absoluteFill, { backgroundColor: anchor ? t.dialogScrim.anchored : t.dialogScrim.centered }]}
         />
         {anchor ? (
           <Anchored anchor={anchor} style={{ ...card, padding: 10, gap: 6 }}>
@@ -82,7 +82,7 @@ export function DialogActions({
   const t = useTheme();
   const tr = useT();
   const off = busy || disabled;
-  const ink = tone === 'acc' ? t.accTxt : '#fff';
+  const ink = tone === 'acc' ? t.accTxt : t.onStrong;
   return (
     <View style={{ flexDirection: 'row', gap: 10, marginTop: 6 }}>
       <PressableScale
@@ -109,7 +109,7 @@ export function DialogActions({
           borderRadius: t.radius.pill,
           alignItems: 'center',
           justifyContent: 'center',
-          backgroundColor: tone === 'acc' ? t.acc : '#D7263D',
+          backgroundColor: tone === 'acc' ? t.acc : t.dangerFill,
           opacity: disabled ? 0.45 : 1,
         }}>
         {busy ? <ActivityIndicator color={ink} /> : <Text style={{ fontFamily: t.font.bold, fontSize: 15, color: ink }}>{confirmLabel}</Text>}

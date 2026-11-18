@@ -16,8 +16,9 @@ import { useSession } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
 import { HEART, mediaOf } from '@/lib/utils/chat';
 import { segments } from '@/lib/utils/mentions';
+import { COLORS } from '@/lib/tokens';
 
-const soft = (color: string) => (/^#[0-9a-f]{6}$/i.test(color) ? `${color}33` : 'rgba(127,127,127,0.18)');
+const soft = (color: string) => (/^#[0-9a-f]{6}$/i.test(color) ? `${color}33` : COLORS.mentionFallback);
 const DOUBLE_TAP_MS = 280;
 
 const NO_SELECT = Platform.OS === 'web' ? ({ userSelect: 'none', WebkitTouchCallout: 'none' } as unknown as ViewStyle) : null;
@@ -54,7 +55,7 @@ export function Bubble({
   const mine = m.member_id === me?.id;
   const mentionStyle = (mine: boolean, color: string): TextStyle =>
     mine
-      ? { fontFamily: t.font.bold, color: '#121216', backgroundColor: 'rgba(0,0,0,0.12)', borderRadius: 5, paddingHorizontal: 3 }
+      ? { fontFamily: t.font.bold, color: t.ink, backgroundColor: t.mentionOnMine, borderRadius: 5, paddingHorizontal: 3 }
       : { fontFamily: t.font.bold, color, backgroundColor: soft(color), borderRadius: 5, paddingHorizontal: 3 };
   const target = (): ModTarget =>
     mine
@@ -114,7 +115,7 @@ export function Bubble({
         : undefined
       : tr('chat.longPressHint');
   const reactions = m.reactions?.filter((r) => r.count > 0) ?? [];
-  const ink = mine ? '#121216' : t.txt;
+  const ink = mine ? t.ink : t.txt;
   const rich = (text: string) => (
     <Text style={{ fontFamily: t.font.regular, fontSize: 15, lineHeight: 20, color: ink, paddingHorizontal: media ? 10 : 0 }}>
       {segments(
@@ -200,7 +201,7 @@ export function Bubble({
               style={{
                 fontFamily: t.font.regular,
                 fontSize: 10,
-                color: mine ? '#121216' : t.mut,
+                color: mine ? t.ink : t.mut,
                 opacity: 0.7,
                 alignSelf: 'flex-end',
                 paddingHorizontal: media ? 10 : 0,

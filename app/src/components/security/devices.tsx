@@ -195,8 +195,8 @@ export function SignOutButton() {
       accessibilityRole="button"
       onPress={signOut}
       style={{ alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12 }}>
-      <LogOut size={18} color="#FF3B5C" />
-      <Text style={{ fontFamily: t.font.semibold, fontSize: 15, color: '#FF3B5C' }}>{tr('security.signOut.button')}</Text>
+      <LogOut size={18} color={t.danger} />
+      <Text style={{ fontFamily: t.font.semibold, fontSize: 15, color: t.danger }}>{tr('security.signOut.button')}</Text>
     </Pressable>
   );
 }

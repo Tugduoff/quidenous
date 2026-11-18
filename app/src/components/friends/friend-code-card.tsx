@@ -21,8 +21,8 @@ export function FriendCodeCard({ code }: { code: string }) {
   };
   return (
   <Card style={{ padding: 20, gap: 14, alignItems: 'center' }}>
-    <View style={{ padding: 12, borderRadius: 16, backgroundColor: '#fff' }}>
-      <QRCode value={friendLink(code)} size={168} color="#121216" backgroundColor="#fff" />
+    <View style={{ padding: 12, borderRadius: 16, backgroundColor: t.qr.paper }}>
+      <QRCode value={friendLink(code)} size={168} color={t.qr.ink} backgroundColor={t.qr.paper} />
     </View>
     <View style={{ alignSelf: 'stretch', alignItems: 'center', gap: 2 }}>
       <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut }}>{tr('friends.myCode')}</Text>

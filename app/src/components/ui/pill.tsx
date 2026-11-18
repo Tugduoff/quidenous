@@ -35,7 +35,7 @@ export function Pill({
       {loading ? (
         <ActivityIndicator size="small" color={acc ? t.accTxt : t.mut} />
       ) : (
-        <Text numberOfLines={1} style={{ fontFamily: t.font.semibold, fontSize: 14, color: acc ? t.accTxt : tone === 'danger' ? '#FF3B5C' : disabled ? t.mut : t.txt }}>
+        <Text numberOfLines={1} style={{ fontFamily: t.font.semibold, fontSize: 14, color: acc ? t.accTxt : tone === 'danger' ? t.danger : disabled ? t.mut : t.txt }}>
           {children}
         </Text>
       )}

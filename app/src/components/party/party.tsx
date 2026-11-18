@@ -14,11 +14,13 @@ import { partyJoinLink } from '@/lib/links';
 import { tallies } from '@/lib/utils/party';
 import { useAnimateOnChange } from '@/lib/hooks/use-animate-on-change';
 import { useCountdownBar } from '@/lib/hooks/use-party';
+import { themes } from '@/lib/tokens';
 
 export function JoinQr({ code, size }: { code: string; size: number }) {
+  const t = useTheme();
   return (
-    <View style={{ alignSelf: 'center', padding: Math.round(size * 0.06), borderRadius: 16, backgroundColor: '#fff' }}>
-      <QRCode value={partyJoinLink(code)} size={size} color="#121216" backgroundColor="#fff" />
+    <View style={{ alignSelf: 'center', padding: Math.round(size * 0.06), borderRadius: 16, backgroundColor: t.qr.paper }}>
+      <QRCode value={partyJoinLink(code)} size={size} color={t.qr.ink} backgroundColor={t.qr.paper} />
     </View>
   );
 }
@@ -134,7 +136,7 @@ export function WinnerReveal({ round, byId, size = 120 }: { round: PartyRound; b
   );
 }
 
-const fallback = (id: number): Member => ({ id, name: '?', color: '#8D8D99', photo_url: null });
+const fallback = (id: number): Member => ({ id, name: '?', color: themes.dark.mut, photo_url: null });
 
 function Burst({ color, size, delay, children }: { color: string; size: number; delay: number; children: ReactNode }) {
   const reduced = useReducedMotion();

@@ -49,8 +49,8 @@ export function Podium({ top, byId, onOpen }: { top: MemberStats[]; byId: Map<nu
                   alignItems: 'center',
                   justifyContent: 'center',
                 }}>
-                <Text style={{ fontFamily: t.font.display, fontSize: place === 0 ? 30 : 24, color: '#121216' }}>{p.received}</Text>
-                <Text style={{ fontFamily: t.font.semibold, fontSize: 11, color: '#121216B3' }}>{tr('stats.unit.votes', { count: p.received })}</Text>
+                <Text style={{ fontFamily: t.font.display, fontSize: place === 0 ? 30 : 24, color: t.ink }}>{p.received}</Text>
+                <Text style={{ fontFamily: t.font.semibold, fontSize: 11, color: t.inkSoft }}>{tr('stats.unit.votes', { count: p.received })}</Text>
               </View>
             </PressableScale>
           </Animated.View>

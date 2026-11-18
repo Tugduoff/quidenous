@@ -34,13 +34,13 @@ export function ShareButton({ w, card }: { w: Wrapped; card: WrappedCard }) {
         opacity: pressed ? 0.8 : 1,
       })}>
       {state === 'busy' ? (
-        <ActivityIndicator size="small" color="#FFFFFF" />
+        <ActivityIndicator size="small" color={t.onStrong} />
       ) : state === 'copied' ? (
-        <Check size={18} color="#FFFFFF" />
+        <Check size={18} color={t.onStrong} />
       ) : (
-        <Share2 size={18} color="#FFFFFF" />
+        <Share2 size={18} color={t.onStrong} />
       )}
-      <Text style={{ fontFamily: t.font.bold, fontSize: 16, color: '#FFFFFF' }}>{tr(state === 'copied' ? 'wrapped.linkCopied' : 'wrapped.share')}</Text>
+      <Text style={{ fontFamily: t.font.bold, fontSize: 16, color: t.onStrong }}>{tr(state === 'copied' ? 'wrapped.linkCopied' : 'wrapped.share')}</Text>
     </Pressable>
   );
 }

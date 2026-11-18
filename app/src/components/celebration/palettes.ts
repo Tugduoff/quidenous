@@ -1,4 +1,5 @@
-import { type Theme, themes } from '@/lib/theme';
+import type { Theme } from '@/lib/theme';
+import { themes } from '@/lib/tokens';
 
 export const party = (t: Theme) =>
   [t.acc, '#FF4FA3', '#5AC8FA', '#FFB547', '#B48CFF', t.bg === themes.light.bg ? '#121216' : '#FFFFFF'].filter((c, i, xs) => xs.indexOf(c) === i);

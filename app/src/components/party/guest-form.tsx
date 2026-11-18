@@ -6,8 +6,9 @@ import { Card } from '@/components/ui/card';
 import { useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 import { PARTS } from '@/lib/utils/avatar';
+import { COLORS, themes } from '@/lib/tokens';
 
-export const GUEST_COLORS = PARTS.bg.map(([c]) => c).filter((c) => c.toUpperCase() !== '#2E2E38');
+export const GUEST_COLORS = PARTS.bg.map(([c]) => c).filter((c) => c.toUpperCase() !== themes.dark.line);
 
 export function GuestForm({
   name,
@@ -68,7 +69,7 @@ export function GuestForm({
                   borderColor: on ? t.txt : 'transparent',
                 }}>
                 <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: c, alignItems: 'center', justifyContent: 'center' }}>
-                  {on && <Check size={18} color="#121216" />}
+                  {on && <Check size={18} color={COLORS.ink} />}
                 </View>
               </Pressable>
             );

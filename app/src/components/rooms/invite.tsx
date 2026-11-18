@@ -50,8 +50,8 @@ export function InviteCard({ qrSize = 168, rotate = true }: { qrSize?: number; r
   const round = { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card2 } as const;
   return (
     <Card style={{ padding: 16, gap: 12 }}>
-      <View style={{ alignSelf: 'center', padding: 12, borderRadius: 16, backgroundColor: '#fff' }}>
-        <QRCode value={inviteLink(group.code)} size={qrSize} color="#121216" backgroundColor="#fff" />
+      <View style={{ alignSelf: 'center', padding: 12, borderRadius: 16, backgroundColor: t.qr.paper }}>
+        <QRCode value={inviteLink(group.code)} size={qrSize} color={t.qr.ink} backgroundColor={t.qr.paper} />
       </View>
       <View style={{ gap: 2 }}>
         <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut }}>{tr('room.invite.code')}</Text>

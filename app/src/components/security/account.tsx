@@ -87,8 +87,8 @@ export function DeleteAccount({ account }: { account: Account }) {
         accessibilityRole="button"
         onPress={() => setOpen(true)}
         style={{ alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12 }}>
-        <Trash2 size={18} color="#FF3B5C" />
-        <Text style={{ fontFamily: t.font.semibold, fontSize: 15, color: '#FF3B5C' }}>{tr('security.deleteAccount.button')}</Text>
+        <Trash2 size={18} color={t.danger} />
+        <Text style={{ fontFamily: t.font.semibold, fontSize: 15, color: t.danger }}>{tr('security.deleteAccount.button')}</Text>
       </Pressable>
       <ConfirmModal
         visible={open}

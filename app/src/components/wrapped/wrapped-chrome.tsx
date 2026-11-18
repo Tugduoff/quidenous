@@ -23,7 +23,7 @@ export function WrappedChrome({
   const tr = useT();
   return (
   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, paddingTop: 10, minHeight: 50 }}>
-    {roomOk && <ScopeToggle value={scope} onChange={onScope} ink={ink} track={ink === INK ? '#1212161F' : t.card2} />}
+    {roomOk && <ScopeToggle value={scope} onChange={onScope} ink={ink} track={ink === INK ? t.inkFaint : t.card2} />}
     <View style={{ flex: 1 }} />
     {preview && (
       <View style={{ paddingHorizontal: 10, height: 24, borderRadius: 12, justifyContent: 'center', borderWidth: 1.5, borderColor: ink }}>
@@ -35,7 +35,7 @@ export function WrappedChrome({
       accessibilityLabel={tr('wrapped.close')}
       onPress={closeWrapped}
       hitSlop={8}
-      style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: ink === INK ? '#1212161F' : t.card }}>
+      style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: ink === INK ? t.inkFaint : t.card }}>
       <X size={20} color={ink} />
     </Pressable>
   </View>

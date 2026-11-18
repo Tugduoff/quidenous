@@ -10,7 +10,6 @@ import { useT } from '@/lib/i18n';
 import { useSwitchRoom } from '@/lib/hooks/use-switch-room';
 import { useSession } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
-import { TAG_BG } from '@/components/ui/tag';
 import { Card } from '@/components/ui/card';
 import { Display } from '@/components/ui/text';
 import { BackButton } from '@/components/ui/back-button';
@@ -79,11 +78,11 @@ export default function RoomsScreen() {
                     height: 22,
                     paddingHorizontal: 6,
                     borderRadius: 11,
-                    backgroundColor: TAG_BG,
+                    backgroundColor: t.tagFill,
                     alignItems: 'center',
                     justifyContent: 'center',
                   }}>
-                  <Text style={{ fontFamily: t.font.bold, fontSize: 11, color: '#fff' }}>{r.unread > 9 ? '9+' : r.unread}</Text>
+                  <Text style={{ fontFamily: t.font.bold, fontSize: 11, color: t.onStrong }}>{r.unread > 9 ? '9+' : r.unread}</Text>
                 </View>
               )}
               {on ? <Check size={20} color={t.accInk} /> : <ChevronRight size={20} color={t.mut} />}

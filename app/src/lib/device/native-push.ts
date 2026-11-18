@@ -3,6 +3,7 @@ import { Platform } from 'react-native';
 
 import type { PushState } from '@/lib/device/web-push';
 import { subscribePush } from '@/lib/api/push';
+import { ACCENTS } from '@/lib/tokens';
 
 export async function nativePushState(): Promise<PushState> {
   if (Platform.OS !== 'android') return 'unsupported';
@@ -16,7 +17,7 @@ export async function registerNativePush() {
     name: 'Questions',
     // eslint-disable-next-line import/namespace
     importance: Notifications.AndroidImportance.HIGH,
-    lightColor: '#C8FF3D',
+    lightColor: ACCENTS.lime.acc,
   });
   const current = await Notifications.getPermissionsAsync();
   const granted = current.granted || (await Notifications.requestPermissionsAsync()).granted;

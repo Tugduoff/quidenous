@@ -39,7 +39,7 @@ export function LeaveRoomButton() {
         gap: 8,
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: '#FF4FA318',
+        backgroundColor: t.tagSoft,
       }}>
       <LogOut size={18} color={t.tagInk} />
       <Text style={{ fontFamily: t.font.bold, fontSize: 15, color: t.tagInk }}>{tr('room.group.leave')}</Text>

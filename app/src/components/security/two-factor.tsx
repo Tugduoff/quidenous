@@ -93,8 +93,8 @@ export function TwoFactorSection({ account }: { account: Account }) {
         {mode === 'setup' && setup ? (
           <>
             <Text style={{ fontFamily: t.font.regular, fontSize: 14, lineHeight: 20, color: t.mut }}>{tr('security.twoFactor.scan')}</Text>
-            <View style={{ alignSelf: 'center', padding: 12, borderRadius: 16, backgroundColor: '#fff' }}>
-              <QRCode value={setup.otpauth_url} size={native ? 150 : 176} color="#121216" backgroundColor="#fff" />
+            <View style={{ alignSelf: 'center', padding: 12, borderRadius: 16, backgroundColor: t.qr.paper }}>
+              <QRCode value={setup.otpauth_url} size={native ? 150 : 176} color={t.qr.ink} backgroundColor={t.qr.paper} />
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
               <Text selectable style={{ flex: 1, fontFamily: MONO, fontSize: 14, letterSpacing: 1, color: t.txt }}>

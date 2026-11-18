@@ -90,8 +90,8 @@ export function InstallScreen({ onClose }: { onClose?: () => void }) {
 
       {kind === 'desktop' && (
         <Card style={{ padding: 20, alignItems: 'center' }}>
-          <View style={{ padding: 12, borderRadius: 16, backgroundColor: '#fff' }}>
-            <QRCode value={window.location.href} size={200} color="#121216" backgroundColor="#fff" />
+          <View style={{ padding: 12, borderRadius: 16, backgroundColor: t.qr.paper }}>
+            <QRCode value={window.location.href} size={200} color={t.qr.ink} backgroundColor={t.qr.paper} />
           </View>
         </Card>
       )}

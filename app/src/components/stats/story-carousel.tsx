@@ -15,9 +15,10 @@ import { PressableScale } from '@/components/ui/pressable-scale';
 import { Avatar } from '@/components/ui/avatar';
 import type { Member } from '@/lib/api/group';
 import type { StatsPeriod, Story } from '@/lib/api/stats';
+import { COLORS } from '@/lib/tokens';
 
 const HEIGHT = 300;
-const INK = '#121216';
+const INK = COLORS.ink;
 
 const bigSize = (s: string) => (s.length <= 3 ? 76 : s.length <= 6 ? 60 : s.length <= 10 ? 46 : 36);
 
@@ -76,7 +77,7 @@ function StoryCard({
           onPress={share}
           disabled={state === 'busy'}
           hitSlop={10}
-          style={{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: '#1212161F' }}>
+          style={{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: t.inkFaint }}>
           {state === 'busy' ? (
             <ActivityIndicator size="small" color={ink} />
           ) : state === 'copied' ? (

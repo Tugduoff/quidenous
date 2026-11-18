@@ -12,6 +12,7 @@ import { PressableScale } from '@/components/ui/pressable-scale';
 import { Card } from '@/components/ui/card';
 
 import { INK } from '@/components/wrapped/constants';
+import { ACCENTS } from '@/lib/tokens';
 const open = (ask: boolean) => router.push(ask ? '/wrapped?preview=1' : '/wrapped');
 
 export function WrappedBanner() {
@@ -30,21 +31,21 @@ export function WrappedBanner() {
         accessibilityLabel={`${title}${entry.preview ? ` (${tr('wrapped.preview')})` : ''}. ${line}`}
         onPress={() => open(entry.ask)}
         onLayout={(e) => setBox({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}
-        style={{ flexDirection: 'row', alignItems: 'center', gap: 14, padding: 18, borderRadius: 24, overflow: 'hidden', backgroundColor: '#FF6DB5' }}>
+        style={{ flexDirection: 'row', alignItems: 'center', gap: 14, padding: 18, borderRadius: 24, overflow: 'hidden', backgroundColor: ACCENTS.rose.acc }}>
         {box.w > 0 && (
           <Svg width={box.w} height={box.h} style={{ position: 'absolute', top: 0, left: 0 }}>
             <Defs>
               <LinearGradient id="wrapped-banner" x1="0" y1="0" x2="1" y2="1">
-                <Stop offset="0" stopColor="#FF6DB5" />
-                <Stop offset="0.55" stopColor="#FFB547" />
-                <Stop offset="1" stopColor="#C8FF3D" />
+                <Stop offset="0" stopColor={ACCENTS.rose.acc} />
+                <Stop offset="0.55" stopColor={ACCENTS.orange.acc} />
+                <Stop offset="1" stopColor={ACCENTS.lime.acc} />
               </LinearGradient>
             </Defs>
             <Rect x="0" y="0" width={box.w} height={box.h} fill="url(#wrapped-banner)" />
           </Svg>
         )}
         <View style={{ width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', backgroundColor: INK }}>
-          <CalendarHeart size={24} color="#FFB547" strokeWidth={2.25} />
+          <CalendarHeart size={24} color={ACCENTS.orange.acc} strokeWidth={2.25} />
         </View>
         <View style={{ flex: 1, gap: 2 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>

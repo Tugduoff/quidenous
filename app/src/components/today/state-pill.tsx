@@ -2,13 +2,12 @@ import { ArrowRight, Coins } from 'lucide-react-native';
 import { Text, View } from 'react-native';
 import { useTheme } from '@/lib/theme';
 import { type TodayRoom } from '@/lib/api/today';
-import { TAG_BG } from '@/components/ui/tag';
 
 export function StatePill({ room: r, line }: { room: TodayRoom; line: string }) {
   const t = useTheme();
   if (r.state === 'vote' || r.state === 'result') {
     const vote = r.state === 'vote';
-    const ink = vote ? t.accTxt : '#fff';
+    const ink = vote ? t.accTxt : t.onStrong;
     return (
       <View
         style={{
@@ -18,7 +17,7 @@ export function StatePill({ room: r, line }: { room: TodayRoom; line: string }) 
           height: 32,
           paddingHorizontal: 14,
           borderRadius: t.radius.pill,
-          backgroundColor: vote ? t.acc : TAG_BG,
+          backgroundColor: vote ? t.acc : t.tagFill,
         }}>
         <Text style={{ fontFamily: t.font.bold, fontSize: 14, color: ink }}>{line}</Text>
         <ArrowRight size={16} color={ink} strokeWidth={2.5} />

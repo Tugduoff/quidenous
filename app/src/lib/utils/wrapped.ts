@@ -1,12 +1,14 @@
 import type { WrappedCard } from '@/lib/api/wrapped';
+import { ACCENTS } from '@/lib/tokens';
 
+const { lime, menthe, rose, orange, bleu, violet } = ACCENTS;
 const PAIRS: [string, string][] = [
-  ['#C8FF3D', '#5EF2B0'],
-  ['#FF6DB5', '#FFB547'],
-  ['#5AC8FA', '#B48CFF'],
-  ['#FFB547', '#C8FF3D'],
-  ['#B48CFF', '#FF6DB5'],
-  ['#5EF2B0', '#5AC8FA'],
+  [lime.acc, menthe.acc],
+  [rose.acc, orange.acc],
+  [bleu.acc, violet.acc],
+  [orange.acc, lime.acc],
+  [violet.acc, rose.acc],
+  [menthe.acc, bleu.acc],
 ];
 
 export const colorsOf = (card: WrappedCard, i: number): [string, string] => {

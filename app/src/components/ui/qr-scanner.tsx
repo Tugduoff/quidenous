@@ -61,10 +61,10 @@ function QrScanner({ onScan, onClose }: { onScan: (s: Scanned) => void; onClose:
     done.current = true;
     onScan(scanned);
   };
-  const text = { fontFamily: t.font.semibold, fontSize: 15, color: '#fff', textAlign: 'center' as const };
+  const text = { fontFamily: t.font.semibold, fontSize: 15, color: t.media.on, textAlign: 'center' as const };
   return (
     <Modal visible animationType="slide" onRequestClose={onClose}>
-      <View style={{ flex: 1, backgroundColor: '#000' }}>
+      <View style={{ flex: 1, backgroundColor: t.media.backdrop }}>
         {permission?.granted && (
           <CameraView style={{ flex: 1 }} facing="back" barcodeScannerSettings={{ barcodeTypes: ['qr'] }} onBarcodeScanned={onBarcode} />
         )}
@@ -73,8 +73,8 @@ function QrScanner({ onScan, onClose }: { onScan: (s: Scanned) => void; onClose:
             accessibilityRole="button"
             accessibilityLabel={tr('common.close')}
             onPress={onClose}
-            style={{ alignSelf: 'flex-end', width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: '#0008' }}>
-            <X size={22} color="#fff" />
+            style={{ alignSelf: 'flex-end', width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: t.dialogScrim.centered }}>
+            <X size={22} color={t.media.on} />
           </Pressable>
           {permission && !permission.granted ? (
             <View style={{ gap: 14, alignItems: 'center' }}>
@@ -89,7 +89,7 @@ function QrScanner({ onScan, onClose }: { onScan: (s: Scanned) => void; onClose:
               )}
             </View>
           ) : (
-            <View style={{ alignSelf: 'center', paddingHorizontal: 16, paddingVertical: 10, borderRadius: t.radius.pill, backgroundColor: '#0008' }}>
+            <View style={{ alignSelf: 'center', paddingHorizontal: 16, paddingVertical: 10, borderRadius: t.radius.pill, backgroundColor: t.dialogScrim.centered }}>
               <Text style={text}>{wrong ? tr('auth.qr.wrong') : tr('auth.qr.aim')}</Text>
             </View>
           )}

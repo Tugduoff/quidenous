@@ -51,7 +51,7 @@ export function CardBody({ card, n, total }: { card: WrappedCard; n: number; tot
       {!!card.question && (
         <Animated.View
           entering={FadeInDown.duration(320).delay(60).easing(LAYOUT_EASE).reduceMotion(sys)}
-          style={{ marginBottom: 12, padding: 14, borderRadius: 18, backgroundColor: '#FFFFFF8C' }}>
+          style={{ marginBottom: 12, padding: 14, borderRadius: 18, backgroundColor: t.paperSoft }}>
           <Text numberOfLines={4} style={{ fontFamily: t.font.semibold, fontSize: 17, lineHeight: 23, color: INK }}>
             {card.question}
           </Text>

@@ -2,7 +2,7 @@
 import { FlexWidget, SvgWidget, TextWidget } from 'react-native-android-widget';
 
 import { tIn, type Lang } from '@/lib/i18n-core';
-import { themes } from '@/lib/theme';
+import { ACCENTS, COLORS, FONT, themes } from '@/lib/tokens';
 
 import { ART, type ArtKey } from '@/widget/art';
 import type { WidgetView } from '@/widget/state';
@@ -17,21 +17,19 @@ const palette = (mode: Mode) => {
     txt: th.txt,
     mut: th.mut,
     chip: th.card2,
-    lime: '#C8FF3D' as Hex,
-    onLime: '#0E0E12' as Hex,
+    lime: ACCENTS.lime.acc,
+    onLime: themes.dark.bg as Hex,
     pink: th.tag,
     brand: th.accInk,
   } satisfies Record<string, Hex>;
 };
 type Palette = ReturnType<typeof palette>;
 
-const FONT = { display: 'BricolageGrotesque_800ExtraBold', bold: 'Inter_700Bold', semibold: 'Inter_600SemiBold' } as const;
-
 const flame = (color: string) =>
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="${color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3q1 4 4 6.5t3 5.5a1 1 0 0 1-14 0 5 5 0 0 1 1-3 1 1 0 0 0 5 0c0-2-1.5-3-1.5-5q0-2 2.5-4"/></svg>`;
 
 const art = (key: ArtKey, mode: Mode) =>
-  mode === 'dark' ? ART[key].replace(/fill="#000000" opacity="0\.1(6)?"/, (_, hi) => `fill="#FFFFFF" opacity="${hi ? 0.07 : 0.05}"`) : ART[key];
+  mode === 'dark' ? ART[key].replace(/fill="#000000" opacity="0\.1(6)?"/, (_, hi) => `fill="${COLORS.gloss}" opacity="${hi ? 0.07 : 0.05}"`) : ART[key];
 
 type Face = {
   title: string;
@@ -103,7 +101,7 @@ export function faceOf(view: WidgetView, fallbackLang: Lang): Face {
 function Chip({ face, c, size }: { face: Face; c: Palette; size: number }) {
   if (!face.status) return null;
   const bg = face.chip === 'lime' ? c.lime : face.chip === 'pink' ? c.pink : c.chip;
-  const fg: Hex = face.chip === 'lime' ? c.onLime : face.chip === 'pink' ? '#FFFFFF' : c.txt;
+  const fg: Hex = face.chip === 'lime' ? c.onLime : face.chip === 'pink' ? (COLORS.onStrong as Hex) : c.txt;
   return (
     <FlexWidget style={{ backgroundColor: bg, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 }}>
       <TextWidget text={face.status} maxLines={1} truncate="END" style={{ fontSize: size, fontFamily: FONT.semibold, color: fg }} />

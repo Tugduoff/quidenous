@@ -9,8 +9,9 @@ import { Field } from '@/components/ui/field';
 import { ErrorText } from '@/components/ui/text';
 import { authError } from '@/lib/api/errors';
 import { useTimeout } from '@/lib/hooks/use-timeout';
+import { COLORS } from '@/lib/tokens';
 
-const RED = '#FF3B5C';
+const RED = COLORS.danger;
 
 export type ModTarget = {
   kind: ReportKind;

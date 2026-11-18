@@ -29,7 +29,7 @@ export function Avatar({ member, size = 40 }: { member?: Member; size?: number }
       ) : avatar ? (
         <AvatarArt avatar={avatar} size={size} />
       ) : (
-        <Text style={{ fontFamily: t.font.bold, fontSize: size * 0.42, color: '#121216' }}>{member?.name[0]?.toUpperCase() ?? '?'}</Text>
+        <Text style={{ fontFamily: t.font.bold, fontSize: size * 0.42, color: t.ink }}>{member?.name[0]?.toUpperCase() ?? '?'}</Text>
       )}
     </View>
   );

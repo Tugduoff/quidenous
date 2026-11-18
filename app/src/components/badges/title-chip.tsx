@@ -9,13 +9,10 @@ import { useScheme, useTheme } from '@/lib/theme';
 import { NamedIcon } from '@/components/stats/common';
 import { Card } from '@/components/ui/card';
 import { useFeatures } from '@/lib/api/features';
+import { COLORS, MEDALS } from '@/lib/tokens';
 
-const TIERS = {
-  1: { key: 'bronze', fill: '#D9935A', light: '#F4C79F', rim: '#9A5A2A', inkLight: '#8A4B1C', inkDark: '#E8A673' },
-  2: { key: 'silver', fill: '#C3CBD6', light: '#F2F5F9', rim: '#7D8794', inkLight: '#56606E', inkDark: '#D5DCE5' },
-  3: { key: 'gold', fill: '#F2C230', light: '#FFE89A', rim: '#B07F00', inkLight: '#805C00', inkDark: '#F5C542' },
-} as const;
-const DISC_INK = '#121216';
+const TIERS = MEDALS;
+const DISC_INK = COLORS.ink;
 
 export const tierName = (tier: 1 | 2 | 3, tr: typeof translate) => tr(`badges.tiers.${TIERS[tier].key}`);
 
@@ -79,7 +76,7 @@ export const MedalDisc = memo(function MedalDisc({ icon, tier, size = 56 }: { ic
           </RadialGradient>
         </Defs>
         <Circle cx={r} cy={r} r={r - rim / 2} fill={`url(#m${id})`} stroke={m.rim} strokeWidth={rim} />
-        {size >= 32 && <Circle cx={r} cy={r} r={r - rim * 2.6} fill="none" stroke="#FFFFFF" strokeOpacity={0.45} strokeWidth={Math.max(1, rim / 2)} />}
+        {size >= 32 && <Circle cx={r} cy={r} r={r - rim * 2.6} fill="none" stroke={COLORS.gloss} strokeOpacity={0.45} strokeWidth={Math.max(1, rim / 2)} />}
       </Svg>
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
         <NamedIcon name={icon} size={glyph} color={DISC_INK} strokeWidth={2.25} />

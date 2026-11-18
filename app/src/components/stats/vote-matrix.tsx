@@ -94,7 +94,7 @@ export function VoteMatrix({
                       fontSize={Math.round(cell * 0.42)}
                       fontFamily={t.font.bold}
                       textAnchor="middle"
-                      fill={strength > 0.55 ? '#121216' : t.txt}>
+                      fill={strength > 0.55 ? t.ink : t.txt}>
                       {c}
                     </SvgText>
                   )}

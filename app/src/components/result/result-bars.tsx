@@ -103,7 +103,7 @@ export function RankResult({ ranking, byId, mine }: { ranking: RankEntry[]; byId
   const tr = useT();
   const [all, setAll] = useState(false);
   const best = ranking[0]?.points || 1;
-  const podium = ['#F5C542', '#C9D0DA', '#D9935A'];
+  const podium = t.podium;
   const shown = folded(ranking, all);
   return (
     <View style={{ gap: 10 }}>
@@ -134,7 +134,7 @@ export function RankResult({ ranking, byId, mine }: { ranking: RankEntry[]; byId
                   justifyContent: 'center',
                   backgroundColor: podium[place - 1] ?? 'transparent',
                 }}>
-                <Text style={{ fontFamily: t.font.display, fontSize: place <= 3 ? 15 : 18, color: place <= 3 ? '#1A1A1A' : t.txt }}>{place}</Text>
+                <Text style={{ fontFamily: t.font.display, fontSize: place <= 3 ? 15 : 18, color: place <= 3 ? t.ink : t.txt }}>{place}</Text>
               </View>
               <Avatar member={m} size={slim ? 28 : 36} />
               <View style={{ flex: 1 }}>

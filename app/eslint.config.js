@@ -42,6 +42,32 @@ const NO_EFFECT_MEMBERS = {
   message: EFFECT_MESSAGE,
 };
 
+const COLOR_MESSAGE =
+  'Colours come from the theme: t.<token> from useTheme() in a component, COLORS / ACCENTS / themes from @/lib/tokens outside one. Add a named token in src/lib/tokens.ts if no existing one fits.';
+const HEX = '#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})';
+const NO_COLOR_LITERALS = [
+  { selector: `Literal[value=/^${HEX}$/]`, message: COLOR_MESSAGE },
+  { selector: 'Literal[value=/rgba?\\(/]', message: COLOR_MESSAGE },
+  { selector: `TemplateElement[value.raw=/${HEX}\\b|rgba?\\(/]`, message: COLOR_MESSAGE },
+];
+const NO_FONT_LITERALS = {
+  selector: 'Literal[value=/^(Inter|BricolageGrotesque)_/]',
+  message: 'Font families come from the theme: t.font.<weight> from useTheme(), or FONT from @/lib/tokens outside a component.',
+};
+const LITERAL_TOKEN_FILES = [
+  'src/lib/tokens.ts',
+  'src/components/celebration/**',
+  'src/components/mascot/**',
+  'src/lib/utils/mascot.ts',
+  'src/components/auth/brand-icons.tsx',
+  'src/**/*.test.ts',
+];
+const syntax = ({ effects = true, literalTokens = false } = {}) => [
+  'error',
+  ...(effects ? [NO_EFFECT_MEMBERS] : []),
+  ...(literalTokens ? [] : [...NO_COLOR_LITERALS, NO_FONT_LITERALS]),
+];
+
 const LOCKED_RULES = [
   '@typescript-eslint/no-explicit-any',
   '@typescript-eslint/no-non-null-assertion',
@@ -93,8 +119,12 @@ module.exports = defineConfig([
       '@typescript-eslint/no-restricted-imports': restrict([RELATIVE], [RAW_CLIENT, NO_HAPTICS]),
       'no-restricted-globals': ['error', NO_FETCH],
       'no-restricted-properties': ['error', ...NO_FETCH_PROPERTY],
-      'no-restricted-syntax': ['error', NO_EFFECT_MEMBERS],
+      'no-restricted-syntax': syntax(),
     },
+  },
+  {
+    files: LITERAL_TOKEN_FILES,
+    rules: { 'no-restricted-syntax': syntax({ literalTokens: true }) },
   },
   {
     files: SRC,
@@ -144,7 +174,7 @@ module.exports = defineConfig([
     files: ['src/lib/hooks/**/*.{ts,tsx}'],
     rules: {
       '@typescript-eslint/no-restricted-imports': restrictInHooks([RELATIVE, NO_APP, NO_COMPONENTS], [RAW_CLIENT, NO_HAPTICS]),
-      'no-restricted-syntax': 'off',
+      'no-restricted-syntax': syntax({ effects: false }),
     },
   },
   {

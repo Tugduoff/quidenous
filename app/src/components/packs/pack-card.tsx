@@ -6,7 +6,6 @@ import { formatNumber, useT } from '@/lib/i18n';
 import type { PackItem } from '@/lib/api/packs';
 import { useTheme } from '@/lib/theme';
 import { PressableScale } from '@/components/ui/pressable-scale';
-import { TAG_BG } from '@/components/ui/tag';
 import { Card } from '@/components/ui/card';
 
 export function MiniTag({ label, tone = 'mut' }: { label: string; tone?: 'mut' | 'hot' }) {
@@ -18,9 +17,9 @@ export function MiniTag({ label, tone = 'mut' }: { label: string; tone?: 'mut' |
         height: 18,
         borderRadius: 6,
         justifyContent: 'center',
-        backgroundColor: tone === 'hot' ? TAG_BG : t.card2,
+        backgroundColor: tone === 'hot' ? t.tagFill : t.card2,
       }}>
-      <Text style={{ fontFamily: t.font.bold, fontSize: 10, letterSpacing: 0.5, color: tone === 'hot' ? '#fff' : t.mut }}>{label}</Text>
+      <Text style={{ fontFamily: t.font.bold, fontSize: 10, letterSpacing: 0.5, color: tone === 'hot' ? t.onStrong : t.mut }}>{label}</Text>
     </View>
   );
 }
@@ -37,9 +36,9 @@ export function StatusBadge({ status }: { status: PackItem['status'] }) {
         height: 22,
         borderRadius: 11,
         justifyContent: 'center',
-        backgroundColor: removed ? TAG_BG : t.card2,
+        backgroundColor: removed ? t.tagFill : t.card2,
       }}>
-      <Text style={{ fontFamily: t.font.bold, fontSize: 11, color: removed ? '#fff' : t.mut }}>{tr(`packs.status.${status}`)}</Text>
+      <Text style={{ fontFamily: t.font.bold, fontSize: 11, color: removed ? t.onStrong : t.mut }}>{tr(`packs.status.${status}`)}</Text>
     </View>
   );
 }
@@ -178,8 +177,8 @@ export function Chip({
   onPress: () => void;
 }) {
   const t = useTheme();
-  const bg = on ? (hot ? TAG_BG : t.acc) : t.card;
-  const fg = on ? (hot ? '#fff' : t.accTxt) : t.txt;
+  const bg = on ? (hot ? t.tagFill : t.acc) : t.card;
+  const fg = on ? (hot ? t.onStrong : t.accTxt) : t.txt;
   return (
     <PressableScale
       accessibilityRole={hot ? 'switch' : 'button'}
