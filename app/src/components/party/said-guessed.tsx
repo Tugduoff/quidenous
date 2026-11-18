@@ -39,7 +39,7 @@ export function PartySaidGuessed({ party, round, said, top, late }: { party: Par
             </Text>
           </Card>
         )}
-        <VotedLine round={round} byId={byId} label="said.party.guessed" />
+        <VotedLine round={round} byId={byId} labelKey="said.party.guessed" />
         {!late && <GuessRecap answers={answers} guesses={said.my_guesses ?? []} byId={byId} />}
         {!late && said.my_answer && <MyAnswer text={said.my_answer.text} />}
       </Animated.View>

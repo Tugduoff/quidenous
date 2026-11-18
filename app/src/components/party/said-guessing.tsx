@@ -80,7 +80,7 @@ export function PartySaidGuessing({ party, round, said, top }: { party: Party; r
         </>
       }>
       {top}
-      {round.voted.length > 0 && <VotedLine round={round} byId={byId} label="said.party.guessed" />}
+      {round.voted.length > 0 && <VotedLine round={round} byId={byId} labelKey="said.party.guessed" />}
       {nothing ? (
         <Card style={{ padding: 16 }}>
           <Text style={{ fontFamily: t.font.semibold, fontSize: 15, lineHeight: 21, color: t.mut }}>{tr('said.guess.nothing')}</Text>

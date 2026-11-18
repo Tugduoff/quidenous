@@ -47,7 +47,7 @@ export function SaidScreenQuestion({ party, round, said, unit, wide }: { party: 
         <Display size={big(round.question.length > 90 ? 64 : 84)}>{tidy(round.question)}</Display>
         <Text style={{ fontFamily: t.font.semibold, fontSize: big(30), lineHeight: big(40), color: t.mut }}>{tr('said.party.write')}</Text>
         <Countdown ms={ms} total={total} big />
-        <VotedLine round={round} byId={byId} done={writers} label="said.party.written" big />
+        <VotedLine round={round} byId={byId} done={writers} labelKey="said.party.written" big />
       </Animated.View>
     );
   }
@@ -98,7 +98,7 @@ function ScreenAnswers({
       <View style={{ flexDirection: wide ? 'row' : 'column', alignItems: wide ? 'center' : 'stretch', gap: 32 * unit }}>
         <View style={{ flex: wide ? 1 : undefined, gap: 10 * unit }}>
           <Text style={{ fontFamily: t.font.semibold, fontSize: Math.round(24 * unit), color: t.mut }}>{tr('said.party.guess')}</Text>
-          <VotedLine round={round} byId={byId} label="said.party.guessed" big />
+          <VotedLine round={round} byId={byId} labelKey="said.party.guessed" big />
         </View>
         <View style={{ flex: wide ? 1 : undefined }}>
           <Countdown ms={ms} total={total} big />

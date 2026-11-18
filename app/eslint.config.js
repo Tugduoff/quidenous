@@ -54,6 +54,20 @@ const NO_FONT_LITERALS = {
   selector: 'Literal[value=/^(Inter|BricolageGrotesque)_/]',
   message: 'Font families come from the theme: t.font.<weight> from useTheme(), or FONT from @/lib/tokens outside a component.',
 };
+const TEXT_MESSAGE =
+  'User-facing text goes through i18n: tr(\'<area>.<key>\') from useT() (@/lib/i18n), with the French string in src/locales/fr and the English one under the same key in src/locales/en. Language-neutral text belongs in LANGUAGE_NEUTRAL_TEXT in eslint.config.js.';
+const LANGUAGE_NEUTRAL_TEXT = ['qui de nous', 'qui de nous \\?', 'BAR', 'https:..…', 'ABC234', 'xxxxx-xxxxx'];
+const HAS_LETTER = '/[A-Za-zÀ-ÖØ-öø-ÿ]/';
+const NEUTRAL = `/^\\s*(${LANGUAGE_NEUTRAL_TEXT.join('|')})\\s*$/`;
+const WORDS = `[value=${HAS_LETTER}]:not([value=${NEUTRAL}])`;
+const TEMPLATE_WORDS = `TemplateLiteral:has(> TemplateElement[value.raw=${HAS_LETTER}])`;
+const TEXT_PROPS = 'JSXAttribute[name.name=/^(placeholder|title|label|accessibilityLabel|accessibilityHint|message|text)$/]';
+const NO_HARD_CODED_TEXT = [
+  { selector: `JSXText${WORDS}`, message: TEXT_MESSAGE },
+  { selector: `:matches(JSXElement, JSXFragment) > JSXExpressionContainer > :matches(Literal${WORDS}, ${TEMPLATE_WORDS})`, message: TEXT_MESSAGE },
+  { selector: `${TEXT_PROPS} > Literal${WORDS}`, message: TEXT_MESSAGE },
+  { selector: `${TEXT_PROPS} > JSXExpressionContainer > :matches(Literal${WORDS}, ${TEMPLATE_WORDS})`, message: TEXT_MESSAGE },
+];
 const LITERAL_TOKEN_FILES = [
   'src/lib/tokens.ts',
   'src/components/celebration/**',
@@ -66,6 +80,7 @@ const syntax = ({ effects = true, literalTokens = false } = {}) => [
   'error',
   ...(effects ? [NO_EFFECT_MEMBERS] : []),
   ...(literalTokens ? [] : [...NO_COLOR_LITERALS, NO_FONT_LITERALS]),
+  ...NO_HARD_CODED_TEXT,
 ];
 
 const LOCKED_RULES = [

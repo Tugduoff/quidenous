@@ -87,7 +87,7 @@ export function PartySaidWriting({ party, round, said, top, late }: { party: Par
           <ErrorText>{error}</ErrorText>
         </>
       )}
-      <VotedLine round={round} byId={byId} done={writers} label="said.party.written" />
+      <VotedLine round={round} byId={byId} done={writers} labelKey="said.party.written" />
     </Screen>
   );
 }

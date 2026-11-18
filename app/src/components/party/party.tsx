@@ -66,13 +66,13 @@ export function VotedLine({
   byId,
   big,
   done = round.voted,
-  label = 'party.vote.voted',
+  labelKey = 'party.vote.voted',
 }: {
   round: PartyRound;
   byId: Map<number, Member>;
   big?: boolean;
   done?: number[];
-  label?: 'party.vote.voted' | 'said.party.written' | 'said.party.guessed';
+  labelKey?: 'party.vote.voted' | 'said.party.written' | 'said.party.guessed';
 }) {
   const t = useTheme();
   const tr = useT();
@@ -80,7 +80,7 @@ export function VotedLine({
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: big ? 16 : 8 }}>
       {done.length > 0 && <AvatarStack members={done.map((id) => byId.get(id))} size={big ? 48 : 28} max={big ? 10 : 6} />}
       <Text style={{ fontFamily: big ? t.font.display : t.font.semibold, fontSize: big ? 36 : 15, color: t.mut }}>
-        {tr(label, { count: done.filter((id) => round.eligible.includes(id)).length, total: round.eligible.length })}
+        {tr(labelKey, { count: done.filter((id) => round.eligible.includes(id)).length, total: round.eligible.length })}
       </Text>
     </View>
   );
