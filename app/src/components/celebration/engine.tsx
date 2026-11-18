@@ -10,7 +10,6 @@ import Animated, { type SharedValue, useAnimatedStyle } from 'react-native-reani
 import { ballistic } from '@/lib/utils/ballistics';
 import type { Rand } from '@/lib/utils/rand';
 
-export { makeRand } from '@/lib/utils/rand';
 
 export type Clock = SharedValue<number>;
 
