@@ -9,6 +9,7 @@ use serde_json::{Value, json};
 
 use crate::{
     AppState,
+    accounts::auth::SignedIn,
     insights::stats,
     insights::streaks::{self, DAY},
     platform::config::WrappedWindow,
@@ -169,18 +170,16 @@ struct Reader {
     seat: Option<MemberRow>,
 }
 
-async fn reader(state: &AppState, headers: &HeaderMap, scope: &str) -> AppResult<Reader> {
-    let token = headers
-        .get(axum::http::header::AUTHORIZATION)
-        .and_then(|v| v.to_str().ok())
-        .and_then(|v| v.strip_prefix("Bearer "))
-        .ok_or(AppError::Unauthorized)?;
+async fn reader(
+    state: &AppState,
+    user: UserId,
+    headers: &HeaderMap,
+    scope: &str,
+) -> AppResult<Reader> {
     match scope {
-        "me" => Ok(Reader {
-            user: crate::accounts::auth::user_for_token(state, token).await?,
-            seat: None,
-        }),
+        "me" => Ok(Reader { user, seat: None }),
         "room" => {
+            let token = crate::accounts::tokens::bearer(headers).ok_or(AppError::Unauthorized)?;
             let room = crate::accounts::auth::x_room(headers);
             let me = crate::accounts::auth::member_in_room(state, token, room).await?;
             if crate::rounds::game::party(&state.db, me.group_id)
@@ -278,10 +277,11 @@ pub(crate) struct WrappedQuery {
 
 pub(crate) async fn get(
     State(state): State<AppState>,
+    SignedIn(user): SignedIn,
     headers: HeaderMap,
     Query(q): Query<WrappedQuery>,
 ) -> AppResult<Json<Wrapped>> {
-    let r = reader(&state, &headers, q.scope.as_deref().unwrap_or("me")).await?;
+    let r = reader(&state, user, &headers, q.scope.as_deref().unwrap_or("me")).await?;
     let tz = i64::from(stats::parse_tz(q.tz.as_deref()));
     let year = parse_year(q.year.as_deref())?;
     Ok(Json(
@@ -304,10 +304,17 @@ pub(crate) struct ShareBody {
 
 pub(crate) async fn share(
     State(state): State<AppState>,
+    SignedIn(user): SignedIn,
     headers: HeaderMap,
     Json(body): Json<ShareBody>,
 ) -> AppResult<Json<Value>> {
-    let r = reader(&state, &headers, body.scope.as_deref().unwrap_or("me")).await?;
+    let r = reader(
+        &state,
+        user,
+        &headers,
+        body.scope.as_deref().unwrap_or("me"),
+    )
+    .await?;
     let tz = i64::from(stats::clamp_tz(body.tz.unwrap_or(0)));
     let w = build(&state, &r, body.year, tz, body.preview.unwrap_or(false)).await?;
     let card = w

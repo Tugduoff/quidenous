@@ -193,6 +193,69 @@ const ROUTES: &[(&str, &str)] = &[
     ("GET", "/vitrine/{*file}"),
 ];
 
+const OPEN_TO_ANYONE: &[(&str, &str)] = &[
+    ("GET", "/"),
+    ("GET", "/en"),
+    ("GET", "/vitrine/{*file}"),
+    ("GET", "/robots.txt"),
+    ("GET", "/privacy"),
+    ("GET", "/delete-account"),
+    ("GET", "/terms"),
+    ("GET", "/beta"),
+    ("GET", "/en/privacy"),
+    ("GET", "/en/delete-account"),
+    ("GET", "/en/terms"),
+    ("GET", "/en/beta"),
+    ("GET", "/pack-template.md"),
+    ("GET", "/en/pack-template.md"),
+    ("GET", "/s/{token}"),
+    ("GET", "/s/{token}/card.png"),
+    ("GET", "/p/{id}"),
+    ("GET", "/p/{id}/card.png"),
+    ("GET", "/api/features"),
+    ("GET", "/api/donate"),
+    ("GET", "/api/vibes"),
+    ("GET", "/api/health"),
+    ("GET", "/api/version"),
+    ("GET", "/api/push/config"),
+    ("GET", "/api/updates/manifest"),
+    ("GET", "/api/updates/assets/{runtime}/{id}/{name}"),
+    ("GET", "/api/play/{token}"),
+    ("GET", "/api/media/{token}"),
+    ("GET", "/api/gifs/media/{token}"),
+    ("GET", "/api/rooms/preview"),
+    ("GET", "/api/parties/screen/{code}"),
+    ("GET", "/api/auth/providers"),
+    ("GET", "/api/auth/oauth/{provider}/callback"),
+    ("POST", "/api/client-errors"),
+    ("POST", "/api/start"),
+    ("POST", "/api/join"),
+    ("POST", "/api/parties/join"),
+    ("POST", "/api/auth/email"),
+    ("POST", "/api/auth/signup"),
+    ("POST", "/api/auth/login"),
+    ("POST", "/api/auth/login/2fa"),
+    ("POST", "/api/auth/forgot"),
+    ("POST", "/api/auth/reset"),
+    ("POST", "/api/auth/2fa/reset/send"),
+    ("POST", "/api/auth/2fa/reset/confirm"),
+    ("POST", "/api/auth/delete/send"),
+    ("POST", "/api/auth/delete/confirm"),
+    ("POST", "/api/auth/oauth/redeem"),
+    ("POST", "/api/auth/oauth/{provider}/start"),
+];
+
+const REFUSED_ANOTHER_WAY: &[(&str, &str, StatusCode)] = &[
+    ("GET", "/api/live", StatusCode::BAD_REQUEST),
+    ("GET", "/api/updates", StatusCode::NOT_FOUND),
+    ("POST", "/api/updates/publish", StatusCode::NOT_FOUND),
+    (
+        "DELETE",
+        "/api/updates/{runtime}/{id}",
+        StatusCode::NOT_FOUND,
+    ),
+];
+
 fn concrete(path: &str) -> String {
     path.split('/')
         .map(|part| match part {
@@ -242,4 +305,39 @@ async fn every_known_route_answers_its_methods() {
         }
     }
     assert!(wrong.is_empty(), "routes changed:\n{}", wrong.join("\n"));
+}
+
+#[tokio::test]
+async fn only_the_listed_routes_answer_without_a_credential() {
+    let (app, _) = setup().await;
+    let mut wrong = Vec::new();
+    for (methods, path) in ROUTES {
+        for method in methods.split(' ') {
+            let req = Request::builder()
+                .method(method)
+                .uri(concrete(path))
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from("{}"))
+                .unwrap();
+            let status = app.clone().oneshot(req).await.unwrap().status();
+            let listed = OPEN_TO_ANYONE.contains(&(method, *path));
+            let answered = status != StatusCode::UNAUTHORIZED
+                && !REFUSED_ANOTHER_WAY.contains(&(method, *path, status));
+            if answered != listed {
+                wrong.push(format!(
+                    "{method} {path}: {status}, {}",
+                    if listed {
+                        "listed in OPEN_TO_ANYONE"
+                    } else {
+                        "not listed in OPEN_TO_ANYONE"
+                    }
+                ));
+            }
+        }
+    }
+    assert!(
+        wrong.is_empty(),
+        "a route answers a caller without a credential only when OPEN_TO_ANYONE says so on purpose (take who is calling from an extractor, before the body):\n{}",
+        wrong.join("\n")
+    );
 }
