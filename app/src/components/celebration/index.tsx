@@ -85,7 +85,7 @@ export function CelebrationPreview() {
 const ALL = [...new Set([...SPECIAL_NUMBERS, ...Array.from({ length: 40 }, (_, i) => (i + 1) * 50)])].sort((a, b) => a - b);
 
 /** Hidden picker (the room name long-pressed five times): plays any party without touching what this device has seen. */
-export function MilestonePicker({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+function MilestonePicker({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const t = useTheme();
   const tr = useT();
   return (

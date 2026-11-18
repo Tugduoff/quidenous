@@ -1,5 +1,5 @@
 /** The 2048 party's tiles, from the first 2 to the final 2048. */
-export const TILE_VALUES = [2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048] as const;
+const TILE_VALUES = [2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048] as const;
 
 const FIRST_TILE_AT = 300;
 const FOREVER = 1e9;

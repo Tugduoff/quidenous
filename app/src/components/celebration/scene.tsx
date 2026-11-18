@@ -26,7 +26,7 @@ export type SceneProps = {
   cy: number;
 };
 
-export type Scene = {
+type Scene = {
   /** Total length (ms); the party closes by itself at the end. */
   duration: number;
   /** Backdrop colour, drawn at `dim` opacity over the app. */

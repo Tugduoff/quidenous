@@ -115,7 +115,7 @@ export function Thrown({ clock, p, children }: { clock: Clock; p: Throw; childre
  * Something orbiting (cx, cy): its angle turns at `spin` rad/s, its radius eases from r0 to r1 after `at`.
  * The orbit is an ellipse (`tilt` squashes it) turned by `tiltRot` radians.
  */
-export type Orbit = { r0: number; r1: number; a: number; spin: number; at: number; dur: number; size: number };
+type Orbit = { r0: number; r1: number; a: number; spin: number; at: number; dur: number; size: number };
 export function Orbiter({
   clock,
   o,
