@@ -202,7 +202,7 @@ function WireBoard({
 
   const scrollY = useSharedValue(0);
   const onScroll = useAnimatedScrollHandler((e) => {
-    scrollY.value = e.contentOffset.y;
+    scrollY.set(e.contentOffset.y);
   });
   // The wire being dragged: from row `dragIdx` (-1: none) to (dragX, dragY); `hovered` the item it would plug into.
   const dragIdx = useSharedValue(-1);
@@ -220,12 +220,12 @@ function WireBoard({
   // Kept after the drop: the wire springing back keeps its colour.
   const [dragColor, setDragColor] = useState(t.mut);
   // Each new plug remounts the wire, which springs from where it was let go (or from the person, tapped) into its socket.
-  const plugs = useRef<Record<number, { n: number; x: number; y: number }>>({});
+  const [plugs, setPlugs] = useState<Record<number, { n: number; x: number; y: number }>>({});
   const [bumps, setBumps] = useState<number[]>(() => items.map(() => 0));
-  const lastDrag = useRef(0);
+  const justDropped = useRef(false);
 
   const connect = (id: number, item: number, x: number, y: number) => {
-    plugs.current[id] = { n: (plugs.current[id]?.n ?? 0) + 1, x, y };
+    setPlugs((all) => ({ ...all, [id]: { n: (all[id]?.n ?? 0) + 1, x, y } }));
     onChange({ ...choices, [id]: item });
     setBumps((b) => b.map((v, i) => (i === item ? v + 1 : v)));
     haptic();
@@ -244,7 +244,10 @@ function WireBoard({
     setDragColor(people.find((p) => p.id === id)?.color ?? t.mut);
   };
   const onDrop = (id: number, x: number, y: number, item: number) => {
-    lastDrag.current = Date.now();
+    justDropped.current = true;
+    setTimeout(() => {
+      justDropped.current = false;
+    }, 350);
     if (item >= 0) {
       plugged.current = true;
       connect(id, item, x, y);
@@ -258,7 +261,7 @@ function WireBoard({
   };
   const tapPerson = (id: number) => {
     // The end of a drag on the same row is not a tap.
-    if (Date.now() - lastDrag.current < 350) return;
+    if (justDropped.current) return;
     setSel((s) => (s === id ? null : id));
   };
   const tapItem = (item: number) => {
@@ -323,7 +326,7 @@ function WireBoard({
                   people.map((p, i) => {
                     const end = ends[p.id];
                     if (!end || dragging === p.id) return null;
-                    const plug = plugs.current[p.id];
+                    const plug = plugs[p.id];
                     return (
                       <Wire
                         key={`${p.id}-${plug?.n ?? 0}`}
@@ -427,32 +430,34 @@ function PersonRow({
     failOffsetY: [-20, 20],
     onActivate: (e) => {
       'worklet';
-      s.dragIdx.value = index;
-      s.dragX.value = PAD + e.x;
-      s.dragY.value = top - s.scrollY.value + e.y;
+      s.dragIdx.set(index);
+      s.dragX.set(PAD + e.x);
+      s.dragY.set(top - s.scrollY.value + e.y);
       scheduleOnRN(onStart, id);
     },
     onUpdate: (e) => {
       'worklet';
       const x = PAD + e.x;
       const y = top - s.scrollY.value + e.y;
-      s.dragX.value = x;
-      s.dragY.value = y;
-      s.hovered.value = hit(x, y, s.board.value);
+      s.dragX.set(x);
+      s.dragY.set(y);
+      s.hovered.set(hit(x, y, s.board.value));
     },
     onDeactivate: () => {
       'worklet';
       const k = s.hovered.value;
-      s.hovered.value = -1;
+      s.hovered.set(-1);
       if (k >= 0) {
         scheduleOnRN(onDrop, id, s.dragX.value, s.dragY.value, k);
         return;
       }
       // Nowhere to plug in: the wire springs back into its socket.
-      s.dragX.value = withSpring(anchor.x, SPRING);
-      s.dragY.value = withSpring(anchor.y - s.scrollY.value, SPRING, (finished) => {
-        if (finished && s.dragIdx.value === index) s.dragIdx.value = -1;
-      });
+      s.dragX.set(withSpring(anchor.x, SPRING));
+      s.dragY.set(
+        withSpring(anchor.y - s.scrollY.value, SPRING, (finished) => {
+          if (finished && s.dragIdx.value === index) s.dragIdx.set(-1);
+        }),
+      );
       scheduleOnRN(onDrop, id, 0, 0, -1);
     },
   });

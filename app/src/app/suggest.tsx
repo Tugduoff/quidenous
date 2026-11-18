@@ -252,8 +252,8 @@ function SwipeCard({ s, top, fly, onDecide }: { s: Suggestion; top: boolean; fly
       if (finished) scheduleOnRN(onDecide, v);
     };
     const cfg = { duration: 220, easing: EASE };
-    if (v === 0) ty.value = withTiming(-STACK * 1.6, cfg, done);
-    else tx.value = withTiming(v * 520, cfg, done);
+    if (v === 0) ty.set(withTiming(-STACK * 1.6, cfg, done));
+    else tx.set(withTiming(v * 520, cfg, done));
   };
   useWhen(fly != null, () => fly != null && away(fly));
 
@@ -264,7 +264,7 @@ function SwipeCard({ s, top, fly, onDecide }: { s: Suggestion; top: boolean; fly
     failOffsetY: [-14, 14],
     onUpdate: (e) => {
       'worklet';
-      tx.value = e.translationX;
+      tx.set(e.translationX);
     },
     onDeactivate: (e) => {
       'worklet';
@@ -272,11 +272,13 @@ function SwipeCard({ s, top, fly, onDecide }: { s: Suggestion; top: boolean; fly
       const flung = Math.abs(x) > 40 && Math.abs(e.velocityX) > 800 && Math.sign(x) === Math.sign(e.velocityX);
       if (Math.abs(x) > SWIPE || flung) {
         const v: SuggestionVote = x > 0 ? 1 : -1;
-        tx.value = withTiming(v * 520, { duration: 180, easing: EASE }, (finished) => {
-          'worklet';
-          if (finished) scheduleOnRN(onDecide, v);
-        });
-      } else tx.value = withSpring(0, SPRING);
+        tx.set(
+          withTiming(v * 520, { duration: 180, easing: EASE }, (finished) => {
+            'worklet';
+            if (finished) scheduleOnRN(onDecide, v);
+          }),
+        );
+      } else tx.set(withSpring(0, SPRING));
     },
   });
 

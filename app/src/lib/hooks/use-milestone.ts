@@ -66,6 +66,7 @@ export function useMilestone() {
     if (room != null && seen === -1 && finished != null) {
       const start = lastMilestone(finished);
       storage.set(`${KEY}.${room}`, String(start));
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setStored({ room, n: start });
     }
   }, [room, seen, finished]);

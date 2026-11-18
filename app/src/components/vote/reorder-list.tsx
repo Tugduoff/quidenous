@@ -71,12 +71,22 @@ function total(order: number[], h: Record<number, number>) {
 export function useScrollTracker() {
   const state = useRef({ y: 0, content: 0, locked: false });
   return {
-    state,
     onScroll: (e: NativeScrollEvent) => {
       if (!state.current.locked) state.current.y = e.contentOffset.y;
     },
     onContentSizeChange: (_w: number, h: number) => {
       state.current.content = h;
+    },
+    lock: () => {
+      state.current.locked = true;
+    },
+    unlock: () => {
+      state.current.locked = false;
+    },
+    y: () => state.current.y,
+    content: () => state.current.content,
+    scrolledTo: (y: number) => {
+      state.current.y = y;
     },
   };
 }
@@ -126,16 +136,16 @@ export function ReorderList<T extends { id: number }>({
   const sync = () => {
     if (dragging.current) return;
     const h = heights.current;
-    s.order.value = latest.current;
-    s.layout.value = { h, top: tops(latest.current, h) };
+    s.order.set(latest.current);
+    s.layout.set({ h, top: tops(latest.current, h) });
     setHeight(total(latest.current, h));
   };
   const onOrderChange = () => {
     if (dragging.current && !latest.current.includes(s.active.value)) {
       dragging.current = false;
-      s.lifted.value = false;
-      s.active.value = -1;
-      tracker.state.current.locked = false;
+      s.lifted.set(false);
+      s.active.set(-1);
+      tracker.unlock();
       pageScroll(true);
       onDragChange?.(false);
     }
@@ -175,8 +185,8 @@ export function ReorderList<T extends { id: number }>({
       }
       const next = [...others.slice(0, at), id, ...others.slice(at)];
       if (next.join(',') === s.order.value.join(',')) return;
-      s.order.value = next;
-      s.layout.value = { h, top: tops(next, h) };
+      s.order.set(next);
+      s.layout.set({ h, top: tops(next, h) });
     },
   );
 
@@ -188,9 +198,8 @@ export function ReorderList<T extends { id: number }>({
     sv?.measureInWindow?.((_x, y, _w, h) => {
       if (h > 0) Object.assign(view, { top: y, height: h });
     });
-    const st = tracker.state.current;
-    st.locked = true;
-    const start = st.y;
+    tracker.lock();
+    const start = tracker.y();
     const tick = () => {
       if (!dragging.current) return;
       const p = s.pointer.value;
@@ -198,12 +207,12 @@ export function ReorderList<T extends { id: number }>({
       if (p < view.top + EDGE) v = -SPEED * Math.min(1, (view.top + EDGE - p) / EDGE);
       else if (p > view.top + view.height - EDGE) v = SPEED * Math.min(1, (p - (view.top + view.height - EDGE)) / EDGE);
       if (v) {
-        const max = Math.max(0, st.content - view.height);
-        const next = Math.max(0, Math.min(max, st.y + v));
-        if (next !== st.y) {
-          st.y = next;
+        const max = Math.max(0, tracker.content() - view.height);
+        const next = Math.max(0, Math.min(max, tracker.y() + v));
+        if (next !== tracker.y()) {
+          tracker.scrolledTo(next);
           scroller.current?.scrollTo({ y: next, animated: false });
-          s.scrolled.value = next - start;
+          s.scrolled.set(next - start);
         }
       }
       loop.current = requestAnimationFrame(tick);
@@ -227,7 +236,7 @@ export function ReorderList<T extends { id: number }>({
     dragging.current = false;
     pageScroll(true);
     if (loop.current != null) cancelAnimationFrame(loop.current);
-    tracker.state.current.locked = false;
+    tracker.unlock();
     onDragChange?.(false);
     // Rows added or removed while the row was in hand: the dropped order, minus the gone ones, then the new ones.
     const now = latest.current;
@@ -287,36 +296,38 @@ function Row({
     () => [s.layout.value.top[id], s.layout.value.h[id]] as const,
     ([top, h]) => {
       if (top === undefined || s.active.value === id) return;
-      y.value = y.value === UNPLACED || h === undefined ? top : withTiming(top, SLIDE);
+      y.set(y.value === UNPLACED || h === undefined ? top : withTiming(top, SLIDE));
     },
   );
   const pan = usePanGesture({
     activateAfterLongPress: HOLD,
     onActivate: (e) => {
       'worklet';
-      s.startTop.value = y.value === UNPLACED ? (s.layout.value.top[id] ?? 0) : y.value;
-      s.trans.value = 0;
-      s.scrolled.value = 0;
-      s.pointer.value = e.absoluteY;
-      s.active.value = id;
-      s.lifted.value = true;
+      s.startTop.set(y.value === UNPLACED ? (s.layout.value.top[id] ?? 0) : y.value);
+      s.trans.set(0);
+      s.scrolled.set(0);
+      s.pointer.set(e.absoluteY);
+      s.active.set(id);
+      s.lifted.set(true);
       scheduleOnRN(onLift);
     },
     onUpdate: (e) => {
       'worklet';
-      s.trans.value = e.translationY;
-      s.pointer.value = e.absoluteY;
+      s.trans.set(e.translationY);
+      s.pointer.set(e.absoluteY);
     },
     onDeactivate: (e) => {
       'worklet';
       if (!s.lifted.value || s.active.value !== id) return;
-      s.lifted.value = false;
+      s.lifted.set(false);
       const target = s.layout.value.top[id] ?? s.startTop.value;
       const moved = Math.abs(e.translationY) > 8;
-      s.trans.value = withTiming(target - s.startTop.value - s.scrolled.value, SLIDE, () => {
-        y.value = target;
-        if (s.active.value === id) s.active.value = -1;
-      });
+      s.trans.set(
+        withTiming(target - s.startTop.value - s.scrolled.value, SLIDE, () => {
+          y.set(target);
+          if (s.active.value === id) s.active.set(-1);
+        }),
+      );
       scheduleOnRN(onDrop, id, [...s.order.value], moved);
     },
   });

@@ -36,6 +36,7 @@ export function useStreakMilestone() {
     if (room != null && seen && seen.n == null && mine) {
       const start = STREAK_MILESTONES.includes(current as (typeof STREAK_MILESTONES)[number]) ? lastStreakMilestone(current - 1) : due;
       storage.set(`${KEY}.${room}`, String(start));
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setStored({ room, n: start });
     }
   }, [room, seen, mine, current, due]);

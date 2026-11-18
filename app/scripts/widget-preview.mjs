@@ -50,14 +50,22 @@ function boxCss(st = {}) {
   const put = (k, v) => v != null && v !== '' && css.push(`${k}:${v}`);
   put('width', px(st.width));
   put('height', px(st.height));
-  if (st.flex) put('flex', `${st.flex} 1 0`), put('min-width', '0'), put('min-height', '0');
+  if (st.flex) {
+    put('flex', `${st.flex} 1 0`);
+    put('min-width', '0');
+    put('min-height', '0');
+  }
   for (const side of ['', 'Horizontal', 'Vertical', 'Top', 'Bottom', 'Left', 'Right'])
     for (const kind of ['padding', 'margin']) {
       const v = st[`${kind}${side}`];
       if (v == null) continue;
-      if (side === 'Horizontal') put(`${kind}-left`, `${v}px`), put(`${kind}-right`, `${v}px`);
-      else if (side === 'Vertical') put(`${kind}-top`, `${v}px`), put(`${kind}-bottom`, `${v}px`);
-      else put(side ? `${kind}-${side.toLowerCase()}` : kind, `${v}px`);
+      if (side === 'Horizontal') {
+        put(`${kind}-left`, `${v}px`);
+        put(`${kind}-right`, `${v}px`);
+      } else if (side === 'Vertical') {
+        put(`${kind}-top`, `${v}px`);
+        put(`${kind}-bottom`, `${v}px`);
+      } else put(side ? `${kind}-${side.toLowerCase()}` : kind, `${v}px`);
     }
   put('background', st.backgroundColor);
   if (st.borderRadius != null) put('border-radius', `${st.borderRadius}px`);
