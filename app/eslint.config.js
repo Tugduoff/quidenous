@@ -3,6 +3,8 @@ const comments = require('@eslint-community/eslint-plugin-eslint-comments');
 const expo = require('eslint-config-expo/flat');
 
 const SRC = ['src/**/*.{ts,tsx}', 'index.ts'];
+const ROUTE_MAX_LINES = 150;
+const FILE_MAX_LINES = 500;
 
 const RELATIVE = {
   group: ['./*', '../*', '.', '..'],
@@ -48,6 +50,7 @@ const LOCKED_RULES = [
   'no-restricted-globals',
   'no-restricted-properties',
   'no-restricted-syntax',
+  'max-lines',
 ];
 const COMPILER_RULES = ['react-hooks/refs', 'react-hooks/immutability', 'react-hooks/set-state-in-effect', 'react-hooks/static-components', 'react-hooks/purity'];
 
@@ -94,8 +97,15 @@ module.exports = defineConfig([
     },
   },
   {
+    files: SRC,
+    rules: { 'max-lines': ['error', { max: FILE_MAX_LINES, skipBlankLines: true, skipComments: false }] },
+  },
+  {
     files: ['src/app/**/*.{ts,tsx}'],
-    rules: { '@typescript-eslint/no-restricted-imports': restrict([RELATIVE, NO_APP], [RAW_CLIENT, NO_HAPTICS]) },
+    rules: {
+      '@typescript-eslint/no-restricted-imports': restrict([RELATIVE, NO_APP], [RAW_CLIENT, NO_HAPTICS]),
+      'max-lines': ['error', { max: ROUTE_MAX_LINES, skipBlankLines: true, skipComments: false }],
+    },
   },
   {
     files: ['src/components/**/*.{ts,tsx}'],
