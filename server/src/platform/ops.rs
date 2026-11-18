@@ -236,7 +236,7 @@ async fn client_error(
     Ok(StatusCode::NO_CONTENT)
 }
 
-pub async fn backup(database_url: &str, dest: &Path) -> crate::anyhow_free::Result<()> {
+pub async fn backup(database_url: &str, dest: &Path) -> crate::StartupResult<()> {
     use std::str::FromStr;
 
     use sqlx::{

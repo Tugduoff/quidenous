@@ -1,6 +1,6 @@
 #![allow(clippy::print_stdout)]
 
-use crate::anyhow_free::Result;
+use crate::StartupResult as Result;
 use crate::community::packs::SeedAction;
 use crate::platform::config::{self, Config};
 use crate::platform::env;

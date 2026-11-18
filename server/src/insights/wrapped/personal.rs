@@ -15,7 +15,6 @@ use super::{
     pct, percent, pick, plural, title_card, top, year_range,
 };
 
-#[allow(clippy::too_many_lines)]
 pub(super) async fn personal(
     state: &AppState,
     user: UserId,

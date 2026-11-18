@@ -43,11 +43,11 @@ pub struct AppState {
     pub updates: updates::Publisher,
 }
 
-pub async fn connect(url: &str) -> anyhow_free::Result<SqlitePool> {
+pub async fn connect(url: &str) -> StartupResult<SqlitePool> {
     db::connect(url).await
 }
 
-pub async fn state(config: Config) -> anyhow_free::Result<AppState> {
+pub async fn state(config: Config) -> StartupResult<AppState> {
     let mailer = accounts::Auth::mailer_from(&config);
     state_with_mailer(config, mailer).await
 }
@@ -55,7 +55,7 @@ pub async fn state(config: Config) -> anyhow_free::Result<AppState> {
 pub async fn state_with_mailer(
     config: Config,
     mailer: Arc<dyn accounts::Mailer>,
-) -> anyhow_free::Result<AppState> {
+) -> StartupResult<AppState> {
     let db = connect(&config.database_url).await?;
     deck::seed(&db).await?;
     deck::ensure_group(&db, &config.group_name, &config.join_code).await?;
@@ -162,6 +162,4 @@ pub fn app(state: AppState) -> Router {
     .with_state(state)
 }
 
-pub mod anyhow_free {
-    pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
-}
+pub type StartupResult<T> = Result<T, Box<dyn std::error::Error + Send + Sync>>;

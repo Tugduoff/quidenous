@@ -15,7 +15,6 @@ use super::{
     percent, pick, top, year_range,
 };
 
-#[allow(clippy::too_many_lines)]
 pub(super) async fn room(
     state: &AppState,
     me: &MemberRow,

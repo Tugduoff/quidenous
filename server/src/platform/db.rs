@@ -14,7 +14,7 @@ pub async fn write_tx(db: &SqlitePool) -> sqlx::Result<Transaction<'static, Sqli
     db.begin_with("BEGIN IMMEDIATE").await
 }
 
-pub(crate) async fn connect(url: &str) -> crate::anyhow_free::Result<SqlitePool> {
+pub(crate) async fn connect(url: &str) -> crate::StartupResult<SqlitePool> {
     let options = SqliteConnectOptions::from_str(url)?
         .create_if_missing(true)
         .foreign_keys(true)
@@ -31,7 +31,7 @@ pub(crate) async fn connect(url: &str) -> crate::anyhow_free::Result<SqlitePool>
     Ok(db)
 }
 
-pub(crate) async fn migrate(db: &SqlitePool) -> crate::anyhow_free::Result<()> {
+pub(crate) async fn migrate(db: &SqlitePool) -> crate::StartupResult<()> {
     let repaired = repair_unrecorded(db).await?;
     if repaired > 0 {
         tracing::warn!(
@@ -133,7 +133,7 @@ pub async fn repair_unrecorded(db: &SqlitePool) -> sqlx::Result<u64> {
 async fn backup_before_migrating(
     db: &SqlitePool,
     version: i64,
-) -> crate::anyhow_free::Result<Option<PathBuf>> {
+) -> crate::StartupResult<Option<PathBuf>> {
     let file: String =
         sqlx::query_scalar("SELECT file FROM pragma_database_list WHERE name = 'main'")
             .fetch_one(db)
