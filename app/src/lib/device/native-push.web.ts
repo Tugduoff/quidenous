@@ -8,7 +8,5 @@ export async function nativePushState(): Promise<PushState> {
 
 export async function registerNativePush() {}
 
-export function useNotificationTaps(_active: boolean) {}
-
 /** A web notification opens its own URL (`?room=`): see `plainStart` in api.ts. */
 export const openedFromNotification = () => false;
