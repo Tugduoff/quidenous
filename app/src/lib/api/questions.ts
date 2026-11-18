@@ -35,3 +35,5 @@ export const emptyQueue = () => api<{ deleted: number }>('/questions/queue', { m
 export const reorderQueue = (ids: number[]) => api('/questions/order', { method: 'POST', json: { ids } });
 
 export const askForQuestions = () => api('/questions/ask', { method: 'POST' });
+
+export type QueuedQuestion = Queue['custom'][number];
