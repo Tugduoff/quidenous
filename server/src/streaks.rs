@@ -158,10 +158,20 @@ pub fn streak(days: &Days, today: i64) -> Streak {
 impl Room {
     /// Everything streaks need from one room. `None` for a party or a deleted room (no streaks).
     pub async fn load(db: &SqlitePool, group_id: i64) -> AppResult<Option<Room>> {
+        Self::load_with(db, group_id, false).await
+    }
+
+    /// [`Room::load`], deleted rooms included (badges: someone's own history, docs/BADGES.md).
+    pub async fn load_history(db: &SqlitePool, group_id: i64) -> AppResult<Option<Room>> {
+        Self::load_with(db, group_id, true).await
+    }
+
+    async fn load_with(db: &SqlitePool, group_id: i64, deleted: bool) -> AppResult<Option<Room>> {
         let room: Option<i64> = sqlx::query_scalar(
-            "SELECT id FROM groups WHERE id = ? AND kind = 'room' AND deleted_at IS NULL",
+            "SELECT id FROM groups WHERE id = ? AND kind = 'room' AND (deleted_at IS NULL OR ?)",
         )
         .bind(group_id)
+        .bind(deleted)
         .fetch_optional(db)
         .await?;
         if room.is_none() {

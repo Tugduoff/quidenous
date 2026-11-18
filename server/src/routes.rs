@@ -105,6 +105,13 @@ pub fn router() -> Router<AppState> {
         .route("/stats", get(stats))
         .route("/streaks", get(crate::streaks::get))
         .route("/tripot", get(crate::tripot::board))
+        // Titles & badges (docs/BADGES.md) and the Wrapped (docs/WRAPPED.md).
+        .route("/badges", get(crate::badges::list))
+        .route("/me/title", put(crate::badges::set_title))
+        .route("/titles", get(crate::badges::titles))
+        .route("/members/{member_id}/badges", get(crate::badges::member))
+        .route("/wrapped", get(crate::wrapped::get))
+        .route("/wrapped/share", post(crate::wrapped::share))
         .route("/rounds/{id}/bet", post(crate::tripot::bet))
         .route("/stats/share", post(crate::share::create_stat))
         .route("/shares", get(crate::share::mine))
@@ -281,6 +288,9 @@ async fn features(State(state): State<AppState>) -> Json<Value> {
         "batch_delete",
         // « Qui a dit ça ? » questions (docs/SAID.md).
         "said",
+        // Titles & badges, and the year's Wrapped (docs/BADGES.md, docs/WRAPPED.md).
+        "badges",
+        "wrapped",
     ];
     if state.config.klipy.is_some() {
         f.push("chat_gifs");
@@ -2140,6 +2150,10 @@ pub(crate) async fn notify_round(
     opened: Option<i64>,
     closed: bool,
 ) {
+    // Badges the question that closed may have earned (background, logs its errors).
+    if closed {
+        crate::badges::after_close(state, group_id);
+    }
     if let Err(e) = try_notify_round(state, group_id, skip, opened, closed).await {
         tracing::warn!(group_id, error = ?e, "round notification failed");
     }

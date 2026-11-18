@@ -57,6 +57,11 @@ pub struct Config {
     pub donation_url: Option<String>,
     /// `DONATION_URL` was set but rejected (warned about at start-up).
     pub donation_url_rejected: bool,
+    /// `WRAPPED_FROM` / `WRAPPED_UNTIL` (`MM-DD`, default `12-01` / `01-31`): when the Wrapped of a
+    /// year shows (docs/WRAPPED.md). A window that wraps past New Year shows the year it started in.
+    pub wrapped: WrappedWindow,
+    /// `WRAPPED_PREVIEW=1` (dev servers): the Wrapped is available all year, as a preview.
+    pub wrapped_preview: bool,
 }
 
 /// A donation page URL the app may open: `https://host...`, no spaces or control characters, at most
@@ -70,6 +75,35 @@ pub fn donation_url(raw: &str) -> Option<String> {
         && !host.contains('@')
         && !raw.chars().any(|c| c.is_whitespace() || c.is_control());
     ok.then(|| raw.to_owned())
+}
+
+/// A yearly window, as `(month, day)` pairs, both days included.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct WrappedWindow {
+    pub from: (u32, u32),
+    pub until: (u32, u32),
+}
+
+impl Default for WrappedWindow {
+    /// December 1 to January 31.
+    fn default() -> Self {
+        Self {
+            from: (12, 1),
+            until: (1, 31),
+        }
+    }
+}
+
+/// `MM-DD` (`12-01`) as `(month, day)`; `None` when it isn't a day of the year (29 February is).
+pub fn parse_month_day(s: &str) -> Option<(u32, u32)> {
+    let (m, d) = s.trim().split_once('-')?;
+    let (m, d): (u32, u32) = (m.parse().ok()?, d.parse().ok()?);
+    let days = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    (1..=12)
+        .contains(&m)
+        .then(|| days[m as usize - 1])
+        .filter(|max| (1..=*max).contains(&d))
+        .map(|_| (m, d))
 }
 
 /// `x.y.z` (a leading `v`, a missing part or a `-suffix` tolerated) as numbers to compare.
@@ -157,6 +191,13 @@ impl Config {
         if self.donation_url_rejected {
             out.push(
                 "DONATION_URL is not an https:// URL: ignored, the app shows no donation link",
+            );
+        }
+        if var("WRAPPED_FROM").is_some_and(|v| parse_month_day(&v).is_none())
+            || var("WRAPPED_UNTIL").is_some_and(|v| parse_month_day(&v).is_none())
+        {
+            out.push(
+                "WRAPPED_FROM / WRAPPED_UNTIL are not MM-DD days: the Wrapped uses 12-01 to 01-31",
             );
         }
         if self.client_errors_webhook.is_none() {
@@ -285,6 +326,18 @@ impl Config {
                 .unwrap_or_default(),
             live_recheck: None,
             min_app_version: var("MIN_APP_VERSION"),
+            wrapped: match (
+                var("WRAPPED_FROM").as_deref().map(parse_month_day),
+                var("WRAPPED_UNTIL").as_deref().map(parse_month_day),
+            ) {
+                // Either one unreadable: the default window (and a warning at startup).
+                (Some(None), _) | (_, Some(None)) => WrappedWindow::default(),
+                (from, until) => WrappedWindow {
+                    from: from.flatten().unwrap_or(WrappedWindow::default().from),
+                    until: until.flatten().unwrap_or(WrappedWindow::default().until),
+                },
+            },
+            wrapped_preview: flag("WRAPPED_PREVIEW"),
             klipy: var("KLIPY_API_KEY").map(|api_key| Klipy {
                 api_key,
                 content_filter: var("KLIPY_CONTENT_FILTER")
