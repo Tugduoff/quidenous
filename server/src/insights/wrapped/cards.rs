@@ -61,20 +61,8 @@ pub(super) fn pick(seed: i64, lines: Vec<String>) -> String {
     out
 }
 
-pub(super) fn first_name(name: &str) -> String {
-    name.split_whitespace().next().unwrap_or("?").to_owned()
-}
-
 pub(super) fn percent(pc: i64, lang: Lang) -> String {
     lang.pick(format!("{pc} %"), format!("{pc}%"))
-}
-
-pub(super) fn pct(value: i64, total: i64) -> i64 {
-    if total <= 0 {
-        0
-    } else {
-        (value * 100 + total / 2) / total
-    }
 }
 
 pub(super) fn days_text(n: i64, lang: Lang) -> String {

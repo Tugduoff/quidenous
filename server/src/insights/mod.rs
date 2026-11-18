@@ -1,3 +1,9 @@
+macro_rules! unix {
+    ($col:literal) => {
+        concat!("((julianday(", $col, ") - 2440587.5) * 86400.0)")
+    };
+}
+
 pub mod badges;
 pub mod room_stats;
 pub mod share;

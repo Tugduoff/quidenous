@@ -91,7 +91,7 @@ pub(super) fn top_ratio<K: Ord + Copy>(
     })
 }
 
-pub(super) fn pct(value: i64, total: i64) -> i64 {
+pub(crate) fn pct(value: i64, total: i64) -> i64 {
     if total <= 0 {
         0
     } else {
@@ -119,7 +119,7 @@ pub(super) fn decimal(v: f64, lang: Lang) -> String {
     }
 }
 
-pub(super) fn first_name(name: &str) -> String {
+pub(crate) fn first_name(name: &str) -> String {
     name.split_whitespace().next().unwrap_or("?").to_owned()
 }
 

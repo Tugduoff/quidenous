@@ -24,12 +24,6 @@ const TZ_MAX: i32 = 14 * 60;
 const DAY: i64 = 86_400;
 /// Up to this many days, `all` is bucketed by day; beyond, by week.
 const DAILY_MAX: i64 = 90;
-/// Unix seconds of a stored timestamp (ISO 8601, UTC).
-macro_rules! unix {
-    ($col:literal) => {
-        concat!("((julianday(", $col, ") - 2440587.5) * 86400.0)")
-    };
-}
 /// Finished questions of the group opened in the period (`?1` group, `?2` start and `?3` end in
 /// unix seconds, end excluded).
 macro_rules! in_period {

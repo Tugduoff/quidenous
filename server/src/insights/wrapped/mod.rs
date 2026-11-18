@@ -34,13 +34,6 @@ const MIN_CARDS: usize = 3;
 /// The "your year is ready" notice goes to accounts that voted in the last this many days.
 const ACTIVE_DAYS: i64 = 60;
 
-/// Unix seconds of a stored timestamp (ISO 8601, UTC).
-macro_rules! unix {
-    ($col:literal) => {
-        concat!("((julianday(", $col, ") - 2440587.5) * 86400.0)")
-    };
-}
-
 /// Finished questions of the rooms `?1` (JSON array) opened in `[?2, ?3)` (unix seconds).
 macro_rules! in_year {
     () => {
@@ -57,6 +50,7 @@ macro_rules! in_year {
 mod cards;
 mod personal;
 mod room;
+use crate::insights::stats::{first_name, pct};
 use cards::*;
 use personal::*;
 use room::*;
