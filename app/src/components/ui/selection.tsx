@@ -1,7 +1,7 @@
 import { useFocusEffect } from 'expo-router';
 import { Check, ListChecks, type LucideIcon, X } from 'lucide-react-native';
-import { type ReactNode, useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, BackHandler, Platform, Pressable, Text, View } from 'react-native';
+import { type ReactNode, useCallback, useState } from 'react';
+import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import Animated, { FadeInDown, FadeOutDown, ReduceMotion, ZoomIn } from 'react-native-reanimated';
 import { useT } from '@/lib/i18n';
 import { LAYOUT_EASE, motion, usePop } from '@/lib/motion';
@@ -9,6 +9,7 @@ import { useTheme } from '@/lib/theme';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { askConfirm } from '@/lib/confirm';
 import { impactHaptic, selectionHaptic } from '@/lib/device/haptics';
+import { useHardwareBack } from '@/lib/hooks/use-hardware-back';
 
 // Acting on several items of a list at once, the same way on every list:
 // hold an item (or tap the header's "Sélectionner", the only way in on lists whose hold already means
@@ -42,9 +43,13 @@ export type Selection<K> = {
 };
 
 /** `ids`: the items that can be selected, in the list's order. */
-export function useSelection<K extends string | number>(ids: readonly K[] | undefined): Selection<K> {
+export function useSelection<K extends string | number>(ids: readonly K[] | undefined, enabled = true): Selection<K> {
   const [started, setOn] = useState(false);
   const [picked, setPicked] = useState<ReadonlySet<K>>(() => new Set());
+  if (!enabled && (started || picked.size)) {
+    setOn(false);
+    setPicked(new Set());
+  }
   const total = ids?.length ?? 0;
   // Nothing left to pick (the last ones were just deleted): back to the plain list.
   const on = started && total > 0;
@@ -55,14 +60,7 @@ export function useSelection<K extends string | number>(ids: readonly K[] | unde
     setPicked(new Set());
   }, []);
   // Android's back button leaves the selection before the screen.
-  useEffect(() => {
-    if (!on || Platform.OS !== 'android') return;
-    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      cancel();
-      return true;
-    });
-    return () => sub.remove();
-  }, [on, cancel]);
+  useHardwareBack(cancel, on);
   // Another tab or screen: coming back shows the plain list.
   useFocusEffect(useCallback(() => cancel, [cancel]));
   return {

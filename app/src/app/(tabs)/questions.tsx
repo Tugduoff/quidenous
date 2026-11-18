@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router } from 'expo-router';
 import { ArrowDownToLine, ArrowUpToLine, Cable, Check, FileUp, Lightbulb, ListX, Lock, MessageCircleQuestion, Package, Plus, Shuffle, Trash2, Trophy, X } from 'lucide-react-native';
-import { type ComponentRef, useEffect, useRef, useState } from 'react';
+import { type ComponentRef, useRef, useState } from 'react';
 import { Platform, Pressable, type ScrollView, Text, TextInput, View } from 'react-native';
 import Animated, { LayoutAnimationConfig } from 'react-native-reanimated';
 import { AnonymousMark, AnonymousToggle } from '@/components/vote/anonymous';
@@ -32,7 +32,8 @@ import { type QuestionKind, roundKeys } from '@/lib/api/rounds';
 import { type Queue, useQueue, questionKeys, deleteQuestion, addQuestion, importQuestions, shuffleQueue, emptyQueue, reorderQueue, deleteQuestions } from '@/lib/api/questions';
 import { useGroup, useMembers } from '@/lib/api/group';
 import { useFeatures } from '@/lib/api/features';
-import { pickQuestionFile, takeHandedDraft } from '@/lib/device/files';
+import { pickQuestionFile } from '@/lib/device/files';
+import { useQuestionHandoff } from '@/lib/hooks/use-question-handoff';
 
 const MIN = 8;
 
@@ -118,21 +119,8 @@ export default function QuestionsScreen() {
     else if (lines) review(lines);
   };
   // Sent here from the Vote tab's "no more questions": `compose` opens the keyboard, `import` brings the file picked there.
-  const params = useLocalSearchParams<{ compose?: string; import?: string }>();
   const composer = useRef<ComponentRef<typeof TextInput>>(null);
-  useEffect(() => {
-    if (!params.compose && !params.import) return;
-    const handed = params.import ? takeHandedDraft() : null;
-    if (handed) {
-      setMix(false);
-      setDraft(handed);
-    }
-    router.setParams({ compose: undefined, import: undefined });
-    if (!params.compose) return;
-    // Once the tab has slid in.
-    const focus = setTimeout(() => composer.current?.focus(), 350);
-    return () => clearTimeout(focus);
-  }, [params.compose, params.import]);
+  useQuestionHandoff(review, () => composer.current?.focus());
   const importFile = useMutation({
     meta: { quiet: true },
     mutationFn: (lines: string[]) =>
@@ -210,12 +198,7 @@ export default function QuestionsScreen() {
   const canDeleteMany = features.batchDelete && !locked;
   const canSelect = canMove || canDeleteMany;
   const selectable = data?.custom.filter((q) => canMove || canDelete(q)).map((q) => q.id);
-  const sel = useSelection(selectable);
-  const { cancel: leaveSelection } = sel;
-  // The room just locked its questions: back to the plain list.
-  useEffect(() => {
-    if (!canSelect) leaveSelection();
-  }, [canSelect, leaveSelection]);
+  const sel = useSelection(selectable, canSelect);
   // The ticked ones first or last, the others keep their order.
   const moveSelected = (first: boolean) => {
     if (!data || !sel.count) return;

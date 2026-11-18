@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { Cable, Crown, Download, MessageSquareQuote, PartyPopper, Pin, Target } from 'lucide-react-native';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, SectionList, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -17,6 +17,7 @@ import { Avatar, AvatarStack, avatarStackWidth } from '@/components/ui/avatar';
 import { Display, QuestionText } from '@/components/ui/text';
 import { type Member, useMembers } from '@/lib/api/group';
 import { type HistoryItem, useHistory, usePinned } from '@/lib/api/history';
+import { useTimeout } from '@/lib/hooks/use-timeout';
 
 /** Solo winner size; tied faces are 4 px smaller so that with their 2 px ring they match it. */
 const SOLO = 44;
@@ -162,11 +163,7 @@ export default function HistoryScreen() {
   // The first screenful cascades in once; refetches and later pages just appear.
   const [intro, setIntro] = useState(true);
   const loaded = !!data;
-  useEffect(() => {
-    if (!loaded) return;
-    const done = setTimeout(() => setIntro(false), 900);
-    return () => clearTimeout(done);
-  }, [loaded]);
+  useTimeout(() => setIntro(false), loaded ? 900 : null);
   const more = () => {
     if (history.hasNextPage && !history.isFetchingNextPage) history.fetchNextPage();
   };

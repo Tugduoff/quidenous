@@ -3,7 +3,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { router, useIsFocused } from 'expo-router';
 import { ArrowRight, ChevronRight, Coins, Flame, MessageCircle } from 'lucide-react-native';
-import { memo, useCallback, useEffect, useState } from 'react';
+import { memo, useCallback, useState } from 'react';
 import { Pressable, RefreshControl, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
 import { Mascot } from '@/components/mascot/mascot';
@@ -24,6 +24,7 @@ import { Display, Logo, QuestionText } from '@/components/ui/text';
 import { HOT_FROM } from '@/lib/utils/streaks';
 import { cardQuestion, missing, needsMe, streakAtRisk } from '@/lib/utils/today';
 import { useLatest } from '@/lib/hooks/use-latest';
+import { useAnimateOnChange } from '@/lib/hooks/use-animate-on-change';
 
 export default function TodayScreen() {
   const focused = useIsFocused();
@@ -268,9 +269,7 @@ function Skeleton() {
   const t = useTheme();
   const reduced = useReducedMotion();
   const o = useSharedValue(1);
-  useEffect(() => {
-    if (!reduced) o.value = withRepeat(withTiming(0.55, { duration: 700, easing: EASE }), -1, true);
-  }, [o, reduced]);
+  useAnimateOnChange(o, reduced, () => (reduced ? undefined : withRepeat(withTiming(0.55, { duration: 700, easing: EASE }), -1, true)));
   const breathe = useAnimatedStyle(() => ({ opacity: o.value }));
   const bar = (w: number | `${number}%`, h: number, bg = t.card2) => <View style={{ width: w, height: h, borderRadius: h / 2, backgroundColor: bg }} />;
   return (

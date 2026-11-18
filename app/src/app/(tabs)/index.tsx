@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { BellRing, Check, Eye, EyeOff, Moon, RotateCcw, SkipForward } from 'lucide-react-native';
 import { Redirect } from 'expo-router';
-import { type ReactNode, useEffect, useState } from 'react';
+import { type ReactNode, useState } from 'react';
 import { Text, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { ChooseBallot, myRealChoice } from '@/components/choose/choose';
@@ -34,6 +34,7 @@ import { useRooms } from '@/lib/api/rooms';
 import { Result } from '@/components/result/result';
 import { Question } from '@/components/vote/question';
 import { Header } from '@/components/vote/header';
+import { useAnimateOnChange } from '@/lib/hooks/use-animate-on-change';
 
 export default function VoteScreen() {
   const { byId, members } = useMembers();
@@ -375,14 +376,15 @@ function PickBallot({ round, members, byId, onVoted }: { round: Round; members: 
 function NudgeButton({ member, roundId }: { member: Member; roundId: number }) {
   const t = useTheme();
   const tr = useT();
-  const [sent, setSent] = useState(false);
-  useEffect(() => setSent(false), [roundId]);
+  const [sentFor, setSentFor] = useState<number | null>(null);
+  const sent = sentFor === roundId;
+  const setSent = () => setSentFor(roundId);
   const nudge = useMutation({
     mutationFn: () => nudgeMember(member.id),
     // Nudged already (another phone of mine, a lost answer): same as sent. Any other failure: a toast, the bell stays.
     meta: { quiet: (e) => e instanceof ApiError && e.code === 'already_nudged' },
-    onSuccess: () => setSent(true),
-    onError: (e) => e instanceof ApiError && e.code === 'already_nudged' && setSent(true),
+    onSuccess: setSent,
+    onError: (e) => e instanceof ApiError && e.code === 'already_nudged' && setSent(),
   });
   return (
     <PressableScale
@@ -618,9 +620,7 @@ function PendingRow({ member: m, round, canSkip, big }: { member: Member; round:
 function Progress({ value }: { value: number }) {
   const t = useTheme();
   const fill = useSharedValue(0);
-  useEffect(() => {
-    fill.value = withTiming(value, { duration: 450, easing: EASE });
-  }, [value, fill]);
+  useAnimateOnChange(fill, value, () => withTiming(value, { duration: 450, easing: EASE }));
   const width = useAnimatedStyle(() => ({ width: `${fill.value * 100}%` }));
   return (
     <View style={{ height: 6, borderRadius: 3, backgroundColor: t.card2, overflow: 'hidden' }}>

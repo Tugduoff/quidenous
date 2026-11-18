@@ -1,6 +1,6 @@
 import { Tabs } from 'expo-router';
 import { ChartNoAxesColumn, History, MessageCircleQuestion, Sun, Vote } from 'lucide-react-native';
-import { type ComponentType, useEffect } from 'react';
+import { type ComponentType } from 'react';
 import { Platform, View, type ViewStyle } from 'react-native';
 import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSpring } from 'react-native-reanimated';
 import { Celebration } from '@/components/celebration';
@@ -11,6 +11,7 @@ import { BOUNCE, SPRING, usePop } from '@/lib/motion';
 import { useTheme } from '@/lib/theme';
 import { useStreakMilestone } from '@/lib/hooks/use-streak-milestone';
 import { useMilestone } from '@/lib/hooks/use-milestone';
+import { useAnimateOnChange } from '@/lib/hooks/use-animate-on-change';
 
 type Icon = ComponentType<{ size?: number; color?: string }>;
 
@@ -37,9 +38,7 @@ function TabIcon({ Icon, focused }: { Icon: Icon; focused: boolean }) {
   const pop = usePop(focused, 1.15, focused);
   const reduced = useReducedMotion();
   const on = useSharedValue(focused ? 1 : 0);
-  useEffect(() => {
-    on.value = reduced ? (focused ? 1 : 0) : withSpring(focused ? 1 : 0, focused ? BOUNCE : SPRING);
-  }, [focused, on, reduced]);
+  useAnimateOnChange(on, [focused, reduced], () => (reduced ? (focused ? 1 : 0) : withSpring(focused ? 1 : 0, focused ? BOUNCE : SPRING)));
   const pill = useAnimatedStyle(() => ({ width: 4 + 12 * on.value, opacity: on.value }));
   return (
     <View style={{ alignItems: 'center', gap: 4 }}>
