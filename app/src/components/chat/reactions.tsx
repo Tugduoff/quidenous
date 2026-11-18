@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withSequence, withSpring, withTiming } from 'react-native-reanimated';
 import { useT } from '@/lib/i18n';
@@ -10,6 +10,7 @@ import { Avatar } from '@/components/ui/avatar';
 import { Dialog } from '@/components/ui/dialog';
 import { useMembers } from '@/lib/api/group';
 import { CHAT_REACTIONS, HEART } from '@/lib/utils/chat';
+import { useAnimateOnChange } from '@/lib/hooks/use-animate-on-change';
 
 /** The six reactions, on top of a message's long-press menu; mine are highlighted. */
 export function ReactionBar({ reactions, onPick }: { reactions?: Reaction[]; onPick: (emoji: string) => void }) {
@@ -137,11 +138,13 @@ export function HeartBurst({ trigger }: { trigger: number }) {
   const reduced = useReducedMotion();
   const scale = useSharedValue(0.4);
   const opacity = useSharedValue(0);
-  useEffect(() => {
-    if (!trigger || reduced) return;
-    scale.set(withSequence(withTiming(0.4, { duration: 0 }), withSpring(1, BOUNCE), withTiming(1.12, { duration: 260, easing: EASE })));
-    opacity.set(withSequence(withTiming(1, { duration: 0 }), withDelay(380, withTiming(0, { duration: 180, easing: EASE }))));
-  }, [trigger, reduced, scale, opacity]);
+  const bursting = !!trigger && !reduced;
+  useAnimateOnChange(scale, [trigger, reduced], () =>
+    bursting ? withSequence(withTiming(0.4, { duration: 0 }), withSpring(1, BOUNCE), withTiming(1.12, { duration: 260, easing: EASE })) : undefined,
+  );
+  useAnimateOnChange(opacity, [trigger, reduced], () =>
+    bursting ? withSequence(withTiming(1, { duration: 0 }), withDelay(380, withTiming(0, { duration: 180, easing: EASE }))) : undefined,
+  );
   const style = useAnimatedStyle(() => ({ opacity: opacity.value, transform: [{ scale: scale.value }] }));
   // Not there before the first double tap; never read out (the chip says it).
   if (reduced || !trigger) return null;

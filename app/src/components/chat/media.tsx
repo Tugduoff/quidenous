@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { Camera, Download, Image as ImageIcon, ImagePlus, type LucideIcon, RotateCcw, Search, Share, Sticker, X } from 'lucide-react-native';
-import { type ComponentRef, type ReactNode, useEffect, useRef, useState } from 'react';
+import { type ComponentRef, type ReactNode, useRef, useState } from 'react';
 import { ActivityIndicator, type ImageStyle, type LayoutChangeEvent, Modal, type NativeScrollEvent, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { GestureDetector, GestureHandlerRootView, usePanGesture, usePinchGesture, useSimultaneousGestures, useTapGesture } from 'react-native-gesture-handler';
 import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
@@ -24,6 +24,7 @@ import { canShareFiles, type ImageDraft, prepareImage, shareMedia } from '@/lib/
 import { mediaOf } from '@/lib/utils/chat';
 import { authError } from '@/lib/api/errors';
 import { useFeatures } from '@/lib/api/features';
+import { useDebouncedValue } from '@/lib/hooks/use-debounced-value';
 
 /** A photo in the chat: at most this tall, at least this wide (a very tall one is cropped rather than a sliver). */
 const MAX_H = 320;
@@ -327,12 +328,8 @@ function GifPicker({ visible, onClose, onPick }: { visible: boolean; onClose: ()
   const tr = useT();
   const { height } = useWindowDimensions();
   const [text, setText] = useState('');
-  const [q, setQ] = useState('');
+  const q = useDebouncedValue(text, 350).trim();
   const [width, setWidth] = useState(0);
-  useEffect(() => {
-    const id = setTimeout(() => setQ(text.trim()), 350);
-    return () => clearTimeout(id);
-  }, [text]);
   const gifs = useGifs(q, visible);
   const items = gifs.data?.pages.flatMap((p) => p?.items ?? []) ?? [];
   // Two columns, each GIF going under the shorter one.

@@ -23,7 +23,7 @@ const EMPTY: Pending[] = [];
 const pendingByRound = new Map<number, Pending[]>();
 const senders = new Map<string, () => Promise<Message>>();
 /** The server's idempotency key of each send: a retry whose first answer was lost is posted once. */
-const newClientKey = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+export const newClientKey = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 const listeners = new Set<() => void>();
 let seq = 0;
 

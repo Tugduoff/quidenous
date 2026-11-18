@@ -1,19 +1,19 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { EyeOff, Send, Users } from 'lucide-react-native';
-import { type ComponentRef, useEffect, useRef, useState } from 'react';
+import { type ComponentRef, useRef, useState } from 'react';
 import { Platform, Pressable, ScrollView, Text, TextInput, type TextInputProps, type TextStyle, View, type ViewStyle } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { AttachButton, MediaViewer, MessageMediaFrame, PendingBubble } from '@/components/chat/media';
 import { HeartBurst, ReactionBar, ReactionChips, WhoReacted } from '@/components/chat/reactions';
 import { ModerationDialog, type ModTarget } from '@/components/moderation/moderation';
 import { ProfileSheet } from '@/components/stats/profile-sheet';
-import { usePending } from '@/lib/chat-outbox';
+import { newClientKey, usePending } from '@/lib/chat-outbox';
 import { dateFormat, useT } from '@/lib/i18n';
 import { activeMention, everyone, matches, outgoing, segments } from '@/lib/utils/mentions';
 import { useBlocks } from '@/lib/api/moderation';
 import { motion, useArrivals } from '@/lib/motion';
 import { useReact, type Message, useMessages, chatKeys, deleteMessage, restoreMessage, postMessage, type NewMessage } from '@/lib/api/chat';
-import { sendOnEnter } from '@/components/ui/send-on-enter';
+import { isSendKey, SEND_KEY } from '@/components/ui/send-on-enter';
 import { useSession } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
 import { PressableScale } from '@/components/ui/pressable-scale';
@@ -25,6 +25,8 @@ import { useStats } from '@/lib/api/stats';
 import { mediaOf, HEART } from '@/lib/utils/chat';
 import { useFeatures } from '@/lib/api/features';
 import { impactHaptic } from '@/lib/device/haptics';
+import { useUnmountEffect } from '@/lib/hooks/use-mount-effect';
+import { useAutoGrowTextArea } from '@/lib/hooks/use-auto-grow';
 
 const MAX = 500;
 /** One suggestion row; the list shows about five and a half, so a longer one visibly scrolls. */
@@ -104,7 +106,7 @@ function Bubble({
   const media = mediaOf(m);
   // A tap on a photo opens it, once it's clear it isn't the first of a double tap (❤️).
   const opening = useRef<ReturnType<typeof setTimeout>>(undefined);
-  useEffect(() => () => clearTimeout(opening.current), []);
+  useUnmountEffect(() => clearTimeout(opening.current));
   const heart = () => {
     if (onReact?.(HEART)) setBurst((b) => b + 1);
   };
@@ -295,9 +297,7 @@ export function ChatMessages({ roundId }: { roundId: number }) {
   const settled = !!stats.data && !stats.isPlaceholderData;
   const missing = profileId != null && ((settled && !profiles.has(profileId)) || stats.isError);
   // No profile for them (an older server, someone who left): nothing opens.
-  useEffect(() => {
-    if (missing) setProfileId(null);
-  }, [missing]);
+  if (missing) setProfileId(null);
   const authorId = (m: Message) => m.user_id ?? byId.get(m.member_id)?.user_id;
   // People I blocked: gone at once, live messages included (the server leaves them out after a reload).
   const messages = data?.filter((m) => !blocked.has(authorId(m) ?? -1));
@@ -388,13 +388,7 @@ export function ChatInput({ roundId, onFocus, onSent }: { roundId: number; onFoc
   const [highlight, setHighlight] = useState({ key: '', i: 0 });
 
   // The web's textarea keeps its height as the text grows or shrinks: fit it to the text (min/max height still apply).
-  useEffect(() => {
-    if (Platform.OS !== 'web') return;
-    const el = input.current as unknown as HTMLTextAreaElement | null;
-    if (!el?.style) return;
-    el.style.height = '0px';
-    el.style.height = `${el.scrollHeight}px`;
-  }, [text]);
+  useAutoGrowTextArea(input, text);
 
   const others = members.filter((m) => m.id !== me?.id);
   const caret = sel ? Math.min(sel.end, text.length) : text.length;
@@ -437,7 +431,7 @@ export function ChatInput({ roundId, onFocus, onSent }: { roundId: number; onFoc
   // One id per message being sent: a retry of the same text (its answer lost) is posted once.
   const draft = useRef<{ text: string; key: string } | null>(null);
   const keyFor = (body: string) => {
-    if (draft.current?.text !== body) draft.current = { text: body, key: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}` };
+    if (draft.current?.text !== body) draft.current = { text: body, key: newClientKey() };
     return draft.current.key;
   };
   const send = useMutation({
@@ -461,7 +455,7 @@ export function ChatInput({ roundId, onFocus, onSent }: { roundId: number; onFoc
     send.mutate({ text: body, ...(mentions.length ? { mentions } : {}), ...(everyone ? { everyone } : {}), client_key: keyFor(body) });
   };
   // While the list is open, the keys drive it: Enter / Tab / the keyboard's send key pick, arrows move, Escape closes.
-  const enter = sendOnEnter(() => (open ? pick(rows[active]) : submit()));
+  const sendOrPick = () => (open ? pick(rows[active]) : submit());
   const onKeyPress: TextInputProps['onKeyPress'] = (e) => {
     const key = e.nativeEvent as typeof e.nativeEvent & { shiftKey?: boolean; isComposing?: boolean };
     if (open && Platform.OS === 'web' && !key.isComposing) {
@@ -478,7 +472,10 @@ export function ChatInput({ roundId, onFocus, onSent }: { roundId: number; onFoc
         return;
       }
     }
-    enter.onKeyPress?.(e);
+    if (isSendKey(e)) {
+      e.preventDefault();
+      sendOrPick();
+    }
   };
 
   return (
@@ -550,7 +547,8 @@ export function ChatInput({ roundId, onFocus, onSent }: { roundId: number; onFoc
           // A textarea is two rows tall by default on the web: one row, grown with the text below.
           rows={1}
           maxLength={MAX}
-          {...enter}
+          {...SEND_KEY}
+          onSubmitEditing={sendOrPick}
           onKeyPress={onKeyPress}
           // Under 16px, Safari on iPhone zooms the page in when the field gets the focus.
           style={{ flex: 1, minWidth: 0, minHeight: 40, maxHeight: 100, paddingVertical: 10, fontFamily: t.font.regular, fontSize: 16, color: t.txt }}
