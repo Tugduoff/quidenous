@@ -16,12 +16,12 @@ use std::sync::Arc;
 
 use crate::{
     chat::media,
-    community::{deck, packfile},
+    community::deck,
     insights::share,
-    platform::{db, error, i18n, ops, web},
+    platform::{db, error, ops, web},
     realtime::push,
     rounds::game,
-    site::{updates, vitrine},
+    site::updates,
 };
 
 use axum::Router;
@@ -77,13 +77,7 @@ pub async fn state_with_mailer(
     for warning in config.warnings() {
         tracing::warn!("{warning}");
     }
-    let public_code: bool = sqlx::query_scalar(
-        "SELECT EXISTS (SELECT 1 FROM groups WHERE join_code = ? AND deleted_at IS NULL)",
-    )
-    .bind(config::DEFAULT_JOIN_CODE)
-    .fetch_one(&db)
-    .await?;
-    if public_code {
+    if rooms::manage::uses_join_code(&db, config::DEFAULT_JOIN_CODE).await? {
         tracing::warn!(
             "a room still uses the public join code BANDE-42: its owner should get a new code in the app"
         );
@@ -139,83 +133,8 @@ pub fn app(state: AppState) -> Router {
     let photos = ServeDir::new(state.config.data_dir.join("photos"));
     let mut app = Router::new()
         .nest("/api", api::router())
-        .route("/s/{token}", axum::routing::get(share::page))
-        .route("/s/{token}/card.png", axum::routing::get(share::card_png))
-        .route("/p/{id}", axum::routing::get(share::pack_page))
-        .route("/p/{id}/card.png", axum::routing::get(share::pack_card_png))
-        .route(
-            "/robots.txt",
-            axum::routing::get(|| async {
-                (
-                    [(
-                        axum::http::header::CONTENT_TYPE,
-                        "text/plain; charset=utf-8",
-                    )],
-                    web::ROBOTS,
-                )
-            }),
-        )
-        // Public legal pages (linked from the Google sign-in consent screen and the app).
-        .route(
-            "/privacy",
-            axum::routing::get(|| async {
-                axum::response::Html(include_str!("../assets/legal/privacy.html"))
-            }),
-        )
-        // How to delete an account, with a small form (e-mail, code, confirm).
-        .route(
-            "/delete-account",
-            axum::routing::get(|| async {
-                axum::response::Html(include_str!("../assets/legal/delete-account.html"))
-            }),
-        )
-        .route(
-            "/terms",
-            axum::routing::get(|| async {
-                axum::response::Html(include_str!("../assets/legal/terms.html"))
-            }),
-        )
-        // The Android beta (Play closed test): join the Google Group, opt in, install. French; /en/beta in English.
-        .route(
-            "/beta",
-            axum::routing::get(|| async {
-                axum::response::Html(include_str!("../assets/legal/beta.html"))
-            }),
-        )
-        .route(
-            "/en/beta",
-            axum::routing::get(|| async {
-                axum::response::Html(include_str!("../assets/legal/beta.en.html"))
-            }),
-        )
-        // The same three pages in English.
-        .route(
-            "/en/privacy",
-            axum::routing::get(|| async {
-                axum::response::Html(include_str!("../assets/legal/privacy.en.html"))
-            }),
-        )
-        .route(
-            "/en/delete-account",
-            axum::routing::get(|| async {
-                axum::response::Html(include_str!("../assets/legal/delete-account.en.html"))
-            }),
-        )
-        .route(
-            "/en/terms",
-            axum::routing::get(|| async {
-                axum::response::Html(include_str!("../assets/legal/terms.en.html"))
-            }),
-        )
-        // The pack file guide for AI agents (docs/PACK_FILES.md), linked from the app and the docs.
-        .route(
-            "/pack-template.md",
-            axum::routing::get(|| async { packfile::template_response(i18n::Lang::Fr) }),
-        )
-        .route(
-            "/en/pack-template.md",
-            axum::routing::get(|| async { packfile::template_response(i18n::Lang::En) }),
-        )
+        .merge(insights::pages())
+        .merge(site::pages())
         .nest_service("/photos", photos);
     let web_app = state.config.web_dir.as_ref().map(|web| {
         let csp = web::app_csp(web, state.config.public_url.as_deref());
@@ -223,8 +142,7 @@ pub fn app(state: AppState) -> Router {
             .unwrap_or(axum::http::HeaderValue::from_static(web::BASE_CSP));
         (web.clone(), csp)
     });
-    // The showcase at `/` and `/en`; people who play still land in the app (see vitrine.rs).
-    app = app.merge(vitrine::router(web_app.clone()));
+    app = app.merge(site::vitrine::router(web_app.clone()));
     if let Some((web, csp)) = web_app {
         app = app.fallback_service(web::app_files(&web, csp));
     }

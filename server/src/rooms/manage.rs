@@ -770,3 +770,12 @@ pub async fn start(
         json!({ "token": token, "member": Member::from(&member), "room_id": room_id }),
     ))
 }
+
+pub async fn uses_join_code(db: &sqlx::SqlitePool, code: &str) -> AppResult<bool> {
+    Ok(sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM groups WHERE join_code = ? AND deleted_at IS NULL)",
+    )
+    .bind(code)
+    .fetch_one(db)
+    .await?)
+}
