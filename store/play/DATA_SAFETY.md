@@ -3,8 +3,7 @@
 What to answer in Play Console > App content > Data safety, from the code as of v0.39.0 (migration `0047_tripot.sql`)
 and `server/assets/legal/privacy.html`. Re-check it whenever a migration adds personal data, a
 processor is added, or the privacy policy changes. The Play build has no self-update (no GitHub calls, no
-`REQUEST_INSTALL_PACKAGES`, `app.config.ts`), no analytics, ads or crash SDK. JS updates come from our own server
-(docs/OTA.md), which sends nothing about the user.
+`REQUEST_INSTALL_PACKAGES`, `app.config.ts`), no analytics, ads or crash SDK. JS updates come from our own server, which sends nothing about the user.
 
 ## Overview
 
