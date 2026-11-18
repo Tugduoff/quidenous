@@ -1,5 +1,5 @@
 import { CloudOff } from 'lucide-react-native';
-import { type ComponentRef, type ReactElement, type ReactNode, type RefObject, useEffect, useRef } from 'react';
+import { type ComponentRef, type ReactElement, type ReactNode, type RefObject, useImperativeHandle, useRef } from 'react';
 import {
   KeyboardAvoidingView,
   type NativeScrollEvent,
@@ -52,9 +52,7 @@ export function Screen({
   const t = useTheme();
   // The web's ScrollView keeps the ref it was mounted with: one of our own, handed out after each render.
   const inner = useRef<ComponentRef<typeof ScrollView>>(null);
-  useEffect(() => {
-    if (scroller) scroller.current = inner.current;
-  });
+  useImperativeHandle<ComponentRef<typeof ScrollView> | null, ComponentRef<typeof ScrollView> | null>(scroller, () => inner.current);
   return (
     <SafeAreaView
       edges={tabs || Platform.OS === 'web' ? ['top'] : ['top', 'bottom']}

@@ -1,4 +1,4 @@
-import { type ReactNode, useState, useEffect } from 'react';
+import { type ReactNode, useState } from 'react';
 import { useTheme } from '@/lib/theme';
 import { useT } from '@/lib/i18n';
 import { type ViewStyle, Modal, KeyboardAvoidingView, Platform, Pressable, StyleSheet, View, useWindowDimensions, Text, ActivityIndicator, type LayoutChangeEvent } from 'react-native';
@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import Animated, { useReducedMotion, useSharedValue, withTiming, useAnimatedStyle } from 'react-native-reanimated';
 import { EASE } from '@/lib/motion';
+import { useAnimateOnChange } from '@/lib/hooks/use-animate-on-change';
 
 /** Where a Dialog floats instead of the centre: next to something on screen (window coordinates), on its side. */
 export type Anchor = { y: number; height: number; side: 'left' | 'right' };
@@ -163,9 +164,7 @@ export function ConfirmModal({
 function ModalCard({ children, style, onLayout }: { children: ReactNode; style: ViewStyle; onLayout?: (e: LayoutChangeEvent) => void }) {
   const reduced = useReducedMotion();
   const p = useSharedValue(reduced ? 1 : 0);
-  useEffect(() => {
-    p.value = withTiming(1, { duration: 200, easing: EASE });
-  }, [p]);
+  useAnimateOnChange(p, 1, () => withTiming(1, { duration: 200, easing: EASE }));
   const shown = useAnimatedStyle(() => ({ opacity: p.value, transform: [{ scale: 0.94 + 0.06 * p.value }] }));
   return (
     <Animated.View accessibilityViewIsModal onLayout={onLayout} style={[style, shown]}>

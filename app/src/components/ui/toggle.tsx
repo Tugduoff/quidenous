@@ -1,9 +1,9 @@
 import type { LucideIcon } from 'lucide-react-native';
 import { useTheme } from '@/lib/theme';
 import Animated, { useSharedValue, withSpring, useAnimatedStyle, interpolateColor } from 'react-native-reanimated';
-import { useEffect } from 'react';
 import { SPRING } from '@/lib/motion';
 import { Pressable, Text } from 'react-native';
+import { useAnimateOnChange } from '@/lib/hooks/use-animate-on-change';
 
 /** A small on/off switch with its label, drawn to match the app (lime when on). An empty label shows the switch alone (`a11y` names it). */
 export function Toggle({
@@ -21,9 +21,7 @@ export function Toggle({
 }) {
   const t = useTheme();
   const on = useSharedValue(value ? 1 : 0);
-  useEffect(() => {
-    on.value = withSpring(value ? 1 : 0, SPRING);
-  }, [value, on]);
+  useAnimateOnChange(on, value, () => withSpring(value ? 1 : 0, SPRING));
   // Plain strings: the worklets below copy what they use, and the theme object carries more than colours.
   const { card2, acc, line, mut, accTxt } = t;
   const track = useAnimatedStyle(() => ({

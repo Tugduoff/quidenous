@@ -1,5 +1,4 @@
 import type { ReactNode } from 'react';
-import { useLayoutEffect, useRef } from 'react';
 import { View } from 'react-native';
 import {
   GestureDetector,
@@ -12,6 +11,7 @@ import {
 import { useSharedValue } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import { impactHaptic } from '@/lib/device/haptics';
+import { useLatest } from '@/lib/hooks/use-latest';
 
 // Sideways travel that makes it a swipe, and up/down travel that makes it a scroll instead (checked first).
 const ACTIVE_X = 18;
@@ -29,10 +29,7 @@ const FLING = 600;
  * drag still selects text on the web.
  */
 export function TabSwipe({ onSwipe, children }: { onSwipe: (dir: 1 | -1) => void; children: ReactNode }) {
-  const latest = useRef(onSwipe);
-  useLayoutEffect(() => {
-    latest.current = onSwipe;
-  });
+  const latest = useLatest(onSwipe);
   const go = (dir: 1 | -1) => {
     impactHaptic();
     latest.current(dir);

@@ -1,5 +1,4 @@
 import { CircleAlert } from 'lucide-react-native';
-import { useEffect } from 'react';
 import { Pressable, Text } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -7,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { motion } from '@/lib/motion';
 import { dismissToast, useToast } from '@/lib/toast';
 import { useTheme } from '@/lib/theme';
+import { useTimeout } from '@/lib/hooks/use-timeout';
 
 const SHOWN_MS = 3500;
 
@@ -14,11 +14,7 @@ export function ToastHost() {
   const t = useTheme();
   const insets = useSafeAreaInsets();
   const toast = useToast();
-  useEffect(() => {
-    if (!toast) return;
-    const timer = setTimeout(() => dismissToast(toast.id), SHOWN_MS);
-    return () => clearTimeout(timer);
-  }, [toast]);
+  useTimeout(() => toast && dismissToast(toast.id), toast ? SHOWN_MS : null, toast?.id);
   if (!toast) return null;
   return (
     <Animated.View

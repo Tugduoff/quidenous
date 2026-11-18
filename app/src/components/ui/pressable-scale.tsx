@@ -19,11 +19,11 @@ export function PressableScale({
     <AnimatedPressable
       {...props}
       onPressIn={(e) => {
-        if (!reduced) s.value = withTiming(scale, { duration: 90 });
+        if (!reduced) s.set(withTiming(scale, { duration: 90 }));
         onPressIn?.(e);
       }}
       onPressOut={(e) => {
-        s.value = withSpring(1, SPRING);
+        s.set(withSpring(1, SPRING));
         onPressOut?.(e);
       }}
       style={[style, pressed]}
