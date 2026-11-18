@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
-import { ChevronLeft, Settings } from 'lucide-react-native';
-import { Pressable, Text, View } from 'react-native';
+import { Settings } from 'lucide-react-native';
+import { Text, View } from 'react-native';
 import { AddFriends, InviteCard } from '@/components/rooms/invite';
 import { QueryState } from '@/components/ui/query-state';
 import { Screen } from '@/components/ui/screen';
@@ -8,6 +8,7 @@ import { useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Display } from '@/components/ui/text';
+import { BackButton } from '@/components/ui/back-button';
 import { useGroup } from '@/lib/api/group';
 import { useRoomMuted } from '@/lib/hooks/use-room-muted';
 import { RoomMembers } from '@/components/rooms/room-members';
@@ -24,14 +25,7 @@ export default function GroupScreen() {
   return (
     <Screen tabs={false}>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={tr('common.back')}
-          onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
-          hitSlop={4}
-          style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card }}>
-          <ChevronLeft size={22} color={t.txt} />
-        </Pressable>
+        <BackButton />
         <View style={{ flexDirection: 'row', gap: 8 }}>
           {group && muted !== undefined && <MuteButton id={group.id} muted={muted} />}
           {group?.my_role === 'owner' && (
