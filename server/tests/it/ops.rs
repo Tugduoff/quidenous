@@ -105,19 +105,32 @@ async fn version_reports_the_release_and_commit_built() {
         sha == "dev" || (sha.len() == 40 && sha.bytes().all(|b| b.is_ascii_hexdigit())),
         "{sha}"
     );
-    // Built from a git checkout (CI, a developer's tree): the checkout's HEAD, never a stale one.
-    let head = std::process::Command::new("git")
-        .args(["-c", "safe.directory=*", "rev-parse", "HEAD"])
-        .current_dir(manifest)
-        .output()
+    let baked = option_env!("QDN_BUILD_SHA");
+    let runtime = std::env::var("QUIDENOUS_GIT_SHA")
         .ok()
-        .filter(|o| o.status.success())
-        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_owned());
+        .map(|v| v.trim().to_owned())
+        .filter(|v| !v.is_empty());
+    assert_eq!(
+        Some(sha),
+        baked.or(runtime.as_deref()).or(Some("dev")),
+        "{body}"
+    );
     let sha_set = option_env!("QUIDENOUS_GIT_SHA").is_some_and(|s| !s.trim().is_empty());
-    if let Some(head) = head
-        && !sha_set
-    {
-        assert_eq!(sha, head);
+    let git = |args: &[&str]| {
+        std::process::Command::new("git")
+            .args(["-c", "safe.directory=*"])
+            .args(args)
+            .current_dir(manifest)
+            .output()
+            .ok()
+            .filter(|o| o.status.success())
+    };
+    if !sha_set && git(&["rev-parse", "HEAD"]).is_some() {
+        assert!(baked.is_some(), "a git checkout's build bakes its commit in");
+        assert!(
+            git(&["merge-base", "--is-ancestor", sha, "HEAD"]).is_some(),
+            "{sha} is not HEAD nor one of its ancestors"
+        );
     }
     assert_eq!(body.as_object().unwrap().len(), 2, "{body}");
 }
