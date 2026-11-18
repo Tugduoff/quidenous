@@ -7,21 +7,14 @@ use axum::{
     http::{Request, StatusCode},
 };
 use http_body_util::BodyExt;
-use quidenous_server::{AppState, app, party, platform::config::Config, state};
+use quidenous_server::{AppState, app, party, state};
 use serde_json::{Value, json};
 use tower::ServiceExt;
 
 async fn setup() -> (Router, AppState) {
-    let dir = common::temp_dir("qdn-party");
-    let config = Config {
-        database_url: format!("sqlite://{}?mode=rwc", dir.join("test.db").display()),
-        data_dir: dir,
-        group_name: "Test".into(),
-        join_code: "CODE-1".into(),
-        vapid_subject: "mailto:test@example.com".into(),
-        ..Config::default()
-    };
-    let state = state(config).await.unwrap();
+    let state = state(common::config(&common::temp_dir("qdn-party")))
+        .await
+        .unwrap();
     sqlx::query("DELETE FROM questions WHERE group_id IS NULL AND kind = 'said'")
         .execute(&state.db)
         .await

@@ -17,14 +17,9 @@ use tower::ServiceExt;
 async fn test_app(webhook: Option<String>) -> (Router, AppState, PathBuf) {
     let dir = common::temp_dir("qdn-ops-test");
     let config = Config {
-        database_url: format!("sqlite://{}?mode=rwc", dir.join("test.db").display()),
-        data_dir: dir.clone(),
-        group_name: "Test".into(),
-        join_code: "CODE-1".into(),
-        vapid_subject: "mailto:test@example.com".into(),
         client_errors_webhook: webhook,
         trust_proxy: true,
-        ..Config::default()
+        ..common::config(&dir)
     };
     let state = state(config).await.unwrap();
     (app(state.clone()), state, dir)

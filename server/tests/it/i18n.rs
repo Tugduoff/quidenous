@@ -19,13 +19,8 @@ use tower::ServiceExt;
 async fn setup() -> T {
     let dir = common::temp_dir("qdn-i18n-test");
     let config = Config {
-        database_url: format!("sqlite://{}?mode=rwc", dir.join("test.db").display()),
-        data_dir: dir,
-        group_name: "Test".into(),
-        join_code: "CODE-1".into(),
-        vapid_subject: "mailto:test@example.com".into(),
         auth_secret: Some("test-secret-test-secret-test-secret".into()),
-        ..Config::default()
+        ..common::config(&dir)
     };
     let mail = Arc::new(MemoryMailer::default());
     let state = state_with_mailer(config, mail.clone()).await.unwrap();

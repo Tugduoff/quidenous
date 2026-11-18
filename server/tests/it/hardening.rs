@@ -18,12 +18,9 @@ const RESTO: &str = "Qui prendrait quoi au resto du coin ?";
 
 fn config(dir: &Path, group_name: &str, join_code: &str) -> Config {
     Config {
-        database_url: format!("sqlite://{}?mode=rwc", dir.join("test.db").display()),
-        data_dir: dir.to_path_buf(),
         group_name: group_name.into(),
         join_code: join_code.into(),
-        vapid_subject: "mailto:test@example.com".into(),
-        ..Config::default()
+        ..common::config(dir)
     }
 }
 

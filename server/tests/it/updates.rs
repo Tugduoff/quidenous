@@ -26,20 +26,10 @@ async fn test_app(token: Option<&str>) -> (Router, PathBuf) {
 async fn test_app_with(token: Option<&str>, certificate: Option<&str>) -> (Router, PathBuf) {
     let dir = common::temp_dir("qdn-ota-test");
     let config = Config {
-        port: 0,
-        database_url: format!("sqlite://{}?mode=rwc", dir.join("test.db").display()),
-        data_dir: dir.clone(),
-        web_dir: None,
-        group_name: "Test".into(),
-        join_code: "CODE-1".into(),
-        vapid_private_key: None,
-        vapid_subject: "mailto:test@example.com".into(),
-        fcm_service_account: None,
         updates_publish_token: token.map(Into::into),
         updates_certificate: certificate.map(PathBuf::from),
-        ..Config::default()
+        ..common::config(&dir)
     };
-    std::fs::create_dir_all(&dir).unwrap();
     (app(state(config).await.unwrap()), dir)
 }
 

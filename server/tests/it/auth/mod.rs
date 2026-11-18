@@ -37,16 +37,10 @@ const PUBLIC_URL: &str = "https://qdn.test";
 const PASSWORD: &str = "velo-rouge-du-dimanche";
 
 fn base_config() -> Config {
-    let dir = common::temp_dir("qdn-auth-test");
     Config {
-        database_url: format!("sqlite://{}?mode=rwc", dir.join("test.db").display()),
-        data_dir: dir,
-        group_name: "Test".into(),
-        join_code: "CODE-1".into(),
-        vapid_subject: "mailto:test@example.com".into(),
         auth_secret: Some("test-secret-test-secret-test-secret".into()),
         trust_proxy: true,
-        ..Config::default()
+        ..common::config(&common::temp_dir("qdn-auth-test"))
     }
 }
 

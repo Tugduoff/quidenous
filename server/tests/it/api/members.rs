@@ -332,18 +332,7 @@ async fn a_room_never_loses_its_owner() {
 #[tokio::test]
 async fn rooms_without_an_owner_are_repaired_at_startup() {
     let dir = common::temp_dir("qdn-test");
-    let config = || Config {
-        port: 0,
-        database_url: format!("sqlite://{}?mode=rwc", dir.join("test.db").display()),
-        data_dir: dir.clone(),
-        web_dir: None,
-        group_name: "Test".into(),
-        join_code: "CODE-1".into(),
-        vapid_private_key: None,
-        vapid_subject: "mailto:test@example.com".into(),
-        fcm_service_account: None,
-        ..Config::default()
-    };
+    let config = || common::config(&dir);
     let first = state(config()).await.unwrap();
     let app = app(first.clone());
     let (ana, _) = join(&app, "Ana").await;

@@ -2,25 +2,13 @@ use crate::common;
 use crate::common::call_with_kinds as call_with;
 
 use axum::{Router, http::StatusCode};
-use quidenous_server::{AppState, app, platform::config::Config, state};
+use quidenous_server::{AppState, app, state};
 use serde_json::{Value, json};
 
 async fn test_app(keep_deck: bool) -> (Router, AppState) {
-    let dir = common::temp_dir("qdn-choose");
-    let config = Config {
-        port: 0,
-        database_url: format!("sqlite://{}?mode=rwc", dir.join("test.db").display()),
-        data_dir: dir.clone(),
-        web_dir: None,
-        group_name: "Test".into(),
-        join_code: "CODE-1".into(),
-        vapid_private_key: None,
-        vapid_subject: "mailto:test@example.com".into(),
-        fcm_service_account: None,
-        ..Config::default()
-    };
-    std::fs::create_dir_all(&dir).unwrap();
-    let state = state(config).await.unwrap();
+    let state = state(common::config(&common::temp_dir("qdn-choose")))
+        .await
+        .unwrap();
     if !keep_deck {
         sqlx::query("DELETE FROM questions WHERE group_id IS NULL AND kind <> 'pick'")
             .execute(&state.db)
