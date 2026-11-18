@@ -39,7 +39,7 @@ Rolling back to an older server after a migration: the old binary refuses a data
 
 ## Indexes
 
-`0028_indexes.sql` covers the hot lookups: `rounds(group_id, question_id)` ("has this room asked it?"), `rounds(group_id, number)` (history, latest round), `members(group_id)`, `questions(group_id)`, `push_subscriptions(user_id)`, `shares(round_id)`, `challenges(question_id)`, and the unread inbox rows (`inbox(member_id) WHERE read_at IS NULL`). `0043` adds `messages(member_id)` and `inbox(actor_id)` (erasing an account and the hourly guest purge delete by them). Deck questions are unique per `(text, lang)`.
+`0028_indexes.sql` covers the hot lookups: `rounds(group_id, question_id)` ("has this room asked it?"), `rounds(group_id, number)` (history, latest round), `members(group_id)`, `questions(group_id)`, `push_subscriptions(user_id)`, `shares(round_id)`, `challenges(question_id)`, and the unread inbox rows (`inbox(member_id) WHERE read_at IS NULL`). `0043` adds `messages(member_id)` and `inbox(actor_id)` (erasing an account and the hourly guest purge delete by them). `0052` adds `votes(voter_id)`, `nudges(from_id)` and `tripot_bets(member_id)`: badges read one account's votes, nudges and bets across its seats (docs/BADGES.md). Deck questions are unique per `(text, lang)`.
 
 ## Pruning
 

@@ -18,6 +18,7 @@ import { Sparkline } from '@/components/stats/sparkline';
 import { StoryCarousel } from '@/components/stats/story-carousel';
 import { VoteMatrix } from '@/components/stats/vote-matrix';
 import { Display } from '@/components/ui';
+import { WrappedBanner } from '@/components/wrapped-entry';
 import type { StatsPeriod, Story } from '@/lib/api';
 import { type TKey, useT } from '@/lib/i18n';
 import { useMembers, useStats } from '@/lib/queries';
@@ -57,6 +58,7 @@ export default function StatsScreen() {
     return (
       <Screen>
         {header}
+        <WrappedBanner />
         {/* The calm before the storm: Roupi enjoys it. */}
         <Mascot who="roupi" mood="happy" size={128} style={{ marginTop: 32, alignSelf: 'center' }} />
         <Text style={{ marginTop: 4, textAlign: 'center', fontFamily: t.font.semibold, fontSize: 16, lineHeight: 22, color: t.mut }}>
@@ -87,6 +89,7 @@ export default function StatsScreen() {
   return (
     <Screen>
       {header}
+      <WrappedBanner />
       <View style={{ gap: 36, paddingBottom: 24, opacity: isPlaceholderData ? 0.5 : 1 }}>
         {s.stories.length > 0 && <StoryCarousel key={period} stories={s.stories} period={period} byId={byId} onOpen={openStory} />}
         <KeyNumbers s={s} />

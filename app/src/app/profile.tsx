@@ -28,8 +28,10 @@ import { MyLinksRow } from '@/components/my-links';
 import { Screen } from '@/components/screen';
 import { MyStreak } from '@/components/streaks';
 import { useSignOut } from '@/components/security/devices';
+import { BadgesRow, MyTitle } from '@/components/title-chip';
 import { Avatar, Button, Card, Dialog, DialogTitle, Display } from '@/components/ui';
 import { VersionLine } from '@/components/update';
+import { WrappedRow } from '@/components/wrapped-entry';
 import { api, API_URL, ApiError, apiUpload, type Member } from '@/lib/api';
 import { useAccount, useFeatures } from '@/lib/auth';
 import { useDonateUrl } from '@/lib/donate';
@@ -205,6 +207,7 @@ export default function Profile() {
             </View>
           </Pressable>
           <Display size={me.name.length > 14 ? 22 : 28}>{me.name}</Display>
+          <MyTitle />
           <MyStreak />
         </View>
       )}
@@ -321,6 +324,9 @@ export default function Profile() {
           />
         ))}
       </Dialog>
+
+      <BadgesRow />
+      <WrappedRow />
 
       {!account?.guest && (
         <Pressable accessibilityRole="button" onPress={() => router.push('/friends')}>

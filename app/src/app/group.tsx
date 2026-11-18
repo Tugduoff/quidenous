@@ -10,6 +10,7 @@ import { type ModAction, ModerationDialog, type ModTarget } from '@/components/m
 import { QueryState } from '@/components/query-state';
 import { Screen } from '@/components/screen';
 import { StreakBadge } from '@/components/streaks';
+import { MemberTitle } from '@/components/title-chip';
 import { showToast } from '@/components/toast';
 import { askConfirm, Avatar, Card, Display, PressableScale } from '@/components/ui';
 import { api, type RoomSummary } from '@/lib/api';
@@ -69,9 +70,12 @@ function Members() {
       {me && (
         <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12 }}>
           <Avatar member={me} size={36} />
-          <Text numberOfLines={1} style={{ flex: 1, fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>
-            {me.name}
-          </Text>
+          <View style={{ flex: 1, gap: 3 }}>
+            <Text numberOfLines={1} style={{ fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>
+              {me.name}
+            </Text>
+            <MemberTitle id={me.id} />
+          </View>
           <StreakBadge id={me.id} />
           {owner && <Crown size={16} color={t.accInk} />}
           <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut }}>{tr('room.group.you')}</Text>
@@ -112,9 +116,12 @@ function Members() {
         return (
           <Card key={m.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12 }}>
             <Avatar member={m} size={36} />
-            <Text numberOfLines={1} style={{ flex: 1, fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>
-              {m.name}
-            </Text>
+            <View style={{ flex: 1, gap: 3 }}>
+              <Text numberOfLines={1} style={{ fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>
+                {m.name}
+              </Text>
+              <MemberTitle id={m.id} />
+            </View>
             <StreakBadge id={m.id} />
             {m.role === 'owner' && <Crown size={16} color={t.accInk} />}
             {state && (

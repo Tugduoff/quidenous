@@ -1,6 +1,21 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
-import { AtSign, Bell, BellRing, ChevronLeft, Crown, DoorOpen, KeyRound, type LucideIcon, MessageCircle, MessageCircleQuestion, Sparkles, UserPlus } from 'lucide-react-native';
+import {
+  AtSign,
+  Bell,
+  BellRing,
+  CalendarHeart,
+  ChevronLeft,
+  Crown,
+  DoorOpen,
+  KeyRound,
+  type LucideIcon,
+  Medal,
+  MessageCircle,
+  MessageCircleQuestion,
+  Sparkles,
+  UserPlus,
+} from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
@@ -28,6 +43,8 @@ const ICON: Record<string, LucideIcon> = {
   friend_request: UserPlus,
   invite: DoorOpen,
   owner: KeyRound,
+  badge: Medal,
+  wrapped: CalendarHeart,
 };
 const TITLE: Record<string, TKey> = {
   message: 'inbox.kinds.message',
@@ -40,6 +57,8 @@ const TITLE: Record<string, TKey> = {
   friend_request: 'inbox.kinds.friendRequest',
   invite: 'inbox.kinds.invite',
   owner: 'inbox.kinds.owner',
+  badge: 'inbox.kinds.badge',
+  wrapped: 'inbox.kinds.wrapped',
 };
 
 /** Everything that happened lately: results, new questions, nudges, messages. Opening it marks all as read. */
@@ -70,6 +89,9 @@ export default function InboxScreen() {
     // Not about this room: a friend request (Friends) or an invitation into another room (my rooms).
     if (item.kind === 'friend_request') return router.push('/friends');
     if (item.kind === 'invite') return router.push('/rooms');
+    // About me, whatever the room: my collection, my year.
+    if (item.kind === 'badge') return router.push('/badges');
+    if (item.kind === 'wrapped') return router.push('/wrapped');
     // Added to a room, or now its owner: go to it (switching rooms lands on its home screen).
     if (item.kind === 'added' || item.kind === 'owner') {
       if (item.room_id != null && item.room_id !== room) switchRoom(item.room_id);

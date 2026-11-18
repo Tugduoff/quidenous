@@ -125,6 +125,8 @@ function Root() {
           <Stack.Screen name="friends" />
           <Stack.Screen name="security" />
           <Stack.Screen name="notifications" />
+          <Stack.Screen name="badges" />
+          <Stack.Screen name="wrapped" options={{ animation: reduced ? 'none' : 'fade_from_bottom' }} />
         </Stack.Protected>
         <Stack.Protected guard={stage === 'verify'}>
           <Stack.Screen name="auth/verify" />
@@ -185,7 +187,7 @@ function SameLanguage({ children }: { children: ReactNode }) {
 type Stage = 'out' | 'verify' | 'room' | 'in';
 const STAGE_HOME: Record<Stage, string> = { out: '/join', verify: '/auth/verify', room: '/setup', in: '/' };
 /** What a signed-in account without a room can open besides /setup: the account itself (and deleting it). */
-const ROOMLESS = ['/setup', '/profile', '/friends', '/security', '/notifications'];
+const ROOMLESS = ['/setup', '/profile', '/friends', '/security', '/notifications', '/badges', '/wrapped'];
 const SIGNED_OUT = ['/join', '/auth/email', '/auth/password', '/auth/two-factor', '/auth/forgot', '/auth/reset', '/auth/mfa-reset'];
 
 /**

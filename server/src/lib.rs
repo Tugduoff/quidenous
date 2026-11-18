@@ -2,6 +2,7 @@ pub mod accounts;
 pub mod anonymous;
 pub mod auth;
 pub mod avatar;
+pub mod badges;
 pub mod config;
 pub mod db;
 pub mod deck;
@@ -41,6 +42,7 @@ pub mod updates;
 pub mod vibes;
 pub mod vitrine;
 pub mod web;
+pub mod wrapped;
 
 use std::sync::Arc;
 

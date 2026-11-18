@@ -34,6 +34,8 @@ import { anonymous } from './en/anonymous';
 import { tripot } from './en/tripot';
 import { reactions } from './en/reactions';
 import { said } from './en/said';
+import { badges } from './en/badges';
+import { wrapped } from './en/wrapped';
 
 export const en: Messages = {
   common,
@@ -70,4 +72,6 @@ export const en: Messages = {
   tripot,
   reactions,
   said,
+  badges,
+  wrapped,
 };

@@ -18,6 +18,7 @@ import { ordinal } from '@/lib/text';
 import { useTheme } from '@/lib/theme';
 
 import { Mascot } from './mascot';
+import { MemberTitle } from './title-chip';
 import { Avatar, AvatarStack, PressableScale } from './ui';
 
 /** Rows shown before "Voir tout": a big group's result stays one screen tall. */
@@ -52,15 +53,19 @@ export function ResultBars({ result, byId, anonymous }: { result: Tally[]; byId:
             <Fill index={i} width={pct} color={color} opacity={win ? 0.55 : 0.28} />
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12 }}>
               <Avatar member={m} />
-              <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Text style={{ flexShrink: 1, fontFamily: t.font.bold, fontSize: 16, color: t.txt }} numberOfLines={1}>
-                  {m?.name}
-                </Text>
-                {win && (
-                  <Landed rows={Math.min(result.length, TOP)}>
-                    <Crown size={18} color={color} />
-                  </Landed>
-                )}
+              <View style={{ flex: 1, gap: 2 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={{ flexShrink: 1, fontFamily: t.font.bold, fontSize: 16, color: t.txt }} numberOfLines={1}>
+                    {m?.name}
+                  </Text>
+                  {win && (
+                    <Landed rows={Math.min(result.length, TOP)}>
+                      <Crown size={18} color={color} />
+                    </Landed>
+                  )}
+                </View>
+                {/* The winner's title, if they show one (only on the winning rows: the rest stay plain). */}
+                {win && <MemberTitle id={r.target_id} />}
               </View>
               {/* Capped so a big group's voters leave room for the name. */}
               {anonymous ? (
@@ -154,8 +159,10 @@ export function RankResult({ ranking, byId, mine }: { ranking: RankEntry[]; byId
                   {m?.name}
                 </Text>
                 {/* Only where my ranking differs from the group's. */}
-                {myPlace > 0 && myPlace !== place && (
+                {myPlace > 0 && myPlace !== place ? (
                   <Text style={{ fontFamily: t.font.regular, fontSize: 12, color: t.mut }}>{tr('results.you', { place: ordinal(myPlace) })}</Text>
+                ) : (
+                  top && !slim && <MemberTitle id={r.member_id} />
                 )}
               </View>
               <Text style={{ fontFamily: t.font.display, fontSize: 20, color: t.txt }}>

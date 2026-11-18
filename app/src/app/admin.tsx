@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
-import { Ban, Check, Eye, Lightbulb, type LucideIcon, MessageCircle, MessageSquareQuote, Trash2, User, UserX, X } from 'lucide-react-native';
+import { Ban, CalendarHeart, Check, ChevronRight, Eye, Lightbulb, type LucideIcon, MessageCircle, MessageSquareQuote, Trash2, User, UserX, X } from 'lucide-react-native';
 import { type ReactNode, useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import Animated from 'react-native-reanimated';
@@ -11,6 +11,7 @@ import { confirmBatch, eachOf, type Selection, SelectableRow, SelectButton, Sele
 import { showToast } from '@/components/toast';
 import { askConfirm, Card, ConfirmModal, Display, PressableScale, QuestionText } from '@/components/ui';
 import { api } from '@/lib/api';
+import { useFeatures } from '@/lib/auth';
 import { dateFormat, useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
 import { REASONS } from '@/lib/moderation';
@@ -43,6 +44,7 @@ export default function AdminScreen() {
   const tr = useT();
   const qc = useQueryClient();
   const { data: me } = useCommunityMe();
+  const features = useFeatures();
   const { data: review } = useReview(!!me?.admin);
   // A pack, or the selected ones ('batch'), waiting for a reason to be removed.
   const [removing, setRemoving] = useState<number | 'batch' | null>(null);
@@ -175,6 +177,22 @@ export default function AdminScreen() {
     <Screen tabs={false} footer={footer}>
       <PageHeader fallback="/packs" />
       <Display size={30}>{tr('admin.title')}</Display>
+      {me?.admin && features.wrapped && (
+        <PressableScale
+          scale={0.98}
+          accessibilityRole="button"
+          accessibilityLabel={`${tr('wrapped.adminPreview')}. ${tr('wrapped.adminPreviewLine')}`}
+          onPress={() => router.push('/wrapped?preview=1')}>
+          <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16 }}>
+            <CalendarHeart size={20} color={t.txt} />
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text style={{ fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>{tr('wrapped.adminPreview')}</Text>
+              <Text style={{ fontFamily: t.font.regular, fontSize: 13, color: t.mut }}>{tr('wrapped.adminPreviewLine')}</Text>
+            </View>
+            <ChevronRight size={20} color={t.mut} />
+          </Card>
+        </PressableScale>
+      )}
       {(empty || me?.admin === false) && (
         <Text style={{ fontFamily: t.font.regular, fontSize: 15, color: t.mut, textAlign: 'center', marginTop: 24 }}>{tr('admin.empty')}</Text>
       )}

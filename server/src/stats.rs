@@ -33,13 +33,16 @@ macro_rules! unix {
         concat!("((julianday(", $col, ") - 2440587.5) * 86400.0)")
     };
 }
-/// Finished questions of the group opened in the period (`?1` group, `?2` start in unix seconds).
+/// Finished questions of the group opened in the period (`?1` group, `?2` start and `?3` end in
+/// unix seconds, end excluded).
 macro_rules! in_period {
     () => {
         concat!(
             "r.group_id = ?1 AND r.closed_at IS NOT NULL AND ",
             unix!("r.opened_at"),
-            " >= ?2"
+            " >= ?2 AND ",
+            unix!("r.opened_at"),
+            " < ?3"
         )
     };
 }
@@ -452,13 +455,28 @@ pub async fn compute(
     lang: Lang,
 ) -> AppResult<Stats> {
     let tz = i64::from(tz_minutes.clamp(-TZ_MAX, TZ_MAX)) * 60;
-    let now = now();
-    let today = local_day(now, tz);
+    let today = local_day(now(), tz);
     // 7d / 30d: from local midnight N-1 days ago, so the window is exactly the activity buckets.
     let since: f64 = match period.days() {
         Some(n) => ((today - n + 1) * DAY - tz) as f64,
         None => -1e18,
     };
+    compute_range(db, group_id, period, (since, 1e18), tz_minutes, vibe, lang).await
+}
+
+/// [`compute`] over the questions opened in `[since, until)` (unix seconds), e.g. a calendar year
+/// for the Wrapped (docs/WRAPPED.md). `period` only shapes the activity buckets (`All` for a range).
+pub(crate) async fn compute_range(
+    db: &SqlitePool,
+    group_id: i64,
+    period: Period,
+    (since, until): (f64, f64),
+    tz_minutes: i32,
+    vibe: Option<&str>,
+    lang: Lang,
+) -> AppResult<Stats> {
+    let tz = i64::from(tz_minutes.clamp(-TZ_MAX, TZ_MAX)) * 60;
+    let today = local_day(now(), tz);
 
     let members_q = sqlx::query_as::<_, MemberRowT>(concat!(
         "SELECT id, name, ",
@@ -481,6 +499,7 @@ pub async fn compute(
     ))
     .bind(group_id)
     .bind(since)
+    .bind(until)
     .fetch_all(db);
     let votes_q = sqlx::query_as::<_, (i64, i64, i64, f64)>(concat!(
         "SELECT v.round_id, v.voter_id, v.target_id, ",
@@ -491,6 +510,7 @@ pub async fn compute(
     ))
     .bind(group_id)
     .bind(since)
+    .bind(until)
     .fetch_all(db);
     // Ranking points per question and member (with N ranked, 1st gets N points, last gets 1).
     let points_q = sqlx::query_as::<_, (i64, i64, i64, f64)>(concat!(
@@ -504,6 +524,7 @@ pub async fn compute(
     ))
     .bind(group_id)
     .bind(since)
+    .bind(until)
     .fetch_all(db);
     let nudges_q = sqlx::query_as::<_, (i64, i64)>(concat!(
         "SELECT n.from_id, n.to_id FROM nudges n JOIN rounds r ON r.id = n.round_id WHERE ",
@@ -511,6 +532,7 @@ pub async fn compute(
     ))
     .bind(group_id)
     .bind(since)
+    .bind(until)
     .fetch_all(db);
     let messages_q = sqlx::query_as::<_, (i64, i64)>(concat!(
         "SELECT m.round_id, m.member_id FROM messages m JOIN rounds r ON r.id = m.round_id WHERE ",
@@ -518,16 +540,20 @@ pub async fn compute(
     ))
     .bind(group_id)
     .bind(since)
+    .bind(until)
     .fetch_all(db);
     // Questions actually written in the period: pack installs and file imports don't count.
     let authors_q = sqlx::query_as::<_, (i64, i64)>(concat!(
         "SELECT author_id, COUNT(*) FROM questions WHERE group_id = ?1 AND author_id IS NOT NULL \
          AND origin = 'written' AND ",
         unix!("created_at"),
-        " >= ?2 GROUP BY author_id"
+        " >= ?2 AND ",
+        unix!("created_at"),
+        " < ?3 GROUP BY author_id"
     ))
     .bind(group_id)
     .bind(since)
+    .bind(until)
     .fetch_all(db);
     let (member_rows, round_rows, vote_rows, point_rows, nudges, message_rows, authors) = tokio::try_join!(
         members_q, rounds_q, votes_q, points_q, nudges_q, messages_q, authors_q

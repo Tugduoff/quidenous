@@ -4,6 +4,7 @@ import { AppState } from 'react-native';
 
 import { liveUrl } from './api';
 import { featuresQuery } from './auth';
+import { badgesKey, titlesKey } from './badges';
 import { PARTY_EVENTS, partyKeys } from './party';
 import { keys, refreshHistory } from './queries';
 import { type ReactedEvent, receiveReacted } from './result-reactions';
@@ -46,9 +47,11 @@ function touched(event: LiveEvent): QueryKey[] | 'all' {
     // A « Qui a dit ça ? » question went from writing to guessing (docs/SAID.md).
     case 'round_updated':
       return event.round_id ? [keys.current, keys.round(event.round_id)] : [keys.current];
-    case 'round_closed':
     case 'round_opened':
       return [['round'], keys.historyList, keys.queue, keys.stats];
+    // A closed question can cross a badge threshold (mine arrives as an inbox entry; the room's titles may follow).
+    case 'round_closed':
+      return [['round'], keys.historyList, keys.queue, keys.stats, titlesKey];
     case 'message_posted':
       return event.round_id ? [keys.messages(event.round_id)] : [];
     // Someone reacted to a message (or took their reaction back).
@@ -57,9 +60,9 @@ function touched(event: LiveEvent): QueryKey[] | 'all' {
     // Deleted by its author, the owner or an admin, or hidden by reports.
     case 'message_deleted':
       return event.round_id ? [keys.messages(event.round_id), keys.inbox] : [keys.inbox];
-    // Also a friend request or a room invitation for me.
+    // Also a friend request, a room invitation or a new badge for me.
     case 'inbox_changed':
-      return [keys.inbox, keys.friends, keys.invites];
+      return [keys.inbox, keys.friends, keys.invites, badgesKey, titlesKey];
     case 'kick_voted':
       return [keys.group];
     case 'round_pinned':

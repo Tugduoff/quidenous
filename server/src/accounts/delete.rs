@@ -230,6 +230,8 @@ pub(crate) async fn erase(state: &AppState, user_id: i64) -> AppResult<()> {
         "DELETE FROM room_invites WHERE user_id = ?1 OR from_id = ?1",
         "DELETE FROM blocks WHERE user_id = ?1 OR blocked_id = ?1",
         "DELETE FROM notification_prefs WHERE user_id = ?",
+        // Badges (docs/BADGES.md); Wrapped cards showing them went with the stat cards above.
+        "DELETE FROM user_badges WHERE user_id = ?",
     ] {
         sqlx::query(sql).bind(user_id).execute(&mut *tx).await?;
     }
@@ -247,7 +249,7 @@ pub(crate) async fn erase(state: &AppState, user_id: i64) -> AppResult<()> {
     sqlx::query(
         "UPDATE users SET name = ?1, photo = NULL, avatar = NULL, email = NULL, password_hash = NULL, \
          email_verified_at = NULL, totp_secret = NULL, totp_pending = NULL, totp_last_step = NULL, \
-         last_group_id = NULL, friend_code = lower(hex(randomblob(16))), locale = NULL, locale_pref = NULL, \
+         last_group_id = NULL, title = NULL, badges_at = NULL, wrapped_notified = NULL, friend_code = lower(hex(randomblob(16))), locale = NULL, locale_pref = NULL, \
          deleted_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?2",
     )
     .bind(DELETED_NAME)

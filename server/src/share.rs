@@ -143,50 +143,88 @@ pub async fn create_stat(
         };
         people.push((first, color, avatar));
     }
-    let people = json!(people).to_string();
-    // Sharing the same story again gives the same link (not one more public row per tap).
-    let existing: Option<String> = sqlx::query_scalar(concat!(
-        "SELECT token FROM stat_shares s WHERE group_id = ? AND member_id = ? AND key = ? AND big = ? \
-         AND line = ? AND people = ? AND lang = ? AND ",
-        live_sql!(),
-        " ORDER BY created_at DESC LIMIT 1"
-    ))
-    .bind(me.group_id)
-    .bind(me.id)
-    .bind(story.key)
-    .bind(&story.big)
-    .bind(&story.line)
-    .bind(&people)
-    .bind(lang.as_str())
-    .fetch_optional(&state.db)
-    .await?;
-    if let Some(token) = existing {
-        return Ok(Json(
-            json!({ "token": token, "path": format!("/s/{token}") }),
-        ));
-    }
-    let token = crate::auth::new_token()[..12].to_owned();
-    sqlx::query(concat!(
-        "INSERT INTO stat_shares (token, group_id, member_id, key, title, big, line, people, lang, member_ids, expires_at) \
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ",
-        expires_sql!(),
-        ")"
-    ))
-    .bind(&token)
-    .bind(me.group_id)
-    .bind(me.id)
-    .bind(story.key)
-    .bind(story.title)
-    .bind(&story.big)
-    .bind(&story.line)
-    .bind(&people)
-    .bind(lang.as_str())
-    .bind(json!(story.member_ids).to_string())
-    .execute(&state.db)
+    let token = freeze_stat(
+        &state.db,
+        Frozen {
+            group_id: me.group_id,
+            member_id: me.id,
+            key: story.key,
+            title: story.title,
+            big: &story.big,
+            line: &story.line,
+            people: &json!(people).to_string(),
+            lang,
+            member_ids: &json!(story.member_ids).to_string(),
+            label: None,
+        },
+    )
     .await?;
     Ok(Json(
         json!({ "token": token, "path": format!("/s/{token}") }),
     ))
+}
+
+/// A stat card about to be frozen into a public link.
+pub(crate) struct Frozen<'a> {
+    pub group_id: i64,
+    /// The sharer's seat.
+    pub member_id: i64,
+    pub key: &'a str,
+    pub title: &'a str,
+    pub big: &'a str,
+    pub line: &'a str,
+    /// JSON `[[first name, colour, avatar|null], ...]`.
+    pub people: &'a str,
+    pub lang: Lang,
+    /// JSON array of the seats shown (erasing one of their accounts removes the link).
+    pub member_ids: &'a str,
+    /// Shown in the frame instead of the room name (Wrapped cards).
+    pub label: Option<&'a str>,
+}
+
+/// The token of a frozen stat card. Sharing the same card again gives the same link (not one more
+/// public row per tap).
+pub(crate) async fn freeze_stat(db: &sqlx::SqlitePool, f: Frozen<'_>) -> AppResult<String> {
+    let existing: Option<String> = sqlx::query_scalar(concat!(
+        "SELECT token FROM stat_shares s WHERE group_id = ? AND member_id = ? AND key = ? AND big = ? \
+         AND line = ? AND people = ? AND lang = ? AND label IS ? AND ",
+        live_sql!(),
+        " ORDER BY created_at DESC LIMIT 1"
+    ))
+    .bind(f.group_id)
+    .bind(f.member_id)
+    .bind(f.key)
+    .bind(f.big)
+    .bind(f.line)
+    .bind(f.people)
+    .bind(f.lang.as_str())
+    .bind(f.label)
+    .fetch_optional(db)
+    .await?;
+    if let Some(token) = existing {
+        return Ok(token);
+    }
+    let token = crate::auth::new_token()[..12].to_owned();
+    sqlx::query(concat!(
+        "INSERT INTO stat_shares (token, group_id, member_id, key, title, big, line, people, lang, member_ids, label, expires_at) \
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ",
+        expires_sql!(),
+        ")"
+    ))
+    .bind(&token)
+    .bind(f.group_id)
+    .bind(f.member_id)
+    .bind(f.key)
+    .bind(f.title)
+    .bind(f.big)
+    .bind(f.line)
+    .bind(f.people)
+    .bind(f.lang.as_str())
+    .bind(f.member_ids)
+    .bind(f.label)
+    .execute(db)
+    .await?;
+    Ok(token)
 }
 
 /// `GET /shares`: my public links that still work (every room, newest first), for "My links".
@@ -205,7 +243,7 @@ pub async fn mine(
                WHERE m.user_id = ?1 AND ",
             live_sql!(),
             " UNION ALL \
-               SELECT s.token, 'stat', s.title || ' · ' || s.big, g.name, 1, s.created_at, s.expires_at \
+               SELECT s.token, 'stat', s.title || ' · ' || s.big, COALESCE(s.label, g.name), 1, s.created_at, s.expires_at \
                FROM stat_shares s JOIN members m ON m.id = s.member_id \
                JOIN groups g ON g.id = s.group_id AND g.deleted_at IS NULL \
                WHERE m.user_id = ?1 AND ",
@@ -281,6 +319,8 @@ impl Card {
 struct StatCard {
     lang: Lang,
     room: String,
+    /// A Wrapped card: what the frame says instead of the room name (« Wrapped 2026 »).
+    label: Option<String>,
     title: String,
     big: String,
     line: String,
@@ -389,19 +429,28 @@ async fn load(state: &AppState, token: &str) -> AppResult<Card> {
 }
 
 async fn load_stat(state: &AppState, token: &str) -> AppResult<StatCard> {
-    let (room, title, big, line, people, lang): (String, String, String, String, String, String) =
-        sqlx::query_as(concat!(
-            "SELECT g.name, s.title, s.big, s.line, s.people, s.lang FROM stat_shares s \
+    #[allow(clippy::type_complexity)]
+    let (room, title, big, line, people, lang, label): (
+        String,
+        String,
+        String,
+        String,
+        String,
+        String,
+        Option<String>,
+    ) = sqlx::query_as(concat!(
+        "SELECT g.name, s.title, s.big, s.line, s.people, s.lang, s.label FROM stat_shares s \
              JOIN groups g ON g.id = s.group_id AND g.deleted_at IS NULL WHERE s.token = ? AND ",
-            live_sql!()
-        ))
-        .bind(token)
-        .fetch_optional(&state.db)
-        .await?
-        .ok_or(AppError::NotFound)?;
+        live_sql!()
+    ))
+    .bind(token)
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or(AppError::NotFound)?;
     Ok(StatCard {
         lang: Lang::from_db(Some(&lang)),
         room,
+        label,
         title,
         big,
         line,
@@ -455,6 +504,7 @@ const BG: &str = "#0E0E12";
 const TXT: &str = "#F5F5F7";
 const MUTED: &str = "#8D8D99";
 const LIME: &str = "#C8FF3D";
+const PINK: &str = "#FF4FA3";
 
 /// Background, logo, room name and the coloured tag shared by every card.
 fn frame(room: &str, tag: &str, tag_color: &str) -> String {
@@ -514,13 +564,64 @@ fn initial(name: &str) -> String {
 fn svg(card: &Card) -> String {
     match card {
         Card::Question(c) => question_svg(c),
+        Card::Stat(c) if c.label.is_some() => wrapped_svg(c),
         Card::Stat(c) => stat_svg(c),
     }
+}
+
+/// The year at the end of a Wrapped label (« Wrapped 2026 », « Salon · 2026 »).
+fn label_year(label: &str) -> Option<&str> {
+    label
+        .rsplit(' ')
+        .next()
+        .filter(|y| y.len() == 4 && y.bytes().all(|b| b.is_ascii_digit()))
+}
+
+/// A Wrapped card: the stat card's layout on a festive ground (the year as a huge watermark,
+/// confetti), the label in the frame instead of the room name.
+fn wrapped_svg(card: &StatCard) -> String {
+    let label = card.label.as_deref().unwrap_or_default();
+    let mut out = frame(label, &card.title.to_uppercase(), PINK);
+    // Under everything but the frame's text: the year, outlined, bleeding off the right edge.
+    if let Some(year) = label_year(label) {
+        out.push_str(&format!(
+            r##"<text x="1250" y="600" text-anchor="end" font-family="Bricolage Grotesque" font-weight="800" font-size="330" fill="none" stroke="{LIME}" stroke-width="3" opacity="0.22" letter-spacing="-8">{year}</text>
+"##
+        ));
+    }
+    // Confetti: fixed, so the same card always draws the same way.
+    for (i, (x, y, r)) in [
+        (640.0, 150.0, 10.0),
+        (760.0, 205.0, 6.0),
+        (905.0, 160.0, 8.0),
+        (1010.0, 235.0, 5.0),
+        (1145.0, 180.0, 9.0),
+        (1090.0, 300.0, 6.0),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let color = [LIME, PINK, "#5AC8FA", "#FFB547"][i % 4];
+        out.push_str(&format!(
+            r##"<circle cx="{x}" cy="{y}" r="{r}" fill="{color}" opacity="0.85"/>
+"##
+        ));
+    }
+    stat_body(&mut out, card);
+    out.push_str(&footer(card.lang));
+    out
 }
 
 /// A stat story: the title in the tag, the figure huge, the punchline, then who it is about.
 fn stat_svg(card: &StatCard) -> String {
     let mut out = frame(&card.room, &card.title.to_uppercase(), LIME);
+    stat_body(&mut out, card);
+    out.push_str(&footer(card.lang));
+    out
+}
+
+/// The figure, the punchline and the faces of a stat card.
+fn stat_body(out: &mut String, card: &StatCard) {
     // Biggest figure that fits the width.
     let mut size: f32 = 168.0;
     while card.big.chars().count() as f32 * size * 0.6 > 1060.0 && size > 72.0 {
@@ -561,8 +662,6 @@ fn stat_svg(card: &StatCard) -> String {
         ));
         x += 70.0 + name.chars().count() as f32 * 17.0 + 48.0;
     }
-    out.push_str(&footer(card.lang));
-    out
 }
 
 fn question_svg(card: &QuestionCard) -> String {
@@ -1034,11 +1133,26 @@ mod tests {
         let stat = Card::Stat(StatCard {
             lang: Lang::En,
             room: "Salon".into(),
+            label: None,
             title: "Titre".into(),
             big: "42".into(),
             line: "Une ligne".into(),
             people: people(3),
         });
+        let wrapped = Card::Stat(StatCard {
+            lang: Lang::Fr,
+            room: "Salon".into(),
+            label: Some("Wrapped 2026".into()),
+            title: "Ton crush de l'année".into(),
+            big: "Léa".into(),
+            line: "Tu as voté 27 fois pour Léa. On ne dira rien.".into(),
+            people: people(3),
+        });
+        let wrapped_svg = svg(&wrapped);
+        assert!(wrapped_svg.contains(">2026</text>") && wrapped_svg.contains("Wrapped 2026"));
+        assert!(!wrapped_svg.contains(">Salon<"));
+        assert_eq!(label_year("Salon · 2026"), Some("2026"));
+        assert_eq!(label_year("Salon"), None);
         let question = Card::Question(QuestionCard {
             lang: Lang::Fr,
             room: "Salon".into(),
@@ -1047,7 +1161,7 @@ mod tests {
             rank: false,
             podium: people(3).into_iter().map(|p| (p, "50 %".into())).collect(),
         });
-        for card in [stat, question] {
+        for card in [stat, wrapped, question] {
             let svg = svg(&card);
             assert_eq!(svg.matches("clipPath id=").count(), 1, "{svg}");
             assert!(render(&card).is_some());
