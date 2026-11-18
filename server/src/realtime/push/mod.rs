@@ -1,29 +1,21 @@
 //! Push notifications: Web Push (RFC 8030 + 8291 aes128gcm + 8292 VAPID) for the web app,
 //! FCM HTTP v1 for the Android build. Pure Rust, no OpenSSL.
 
-use std::{
-    collections::HashMap,
-    sync::{
-        Arc,
-        atomic::{AtomicU64, Ordering},
-    },
-    time::{Duration, Instant},
-};
+use std::{sync::Arc, time::Duration};
 
-use aes_gcm::{Aes128Gcm, KeyInit, Nonce, aead::Aead};
-use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD as B64};
-use hkdf::Hkdf;
-use p256::{
-    PublicKey, SecretKey,
-    ecdsa::{Signature, SigningKey, signature::Signer},
-    elliptic_curve::{Generate, sec1::ToSec1Point},
-};
 use serde::{Deserialize, Serialize};
-use sha2::Sha256;
 use sqlx::SqlitePool;
-use tokio::sync::Mutex;
 
 use crate::platform::i18n::{Lang, Text};
+
+mod endpoints;
+mod fcm;
+mod presence;
+mod webpush;
+pub use endpoints::*;
+pub use fcm::*;
+pub use presence::*;
+pub use webpush::*;
 
 const RECORD_SIZE: u32 = 4096;
 const TTL_SECONDS: &str = "86400";
@@ -33,97 +25,6 @@ const HTTP_TIMEOUT: Duration = Duration::from_secs(10);
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 /// Push devices per account at most (registering one more drops the stalest).
 pub const MAX_DEVICES: i64 = 10;
-/// The Web Push services browsers use: Chrome and most Chromium browsers (FCM), Firefox
-/// (Mozilla autopush), Safari (Apple) and Edge (Windows Push Notification Services).
-/// Endpoints anywhere else are refused, so the server never posts to arbitrary hosts.
-const WEB_PUSH_HOSTS: [&str; 4] = [
-    "fcm.googleapis.com",
-    "push.services.mozilla.com",
-    "push.apple.com",
-    "notify.windows.com",
-];
-
-/// A Web Push endpoint on one of [`WEB_PUSH_HOSTS`] (or a subdomain), over https on the
-/// default port, 1 KB at most.
-pub fn web_endpoint_allowed(endpoint: &str) -> bool {
-    if endpoint.len() > 1024 {
-        return false;
-    }
-    let Ok(url) = reqwest::Url::parse(endpoint) else {
-        return false;
-    };
-    // `domain()` is none for IP addresses.
-    let Some(host) = url.domain() else {
-        return false;
-    };
-    let host = host.to_ascii_lowercase();
-    url.scheme() == "https"
-        && url.username().is_empty()
-        && url.password().is_none()
-        && url.port().is_none()
-        && WEB_PUSH_HOSTS
-            .iter()
-            .any(|h| host == *h || host.ends_with(&format!(".{h}")))
-}
-
-/// A browser key (`p256dh`, `auth`): base64 characters, `max` at most.
-pub fn key_ok(key: &str, max: usize) -> bool {
-    !key.is_empty()
-        && key.len() <= max
-        && key
-            .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'+' | b'/' | b'='))
-}
-
-/// `Sent.title` of a recorded widget ping (tests); its `body` is the room id.
-pub const WIDGET_PING: &str = "widget";
-
-/// A widget refresh: data only (no `notification`, so nothing shows), `widget` + `room` for the app's
-/// background task, one pending per room and device (`collapse_key`), normal priority, dropped after
-/// an hour undelivered (the widget's own timer catches up by then).
-pub fn widget_ping_message(fcm_token: &str, group_id: i64) -> serde_json::Value {
-    serde_json::json!({
-        "message": {
-            "token": fcm_token,
-            "data": { "widget": "1", "room": group_id.to_string() },
-            "android": {
-                "priority": "normal",
-                "collapse_key": format!("widget-{group_id}"),
-                "ttl": "3600s"
-            }
-        }
-    })
-}
-
-/// An FCM registration token: printable ASCII, 4 KB at most.
-pub fn fcm_token_ok(token: &str) -> bool {
-    !token.is_empty() && token.len() <= 4096 && token.bytes().all(|b| b.is_ascii_graphic())
-}
-
-/// Did FCM say this token is dead? `UNREGISTERED`, or `INVALID_ARGUMENT` about the token itself;
-/// any other `INVALID_ARGUMENT` is our message's fault, and the device stays.
-fn fcm_token_gone(status: u16, body: &str) -> bool {
-    if status == 404 {
-        return true;
-    }
-    let Ok(v) = serde_json::from_str::<serde_json::Value>(body) else {
-        return body.contains("UNREGISTERED");
-    };
-    let error = &v["error"];
-    let details = error["details"].as_array().cloned().unwrap_or_default();
-    let code = |c: &str| error["status"] == c || details.iter().any(|d| d["errorCode"] == c);
-    if code("UNREGISTERED") {
-        return true;
-    }
-    let about_token = details.iter().any(|d| {
-        d["fieldViolations"]
-            .as_array()
-            .is_some_and(|f| f.iter().any(|f| f["field"] == "message.token"))
-    }) || error["message"]
-        .as_str()
-        .is_some_and(|m| m.contains("registration token"));
-    code("INVALID_ARGUMENT") && about_token
-}
 
 /// What a push is about: each kind can be turned off in the notification settings.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -264,212 +165,6 @@ pub fn in_quiet_hours(start: i64, end: i64, tz_offset: i64, now: u64) -> bool {
         (start..end).contains(&local)
     } else {
         local >= start || local < end
-    }
-}
-
-/// An app that has said nothing for this long is gone (iOS can freeze it without closing the socket).
-const PRESENCE_TTL: Duration = Duration::from_secs(45);
-
-/// Who has the app open on the screen, per account and room: their devices get no push for that room.
-#[derive(Clone, Default)]
-pub struct Presence {
-    seats: Arc<std::sync::Mutex<HashMap<Seat, Connections>>>,
-    next_connection: Arc<AtomicU64>,
-}
-
-/// (account, room)
-type Seat = (i64, i64);
-/// Each live connection and when it last said it was on the screen.
-type Connections = HashMap<u64, Instant>;
-
-impl Presence {
-    /// A new id for one live connection.
-    pub fn connection(&self) -> u64 {
-        self.next_connection.fetch_add(1, Ordering::Relaxed)
-    }
-
-    /// The app is in front on this room (sent again every few seconds while it stays there).
-    pub fn here(&self, user_id: i64, group_id: i64, connection: u64) {
-        let mut map = self.seats.lock().unwrap_or_else(|e| e.into_inner());
-        map.entry((user_id, group_id))
-            .or_default()
-            .insert(connection, Instant::now());
-    }
-
-    /// The app went to the background, or the connection closed.
-    pub fn away(&self, user_id: i64, group_id: i64, connection: u64) {
-        let mut map = self.seats.lock().unwrap_or_else(|e| e.into_inner());
-        if let Some(connections) = map.get_mut(&(user_id, group_id)) {
-            connections.remove(&connection);
-            if connections.is_empty() {
-                map.remove(&(user_id, group_id));
-            }
-        }
-    }
-
-    pub fn is_here(&self, user_id: i64, group_id: i64) -> bool {
-        let map = self.seats.lock().unwrap_or_else(|e| e.into_inner());
-        map.get(&(user_id, group_id))
-            .is_some_and(|c| c.values().any(|seen| seen.elapsed() < PRESENCE_TTL))
-    }
-}
-
-pub struct Vapid {
-    key: SigningKey,
-    pub public_b64: String,
-    subject: String,
-}
-
-impl Vapid {
-    /// `private_b64`: base64url raw 32-byte P-256 private key.
-    pub fn new(private_b64: &str, subject: String) -> Result<Self, String> {
-        let bytes = B64
-            .decode(private_b64.trim())
-            .map_err(|e| format!("VAPID key: {e}"))?;
-        let secret = SecretKey::from_slice(&bytes).map_err(|e| format!("VAPID key: {e}"))?;
-        let public = secret.public_key().to_sec1_point(false);
-        Ok(Self {
-            key: SigningKey::from(&secret),
-            public_b64: B64.encode(public.as_bytes()),
-            subject,
-        })
-    }
-
-    fn authorization(&self, endpoint: &str) -> Option<String> {
-        let url = reqwest::Url::parse(endpoint).ok()?;
-        let aud = format!("{}://{}", url.scheme(), url.host_str()?);
-        let exp = now_secs() + JWT_LIFETIME_SECONDS;
-        let header = B64.encode(br#"{"typ":"JWT","alg":"ES256"}"#);
-        let claims = B64.encode(
-            serde_json::json!({ "aud": aud, "exp": exp, "sub": self.subject })
-                .to_string()
-                .as_bytes(),
-        );
-        let signing_input = format!("{header}.{claims}");
-        let signature: Signature = self.key.sign(signing_input.as_bytes());
-        let jwt = format!("{signing_input}.{}", B64.encode(signature.to_bytes()));
-        Some(format!("vapid t={jwt}, k={}", self.public_b64))
-    }
-}
-
-fn now_secs() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_or(0, |d| d.as_secs())
-}
-
-/// RFC 8291 message encryption with the aes128gcm content coding (single record).
-pub fn encrypt(payload: &[u8], p256dh_b64: &str, auth_b64: &str) -> Result<Vec<u8>, String> {
-    let ua_public_bytes = B64.decode(p256dh_b64).map_err(|e| e.to_string())?;
-    let auth_secret = B64.decode(auth_b64).map_err(|e| e.to_string())?;
-    let ua_public = PublicKey::from_sec1_bytes(&ua_public_bytes).map_err(|e| e.to_string())?;
-
-    let mut rng = rand::rng();
-    let as_secret = p256::ecdh::EphemeralSecret::generate_from_rng(&mut rng);
-    let as_public = as_secret.public_key().to_sec1_point(false);
-    let shared = as_secret.diffie_hellman(&ua_public);
-
-    let mut key_info = b"WebPush: info\0".to_vec();
-    key_info.extend_from_slice(&ua_public_bytes);
-    key_info.extend_from_slice(as_public.as_bytes());
-    let mut ikm = [0u8; 32];
-    Hkdf::<Sha256>::new(Some(&auth_secret), shared.raw_secret_bytes())
-        .expand(&key_info, &mut ikm)
-        .map_err(|e| e.to_string())?;
-
-    let mut salt = [0u8; 16];
-    rand::Rng::fill_bytes(&mut rng, &mut salt);
-    let prk = Hkdf::<Sha256>::new(Some(&salt), &ikm);
-    let mut cek = [0u8; 16];
-    let mut nonce = [0u8; 12];
-    prk.expand(b"Content-Encoding: aes128gcm\0", &mut cek)
-        .map_err(|e| e.to_string())?;
-    prk.expand(b"Content-Encoding: nonce\0", &mut nonce)
-        .map_err(|e| e.to_string())?;
-
-    let mut plaintext = payload.to_vec();
-    plaintext.push(2); // last-record delimiter
-    let cipher = Aes128Gcm::new_from_slice(&cek).map_err(|e| e.to_string())?;
-    let ciphertext = cipher
-        .encrypt(&Nonce::from(nonce), plaintext.as_slice())
-        .map_err(|e| e.to_string())?;
-
-    let mut body = Vec::with_capacity(16 + 4 + 1 + 65 + ciphertext.len());
-    body.extend_from_slice(&salt);
-    body.extend_from_slice(&RECORD_SIZE.to_be_bytes());
-    body.push(as_public.as_bytes().len() as u8);
-    body.extend_from_slice(as_public.as_bytes());
-    body.extend_from_slice(&ciphertext);
-    Ok(body)
-}
-
-#[derive(Deserialize)]
-struct ServiceAccount {
-    project_id: String,
-    client_email: String,
-    private_key: String,
-    token_uri: String,
-}
-
-pub struct Fcm {
-    account: ServiceAccount,
-    token: Mutex<Option<(String, u64)>>,
-}
-
-impl Fcm {
-    pub fn from_json(json: &str) -> Result<Self, String> {
-        let account: ServiceAccount =
-            serde_json::from_str(json).map_err(|e| format!("FCM service account: {e}"))?;
-        Ok(Self {
-            account,
-            token: Mutex::new(None),
-        })
-    }
-
-    async fn access_token(&self, http: &reqwest::Client) -> Result<String, String> {
-        let mut cached = self.token.lock().await;
-        if let Some((token, exp)) = cached.as_ref()
-            && *exp > now_secs() + 60
-        {
-            return Ok(token.clone());
-        }
-        let now = now_secs();
-        let claims = serde_json::json!({
-            "iss": self.account.client_email,
-            "scope": "https://www.googleapis.com/auth/firebase.messaging",
-            "aud": self.account.token_uri,
-            "iat": now,
-            "exp": now + 3600,
-        });
-        let key = jsonwebtoken::EncodingKey::from_rsa_pem(self.account.private_key.as_bytes())
-            .map_err(|e| e.to_string())?;
-        let assertion = jsonwebtoken::encode(
-            &jsonwebtoken::Header::new(jsonwebtoken::Algorithm::RS256),
-            &claims,
-            &key,
-        )
-        .map_err(|e| e.to_string())?;
-        #[derive(Deserialize)]
-        struct TokenResponse {
-            access_token: String,
-            expires_in: u64,
-        }
-        let res: TokenResponse = http
-            .post(&self.account.token_uri)
-            .form(&[
-                ("grant_type", "urn:ietf:params:oauth:grant-type:jwt-bearer"),
-                ("assertion", assertion.as_str()),
-            ])
-            .send()
-            .await
-            .map_err(|e| e.to_string())?
-            .error_for_status()
-            .map_err(|e| e.to_string())?
-            .json()
-            .await
-            .map_err(|e| e.to_string())?;
-        *cached = Some((res.access_token.clone(), now + res.expires_in));
-        Ok(res.access_token)
     }
 }
 
@@ -890,15 +585,15 @@ impl Push {
     }
 }
 
-/// Prints a new VAPID key pair: `server --gen-vapid`.
-pub fn generate_vapid() -> (String, String) {
-    let secret = SecretKey::generate_from_rng(&mut rand::rng());
-    let public = secret.public_key().to_sec1_point(false);
-    (B64.encode(secret.to_bytes()), B64.encode(public.as_bytes()))
-}
-
 #[cfg(test)]
 mod tests {
+    use aes_gcm::{Aes128Gcm, KeyInit, Nonce, aead::Aead};
+    use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD as B64};
+    use hkdf::Hkdf;
+    use p256::elliptic_curve::{Generate, sec1::ToSec1Point};
+    use p256::{PublicKey, SecretKey};
+    use sha2::Sha256;
+
     use super::*;
 
     #[test]

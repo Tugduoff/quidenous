@@ -363,7 +363,7 @@ async fn round_seat(state: &AppState, user: i64, round_id: i64) -> AppResult<(Me
     .fetch_optional(&state.db)
     .await?
     .ok_or(AppError::NotFound)?;
-    let me = crate::rooms::rooms::seat(state, user, group_id)
+    let me = crate::rooms::manage::seat(state, user, group_id)
         .await
         .map_err(|e| match e {
             AppError::Forbidden(_) => AppError::NotFound,

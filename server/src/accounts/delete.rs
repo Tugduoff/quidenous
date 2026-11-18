@@ -152,7 +152,7 @@ pub(crate) async fn erase(state: &AppState, user_id: i64) -> AppResult<()> {
             break;
         }
         for seat in &seats {
-            crate::rooms::rooms::leave_seat(state, seat).await?;
+            crate::rooms::manage::leave_seat(state, seat).await?;
         }
     }
     let photos: Vec<String> = sqlx::query_scalar(

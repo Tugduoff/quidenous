@@ -17,7 +17,7 @@ pub(super) async fn party_seat(
     user: i64,
     id: i64,
 ) -> AppResult<(MemberRow, PartyRow)> {
-    let me = crate::rooms::rooms::seat(state, user, id).await?;
+    let me = crate::rooms::manage::seat(state, user, id).await?;
     let p = load(state, id).await?;
     if p.kind != "party" {
         return Err(AppError::Conflict("not_party"));

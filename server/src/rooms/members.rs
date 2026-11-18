@@ -69,7 +69,7 @@ pub(crate) async fn join(
     }
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
     // Its owner may have left it alone (and deleted it) since the lookup.
-    crate::rooms::rooms::still_open(&mut *tx, group_id).await?;
+    crate::rooms::manage::still_open(&mut *tx, group_id).await?;
     let existing = match signed_in {
         Some(user_id) => {
             sqlx::query_as::<_, MemberRow>(
@@ -113,7 +113,7 @@ pub(crate) async fn join(
     let rejoined = existing.as_ref().is_some_and(|m| m.removed_at.is_some());
     let joined = existing.is_none();
     if joined || rejoined {
-        crate::rooms::rooms::seat_free(&mut *tx, group_id).await?;
+        crate::rooms::manage::seat_free(&mut *tx, group_id).await?;
     }
     let member = match existing {
         Some(member) => {
@@ -268,7 +268,7 @@ pub(crate) async fn group(State(state): State<AppState>, Me(me): Me) -> AppResul
     let votes = game::votes_possible(members.len() as i64);
     let members: Vec<Value> = members
         .iter()
-        .map(crate::rooms::rooms::member_with_role)
+        .map(crate::rooms::manage::member_with_role)
         .collect();
     // People who left keep their name and photo in the history, awards and chat.
     let former: Vec<Value> = former

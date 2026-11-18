@@ -127,7 +127,7 @@ pub async fn report(
     if body.kind != "suggestion" {
         // Only from inside the room (and the room still exists).
         let room = room.ok_or(AppError::NotFound)?;
-        crate::rooms::rooms::seat(&state, me, room)
+        crate::rooms::manage::seat(&state, me, room)
             .await
             .map_err(|_| AppError::NotFound)?;
     }
@@ -890,7 +890,7 @@ pub(crate) async fn suspend(state: &AppState, user: i64) -> AppResult<()> {
     .fetch_all(&state.db)
     .await?;
     for seat in &seats {
-        crate::rooms::rooms::leave_seat(state, seat).await?;
+        crate::rooms::manage::leave_seat(state, seat).await?;
     }
     Ok(())
 }

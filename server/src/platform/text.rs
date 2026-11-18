@@ -60,6 +60,17 @@ pub fn key(s: &str) -> String {
     line(s).to_lowercase()
 }
 
+const NAME_MAX: usize = 24;
+
+/// A first name: one line, no invisible characters, 1 to 24 characters.
+pub(crate) fn clean_name(name: &str) -> AppResult<String> {
+    let name = crate::platform::text::line(name);
+    if name.is_empty() || name.chars().count() > NAME_MAX {
+        return Err(AppError::BadRequest("bad_name"));
+    }
+    Ok(name)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -91,15 +102,4 @@ mod tests {
         assert_eq!(key("ÉTÉ  à la PLAGE"), key("été à la plage"));
         assert_ne!(key("été"), key("ete"));
     }
-}
-
-const NAME_MAX: usize = 24;
-
-/// A first name: one line, no invisible characters, 1 to 24 characters.
-pub(crate) fn clean_name(name: &str) -> AppResult<String> {
-    let name = crate::platform::text::line(name);
-    if name.is_empty() || name.chars().count() > NAME_MAX {
-        return Err(AppError::BadRequest("bad_name"));
-    }
-    Ok(name)
 }

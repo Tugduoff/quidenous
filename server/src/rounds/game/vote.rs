@@ -1,0 +1,197 @@
+use sqlx::{Sqlite, SqlitePool, Transaction};
+
+use crate::{
+    platform::error::{AppError, AppResult},
+    realtime::live::Event,
+    rounds::model::Choice,
+};
+
+use super::*;
+
+/// Records a vote; closes the round and opens the next one when everyone has voted.
+/// `guesses`: a said question's matching (see [`crate::rounds::said::ballot`]).
+pub async fn vote(
+    db: &SqlitePool,
+    group_id: i64,
+    voter_id: i64,
+    target_id: Option<i64>,
+    ranking: Option<Vec<i64>>,
+    choices: Option<Vec<Choice>>,
+    guesses: Option<Vec<crate::rounds::said::Guess>>,
+) -> AppResult<Vec<Event>> {
+    let mut tx = crate::platform::db::write_tx(db).await?;
+    // A party that is over is a read-only memory.
+    let party = party(&mut *tx, group_id).await?;
+    if party.is_some_and(|p| p.over) {
+        return Err(AppError::Gone("party_over"));
+    }
+    let (round_id, kind, items, time_up): (i64, String, Option<String>, bool) = sqlx::query_as(
+        "SELECT r.id, q.kind, q.items, \
+         COALESCE(r.deadline_at <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), 0) \
+         FROM rounds r JOIN questions q ON q.id = r.question_id \
+         WHERE r.group_id = ? AND r.closed_at IS NULL",
+    )
+    .bind(group_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::Conflict("no_open_round"))?;
+    // A party question past its countdown takes no more votes, even before the sweep closes it.
+    if time_up {
+        return Err(AppError::Conflict("time_up"));
+    }
+    // Party: only who was there when the question opened votes on it (and can be picked).
+    if party.is_some() && !party_player(&mut tx, round_id, voter_id).await? {
+        return Err(AppError::Conflict("joined_late"));
+    }
+    // A question left open in a room that has since dropped to one person waits for company.
+    if active_count(&mut tx, group_id).await? < 2 {
+        return Err(AppError::Conflict("alone"));
+    }
+    // A ranking must place every active member exactly once; its #1 is also stored as the vote.
+    let target_id = if kind == "said" {
+        // Guesses (or an older app's pass); the votes row points at the voter.
+        crate::rounds::said::ballot(&mut tx, round_id, voter_id, target_id, guesses).await?;
+        voter_id
+    } else if (kind == "rank" && ranking.is_none() || kind == "choose" && choices.is_none())
+        && target_id.is_some()
+    {
+        // An app too old to know ranking (or choose) questions sends a single pick: it counts as
+        // voted (nobody waits for them) but adds nothing to the result.
+        target_id.unwrap_or_default()
+    } else if kind == "choose" {
+        // Every active member wired exactly once, to an existing item; the votes row points at the voter.
+        let choices = choices.ok_or(AppError::BadRequest("choices_needed"))?;
+        let count =
+            crate::rounds::model::parse_items(items.as_deref()).map_or(0, |i| i.len()) as i64;
+        let active: Vec<i64> = sqlx::query_scalar(
+            "SELECT id FROM members WHERE group_id = ? AND removed_at IS NULL ORDER BY id",
+        )
+        .bind(group_id)
+        .fetch_all(&mut *tx)
+        .await?;
+        let mut given: Vec<i64> = choices.iter().map(|c| c.member_id).collect();
+        given.sort_unstable();
+        if given != active || choices.iter().any(|c| !(0..count).contains(&c.item)) {
+            return Err(AppError::BadRequest("bad_choices"));
+        }
+        // A ballot left from an earlier seat (left and came back): this one replaces it (a second
+        // vote on the same seat still fails below, rolling this back).
+        clear_ballot(&mut tx, round_id, voter_id).await?;
+        for c in &choices {
+            sqlx::query(
+                "INSERT INTO choices (round_id, voter_id, member_id, item) VALUES (?, ?, ?, ?)",
+            )
+            .bind(round_id)
+            .bind(voter_id)
+            .bind(c.member_id)
+            .bind(c.item)
+            .execute(&mut *tx)
+            .await?;
+        }
+        voter_id
+    } else if kind == "rank" {
+        let ranking = ranking.ok_or(AppError::BadRequest("ranking_needed"))?;
+        let mut active: Vec<i64> = sqlx::query_scalar(
+            "SELECT id FROM members WHERE group_id = ? AND removed_at IS NULL ORDER BY id",
+        )
+        .bind(group_id)
+        .fetch_all(&mut *tx)
+        .await?;
+        let mut given = ranking.clone();
+        given.sort_unstable();
+        active.sort_unstable();
+        if given != active {
+            return Err(AppError::BadRequest("bad_ranking"));
+        }
+        clear_ballot(&mut tx, round_id, voter_id).await?;
+        for (i, member_id) in ranking.iter().enumerate() {
+            sqlx::query(
+                "INSERT INTO rankings (round_id, voter_id, member_id, position) VALUES (?, ?, ?, ?)",
+            )
+            .bind(round_id)
+            .bind(voter_id)
+            .bind(member_id)
+            .bind(i as i64 + 1)
+            .execute(&mut *tx)
+            .await?;
+        }
+        ranking[0]
+    } else {
+        target_id.ok_or(AppError::BadRequest("target_needed"))?
+    };
+    let target_in_group: Option<i64> = sqlx::query_scalar(
+        "SELECT id FROM members WHERE id = ? AND group_id = ? AND removed_at IS NULL",
+    )
+    .bind(target_id)
+    .bind(group_id)
+    .fetch_optional(&mut *tx)
+    .await?;
+    if target_in_group.is_none()
+        || (party.is_some() && !party_player(&mut tx, round_id, target_id).await?)
+    {
+        return Err(AppError::BadRequest("unknown_member"));
+    }
+    let inserted = sqlx::query(
+        "INSERT INTO votes (round_id, voter_id, target_id) VALUES (?, ?, ?) ON CONFLICT DO NOTHING",
+    )
+    .bind(round_id)
+    .bind(voter_id)
+    .bind(target_id)
+    .execute(&mut *tx)
+    .await?;
+    if inserted.rows_affected() == 0 {
+        return Err(AppError::Conflict("already_voted"));
+    }
+
+    crate::rounds::tripot::on_vote(&mut tx, group_id, voter_id).await?;
+    let mut events = vec![Event::VoteCast { round_id, voter_id }];
+    events.extend(close_if_done(&mut tx, group_id, round_id).await?);
+    tx.commit().await?;
+    Ok(events)
+}
+
+/// Drops a member's rank / choose / said ballot on a question (their seat ended, or a new ballot replaces it).
+pub async fn clear_ballot(
+    tx: &mut Transaction<'_, Sqlite>,
+    round_id: i64,
+    voter_id: i64,
+) -> AppResult<()> {
+    for sql in [
+        "DELETE FROM rankings WHERE round_id = ? AND voter_id = ?",
+        "DELETE FROM choices WHERE round_id = ? AND voter_id = ?",
+        "DELETE FROM said_guesses WHERE round_id = ? AND voter_id = ?",
+    ] {
+        sqlx::query(sql)
+            .bind(round_id)
+            .bind(voter_id)
+            .execute(&mut **tx)
+            .await?;
+    }
+    Ok(())
+}
+
+/// Was this member in the party when the question opened?
+pub(crate) async fn party_player(
+    tx: &mut Transaction<'_, Sqlite>,
+    round_id: i64,
+    member_id: i64,
+) -> AppResult<bool> {
+    Ok(sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM party_players WHERE round_id = ? AND member_id = ?)",
+    )
+    .bind(round_id)
+    .bind(member_id)
+    .fetch_one(&mut **tx)
+    .await?)
+}
+
+/// Agreements needed to skip or remove someone: a majority of the other active members
+/// (the target doesn't count), and never one person alone.
+pub fn majority(active: i64) -> i64 {
+    ((active - 1) / 2 + 1).max(2)
+}
+
+/// Majority skips and removals need at least three people: with two, one would decide alone.
+pub fn votes_possible(active: i64) -> bool {
+    active >= 3
+}

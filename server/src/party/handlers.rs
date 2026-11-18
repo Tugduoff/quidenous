@@ -94,7 +94,7 @@ pub(super) async fn create(
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
     let mut created: Option<(i64, String)> = None;
     for _ in 0..8 {
-        let code = crate::rooms::rooms::code_of_len(CODE_LEN);
+        let code = crate::rooms::manage::code_of_len(CODE_LEN);
         let id: Option<i64> = sqlx::query_scalar(concat!(
             "INSERT INTO groups (name, join_code, vibe, language, kind, party_timer, party_ends_at, paused_at) \
              VALUES (?, ?, ?, ?, 'party', ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '+' || ? || ' hours'), ", now!(), ") \
@@ -183,7 +183,7 @@ pub(super) async fn join(
     // Everything checked in the write transaction: joins at the same moment can't beat the cap or
     // take the same name, and a double tap finds the seat the first one took.
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
-    crate::rooms::rooms::still_open(&mut *tx, id).await?;
+    crate::rooms::manage::still_open(&mut *tx, id).await?;
     let existing = match signed_in {
         Some(user) => {
             sqlx::query_as::<_, MemberRow>(
@@ -314,7 +314,7 @@ pub(super) async fn get_state(
     UserId(user): UserId,
     Path(id): Path<i64>,
 ) -> AppResult<Json<Value>> {
-    let me = crate::rooms::rooms::seat(&state, user, id).await?;
+    let me = crate::rooms::manage::seat(&state, user, id).await?;
     Ok(Json(view(&state, id, Some(&me)).await?))
 }
 

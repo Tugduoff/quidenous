@@ -251,7 +251,7 @@ pub async fn challenge(
         return Err(AppError::BadRequest("same_room"));
     }
     let user = me.user_id.ok_or(AppError::Unauthorized)?;
-    let target = crate::rooms::rooms::seat(&state, user, body.room_id).await?;
+    let target = crate::rooms::manage::seat(&state, user, body.room_id).await?;
     if round.closed_at.is_none() {
         return Err(AppError::Conflict("round_open"));
     }

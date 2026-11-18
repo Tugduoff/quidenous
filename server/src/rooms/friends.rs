@@ -18,8 +18,8 @@ use crate::{
     platform::i18n::{self, Text},
     realtime::live::Event,
     realtime::push::{Kind, Notification},
+    rooms::manage::seat,
     rooms::members::COLORS,
-    rooms::rooms::seat,
     rounds::game,
 };
 
@@ -388,7 +388,7 @@ pub async fn add_to_room(
         }
         _ => {}
     }
-    crate::rooms::rooms::seat_free(&state.db, room).await?;
+    crate::rooms::manage::seat_free(&state.db, room).await?;
     // An invitation they accepted before (kept for a double tap, `accept_invite`) gives way to this one.
     sqlx::query(
         "DELETE FROM room_invites WHERE group_id = ? AND user_id = ? AND member_id IS NOT NULL",
@@ -547,12 +547,12 @@ pub async fn accept_invite(
             return Err(AppError::Forbidden("removed"));
         }
         Some((member_id, Some(_), _)) => {
-            crate::rooms::rooms::seat_free(&mut *tx, room).await?;
+            crate::rooms::manage::seat_free(&mut *tx, room).await?;
             crate::rooms::members::rejoin_seat(&mut tx, member_id).await?;
             member_id
         }
         None => {
-            crate::rooms::rooms::seat_free(&mut *tx, room).await?;
+            crate::rooms::manage::seat_free(&mut *tx, room).await?;
             let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM members WHERE group_id = ?")
                 .bind(room)
                 .fetch_one(&mut *tx)

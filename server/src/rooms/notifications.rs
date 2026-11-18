@@ -115,7 +115,7 @@ pub async fn unmute(
 }
 
 async fn set_muted(state: &AppState, user: i64, room: i64, muted: bool) -> AppResult<Json<Value>> {
-    let me = crate::rooms::rooms::seat(state, user, room).await?;
+    let me = crate::rooms::manage::seat(state, user, room).await?;
     sqlx::query("UPDATE members SET muted = ? WHERE id = ?")
         .bind(muted)
         .bind(me.id)

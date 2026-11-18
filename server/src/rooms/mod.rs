@@ -1,11 +1,11 @@
 pub mod anonymous;
 pub mod flow;
 pub mod friends;
+pub mod manage;
 pub mod members;
 pub mod model;
 pub mod notifications;
 pub mod pacing;
-pub mod rooms;
 pub mod vibes;
 
 use axum::{
@@ -28,10 +28,10 @@ pub fn router() -> Router<AppState> {
             "/members/{member_id}/kick",
             put(members::kick).delete(members::unkick),
         )
-        .route("/rooms", get(rooms::list).post(rooms::create))
-        .route("/rooms/join", post(rooms::join))
-        .route("/rooms/preview", get(rooms::preview))
-        .route("/start", post(rooms::start))
+        .route("/rooms", get(manage::list).post(manage::create))
+        .route("/rooms/join", post(manage::join))
+        .route("/rooms/preview", get(manage::preview))
+        .route("/start", post(manage::start))
         .route("/rooms/{id}/add", post(friends::add_to_room))
         .route("/rooms/{id}/invites", get(friends::room_invites))
         .route(
@@ -51,15 +51,15 @@ pub fn router() -> Router<AppState> {
         )
         .route(
             "/rooms/{id}",
-            axum::routing::patch(rooms::update).delete(rooms::delete),
+            axum::routing::patch(manage::update).delete(manage::delete),
         )
-        .route("/rooms/{id}/code", post(rooms::rotate_code))
-        .route("/rooms/{id}/owner", post(rooms::transfer))
-        .route("/rooms/{id}/leave", post(rooms::leave))
+        .route("/rooms/{id}/code", post(manage::rotate_code))
+        .route("/rooms/{id}/owner", post(manage::transfer))
+        .route("/rooms/{id}/leave", post(manage::leave))
         .route("/rooms/{id}/next", post(pacing::launch))
         .route(
             "/rooms/{id}/members/{member_id}",
-            axum::routing::delete(rooms::force_remove),
+            axum::routing::delete(manage::force_remove),
         )
         .route(
             "/notifications",

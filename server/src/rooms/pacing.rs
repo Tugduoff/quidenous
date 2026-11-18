@@ -155,7 +155,7 @@ pub async fn launch(
     UserId(user): UserId,
     Path(room): Path<i64>,
 ) -> AppResult<Json<Value>> {
-    let me = crate::rooms::rooms::seat(&state, user, room).await?;
+    let me = crate::rooms::manage::seat(&state, user, room).await?;
     if me.role != "owner" {
         return Err(AppError::Forbidden("owner_only"));
     }
