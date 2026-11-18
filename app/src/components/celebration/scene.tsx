@@ -1,12 +1,16 @@
 import type { ComponentType, ReactNode } from 'react';
-import { Text, View } from 'react-native';
+import { Text, type TextStyle, View } from 'react-native';
 
+import type { Impact } from '@/lib/hooks/use-shake';
 import { useT } from '@/lib/i18n';
 import type { Milestone } from '@/lib/utils/milestones';
+import type { Rand } from '@/lib/utils/rand';
 import { tidy } from '@/lib/utils/text';
-import { type Theme, themes } from '@/lib/theme';
+import type { Theme } from '@/lib/theme';
 
-import { type Clock, type Impact, type Rand, Reveal } from '@/components/celebration/engine';
+import type { Clock } from '@/components/celebration/engine';
+import { Reveal, Slam } from '@/components/celebration/motion';
+import { BigNumber } from '@/components/celebration/numbers';
 
 export type SceneProps = {
   clock: Clock;
@@ -34,11 +38,6 @@ export type Scene = {
 };
 
 export type SceneFactory = (m: Milestone, t: Theme) => Scene;
-
-/** Confetti colours around the room's accent. */
-export const party = (t: Theme) =>
-  [t.acc, '#FF4FA3', '#5AC8FA', '#FFB547', '#B48CFF', t.bg === themes.light.bg ? '#121216' : '#FFFFFF'].filter((c, i, xs) => xs.indexOf(c) === i);
-export const GOLD = ['#FFD54A', '#FFB300', '#FFF1B8', '#E8A317', '#FFE082'] as const;
 
 /** Font size of the big number for this many digits. */
 export const numberSize = (n: number) => (String(n).length > 3 ? 104 : 128);
@@ -89,5 +88,46 @@ export function Headline({
         </Reveal>
       </View>
     </>
+  );
+}
+
+/** The usual finale: the milestone's number slams down at `slam`, its headline revealed at `at`. */
+export function SlamNumber({
+  clock,
+  m,
+  t,
+  slam,
+  at,
+  cy,
+  size,
+  color,
+  glow,
+  ink,
+  sub,
+  from,
+  fall,
+  style,
+}: {
+  clock: Clock;
+  m: Milestone;
+  t: Theme;
+  slam: number;
+  at: number;
+  cy: number;
+  size: number;
+  color: string;
+  glow?: string;
+  ink?: string;
+  sub?: string;
+  from?: number;
+  fall?: number;
+  style?: TextStyle;
+}) {
+  return (
+    <Headline clock={clock} m={m} t={t} at={at} cy={cy} box={size * 1.1} ink={ink} sub={sub}>
+      <Slam clock={clock} at={slam} from={from} fall={fall}>
+        <BigNumber value={m.n} size={size} color={color} font={t.font.display} glow={glow} style={style} />
+      </Slam>
+    </Headline>
   );
 }
