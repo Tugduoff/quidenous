@@ -12,7 +12,7 @@ import { Screen } from '@/components/ui/screen';
 import { communityError, type Suggestion, SUGGESTION_MAX, SUGGESTION_MIN, type SuggestionVote, useMySuggestions, useNextSuggestions, useSuggest, useVoteSuggestion, VOTE_KEY } from '@/lib/api/community';
 import { useT } from '@/lib/i18n';
 import { EASE, motion, SPRING } from '@/lib/motion';
-import { sendOnEnter } from '@/lib/utils/submit';
+import { sendOnEnter } from '@/components/ui/send-on-enter';
 import { useTheme } from '@/lib/theme';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Card } from '@/components/ui/card';

@@ -13,7 +13,7 @@ import { activeMention, everyone, matches, outgoing, segments } from '@/lib/util
 import { useBlocks } from '@/lib/api/moderation';
 import { motion, useArrivals } from '@/lib/motion';
 import { useReact, type Message, useMessages, chatKeys, deleteMessage, restoreMessage, postMessage, type NewMessage } from '@/lib/api/chat';
-import { sendOnEnter } from '@/lib/utils/submit';
+import { sendOnEnter } from '@/components/ui/send-on-enter';
 import { useSession } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
 import { PressableScale } from '@/components/ui/pressable-scale';

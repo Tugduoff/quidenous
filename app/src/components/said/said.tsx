@@ -17,7 +17,7 @@ import { useT } from '@/lib/i18n';
 import { BOUNCE, EASE, LAYOUT_EASE, motion, usePop } from '@/lib/motion';
 import { ANSWER_MAX, ANSWER_WARN, guessGroups, initMatch, isComplete, type Match, type MatchAction, matchReducer, pickLine, placed, type RevealItem, revealItems, suspects as suspectIds, toGuess, toGuesses, places } from '@/lib/utils/said';
 import { storage } from '@/lib/device/storage';
-import { sendOnEnter } from '@/lib/utils/submit';
+import { sendOnEnter } from '@/components/ui/send-on-enter';
 import { useTheme } from '@/lib/theme';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Avatar, AvatarStack } from '@/components/ui/avatar';

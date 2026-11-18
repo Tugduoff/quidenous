@@ -1,195 +1,39 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowRight, Bell, BellOff, BellRing, Check, Eye, EyeOff, ChevronDown, ChevronsRight, Inbox, Moon, Pin, RotateCcw, Share2, SkipForward, Users } from 'lucide-react-native';
-import { Redirect, router } from 'expo-router';
-import { type ComponentRef, type ReactNode, useEffect, useRef, useState } from 'react';
-import { enablePush, pushState, refreshPush, type PushState } from '@/lib/device/web-push';
-import { Pressable, type ScrollView, Text, View } from 'react-native';
+import { BellRing, Check, Eye, EyeOff, Moon, RotateCcw, SkipForward } from 'lucide-react-native';
+import { Redirect } from 'expo-router';
+import { type ReactNode, useEffect, useState } from 'react';
+import { Text, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
-import { ChallengeButton, Challenges } from '@/components/community/challenge';
-import { useSecretPicker } from '@/components/celebration';
-import { ChatInput, ChatMessages } from '@/components/chat/chat';
-import { ChooseBallot, ChooseResult, myRealChoice } from '@/components/choose/choose';
-import { SaidResultView, SaidRound } from '@/components/said/said';
-import { GlobalCard } from '@/components/global/global';
+import { ChooseBallot, myRealChoice } from '@/components/choose/choose';
+import { SaidRound } from '@/components/said/said';
 import { BIG_GROUP, gridColumns, MemberGrid, MemberTile } from '@/components/vote/member-grid';
-import { AnonymousBadge } from '@/components/vote/anonymous';
-import { RankResult, ResultBars, ResultSummary } from '@/components/result/result-bars';
-import { LiveReactions } from '@/components/result/live-reactions';
 import { QueryState } from '@/components/ui/query-state';
 import { Screen } from '@/components/ui/screen';
-import { SecureCard } from '@/components/security/secure-card';
-import { RoomStreak, StreakBadge } from '@/components/streaks/streaks';
+import { StreakBadge } from '@/components/streaks/streaks';
 import { Tip } from '@/components/ui/tip';
-import { BetRow, TripotResult } from '@/components/tripot/tripot';
+import { BetRow } from '@/components/tripot/tripot';
 import { NextGate } from '@/components/vote/next-gate';
 import { NoQuestions, SoloInvite } from '@/components/vote/vote-empty';
 import { Mascot } from '@/components/mascot/mascot';
 import { ApiError } from '@/lib/api/client';
-import { showToast } from '@/lib/toast';
-import { getLang, t as translate, useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n';
 import { EASE, motion, usePop } from '@/lib/motion';
-import { ordinal, tidy } from '@/lib/utils/text';
+import { ordinal } from '@/lib/utils/text';
 import { useSession } from '@/lib/session';
 import { setHideVote, useHideVote } from '@/lib/device/prefs';
-import { confirmPublic, shareText } from '@/lib/device/share';
 import { useTheme } from '@/lib/theme';
 import { useLandOnToday } from '@/lib/hooks/use-today-tab';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Avatar, AvatarStack } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Tag, TAG_BG } from '@/components/ui/tag';
 import { Card } from '@/components/ui/card';
-import { Display, Logo } from '@/components/ui/text';
-import { askConfirm } from '@/lib/confirm';
 import { ConfirmModal, Dialog } from '@/components/ui/dialog';
-import { BackButton } from '@/components/ui/back-button';
 import { type Member, useGroup, useMembers, groupKeys } from '@/lib/api/group';
-import { type Round, useCurrentRound, useRound, useUnseenRound, roundKeys, markRoundSeen, retireRoundQuestion, voteCurrent, nudgeMember, setSkip, setRoundPinned } from '@/lib/api/rounds';
-import { useInbox } from '@/lib/api/inbox';
+import { type Round, useCurrentRound, useUnseenRound, roundKeys, markRoundSeen, voteCurrent, nudgeMember, setSkip } from '@/lib/api/rounds';
 import { useRooms } from '@/lib/api/rooms';
-import { historyKeys } from '@/lib/api/history';
-import { questionMessage, resultMessage } from '@/lib/links';
-import { authError } from '@/lib/api/errors';
-import { useFeatures } from '@/lib/api/features';
-import { publicLink } from '@/lib/api/share';
-
-function PushBell() {
-  const t = useTheme();
-  const tr = useT();
-  const [state, setState] = useState<PushState>(pushState);
-  useEffect(() => {
-    refreshPush().catch(() => {});
-  }, []);
-  // Only shown while notifications can still be turned on.
-  if (state === 'unsupported' || state === 'granted') return null;
-  const denied = state === 'denied';
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={tr('vote.header.enablePush')}
-      disabled={denied}
-      onPress={() =>
-        enablePush()
-          .then(setState)
-          .catch(() => setState(pushState()))
-      }
-      hitSlop={4}
-      style={{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: denied ? t.card : t.acc }}>
-      {denied ? <BellOff size={18} color={t.mut} /> : <Bell size={18} color={t.accTxt} />}
-    </Pressable>
-  );
-}
-
-/** Which room I'm in; tap to switch, create or join one. */
-function RoomPill() {
-  const t = useTheme();
-  const tr = useT();
-  const { data: group } = useGroup();
-  const secret = useSecretPicker();
-  if (!group) return null;
-  return (
-    <>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={tr('vote.header.room', { name: group.name })}
-        onPress={() => router.push('/rooms')}
-        onLongPress={secret.onLongPress}
-        hitSlop={6}
-        style={{ flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', maxWidth: '100%', flexShrink: 1 }}>
-        <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: t.font.semibold, fontSize: 14, color: t.mut }}>
-          {group.name}
-        </Text>
-        <ChevronDown size={14} color={t.mut} />
-      </Pressable>
-      {secret.picker}
-    </>
-  );
-}
-
-/** The in-app notifications, with a badge for what I have not seen. */
-function InboxButton() {
-  const t = useTheme();
-  const tr = useT();
-  const { data } = useInbox();
-  const unread = data?.unread ?? 0;
-  return (
-    <PressableScale
-      accessibilityRole="button"
-      accessibilityLabel={unread ? tr('vote.header.inboxUnread', { count: unread }) : tr('vote.header.inbox')}
-      onPress={() => router.push('/inbox')}
-      hitSlop={4}
-      style={[{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card }, t.shadow]}>
-      <Inbox size={18} color={t.txt} />
-      {unread > 0 && (
-        <View
-          style={{
-            position: 'absolute',
-            top: -3,
-            right: -3,
-            minWidth: 18,
-            height: 18,
-            paddingHorizontal: 4,
-            borderRadius: 9,
-            backgroundColor: TAG_BG,
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}>
-          <Text style={{ fontFamily: t.font.bold, fontSize: 10, color: '#fff' }}>{unread > 9 ? '9+' : unread}</Text>
-        </View>
-      )}
-    </PressableScale>
-  );
-}
-
-/** Opens the group page (members, and later invites and settings). */
-function GroupButton() {
-  const t = useTheme();
-  const tr = useT();
-  return (
-    <PressableScale
-      accessibilityRole="button"
-      accessibilityLabel={tr('vote.header.group')}
-      onPress={() => router.push('/group')}
-      hitSlop={4}
-      style={[{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card }, t.shadow]}>
-      <Users size={18} color={t.txt} />
-    </PressableScale>
-  );
-}
-
-function Header() {
-  return (
-    <>
-      <HeaderBar />
-      <SecureCard />
-      <GlobalCard />
-    </>
-  );
-}
-
-function HeaderBar() {
-  const tr = useT();
-  const { me } = useSession();
-  return (
-    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-      <View style={{ gap: 4, flexShrink: 1 }}>
-        <Logo />
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <RoomPill />
-          <RoomStreak />
-        </View>
-      </View>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-        <GroupButton />
-        <InboxButton />
-        <PushBell />
-        <Pressable accessibilityRole="button" accessibilityLabel={tr('vote.header.profile')} onPress={() => router.push('/profile')}>
-          <Avatar member={me ?? undefined} size={36} />
-        </Pressable>
-      </View>
-    </View>
-  );
-}
+import { Result } from '@/components/result/result';
+import { Question } from '@/components/vote/question';
+import { Header } from '@/components/vote/header';
 
 export default function VoteScreen() {
   const { byId, members } = useMembers();
@@ -250,90 +94,6 @@ export default function VoteScreen() {
   if (round.my_vote != null) return <Waiting round={round} byId={byId} members={members} />;
   return <Ballot key={round.id} round={round} members={members} byId={byId} onVoted={() => qc.invalidateQueries({ queryKey: roundKeys.unseen })} />;
 }
-
-// The last question shown to vote on, so it slides in only when a new one opens (not when Ballot turns into Waiting).
-let lastQuestion: number | null = null;
-
-function Question({ round, result }: { round: Round; result?: boolean }) {
-  const t = useTheme();
-  const tr = useT();
-  const [fresh] = useState(() => !result && round.id !== lastQuestion);
-  useEffect(() => {
-    if (!result) lastQuestion = round.id;
-  }, [result, round.id]);
-  const { byId } = useMembers();
-  const qc = useQueryClient();
-  const { data: group } = useGroup();
-  const { moderation } = useFeatures();
-  // The owner can take an abusive question of the room out of its result (long-press on the question).
-  const retire =
-    result && round.custom && moderation && group?.my_role === 'owner'
-      ? async () => {
-          if (!(await askConfirm(translate('vote.retireAsk'), translate('vote.retireMessage'), translate('vote.retireAction')))) return;
-          await retireRoundQuestion(round.id).catch((e) => showToast(authError(e)));
-          qc.invalidateQueries({ queryKey: roundKeys.all });
-          qc.invalidateQueries({ queryKey: historyKeys.all });
-        }
-      : undefined;
-  const [copied, setCopied] = useState(false);
-  const share = async () => {
-    // The link opens a page whose preview is a picture of the card (the result's podium too, once out).
-    if (!(await confirmPublic())) return;
-    const link = await publicLink(round.id, !!result);
-    const text = result ? resultMessage(round, byId) : questionMessage(round);
-    const outcome = await shareText(link ? `${text.split('\n').slice(0, -1).join('\n')}\n${link}` : text);
-    if (outcome === 'copied') {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1800);
-    }
-  };
-  return (
-    <Animated.View entering={fresh ? motion.question : undefined} style={{ gap: 14 }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 }}>
-          <Tag label={`${tr(kindLabel(round, result))} · #${round.number}`} tone={result ? 'acc' : 'tag'} />
-          {round.anonymous && <AnonymousBadge />}
-        </View>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          {result && <ChallengeButton round={round} />}
-          <PressableScale
-            accessibilityRole="button"
-            accessibilityLabel={tr(copied ? 'vote.linkCopied' : result ? 'vote.shareResult' : 'vote.shareQuestion')}
-            onPress={share}
-            hitSlop={8}
-            style={{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card }}>
-            {copied ? <Check size={18} color={t.accInk} /> : <Share2 size={18} color={t.txt} />}
-          </PressableScale>
-        </View>
-      </View>
-      <View style={{ gap: 6 }}>
-        <Pressable disabled={!retire} onLongPress={retire} delayLongPress={500} accessibilityHint={retire ? tr('vote.retireHint') : undefined}>
-          <Display size={result ? 28 : 34}>{tidy(round.question)}</Display>
-        </Pressable>
-        {/* A deck question that came from someone's suggestion. */}
-        {!!round.suggested_by && (
-          <Text numberOfLines={1} style={{ fontFamily: t.font.regular, fontSize: 13, color: t.mut }}>
-            {tr('community.credit', { name: round.suggested_by })}
-          </Text>
-        )}
-      </View>
-    </Animated.View>
-  );
-}
-
-/** The tag over a question: its kind (a choose or ranking question says so even when it's ours), or "Résultat". */
-const kindLabel = (round: Round, result?: boolean) =>
-  result
-    ? 'vote.kind.result'
-    : round.kind === 'rank'
-      ? 'vote.kind.rank'
-      : round.kind === 'choose'
-        ? 'vote.kind.choose'
-        : round.kind === 'said'
-          ? 'vote.kind.said'
-          : round.custom
-            ? 'vote.kind.custom'
-            : 'vote.kind.pick';
 
 /** First-run hint on the ballot: how a question ends. */
 function VoteTip() {
@@ -865,177 +625,5 @@ function Progress({ value }: { value: number }) {
     <View style={{ height: 6, borderRadius: 3, backgroundColor: t.card2, overflow: 'hidden' }}>
       <Animated.View style={[{ height: 6, borderRadius: 3, backgroundColor: t.acc }, width]} />
     </View>
-  );
-}
-
-/** Back arrow (and pin) that replace the header when a result is opened from the history. */
-function BackHeader({ onBack, round }: { onBack: () => void; round?: Round }) {
-  const t = useTheme();
-  const tr = useT();
-  const qc = useQueryClient();
-  const pin = useMutation({
-    mutationFn: (pinned: boolean) => setRoundPinned(round!.id, pinned),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: roundKeys.detail(round!.id) });
-      qc.invalidateQueries({ queryKey: historyKeys.pinned });
-    },
-  });
-  // Show the state being asked for right away; the server echo confirms it.
-  const pinned = pin.isPending ? pin.variables : round?.pinned;
-  return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-      <BackButton onPress={onBack} />
-      {round && (
-        <PressableScale
-          accessibilityRole="button"
-          accessibilityLabel={tr(pinned ? 'vote.unpin' : 'vote.pin')}
-          onPress={() => pin.mutate(!pinned)}
-          disabled={pin.isPending}
-          hitSlop={8}
-          style={{
-            width: 40,
-            height: 40,
-            borderRadius: 20,
-            alignItems: 'center',
-            justifyContent: 'center',
-            backgroundColor: pinned ? t.accSoft : t.card,
-          }}>
-          <Pin size={18} color={pinned ? t.accInk : t.txt} fill={pinned ? t.accInk : 'none'} />
-        </PressableScale>
-      )}
-    </View>
-  );
-}
-
-export function Result({
-  roundId,
-  byId,
-  onNext,
-  onBack,
-  gate,
-  skip,
-}: {
-  roundId: number;
-  byId: Map<number, Member>;
-  onNext?: () => void;
-  onBack?: () => void;
-  /** Shown instead of "Suivante" while a paced room waits for its next question. */
-  gate?: ReactNode;
-  /** Several results waiting: "Tout passer" next to "Suivante" marks them all seen. */
-  skip?: { count: number; onPress: () => void };
-}) {
-  const t = useTheme();
-  const tr = useT();
-  const roundQuery = useRound(roundId);
-  const { data: round } = roundQuery;
-  const { me } = useSession();
-  const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
-  // One scroll for the whole page (no box inside a box). Where the full result ends, and whether
-  // it has scrolled out of sight: then its one-line summary stays pinned on top.
-  const resultEnd = useRef(0);
-  const [away, setAway] = useState(false);
-  // Follow the newest message while the bottom is in view, and right after I write or send one.
-  const follow = useRef(false);
-  const toEnd = () => {
-    follow.current = true;
-    // After the keyboard has opened (and the page shrunk), not before.
-    setTimeout(() => scroll.current?.scrollToEnd({ animated: true }), 300);
-  };
-  const header = onBack ? <BackHeader onBack={onBack} round={round ?? undefined} /> : <Header />;
-  const nextButton = onNext && (
-    <Button onPress={onNext} style={skip && { flex: 1 }}>
-      <Text style={{ fontFamily: t.font.bold, fontSize: 17, color: t.accTxt }}>{tr('vote.next')}</Text>
-      <ArrowRight size={20} color={t.accTxt} />
-    </Button>
-  );
-  const next =
-    gate ??
-    (skip && nextButton ? (
-      <View style={{ flexDirection: 'row', gap: 10 }}>
-        <PressableScale
-          accessibilityRole="button"
-          accessibilityLabel={tr('vote.skipAll.a11y', { count: skip.count })}
-          onPress={skip.onPress}
-          style={{
-            height: 58,
-            borderRadius: 999,
-            paddingHorizontal: 18,
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 6,
-            backgroundColor: t.card2,
-          }}>
-          <ChevronsRight size={18} color={t.txt} />
-          <Text style={{ fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>{tr('vote.skipAll.label')}</Text>
-          <Text style={{ fontFamily: t.font.display, fontSize: 15, color: t.mut, fontVariant: ['tabular-nums'] }}>{skip.count}</Text>
-        </PressableScale>
-        {nextButton}
-      </View>
-    ) : (
-      nextButton
-    ));
-  // Not loaded (or failed): "Suivante" stays, so an unseen result never blocks the next question.
-  if (!round?.result && !round?.choose && !round?.said?.result)
-    return (
-      <Screen tabs={!onBack} footer={roundQuery.isLoading ? undefined : next}>
-        {header}
-        <QueryState query={roundQuery} />
-      </Screen>
-    );
-  return (
-    <Screen
-      // Opened from the history, the screen has no tab bar to keep it clear of the iPhone home bar.
-      tabs={!onBack}
-      scroller={scroll}
-      onScroll={({ contentOffset, layoutMeasurement, contentSize }) => {
-        setAway(resultEnd.current > 0 && contentOffset.y > resultEnd.current - 24);
-        follow.current = contentOffset.y + layoutMeasurement.height >= contentSize.height - 80;
-      }}
-      onContentSizeChange={() => follow.current && scroll.current?.scrollToEnd({ animated: true })}
-      overlay={
-        away && (
-          <Animated.View entering={motion.drop} exiting={motion.exit} style={{ position: 'absolute', top: 8, left: 20, right: 20 }}>
-            <ResultSummary
-              result={round.result ?? []}
-              ranking={round.ranking}
-              choose={round.choose}
-              said={round.kind === 'said' ? round.said?.result : undefined}
-              byId={byId}
-              onPress={() => {
-                follow.current = false;
-                scroll.current?.scrollTo({ y: 0, animated: true });
-              }}
-            />
-          </Animated.View>
-        )
-      }
-      footer={
-        <>
-          <ChatInput roundId={round.id} onFocus={toEnd} onSent={toEnd} />
-          {next}
-        </>
-      }>
-      {header}
-      <View
-        style={{ gap: 16 }}
-        onLayout={({ nativeEvent: { layout } }) => {
-          resultEnd.current = layout.y + layout.height;
-        }}>
-        <Question round={round} result />
-        {round.kind === 'said' && round.said?.result ? (
-          <SaidResultView roundId={round.id} said={round.said} byId={byId} me={me?.id} />
-        ) : round.kind === 'choose' && round.choose ? (
-          <ChooseResult round={round} data={round.choose} byId={byId} />
-        ) : round.ranking ? (
-          <RankResult ranking={round.ranking} byId={byId} mine={round.my_ranking} />
-        ) : (
-          <ResultBars result={round.result ?? []} byId={byId} anonymous={round.anonymous} />
-        )}
-      </View>
-      <LiveReactions roundId={round.id} byId={byId} />
-      <TripotResult round={round} byId={byId} />
-      <Challenges roundId={round.id} />
-      <ChatMessages roundId={round.id} />
-    </Screen>
   );
 }

@@ -19,7 +19,7 @@ import { motion, useArrivals } from '@/lib/motion';
 import { useSession } from '@/lib/session';
 import { tidy } from '@/lib/utils/text';
 import { useTheme } from '@/lib/theme';
-import { sendOnEnter } from '@/lib/utils/submit';
+import { sendOnEnter } from '@/components/ui/send-on-enter';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Avatar } from '@/components/ui/avatar';
 import { Card } from '@/components/ui/card';

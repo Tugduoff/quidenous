@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { Celebration } from '@/components/celebration';
 import { isMilestone } from '@/lib/utils/milestones';
-import { Result } from '@/app/(tabs)/index';
+import { Result } from '@/components/result/result';
 import { useMembers } from '@/lib/api/group';
 import { useRound } from '@/lib/api/rounds';
 
