@@ -90,3 +90,6 @@ export function parseQuestions(content: string): DraftLine[] {
       return { line, text, rank, kind, items, anonymous, selected: !problem, problem };
     });
 }
+
+export const QUESTION_MIN = MIN;
+export const QUESTION_MAX = MAX;
