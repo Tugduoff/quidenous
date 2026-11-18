@@ -3,7 +3,7 @@
 // room's pieces (components/said.tsx); the party's own calls are in lib/party.ts.
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Check, Hourglass, RotateCcw } from 'lucide-react-native';
-import { memo, type ReactNode, useCallback, useEffect, useMemo, useState, useEffectEvent } from 'react';
+import { memo, type ReactNode, useCallback, useMemo, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { Mascot } from '@/components/mascot/mascot';
@@ -27,6 +27,7 @@ import type { Member } from '@/lib/api/group';
 import type { SaidAnswer, SaidGuess, SaidView } from '@/lib/api/rounds';
 import { useFeatures } from '@/lib/api/features';
 import { useCountdown } from '@/lib/hooks/use-countdown';
+import { useScreenStep } from '@/lib/hooks/use-party';
 import { useRefetchAtZero } from '@/lib/hooks/use-refetch-at-zero';
 import { phaseSeconds } from '@/lib/utils/party';
 
@@ -424,37 +425,6 @@ const ScreenAnswer = memo(function ScreenAnswer({
     </Animated.View>
   );
 });
-
-/**
- * Where the big screen's reveal is: the step (an answer) or `steps.length` (the scoreboard), from the time since the
- * question closed on the server's clock. So a screen opened late, or reloaded, catches up, and two screens agree.
- */
-function useScreenStep(closedAt: string | null, clock: number, steps: number[]) {
-  const key = steps.join(',');
-  const [step, setStep] = useState(() => stepAt(closedAt, clock, steps).step);
-  const stepNow = useEffectEvent(() => stepAt(closedAt, clock, steps));
-  useEffect(() => {
-    let timer: ReturnType<typeof setTimeout>;
-    const tick = () => {
-      const now = stepNow();
-      setStep(now.step);
-      if (now.left != null) timer = setTimeout(tick, now.left + 30);
-    };
-    tick();
-    return () => clearTimeout(timer);
-  }, [closedAt, clock, key]);
-  return step;
-}
-
-function stepAt(closedAt: string | null, clock: number, steps: number[]): { step: number; left: number | null } {
-  const start = Date.parse(closedAt ?? '');
-  let elapsed = Number.isFinite(start) ? Math.max(0, Date.now() + clock - start) : 0;
-  for (let i = 0; i < steps.length; i++) {
-    if (elapsed < steps[i]) return { step: i, left: steps[i] - elapsed };
-    elapsed -= steps[i];
-  }
-  return { step: steps.length, left: null };
-}
 
 /** The big screen's said result: the authors one by one, then the scoreboard (and the reactions coming in). */
 export function SaidScreenResult({

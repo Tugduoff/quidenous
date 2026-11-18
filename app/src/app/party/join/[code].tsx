@@ -1,7 +1,7 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowRight, Check, PartyPopper } from 'lucide-react-native';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { ActivityIndicator, Pressable, Text, TextInput, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { Screen } from '@/components/ui/screen';
@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Display, Logo, ErrorText, TextLink } from '@/components/ui/text';
 import { setPendingCode } from '@/lib/auth-flow';
+import { useRedirect } from '@/lib/hooks/use-redirect';
 
 /** The avatar backgrounds people already pick from, minus the dark one (the initial drawn on it would not show). */
 const COLORS = PARTS.bg.map(([c]) => c).filter((c) => c.toUpperCase() !== '#2E2E38');
@@ -45,9 +46,7 @@ export default function JoinParty() {
   const [other, setOther] = useState('');
 
   // Once the session is in that party (a guest's goes from signed out to in), on to its screen.
-  useEffect(() => {
-    if (target != null && token && room === target) router.replace(`/party/${target}`);
-  }, [target, token, room]);
+  useRedirect(target != null && token && room === target ? `/party/${target}` : null);
 
   const join = useMutation({
     meta: { quiet: true },

@@ -16,3 +16,13 @@ export function phaseSeconds(round: Pick<PartyRound, 'opened_at' | 'deadline_at'
 /** A result as the shared result bars draw it. */
 export const tallies = (round: PartyRound): Tally[] =>
   (round.results ?? []).map((r) => ({ target_id: r.member_id, count: r.votes, voter_ids: r.voters })).sort((a, b) => b.count - a.count);
+
+export function stepAt(closedAt: string | null, clock: number, steps: number[], now: number): { step: number; left: number | null } {
+  const start = Date.parse(closedAt ?? '');
+  let elapsed = Number.isFinite(start) ? Math.max(0, now + clock - start) : 0;
+  for (let i = 0; i < steps.length; i++) {
+    if (elapsed < steps[i]) return { step: i, left: steps[i] - elapsed };
+    elapsed -= steps[i];
+  }
+  return { step: steps.length, left: null };
+}

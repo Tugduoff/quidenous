@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Check, ChevronLeft, ChevronRight, Copy, Ellipsis, ExternalLink, Hourglass, Lock, LockOpen, LogOut, Monitor, Share2, Square, UserPlus } from 'lucide-react-native';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { ActivityIndicator, Linking, Platform, Pressable, Text, useWindowDimensions, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { Mascot } from '@/components/mascot/mascot';
@@ -12,13 +12,14 @@ import { PartySaidResult, PartySaidVoting, saidBoardKey } from '@/components/par
 import { ResultBars } from '@/components/result/result-bars';
 import { Screen } from '@/components/ui/screen';
 import { showToast } from '@/lib/toast';
-import { ApiError, setApiRoom } from '@/lib/api/client';
+import { ApiError } from '@/lib/api/client';
 import { dateFormat, useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
 import { type Party, partyApi, partyKeys, partyError, type PartyRound, TIMERS, useParty, useSetParty, usePartyMemory } from '@/lib/api/party';
 import { tidy } from '@/lib/utils/text';
 import { useRoomGone, useSwitchRoom } from '@/lib/hooks/use-switch-room';
-import { useSession } from '@/lib/session';
+import { useEnterPartyRoom } from '@/lib/hooks/use-party';
+import { useRedirect } from '@/lib/hooks/use-redirect';
 import { shareText } from '@/lib/device/share';
 import { useTheme } from '@/lib/theme';
 import { PressableScale } from '@/components/ui/pressable-scale';
@@ -45,25 +46,15 @@ export default function PartyScreen() {
   const tr = useT();
   const { id: raw } = useLocalSearchParams<{ id: string }>();
   const id = Number(raw);
-  const qc = useQueryClient();
-  const { room, setRoom } = useSession();
   const party = useParty(id);
   const p = party.data;
   const loaded = !!p;
 
-  // This party becomes the current room: the live socket follows it, and its memory reads its history.
-  useEffect(() => {
-    if (!loaded || room === id) return;
-    setApiRoom(id);
-    qc.removeQueries({ predicate: (q) => q.queryKey[0] !== 'party' });
-    setRoom(id);
-  }, [loaded, room, id, qc, setRoom]);
+  useEnterPartyRoom(id, loaded);
 
   // Turned into a normal room ("Continuer en salon"): the room's usual screens take over.
   const gone = party.error instanceof ApiError && [404, 409].includes(party.error.status);
-  useEffect(() => {
-    if (p?.kind === 'room' || (loaded && gone)) router.replace('/');
-  }, [p?.kind, loaded, gone]);
+  useRedirect(p?.kind === 'room' || (loaded && gone) ? '/' : null);
 
   if (!p)
     return (

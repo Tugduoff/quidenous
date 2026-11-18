@@ -1,7 +1,7 @@
 import { useMutation } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { PartyPopper } from 'lucide-react-native';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Text, TextInput, View } from 'react-native';
 import { Screen } from '@/components/ui/screen';
 import { VibeCards } from '@/components/rooms/vibes';
@@ -25,14 +25,12 @@ export default function NewParty() {
   const { data: vibes } = useVibes(features.vibes);
   const switchRoom = useSwitchRoom();
   const [name, setName] = useState('');
-  const [vibe, setVibe] = useState<string | null>(null);
+  const [picked, setVibe] = useState<string | null>(null);
   const [hours, setHours] = useState('4');
   const [timer, setTimer] = useState('30');
   const [error, setError] = useState<string | null>(null);
   // The usual tone until another one is picked.
-  useEffect(() => {
-    if (vibes?.length && vibe == null) setVibe(vibes.find((v) => v.id === 'potes')?.id ?? vibes[0].id);
-  }, [vibes, vibe]);
+  const vibe = picked ?? (vibes?.length ? (vibes.find((v) => v.id === 'potes')?.id ?? vibes[0].id) : null);
 
   const create = useMutation({
     meta: { quiet: true },

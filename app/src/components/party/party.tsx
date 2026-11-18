@@ -1,8 +1,8 @@
 import { Check, Crown } from 'lucide-react-native';
-import { type ReactNode, useEffect } from 'react';
+import { type ReactNode } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
-import Animated, { Easing, FadeInDown, FadeInUp, LayoutAnimationConfig, ReduceMotion, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withTiming, ZoomIn } from 'react-native-reanimated';
+import Animated, { FadeInDown, FadeInUp, LayoutAnimationConfig, ReduceMotion, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withTiming, ZoomIn } from 'react-native-reanimated';
 import { useT } from '@/lib/i18n';
 import { EASE, LAYOUT_EASE, motion, useArrivals } from '@/lib/motion';
 import { type PartyPlayer, type PartyRound, REACTIONS } from '@/lib/api/party';
@@ -12,6 +12,8 @@ import { Avatar, AvatarStack } from '@/components/ui/avatar';
 import type { Member } from '@/lib/api/group';
 import { partyJoinLink } from '@/lib/links';
 import { tallies } from '@/lib/utils/party';
+import { useAnimateOnChange } from '@/lib/hooks/use-animate-on-change';
+import { useCountdownBar } from '@/lib/hooks/use-party';
 
 /** The join QR code on its white tile. */
 export function JoinQr({ code, size }: { code: string; size: number }) {
@@ -30,15 +32,7 @@ export function Countdown({ ms, total, big }: { ms: number | null; total: number
   // `ms` changes once a second; the bar runs down to where it will be at the next change.
   const frac = ms == null ? 1 : Math.min(1, ms / Math.max(1, total * 1000));
   const next = ms == null ? 1 : Math.min(1, Math.max(0, ms - 1000) / Math.max(1, total * 1000));
-  const w = useSharedValue(frac);
-  useEffect(() => {
-    // The bar is the clock itself, so it moves under reduced motion too, only in steps.
-    if (reduced || ms == null) w.value = frac;
-    else {
-      w.value = frac;
-      w.value = withTiming(next, { duration: 1000, easing: Easing.linear, reduceMotion: ReduceMotion.Never });
-    }
-  }, [frac, next, ms, reduced, w]);
+  const w = useCountdownBar(frac, next, !reduced && ms != null);
   const bar = useAnimatedStyle(() => ({ transform: [{ scaleX: w.value }] }));
   const s = ms == null ? null : Math.ceil(ms / 1000);
   const urgent = s != null && s <= 5;
@@ -154,9 +148,7 @@ const fallback = (id: number): Member => ({ id, name: '?', color: '#8D8D99', pho
 function Burst({ color, size, delay, children }: { color: string; size: number; delay: number; children: ReactNode }) {
   const reduced = useReducedMotion();
   const p = useSharedValue(0);
-  useEffect(() => {
-    if (!reduced) p.value = withDelay(delay, withTiming(1, { duration: 900, easing: EASE }));
-  }, [delay, reduced, p]);
+  useAnimateOnChange(p, [delay, reduced], () => (reduced ? undefined : withDelay(delay, withTiming(1, { duration: 900, easing: EASE }))));
   const ring = useAnimatedStyle(() => ({ opacity: p.value === 0 ? 0 : 0.6 * (1 - p.value), transform: [{ scale: 1 + p.value * 0.7 }] }));
   return (
     <View style={{ width: size, height: size }}>
@@ -222,9 +214,7 @@ export function NextButton({ round, owner, busy, onPress }: { round: PartyRound;
   const needed = Math.max(1, round.next?.needed ?? 1);
   const mine = !!round.next?.mine;
   const fill = useSharedValue(Math.min(1, taps / needed));
-  useEffect(() => {
-    fill.value = withTiming(Math.min(1, taps / needed), { duration: 300, easing: EASE, reduceMotion: sys });
-  }, [taps, needed, fill]);
+  useAnimateOnChange(fill, [taps, needed], () => withTiming(Math.min(1, taps / needed), { duration: 300, easing: EASE, reduceMotion: sys }));
   const bar = useAnimatedStyle(() => ({ transform: [{ scaleX: fill.value }] }));
   const solid = owner;
   const ink = solid ? t.accTxt : t.txt;
