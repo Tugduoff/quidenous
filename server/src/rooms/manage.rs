@@ -16,6 +16,7 @@ use crate::{
     platform::i18n::Lang,
     realtime::live::Event,
     realtime::notify::notify_round,
+    rooms::access::{RoomMember, RoomOwner},
     rooms::members::COLORS,
     rooms::members::remove_member,
     rooms::model::{Member, MemberRow, Role},
@@ -89,27 +90,6 @@ fn clean_room_name(name: &str) -> AppResult<String> {
         return Err(AppError::BadRequest("bad_room_name"));
     }
     Ok(name)
-}
-
-/// My active seat in a room that still exists.
-pub async fn seat(state: &AppState, user_id: UserId, room: RoomId) -> AppResult<MemberRow> {
-    sqlx::query_as::<_, MemberRow>(
-        "SELECT m.* FROM members m JOIN groups g ON g.id = m.group_id AND g.deleted_at IS NULL \
-         WHERE m.user_id = ? AND m.group_id = ? AND m.removed_at IS NULL",
-    )
-    .bind(user_id)
-    .bind(room)
-    .fetch_optional(&state.db)
-    .await?
-    .ok_or(AppError::Forbidden("not_in_room"))
-}
-
-async fn owner_seat(state: &AppState, user_id: UserId, room: RoomId) -> AppResult<MemberRow> {
-    let me = seat(state, user_id, room).await?;
-    if !me.is_owner() {
-        return Err(AppError::Forbidden("owner_only"));
-    }
-    Ok(me)
 }
 
 /// My rooms, most recently used first, with what's waiting for me in each.
@@ -452,11 +432,10 @@ pub struct SettingsBody {
 /// language (only future questions change).
 pub async fn update(
     State(state): State<AppState>,
-    SignedIn(user): SignedIn,
-    Path(room): Path<RoomId>,
+    RoomOwner(me): RoomOwner,
     Json(body): Json<SettingsBody>,
 ) -> AppResult<Json<Value>> {
-    let me = owner_seat(&state, user, room).await?;
+    let room = me.group_id;
     // Everything checked first, then written in one transaction: never half applied.
     let language = body.language.as_deref().map(clean_language).transpose()?;
     let name = body.name.as_deref().map(clean_room_name).transpose()?;
@@ -541,10 +520,9 @@ pub async fn update(
 /// Owner only: a new invite code; the old one stops working.
 pub async fn rotate_code(
     State(state): State<AppState>,
-    SignedIn(user): SignedIn,
-    Path(room): Path<RoomId>,
+    RoomOwner(me): RoomOwner,
 ) -> AppResult<Json<Value>> {
-    owner_seat(&state, user, room).await?;
+    let room = me.group_id;
     for _ in 0..5 {
         let code = new_code();
         let done = sqlx::query("UPDATE OR IGNORE groups SET join_code = ? WHERE id = ?")
@@ -563,10 +541,10 @@ pub async fn rotate_code(
 /// Owner only: remove someone right away, no vote.
 pub async fn force_remove(
     State(state): State<AppState>,
-    SignedIn(user): SignedIn,
-    Path((room, member_id)): Path<(RoomId, MemberId)>,
+    RoomOwner(me): RoomOwner,
+    Path((_, member_id)): Path<(RoomId, MemberId)>,
 ) -> AppResult<Json<Value>> {
-    let me = owner_seat(&state, user, room).await?;
+    let room = me.group_id;
     if member_id == me.id {
         return Err(AppError::BadRequest("self_kick"));
     }
@@ -593,13 +571,12 @@ pub struct OwnerBody {
 /// Owner only: hand the room over to another member.
 pub async fn transfer(
     State(state): State<AppState>,
-    SignedIn(user): SignedIn,
-    Path(room): Path<RoomId>,
+    RoomMember(me): RoomMember,
     Json(body): Json<OwnerBody>,
 ) -> AppResult<Json<Value>> {
     // Only a seat here: whether I'm (still) the owner is decided in the transaction, so a double tap
     // whose first tap already handed the room over answers 200, not 403.
-    let me = seat(&state, user, room).await?;
+    let room = me.group_id;
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
     // Still the owner when it runs: two transfers at once can't leave two owners.
     let stepped_down = sqlx::query(
@@ -640,10 +617,8 @@ pub async fn transfer(
 /// Leave a room. An owner hands over to the longest-standing member first; alone, the room is deleted.
 pub async fn leave(
     State(state): State<AppState>,
-    SignedIn(user): SignedIn,
-    Path(room): Path<RoomId>,
+    RoomMember(me): RoomMember,
 ) -> AppResult<Json<Value>> {
-    let me = seat(&state, user, room).await?;
     let deleted = leave_seat(&state, &me).await?;
     Ok(Json(json!({ "ok": true, "deleted": deleted })))
 }
@@ -682,11 +657,9 @@ pub(crate) async fn leave_seat(state: &AppState, me: &MemberRow) -> AppResult<bo
 /// Owner only: the room disappears for everyone.
 pub async fn delete(
     State(state): State<AppState>,
-    SignedIn(user): SignedIn,
-    Path(room): Path<RoomId>,
+    RoomOwner(me): RoomOwner,
 ) -> AppResult<Json<Value>> {
-    owner_seat(&state, user, room).await?;
-    delete_room(&state, room).await?;
+    delete_room(&state, me.group_id).await?;
     Ok(Json(json!({ "ok": true })))
 }
 

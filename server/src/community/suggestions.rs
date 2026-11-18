@@ -14,8 +14,9 @@ use sqlx::SqlitePool;
 
 use crate::{
     AppState,
+    accounts::auth::Admin,
     accounts::auth::SignedIn,
-    community::packs::{optional_body, require_admin},
+    community::packs::optional_body,
     platform::error::{AppError, AppResult},
     platform::i18n::{self, Lang},
 };
@@ -290,11 +291,10 @@ pub struct ApproveBody {
 /// The question joins the shared deck of its language, tagged (default `potes`), credited to its author.
 pub async fn approve(
     State(state): State<AppState>,
-    SignedIn(me): SignedIn,
+    Admin(me): Admin,
     Path(id): Path<SuggestionId>,
     body: Bytes,
 ) -> AppResult<Json<Value>> {
-    require_admin(&state, me)?;
     let body: ApproveBody = optional_body(&body, "bad_tags")?;
     let mut tags: Vec<String> = Vec::new();
     for tag in body.tags.unwrap_or_default() {
@@ -347,10 +347,9 @@ pub async fn approve(
 
 pub async fn reject(
     State(state): State<AppState>,
-    SignedIn(me): SignedIn,
+    Admin(me): Admin,
     Path(id): Path<SuggestionId>,
 ) -> AppResult<Json<Value>> {
-    require_admin(&state, me)?;
     let done = sqlx::query(
         "UPDATE suggestions SET status = 'rejected', decided_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') \
          WHERE id = ? AND status IN ('voting', 'queued')",

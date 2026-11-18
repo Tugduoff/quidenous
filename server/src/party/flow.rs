@@ -1,4 +1,4 @@
-use crate::platform::ids::{RoomId, RoundId, UserId};
+use crate::platform::ids::{RoomId, RoundId};
 use axum::Json;
 use serde_json::Value;
 
@@ -12,30 +12,20 @@ use crate::{
 
 use super::*;
 
-/// My seat in a party (`403 not_in_room`; `409 not_party` once it became a normal room).
-pub(super) async fn party_seat(
-    state: &AppState,
-    user: UserId,
-    id: RoomId,
-) -> AppResult<(MemberRow, PartyRow)> {
-    let me = crate::rooms::manage::seat(state, user, id).await?;
-    let p = load(state, id).await?;
+pub(super) async fn party_of(state: &AppState, me: &MemberRow) -> AppResult<PartyRow> {
+    let p = load(state, me.group_id).await?;
     if p.kind != "party" {
         return Err(AppError::Conflict("not_party"));
     }
-    Ok((me, p))
+    Ok(p)
 }
 
-pub(super) async fn owner_seat(
-    state: &AppState,
-    user: UserId,
-    id: RoomId,
-) -> AppResult<(MemberRow, PartyRow)> {
-    let (me, p) = party_seat(state, user, id).await?;
+pub(super) async fn owned_party(state: &AppState, me: &MemberRow) -> AppResult<PartyRow> {
+    let p = party_of(state, me).await?;
     if !me.is_owner() {
         return Err(AppError::Forbidden("owner_only"));
     }
-    Ok((me, p))
+    Ok(p)
 }
 
 pub(super) fn not_over(p: &PartyRow) -> AppResult<()> {

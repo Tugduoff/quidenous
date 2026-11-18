@@ -19,7 +19,7 @@ use crate::{
     platform::i18n::{self, Text},
     realtime::live::Event,
     realtime::push::{Kind, Notification},
-    rooms::manage::seat,
+    rooms::access::RoomMember,
     rooms::members::COLORS,
     rooms::model::Role,
     rounds::game,
@@ -354,10 +354,10 @@ pub struct AddToRoomBody {
 pub async fn add_to_room(
     State(state): State<AppState>,
     Account(me): Account,
-    Path(room): Path<RoomId>,
+    RoomMember(my_seat): RoomMember,
     Json(body): Json<AddToRoomBody>,
 ) -> AppResult<Json<Value>> {
-    let my_seat = seat(&state, me, room).await?;
+    let room = my_seat.group_id;
     crate::platform::quotas::hit_user(&state, &crate::platform::quotas::ROOM_ADD_USER, me)?;
     let other = body.user_id;
     let (room_name, kind): (String, String) =
@@ -616,10 +616,9 @@ pub async fn decline_invite(
 /// Who has been invited into this room and hasn't answered yet (members only): `{user_ids}`.
 pub async fn room_invites(
     State(state): State<AppState>,
-    SignedIn(me): SignedIn,
-    Path(room): Path<RoomId>,
+    RoomMember(my_seat): RoomMember,
 ) -> AppResult<Json<Value>> {
-    seat(&state, me, room).await?;
+    let room = my_seat.group_id;
     let ids: Vec<UserId> = sqlx::query_scalar(concat!(
         "SELECT i.user_id FROM room_invites i WHERE i.group_id = ? AND i.member_id IS NULL AND ",
         invite_valid!(),
@@ -635,9 +634,10 @@ pub async fn room_invites(
 pub async fn cancel_room_invite(
     State(state): State<AppState>,
     SignedIn(me): SignedIn,
-    Path((room, user)): Path<(RoomId, UserId)>,
+    RoomMember(my_seat): RoomMember,
+    Path((_, user)): Path<(RoomId, UserId)>,
 ) -> AppResult<Json<Value>> {
-    let my_seat = seat(&state, me, room).await?;
+    let room = my_seat.group_id;
     sqlx::query(
         "DELETE FROM room_invites WHERE group_id = ?1 AND user_id = ?2 AND (from_id = ?3 OR ?4)",
     )

@@ -10,7 +10,7 @@ use serde_json::{Value, json};
 
 use crate::{
     AppState,
-    accounts::auth::SignedIn,
+    accounts::auth::Admin,
     platform::error::{AppError, AppResult},
 };
 
@@ -19,10 +19,9 @@ use super::*;
 /// Packs waiting for review (with their reports) and suggestions waiting for approval.
 pub async fn review(
     State(state): State<AppState>,
-    SignedIn(me): SignedIn,
+    Admin(me): Admin,
     headers: HeaderMap,
 ) -> AppResult<Json<Value>> {
-    require_admin(&state, me)?;
     let room = current_room(&state, me, &headers).await?;
     let rows: Vec<PackRow> = sqlx::query_as(select("WHERE p.status = 'review' ORDER BY p.id"))
         .bind(me)
@@ -71,10 +70,9 @@ pub(super) async fn admin_answer(
 /// Back to `public`, reports cleared.
 pub async fn approve(
     State(state): State<AppState>,
-    SignedIn(me): SignedIn,
+    Admin(me): Admin,
     Path(id): Path<PackId>,
 ) -> AppResult<Json<Value>> {
-    require_admin(&state, me)?;
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
     let done = sqlx::query(
         "UPDATE packs SET status = 'public', removed_reason = NULL, \
@@ -102,11 +100,10 @@ pub struct RemoveBody {
 /// `removed`, with the reason its author sees in Mes packs.
 pub async fn remove(
     State(state): State<AppState>,
-    SignedIn(me): SignedIn,
+    Admin(me): Admin,
     Path(id): Path<PackId>,
     body: Bytes,
 ) -> AppResult<Json<Value>> {
-    require_admin(&state, me)?;
     let body: RemoveBody = optional_body(&body, "bad_reason")?;
     let reason = body
         .reason
@@ -138,11 +135,10 @@ pub struct FeatureBody {
 /// In or out of Coflop's selection.
 pub async fn feature(
     State(state): State<AppState>,
-    SignedIn(me): SignedIn,
+    Admin(_): Admin,
     Path(id): Path<PackId>,
     Json(body): Json<FeatureBody>,
 ) -> AppResult<Json<Value>> {
-    require_admin(&state, me)?;
     let done = sqlx::query("UPDATE packs SET featured = ? WHERE id = ? AND status != 'deleted'")
         .bind(body.featured)
         .bind(id)

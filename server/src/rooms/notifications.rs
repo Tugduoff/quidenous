@@ -1,11 +1,7 @@
 //! Notification settings: what an account wants pushed, quiet hours, and muted rooms.
 //! Only pushes are filtered (see `push::Push::recipients`); the inbox records everything.
 
-use crate::platform::ids::{RoomId, UserId};
-use axum::{
-    Json,
-    extract::{Path, State},
-};
+use axum::{Json, extract::State};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
@@ -14,6 +10,8 @@ use crate::{
     accounts::auth::SignedIn,
     platform::error::{AppError, AppResult},
     realtime::push::Kind,
+    rooms::access::RoomMember,
+    rooms::model::MemberRow,
 };
 
 const DAY_MINUTES: i64 = 24 * 60;
@@ -104,27 +102,19 @@ pub async fn put(
 /// No push at all from this room (PUT), or back on (DELETE).
 pub async fn mute(
     State(state): State<AppState>,
-    SignedIn(user): SignedIn,
-    Path(room): Path<RoomId>,
+    RoomMember(me): RoomMember,
 ) -> AppResult<Json<Value>> {
-    set_muted(&state, user, room, true).await
+    set_muted(&state, &me, true).await
 }
 
 pub async fn unmute(
     State(state): State<AppState>,
-    SignedIn(user): SignedIn,
-    Path(room): Path<RoomId>,
+    RoomMember(me): RoomMember,
 ) -> AppResult<Json<Value>> {
-    set_muted(&state, user, room, false).await
+    set_muted(&state, &me, false).await
 }
 
-async fn set_muted(
-    state: &AppState,
-    user: UserId,
-    room: RoomId,
-    muted: bool,
-) -> AppResult<Json<Value>> {
-    let me = crate::rooms::manage::seat(state, user, room).await?;
+async fn set_muted(state: &AppState, me: &MemberRow, muted: bool) -> AppResult<Json<Value>> {
     sqlx::query("UPDATE members SET muted = ? WHERE id = ?")
         .bind(muted)
         .bind(me.id)

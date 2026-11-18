@@ -126,7 +126,7 @@ pub async fn report(
     if body.kind != "suggestion" {
         // Only from inside the room (and the room still exists).
         let room = room.ok_or(AppError::NotFound)?;
-        crate::rooms::manage::seat(&state, me, room)
+        crate::rooms::access::seat(&state, me, room)
             .await
             .map_err(|_| AppError::NotFound)?;
     }

@@ -10,19 +10,16 @@
 //! [`crate::rooms::flow::OWNER_NEXT_HOURS`] hours whose owner hasn't used it in that time is released too.
 
 use crate::platform::ids::{MemberId, RoomId, RoundId};
-use axum::{
-    Json,
-    extract::{Path, State},
-};
+use axum::{Json, extract::State};
 use serde_json::{Value, json};
 use sqlx::{Sqlite, Transaction};
 
 use crate::{
     AppState,
-    accounts::auth::SignedIn,
     platform::error::{AppError, AppResult},
     realtime::live::Event,
     realtime::notify::notify_round,
+    rooms::access::RoomOwner,
     rounds::game,
 };
 
@@ -162,13 +159,9 @@ pub async fn settings_changed(state: &AppState, group_id: RoomId) -> AppResult<(
 /// (also before the delay is over). `round_id` is null when there is no question left to open.
 pub async fn launch(
     State(state): State<AppState>,
-    SignedIn(user): SignedIn,
-    Path(room): Path<RoomId>,
+    RoomOwner(me): RoomOwner,
 ) -> AppResult<Json<Value>> {
-    let me = crate::rooms::manage::seat(&state, user, room).await?;
-    if !me.is_owner() {
-        return Err(AppError::Forbidden("owner_only"));
-    }
+    let room = me.group_id;
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
     let (owner_next, paused): (bool, bool) =
         sqlx::query_as("SELECT owner_next, paused_at IS NOT NULL FROM groups WHERE id = ?")

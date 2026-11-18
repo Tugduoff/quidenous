@@ -127,7 +127,7 @@ async fn send(
     if kind == "choose" && items.is_none() {
         return Err(AppError::BadRequest("bad_items"));
     }
-    crate::rounds::queue::may_add_questions(state, target).await?;
+    crate::rooms::access::may_add_questions(state, target).await?;
     let room = target.group_id;
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
     let played: Option<QuestionId> = sqlx::query_scalar(
@@ -252,7 +252,7 @@ pub async fn challenge(
         return Err(AppError::BadRequest("same_room"));
     }
     let user = me.user_id.ok_or(AppError::Unauthorized)?;
-    let target = crate::rooms::manage::seat(&state, user, body.room_id).await?;
+    let target = crate::rooms::access::seat(&state, user, body.room_id).await?;
     if round.closed_at.is_none() {
         return Err(AppError::Conflict("round_open"));
     }

@@ -50,7 +50,7 @@ pub async fn publish(
     };
     let spicy = body.spicy.or(header.spicy).unwrap_or(false) || tags.contains(&SPICY_TAG);
     require_verified(&state, user).await?;
-    let admin = is_admin(&state, user);
+    let admin = crate::accounts::auth::is_admin(&state, user);
     // Early, before the work; counted again when it is stored.
     if !admin && live_packs(&state.db, user).await? >= PACKS_PER_USER {
         return Err(AppError::Conflict("too_many_packs"));
@@ -207,7 +207,7 @@ pub async fn install(
     Me(me): Me,
     Path(id): Path<PackId>,
 ) -> AppResult<Json<Value>> {
-    crate::rounds::queue::may_add_questions(&state, &me).await?;
+    crate::rooms::access::may_add_questions(&state, &me).await?;
     let available: Option<PackId> = sqlx::query_scalar(
         "SELECT id FROM packs WHERE id = ? \
          AND (status = 'public' OR (author_id = ? AND status = 'review'))",
@@ -558,7 +558,7 @@ pub(super) async fn community_state(state: &AppState, me: UserId) -> AppResult<V
         .await?
         .unwrap_or(false);
     Ok(json!({
-        "admin": is_admin(state, me),
+        "admin": crate::accounts::auth::is_admin(state, me),
         "show_spicy": show_spicy,
         "suggestions_left": crate::community::suggestions::left(&state.db, me).await?,
     }))

@@ -13,7 +13,7 @@ use crate::{
     platform::i18n::{self, Text},
     realtime::live::Event,
     realtime::push::{Kind, Notification},
-    rooms::model::MemberRow,
+    rooms::access::{Owner, may_add_questions},
     rounds::game,
     rounds::model::QueuedQuestion,
 };
@@ -27,18 +27,6 @@ pub(crate) const IMPORT_MAX: usize = 1024 * 1024;
 
 /// Most ids in one `POST /questions/delete`.
 const DELETE_QUESTIONS_MAX: usize = 200;
-
-/// The owner can keep adding and importing questions to themselves.
-pub(crate) async fn may_add_questions(state: &AppState, me: &MemberRow) -> AppResult<()> {
-    let by: String = sqlx::query_scalar("SELECT questions_by FROM groups WHERE id = ?")
-        .bind(me.group_id)
-        .fetch_one(&state.db)
-        .await?;
-    if by == "owner" && !me.is_owner() {
-        return Err(AppError::Forbidden("owner_only"));
-    }
-    Ok(())
-}
 
 #[derive(Deserialize)]
 pub(crate) struct QuestionBody {
@@ -331,11 +319,8 @@ pub(crate) async fn delete_questions(
 /// never the deck, nor one asked or open), like `DELETE /questions/{id}` does one. `{deleted}`.
 pub(crate) async fn clear_queue(
     State(state): State<AppState>,
-    Me(me): Me,
+    Owner(me): Owner,
 ) -> AppResult<Json<Value>> {
-    if !me.is_owner() {
-        return Err(AppError::Forbidden("owner_only"));
-    }
     // One write transaction: a vote can't open one of them in between.
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
     let ids: Vec<QuestionId> = sqlx::query_scalar(concat!(

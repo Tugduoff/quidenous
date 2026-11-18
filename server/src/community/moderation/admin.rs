@@ -5,8 +5,7 @@ use serde_json::{Value, json};
 
 use crate::{
     AppState,
-    accounts::auth::SignedIn,
-    community::packs::require_admin,
+    accounts::auth::Admin,
     platform::error::{AppError, AppResult},
     realtime::live::Event,
 };
@@ -166,10 +165,9 @@ pub struct ActBody {
 /// `POST /admin/reports`: an admin closes the open reports on one thing.
 pub async fn act(
     State(state): State<AppState>,
-    SignedIn(me): SignedIn,
+    Admin(_): Admin,
     Json(body): Json<ActBody>,
 ) -> AppResult<Json<Value>> {
-    require_admin(&state, me)?;
     let (count, user): (i64, Option<UserId>) = sqlx::query_as(
         "SELECT COUNT(*), MAX(reported_user_id) FROM reports \
          WHERE kind = ? AND target_id = ? AND resolved_at IS NULL",
@@ -183,7 +181,7 @@ pub async fn act(
     }
     let account = || -> AppResult<UserId> {
         let user = user.ok_or(AppError::BadRequest("bad_target"))?;
-        if crate::community::packs::is_admin(&state, user) {
+        if crate::accounts::auth::is_admin(&state, user) {
             return Err(AppError::BadRequest("bad_target"));
         }
         Ok(user)

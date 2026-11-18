@@ -246,7 +246,7 @@ async fn build(
         today,
         year,
         preview,
-        crate::community::packs::is_admin(state, r.user),
+        crate::accounts::auth::is_admin(state, r.user),
         state.config.wrapped_preview,
     )?;
     let (from, until) = bounds(state.config.wrapped, a.year);

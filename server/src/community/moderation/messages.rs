@@ -11,6 +11,7 @@ use crate::{
     platform::error::{AppError, AppResult},
     platform::i18n::Lang,
     realtime::live::Event,
+    rooms::access::Owner,
 };
 
 use super::*;
@@ -20,12 +21,9 @@ use super::*;
 /// [`HIDE_AFTER`] new ones to hide it again. `403 owner_only`, `404` when it isn't hidden.
 pub async fn restore_message(
     State(state): State<AppState>,
-    Me(me): Me,
+    Owner(me): Owner,
     Path((round_id, message_id)): Path<(RoundId, MessageId)>,
 ) -> AppResult<Json<Value>> {
-    if !me.is_owner() {
-        return Err(AppError::Forbidden("owner_only"));
-    }
     crate::rounds::game::round(&state.db, me.group_id, round_id).await?;
     let back: Option<(MemberId, Option<UserId>)> = sqlx::query_as(
         "UPDATE messages SET hidden_at = NULL, unhidden_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') \
@@ -209,12 +207,9 @@ pub(crate) async fn retire_question(state: &AppState, id: QuestionId) -> AppResu
 /// (it reads "Question retirée" from then on). `409 deck_question` for a built-in one.
 pub async fn retire_round_question(
     State(state): State<AppState>,
-    Me(me): Me,
+    Owner(me): Owner,
     Path(round_id): Path<RoundId>,
 ) -> AppResult<Json<Value>> {
-    if !me.is_owner() {
-        return Err(AppError::Forbidden("owner_only"));
-    }
     let question: QuestionId =
         sqlx::query_scalar("SELECT question_id FROM rounds WHERE id = ? AND group_id = ?")
             .bind(round_id)

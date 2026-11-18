@@ -117,7 +117,7 @@ impl FromRequestParts<AppState> for Me {
     }
 }
 
-/// The signed-in account, room or not (create a room, list my rooms, join one).
+#[derive(Clone, Copy)]
 pub struct SignedIn(pub UserId);
 
 impl FromRequestParts<AppState> for SignedIn {
@@ -127,10 +127,35 @@ impl FromRequestParts<AppState> for SignedIn {
         parts: &mut Parts,
         state: &AppState,
     ) -> Result<Self, Self::Rejection> {
+        if let Some(known) = parts.extensions.get::<SignedIn>() {
+            return Ok(*known);
+        }
         let token = bearer(parts).ok_or(AppError::Unauthorized)?;
         let user = user_for_token(state, token).await?;
         crate::accounts::label(state, token, &parts.headers).await;
+        parts.extensions.insert(SignedIn(user));
         Ok(SignedIn(user))
+    }
+}
+
+pub fn is_admin(state: &AppState, user: UserId) -> bool {
+    state.config.admin_user_ids.contains(&user)
+}
+
+pub struct Admin(pub UserId);
+
+impl FromRequestParts<AppState> for Admin {
+    type Rejection = AppError;
+
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
+        let SignedIn(user) = SignedIn::from_request_parts(parts, state).await?;
+        if !is_admin(state, user) {
+            return Err(AppError::Forbidden("not_admin"));
+        }
+        Ok(Admin(user))
     }
 }
 

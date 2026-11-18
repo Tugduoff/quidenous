@@ -59,17 +59,12 @@ pub const CATEGORIES: [&str; 7] = [
 /// The 16+ category: a pack tagged with it is always `spicy`.
 pub const SPICY_TAG: &str = "pimente";
 
-/// Accounts listed in `ADMIN_USER_IDS`.
-pub fn is_admin(state: &AppState, user: UserId) -> bool {
-    state.config.admin_user_ids.contains(&user)
-}
-
 /// Publishing, liking and reporting packs, making, voting on and reporting suggestions: only with a
 /// verified e-mail or a linked provider (`403 unverified`). Never-verified e-mails are the cheapest
 /// throwaway accounts; legacy accounts (no e-mail: anyone who types their first name can take them
 /// over) and guests secure themselves first. Admins always can.
 pub async fn require_verified(state: &AppState, user: UserId) -> AppResult<()> {
-    if is_admin(state, user) {
+    if crate::accounts::auth::is_admin(state, user) {
         return Ok(());
     }
     let verified: bool = sqlx::query_scalar(
@@ -84,14 +79,6 @@ pub async fn require_verified(state: &AppState, user: UserId) -> AppResult<()> {
         return Err(AppError::Forbidden("unverified"));
     }
     Ok(())
-}
-
-pub fn require_admin(state: &AppState, user: UserId) -> AppResult<()> {
-    if is_admin(state, user) {
-        Ok(())
-    } else {
-        Err(AppError::Forbidden("not_admin"))
-    }
 }
 
 /// The room the app is in, for endpoints that work without one: the `X-Room` room if I sit in it,
@@ -166,7 +153,7 @@ async fn item(state: &AppState, row: PackRow, me: UserId) -> AppResult<Value> {
     .await?;
     let mine = row.author_id == me;
     // Why it was removed: for its author and the admins only.
-    let removed_reason = if mine || is_admin(state, me) {
+    let removed_reason = if mine || crate::accounts::auth::is_admin(state, me) {
         row.removed_reason
     } else {
         None
@@ -288,7 +275,7 @@ pub async fn get(
     let mine = row.author_id == me && row.status != "deleted";
     let visible = (row.status == "public" && (!row.spicy || sees_spicy(&state, me, room).await?))
         || mine
-        || is_admin(&state, me);
+        || crate::accounts::auth::is_admin(&state, me);
     if !visible {
         return Err(AppError::NotFound);
     }

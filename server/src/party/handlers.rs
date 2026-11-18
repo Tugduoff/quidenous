@@ -14,6 +14,7 @@ use crate::{
     platform::i18n::{self, Lang},
     platform::text::clean_name,
     realtime::live::Event,
+    rooms::access::RoomMember,
     rooms::model::MemberRow,
     rounds::game,
 };
@@ -312,10 +313,9 @@ pub(super) async fn insert_member(
 
 pub(super) async fn get_state(
     State(state): State<AppState>,
-    SignedIn(user): SignedIn,
-    Path(id): Path<RoomId>,
+    RoomMember(me): RoomMember,
 ) -> AppResult<Json<Value>> {
-    let me = crate::rooms::manage::seat(&state, user, id).await?;
+    let id = me.group_id;
     Ok(Json(view(&state, id, Some(&me)).await?))
 }
 
@@ -332,10 +332,10 @@ pub(super) async fn screen(
 /// Owner: "Commencer" (2 players at least).
 pub(super) async fn start(
     State(state): State<AppState>,
-    SignedIn(user): SignedIn,
-    Path(id): Path<RoomId>,
+    RoomMember(me): RoomMember,
 ) -> AppResult<Json<Value>> {
-    let (me, p) = owner_seat(&state, user, id).await?;
+    let id = me.group_id;
+    let p = owned_party(&state, &me).await?;
     not_over(&p)?;
     if latest_round(&state, id).await?.is_some() {
         return Err(AppError::Conflict("started"));
@@ -358,11 +358,11 @@ pub struct VoteBody {
 
 pub(super) async fn vote(
     State(state): State<AppState>,
-    SignedIn(user): SignedIn,
-    Path(id): Path<RoomId>,
+    RoomMember(me): RoomMember,
     Json(body): Json<VoteBody>,
 ) -> AppResult<Json<Value>> {
-    let (me, _) = party_seat(&state, user, id).await?;
+    let id = me.group_id;
+    party_of(&state, &me).await?;
     let events = game::vote(
         &state.db,
         id,
@@ -388,11 +388,11 @@ pub struct AnswerBody {
 /// A said question's answer (docs/SAID.md): `POST /parties/{id}/answer {text}`.
 pub(super) async fn answer_said(
     State(state): State<AppState>,
-    SignedIn(user): SignedIn,
-    Path(id): Path<RoomId>,
+    RoomMember(me): RoomMember,
     Json(body): Json<AnswerBody>,
 ) -> AppResult<Json<Value>> {
-    let (me, _) = party_seat(&state, user, id).await?;
+    let id = me.group_id;
+    party_of(&state, &me).await?;
     crate::rounds::said::party_answer(&state, id, me.id, &body.text).await?;
     answer(&state, id, &me).await
 }
@@ -400,10 +400,10 @@ pub(super) async fn answer_said(
 /// "Suivante": the owner opens the next question; anyone else's tap counts towards 75 %.
 pub(super) async fn tap(
     State(state): State<AppState>,
-    SignedIn(user): SignedIn,
-    Path(id): Path<RoomId>,
+    RoomMember(me): RoomMember,
 ) -> AppResult<Json<Value>> {
-    let (me, p) = party_seat(&state, user, id).await?;
+    let id = me.group_id;
+    let p = party_of(&state, &me).await?;
     not_over(&p)?;
     let Some((round_id, true)) = latest_round(&state, id).await? else {
         return Err(AppError::Conflict("not_reveal"));
@@ -426,10 +426,10 @@ pub(super) async fn tap(
 
 pub(super) async fn untap(
     State(state): State<AppState>,
-    SignedIn(user): SignedIn,
-    Path(id): Path<RoomId>,
+    RoomMember(me): RoomMember,
 ) -> AppResult<Json<Value>> {
-    let (me, _) = party_seat(&state, user, id).await?;
+    let id = me.group_id;
+    party_of(&state, &me).await?;
     if let Some((round_id, true)) = latest_round(&state, id).await? {
         let gone = sqlx::query("DELETE FROM party_taps WHERE round_id = ? AND member_id = ?")
             .bind(round_id)
@@ -453,11 +453,11 @@ pub struct ReactBody {
 /// tap is added (within the cap, docs/REACTIONS.md).
 pub(super) async fn react(
     State(state): State<AppState>,
-    SignedIn(user): SignedIn,
-    Path(id): Path<RoomId>,
+    RoomMember(me): RoomMember,
     Json(body): Json<ReactBody>,
 ) -> AppResult<Json<Value>> {
-    let (me, p) = party_seat(&state, user, id).await?;
+    let id = me.group_id;
+    let p = party_of(&state, &me).await?;
     let emoji = crate::chat::reactions::clean_result_emoji(&body.emoji)
         .ok_or(AppError::BadRequest("bad_emoji"))?;
     not_over(&p)?;
@@ -506,10 +506,11 @@ pub struct UpdateBody {
 pub(super) async fn update(
     State(state): State<AppState>,
     SignedIn(user): SignedIn,
-    Path(id): Path<RoomId>,
+    RoomMember(me): RoomMember,
     Json(body): Json<UpdateBody>,
 ) -> AppResult<Json<Value>> {
-    let (me, p) = owner_seat(&state, user, id).await?;
+    let id = me.group_id;
+    let p = owned_party(&state, &me).await?;
     not_over(&p)?;
     let timer = body.timer.map(clean_timer).transpose()?;
     let name = match &body.name {
@@ -536,10 +537,10 @@ pub(super) async fn update(
 /// Owner: "Terminer" now. Already over: nothing changes.
 pub(super) async fn end(
     State(state): State<AppState>,
-    SignedIn(user): SignedIn,
-    Path(id): Path<RoomId>,
+    RoomMember(me): RoomMember,
 ) -> AppResult<Json<Value>> {
-    let (me, _) = owner_seat(&state, user, id).await?;
+    let id = me.group_id;
+    owned_party(&state, &me).await?;
     finish(&state, id).await?;
     answer(&state, id, &me).await
 }
@@ -561,10 +562,10 @@ pub(super) async fn finish(state: &AppState, id: RoomId) -> AppResult<bool> {
 /// question opens like in any room.
 pub(super) async fn keep(
     State(state): State<AppState>,
-    SignedIn(user): SignedIn,
-    Path(id): Path<RoomId>,
+    RoomMember(me): RoomMember,
 ) -> AppResult<Json<Value>> {
-    let (me, _) = owner_seat(&state, user, id).await?;
+    let id = me.group_id;
+    owned_party(&state, &me).await?;
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
     sqlx::query(
         "UPDATE groups SET kind = 'room', party_ends_at = NULL, party_ended_at = NULL, party_timer = ?, \
