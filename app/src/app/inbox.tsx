@@ -1,20 +1,20 @@
-import { useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { AtSign, Bell, BellRing, CalendarHeart, ChevronLeft, Crown, DoorOpen, KeyRound, type LucideIcon, Medal, MessageCircle, MessageCircleQuestion, Sparkles, UserPlus } from 'lucide-react-native';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { QueryState } from '@/components/ui/query-state';
 import { Screen } from '@/components/ui/screen';
 import { type TKey, useT } from '@/lib/i18n';
 import { useSwitchRoom, useSwitchRoomHere } from '@/lib/hooks/use-switch-room';
 import { useSession } from '@/lib/session';
+import { useMarkInboxRead } from '@/lib/hooks/use-inbox';
 import { tidy } from '@/lib/utils/text';
 import { useTheme } from '@/lib/theme';
 import { ago } from '@/lib/utils/time';
 import { Avatar } from '@/components/ui/avatar';
 import { Card } from '@/components/ui/card';
 import { Display } from '@/components/ui/text';
-import { type InboxItem, useInbox, inboxKeys, markInboxRead } from '@/lib/api/inbox';
+import { type InboxItem, useInbox } from '@/lib/api/inbox';
 import { useGroup, useMembers } from '@/lib/api/group';
 
 // A kind this version doesn't know (newer server) falls back to a plain bell and title.
@@ -51,7 +51,6 @@ const TITLE: Record<string, TKey> = {
 export default function InboxScreen() {
   const t = useTheme();
   const tr = useT();
-  const qc = useQueryClient();
   const inbox = useInbox();
   const { data } = inbox;
   const { byId } = useMembers();
@@ -64,12 +63,8 @@ export default function InboxScreen() {
   const unread = data?.unread ?? 0;
   // What was new when I opened the screen stays highlighted while I look, even once marked as read.
   const [fresh, setFresh] = useState<Set<number> | null>(null);
-  useEffect(() => {
-    if (data && !fresh) setFresh(new Set(data.items.filter((i) => !i.read).map((i) => i.id)));
-  }, [data, fresh]);
-  useEffect(() => {
-    if (unread > 0) markInboxRead().then(() => qc.invalidateQueries({ queryKey: inboxKeys.all }));
-  }, [unread, qc]);
+  if (data && !fresh) setFresh(new Set(data.items.filter((i) => !i.read).map((i) => i.id)));
+  useMarkInboxRead(unread);
 
   const open = (item: InboxItem) => {
     // Not about this room: a friend request (Friends) or an invitation into another room (my rooms).

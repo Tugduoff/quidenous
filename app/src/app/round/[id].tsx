@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { View } from 'react-native';
 import { Celebration } from '@/components/celebration';
 import { isMilestone } from '@/lib/utils/milestones';
@@ -12,18 +12,16 @@ export default function RoundScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { byId } = useMembers();
   const { data: round } = useRound(Number(id));
-  const [party, setParty] = useState(false);
+  const [partyDone, setPartyDone] = useState<number | null>(null);
   // Opened from a link or a reload there is nothing to go back to: land on the history.
   const back = () => (router.canGoBack() ? router.back() : router.replace('/history'));
 
-  useEffect(() => {
-    if ((round?.result || round?.choose || round?.said?.result) && isMilestone(round.number)) setParty(true);
-  }, [round?.result, round?.choose, round?.said?.result, round?.number]);
+  const party = !!(round?.result || round?.choose || round?.said?.result) && !!round && isMilestone(round.number) && partyDone !== round.number;
 
   return (
     <View style={{ flex: 1 }}>
       <Result roundId={Number(id)} byId={byId} onBack={back} />
-      {party && round && <Celebration count={round.number} onDone={() => setParty(false)} />}
+      {party && round && <Celebration count={round.number} onDone={() => setPartyDone(round.number)} />}
     </View>
   );
 }

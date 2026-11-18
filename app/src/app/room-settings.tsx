@@ -1,7 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { router } from 'expo-router';
 import { Check, ChevronRight, Hourglass, type LucideIcon, MessageCircleQuestion, RefreshCw, Settings2, Ticket, TriangleAlert, Trash2, Vote } from 'lucide-react-native';
-import { type ReactNode, useEffect, useState } from 'react';
+import { type ReactNode, useState } from 'react';
 import { ActivityIndicator, Pressable, Text, TextInput, View } from 'react-native';
 import { AnonymousSetting } from '@/components/vote/anonymous';
 import { QueryState } from '@/components/ui/query-state';
@@ -10,6 +9,7 @@ import { showToast } from '@/lib/toast';
 import { VibeCards, vibeIcon, vibeName } from '@/components/rooms/vibes';
 import { t as tr, useT } from '@/lib/i18n';
 import { useRoomGone } from '@/lib/hooks/use-switch-room';
+import { useGoBackWhen } from '@/lib/hooks/use-redirect';
 import { useSession } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
 import { PressableScale } from '@/components/ui/pressable-scale';
@@ -99,10 +99,12 @@ function NameDialog({ visible, name, onClose, onSave }: { visible: boolean; name
   const t = useTheme();
   const tr = useT();
   const [draft, setDraft] = useState(name);
-  // Each opening starts from the current name.
-  useEffect(() => {
-    if (visible) setDraft(name);
-  }, [visible, name]);
+  const opening = visible ? name : null;
+  const [opened, setOpened] = useState(opening);
+  if (opening !== opened) {
+    setOpened(opening);
+    if (opening != null) setDraft(opening);
+  }
   const ok = !!draft.trim() && draft.trim() !== name;
   const submit = () => ok && onSave(draft.trim());
   return (
@@ -230,9 +232,11 @@ function HandOverDialog({
   const t = useTheme();
   const tr = useT();
   const [heir, setHeir] = useState<Member | null>(null);
-  useEffect(() => {
+  const [wasVisible, setWasVisible] = useState(visible);
+  if (visible !== wasVisible) {
+    setWasVisible(visible);
     if (visible) setHeir(null);
-  }, [visible]);
+  }
   return (
     <Dialog visible={visible} onClose={onClose}>
       {heir ? (
@@ -468,12 +472,7 @@ export default function RoomSettings() {
   const group = groupQuery.data;
   const owner = group?.my_role === 'owner';
   // Not (or no longer) the owner: nothing to see here.
-  useEffect(() => {
-    if (group && !owner) {
-      if (router.canGoBack()) router.back();
-      else router.replace('/group');
-    }
-  }, [group, owner]);
+  useGoBackWhen(!!group && !owner, '/group');
   return (
     <Screen tabs={false}>
       <BackButton />
