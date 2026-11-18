@@ -8,11 +8,9 @@ import { gridColumns, MemberGrid, MemberTile } from '@/components/vote/member-gr
 import { QueryState } from '@/components/ui/query-state';
 import { ResultBars } from '@/components/result/result-bars';
 import { Screen } from '@/components/ui/screen';
-import type { Member } from '@/lib/api/client';
 import { type GlobalCount, type GlobalOpen, useGlobal, useGlobalVote } from '@/lib/api/global';
 import { useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
-import { useMembers } from '@/lib/queries';
 import { tidy } from '@/lib/utils/text';
 import { useTheme } from '@/lib/theme';
 import { Avatar } from '@/components/ui/avatar';
@@ -20,6 +18,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Display } from '@/components/ui/text';
 import { BackButton } from '@/components/ui/back-button';
+import { type Member, useMembers } from '@/lib/api/group';
 
 /** The global question of the day (docs/GLOBAL_QUESTION.md): vote for someone of my room, then my room's tally and the aggregates. */
 export default function GlobalScreen() {

@@ -2,7 +2,6 @@ import { ChevronDown, ChevronUp, Crown } from 'lucide-react-native';
 import { type ReactNode, useEffect, useState } from 'react';
 import { type StyleProp, Text, View, type ViewStyle } from 'react-native';
 import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withSequence, withSpring, withTiming } from 'react-native-reanimated';
-import type { ChooseResult, Member, RankEntry, SaidResult, Tally } from '@/lib/api/client';
 import { useT } from '@/lib/i18n';
 import { BOUNCE, EASE } from '@/lib/motion';
 import { ordinal } from '@/lib/utils/text';
@@ -11,6 +10,8 @@ import { Mascot } from '@/components/mascot/mascot';
 import { MemberTitle } from '@/components/badges/title-chip';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Avatar, AvatarStack } from '@/components/ui/avatar';
+import type { Member } from '@/lib/api/group';
+import type { ChooseResult, RankEntry, SaidResult, Tally } from '@/lib/api/rounds';
 
 /** Rows shown before "Voir tout": a big group's result stays one screen tall. */
 const TOP = 5;

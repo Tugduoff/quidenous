@@ -1,11 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-
 import { api } from '@/lib/api/client';
 import { useFeatures } from '@/lib/api/auth';
-import { keys, useGroup } from '@/lib/queries';
 import { useSession } from '@/lib/session';
 import { storage } from '@/lib/device/storage';
+import { useGroup } from '@/lib/api/group';
+import { roundKeys } from '@/lib/api/rounds';
 
 /** Days in a row with a vote (docs/STREAKS.md): `current` (today counts once voted) and the best ever. */
 export type Streak = { current: number; best: number };
@@ -20,14 +20,16 @@ export const HOT_FROM = 7;
 export const STREAK_MILESTONES = [7, 30, 100] as const;
 
 /** Under the open question's key: every vote, new question or arrival (live events) refreshes it with it. */
-export const streaksKey = [...keys.current, 'streaks'] as const;
+export const streakKeys = {
+  room: [...roundKeys.current, 'streaks'] as const,
+};
 
 /** The room's streaks, from a server that has them (`streaks` in /api/features); never in a party. */
 export function useStreaks() {
   const { streaks } = useFeatures();
   const { data: group } = useGroup();
   const on = streaks && !!group && group.kind !== 'party';
-  const query = useQuery({ queryKey: streaksKey, queryFn: () => api<Streaks>('/streaks'), enabled: on, staleTime: 60_000 });
+  const query = useQuery({ queryKey: streakKeys.room, queryFn: () => api<Streaks>('/streaks'), enabled: on, staleTime: 60_000 });
   return on ? query.data : undefined;
 }
 

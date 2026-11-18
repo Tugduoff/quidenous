@@ -3,11 +3,12 @@ import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { ScrollView } from 'react-native-gesture-handler';
 import Svg, { Circle, G, Rect, Text as SvgText } from 'react-native-svg';
-import type { Member, Stats } from '@/lib/api/client';
 import { useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 import { Avatar } from '@/components/ui/avatar';
 import { Card } from '@/components/ui/card';
+import type { Member } from '@/lib/api/group';
+import type { Stats } from '@/lib/api/stats';
 
 const GAP = 2;
 const MIN = 12;

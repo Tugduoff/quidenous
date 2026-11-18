@@ -9,7 +9,6 @@ import { MascotBand } from '@/components/mascot/band';
 import { Countdown, JoinQr, PlayerChips, Reactions, VotedLine, WinnerReveal } from '@/components/party/party';
 import { SaidScreenQuestion, SaidScreenResult } from '@/components/party/said';
 import { ResultBars } from '@/components/result/result-bars';
-import type { Member } from '@/lib/api/client';
 import { useFeatures } from '@/lib/api/auth';
 import { showLang, useT } from '@/lib/i18n';
 import { useSession } from '@/lib/session';
@@ -19,6 +18,7 @@ import { tidy } from '@/lib/utils/text';
 import { useTheme } from '@/lib/theme';
 import { Tag } from '@/components/ui/tag';
 import { CodeText, Display, Logo } from '@/components/ui/text';
+import type { Member } from '@/lib/api/group';
 
 /**
  * `/party/screen/[code]`: the party on a TV or a laptop, no account. The QR code and the code to join on one side,

@@ -1,8 +1,7 @@
 import { en } from '@/locales/en';
 import { fr } from '@/locales/fr';
-
-import type { Member } from '@/lib/api/client';
 import { t } from '@/lib/i18n';
+import type { Member } from '@/lib/api/group';
 
 /** The whole-room token in the app's language (`tous`, `everyone`): pings everyone in the room. */
 export const everyone = () => t('chat.everyone');

@@ -1,8 +1,12 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-
-import { api, type Message, type Reaction } from '@/lib/api/client';
-import { keys } from '@/lib/queries';
+import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
+import { api } from '@/lib/api/client';
 import { useSession } from '@/lib/session';
+
+export const chatKeys = {
+  all: ['messages'] as const,
+  messages: (roundId: number) => ['messages', roundId] as const,
+  gifs: (q: string) => ['gifs', q] as const,
+};
 
 /** The reactions a chat message can get, in the order the server lists them. */
 export const CHAT_REACTIONS = ['❤️', '😂', '😮', '😢', '👍', '🔥'] as const;
@@ -32,7 +36,7 @@ type Vars = { id: number; emoji: string; on: boolean };
 export function useReact(roundId: number) {
   const qc = useQueryClient();
   const { me } = useSession();
-  const key = keys.messages(roundId);
+  const key = chatKeys.messages(roundId);
   const patch = (id: number, f: (m: Message) => Reaction[]) =>
     qc.setQueryData<Message[]>(key, (old) => old?.map((m) => (m.id === id ? { ...m, reactions: f(m) } : m)));
   const mutation = useMutation({
@@ -64,3 +68,39 @@ export function useReact(roundId: number) {
     return on;
   };
 }
+
+/**
+ * `user_id`: the author's account (null once deleted; absent from an older server).
+ * `mentions`: member ids pinged with `@Name`; `everyone`: the text pings the whole room with `@tous` (both absent from an older server).
+ */
+/** One emoji on a chat message: how many, whether I'm among them, and who (member ids, oldest first). */
+export type Reaction = { emoji: string; count: number; mine: boolean; members: number[] };
+
+/**
+ * A chat photo or GIF. `url` / `preview_url` are server paths (`/api/media/…`, `/api/gifs/media/…`: signed, short-lived,
+ * no header needed) or absolute URLs; `mediaUrl()` makes them loadable.
+ */
+export type MessageMedia = { url: string; width: number; height: number; mime?: string; preview_url?: string | null; provider?: string };
+
+export type Message = {
+  id: number;
+  member_id: number;
+  user_id?: number | null;
+  /** For a photo or a GIF: what an older app shows ("📷 Photo", "GIF", plus the caption). */
+  text: string;
+  created_at: string;
+  mentions?: number[];
+  everyone?: boolean;
+  /** Absent from an older server. */
+  reactions?: Reaction[];
+  /** `text` when absent (an older server); a kind this app doesn't know shows its `text`. */
+  kind?: 'text' | 'image' | 'gif' | (string & {});
+  /** Photo or GIF: the text under it (mentions apply to it). */
+  caption?: string | null;
+  media?: MessageMedia | null;
+  /** Hidden by reports: only the room owner gets it, to restore it. */
+  hidden?: boolean;
+};
+
+export const useMessages = (roundId: number) =>
+  useQuery({ queryKey: chatKeys.messages(roundId), queryFn: () => api<Message[]>(`/rounds/${roundId}/messages`) });

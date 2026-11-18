@@ -11,11 +11,11 @@ import { api } from '@/lib/api/client';
 import { useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
 import { type CommunityMe, PACK_TAGS, type PackSort, type PackTag, packKeys, TAG_ICONS, useCommunityMe, usePackList } from '@/lib/api/packs';
-import { useGroup } from '@/lib/queries';
 import { useTheme } from '@/lib/theme';
 import { Card } from '@/components/ui/card';
 import { Display } from '@/components/ui/text';
 import { askConfirm } from '@/lib/confirm';
+import { useGroup } from '@/lib/api/group';
 
 const SORTS: PackSort[] = ['trending', 'new', 'liked', 'featured'];
 

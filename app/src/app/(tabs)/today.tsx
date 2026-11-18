@@ -11,13 +11,12 @@ import { QueryState } from '@/components/ui/query-state';
 import { Screen } from '@/components/ui/screen';
 import { dateFormat, useLang, useT } from '@/lib/i18n';
 import { EASE, motion, useArrivals } from '@/lib/motion';
-import { keys } from '@/lib/queries';
 import { useSwitchRoom } from '@/lib/hooks/use-switch-room';
 import { useSession } from '@/lib/session';
 import { HOT_FROM } from '@/lib/api/streaks';
 import { useTheme } from '@/lib/theme';
 import { until } from '@/lib/utils/time';
-import { cardQuestion, missing, needsMe, streakAtRisk, type TodayRoom, useToday } from '@/lib/api/today';
+import { cardQuestion, missing, needsMe, streakAtRisk, type TodayRoom, useToday, todayKeys } from '@/lib/api/today';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Avatar } from '@/components/ui/avatar';
 import { TAG_BG } from '@/components/ui/tag';
@@ -117,7 +116,7 @@ function useOpenRoom() {
     (id: number) => {
       if (id === room) return router.navigate('/');
       // Failed (left that room meanwhile, offline): the cards refresh and tell.
-      switchRoom(id, 'room', { warm: true }).catch(() => qc.invalidateQueries({ queryKey: keys.today }));
+      switchRoom(id, 'room', { warm: true }).catch(() => qc.invalidateQueries({ queryKey: todayKeys.all }));
     },
     // A new function on every render is fine for the hooks above; only the room matters to the cards' memo.
     // eslint-disable-next-line react-hooks/exhaustive-deps

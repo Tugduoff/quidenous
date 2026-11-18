@@ -1,10 +1,10 @@
 import { BellRing, Handshake, Hourglass, type LucideIcon, MessageCircle, MessageCircleQuestion, Scale, Timer, Vote } from 'lucide-react-native';
 import { StyleSheet, Text, View } from 'react-native';
-import type { Stats } from '@/lib/api/client';
 import { useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 import { duration, int } from '@/components/stats/common';
 import { Card } from '@/components/ui/card';
+import type { Stats } from '@/lib/api/stats';
 
 function Tile({ Icon, value, label }: { Icon: LucideIcon; value: string; label: string }) {
   const t = useTheme();

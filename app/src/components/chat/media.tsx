@@ -8,18 +8,19 @@ import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withTimin
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
 import { showToast } from '@/lib/toast';
-import { mediaUrl, type Member, type Message, type MessageMedia } from '@/lib/api/client';
+import { mediaUrl } from '@/lib/api/client';
 import { authError, useFeatures } from '@/lib/api/auth';
 import { canShareFiles, discardPending, type Gif, type ImageDraft, mediaOf, type Pending, prepareImage, retryPending, sendGif, sendImage, shareMedia, useGifs } from '@/lib/chat-outbox';
 import { dateFormat, useT } from '@/lib/i18n';
 import { outgoing } from '@/lib/utils/mentions';
 import { EASE } from '@/lib/motion';
-import { useMembers } from '@/lib/queries';
 import { useSession } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { type Anchor, Dialog, DialogActions } from '@/components/ui/dialog';
 import { Field } from '@/components/ui/field';
+import { type Member, useMembers } from '@/lib/api/group';
+import type { Message, MessageMedia } from '@/lib/api/chat';
 
 /** A photo in the chat: at most this tall, at least this wide (a very tall one is cropped rather than a sliver). */
 const MAX_H = 320;

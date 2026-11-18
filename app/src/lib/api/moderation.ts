@@ -1,8 +1,14 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-
-import { api, type Member } from '@/lib/api/client';
-import { keys } from '@/lib/queries';
+import { api } from '@/lib/api/client';
 import { useSession } from '@/lib/session';
+import type { Member } from '@/lib/api/group';
+import { friendKeys } from '@/lib/api/friends';
+import { roomKeys } from '@/lib/api/rooms';
+import { inboxKeys } from '@/lib/api/inbox';
+
+export const moderationKeys = {
+  blocks: ['blocks'] as const,
+};
 
 /** `answer`: an answer to a « Qui a dit ça ? » question (docs/SAID.md). */
 export type ReportKind = 'message' | 'member' | 'question' | 'suggestion' | 'answer';
@@ -31,7 +37,7 @@ const NONE = new Set<number>();
 /** People I blocked, shared by every screen (an older server without blocks: nobody). */
 export function useBlocks() {
   const { token } = useSession();
-  const { data } = useQuery({ queryKey: keys.blocks, queryFn: () => api<Blocked[]>('/blocks'), enabled: !!token, retry: false });
+  const { data } = useQuery({ queryKey: moderationKeys.blocks, queryFn: () => api<Blocked[]>('/blocks'), enabled: !!token, retry: false });
   const list = data ?? [];
   return { list, ids: data ? new Set(list.map((b) => b.user_id)) : NONE };
 }
@@ -40,21 +46,21 @@ export function useBlocks() {
 export function useBlockActions() {
   const qc = useQueryClient();
   const refresh = () => {
-    qc.invalidateQueries({ queryKey: keys.blocks });
+    qc.invalidateQueries({ queryKey: moderationKeys.blocks });
     qc.invalidateQueries({ queryKey: ['messages'] });
-    qc.invalidateQueries({ queryKey: keys.inbox });
-    qc.invalidateQueries({ queryKey: keys.friends });
-    qc.invalidateQueries({ queryKey: keys.rooms });
+    qc.invalidateQueries({ queryKey: inboxKeys.all });
+    qc.invalidateQueries({ queryKey: friendKeys.all });
+    qc.invalidateQueries({ queryKey: roomKeys.all });
   };
   return {
     block: async (who: Blocked) => {
       await api(`/blocks/${who.user_id}`, { method: 'PUT' });
-      qc.setQueryData<Blocked[]>(keys.blocks, (old) => [...(old ?? []).filter((b) => b.user_id !== who.user_id), who]);
+      qc.setQueryData<Blocked[]>(moderationKeys.blocks, (old) => [...(old ?? []).filter((b) => b.user_id !== who.user_id), who]);
       refresh();
     },
     unblock: async (userId: number) => {
       await api(`/blocks/${userId}`, { method: 'DELETE' });
-      qc.setQueryData<Blocked[]>(keys.blocks, (old) => old?.filter((b) => b.user_id !== userId));
+      qc.setQueryData<Blocked[]>(moderationKeys.blocks, (old) => old?.filter((b) => b.user_id !== userId));
       refresh();
     },
   };

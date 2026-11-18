@@ -1,10 +1,10 @@
 // Anonymous votes (docs/ANONYMOUS.md): the marker on a ballot and a result, the room rule, the composer switch.
 import { Glasses } from 'lucide-react-native';
 import { Pressable, Text, View } from 'react-native';
-import type { AnonymousMode } from '@/lib/api/client';
 import { useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 import { Segmented } from '@/components/ui/segmented';
+import type { AnonymousMode } from '@/lib/api/group';
 
 /** Next to the question's tag: nobody will see who voted for whom. */
 export function AnonymousBadge() {

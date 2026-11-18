@@ -1,8 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-
-import { api, type Round } from '@/lib/api/client';
+import { api } from '@/lib/api/client';
 import { useFeatures } from '@/lib/api/auth';
-import { keys, useGroup } from '@/lib/queries';
+import type { Round } from '@/lib/api/rounds';
+import { useGroup } from '@/lib/api/group';
+import { roundKeys } from '@/lib/api/rounds';
+import { statsKeys } from '@/lib/api/stats';
 
 /** Le Tripot (docs/TRIPOT.md): bets on who wins a question, with chips worth nothing (no real money, ever). */
 export type MyBet = { target_id: number; amount: number; payout: number | null };
@@ -33,7 +35,9 @@ export type TripotBoard = {
 export const CHIPS = [10, 25, 50] as const;
 
 /** Under the stats key: a closed question (live event) refreshes it with them. */
-export const boardKey = [...keys.stats, 'tripot'] as const;
+export const tripotKeys = {
+  board: [...statsKeys.all, 'tripot'] as const,
+};
 
 /** Tripot is on here: the server has it, the room is not a party, and its owner left it on. */
 export function useTripotOn() {
@@ -44,7 +48,7 @@ export function useTripotOn() {
 
 export function useTripotBoard() {
   const on = useTripotOn();
-  return useQuery({ queryKey: boardKey, queryFn: () => api<TripotBoard>('/tripot'), enabled: on, staleTime: 30_000 });
+  return useQuery({ queryKey: tripotKeys.board, queryFn: () => api<TripotBoard>('/tripot'), enabled: on, staleTime: 30_000 });
 }
 
 /** One bet on the open question; the round shows it right away. */
@@ -53,11 +57,11 @@ export function useBet(round: Round) {
   return useMutation({
     mutationFn: (body: { target: number; amount: number }) => api<Tripot | null>(`/rounds/${round.id}/bet`, { method: 'POST', json: body }),
     onSuccess: (tripot) => {
-      if (tripot) qc.setQueryData<Round | null>(keys.current, (r) => (r && r.id === round.id ? { ...r, tripot } : r));
+      if (tripot) qc.setQueryData<Round | null>(roundKeys.current, (r) => (r && r.id === round.id ? { ...r, tripot } : r));
     },
     onSettled: () => {
-      qc.invalidateQueries({ queryKey: keys.current });
-      qc.invalidateQueries({ queryKey: boardKey });
+      qc.invalidateQueries({ queryKey: roundKeys.current });
+      qc.invalidateQueries({ queryKey: tripotKeys.board });
     },
   });
 }

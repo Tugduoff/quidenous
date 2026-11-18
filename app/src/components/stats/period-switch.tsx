@@ -1,10 +1,9 @@
 import { Pressable, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
-
-import type { StatsPeriod } from '@/lib/api/client';
 import { type TKey, useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
 import { useTheme } from '@/lib/theme';
+import type { StatsPeriod } from '@/lib/api/stats';
 
 const PERIODS: { value: StatsPeriod; label: TKey }[] = [
   { value: '7d', label: 'stats.period.week' },

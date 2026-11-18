@@ -10,12 +10,12 @@ import { api, ApiError } from '@/lib/api/client';
 import { authError, useFeatures } from '@/lib/api/auth';
 import { getLang, type Lang, type TKey, useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
-import { useVibes } from '@/lib/queries';
 import { useTheme } from '@/lib/theme';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Display } from '@/components/ui/text';
 import { Segmented } from '@/components/ui/segmented';
+import { useVibes } from '@/lib/api/group';
 
 const ERRORS: Record<string, TKey> = {
   bad_code: 'room.errors.badCode',

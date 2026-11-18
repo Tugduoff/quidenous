@@ -1,14 +1,22 @@
 import { type QueryKey, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useSyncExternalStore } from 'react';
 import { AppState } from 'react-native';
-
-import { liveUrl } from '@/lib/api/client';
+import { API_URL, urlAuth, roomQuery } from '@/lib/api/client';
 import { featuresQuery } from '@/lib/api/auth';
-import { badgesKey, titlesKey } from '@/lib/api/badges';
+import { badgeKeys } from '@/lib/api/badges';
 import { PARTY_EVENTS, partyKeys } from '@/lib/api/party';
-import { keys, refreshHistory } from '@/lib/queries';
 import { type ReactedEvent, receiveReacted } from '@/lib/api/result-reactions';
 import { openSocket } from '@/lib/api/socket';
+import { refreshHistory, historyKeys } from '@/lib/api/history';
+import { roundKeys } from '@/lib/api/rounds';
+import { friendKeys } from '@/lib/api/friends';
+import { groupKeys } from '@/lib/api/group';
+import { chatKeys } from '@/lib/api/chat';
+import { todayKeys } from '@/lib/api/today';
+import { statsKeys } from '@/lib/api/stats';
+import { questionKeys } from '@/lib/api/questions';
+import { inboxKeys } from '@/lib/api/inbox';
+import { roomKeys } from '@/lib/api/rooms';
 
 /** While on the screen, the app tells the server every so often, so it sends no push for this room. */
 const HERE_MS = 20_000;
@@ -36,7 +44,7 @@ type LiveEvent = { type: string; round_id?: number };
 
 /**
  * The queries each server event touches (server/src/live.rs). Unknown events: everything, like `resync`.
- * `keys.today` (all my rooms) follows what changes a room's card: votes, questions, chat, bets, who's in.
+ * `todayKeys.all` (all my rooms) follows what changes a room's card: votes, questions, chat, bets, who's in.
  */
 function touched(event: LiveEvent): QueryKey[] | 'all' {
   switch (event.type) {
@@ -44,49 +52,49 @@ function touched(event: LiveEvent): QueryKey[] | 'all' {
       return [];
     // Something happened in another room of mine (`others=1`): only « Aujourd'hui » and the room list show it.
     case 'room_activity':
-      return [keys.today, keys.rooms];
+      return [todayKeys.all, roomKeys.all];
     case 'vote_cast':
     case 'skip_voted':
     // Someone bet on the open question (Tripot): its pot changed.
     case 'tripot_updated':
-      return [keys.current, keys.today];
+      return [roundKeys.current, todayKeys.all];
     // A « Qui a dit ça ? » question went from writing to guessing (docs/SAID.md).
     case 'round_updated':
-      return event.round_id ? [keys.current, keys.round(event.round_id), keys.today] : [keys.current, keys.today];
+      return event.round_id ? [roundKeys.current, roundKeys.detail(event.round_id), todayKeys.all] : [roundKeys.current, todayKeys.all];
     case 'round_opened':
-      return [['round'], keys.historyList, keys.queue, keys.stats, keys.today];
+      return [['round'], historyKeys.list, questionKeys.queue, statsKeys.all, todayKeys.all];
     // A closed question can cross a badge threshold (mine arrives as an inbox entry; the room's titles may follow).
     case 'round_closed':
-      return [['round'], keys.historyList, keys.queue, keys.stats, titlesKey, keys.today];
+      return [['round'], historyKeys.list, questionKeys.queue, statsKeys.all, badgeKeys.titles, todayKeys.all];
     case 'message_posted':
-      return event.round_id ? [keys.messages(event.round_id), keys.today] : [keys.today];
+      return event.round_id ? [chatKeys.messages(event.round_id), todayKeys.all] : [todayKeys.all];
     // Someone reacted to a message (or took their reaction back).
     case 'message_reacted':
-      return event.round_id ? [keys.messages(event.round_id)] : [];
+      return event.round_id ? [chatKeys.messages(event.round_id)] : [];
     // Deleted by its author, the owner or an admin, or hidden by reports.
     case 'message_deleted':
-      return event.round_id ? [keys.messages(event.round_id), keys.inbox, keys.today] : [keys.inbox, keys.today];
+      return event.round_id ? [chatKeys.messages(event.round_id), inboxKeys.all, todayKeys.all] : [inboxKeys.all, todayKeys.all];
     // Also a friend request, a room invitation or a new badge for me.
     case 'inbox_changed':
-      return [keys.inbox, keys.friends, keys.invites, badgesKey, titlesKey, keys.today];
+      return [inboxKeys.all, friendKeys.all, roomKeys.invites, badgeKeys.mine, badgeKeys.titles, todayKeys.all];
     case 'kick_voted':
-      return [keys.group];
+      return [groupKeys.all];
     case 'round_pinned':
-      return event.round_id ? [keys.pinned, keys.round(event.round_id)] : [keys.pinned];
+      return event.round_id ? [historyKeys.pinned, roundKeys.detail(event.round_id)] : [historyKeys.pinned];
     case 'question_added':
-      return [keys.queue];
+      return [questionKeys.queue];
     // Settings, owner, pacing, invite code: the room and its open question (skip rules, next opening).
     case 'room_updated':
-      return [keys.group, keys.rooms, keys.current, keys.queue, keys.today];
+      return [groupKeys.all, roomKeys.all, roundKeys.current, questionKeys.queue, todayKeys.all];
     // Who's in: the room, the counts on the open question and in the room list.
     case 'member_joined':
     case 'member_removed':
-      return [keys.group, keys.current, keys.rooms, ['invites'], keys.today];
+      return [groupKeys.all, roundKeys.current, roomKeys.all, ['invites'], todayKeys.all];
     // A new name or photo: also shown on results and in the chat.
     case 'member_updated':
-      return [keys.group, ['round'], ['messages']];
+      return [groupKeys.all, ['round'], ['messages']];
     case 'room_deleted':
-      return [keys.group, keys.rooms, keys.current, keys.today];
+      return [groupKeys.all, roomKeys.all, roundKeys.current, todayKeys.all];
     // Taps on a result: handed to its screen (receiveReacted), never a refetch (they come in bursts).
     case 'result_reacted':
       return [];
@@ -112,7 +120,7 @@ export function useLive(token: string | null, room: number | null) {
       } else
         for (const queryKey of batch.values()) {
           // The history list gets its newest page only (see refreshHistory).
-          if (queryKey === keys.historyList) refreshHistory(qc).catch(() => {});
+          if (queryKey === historyKeys.list) refreshHistory(qc).catch(() => {});
           else qc.invalidateQueries({ queryKey });
         }
       batch = new Map();
@@ -187,3 +195,10 @@ export function useLive(token: string | null, room: number | null) {
     };
   }, [token, room, qc]);
 }
+
+/**
+ * The live socket. `reactions`: also send `result_reacted` (only to apps that handle it, docs/REACTIONS.md).
+ * `others`: also a `room_activity` event for my other rooms (the server has `today`, docs/TODAY.md).
+ */
+export const liveUrl = async (t: string, tickets: boolean, reactions = false, others = false) =>
+  `${API_URL.replace(/^http/, 'ws')}/api/live?${await urlAuth('live', tickets, t)}${roomQuery()}${reactions ? '&events=reactions' : ''}${others ? '&others=1' : ''}`;

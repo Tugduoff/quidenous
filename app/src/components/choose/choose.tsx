@@ -9,16 +9,19 @@ import Svg, { Circle, G, Path } from 'react-native-svg';
 import { scheduleOnRN } from 'react-native-worklets';
 import { Screen } from '@/components/ui/screen';
 import { Tip } from '@/components/ui/tip';
-import { api, type Choice, type ChooseResult as ChooseData, type Member, type Round } from '@/lib/api/client';
+import { api } from '@/lib/api/client';
 import { useT } from '@/lib/i18n';
 import { BOUNCE, EASE, SPRING, usePop } from '@/lib/motion';
-import { keys } from '@/lib/queries';
 import { useSession } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Avatar, AvatarStack } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import type { Member } from '@/lib/api/group';
+import type { Choice, ChooseResult as ChooseData, Round } from '@/lib/api/rounds';
+import { roundKeys } from '@/lib/api/rounds';
+import { groupKeys } from '@/lib/api/group';
 
 // "Qui choisirait quoi ?" (docs/CHOOSE.md): wire every member to an item (mine: my real choice, the others: my guesses),
 // then the result person by person.
@@ -110,9 +113,9 @@ export function ChooseBallot({
     meta: { quiet: true },
     mutationFn: (c: Choice[]) => api('/round/current/vote', { method: 'POST', json: { choices: c } }),
     onSuccess: onVoted,
-    onSettled: () => qc.invalidateQueries({ queryKey: keys.current }),
+    onSettled: () => qc.invalidateQueries({ queryKey: roundKeys.current }),
     // Someone joined or left meanwhile: refresh the room so the ballot shows who to wire now.
-    onError: () => qc.invalidateQueries({ queryKey: keys.group }),
+    onError: () => qc.invalidateQueries({ queryKey: groupKeys.all }),
   });
   const send = () => all && vote.mutate(people.map((p) => ({ member_id: p.id, item: choices[p.id] })));
   const bump = usePop(all, 1.04, all);

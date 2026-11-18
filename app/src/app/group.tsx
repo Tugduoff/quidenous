@@ -11,11 +11,10 @@ import { Screen } from '@/components/ui/screen';
 import { StreakBadge } from '@/components/streaks/streaks';
 import { MemberTitle } from '@/components/badges/title-chip';
 import { showToast } from '@/lib/toast';
-import { api, type RoomSummary } from '@/lib/api/client';
+import { api } from '@/lib/api/client';
 import { authError, useFeatures } from '@/lib/api/auth';
 import { useT } from '@/lib/i18n';
 import { usePop } from '@/lib/motion';
-import { keys, useGroup, useRooms } from '@/lib/queries';
 import { useRoomGone } from '@/lib/hooks/use-switch-room';
 import { useSession } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
@@ -24,6 +23,8 @@ import { Avatar } from '@/components/ui/avatar';
 import { Card } from '@/components/ui/card';
 import { Display } from '@/components/ui/text';
 import { askConfirm } from '@/lib/confirm';
+import { type RoomSummary, useRooms, roomKeys } from '@/lib/api/rooms';
+import { useGroup, groupKeys } from '@/lib/api/group';
 
 /** Ask before leaving, in the app's own dialog. */
 const confirm = (message: string, title: string, action: string) => askConfirm(title, message, action);
@@ -57,11 +58,11 @@ function Members() {
   const owner = group?.my_role === 'owner';
   const forceRemove = useMutation({
     mutationFn: (id: number) => api(`/rooms/${group!.id}/members/${id}`, { method: 'DELETE' }),
-    onSettled: () => qc.invalidateQueries({ queryKey: keys.group }),
+    onSettled: () => qc.invalidateQueries({ queryKey: groupKeys.all }),
   });
   const kick = useMutation({
     mutationFn: ({ id, undo }: { id: number; undo: boolean }) => api(`/members/${id}/kick`, { method: undo ? 'DELETE' : 'PUT' }),
-    onSettled: () => qc.invalidateQueries({ queryKey: keys.group }),
+    onSettled: () => qc.invalidateQueries({ queryKey: groupKeys.all }),
   });
   if (!group) return null;
   // With two people a majority is one person deciding alone: no vote then.
@@ -211,15 +212,15 @@ function MuteButton({ id, muted }: { id: number; muted: boolean }) {
   const toggle = useMutation({
     mutationFn: (mute: boolean) => api<{ ok: boolean; muted: boolean }>(`/rooms/${id}/mute`, { method: mute ? 'PUT' : 'DELETE' }),
     onMutate: async (mute) => {
-      await qc.cancelQueries({ queryKey: keys.rooms });
-      const before = qc.getQueryData<RoomSummary[]>(keys.rooms);
-      qc.setQueryData<RoomSummary[]>(keys.rooms, (rooms) => rooms?.map((r) => (r.id === id ? { ...r, muted: mute } : r)));
+      await qc.cancelQueries({ queryKey: roomKeys.all });
+      const before = qc.getQueryData<RoomSummary[]>(roomKeys.all);
+      qc.setQueryData<RoomSummary[]>(roomKeys.all, (rooms) => rooms?.map((r) => (r.id === id ? { ...r, muted: mute } : r)));
       return { before };
     },
     onError: (_e, _mute, ctx) => {
-      if (ctx?.before) qc.setQueryData(keys.rooms, ctx.before);
+      if (ctx?.before) qc.setQueryData(roomKeys.all, ctx.before);
     },
-    onSettled: () => qc.invalidateQueries({ queryKey: keys.rooms }),
+    onSettled: () => qc.invalidateQueries({ queryKey: roomKeys.all }),
   });
   const Icon = muted ? BellOff : Bell;
   return (

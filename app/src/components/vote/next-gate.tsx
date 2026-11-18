@@ -3,14 +3,14 @@ import { Hourglass, Play } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
-import { launchNext, type Group } from '@/lib/api/client';
 import { useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
-import { keys } from '@/lib/queries';
 import { useSession } from '@/lib/session';
 import { until } from '@/lib/utils/time';
 import { useTheme } from '@/lib/theme';
 import { Button } from '@/components/ui/button';
+import { launchNext, type Group, groupKeys } from '@/lib/api/group';
+import { questionKeys } from '@/lib/api/questions';
 
 /** Re-renders every 30 s while a countdown is on screen. */
 function useNow(on: boolean) {
@@ -42,8 +42,8 @@ export function NextGate({ group, onLaunched }: { group: Group; onLaunched?: () 
     // The new question, the room's pacing and the queue it came from (not every query).
     onSettled: () => {
       qc.invalidateQueries({ queryKey: ['round'] });
-      qc.invalidateQueries({ queryKey: keys.group });
-      qc.invalidateQueries({ queryKey: keys.queue });
+      qc.invalidateQueries({ queryKey: groupKeys.all });
+      qc.invalidateQueries({ queryKey: questionKeys.queue });
     },
   });
   const line = deadline ? tr('vote.gate.nextIn', { time: until(deadline, now) }) : tr('vote.gate.waitingOwner');

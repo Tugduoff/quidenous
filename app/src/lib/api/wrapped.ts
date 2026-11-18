@@ -1,11 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
-
 import { api } from '@/lib/api/client';
 import { useFeatures } from '@/lib/api/auth';
 import { t } from '@/lib/i18n';
 import type { Mood, Who } from '@/lib/utils/mascot';
-import { useGroup } from '@/lib/queries';
 import { shareCard } from '@/lib/device/share';
+import { useGroup } from '@/lib/api/group';
 
 export type WrappedScope = 'me' | 'room';
 /** Someone shown on a card (only people who share a room with me). */

@@ -3,13 +3,13 @@ import { type ReactNode, useEffect } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import Animated, { Easing, FadeInDown, FadeInUp, LayoutAnimationConfig, ReduceMotion, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withTiming, ZoomIn } from 'react-native-reanimated';
-import type { Member } from '@/lib/api/client';
 import { useT } from '@/lib/i18n';
 import { EASE, LAYOUT_EASE, motion, useArrivals } from '@/lib/motion';
 import { type PartyPlayer, type PartyRound, partyJoinLink, REACTIONS, tallies } from '@/lib/api/party';
 import { useTheme } from '@/lib/theme';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Avatar, AvatarStack } from '@/components/ui/avatar';
+import type { Member } from '@/lib/api/group';
 
 /** The join QR code on its white tile. */
 export function JoinQr({ code, size }: { code: string; size: number }) {

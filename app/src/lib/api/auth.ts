@@ -1,11 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
 import { Platform } from 'react-native';
-
 import { errors } from '@/locales/fr/errors';
-
-import { API_URL, api, ApiError, presetJoinCode } from '@/lib/api/client';
+import { API_URL, api, ApiError } from '@/lib/api/client';
 import { deviceHeader } from '@/lib/device/info';
 import { getLang, t } from '@/lib/i18n';
+import { presetJoinCode } from '@/lib/device/launch-params';
 
 export type Provider = 'google' | 'discord';
 export const PROVIDERS: Provider[] = ['google', 'discord'];

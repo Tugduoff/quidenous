@@ -3,12 +3,12 @@ import { type ComponentType, useEffect, useState } from 'react';
 import { Platform, Pressable, Text, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import { Screen } from '@/components/ui/screen';
-import { presetFriendCode, presetJoinCode } from '@/lib/api/client';
 import { useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { CodeText, Display, Logo } from '@/components/ui/text';
+import { presetFriendCode, presetJoinCode } from '@/lib/device/launch-params';
 
 type InstallPrompt = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }> };
 

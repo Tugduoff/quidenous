@@ -9,10 +9,10 @@ import { isNotFound } from '@/lib/api/client';
 import { useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
 import { useCreator } from '@/lib/api/packs';
-import { useGroup } from '@/lib/queries';
 import { useTheme } from '@/lib/theme';
 import { Avatar } from '@/components/ui/avatar';
 import { Display } from '@/components/ui/text';
+import { useGroup } from '@/lib/api/group';
 
 /** Someone who publishes packs: their face, name, installs and likes over all their packs, and the packs. */
 export default function CreatorScreen() {

@@ -13,7 +13,6 @@ import { Countdown, Reactions, VotedLine } from '@/components/party/party';
 import { AnswerButtons, AnswerField, AnswerText, GuessRecap, MatchBoard, MyAnswer, NumberDisc, SaidResultView, SaidScoreboard, SaidScreenReveal, screenRevealSteps, SuspectTray, useMatchGame, ZesteSays } from '@/components/said/said';
 import { Screen } from '@/components/ui/screen';
 import { Tip } from '@/components/ui/tip';
-import type { Member, SaidAnswer, SaidGuess, SaidView } from '@/lib/api/client';
 import { useFeatures } from '@/lib/api/auth';
 import { useT } from '@/lib/i18n';
 import { motion, usePop } from '@/lib/motion';
@@ -25,6 +24,8 @@ import { Button } from '@/components/ui/button';
 import { Tag } from '@/components/ui/tag';
 import { Card } from '@/components/ui/card';
 import { Display, ErrorText } from '@/components/ui/text';
+import type { Member } from '@/lib/api/group';
+import type { SaidAnswer, SaidGuess, SaidView } from '@/lib/api/rounds';
 
 /** The players by id. Kept while the players don't change (refetches share unchanged parts), so lists don't redraw. */
 function usePlayers(party: Party) {

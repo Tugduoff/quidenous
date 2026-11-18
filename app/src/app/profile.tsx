@@ -13,11 +13,10 @@ import { useSignOut } from '@/components/security/devices';
 import { BadgesRow, MyTitle } from '@/components/badges/title-chip';
 import { VersionLine } from '@/components/update/update';
 import { WrappedRow } from '@/components/wrapped/entry';
-import { api, API_URL, ApiError, apiUpload, type Member } from '@/lib/api/client';
+import { api, API_URL, ApiError, apiUpload } from '@/lib/api/client';
 import { useAccount, useFeatures } from '@/lib/api/auth';
 import { useDonateUrl } from '@/lib/api/donate';
 import { type LangPref, setLangPref, type TKey, useLang, useT } from '@/lib/i18n';
-import { keys } from '@/lib/queries';
 import { useSession } from '@/lib/session';
 import { ACCENTS, setAccent, setThemePref, useAccent, useTheme, useThemePref, type Accent, type ThemePref } from '@/lib/theme';
 import { Avatar } from '@/components/ui/avatar';
@@ -26,6 +25,8 @@ import { Card } from '@/components/ui/card';
 import { Display } from '@/components/ui/text';
 import { Dialog, DialogTitle } from '@/components/ui/dialog';
 import { BackButton } from '@/components/ui/back-button';
+import type { Member } from '@/lib/api/group';
+import { groupKeys } from '@/lib/api/group';
 
 const PHOTO_WIDTH = 512;
 const THEMES: { pref: ThemePref; Icon: typeof Sun; label: TKey }[] = [
@@ -123,7 +124,7 @@ export default function Profile() {
 
   const updated = (m: Member) => {
     setMe(m);
-    qc.invalidateQueries({ queryKey: keys.group });
+    qc.invalidateQueries({ queryKey: groupKeys.all });
   };
 
   const pickPhoto = async (from: 'library' | 'camera') => {

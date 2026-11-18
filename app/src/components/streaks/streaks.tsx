@@ -1,7 +1,6 @@
 import { Flame, Users } from 'lucide-react-native';
 import { Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
-import type { Member, Stats } from '@/lib/api/client';
 import { useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
 import { useSession } from '@/lib/session';
@@ -10,6 +9,8 @@ import { useTheme } from '@/lib/theme';
 import { Caps, int, Section } from '@/components/stats/common';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Avatar, AvatarStack } from '@/components/ui/avatar';
+import type { Member } from '@/lib/api/group';
+import type { Stats } from '@/lib/api/stats';
 
 /** A flame and a number: muted, in the accent colour from a week. */
 function FlameCount({ n, size = 13, label }: { n: number; size?: number; label: string }) {

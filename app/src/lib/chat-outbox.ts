@@ -5,13 +5,12 @@ import type { ImagePickerAsset } from 'expo-image-picker';
 import * as Sharing from 'expo-sharing';
 import { useSyncExternalStore } from 'react';
 import { Platform } from 'react-native';
-
 import { showToast } from '@/lib/toast';
-
-import { api, ApiError, apiUpload, mediaUrl, type Message, type MessageMedia } from '@/lib/api/client';
+import { api, ApiError, apiUpload, mediaUrl } from '@/lib/api/client';
 import { authError } from '@/lib/api/auth';
-import { keys } from '@/lib/queries';
 import { queryClient } from '@/lib/api/query-client';
+import type { Message, MessageMedia } from '@/lib/api/chat';
+import { chatKeys } from '@/lib/api/chat';
 
 /** Longest side of a photo sent in the chat (the server resizes again, to the same size). */
 const MAX_SIDE = 1600;
@@ -143,7 +142,7 @@ async function run(roundId: number, key: string, onSent?: () => void) {
     const m = await send();
     senders.delete(key);
     update(roundId, (list) => list.filter((p) => p.key !== key));
-    queryClient.setQueryData<Message[]>(keys.messages(roundId), (old) => (old?.some((x) => x.id === m.id) ? old : [...(old ?? []), m]));
+    queryClient.setQueryData<Message[]>(chatKeys.messages(roundId), (old) => (old?.some((x) => x.id === m.id) ? old : [...(old ?? []), m]));
     onSent?.();
   } catch (e) {
     if (retryable(e)) {

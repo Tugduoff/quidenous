@@ -1,6 +1,6 @@
 // « Qui a dit ça ? » (docs/SAID.md): the pure part. What there is to guess, the matching game's state, the reveal.
 // No React Native in here (tested with `bun test src/lib/said.test.ts`).
-import type { SaidAnswer, SaidGuess, SaidResult, SaidView } from '@/lib/api/client';
+import type { SaidAnswer, SaidGuess, SaidResult, SaidView } from '@/lib/api/rounds';
 
 /** Same limit as the server (1 to 140 characters after cleaning). */
 export const ANSWER_MAX = 140;

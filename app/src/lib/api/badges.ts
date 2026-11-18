@@ -1,9 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-
 import { api } from '@/lib/api/client';
 import { useFeatures } from '@/lib/api/auth';
 import type { Who } from '@/lib/utils/mascot';
-import { keys, useGroup } from '@/lib/queries';
+import { useGroup, groupKeys } from '@/lib/api/group';
 
 /** 1 bronze, 2 silver, 3 gold (0: not earned yet). */
 export type Tier = 0 | 1 | 2 | 3;
@@ -32,15 +31,16 @@ export type Titles = { members: Record<string, TitleChip> };
 export type MemberBadges = { title: TitleChip | null; badges: Pick<Badge, 'key' | 'name' | 'icon' | 'mascot' | 'tier'>[] };
 
 /** Mine: account-wide (cleared with the rest on a room switch, refetched on any inbox change). */
-export const badgesKey = ['badges'] as const;
-/** Under the room's key: whatever refreshes the room (members, names) refreshes the titles too. */
-export const titlesKey = [...keys.group, 'titles'] as const;
-const memberBadgesKey = (id: number) => [...keys.group, 'badges', id] as const;
+export const badgeKeys = {
+  mine: ['badges'] as const,
+  titles: [...groupKeys.all, 'titles'] as const,
+  member: (id: number) => [...groupKeys.all, 'badges', id] as const,
+};
 
 /** My collection, from a server that has badges. */
 export function useBadges() {
   const { badges } = useFeatures();
-  return useQuery({ queryKey: badgesKey, queryFn: () => api<Badges>('/badges'), enabled: badges, staleTime: 60_000 });
+  return useQuery({ queryKey: badgeKeys.mine, queryFn: () => api<Badges>('/badges'), enabled: badges, staleTime: 60_000 });
 }
 
 /** Titles exist on this server and in this room (a party has none). */
@@ -50,7 +50,7 @@ function useTitlesOn() {
   return badges && !!group && group.kind !== 'party';
 }
 
-const titlesQuery = { queryKey: titlesKey, queryFn: () => api<Titles>('/titles'), staleTime: 60_000 };
+const titlesQuery = { queryKey: badgeKeys.titles, queryFn: () => api<Titles>('/titles'), staleTime: 60_000 };
 
 /** Every displayed title of the room (one request, shared by every chip). */
 export function useTitles() {
@@ -77,7 +77,7 @@ export function useMemberTitle(id: number | null | undefined): TitleChip | null 
 export function useMemberBadges(id: number | null, enabled = true) {
   const on = useTitlesOn();
   return useQuery({
-    queryKey: memberBadgesKey(id ?? 0),
+    queryKey: badgeKeys.member(id ?? 0),
     queryFn: () => api<MemberBadges>(`/members/${id}/badges`),
     enabled: on && enabled && id != null,
     staleTime: 60_000,
@@ -100,15 +100,15 @@ export function useSetTitle() {
   return useMutation({
     mutationFn: (key: string | null) => api<{ title: string | null }>('/me/title', { method: 'PUT', json: { key } }),
     onMutate: async (key) => {
-      await qc.cancelQueries({ queryKey: badgesKey });
-      const before = qc.getQueryData<Badges>(badgesKey);
-      qc.setQueryData<Badges>(badgesKey, (b) => b && { ...b, title: key });
+      await qc.cancelQueries({ queryKey: badgeKeys.mine });
+      const before = qc.getQueryData<Badges>(badgeKeys.mine);
+      qc.setQueryData<Badges>(badgeKeys.mine, (b) => b && { ...b, title: key });
       return { before };
     },
     onError: (_e, _key, ctx) => {
-      if (ctx?.before) qc.setQueryData(badgesKey, ctx.before);
+      if (ctx?.before) qc.setQueryData(badgeKeys.mine, ctx.before);
     },
-    onSuccess: (r) => qc.setQueryData<Badges>(badgesKey, (b) => b && { ...b, title: r?.title ?? null }),
-    onSettled: () => qc.invalidateQueries({ queryKey: titlesKey }),
+    onSuccess: (r) => qc.setQueryData<Badges>(badgeKeys.mine, (b) => b && { ...b, title: r?.title ?? null }),
+    onSettled: () => qc.invalidateQueries({ queryKey: badgeKeys.titles }),
   });
 }

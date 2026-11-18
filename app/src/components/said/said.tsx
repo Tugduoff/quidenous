@@ -13,10 +13,9 @@ import { Mascot } from '@/components/mascot/mascot';
 import { ModerationDialog, type ModTarget } from '@/components/moderation/moderation';
 import { Screen } from '@/components/ui/screen';
 import { Tip } from '@/components/ui/tip';
-import { api, ApiError, type Member, type Round, type SaidAnswer, type SaidGuess, type SaidResult, type SaidView } from '@/lib/api/client';
+import { api, ApiError } from '@/lib/api/client';
 import { useT } from '@/lib/i18n';
 import { BOUNCE, EASE, LAYOUT_EASE, motion, usePop } from '@/lib/motion';
-import { keys } from '@/lib/queries';
 import { ANSWER_MAX, ANSWER_WARN, guessGroups, initMatch, isComplete, type Match, type MatchAction, matchReducer, pickLine, placed, type RevealItem, revealItems, suspects as suspectIds, toGuess, toGuesses, places } from '@/lib/utils/said';
 import { storage } from '@/lib/device/storage';
 import { sendOnEnter } from '@/lib/utils/submit';
@@ -25,6 +24,10 @@ import { PressableScale } from '@/components/ui/pressable-scale';
 import { Avatar, AvatarStack } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import type { Member } from '@/lib/api/group';
+import type { Round, SaidAnswer, SaidGuess, SaidResult, SaidView } from '@/lib/api/rounds';
+import { roundKeys } from '@/lib/api/rounds';
+import { groupKeys } from '@/lib/api/group';
 
 const sys = ReduceMotion.System;
 
@@ -645,13 +648,13 @@ function SaidWriting({
     onSuccess: (r) => {
       setEditing(false);
       setError(null);
-      if (r && typeof r === 'object' && 'id' in r) qc.setQueryData(keys.current, r);
+      if (r && typeof r === 'object' && 'id' in r) qc.setQueryData(roundKeys.current, r);
     },
     onError: (e) => {
       const late = e instanceof ApiError && (e.code === 'not_writing' || e.code === 'not_said' || e.code === 'no_open_round');
       setError(tr(late ? 'said.write.tooLate' : 'said.write.failed'));
     },
-    onSettled: () => qc.invalidateQueries({ queryKey: keys.current }),
+    onSettled: () => qc.invalidateQueries({ queryKey: roundKeys.current }),
   });
   const ok = text.trim().length > 0 && !send.isPending && text.trim() !== mine?.text;
   const submit = () => ok && send.mutate(text.trim());
@@ -740,8 +743,8 @@ function SaidGuessing({
     mutationFn: (guesses: SaidGuess[]) => api('/round/current/vote', { method: 'POST', json: { guesses } }),
     onSuccess: onVoted,
     // The writers changed meanwhile (someone left): the refreshed room shows who to place now.
-    onError: () => qc.invalidateQueries({ queryKey: keys.group }),
-    onSettled: () => qc.invalidateQueries({ queryKey: keys.current }),
+    onError: () => qc.invalidateQueries({ queryKey: groupKeys.all }),
+    onSettled: () => qc.invalidateQueries({ queryKey: roundKeys.current }),
   });
   const send = () => (complete || nothing) && vote.mutate(toGuesses(state));
   const bump = usePop(complete, 1.04, complete);

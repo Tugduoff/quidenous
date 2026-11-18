@@ -1,11 +1,11 @@
 import type { ReactNode } from 'react';
 import { Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
-import type { Member } from '@/lib/api/client';
 import { motion, usePop } from '@/lib/motion';
 import { useTheme } from '@/lib/theme';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Avatar } from '@/components/ui/avatar';
+import type { Member } from '@/lib/api/group';
 
 /** Above this many people, ballots switch from wide cards to a grid of faces. */
 export const BIG_GROUP = 6;

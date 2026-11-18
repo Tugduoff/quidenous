@@ -13,10 +13,12 @@ import { useFeatures } from '@/lib/api/auth';
 import { useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
 import { packKeys, type PackItem, useMyPacks } from '@/lib/api/packs';
-import { keys, useGroup } from '@/lib/queries';
 import { useTheme } from '@/lib/theme';
 import { Button } from '@/components/ui/button';
 import { Display } from '@/components/ui/text';
+import { useGroup } from '@/lib/api/group';
+import { roundKeys } from '@/lib/api/rounds';
+import { questionKeys } from '@/lib/api/questions';
 
 type Deleted = { deleted: number[]; skipped: { id: number; error: string }[] };
 
@@ -75,8 +77,8 @@ export default function MyPacksScreen() {
     },
     onSettled: () => {
       qc.invalidateQueries({ queryKey: packKeys.all });
-      qc.invalidateQueries({ queryKey: keys.queue });
-      qc.invalidateQueries({ queryKey: keys.current });
+      qc.invalidateQueries({ queryKey: questionKeys.queue });
+      qc.invalidateQueries({ queryKey: roundKeys.current });
     },
   });
 

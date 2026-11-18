@@ -2,7 +2,6 @@ import { router } from 'expo-router';
 import { ChevronRight } from 'lucide-react-native';
 import { Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
-import type { Award, Duo, Member, Pair, QuestionRef, RankAward, Stats } from '@/lib/api/client';
 import { t, type TKey, useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
 import { useTheme } from '@/lib/theme';
@@ -10,6 +9,8 @@ import { AWARD_ICONS, awardTitle, Caps, duration, iconFor, int, pct, place, Sect
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Avatar, AvatarStack } from '@/components/ui/avatar';
 import { QuestionText } from '@/components/ui/text';
+import type { Member } from '@/lib/api/group';
+import type { Award, Duo, Pair, QuestionRef, RankAward, Stats } from '@/lib/api/stats';
 
 /** One award ready to show: who, the figure, and a quip. */
 type Item = { key: string; ids: number[]; who: string; big: string; unit: string; quip: string };

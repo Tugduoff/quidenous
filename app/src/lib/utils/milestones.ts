@@ -1,9 +1,9 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { Platform } from 'react-native';
-
 import { t, type TKey } from '@/lib/i18n';
-import { useCurrentRound, useGroup } from '@/lib/queries';
 import { storage } from '@/lib/device/storage';
+import { useGroup } from '@/lib/api/group';
+import { useCurrentRound } from '@/lib/api/rounds';
 
 /** One per room: `qdn.milestone.<roomId>`. The bare key is what older versions kept for every room at once. */
 const KEY = 'qdn.milestone';

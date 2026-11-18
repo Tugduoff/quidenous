@@ -1,4 +1,4 @@
-import { type Member, photoUrl } from '@/lib/api/client';
+import { photoUrl } from '@/lib/api/client';
 import { useTheme } from '@/lib/theme';
 import { parseAvatar } from '@/lib/utils/avatar';
 import { View, Text } from 'react-native';
@@ -7,6 +7,7 @@ import { AvatarArt } from '@/components/ui/avatar-art';
 import type { ReactNode } from 'react';
 import Animated, { LayoutAnimationConfig } from 'react-native-reanimated';
 import { motion } from '@/lib/motion';
+import type { Member } from '@/lib/api/group';
 
 export function Avatar({ member, size = 40 }: { member?: Member; size?: number }) {
   const t = useTheme();

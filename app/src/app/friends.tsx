@@ -7,15 +7,17 @@ import QRCode from 'react-native-qrcode-svg';
 import { QueryState } from '@/components/ui/query-state';
 import { ScanButton } from '@/components/ui/qr-scanner';
 import { Screen } from '@/components/ui/screen';
-import { api, ApiError, presetFriendCode, type Member, type Person } from '@/lib/api/client';
+import { api, ApiError } from '@/lib/api/client';
 import { t as tr, type TKey, useT } from '@/lib/i18n';
-import { keys, useFriends } from '@/lib/queries';
 import { friendLink, friendMessage, shareText } from '@/lib/device/share';
 import { useTheme } from '@/lib/theme';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Avatar } from '@/components/ui/avatar';
 import { Card } from '@/components/ui/card';
 import { CodeText, Display } from '@/components/ui/text';
+import { presetFriendCode } from '@/lib/device/launch-params';
+import type { Member } from '@/lib/api/group';
+import { type Person, useFriends, friendKeys } from '@/lib/api/friends';
 
 const ERRORS: Record<string, TKey> = { bad_code: 'friends.errors.badCode', self_friend: 'friends.errors.self' };
 
@@ -74,7 +76,7 @@ export default function FriendsScreen() {
   const [code, setCode] = useState(presetFriendCode() ?? '');
   const [note, setNote] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const refresh = () => qc.invalidateQueries({ queryKey: keys.friends });
+  const refresh = () => qc.invalidateQueries({ queryKey: friendKeys.all });
   // A code sends a request (or accepts theirs); an older server makes friends at once (no `status`).
   const add = useMutation({
     meta: { quiet: true },

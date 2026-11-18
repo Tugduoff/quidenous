@@ -16,7 +16,6 @@ import { getLang, type Lang, useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
 import { parsePackHeader } from '@/lib/utils/pack-file';
 import { isPackTag, MAX_TAGS, PACK_TAGS, packError, packKeys, type PackQuestion, type PackTag, TAG_ICONS, useCommunityMe, usePackDetail } from '@/lib/api/packs';
-import { useGroup, useQueue } from '@/lib/queries';
 import { tidy } from '@/lib/utils/text';
 import { useTheme } from '@/lib/theme';
 import { PressableScale } from '@/components/ui/pressable-scale';
@@ -26,6 +25,8 @@ import { Display } from '@/components/ui/text';
 import { Toggle } from '@/components/ui/toggle';
 import { Segmented } from '@/components/ui/segmented';
 import { askConfirm } from '@/lib/confirm';
+import { useGroup } from '@/lib/api/group';
+import { useQueue } from '@/lib/api/questions';
 
 /** The server refuses a pack under 5 questions: said before the tap. */
 const PACK_MIN = 5;

@@ -11,12 +11,12 @@ import { useFeatures } from '@/lib/api/auth';
 import { useT } from '@/lib/i18n';
 import { handOffDraft, pickQuestionFile } from '@/lib/utils/import-draft';
 import { motion } from '@/lib/motion';
-import { keys, useGroup } from '@/lib/queries';
 import { useTheme } from '@/lib/theme';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Display } from '@/components/ui/text';
+import { useGroup, groupKeys } from '@/lib/api/group';
 
 /** Alone in the room: nothing to vote on until someone joins, so the whole tab is the invite. */
 export function SoloInvite() {
@@ -78,7 +78,7 @@ export function NoQuestions() {
     onError: (e) => {
       if (e instanceof ApiError && e.code === 'already_asked') return markAsked();
       // The owner opened questions to everyone meanwhile: the actions show once the room is fresh.
-      if (e instanceof ApiError && e.code === 'not_needed') return qc.invalidateQueries({ queryKey: keys.group });
+      if (e instanceof ApiError && e.code === 'not_needed') return qc.invalidateQueries({ queryKey: groupKeys.all });
       setNote(tr('common.failed'));
     },
   });

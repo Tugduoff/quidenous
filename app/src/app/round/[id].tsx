@@ -1,12 +1,11 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { View } from 'react-native';
-
 import { Celebration } from '@/components/celebration';
 import { isMilestone } from '@/lib/utils/milestones';
-import { useMembers, useRound } from '@/lib/queries';
-
 import { Result } from '@/app/(tabs)/index';
+import { useMembers } from '@/lib/api/group';
+import { useRound } from '@/lib/api/rounds';
 
 /** A finished question, opened from the history. A milestone question replays its party. */
 export default function RoundScreen() {

@@ -5,7 +5,6 @@ import { useMemo, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import Animated, { useReducedMotion } from 'react-native-reanimated';
 import Svg, { Circle } from 'react-native-svg';
-import type { Member, Round } from '@/lib/api/client';
 import { dateFormat, useT } from '@/lib/i18n';
 import { motion, usePop } from '@/lib/motion';
 import { useHideVote } from '@/lib/device/prefs';
@@ -19,6 +18,8 @@ import { PressableScale } from '@/components/ui/pressable-scale';
 import { Avatar } from '@/components/ui/avatar';
 import { Card } from '@/components/ui/card';
 import { Dialog, DialogActions, DialogTitle } from '@/components/ui/dialog';
+import type { Member } from '@/lib/api/group';
+import type { Round } from '@/lib/api/rounds';
 
 /** Gold that reads on both themes (the accent is for my own things). */
 const GOLD = '#F2B705';

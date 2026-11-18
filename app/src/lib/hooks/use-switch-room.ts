@@ -1,11 +1,12 @@
 import { type QueryKey, useQueryClient } from '@tanstack/react-query';
 import { router, useGlobalSearchParams } from 'expo-router';
 import { useEffect, useRef } from 'react';
-
-import { api, setApiRoom, type RoomSummary } from '@/lib/api/client';
-import { keys } from '@/lib/queries';
+import { api, setApiRoom } from '@/lib/api/client';
 import { clearRoomData } from '@/lib/api/query-client';
 import { useSession } from '@/lib/session';
+import type { RoomSummary } from '@/lib/api/rooms';
+import { roundKeys } from '@/lib/api/rounds';
+import { groupKeys } from '@/lib/api/group';
 
 /**
  * After leaving or deleting the current room: on to another room I'm in. None left: join or create one (/setup).
@@ -54,9 +55,9 @@ async function warmRoom(id: number) {
       () => undefined,
     );
   const all = Promise.all([
-    get(keys.group, '/group'),
-    get(keys.current, '/round/current'),
-    get<{ id: number } | null>(keys.unseen, '/round/unseen').then((u) => u && get(keys.round(u.id), `/rounds/${u.id}`)),
+    get(groupKeys.all, '/group'),
+    get(roundKeys.current, '/round/current'),
+    get<{ id: number } | null>(roundKeys.unseen, '/round/unseen').then((u) => u && get(roundKeys.detail(u.id), `/rounds/${u.id}`)),
   ]);
   await Promise.race([all, new Promise((done) => setTimeout(done, WARM_MS))]);
   return [...got];

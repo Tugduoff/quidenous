@@ -1,26 +1,8 @@
 // « Qui a dit ça ? » logic tests. Run from app/: `bun test src/lib/said.test.ts`.
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
-
-import type { SaidView } from '@/lib/api/client';
-import {
-  guessGroups,
-  holderOf,
-  initMatch,
-  isComplete,
-  type Match,
-  type MatchAction,
-  matchReducer,
-  nextOpen,
-  pickLine,
-  places,
-  placed,
-  revealItems,
-  suspects,
-  toGuess,
-  toGuesses,
-  topScorers,
-} from '@/lib/utils/said';
+import { guessGroups, holderOf, initMatch, isComplete, type Match, type MatchAction, matchReducer, nextOpen, pickLine, places, placed, revealItems, suspects, toGuess, toGuesses, topScorers } from '@/lib/utils/said';
+import type { SaidView } from '@/lib/api/rounds';
 
 const run = (s: Match, ...actions: MatchAction[]) => actions.reduce(matchReducer, s);
 

@@ -12,7 +12,6 @@ import { api, ApiError, isNotFound } from '@/lib/api/client';
 import { useT } from '@/lib/i18n';
 import { motion, usePop } from '@/lib/motion';
 import { isPackTag, packError, packKeys, packLink, type PackDetail, REPORT_REASONS, type ReportReason, TAG_ICONS, useCommunityMe, usePackDetail } from '@/lib/api/packs';
-import { keys, useGroup, useRooms } from '@/lib/queries';
 import { useSession } from '@/lib/session';
 import { shareText } from '@/lib/device/share';
 import { useTheme } from '@/lib/theme';
@@ -21,6 +20,10 @@ import { Card } from '@/components/ui/card';
 import { Display, QuestionText } from '@/components/ui/text';
 import { askConfirm } from '@/lib/confirm';
 import { Dialog, DialogActions, DialogTitle } from '@/components/ui/dialog';
+import { useGroup } from '@/lib/api/group';
+import { useRooms } from '@/lib/api/rooms';
+import { roundKeys } from '@/lib/api/rounds';
+import { questionKeys } from '@/lib/api/questions';
 
 /** One pack: its questions, like, install (into a room I pick when I have several), share, report; edit and delete (author); feature (admin). */
 export default function PackScreen() {
@@ -59,8 +62,8 @@ export default function PackScreen() {
       setInstalledIn((l) => [...l, roomId]);
       if (roomId === here) {
         patch({ installed: true });
-        qc.invalidateQueries({ queryKey: keys.queue });
-        qc.invalidateQueries({ queryKey: keys.current });
+        qc.invalidateQueries({ queryKey: questionKeys.queue });
+        qc.invalidateQueries({ queryKey: roundKeys.current });
       }
       // Its install count (once per room) comes back from the server.
       qc.invalidateQueries({ queryKey: packKeys.all });

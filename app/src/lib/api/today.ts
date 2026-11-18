@@ -5,12 +5,18 @@ import { useIsFocused } from 'expo-router';
 import * as Linking from 'expo-linking';
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { Platform } from 'react-native';
-
-import { api, plainStart, type QuestionKind, type Role } from '@/lib/api/client';
+import { api } from '@/lib/api/client';
 import { useFeatures } from '@/lib/api/auth';
 import { openedFromNotification } from '@/lib/device/native-push';
-import { keys, useRooms } from '@/lib/queries';
 import { storage } from '@/lib/device/storage';
+import { plainStart } from '@/lib/device/launch-params';
+import type { Role } from '@/lib/api/group';
+import type { QuestionKind } from '@/lib/api/rounds';
+import { useRooms } from '@/lib/api/rooms';
+
+export const todayKeys = {
+  all: ['today'] as const,
+};
 
 /** What a room wants from me, most pressing first (the server orders the rooms by it). */
 export type TodayState = 'vote' | 'result' | 'tripot' | 'wait' | 'idle';
@@ -48,7 +54,7 @@ export type Today = { rooms: TodayRoom[] };
  */
 export const useToday = (active: boolean) => {
   const { today } = useFeatures();
-  return useQuery({ queryKey: keys.today, queryFn: () => api<Today>('/today'), enabled: today, subscribed: active, staleTime: 0 });
+  return useQuery({ queryKey: todayKeys.all, queryFn: () => api<Today>('/today'), enabled: today, subscribed: active, staleTime: 0 });
 };
 
 /** Something only I can do: vote, or see a result. */

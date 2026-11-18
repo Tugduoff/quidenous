@@ -8,15 +8,14 @@ import { AttachButton, MediaViewer, MessageMediaFrame, PendingBubble } from '@/c
 import { HeartBurst, ReactionBar, ReactionChips, WhoReacted } from '@/components/chat/reactions';
 import { ModerationDialog, type ModTarget } from '@/components/moderation/moderation';
 import { ProfileSheet } from '@/components/stats/profile-sheet';
-import { api, type Member, type Message } from '@/lib/api/client';
+import { api } from '@/lib/api/client';
 import { useFeatures } from '@/lib/api/auth';
 import { mediaOf, usePending } from '@/lib/chat-outbox';
 import { dateFormat, useT } from '@/lib/i18n';
 import { activeMention, everyone, matches, outgoing, segments } from '@/lib/utils/mentions';
 import { useBlocks } from '@/lib/api/moderation';
 import { motion, useArrivals } from '@/lib/motion';
-import { keys, useGroup, useMembers, useMessages, useStats } from '@/lib/queries';
-import { HEART, useReact } from '@/lib/api/chat';
+import { HEART, useReact, type Message, useMessages, chatKeys } from '@/lib/api/chat';
 import { sendOnEnter } from '@/lib/utils/submit';
 import { useSession } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
@@ -24,6 +23,8 @@ import { PressableScale } from '@/components/ui/pressable-scale';
 import { Avatar } from '@/components/ui/avatar';
 import { Card } from '@/components/ui/card';
 import { DialogTitle } from '@/components/ui/dialog';
+import { type Member, useGroup, useMembers } from '@/lib/api/group';
+import { useStats } from '@/lib/api/stats';
 
 const MAX = 500;
 /** One suggestion row; the list shows about five and a half, so a longer one visibly scrolls. */
@@ -279,11 +280,11 @@ export function ChatMessages({ roundId }: { roundId: number }) {
   const owner = group?.my_role === 'owner';
   const remove = (id: number) => async () => {
     await api(`/rounds/${roundId}/messages/${id}`, { method: 'DELETE' });
-    qc.setQueryData<Message[]>(keys.messages(roundId), (old) => old?.filter((x) => x.id !== id));
+    qc.setQueryData<Message[]>(chatKeys.messages(roundId), (old) => old?.filter((x) => x.id !== id));
   };
   const restore = (id: number) => async () => {
     await api(`/rounds/${roundId}/messages/${id}/restore`, { method: 'POST' });
-    qc.setQueryData<Message[]>(keys.messages(roundId), (old) => old?.map((x) => (x.id === id ? { ...x, hidden: false } : x)));
+    qc.setQueryData<Message[]>(chatKeys.messages(roundId), (old) => old?.map((x) => (x.id === id ? { ...x, hidden: false } : x)));
   };
   // Long-press on someone else's message: report it, block its author.
   const [target, setTarget] = useState<ModTarget | null>(null);
@@ -448,7 +449,7 @@ export function ChatInput({ roundId, onFocus, onSent }: { roundId: number; onFoc
       setPicked([]);
       setClosed(null);
       onSent?.();
-      qc.setQueryData<Message[]>(keys.messages(roundId), (old) => (old?.some((x) => x.id === m.id) ? old : [...(old ?? []), m]));
+      qc.setQueryData<Message[]>(chatKeys.messages(roundId), (old) => (old?.some((x) => x.id === m.id) ? old : [...(old ?? []), m]));
     },
   });
   const ok = text.trim().length > 0 && !send.isPending;

@@ -1,8 +1,8 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Beer, BookOpen, Briefcase, Flame, House, type LucideIcon, PartyPopper, Sparkles } from 'lucide-react-native';
-
-import { api, API_URL, isNotFound, type Member } from '@/lib/api/client';
+import { api, API_URL, isNotFound } from '@/lib/api/client';
 import type { TKey } from '@/lib/i18n';
+import type { Member } from '@/lib/api/group';
 
 /** Pack categories (docs/COMMUNITY.md "Categories"): fixed ids, the app names and draws them. `pimente` means 16+. */
 export const PACK_TAGS = ['potes', 'pimente', 'boulot', 'famille', 'soiree', 'culture', 'absurde'] as const;

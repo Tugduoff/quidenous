@@ -24,12 +24,11 @@ import { BetRow, TripotResult } from '@/components/tripot/tripot';
 import { NextGate } from '@/components/vote/next-gate';
 import { NoQuestions, SoloInvite } from '@/components/vote/vote-empty';
 import { Mascot } from '@/components/mascot/mascot';
-import { api, ApiError, type Member, type Round } from '@/lib/api/client';
+import { api, ApiError } from '@/lib/api/client';
 import { authError, useFeatures } from '@/lib/api/auth';
 import { showToast } from '@/lib/toast';
 import { getLang, t as translate, useT } from '@/lib/i18n';
 import { EASE, motion, usePop } from '@/lib/motion';
-import { keys, useCurrentRound, useGroup, useInbox, useMembers, useRooms, useRound, useUnseenRound } from '@/lib/queries';
 import { ordinal, tidy } from '@/lib/utils/text';
 import { useSession } from '@/lib/session';
 import { setHideVote, useHideVote } from '@/lib/device/prefs';
@@ -45,6 +44,11 @@ import { Display, Logo } from '@/components/ui/text';
 import { askConfirm } from '@/lib/confirm';
 import { ConfirmModal, Dialog } from '@/components/ui/dialog';
 import { BackButton } from '@/components/ui/back-button';
+import { type Member, useGroup, useMembers, groupKeys } from '@/lib/api/group';
+import { type Round, useCurrentRound, useRound, useUnseenRound, roundKeys } from '@/lib/api/rounds';
+import { useInbox } from '@/lib/api/inbox';
+import { useRooms } from '@/lib/api/rooms';
+import { historyKeys } from '@/lib/api/history';
 
 function PushBell() {
   const t = useTheme();
@@ -205,7 +209,7 @@ export default function VoteScreen() {
 
   // Recap first: a question I voted on finished while I was away (or with my vote).
   if (unseen.data) {
-    const seenUpTo = (id: number) => api(`/rounds/${id}/seen`, { method: 'POST' }).finally(() => qc.invalidateQueries({ queryKey: keys.unseen }));
+    const seenUpTo = (id: number) => api(`/rounds/${id}/seen`, { method: 'POST' }).finally(() => qc.invalidateQueries({ queryKey: roundKeys.unseen }));
     const seen = () => seenUpTo(unseen.data!.id);
     const gate = held === unseen.data.id && group.data ? <NextGate group={group.data} onLaunched={seen} /> : undefined;
     // Back after days away: skip the pile of results straight to today's question (`seen_round` only moves forward).
@@ -239,9 +243,9 @@ export default function VoteScreen() {
   }
   // A « Qui a dit ça ? » question has its own screens: write, guess, then wait (docs/SAID.md).
   if (round.kind === 'said' && round.said)
-    return <SaidBallot key={round.id} round={round} members={members} byId={byId} onVoted={() => qc.invalidateQueries({ queryKey: keys.unseen })} />;
+    return <SaidBallot key={round.id} round={round} members={members} byId={byId} onVoted={() => qc.invalidateQueries({ queryKey: roundKeys.unseen })} />;
   if (round.my_vote != null) return <Waiting round={round} byId={byId} members={members} />;
-  return <Ballot key={round.id} round={round} members={members} byId={byId} onVoted={() => qc.invalidateQueries({ queryKey: keys.unseen })} />;
+  return <Ballot key={round.id} round={round} members={members} byId={byId} onVoted={() => qc.invalidateQueries({ queryKey: roundKeys.unseen })} />;
 }
 
 // The last question shown to vote on, so it slides in only when a new one opens (not when Ballot turns into Waiting).
@@ -357,8 +361,8 @@ function RankBallot({ round, members, byId, onVoted }: { round: Round; members: 
     mutationFn: (ranking: number[]) => api('/round/current/vote', { method: 'POST', json: { ranking } }),
     onSuccess: onVoted,
     // Someone joined or left meanwhile: the room refreshed shows who to vote on now (the error is a toast).
-    onError: () => qc.invalidateQueries({ queryKey: keys.group }),
-    onSettled: () => qc.invalidateQueries({ queryKey: keys.current }),
+    onError: () => qc.invalidateQueries({ queryKey: groupKeys.all }),
+    onSettled: () => qc.invalidateQueries({ queryKey: roundKeys.current }),
   });
   const toggle = (id: number) => setOrder(order.includes(id) ? order.filter((x) => x !== id) : [...order, id]);
   const done = order.length === members.length;
@@ -518,8 +522,8 @@ function PickBallot({ round, members, byId, onVoted }: { round: Round; members: 
     // replaces it before the refetch could show my vote, and the result must still show.
     onSuccess: onVoted,
     // Someone joined or left meanwhile: the room refreshed shows who to vote on now (the error is a toast).
-    onError: () => qc.invalidateQueries({ queryKey: keys.group }),
-    onSettled: () => qc.invalidateQueries({ queryKey: keys.current }),
+    onError: () => qc.invalidateQueries({ queryKey: groupKeys.all }),
+    onSettled: () => qc.invalidateQueries({ queryKey: roundKeys.current }),
   });
   const picked = pick != null ? byId.get(pick) : undefined;
   return (
@@ -648,7 +652,7 @@ function SkipButton({ member, round }: { member: Member; round: Round }) {
     mutationFn: () => api(`/round/current/skip/${member.id}`, { method: mine ? 'DELETE' : 'PUT' }),
     onSettled: () => {
       setAsking(false);
-      qc.invalidateQueries({ queryKey: keys.current });
+      qc.invalidateQueries({ queryKey: roundKeys.current });
     },
   });
   return (
@@ -869,8 +873,8 @@ function BackHeader({ onBack, round }: { onBack: () => void; round?: Round }) {
   const pin = useMutation({
     mutationFn: (pinned: boolean) => api(`/rounds/${round!.id}/pin`, { method: pinned ? 'PUT' : 'DELETE' }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: keys.round(round!.id) });
-      qc.invalidateQueries({ queryKey: keys.pinned });
+      qc.invalidateQueries({ queryKey: roundKeys.detail(round!.id) });
+      qc.invalidateQueries({ queryKey: historyKeys.pinned });
     },
   });
   // Show the state being asked for right away; the server echo confirms it.

@@ -1,14 +1,15 @@
 // Party mode (docs/PARTY.md): one question at a time for everyone in the room, a countdown, a big reveal.
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-
-import { api, API_URL, ApiError, type Member, type QuestionKind, type Role, type SaidGuess, type SaidView, type Tally } from '@/lib/api/client';
+import { api, API_URL, ApiError } from '@/lib/api/client';
 import { authError, featuresQuery } from '@/lib/api/auth';
 import { t, type TKey } from '@/lib/i18n';
 import { localizeMembers } from '@/lib/utils/names';
 import { type ReactedEvent, receiveReacted } from '@/lib/api/result-reactions';
 import { appUrl } from '@/lib/device/share';
 import { openSocket } from '@/lib/api/socket';
+import type { Member, Role } from '@/lib/api/group';
+import type { QuestionKind, SaidGuess, SaidView, Tally } from '@/lib/api/rounds';
 
 export type PartyPhase = 'lobby' | 'voting' | 'reveal' | 'over';
 export type PartyPlayer = Member & { role: Role; guest: boolean };

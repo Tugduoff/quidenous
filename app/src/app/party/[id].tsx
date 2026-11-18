@@ -12,11 +12,10 @@ import { PartySaidResult, PartySaidVoting, saidBoardKey } from '@/components/par
 import { ResultBars } from '@/components/result/result-bars';
 import { Screen } from '@/components/ui/screen';
 import { showToast } from '@/lib/toast';
-import { api, ApiError, type HistoryItem, type Member, setApiRoom } from '@/lib/api/client';
+import { api, ApiError, setApiRoom } from '@/lib/api/client';
 import { useFeatures } from '@/lib/api/auth';
 import { dateFormat, useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
-import { useMembers } from '@/lib/queries';
 import { type Party, partyApi, partyKeys, partyError, partyJoinLink, partyScreenLink, type PartyRound, tallies, TIMERS, useCountdown, useParty, useRefetchAtZero, useSetParty } from '@/lib/api/party';
 import { tidy } from '@/lib/utils/text';
 import { useRoomGone, useSwitchRoom } from '@/lib/hooks/use-switch-room';
@@ -34,6 +33,8 @@ import { askConfirm } from '@/lib/confirm';
 import { Dialog, DialogTitle } from '@/components/ui/dialog';
 import { SoftButton } from '@/components/ui/soft-button';
 import { copyText } from '@/lib/device/clipboard';
+import { type Member, useMembers } from '@/lib/api/group';
+import type { HistoryItem } from '@/lib/api/history';
 
 /** `/party/[id]`: the whole party on one screen, following its phase (lobby, question, result, memory). */
 export default function PartyScreen() {

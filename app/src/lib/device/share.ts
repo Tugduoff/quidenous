@@ -1,11 +1,15 @@
 import { Linking, Platform, Share } from 'react-native';
 import { showToast } from '@/lib/toast';
-import { api, API_URL, historyExportUrl, type Member, type Round, type StatsPeriod, type Story } from '@/lib/api/client';
+import { api, API_URL } from '@/lib/api/client';
 import { featuresQuery } from '@/lib/api/auth';
 import { getLang, t } from '@/lib/i18n';
 import { queryClient } from '@/lib/api/query-client';
 import { storage } from '@/lib/device/storage';
 import { askConfirm } from '@/lib/confirm';
+import type { Member } from '@/lib/api/group';
+import type { Round } from '@/lib/api/rounds';
+import { historyExportUrl } from '@/lib/api/history';
+import type { StatsPeriod, Story } from '@/lib/api/stats';
 
 /** Where friends can open the app (web app served by the API server). */
 export const appUrl = () => API_URL || (typeof location !== 'undefined' ? location.origin : '');

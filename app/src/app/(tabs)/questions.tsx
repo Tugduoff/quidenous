@@ -12,12 +12,11 @@ import { Screen } from '@/components/ui/screen';
 import { confirmBatch, SelectableRow, SelectButton, SelectionBar, SelectionHeader, useSelection } from '@/components/ui/selection';
 import { TemplateLink } from '@/components/packs/template-link';
 import { Tip } from '@/components/ui/tip';
-import { api, ApiError, type Queue, type QuestionKind } from '@/lib/api/client';
+import { api, ApiError } from '@/lib/api/client';
 import { useFeatures } from '@/lib/api/auth';
 import { useT } from '@/lib/i18n';
 import { ITEM_MAX, ITEMS_MAX, ITEMS_MIN, itemsOk, pickQuestionFile, splitTag, takeHandedDraft, type DraftLine } from '@/lib/utils/import-draft';
 import { motion, useArrivals } from '@/lib/motion';
-import { keys, useGroup, useMembers, useQueue } from '@/lib/queries';
 import { useSession } from '@/lib/session';
 import { tidy } from '@/lib/utils/text';
 import { useTheme } from '@/lib/theme';
@@ -30,6 +29,10 @@ import { Toggle } from '@/components/ui/toggle';
 import { Segmented } from '@/components/ui/segmented';
 import { askConfirm } from '@/lib/confirm';
 import { ConfirmModal } from '@/components/ui/dialog';
+import type { QuestionKind } from '@/lib/api/rounds';
+import { type Queue, useQueue, questionKeys } from '@/lib/api/questions';
+import { useGroup, useMembers } from '@/lib/api/group';
+import { roundKeys } from '@/lib/api/rounds';
 
 const MIN = 8;
 
@@ -63,7 +66,7 @@ export default function QuestionsScreen() {
     mutationFn: (id: number) => api(`/questions/${id}`, { method: 'DELETE' }),
     onSettled: () => {
       setToDelete(null);
-      qc.invalidateQueries({ queryKey: keys.queue });
+      qc.invalidateQueries({ queryKey: questionKeys.queue });
     },
   });
   // Typing `[classement] …` (or `[rank] …`, `[choix] … | A | B`) by hand works too.
@@ -96,8 +99,8 @@ export default function QuestionsScreen() {
       setItems(['', '']);
       setAnon(false);
       setAddError(null);
-      qc.invalidateQueries({ queryKey: keys.queue });
-      qc.invalidateQueries({ queryKey: keys.current });
+      qc.invalidateQueries({ queryKey: questionKeys.queue });
+      qc.invalidateQueries({ queryKey: roundKeys.current });
     },
     onError: (e) => setAddError(e instanceof ApiError && e.code === 'bad_items' ? tr('questions.badItems') : null),
   });
@@ -144,8 +147,8 @@ export default function QuestionsScreen() {
       setImported(
         res.skipped ? tr('questions.importedSkipped', { added: res.added, skipped: res.skipped }) : tr('questions.imported', { added: res.added }),
       );
-      qc.invalidateQueries({ queryKey: keys.queue });
-      qc.invalidateQueries({ queryKey: keys.current });
+      qc.invalidateQueries({ queryKey: questionKeys.queue });
+      qc.invalidateQueries({ queryKey: roundKeys.current });
     },
     onError: (e) =>
       setImported(tr(e instanceof ApiError && e.code === 'too_many_questions' ? 'questions.importTooMany' : 'questions.importFailed')),
@@ -157,7 +160,7 @@ export default function QuestionsScreen() {
     mutationFn: () => api<{ shuffled: number }>('/questions/shuffle', { method: 'POST' }),
     onSuccess: () => {
       setImported(tr('questions.shuffled'));
-      qc.invalidateQueries({ queryKey: keys.queue });
+      qc.invalidateQueries({ queryKey: questionKeys.queue });
     },
     onError: () => setImported(tr('questions.shuffleFailed')),
   });
@@ -168,8 +171,8 @@ export default function QuestionsScreen() {
     onSuccess: (res) => setImported(tr('questions.cleared', { count: res?.deleted ?? 0 })),
     onError: () => setImported(tr('questions.clearFailed')),
     onSettled: () => {
-      qc.invalidateQueries({ queryKey: keys.queue });
-      qc.invalidateQueries({ queryKey: keys.current });
+      qc.invalidateQueries({ queryKey: questionKeys.queue });
+      qc.invalidateQueries({ queryKey: roundKeys.current });
     },
   });
   const askClear = async () => {
@@ -185,17 +188,17 @@ export default function QuestionsScreen() {
     mutationFn: (ids: number[]) => api('/questions/order', { method: 'POST', json: { ids } }),
     // Someone added or removed a question meanwhile: the refetch below shows the real order, no error.
     onError: (e) => !(e instanceof ApiError && e.code === 'stale_queue') && setImported(tr('questions.reorderFailed')),
-    onSettled: () => qc.invalidateQueries({ queryKey: keys.queue }),
+    onSettled: () => qc.invalidateQueries({ queryKey: questionKeys.queue }),
   });
   const reordered = (ids: number[]) => {
-    const before = qc.getQueryData<Queue>(keys.queue);
-    qc.cancelQueries({ queryKey: keys.queue });
+    const before = qc.getQueryData<Queue>(questionKeys.queue);
+    qc.cancelQueries({ queryKey: questionKeys.queue });
     if (before) {
       const at = new Map(ids.map((id, i) => [id, i]));
       const custom = [...before.custom].sort((a, b) => (at.get(a.id) ?? Infinity) - (at.get(b.id) ?? Infinity));
-      qc.setQueryData<Queue>(keys.queue, { ...before, custom });
+      qc.setQueryData<Queue>(questionKeys.queue, { ...before, custom });
     }
-    reorder.mutate(ids, { onError: () => before && qc.setQueryData(keys.queue, before) });
+    reorder.mutate(ids, { onError: () => before && qc.setQueryData(questionKeys.queue, before) });
   };
   const toggle = (i: number) => setDraft((d) => d && d.map((l, j) => (j === i && !l.problem ? { ...l, selected: !l.selected } : l)));
   const allOn = !!draft && draft.every((l) => l.selected || l.problem);
@@ -242,8 +245,8 @@ export default function QuestionsScreen() {
     // Either way the outcome shows in the header's status line, which the selection hides.
     onSettled: () => {
       sel.cancel();
-      qc.invalidateQueries({ queryKey: keys.queue });
-      qc.invalidateQueries({ queryKey: keys.current });
+      qc.invalidateQueries({ queryKey: questionKeys.queue });
+      qc.invalidateQueries({ queryKey: roundKeys.current });
     },
   });
   // Someone else's question can be ticked to move it, not to delete it.

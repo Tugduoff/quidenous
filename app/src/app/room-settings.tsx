@@ -8,10 +8,9 @@ import { QueryState } from '@/components/ui/query-state';
 import { Screen } from '@/components/ui/screen';
 import { showToast } from '@/lib/toast';
 import { VibeCards, vibeIcon, vibeName } from '@/components/rooms/vibes';
-import { api, type Group, type Member } from '@/lib/api/client';
+import { api } from '@/lib/api/client';
 import { authError, useFeatures } from '@/lib/api/auth';
 import { type Lang, t as tr, useT } from '@/lib/i18n';
-import { keys, useGroup, useVibes } from '@/lib/queries';
 import { useRoomGone } from '@/lib/hooks/use-switch-room';
 import { useSession } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
@@ -25,6 +24,8 @@ import { Segmented } from '@/components/ui/segmented';
 import { askConfirm } from '@/lib/confirm';
 import { Dialog, DialogActions, DialogTitle } from '@/components/ui/dialog';
 import { BackButton } from '@/components/ui/back-button';
+import { type Group, type Member, useGroup, useVibes, groupKeys } from '@/lib/api/group';
+import { roomKeys } from '@/lib/api/rooms';
 
 type Patch = Partial<Group['settings']> & { name?: string; language?: Lang };
 
@@ -280,11 +281,11 @@ function Settings({ group }: { group: Group }) {
     meta: { quiet: true },
     mutationFn: (body: Patch) => api(`/rooms/${group.id}`, { method: 'PATCH', json: body }),
     onMutate: async (body) => {
-      await qc.cancelQueries({ queryKey: keys.group });
-      const before = qc.getQueryData<Group>(keys.group);
+      await qc.cancelQueries({ queryKey: groupKeys.all });
+      const before = qc.getQueryData<Group>(groupKeys.all);
       if (before) {
         const { name, language, ...settings } = body;
-        qc.setQueryData<Group>(keys.group, {
+        qc.setQueryData<Group>(groupKeys.all, {
           ...before,
           name: name ?? before.name,
           language: language ?? before.language,
@@ -294,24 +295,24 @@ function Settings({ group }: { group: Group }) {
       return { before };
     },
     onError: (_e, _body, ctx) => {
-      if (ctx?.before) qc.setQueryData(keys.group, ctx.before);
+      if (ctx?.before) qc.setQueryData(groupKeys.all, ctx.before);
     },
     onSettled: () => {
-      qc.invalidateQueries({ queryKey: keys.group });
-      qc.invalidateQueries({ queryKey: keys.rooms });
+      qc.invalidateQueries({ queryKey: groupKeys.all });
+      qc.invalidateQueries({ queryKey: roomKeys.all });
     },
   });
   const renew = useMutation({
     meta: { quiet: true },
     mutationFn: () => api(`/rooms/${group.id}/code`, { method: 'POST' }),
-    onSettled: () => qc.invalidateQueries({ queryKey: keys.group }),
+    onSettled: () => qc.invalidateQueries({ queryKey: groupKeys.all }),
   });
   // Once done, I'm no longer the owner: the screen steps back by itself.
   const transfer = useMutation({
     meta: { quiet: true },
     mutationFn: (id: number) => api(`/rooms/${group.id}/owner`, { method: 'POST', json: { member_id: id } }),
     onSuccess: close,
-    onSettled: () => qc.invalidateQueries({ queryKey: keys.group }),
+    onSettled: () => qc.invalidateQueries({ queryKey: groupKeys.all }),
   });
 
   const s = group.settings;

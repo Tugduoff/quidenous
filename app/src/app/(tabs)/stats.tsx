@@ -17,11 +17,11 @@ import { Sparkline } from '@/components/stats/sparkline';
 import { StoryCarousel } from '@/components/stats/story-carousel';
 import { VoteMatrix } from '@/components/stats/vote-matrix';
 import { WrappedBanner } from '@/components/wrapped/entry';
-import type { StatsPeriod, Story } from '@/lib/api/client';
 import { type TKey, useT } from '@/lib/i18n';
-import { useMembers, useStats } from '@/lib/queries';
 import { useTheme } from '@/lib/theme';
 import { Display } from '@/components/ui/text';
+import { type StatsPeriod, type Story, useStats } from '@/lib/api/stats';
+import { useMembers } from '@/lib/api/group';
 
 const EMPTY: Record<StatsPeriod, TKey> = {
   '7d': 'stats.empty.week',
