@@ -1,3 +1,4 @@
+use crate::platform::ids::PackId;
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex, OnceLock},
@@ -148,7 +149,7 @@ pub(super) async fn png_response(cards: &Cards, svg: String) -> Response {
     }
 }
 
-pub async fn pack_card_png(State(state): State<AppState>, Path(id): Path<i64>) -> Response {
+pub async fn pack_card_png(State(state): State<AppState>, Path(id): Path<PackId>) -> Response {
     let Ok(card) = load_pack(&state, id).await else {
         return StatusCode::NOT_FOUND.into_response();
     };

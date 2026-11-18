@@ -1,3 +1,4 @@
+use crate::platform::ids::UserId;
 use axum::{
     Json,
     extract::{Path, Query, State},
@@ -374,13 +375,13 @@ pub async fn redeem(
 /// account (`403 wrong_account` otherwise); then that session may make sensitive changes.
 pub(super) async fn reauth_result(
     state: &AppState,
-    user: Option<i64>,
+    user: Option<UserId>,
     data: &Value,
     provider: &str,
     identity: &Identity,
 ) -> AppResult<Json<Value>> {
     let user = user.ok_or(AppError::BadRequest("bad_code"))?;
-    let owner: Option<i64> = sqlx::query_scalar(
+    let owner: Option<UserId> = sqlx::query_scalar(
         "SELECT user_id FROM oauth_identities WHERE provider = ? AND subject = ?",
     )
     .bind(provider)

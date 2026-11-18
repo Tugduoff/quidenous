@@ -1,3 +1,4 @@
+use crate::platform::ids::{MemberId, MessageId, QuestionId, RoomId, RoundId, UserId};
 use std::{
     collections::HashMap,
     net::IpAddr,
@@ -23,83 +24,91 @@ pub const RESULT_REACT_GAP: Duration = Duration::from_millis(300);
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Event {
     MemberJoined {
-        member_id: i64,
+        member_id: MemberId,
     },
     MemberUpdated {
-        member_id: i64,
+        member_id: MemberId,
     },
     VoteCast {
-        round_id: i64,
-        voter_id: i64,
+        round_id: RoundId,
+        voter_id: MemberId,
     },
     RoundClosed {
-        round_id: i64,
+        round_id: RoundId,
     },
     RoundOpened {
-        round_id: i64,
+        round_id: RoundId,
     },
     /// A question changed in place: a said question's guessing started, or one of its answers was
     /// hidden or brought back (docs/SAID.md). Apps refetch it.
     RoundUpdated {
-        round_id: i64,
+        round_id: RoundId,
     },
     QuestionAdded {
-        question_id: i64,
+        question_id: QuestionId,
     },
     RoundPinned {
-        round_id: i64,
+        round_id: RoundId,
         pinned: bool,
     },
     SkipVoted {
-        round_id: i64,
+        round_id: RoundId,
     },
     KickVoted {
-        member_id: i64,
+        member_id: MemberId,
     },
     MemberRemoved {
-        member_id: i64,
+        member_id: MemberId,
     },
     /// `member_id` / `user_id` (author, null once deleted): the app can hide people it blocked.
     MessagePosted {
-        round_id: i64,
-        message_id: i64,
-        member_id: i64,
-        user_id: Option<i64>,
+        round_id: RoundId,
+        message_id: MessageId,
+        member_id: MemberId,
+        user_id: Option<UserId>,
     },
     /// Deleted (by its author, the owner or an admin) or hidden by reports.
     MessageDeleted {
-        round_id: i64,
-        message_id: i64,
+        round_id: RoundId,
+        message_id: MessageId,
     },
     /// Someone added or took back a reaction on a chat message (no inbox entry, no push).
     MessageReacted {
-        round_id: i64,
-        message_id: i64,
+        round_id: RoundId,
+        message_id: MessageId,
     },
     InboxChanged,
     RoomUpdated,
     /// A party's "Suivante" taps or reactions changed.
     PartyUpdated {
-        round_id: i64,
+        round_id: RoundId,
     },
     RoomDeleted,
     /// Someone bet on the open question (Tripot): its pot and bettor count changed.
     TripotUpdated {
-        round_id: i64,
+        round_id: RoundId,
     },
     /// Taps on a revealed result (docs/REACTIONS.md), coalesced per round. Only to sockets opened
     /// with `events=reactions` (see [`OptIns`]).
     ResultReacted {
-        round_id: i64,
+        round_id: RoundId,
         taps: Vec<Tap>,
     },
+}
+
+impl Event {
+    pub fn questions_changed() -> Self {
+        Self::QuestionAdded {
+            question_id: QuestionId::from_raw(0),
+        }
+    }
 }
 
 /// Someone's taps on one emoji of a result. `user_id` (null once deleted): the app can drop people it blocked.
 #[derive(Clone, Debug, Serialize, PartialEq)]
 pub struct Tap {
-    pub member_id: i64,
-    pub user_id: Option<i64>,
+    pub member_id: MemberId,
+    pub user_id: Option<UserId>,
     pub emoji: String,
     pub count: i64,
 }
@@ -147,14 +156,14 @@ impl OptIns {
 
 #[derive(Clone, Debug)]
 pub struct GroupEvent {
-    pub group_id: i64,
+    pub group_id: RoomId,
     pub event: Event,
 }
 
 /// The last `PartyUpdated` sent for a party, and whether a later one is waiting for the gap to pass.
 struct PartyThrottle {
     last: Instant,
-    round_id: i64,
+    round_id: RoundId,
     waiting: bool,
 }
 
@@ -168,17 +177,17 @@ struct ReactThrottle {
 #[derive(Clone)]
 pub struct Live {
     tx: broadcast::Sender<GroupEvent>,
-    party: Arc<Mutex<HashMap<i64, PartyThrottle>>>,
+    party: Arc<Mutex<HashMap<RoomId, PartyThrottle>>>,
     /// Per (group, round).
-    reacted: Arc<Mutex<HashMap<(i64, i64), ReactThrottle>>>,
+    reacted: Arc<Mutex<HashMap<(RoomId, RoundId), ReactThrottle>>>,
     sockets: Arc<Mutex<SocketCounts>>,
     /// When each seat's `active_at` was last written (see `flow::touch`), to spare the SD card.
-    active: Arc<Mutex<HashMap<i64, Instant>>>,
+    active: Arc<Mutex<HashMap<MemberId, Instant>>>,
 }
 
 #[derive(Default)]
 struct SocketCounts {
-    users: HashMap<i64, usize>,
+    users: HashMap<UserId, usize>,
     ips: HashMap<String, usize>,
     total: usize,
 }
@@ -186,7 +195,7 @@ struct SocketCounts {
 /// One open live socket, counted until it is dropped.
 pub struct SocketSlot {
     counts: Arc<Mutex<SocketCounts>>,
-    user: Option<i64>,
+    user: Option<UserId>,
     ip: Option<String>,
 }
 
@@ -226,7 +235,7 @@ impl Live {
     }
 
     /// `true` when this seat's activity should be written now (at most once per `every`).
-    pub fn mark_active(&self, member_id: i64, every: std::time::Duration) -> bool {
+    pub fn mark_active(&self, member_id: MemberId, every: std::time::Duration) -> bool {
         let mut active = self.active.lock().unwrap_or_else(|e| e.into_inner());
         if active.get(&member_id).is_some_and(|t| t.elapsed() < every) {
             return false;
@@ -240,7 +249,7 @@ impl Live {
 
     /// A place for one more live socket, or `None` when this account, this IP or the server
     /// already has too many open.
-    pub fn take_socket(&self, user: Option<i64>, ip: Option<IpAddr>) -> Option<SocketSlot> {
+    pub fn take_socket(&self, user: Option<UserId>, ip: Option<IpAddr>) -> Option<SocketSlot> {
         let ip = ip.map(crate::accounts::limits::ip_key);
         let mut c = self.sockets.lock().unwrap_or_else(|e| e.into_inner());
         let full = c.total >= SOCKETS_TOTAL
@@ -265,7 +274,7 @@ impl Live {
         })
     }
 
-    pub fn send(&self, group_id: i64, event: Event) {
+    pub fn send(&self, group_id: RoomId, event: Event) {
         match event {
             Event::PartyUpdated { round_id } => self.party_updated(group_id, round_id),
             Event::ResultReacted { round_id, taps } => {
@@ -275,14 +284,14 @@ impl Live {
         }
     }
 
-    fn emit(&self, group_id: i64, event: Event) {
+    fn emit(&self, group_id: RoomId, event: Event) {
         // No subscriber is fine: nobody has the app open.
         let _ = self.tx.send(GroupEvent { group_id, event });
     }
 
     /// At most one `PartyUpdated` per party per `PARTY_UPDATE_GAP`: the first goes out right away, the ones
     /// in the gap become a single trailing one (latest round), so the last change is never lost.
-    fn party_updated(&self, group_id: i64, round_id: i64) {
+    fn party_updated(&self, group_id: RoomId, round_id: RoundId) {
         let now = Instant::now();
         let mut parties = self.party.lock().unwrap_or_else(|e| e.into_inner());
         parties.retain(|_, t| t.waiting || now.duration_since(t.last) < PARTY_UPDATE_GAP);
@@ -327,7 +336,7 @@ impl Live {
 
     /// At most one `ResultReacted` per round per `RESULT_REACT_GAP`: the first goes out right away, the
     /// taps in the gap are merged (per member and emoji) into a single trailing one.
-    fn result_reacted(&self, group_id: i64, round_id: i64, taps: Vec<Tap>) {
+    fn result_reacted(&self, group_id: RoomId, round_id: RoundId, taps: Vec<Tap>) {
         let key = (group_id, round_id);
         let now = Instant::now();
         let mut rounds = self.reacted.lock().unwrap_or_else(|e| e.into_inner());
@@ -396,10 +405,10 @@ impl Default for Live {
 mod tests {
     use super::*;
 
-    fn tap(member_id: i64, emoji: &str, count: i64) -> Tap {
+    fn tap(member: i64, emoji: &str, count: i64) -> Tap {
         Tap {
-            member_id,
-            user_id: Some(member_id * 10),
+            member_id: MemberId::from_raw(member),
+            user_id: Some(UserId::from_raw(member * 10)),
             emoji: emoji.into(),
             count,
         }
@@ -410,7 +419,7 @@ mod tests {
         let mut seen = Vec::new();
         while let Ok(e) = rx.try_recv() {
             if let Event::ResultReacted { round_id, taps } = e.event {
-                seen.push((e.group_id, round_id, taps));
+                seen.push((e.group_id.raw(), round_id.raw(), taps));
             }
         }
         seen
@@ -422,46 +431,46 @@ mod tests {
         let mut rx = live.subscribe();
         // The first goes out right away (its own duplicates merged).
         live.send(
-            7,
+            RoomId::from_raw(7),
             Event::ResultReacted {
-                round_id: 1,
+                round_id: RoundId::from_raw(1),
                 taps: vec![tap(1, "😂", 2), tap(1, "😂", 1)],
             },
         );
         assert_eq!(reacted(&mut rx), vec![(7, 1, vec![tap(1, "😂", 3)])]);
         // A burst: held back, other rounds and rooms are not.
         live.send(
-            7,
+            RoomId::from_raw(7),
             Event::ResultReacted {
-                round_id: 1,
+                round_id: RoundId::from_raw(1),
                 taps: vec![tap(1, "😂", 1)],
             },
         );
         live.send(
-            7,
+            RoomId::from_raw(7),
             Event::ResultReacted {
-                round_id: 1,
+                round_id: RoundId::from_raw(1),
                 taps: vec![tap(2, "🔥", 4), tap(1, "😂", 2)],
             },
         );
         live.send(
-            7,
+            RoomId::from_raw(7),
             Event::ResultReacted {
-                round_id: 1,
+                round_id: RoundId::from_raw(1),
                 taps: vec![tap(2, "🔥", 1)],
             },
         );
         live.send(
-            7,
+            RoomId::from_raw(7),
             Event::ResultReacted {
-                round_id: 2,
+                round_id: RoundId::from_raw(2),
                 taps: vec![tap(1, "👀", 1)],
             },
         );
         live.send(
-            8,
+            RoomId::from_raw(8),
             Event::ResultReacted {
-                round_id: 1,
+                round_id: RoundId::from_raw(1),
                 taps: vec![tap(3, "💀", 1)],
             },
         );
@@ -477,16 +486,16 @@ mod tests {
         let Event::ResultReacted { round_id, taps } = e.event else {
             panic!("{:?}", e.event);
         };
-        assert_eq!((e.group_id, round_id), (7, 1));
+        assert_eq!((e.group_id.raw(), round_id.raw()), (7, 1));
         assert_eq!(taps, vec![tap(1, "😂", 3), tap(2, "🔥", 5)]);
         tokio::time::sleep(RESULT_REACT_GAP * 2).await;
         assert_eq!(reacted(&mut rx), vec![], "only one trailing event");
 
         // Quiet for a gap: right away again.
         live.send(
-            7,
+            RoomId::from_raw(7),
             Event::ResultReacted {
-                round_id: 1,
+                round_id: RoundId::from_raw(1),
                 taps: vec![tap(1, "❤️", 1)],
             },
         );
@@ -499,9 +508,9 @@ mod tests {
         let mut rx = live.subscribe();
         for _ in 0..2 {
             live.send(
-                7,
+                RoomId::from_raw(7),
                 Event::ResultReacted {
-                    round_id: 1,
+                    round_id: RoundId::from_raw(1),
                     taps: vec![tap(1, "😂", 1)],
                 },
             );
@@ -512,10 +521,12 @@ mod tests {
     #[test]
     fn result_events_need_the_opt_in() {
         let reacted = Event::ResultReacted {
-            round_id: 1,
+            round_id: RoundId::from_raw(1),
             taps: vec![tap(1, "😂", 1)],
         };
-        let other = Event::PartyUpdated { round_id: 1 };
+        let other = Event::PartyUpdated {
+            round_id: RoundId::from_raw(1),
+        };
         for raw in [None, Some(""), Some("chat"), Some("reaction")] {
             let o = OptIns::parse(raw);
             assert!(!o.wants(&reacted), "{raw:?}");

@@ -1,4 +1,5 @@
 use super::*;
+use quidenous_server::platform::ids::{MemberId, RoomId, UserId};
 
 #[tokio::test]
 async fn devices_can_subscribe_to_push() {
@@ -317,7 +318,7 @@ async fn notification_settings_filter_pushes() {
     let room = rooms[0]["id"].as_i64().unwrap();
     assert_eq!(rooms[0]["muted"], false);
     let group = || Target::Group {
-        group_id: room,
+        group_id: RoomId::from_raw(room),
         skip_member: None,
         from_user: None,
     };
@@ -367,7 +368,7 @@ async fn notification_settings_filter_pushes() {
         everyone
     );
     let nudge = Target::Member {
-        member_id: louis_member,
+        member_id: MemberId::from_raw(louis_member),
         from_user: None,
     };
     assert_eq!(
@@ -536,8 +537,8 @@ async fn chat_mentions_are_validated_and_ping_through_the_chat_switch() {
 
     // The push to Bob comes through with chat pushes off, not with mentions off too.
     let to_bob = || Target::Members {
-        member_ids: vec![bob_id],
-        from_user: Some(ana_user),
+        member_ids: vec![MemberId::from_raw(bob_id)],
+        from_user: Some(UserId::from_raw(ana_user)),
     };
     let mention = [Kind::Mention, Kind::Chat];
     assert_eq!(
@@ -610,8 +611,8 @@ async fn chat_mentions_are_validated_and_ping_through_the_chat_switch() {
     );
     // Removed seats get nothing.
     let to_dan = Target::Members {
-        member_ids: vec![dan_id],
-        from_user: Some(ana_user),
+        member_ids: vec![MemberId::from_raw(dan_id)],
+        from_user: Some(UserId::from_raw(ana_user)),
     };
     assert_eq!(
         audience(&state, to_dan, &mention, NOON).await,

@@ -1,3 +1,4 @@
+use crate::platform::ids::{AnswerId, MemberId, RoomId, RoundId};
 use std::collections::HashSet;
 
 use axum::{Json, extract::State, http::HeaderMap};
@@ -18,21 +19,21 @@ use crate::{
 use super::*;
 
 /// A fresh answer id: random, below 2^53 (exact in JavaScript), never sequential.
-pub(super) fn answer_id() -> i64 {
+pub(super) fn answer_id() -> AnswerId {
     use rand::Rng;
     let mut bytes = [0u8; 8];
     rand::rng().fill_bytes(&mut bytes);
-    (u64::from_le_bytes(bytes) >> 11) as i64
+    AnswerId::from_raw((u64::from_le_bytes(bytes) >> 11) as i64)
 }
 
 /// Writes (or rewrites) my answer to the open said question, then checks whether the writing is
 /// over. Returns the round and what to broadcast.
 pub async fn write(
     db: &SqlitePool,
-    group_id: i64,
-    member_id: i64,
+    group_id: RoomId,
+    member_id: MemberId,
     text: &str,
-) -> AppResult<(i64, Vec<Event>)> {
+) -> AppResult<(RoundId, Vec<Event>)> {
     let text = crate::platform::text::line(text);
     if !(1..=ANSWER_MAX).contains(&text.chars().count()) {
         return Err(AppError::BadRequest("bad_answer"));
@@ -42,7 +43,7 @@ pub async fn write(
     if party.is_some_and(|p| p.over) {
         return Err(AppError::Gone("party_over"));
     }
-    let (round_id, kind, guessing, time_up): (i64, String, bool, bool) = sqlx::query_as(
+    let (round_id, kind, guessing, time_up): (RoundId, String, bool, bool) = sqlx::query_as(
         "SELECT r.id, q.kind, r.said_guess_at IS NOT NULL, \
          COALESCE(r.deadline_at <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), 0) \
          FROM rounds r JOIN questions q ON q.id = r.question_id \
@@ -96,9 +97,9 @@ pub async fn write(
 /// guessing: nobody waits for it either way.
 pub async fn ballot(
     tx: &mut Transaction<'_, Sqlite>,
-    round_id: i64,
-    voter_id: i64,
-    target_id: Option<i64>,
+    round_id: RoundId,
+    voter_id: MemberId,
+    target_id: Option<MemberId>,
     guesses: Option<Vec<Guess>>,
 ) -> AppResult<()> {
     let guessing = guess_at(&mut **tx, round_id).await?.is_some();
@@ -130,25 +131,25 @@ pub async fn ballot(
 /// twice (`400 bad_guesses`). Replaces a ballot left from an earlier seat.
 pub(super) async fn store_guesses(
     tx: &mut Transaction<'_, Sqlite>,
-    round_id: i64,
-    voter_id: i64,
+    round_id: RoundId,
+    voter_id: MemberId,
     guesses: &[Guess],
 ) -> AppResult<()> {
-    let rows: Vec<(i64, i64, bool)> = sqlx::query_as(
+    let rows: Vec<(AnswerId, MemberId, bool)> = sqlx::query_as(
         "SELECT id, member_id, text IS NOT NULL FROM said_answers WHERE round_id = ?",
     )
     .bind(round_id)
     .fetch_all(&mut **tx)
     .await?;
-    let mut expected: Vec<i64> = rows
+    let mut expected: Vec<AnswerId> = rows
         .iter()
         .filter(|r| r.2 && r.1 != voter_id)
         .map(|r| r.0)
         .collect();
     expected.sort_unstable();
-    let mut given: Vec<i64> = guesses.iter().map(|g| g.answer_id).collect();
+    let mut given: Vec<AnswerId> = guesses.iter().map(|g| g.answer_id).collect();
     given.sort_unstable();
-    let writers: HashSet<i64> = rows
+    let writers: HashSet<MemberId> = rows
         .iter()
         .map(|r| r.1)
         .filter(|m| *m != voter_id)
@@ -179,8 +180,8 @@ pub(super) async fn store_guesses(
 /// guesses go with `game::clear_ballot`).
 pub async fn leave(
     tx: &mut Transaction<'_, Sqlite>,
-    round_id: i64,
-    member_id: i64,
+    round_id: RoundId,
+    member_id: MemberId,
 ) -> AppResult<()> {
     for sql in [
         "DELETE FROM said_guesses WHERE answer_id IN \
@@ -216,8 +217,8 @@ pub enum Step {
 /// guessing starts with two answers or more (`round_updated`), else it is [`Step::TooFew`].
 pub async fn advance(
     tx: &mut Transaction<'_, Sqlite>,
-    group_id: i64,
-    round_id: i64,
+    group_id: RoomId,
+    round_id: RoundId,
 ) -> AppResult<Step> {
     let writing: bool = sqlx::query_scalar(
         "SELECT q.kind = 'said' AND r.said_guess_at IS NULL AND r.closed_at IS NULL \
@@ -271,7 +272,7 @@ pub async fn advance(
 /// deadline at a party (`timer`). Skips on people who wrote were about the writing: they go.
 pub(super) async fn start_guessing(
     tx: &mut Transaction<'_, Sqlite>,
-    round_id: i64,
+    round_id: RoundId,
     timer: Option<i64>,
     now: Option<&str>,
 ) -> AppResult<()> {
@@ -300,8 +301,8 @@ pub(super) async fn start_guessing(
 /// more moves on to the guessing (new deadline, `Some` events); anything else is left to close.
 pub async fn at_deadline(
     tx: &mut Transaction<'_, Sqlite>,
-    group_id: i64,
-    round_id: i64,
+    group_id: RoomId,
+    round_id: RoundId,
     now: &str,
 ) -> AppResult<Option<Vec<Event>>> {
     let Some(party) = game::party(&mut **tx, group_id).await? else {
@@ -329,7 +330,12 @@ pub async fn at_deadline(
 
 /// After events from the round loop were sent: a guessing that started gets its countdown at a
 /// party, and a push + inbox entry in a room ("the answers are in"). `actor` isn't told.
-pub async fn announce(state: &AppState, group_id: i64, actor: Option<i64>, events: &[Event]) {
+pub async fn announce(
+    state: &AppState,
+    group_id: RoomId,
+    actor: Option<MemberId>,
+    events: &[Event],
+) {
     for event in events {
         let Event::RoundUpdated { round_id } = event else {
             continue;
@@ -338,10 +344,10 @@ pub async fn announce(state: &AppState, group_id: i64, actor: Option<i64>, event
             Ok(Some(_)) => crate::party::spawn_deadline(state.clone(), *round_id),
             Ok(None) => {
                 if let Err(e) = notify_guessing(state, group_id, actor, *round_id).await {
-                    tracing::warn!(group_id, error = ?e, "said guessing notification failed");
+                    tracing::warn!(%group_id, error = ?e, "said guessing notification failed");
                 }
             }
-            Err(e) => tracing::warn!(group_id, error = ?e, "said guessing: room not read"),
+            Err(e) => tracing::warn!(%group_id, error = ?e, "said guessing: room not read"),
         }
     }
 }
@@ -349,9 +355,9 @@ pub async fn announce(state: &AppState, group_id: i64, actor: Option<i64>, event
 /// « Les réponses sont là : qui a dit quoi ? » to every device of the room and its inbox.
 pub(super) async fn notify_guessing(
     state: &AppState,
-    group_id: i64,
-    skip: Option<i64>,
-    round_id: i64,
+    group_id: RoomId,
+    skip: Option<MemberId>,
+    round_id: RoundId,
 ) -> AppResult<()> {
     let question: String = sqlx::query_scalar(
         "SELECT q.text FROM rounds r JOIN questions q ON q.id = r.question_id WHERE r.id = ?",
@@ -410,8 +416,8 @@ pub async fn answer(
 /// `POST /parties/{id}/answer {text}` (the caller checked my seat): what [`write`] broadcasts.
 pub async fn party_answer(
     state: &AppState,
-    party_id: i64,
-    member_id: i64,
+    party_id: RoomId,
+    member_id: MemberId,
     text: &str,
 ) -> AppResult<()> {
     let (_, events) = write(&state.db, party_id, member_id, text).await?;

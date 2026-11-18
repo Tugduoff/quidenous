@@ -1,3 +1,4 @@
+use crate::platform::ids::{PackId, UserId};
 use axum::{
     Json,
     body::Bytes,
@@ -56,7 +57,11 @@ pub async fn review(
 }
 
 /// The pack as an item, plus `ok`, for the admin actions.
-pub(super) async fn admin_answer(state: &AppState, id: i64, me: i64) -> AppResult<Json<Value>> {
+pub(super) async fn admin_answer(
+    state: &AppState,
+    id: PackId,
+    me: UserId,
+) -> AppResult<Json<Value>> {
     let row = one(state, id, me, None).await?;
     let mut out = item(state, row, me).await?;
     out["ok"] = json!(true);
@@ -67,7 +72,7 @@ pub(super) async fn admin_answer(state: &AppState, id: i64, me: i64) -> AppResul
 pub async fn approve(
     State(state): State<AppState>,
     SignedIn(me): SignedIn,
-    Path(id): Path<i64>,
+    Path(id): Path<PackId>,
 ) -> AppResult<Json<Value>> {
     require_admin(&state, me)?;
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
@@ -98,7 +103,7 @@ pub struct RemoveBody {
 pub async fn remove(
     State(state): State<AppState>,
     SignedIn(me): SignedIn,
-    Path(id): Path<i64>,
+    Path(id): Path<PackId>,
     body: Bytes,
 ) -> AppResult<Json<Value>> {
     require_admin(&state, me)?;
@@ -134,7 +139,7 @@ pub struct FeatureBody {
 pub async fn feature(
     State(state): State<AppState>,
     SignedIn(me): SignedIn,
-    Path(id): Path<i64>,
+    Path(id): Path<PackId>,
     Json(body): Json<FeatureBody>,
 ) -> AppResult<Json<Value>> {
     require_admin(&state, me)?;

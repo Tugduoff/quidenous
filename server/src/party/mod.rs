@@ -11,6 +11,7 @@
 //! sweeper every 5 s (first run at startup) closes overdue questions and ends parties past their end,
 //! so a restart loses nothing. Both go through [`sweep_at`], which tests drive with an explicit time.
 
+use crate::platform::ids::{RoomId, RoundId};
 use std::net::IpAddr;
 
 use axum::{
@@ -85,7 +86,7 @@ pub const REVEAL_GRACE_SECS: i64 = 60;
 /// the result has been up for [`REVEAL_GRACE_SECS`].
 async fn needed_now(
     state: &AppState,
-    round_id: i64,
+    round_id: RoundId,
     players: i64,
     now: Option<&str>,
 ) -> AppResult<i64> {
@@ -110,7 +111,7 @@ async fn db_now(state: &AppState) -> AppResult<String> {
 }
 
 /// The live party behind a code (`404 not_found` for anything else).
-pub async fn by_code(state: &AppState, code: &str) -> AppResult<i64> {
+pub async fn by_code(state: &AppState, code: &str) -> AppResult<RoomId> {
     sqlx::query_scalar(
         "SELECT id FROM groups WHERE join_code = ? AND kind = 'party' AND deleted_at IS NULL",
     )
@@ -122,7 +123,7 @@ pub async fn by_code(state: &AppState, code: &str) -> AppResult<i64> {
 
 /// The party a big screen shows, by its code, for anyone (no account): rate-limited per IP on
 /// wrong codes, and `404` once the party has been over for [`SCREEN_GRACE_MINUTES`].
-pub async fn screen_by_code(state: &AppState, code: &str, ip: Option<IpAddr>) -> AppResult<i64> {
+pub async fn screen_by_code(state: &AppState, code: &str, ip: Option<IpAddr>) -> AppResult<RoomId> {
     let attempt = crate::platform::quotas::code_attempt(state, None, ip)?;
     let id = by_code(state, code).await?;
     attempt.found();
@@ -134,7 +135,7 @@ pub async fn screen_by_code(state: &AppState, code: &str, ip: Option<IpAddr>) ->
 }
 
 /// Still a party, not deleted, and not over for longer than the grace.
-pub async fn screen_alive(state: &AppState, id: i64) -> AppResult<bool> {
+pub async fn screen_alive(state: &AppState, id: RoomId) -> AppResult<bool> {
     Ok(sqlx::query_scalar(concat!(
         "SELECT EXISTS (SELECT 1 FROM groups WHERE id = ? AND kind = 'party' AND deleted_at IS NULL \
          AND COALESCE(party_ended_at, party_ends_at, ",
@@ -185,7 +186,7 @@ fn clean_color(color: Option<&str>) -> AppResult<String> {
 
 #[derive(sqlx::FromRow)]
 struct PartyRow {
-    id: i64,
+    id: RoomId,
     kind: String,
     name: String,
     join_code: String,
@@ -198,7 +199,7 @@ struct PartyRow {
     now: String,
 }
 
-async fn load(state: &AppState, id: i64) -> AppResult<PartyRow> {
+async fn load(state: &AppState, id: RoomId) -> AppResult<PartyRow> {
     sqlx::query_as::<_, PartyRow>(concat!(
         "SELECT id, kind, name, join_code, vibe, language, party_timer, party_ends_at, party_locked, \
          (party_ends_at IS NOT NULL AND party_ends_at <= ",

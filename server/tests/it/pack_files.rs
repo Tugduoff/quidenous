@@ -2,6 +2,7 @@
 //! `seed-packs`, the community packs in server/packs and the AI template.
 
 use crate::common;
+use quidenous_server::platform::ids::UserId;
 
 use axum::{
     Router,
@@ -24,7 +25,7 @@ use tower::ServiceExt;
 async fn setup() -> (Router, AppState) {
     let dir = common::temp_dir("qdn-packfiles");
     let config = Config {
-        admin_user_ids: vec![1],
+        admin_user_ids: vec![UserId::from_raw(1)],
         ..common::config(&dir)
     };
     let state = state(config).await.unwrap();
@@ -372,7 +373,7 @@ async fn seed_packs_publishes_a_folder_once() {
             .map(|o| o.path.strip_prefix(&dir).unwrap().display().to_string())
             .collect()
     };
-    let dry = packs::seed_dir(&state.db, &dir, author, true, true)
+    let dry = packs::seed_dir(&state.db, &dir, UserId::from_raw(author), true, true)
         .await
         .unwrap();
     assert_eq!(
@@ -402,7 +403,7 @@ async fn seed_packs_publishes_a_folder_once() {
         .unwrap();
     assert_eq!(none, 0, "a dry run writes nothing");
 
-    let real = packs::seed_dir(&state.db, &dir, author, true, false)
+    let real = packs::seed_dir(&state.db, &dir, UserId::from_raw(author), true, false)
         .await
         .unwrap();
     let SeedAction::Created { id: Some(en), .. } = real[1].action else {
@@ -432,7 +433,7 @@ async fn seed_packs_publishes_a_folder_once() {
     );
 
     // Again: nothing new.
-    let again = packs::seed_dir(&state.db, &dir, author, true, false)
+    let again = packs::seed_dir(&state.db, &dir, UserId::from_raw(author), true, false)
         .await
         .unwrap();
     assert_eq!(again[1].action, SeedAction::Exists { id: en });
@@ -449,7 +450,7 @@ async fn seed_packs_publishes_a_folder_once() {
         .execute(&state.db)
         .await
         .unwrap();
-    let after = packs::seed_dir(&state.db, &dir, author, false, false)
+    let after = packs::seed_dir(&state.db, &dir, UserId::from_raw(author), false, false)
         .await
         .unwrap();
     assert!(matches!(
@@ -458,7 +459,7 @@ async fn seed_packs_publishes_a_folder_once() {
     ));
 
     assert!(
-        packs::seed_dir(&state.db, &dir, 999, false, true)
+        packs::seed_dir(&state.db, &dir, UserId::from_raw(999), false, true)
             .await
             .is_err()
     );

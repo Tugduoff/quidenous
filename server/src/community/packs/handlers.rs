@@ -1,3 +1,4 @@
+use crate::platform::ids::{PackId, UserId};
 use axum::{
     Json,
     body::Bytes,
@@ -114,10 +115,10 @@ pub async fn edit(
     State(state): State<AppState>,
     crate::accounts::auth::Account(me): crate::accounts::auth::Account,
     headers: HeaderMap,
-    Path(id): Path<i64>,
+    Path(id): Path<PackId>,
     Json(body): Json<PackBody>,
 ) -> AppResult<Json<Value>> {
-    type Current = (i64, String, String, String, String, String, bool);
+    type Current = (UserId, String, String, String, String, String, bool);
     let (author, status, name, description, language, tags, spicy): Current = sqlx::query_as(
         "SELECT author_id, status, name, description, language, tags, spicy FROM packs WHERE id = ?",
     )
@@ -204,10 +205,10 @@ pub async fn mine(
 pub async fn install(
     State(state): State<AppState>,
     Me(me): Me,
-    Path(id): Path<i64>,
+    Path(id): Path<PackId>,
 ) -> AppResult<Json<Value>> {
     crate::rounds::queue::may_add_questions(&state, &me).await?;
-    let available: Option<i64> = sqlx::query_scalar(
+    let available: Option<PackId> = sqlx::query_scalar(
         "SELECT id FROM packs WHERE id = ? \
          AND (status = 'public' OR (author_id = ? AND status = 'review'))",
     )
@@ -277,9 +278,7 @@ pub async fn install(
         )
         .await;
     }
-    state
-        .live
-        .send(me.group_id, Event::QuestionAdded { question_id: 0 });
+    state.live.send(me.group_id, Event::questions_changed());
     Ok(Json(
         json!({ "added": added, "skipped": questions.len() as u64 - added, "installed": true }),
     ))
@@ -287,12 +286,12 @@ pub async fn install(
 
 pub(super) async fn set_like(
     state: &AppState,
-    me: i64,
-    id: i64,
+    me: UserId,
+    id: PackId,
     on: bool,
 ) -> AppResult<Json<Value>> {
     // Liking needs a public pack; taking a like back works whatever became of it.
-    let author: i64 = sqlx::query_scalar(
+    let author: UserId = sqlx::query_scalar(
         "SELECT author_id FROM packs WHERE id = ? AND (status = 'public' OR NOT ?)",
     )
     .bind(id)
@@ -323,7 +322,7 @@ pub(super) async fn set_like(
 pub async fn like(
     State(state): State<AppState>,
     crate::accounts::auth::Account(me): crate::accounts::auth::Account,
-    Path(id): Path<i64>,
+    Path(id): Path<PackId>,
 ) -> AppResult<Json<Value>> {
     require_verified(&state, me).await?;
     set_like(&state, me, id, true).await
@@ -332,7 +331,7 @@ pub async fn like(
 pub async fn unlike(
     State(state): State<AppState>,
     crate::accounts::auth::Account(me): crate::accounts::auth::Account,
-    Path(id): Path<i64>,
+    Path(id): Path<PackId>,
 ) -> AppResult<Json<Value>> {
     set_like(&state, me, id, false).await
 }
@@ -359,7 +358,7 @@ pub(crate) fn optional_body<T: serde::de::DeserializeOwned + Default>(
 pub async fn report(
     State(state): State<AppState>,
     crate::accounts::auth::Account(me): crate::accounts::auth::Account,
-    Path(id): Path<i64>,
+    Path(id): Path<PackId>,
     body: Bytes,
 ) -> AppResult<Json<Value>> {
     let body: ReportBody = optional_body(&body, "bad_report")?;
@@ -379,7 +378,7 @@ pub async fn report(
     {
         return Err(AppError::BadRequest("bad_report"));
     }
-    let (name, author_id, author): (String, i64, String) = sqlx::query_as(
+    let (name, author_id, author): (String, UserId, String) = sqlx::query_as(
         "SELECT p.name, p.author_id, u.name FROM packs p JOIN users u ON u.id = p.author_id \
          WHERE p.id = ? AND p.status != 'deleted'",
     )
@@ -468,7 +467,7 @@ pub async fn report(
 pub async fn delete(
     State(state): State<AppState>,
     SignedIn(me): SignedIn,
-    Path(id): Path<i64>,
+    Path(id): Path<PackId>,
 ) -> AppResult<Json<Value>> {
     let done = sqlx::query(DELETE_SQL)
         .bind(DELETED_IN_REVIEW)
@@ -489,7 +488,7 @@ pub async fn delete(
 pub async fn delete_many(
     State(state): State<AppState>,
     SignedIn(me): SignedIn,
-    Json(body): Json<crate::rounds::queue::IdsBody>,
+    Json(body): Json<crate::rounds::queue::IdsBody<PackId>>,
 ) -> AppResult<Json<Value>> {
     let ids = body.distinct(DELETE_MANY_MAX)?;
     let (mut deleted, mut skipped) = (Vec::new(), Vec::new());
@@ -516,7 +515,7 @@ pub async fn creator(
     State(state): State<AppState>,
     SignedIn(me): SignedIn,
     headers: HeaderMap,
-    Path(user_id): Path<i64>,
+    Path(user_id): Path<UserId>,
 ) -> AppResult<Json<Value>> {
     let (name, color, photo, avatar): (String, String, Option<String>, Option<String>) =
         sqlx::query_as(
@@ -552,7 +551,7 @@ pub async fn creator(
     })))
 }
 
-pub(super) async fn community_state(state: &AppState, me: i64) -> AppResult<Value> {
+pub(super) async fn community_state(state: &AppState, me: UserId) -> AppResult<Value> {
     let show_spicy: bool = sqlx::query_scalar("SELECT show_spicy FROM users WHERE id = ?")
         .bind(me)
         .fetch_optional(&state.db)

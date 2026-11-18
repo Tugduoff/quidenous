@@ -1,3 +1,4 @@
+use crate::platform::ids::{MemberId, RoomId, RoundId, UserId};
 use axum::{
     Json,
     extract::{Path, State},
@@ -53,7 +54,7 @@ pub(crate) async fn join(
     };
     let attempt = crate::platform::quotas::code_attempt(&state, signed_in, ip)?;
     // Parties have their own way in (`POST /parties/join`); a deleted room takes nobody.
-    let group_id: i64 = sqlx::query_scalar(
+    let group_id: RoomId = sqlx::query_scalar(
         "SELECT id FROM groups WHERE join_code = ? AND kind = 'room' AND deleted_at IS NULL",
     )
     .bind(body.code.trim().to_uppercase())
@@ -128,7 +129,7 @@ pub(crate) async fn join(
                 .fetch_one(&mut *tx)
                 .await?;
             let color = COLORS[count as usize % COLORS.len()];
-            let user_id: i64 = match signed_in {
+            let user_id: UserId = match signed_in {
                 Some(id) => id,
                 None => {
                     sqlx::query_scalar(
@@ -252,7 +253,7 @@ pub(crate) async fn group(State(state): State<AppState>, Me(me): Me) -> AppResul
             .await?
             .into_iter()
             .partition(|m| m.removed_at.is_none());
-    let kicks: Vec<(i64, i64, bool)> = sqlx::query_as(
+    let kicks: Vec<(MemberId, i64, bool)> = sqlx::query_as(
         "SELECT k.target_id, COUNT(*), MAX(k.from_id = ?) FROM kicks k JOIN members m ON m.id = k.target_id \
          WHERE m.group_id = ? AND m.removed_at IS NULL GROUP BY k.target_id",
     )
@@ -309,7 +310,7 @@ pub(crate) async fn group(State(state): State<AppState>, Me(me): Me) -> AppResul
 }
 
 /// A room setting the owner can switch off (`skip_vote`, `kick_vote`).
-async fn room_allows(state: &AppState, group_id: i64, setting: &str) -> AppResult<()> {
+async fn room_allows(state: &AppState, group_id: RoomId, setting: &str) -> AppResult<()> {
     let sql = match setting {
         "skip_vote" => "SELECT skip_vote FROM groups WHERE id = ?",
         _ => "SELECT kick_vote FROM groups WHERE id = ?",
@@ -326,7 +327,7 @@ async fn room_allows(state: &AppState, group_id: i64, setting: &str) -> AppResul
 }
 
 /// Majority votes (skip, removal) need three people or more in the room.
-async fn enough_for_votes(state: &AppState, group_id: i64) -> AppResult<()> {
+async fn enough_for_votes(state: &AppState, group_id: RoomId) -> AppResult<()> {
     let mut tx = state.db.begin().await?;
     let active = game::active_count(&mut tx, group_id).await?;
     tx.commit().await?;
@@ -341,7 +342,7 @@ async fn enough_for_votes(state: &AppState, group_id: i64) -> AppResult<()> {
 pub(crate) async fn skip(
     State(state): State<AppState>,
     Me(me): Me,
-    Path(member_id): Path<i64>,
+    Path(member_id): Path<MemberId>,
 ) -> AppResult<Json<Value>> {
     if member_id == me.id {
         return Err(AppError::BadRequest("self_skip"));
@@ -350,14 +351,14 @@ pub(crate) async fn skip(
     enough_for_votes(&state, me.group_id).await?;
     // Checked in the write transaction: a vote can't close the question in between.
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
-    let round_id: i64 =
+    let round_id: RoundId =
         sqlx::query_scalar("SELECT id FROM rounds WHERE group_id = ? AND closed_at IS NULL")
             .bind(me.group_id)
             .fetch_optional(&mut *tx)
             .await?
             .ok_or(AppError::Conflict("no_open_round"))?;
     // Not done yet (on a said question still writing: not written).
-    let waiting: Option<i64> = sqlx::query_scalar(concat!(
+    let waiting: Option<MemberId> = sqlx::query_scalar(concat!(
         "SELECT id FROM members m WHERE m.id = ?1 AND m.group_id = ?2 AND m.removed_at IS NULL AND NOT ",
         crate::rounds::said::done!("?3", "m.id")
     ))
@@ -383,7 +384,7 @@ pub(crate) async fn skip(
 pub(crate) async fn unskip(
     State(state): State<AppState>,
     Me(me): Me,
-    Path(member_id): Path<i64>,
+    Path(member_id): Path<MemberId>,
 ) -> AppResult<Json<Value>> {
     let round = game::open_round(&state.db, me.group_id)
         .await?
@@ -403,9 +404,9 @@ pub(crate) async fn unskip(
 /// Broadcast what a skip or a removal changed, and notify when it closed the question.
 async fn after_round_change(
     state: &AppState,
-    group_id: i64,
-    actor: i64,
-    round_id: i64,
+    group_id: RoomId,
+    actor: MemberId,
+    round_id: RoundId,
     events: Vec<Event>,
 ) -> Json<Value> {
     let closed = events
@@ -431,7 +432,7 @@ async fn after_round_change(
 pub(crate) async fn kick(
     State(state): State<AppState>,
     Me(me): Me,
-    Path(member_id): Path<i64>,
+    Path(member_id): Path<MemberId>,
 ) -> AppResult<Json<Value>> {
     if member_id == me.id {
         return Err(AppError::BadRequest("self_kick"));
@@ -481,12 +482,12 @@ pub(crate) async fn kick(
 
 /// What taking a seat away changed, to announce once it committed (see [`announce_removal`]).
 pub(crate) struct Removal {
-    group_id: i64,
-    member_id: i64,
+    group_id: RoomId,
+    member_id: MemberId,
     /// Someone became the owner.
     promoted: bool,
     /// The open question, re-checked without them.
-    open: Option<i64>,
+    open: Option<RoundId>,
     events: Vec<Event>,
 }
 
@@ -497,8 +498,8 @@ pub(crate) struct Removal {
 /// got there first: theirs decides whether they may come back).
 pub(crate) async fn take_seat(
     tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
-    group_id: i64,
-    member_id: i64,
+    group_id: RoomId,
+    member_id: MemberId,
     left: bool,
 ) -> AppResult<Option<Removal>> {
     let done = sqlx::query(
@@ -530,7 +531,7 @@ pub(crate) async fn take_seat(
         .bind(member_id)
         .execute(&mut **tx)
         .await?;
-    let open: Option<i64> =
+    let open: Option<RoundId> =
         sqlx::query_scalar("SELECT id FROM rounds WHERE group_id = ? AND closed_at IS NULL")
             .bind(group_id)
             .fetch_optional(&mut **tx)
@@ -559,7 +560,7 @@ pub(crate) async fn take_seat(
 
 /// After a removal committed: the room hears it, the question it closed is announced, and a party
 /// re-counts its "Suivante" taps. Failures are logged (the removal itself is done).
-pub(crate) async fn announce_removal(state: &AppState, actor: i64, removal: Removal) {
+pub(crate) async fn announce_removal(state: &AppState, actor: MemberId, removal: Removal) {
     let Removal {
         group_id,
         member_id,
@@ -578,7 +579,7 @@ pub(crate) async fn announce_removal(state: &AppState, actor: i64, removal: Remo
     }
     // A party: 75 % of fewer players may now have tapped "Suivante".
     if let Err(e) = crate::party::after_leave(state, group_id).await {
-        tracing::warn!(group_id, error = ?e, "party re-check after a removal failed");
+        tracing::warn!(%group_id, error = ?e, "party re-check after a removal failed");
     }
 }
 
@@ -586,9 +587,9 @@ pub(crate) async fn announce_removal(state: &AppState, actor: i64, removal: Remo
 /// already empty (nothing changed, nothing announced).
 pub(crate) async fn remove_member(
     state: &AppState,
-    group_id: i64,
-    member_id: i64,
-    actor: i64,
+    group_id: RoomId,
+    member_id: MemberId,
+    actor: MemberId,
     left: bool,
 ) -> AppResult<bool> {
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
@@ -606,7 +607,7 @@ pub(crate) async fn remove_member(
 pub(crate) async fn unkick(
     State(state): State<AppState>,
     Me(me): Me,
-    Path(member_id): Path<i64>,
+    Path(member_id): Path<MemberId>,
 ) -> AppResult<Json<Value>> {
     sqlx::query("DELETE FROM kicks WHERE target_id = ? AND from_id = ?")
         .bind(member_id)
@@ -620,7 +621,7 @@ pub(crate) async fn unkick(
 /// Someone who left takes their old seat back: same member, so their history reconnects.
 pub(crate) async fn rejoin_seat(
     tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
-    member_id: i64,
+    member_id: MemberId,
 ) -> AppResult<()> {
     sqlx::query(
         "UPDATE members SET removed_at = NULL, left_by_self = 0, role = 'member' WHERE id = ?",

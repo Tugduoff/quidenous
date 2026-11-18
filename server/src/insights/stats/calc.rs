@@ -1,3 +1,4 @@
+use crate::platform::ids::{MemberId, RoundId};
 use std::collections::{HashMap, HashSet};
 
 use crate::platform::i18n::{self, Lang};
@@ -9,12 +10,12 @@ pub(super) struct Calc {
     period: Period,
     tz: i64,
     today: i64,
-    info: HashMap<i64, MemberInfo>,
+    info: HashMap<MemberId, MemberInfo>,
     /// Current members, by id.
-    current_ids: Vec<i64>,
-    current: HashSet<i64>,
+    current_ids: Vec<MemberId>,
+    current: HashSet<MemberId>,
     rounds: Vec<RoundCalc>,
-    messages_by: HashMap<i64, i64>,
+    messages_by: HashMap<MemberId, i64>,
     messages: i64,
 }
 
@@ -26,9 +27,9 @@ impl Calc {
         today: i64,
         member_rows: Vec<MemberRowT>,
         round_rows: Vec<RoundRow>,
-        vote_rows: Vec<(i64, i64, i64, f64)>,
-        point_rows: Vec<(i64, i64, i64, f64)>,
-        message_rows: Vec<(i64, i64)>,
+        vote_rows: Vec<(RoundId, MemberId, MemberId, f64)>,
+        point_rows: Vec<(RoundId, MemberId, i64, f64)>,
+        message_rows: Vec<(RoundId, MemberId)>,
     ) -> Self {
         let mut info = HashMap::new();
         let mut current_ids = Vec::new();
@@ -45,7 +46,7 @@ impl Calc {
                 },
             );
         }
-        let current: HashSet<i64> = current_ids.iter().copied().collect();
+        let current: HashSet<MemberId> = current_ids.iter().copied().collect();
         let mut rounds: Vec<RoundCalc> = round_rows
             .into_iter()
             .map(
@@ -66,7 +67,7 @@ impl Calc {
                 },
             )
             .collect();
-        let index: HashMap<i64, usize> =
+        let index: HashMap<RoundId, usize> =
             rounds.iter().enumerate().map(|(i, r)| (r.id, i)).collect();
         for (round_id, voter, target, at) in vote_rows {
             if let Some(&i) = index.get(&round_id) {
@@ -78,7 +79,7 @@ impl Calc {
                 rounds[i].points.push((member, points, avg));
             }
         }
-        let mut messages_by: HashMap<i64, i64> = HashMap::new();
+        let mut messages_by: HashMap<MemberId, i64> = HashMap::new();
         let messages = message_rows.len() as i64;
         for (round_id, member) in message_rows {
             *messages_by.entry(member).or_default() += 1;
@@ -88,7 +89,7 @@ impl Calc {
             }
         }
         for r in &mut rounds {
-            let mut tally: HashMap<i64, i64> = HashMap::new();
+            let mut tally: HashMap<MemberId, i64> = HashMap::new();
             for &(_, target, _) in &r.votes {
                 *tally.entry(target).or_default() += 1;
             }
@@ -129,15 +130,15 @@ impl Calc {
         }
     }
 
-    fn present(&self, member: i64, r: &RoundCalc) -> bool {
+    fn present(&self, member: MemberId, r: &RoundCalc) -> bool {
         self.info.get(&member).is_some_and(|m| m.joined <= r.opened)
             || r.votes.iter().any(|v| v.0 == member)
     }
 
     pub(crate) fn finish(
         self,
-        nudges: Vec<(i64, i64)>,
-        authors: Vec<(i64, i64)>,
+        nudges: Vec<(MemberId, MemberId)>,
+        authors: Vec<(MemberId, i64)>,
         spicy: bool,
         lang: Lang,
     ) -> Stats {
@@ -162,21 +163,21 @@ impl Calc {
         )
         .map(|m| m.round() as i64);
 
-        let mut received: HashMap<i64, i64> = HashMap::new();
-        let mut cast: HashMap<i64, i64> = HashMap::new();
-        let mut wins: HashMap<i64, i64> = HashMap::new();
-        let mut selfish: HashMap<i64, i64> = HashMap::new();
-        let mut last: HashMap<i64, i64> = HashMap::new();
-        let mut pairs: HashMap<(i64, i64), i64> = HashMap::new();
-        let mut delays: HashMap<i64, Vec<f64>> = HashMap::new();
-        let mut night: HashMap<i64, i64> = HashMap::new();
-        let mut early: HashMap<i64, i64> = HashMap::new();
+        let mut received: HashMap<MemberId, i64> = HashMap::new();
+        let mut cast: HashMap<MemberId, i64> = HashMap::new();
+        let mut wins: HashMap<MemberId, i64> = HashMap::new();
+        let mut selfish: HashMap<MemberId, i64> = HashMap::new();
+        let mut last: HashMap<MemberId, i64> = HashMap::new();
+        let mut pairs: HashMap<(MemberId, MemberId), i64> = HashMap::new();
+        let mut delays: HashMap<MemberId, Vec<f64>> = HashMap::new();
+        let mut night: HashMap<MemberId, i64> = HashMap::new();
+        let mut early: HashMap<MemberId, i64> = HashMap::new();
         let mut heatmap = vec![vec![0i64; 24]; 7];
         // Contrarian / sheep: (eligible, against) per voter.
-        let mut against: HashMap<i64, (i64, i64)> = HashMap::new();
-        let mut kingmaker: HashMap<i64, i64> = HashMap::new();
+        let mut against: HashMap<MemberId, (i64, i64)> = HashMap::new();
+        let mut kingmaker: HashMap<MemberId, i64> = HashMap::new();
         // Twins: (shared, same) per pair of voters.
-        let mut twins: HashMap<(i64, i64), (i64, i64)> = HashMap::new();
+        let mut twins: HashMap<(MemberId, MemberId), (i64, i64)> = HashMap::new();
 
         for r in &self.rounds {
             for w in &r.winners {
@@ -232,7 +233,7 @@ impl Calc {
                     }
                 }
             }
-            let voters: Vec<(i64, i64)> = r
+            let voters: Vec<(MemberId, MemberId)> = r
                 .votes
                 .iter()
                 .filter(|v| !r.anonymous && cur.contains(&v.0))
@@ -255,8 +256,8 @@ impl Calc {
         s.most_crowned = top(&wins, cur, 1);
         s.narcissist = top(&selfish, cur, 1);
         s.last_voter = top(&last, cur, 1);
-        let mut nudged_by: HashMap<i64, i64> = HashMap::new();
-        let mut nudged: HashMap<i64, i64> = HashMap::new();
+        let mut nudged_by: HashMap<MemberId, i64> = HashMap::new();
+        let mut nudged: HashMap<MemberId, i64> = HashMap::new();
         for (from, to) in &nudges {
             *nudged_by.entry(*from).or_default() += 1;
             *nudged.entry(*to).or_default() += 1;
@@ -283,7 +284,7 @@ impl Calc {
                 .collect();
         }
 
-        let mut medians: HashMap<i64, i64> = HashMap::new();
+        let mut medians: HashMap<MemberId, i64> = HashMap::new();
         for (m, d) in delays.iter_mut() {
             if d.len() >= MIN_VOTES_FOR_SPEED
                 && let Some(v) = median(d)
@@ -291,7 +292,7 @@ impl Calc {
                 medians.insert(*m, v.round() as i64);
             }
         }
-        let mut speeds: Vec<(i64, i64)> = medians
+        let mut speeds: Vec<(MemberId, i64)> = medians
             .iter()
             .filter(|(m, _)| cur.contains(m))
             .map(|(&m, &v)| (m, v))
@@ -314,7 +315,7 @@ impl Calc {
 
         let enough_people = self.current_ids.len() >= 3;
         if enough_people {
-            let pool: Vec<(i64, i64, i64)> = against
+            let pool: Vec<(MemberId, i64, i64)> = against
                 .iter()
                 .filter(|(m, (eligible, _))| cur.contains(m) && *eligible >= 3)
                 .map(|(&m, &(eligible, a))| (m, a, eligible))
@@ -345,7 +346,7 @@ impl Calc {
         s.kingmaker = top(&kingmaker, cur, 2);
 
         // Loyal: the biggest share of one's (non-self) votes going to one person.
-        let mut given: HashMap<i64, i64> = HashMap::new();
+        let mut given: HashMap<MemberId, i64> = HashMap::new();
         for (&(v, t), &n) in &pairs {
             if v != t {
                 *given.entry(v).or_default() += n;
@@ -366,9 +367,9 @@ impl Calc {
         });
 
         // Streaks and droughts, question by question.
-        let mut streak_now: HashMap<i64, i64> = HashMap::new();
-        let mut streak_best: HashMap<i64, i64> = HashMap::new();
-        let mut comeback: HashMap<i64, i64> = HashMap::new();
+        let mut streak_now: HashMap<MemberId, i64> = HashMap::new();
+        let mut streak_best: HashMap<MemberId, i64> = HashMap::new();
+        let mut comeback: HashMap<MemberId, i64> = HashMap::new();
         for &m in &self.current_ids {
             let (mut run, mut best, mut dry, mut back) = (0i64, 0i64, 0i64, 0i64);
             for r in &self.rounds {
@@ -410,13 +411,13 @@ impl Calc {
         }
 
         // Average position on ranking questions: mean, over questions, of the average given by voters.
-        let mut positions: HashMap<i64, Vec<f64>> = HashMap::new();
+        let mut positions: HashMap<MemberId, Vec<f64>> = HashMap::new();
         for r in self.rounds.iter().filter(|r| r.rank) {
             for &(m, _, avg) in &r.points {
                 positions.entry(m).or_default().push(avg);
             }
         }
-        let avg_rank: HashMap<i64, (f64, i64)> = positions
+        let avg_rank: HashMap<MemberId, (f64, i64)> = positions
             .iter()
             .filter(|(m, p)| p.len() >= 2 && cur.contains(m))
             .map(|(&m, p)| (m, (p.iter().sum::<f64>() / p.len() as f64, p.len() as i64)))
@@ -549,13 +550,13 @@ impl Calc {
     fn profiles(
         &self,
         s: &Stats,
-        pairs: &HashMap<(i64, i64), i64>,
-        received: &HashMap<i64, i64>,
-        cast: &HashMap<i64, i64>,
-        wins: &HashMap<i64, i64>,
-        selfish: &HashMap<i64, i64>,
-        medians: &HashMap<i64, i64>,
-        avg_rank: &HashMap<i64, (f64, i64)>,
+        pairs: &HashMap<(MemberId, MemberId), i64>,
+        received: &HashMap<MemberId, i64>,
+        cast: &HashMap<MemberId, i64>,
+        wins: &HashMap<MemberId, i64>,
+        selfish: &HashMap<MemberId, i64>,
+        medians: &HashMap<MemberId, i64>,
+        avg_rank: &HashMap<MemberId, (f64, i64)>,
     ) -> Vec<MemberStats> {
         let titles = titles(s);
         let top3 = |mut list: Vec<Count>| {
@@ -635,7 +636,7 @@ impl Calc {
             .collect()
     }
 
-    fn name(&self, id: i64, lang: Lang) -> String {
+    fn name(&self, id: MemberId, lang: Lang) -> String {
         self.info
             .get(&id)
             .map(|m| {
@@ -650,7 +651,7 @@ impl Calc {
 
     fn stories(&self, s: &Stats, spicy: bool, lang: Lang) -> Vec<Story> {
         let drafts = drafts(s, &|id| self.name(id, lang), &self.rounds, spicy, lang);
-        let mut used: HashMap<i64, usize> = HashMap::new();
+        let mut used: HashMap<MemberId, usize> = HashMap::new();
         let mut keys: HashSet<&'static str> = HashSet::new();
         let mut out = Vec::new();
         for d in drafts {
@@ -683,7 +684,7 @@ impl Calc {
     }
 }
 
-pub(super) fn award_ratio((member_id, value, total): (i64, i64, i64)) -> Award {
+pub(super) fn award_ratio((member_id, value, total): (MemberId, i64, i64)) -> Award {
     Award {
         member_id,
         value,

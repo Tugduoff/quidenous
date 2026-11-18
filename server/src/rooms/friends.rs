@@ -3,6 +3,7 @@
 //! other person's consent: a friend request waits for them to accept it, and putting a friend in
 //! one of my rooms sends them an invitation they accept or decline (`docs/ROOMS.md`, Friends).
 
+use crate::platform::ids::{InviteId, MemberId, RoomId, UserId};
 use axum::{
     Json,
     extract::{Path, State},
@@ -24,7 +25,7 @@ use crate::{
 };
 
 /// Is `other` a friend of `me` (added, or sharing an active room), with no block either way?
-async fn are_friends(state: &AppState, me: i64, other: i64) -> AppResult<bool> {
+async fn are_friends(state: &AppState, me: UserId, other: UserId) -> AppResult<bool> {
     let found: Option<i64> = sqlx::query_scalar(
         "SELECT 1 FROM ( \
              SELECT 1 FROM friends WHERE user_id = ?1 AND friend_id = ?2 \
@@ -41,7 +42,7 @@ async fn are_friends(state: &AppState, me: i64, other: i64) -> AppResult<bool> {
     Ok(found.is_some())
 }
 
-type PersonRow = (i64, String, String, Option<String>, Option<String>);
+type PersonRow = (UserId, String, String, Option<String>, Option<String>);
 
 fn person((id, name, color, photo, avatar): PersonRow) -> Value {
     json!({ "user_id": id, "name": name, "color": color,
@@ -56,7 +57,7 @@ pub async fn list(State(state): State<AppState>, Account(me): Account) -> AppRes
         .fetch_one(&state.db)
         .await?;
     type Row = (
-        i64,
+        UserId,
         String,
         String,
         Option<String>,
@@ -125,7 +126,7 @@ pub async fn list(State(state): State<AppState>, Account(me): Account) -> AppRes
 
 /// The seat a notice for this account lands on (inbox entry, push): the room they used last,
 /// else their newest. None without a room.
-async fn notice_seat(state: &AppState, user: i64) -> AppResult<Option<(i64, i64)>> {
+async fn notice_seat(state: &AppState, user: UserId) -> AppResult<Option<(MemberId, RoomId)>> {
     Ok(sqlx::query_as(
         "SELECT m.id, m.group_id FROM members m JOIN users u ON u.id = m.user_id \
          JOIN groups g ON g.id = m.group_id AND g.deleted_at IS NULL \
@@ -143,22 +144,22 @@ async fn notice_seat(state: &AppState, user: i64) -> AppResult<Option<(i64, i64)
 /// would find it already sent and say nothing).
 async fn notify_user(
     state: &AppState,
-    to: i64,
-    from: i64,
+    to: UserId,
+    from: UserId,
     kind: &str,
     title: Text,
     body: Text,
     url: &str,
 ) {
     if let Err(e) = try_notify_user(state, to, from, kind, title, body, url).await {
-        tracing::warn!(to, from, kind, error = ?e, "notice failed");
+        tracing::warn!(%to, %from, kind, error = ?e, "notice failed");
     }
 }
 
 async fn try_notify_user(
     state: &AppState,
-    to: i64,
-    from: i64,
+    to: UserId,
+    from: UserId,
     kind: &str,
     title: Text,
     body: Text,
@@ -188,7 +189,7 @@ async fn try_notify_user(
 }
 
 /// I ask `other` to be friends, or accept if they already asked me. `true` = we are friends now.
-async fn befriend(state: &AppState, me: i64, other: i64, my_name: &str) -> AppResult<bool> {
+async fn befriend(state: &AppState, me: UserId, other: UserId, my_name: &str) -> AppResult<bool> {
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
     let asked_me = sqlx::query("DELETE FROM friend_requests WHERE from_id = ? AND to_id = ?")
         .bind(other)
@@ -245,7 +246,7 @@ async fn befriend(state: &AppState, me: i64, other: i64, my_name: &str) -> AppRe
     Ok(false)
 }
 
-async fn my_name(state: &AppState, me: i64) -> AppResult<String> {
+async fn my_name(state: &AppState, me: UserId) -> AppResult<String> {
     Ok(sqlx::query_scalar("SELECT name FROM users WHERE id = ?")
         .bind(me)
         .fetch_one(&state.db)
@@ -268,7 +269,7 @@ pub async fn add(
     let code = body.code.trim().to_uppercase();
     let attempt = crate::platform::quotas::code_attempt(&state, Some(me), ip)?;
     // A block, either way, or a party guest looks like an unknown code.
-    let (other, name): (i64, String) = sqlx::query_as(concat!(
+    let (other, name): (UserId, String) = sqlx::query_as(concat!(
         "SELECT u.id, u.name FROM users u WHERE u.friend_code = ?1 AND u.deleted_at IS NULL AND NOT ",
         guest_sql!("u"),
         " AND NOT EXISTS (SELECT 1 FROM blocks b WHERE (b.user_id = u.id AND b.blocked_id = ?2) \
@@ -293,7 +294,7 @@ pub async fn add(
 pub async fn keep(
     State(state): State<AppState>,
     Account(me): Account,
-    Path(other): Path<i64>,
+    Path(other): Path<UserId>,
 ) -> AppResult<Json<Value>> {
     if other == me {
         return Err(AppError::BadRequest("self_friend"));
@@ -325,7 +326,7 @@ pub async fn keep(
 pub async fn remove(
     State(state): State<AppState>,
     SignedIn(me): SignedIn,
-    Path(other): Path<i64>,
+    Path(other): Path<UserId>,
 ) -> AppResult<Json<Value>> {
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
     for sql in [
@@ -344,7 +345,7 @@ pub async fn remove(
 
 #[derive(Deserialize)]
 pub struct AddToRoomBody {
-    user_id: i64,
+    user_id: UserId,
 }
 
 /// Invite a friend into one of my rooms (`POST /rooms/{id}/add`, the old "add" endpoint): they
@@ -352,7 +353,7 @@ pub struct AddToRoomBody {
 pub async fn add_to_room(
     State(state): State<AppState>,
     Account(me): Account,
-    Path(room): Path<i64>,
+    Path(room): Path<RoomId>,
     Json(body): Json<AddToRoomBody>,
 ) -> AppResult<Json<Value>> {
     let my_seat = seat(&state, me, room).await?;
@@ -433,14 +434,17 @@ macro_rules! invite_valid {
 }
 
 /// The room invitations waiting for me, newest first.
-pub async fn invites(State(state): State<AppState>, SignedIn(me): SignedIn) -> AppResult<Json<Value>> {
+pub async fn invites(
+    State(state): State<AppState>,
+    SignedIn(me): SignedIn,
+) -> AppResult<Json<Value>> {
     type Row = (
-        i64,
-        i64,
+        InviteId,
+        RoomId,
         String,
         i64,
         String,
-        i64,
+        UserId,
         String,
         String,
         Option<String>,
@@ -475,12 +479,12 @@ pub async fn invites(State(state): State<AppState>, SignedIn(me): SignedIn) -> A
 pub async fn accept_invite(
     State(state): State<AppState>,
     Account(me): Account,
-    Path(id): Path<i64>,
+    Path(id): Path<InviteId>,
 ) -> AppResult<Json<Value>> {
     // All in the write transaction, the invitation included: a double tap's second request waits for the first one
     // and then finds the invitation accepted (not gone: it keeps the seat it gave, for this answer).
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
-    let invite: Option<(i64, i64, Option<i64>, bool)> = sqlx::query_as(concat!(
+    let invite: Option<(RoomId, UserId, Option<MemberId>, bool)> = sqlx::query_as(concat!(
         "SELECT i.group_id, i.from_id, i.member_id, ",
         invite_valid!(),
         " FROM room_invites i WHERE i.id = ? AND i.user_id = ?"
@@ -507,7 +511,7 @@ pub async fn accept_invite(
             Err(AppError::NotFound)
         };
     }
-    let existing: Option<(i64, Option<String>, bool)> = sqlx::query_as(
+    let existing: Option<(MemberId, Option<String>, bool)> = sqlx::query_as(
         "SELECT id, removed_at, left_by_self FROM members WHERE group_id = ? AND user_id = ?",
     )
     .bind(room)
@@ -516,7 +520,7 @@ pub async fn accept_invite(
     .await?;
     let drop_invite = || sqlx::query("DELETE FROM room_invites WHERE id = ?").bind(id);
     // Accepted: kept with its seat, for a second tap.
-    let accept = |member_id: i64| {
+    let accept = |member_id: MemberId| {
         sqlx::query("UPDATE room_invites SET member_id = ? WHERE id = ?")
             .bind(member_id)
             .bind(id)
@@ -598,7 +602,7 @@ pub async fn accept_invite(
 pub async fn decline_invite(
     State(state): State<AppState>,
     SignedIn(me): SignedIn,
-    Path(id): Path<i64>,
+    Path(id): Path<InviteId>,
 ) -> AppResult<Json<Value>> {
     sqlx::query("DELETE FROM room_invites WHERE id = ?1 AND (user_id = ?2 OR from_id = ?2)")
         .bind(id)
@@ -612,10 +616,10 @@ pub async fn decline_invite(
 pub async fn room_invites(
     State(state): State<AppState>,
     SignedIn(me): SignedIn,
-    Path(room): Path<i64>,
+    Path(room): Path<RoomId>,
 ) -> AppResult<Json<Value>> {
     seat(&state, me, room).await?;
-    let ids: Vec<i64> = sqlx::query_scalar(concat!(
+    let ids: Vec<UserId> = sqlx::query_scalar(concat!(
         "SELECT i.user_id FROM room_invites i WHERE i.group_id = ? AND i.member_id IS NULL AND ",
         invite_valid!(),
         " ORDER BY i.id"
@@ -630,7 +634,7 @@ pub async fn room_invites(
 pub async fn cancel_room_invite(
     State(state): State<AppState>,
     SignedIn(me): SignedIn,
-    Path((room, user)): Path<(i64, i64)>,
+    Path((room, user)): Path<(RoomId, UserId)>,
 ) -> AppResult<Json<Value>> {
     let my_seat = seat(&state, me, room).await?;
     sqlx::query(

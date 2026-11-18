@@ -2,6 +2,7 @@
 //! owner included), wherever a result goes.
 
 use crate::common;
+use quidenous_server::platform::ids::RoomId;
 
 use crate::common::{call, join, room_id, setup};
 use axum::{
@@ -242,13 +243,14 @@ async fn a_round_keeps_what_was_decided_when_it_opened() {
         .unwrap();
     // Opened under "always": anonymous, though the question didn't ask.
     let mut tx = room.state.db.begin().await.unwrap();
-    let opened = quidenous_server::rounds::game::ensure_open_round(&mut tx, room.id)
-        .await
-        .unwrap()
-        .unwrap();
+    let opened =
+        quidenous_server::rounds::game::ensure_open_round(&mut tx, RoomId::from_raw(room.id))
+            .await
+            .unwrap()
+            .unwrap();
     tx.commit().await.unwrap();
     let open = room.current(&room.ana.0).await;
-    assert_eq!(open["id"], opened);
+    assert_eq!(open["id"], json!(opened));
     assert_eq!(open["question"], "Qui ronfle le plus fort ?");
     assert_eq!(open["anonymous"], true);
 }

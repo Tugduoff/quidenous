@@ -3,6 +3,7 @@
 
 use crate::common;
 use crate::common::{T, user_of};
+use quidenous_server::platform::ids::UserId;
 
 use std::{sync::Arc, time::Duration};
 
@@ -231,7 +232,7 @@ async fn push_and_inbox_speak_each_recipients_language() {
         let title = title.to_owned();
         move |sent: &[quidenous_server::realtime::push::Sent]| {
             sent.iter()
-                .any(|p| p.user_id == Some(user) && p.title == title)
+                .any(|p| p.user_id == Some(UserId::from_raw(user)) && p.title == title)
         }
     };
     assert!(wait_for(&t.state, has(bob_user, "Ana is waiting for your vote")).await);
@@ -282,9 +283,10 @@ async fn push_and_inbox_speak_each_recipients_language() {
         assert_eq!(s, StatusCode::OK, "{b}");
     }
     assert!(
-        wait_for(&t.state, |sent| sent.iter().any(|p| p.user_id
-            == Some(bob_user)
-            && p.title.starts_with("Results are in")))
+        wait_for(&t.state, |sent| sent
+            .iter()
+            .any(|p| p.user_id == Some(UserId::from_raw(bob_user))
+                && p.title.starts_with("Results are in")))
         .await,
         "{:?}",
         t.state.push.recorded()
@@ -294,7 +296,8 @@ async fn push_and_inbox_speak_each_recipients_language() {
             .push
             .recorded()
             .iter()
-            .any(|p| p.user_id == Some(bob_user) && p.title.starts_with("Résultat"))
+            .any(|p| p.user_id == Some(UserId::from_raw(bob_user))
+                && p.title.starts_with("Résultat"))
     );
 }
 

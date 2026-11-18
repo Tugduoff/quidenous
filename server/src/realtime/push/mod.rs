@@ -1,6 +1,7 @@
 //! Push notifications: Web Push (RFC 8030 + 8291 aes128gcm + 8292 VAPID) for the web app,
 //! FCM HTTP v1 for the Android build. Pure Rust, no OpenSSL.
 
+use crate::platform::ids::{MemberId, RoomId, UserId};
 use std::{sync::Arc, time::Duration};
 
 use serde::{Deserialize, Serialize};
@@ -83,7 +84,7 @@ pub struct Notification {
     pub tag: String,
     /// Path in the app; the room is added as `?room=` on the way out, so a tap opens the right room.
     pub url: String,
-    pub room: i64,
+    pub room: RoomId,
 }
 
 impl Notification {
@@ -109,7 +110,7 @@ impl Notification {
 /// A push as a device would have received it (tests record them instead of sending).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Sent {
-    pub user_id: Option<i64>,
+    pub user_id: Option<UserId>,
     pub title: String,
     pub body: String,
 }
@@ -122,8 +123,8 @@ pub struct Recipient {
     endpoint: String,
     p256dh: Option<String>,
     auth: Option<String>,
-    pub user_id: Option<i64>,
-    pub group_id: i64,
+    pub user_id: Option<UserId>,
+    pub group_id: RoomId,
     muted: bool,
     enabled: Option<bool>,
     off: Option<String>,
@@ -180,19 +181,19 @@ pub struct Push {
 
 pub enum Target {
     Group {
-        group_id: i64,
-        skip_member: Option<i64>,
+        group_id: RoomId,
+        skip_member: Option<MemberId>,
         /// Whoever caused it (an account): people who blocked them get nothing.
-        from_user: Option<i64>,
+        from_user: Option<UserId>,
     },
     Member {
-        member_id: i64,
-        from_user: Option<i64>,
+        member_id: MemberId,
+        from_user: Option<UserId>,
     },
     /// Some active members of one room (the people a message mentions, or everyone else).
     Members {
-        member_ids: Vec<i64>,
-        from_user: Option<i64>,
+        member_ids: Vec<MemberId>,
+        from_user: Option<UserId>,
     },
 }
 
@@ -244,8 +245,8 @@ impl Push {
     pub fn notify_group(
         &self,
         db: SqlitePool,
-        group_id: i64,
-        skip_member: Option<i64>,
+        group_id: RoomId,
+        skip_member: Option<MemberId>,
         n: Notification,
     ) {
         self.notify(
@@ -263,8 +264,8 @@ impl Push {
     pub fn notify_member(
         &self,
         db: SqlitePool,
-        member_id: i64,
-        from_user: Option<i64>,
+        member_id: MemberId,
+        from_user: Option<UserId>,
         n: Notification,
     ) {
         self.notify(
@@ -282,7 +283,7 @@ impl Push {
     pub fn notify_members(
         &self,
         db: SqlitePool,
-        member_ids: Vec<i64>,
+        member_ids: Vec<MemberId>,
         from: &crate::rooms::model::MemberRow,
         n: Notification,
     ) {
@@ -469,7 +470,7 @@ impl Push {
     /// `widget::ping_room`. Nothing shown: the app's background task refreshes its widgets. Collapsed
     /// per room and normal priority (no wake-up from Doze: it waits for the phone's next window).
     /// A dead FCM token is dropped from its widget token. Runs in the background.
-    pub fn widget_ping(&self, db: SqlitePool, group_id: i64, tokens: Vec<(i64, String)>) {
+    pub fn widget_ping(&self, db: SqlitePool, group_id: RoomId, tokens: Vec<(UserId, String)>) {
         {
             let mut rec = self.recorded.lock().unwrap_or_else(|e| e.into_inner());
             if let Some(rec) = rec.as_mut() {
@@ -504,7 +505,7 @@ impl Push {
         });
     }
 
-    async fn deliver_widget_ping(&self, fcm_token: &str, group_id: i64) -> Delivery {
+    async fn deliver_widget_ping(&self, fcm_token: &str, group_id: RoomId) -> Delivery {
         let Some(fcm) = &self.fcm else {
             return Delivery::Failed("FCM not configured".into());
         };
@@ -733,20 +734,34 @@ mod quiet_hours_tests {
 #[cfg(test)]
 mod presence_tests {
     use super::Presence;
+    use crate::platform::ids::{RoomId, UserId};
+
+    fn seat(user: i64, room: i64) -> (UserId, RoomId) {
+        (UserId::from_raw(user), RoomId::from_raw(room))
+    }
 
     #[test]
     fn presence_per_room_and_connection() {
         let presence = Presence::default();
         let (phone, laptop) = (presence.connection(), presence.connection());
-        assert!(!presence.is_here(1, 10));
-        presence.here(1, 10, phone);
-        presence.here(1, 10, laptop);
-        assert!(presence.is_here(1, 10));
-        assert!(!presence.is_here(1, 11), "another room of the same account");
-        assert!(!presence.is_here(2, 10), "another account in the same room");
-        presence.away(1, 10, phone);
-        assert!(presence.is_here(1, 10), "still open on the other device");
-        presence.away(1, 10, laptop);
-        assert!(!presence.is_here(1, 10));
+        assert!(!presence.is_here(seat(1, 10).0, seat(1, 10).1));
+        presence.here(seat(1, 10).0, seat(1, 10).1, phone);
+        presence.here(seat(1, 10).0, seat(1, 10).1, laptop);
+        assert!(presence.is_here(seat(1, 10).0, seat(1, 10).1));
+        assert!(
+            !presence.is_here(seat(1, 11).0, seat(1, 11).1),
+            "another room of the same account"
+        );
+        assert!(
+            !presence.is_here(seat(2, 10).0, seat(2, 10).1),
+            "another account in the same room"
+        );
+        presence.away(seat(1, 10).0, seat(1, 10).1, phone);
+        assert!(
+            presence.is_here(seat(1, 10).0, seat(1, 10).1),
+            "still open on the other device"
+        );
+        presence.away(seat(1, 10).0, seat(1, 10).1, laptop);
+        assert!(!presence.is_here(seat(1, 10).0, seat(1, 10).1));
     }
 }

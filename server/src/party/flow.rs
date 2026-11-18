@@ -1,3 +1,4 @@
+use crate::platform::ids::{RoomId, RoundId, UserId};
 use axum::Json;
 use serde_json::Value;
 
@@ -14,8 +15,8 @@ use super::*;
 /// My seat in a party (`403 not_in_room`; `409 not_party` once it became a normal room).
 pub(super) async fn party_seat(
     state: &AppState,
-    user: i64,
-    id: i64,
+    user: UserId,
+    id: RoomId,
 ) -> AppResult<(MemberRow, PartyRow)> {
     let me = crate::rooms::manage::seat(state, user, id).await?;
     let p = load(state, id).await?;
@@ -27,8 +28,8 @@ pub(super) async fn party_seat(
 
 pub(super) async fn owner_seat(
     state: &AppState,
-    user: i64,
-    id: i64,
+    user: UserId,
+    id: RoomId,
 ) -> AppResult<(MemberRow, PartyRow)> {
     let (me, p) = party_seat(state, user, id).await?;
     if me.role != "owner" {
@@ -45,7 +46,7 @@ pub(super) fn not_over(p: &PartyRow) -> AppResult<()> {
     }
 }
 
-pub(super) async fn answer(state: &AppState, id: i64, me: &MemberRow) -> AppResult<Json<Value>> {
+pub(super) async fn answer(state: &AppState, id: RoomId, me: &MemberRow) -> AppResult<Json<Value>> {
     let me = sqlx::query_as::<_, MemberRow>("SELECT * FROM members WHERE id = ?")
         .bind(me.id)
         .fetch_one(&state.db)
@@ -58,9 +59,9 @@ pub(super) async fn answer(state: &AppState, id: i64, me: &MemberRow) -> AppResu
 /// paused. Returns the new round.
 pub(super) async fn open_next(
     state: &AppState,
-    id: i64,
-    after: Option<i64>,
-) -> AppResult<Option<i64>> {
+    id: RoomId,
+    after: Option<RoundId>,
+) -> AppResult<Option<RoundId>> {
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
     // Write first: the transaction holds the lock for the checks below.
     let released = sqlx::query(
@@ -72,7 +73,7 @@ pub(super) async fn open_next(
     if released.rows_affected() == 0 {
         return Ok(None);
     }
-    let latest: Option<(i64, bool)> = sqlx::query_as(
+    let latest: Option<(RoundId, bool)> = sqlx::query_as(
         "SELECT id, closed_at IS NOT NULL FROM rounds WHERE group_id = ? ORDER BY number DESC LIMIT 1",
     )
     .bind(id)
@@ -113,15 +114,15 @@ pub(super) async fn open_next(
 
 /// Opens the next question when the revealed one has enough "Suivante" taps (75 % of the players
 /// still there, or one once the result has been up a while). After a tap, a leave or a removal.
-pub(super) async fn check_taps(state: &AppState, id: i64) -> AppResult<Option<i64>> {
+pub(super) async fn check_taps(state: &AppState, id: RoomId) -> AppResult<Option<RoundId>> {
     check_taps_at(state, id, None).await
 }
 
 pub(super) async fn check_taps_at(
     state: &AppState,
-    id: i64,
+    id: RoomId,
     now: Option<&str>,
-) -> AppResult<Option<i64>> {
+) -> AppResult<Option<RoundId>> {
     let p = load(state, id).await?;
     if p.kind != "party" || p.over {
         return Ok(None);
@@ -139,7 +140,7 @@ pub(super) async fn check_taps_at(
 }
 
 /// After someone left or was removed (the open question was already re-checked by `close_if_done`).
-pub async fn after_leave(state: &AppState, id: i64) -> AppResult<()> {
+pub async fn after_leave(state: &AppState, id: RoomId) -> AppResult<()> {
     if game::party(&state.db, id).await?.is_some() {
         check_taps(state, id).await?;
     }
@@ -147,7 +148,7 @@ pub async fn after_leave(state: &AppState, id: i64) -> AppResult<()> {
 }
 
 /// Closes the open question of a party that is over and pauses it for good, once. `true` = it just ended.
-pub(super) async fn end_party(state: &AppState, id: i64, now: &str) -> AppResult<bool> {
+pub(super) async fn end_party(state: &AppState, id: RoomId, now: &str) -> AppResult<bool> {
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
     let done = sqlx::query(
         "UPDATE groups SET party_ended_at = ?1, paused_at = COALESCE(paused_at, ?1), next_open_at = NULL \
@@ -160,7 +161,7 @@ pub(super) async fn end_party(state: &AppState, id: i64, now: &str) -> AppResult
     if done.rows_affected() == 0 {
         return Ok(false);
     }
-    let open: Option<i64> =
+    let open: Option<RoundId> =
         sqlx::query_scalar("SELECT id FROM rounds WHERE group_id = ? AND closed_at IS NULL")
             .bind(id)
             .fetch_optional(&mut *tx)
@@ -193,7 +194,7 @@ pub struct Swept {
 /// Idempotent.
 pub async fn sweep_at(state: &AppState, now: &str) -> AppResult<Swept> {
     let mut swept = Swept::default();
-    let ending: Vec<i64> = sqlx::query_scalar(
+    let ending: Vec<RoomId> = sqlx::query_scalar(
         "SELECT id FROM groups WHERE kind = 'party' AND party_ended_at IS NULL \
          AND party_ends_at IS NOT NULL AND party_ends_at <= ? AND deleted_at IS NULL",
     )
@@ -205,10 +206,10 @@ pub async fn sweep_at(state: &AppState, now: &str) -> AppResult<Swept> {
         match end_party(state, id, now).await {
             Ok(true) => swept.ended += 1,
             Ok(false) => {}
-            Err(e) => tracing::warn!(party = id, error = ?e, "sweep: party not ended"),
+            Err(e) => tracing::warn!(party = %id, error = ?e, "sweep: party not ended"),
         }
     }
-    let due: Vec<(i64, i64)> = sqlx::query_as(
+    let due: Vec<(RoundId, RoomId)> = sqlx::query_as(
         "SELECT r.id, r.group_id FROM rounds r JOIN groups g ON g.id = r.group_id AND g.kind = 'party' \
          WHERE r.closed_at IS NULL AND r.deadline_at IS NOT NULL AND r.deadline_at <= ?",
     )
@@ -220,12 +221,12 @@ pub async fn sweep_at(state: &AppState, now: &str) -> AppResult<Swept> {
             Ok(true) => swept.closed += 1,
             Ok(false) => {}
             Err(e) => {
-                tracing::warn!(party = id, round_id, error = ?e, "sweep: question not closed")
+                tracing::warn!(party = %id, %round_id, error = ?e, "sweep: question not closed")
             }
         }
     }
     // A result up for the grace with a "Suivante" tap waiting (tapped before the grace, nobody else came).
-    let waiting: Vec<i64> = sqlx::query_scalar(
+    let waiting: Vec<RoomId> = sqlx::query_scalar(
         "SELECT g.id FROM groups g JOIN rounds r ON r.group_id = g.id \
          AND r.number = (SELECT MAX(number) FROM rounds WHERE group_id = g.id) \
          WHERE g.kind = 'party' AND g.party_ended_at IS NULL AND g.deleted_at IS NULL AND g.paused_at IS NOT NULL \
@@ -242,7 +243,7 @@ pub async fn sweep_at(state: &AppState, now: &str) -> AppResult<Swept> {
         match check_taps_at(state, id, Some(now)).await {
             Ok(Some(_)) => swept.moved_on += 1,
             Ok(None) => {}
-            Err(e) => tracing::warn!(party = id, error = ?e, "sweep: next question not opened"),
+            Err(e) => tracing::warn!(party = %id, error = ?e, "sweep: next question not opened"),
         }
     }
     Ok(swept)
@@ -252,8 +253,8 @@ pub async fn sweep_at(state: &AppState, now: &str) -> AppResult<Swept> {
 /// its guessing instead, with a new deadline). `false` when it didn't close.
 pub(super) async fn close_due(
     state: &AppState,
-    id: i64,
-    round_id: i64,
+    id: RoomId,
+    round_id: RoundId,
     now: &str,
 ) -> AppResult<bool> {
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
@@ -279,7 +280,7 @@ pub async fn sweep(state: &AppState) -> AppResult<Swept> {
 }
 
 /// Sleeps until the question's deadline, then sweeps (closes it if still open).
-pub fn spawn_deadline(state: AppState, round_id: i64) {
+pub fn spawn_deadline(state: AppState, round_id: RoundId) {
     tokio::spawn(async move {
         let left: Option<f64> = sqlx::query_scalar(
             "SELECT (julianday(deadline_at) - julianday('now')) * 86400.0 FROM rounds \
@@ -295,7 +296,7 @@ pub fn spawn_deadline(state: AppState, round_id: i64) {
         let wait = std::time::Duration::from_secs_f64(left.max(0.0) + 0.05);
         tokio::time::sleep(wait).await;
         if let Err(e) = sweep(&state).await {
-            tracing::warn!(error = ?e, round_id, "party deadline");
+            tracing::warn!(error = ?e, %round_id, "party deadline");
         }
     });
 }

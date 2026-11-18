@@ -3,6 +3,7 @@
 
 use crate::common;
 use crate::common::call_with_kinds as call_with;
+use quidenous_server::platform::ids::UserId;
 
 use axum::{
     Router,
@@ -16,7 +17,7 @@ use tower::ServiceExt;
 /// A fresh server, its deck reduced to pick questions; account 1 (the first to join) is an admin.
 async fn setup() -> (Router, AppState) {
     let config = Config {
-        admin_user_ids: vec![1],
+        admin_user_ids: vec![UserId::from_raw(1)],
         ..common::config(&common::temp_dir("qdn-said"))
     };
     let state = state(config).await.unwrap();

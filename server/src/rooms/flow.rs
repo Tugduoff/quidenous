@@ -10,6 +10,7 @@
 //! - A low or empty deck: the owner hears it in the inbox when [`DECK_LOW`] questions are left, and
 //!   when the room has nothing left to open.
 
+use crate::platform::ids::{MemberId, RoomId, RoundId};
 use std::time::Duration;
 
 use crate::{
@@ -30,7 +31,7 @@ const TOUCH_EVERY: Duration = Duration::from_secs(10 * 60);
 pub const EVERY_TICKS: u32 = 15;
 
 /// Records that this seat used its room (any request or live socket for it), at most every 10 minutes.
-pub async fn touch(state: &AppState, member_id: i64) {
+pub async fn touch(state: &AppState, member_id: MemberId) {
     if !state.live.mark_active(member_id, TOUCH_EVERY) {
         return;
     }
@@ -63,7 +64,7 @@ pub async fn tick(state: &AppState) {
 /// (a said question still writing moves on to its guessing, whose own clock starts then).
 /// Returns how many closed.
 pub async fn close_late(state: &AppState) -> AppResult<usize> {
-    let late: Vec<(i64, i64)> = sqlx::query_as(
+    let late: Vec<(RoundId, RoomId)> = sqlx::query_as(
         "SELECT r.id, r.group_id FROM rounds r \
          JOIN groups g ON g.id = r.group_id AND g.kind = 'room' AND g.deleted_at IS NULL \
          WHERE r.closed_at IS NULL AND r.opened_at <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now', ?)",
@@ -76,13 +77,13 @@ pub async fn close_late(state: &AppState) -> AppResult<usize> {
         match close_one(state, group_id, round_id).await {
             Ok(true) => closed += 1,
             Ok(false) => {}
-            Err(e) => tracing::warn!(group_id, round_id, error = ?e, "late question not closed"),
+            Err(e) => tracing::warn!(%group_id, %round_id, error = ?e, "late question not closed"),
         }
     }
     Ok(closed)
 }
 
-async fn close_one(state: &AppState, group_id: i64, round_id: i64) -> AppResult<bool> {
+async fn close_one(state: &AppState, group_id: RoomId, round_id: RoundId) -> AppResult<bool> {
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
     let events = game::close_if_done(&mut tx, group_id, round_id).await?;
     tx.commit().await?;
@@ -108,7 +109,7 @@ async fn close_one(state: &AppState, group_id: i64, round_id: i64) -> AppResult<
 /// member seen since; that member hears it in the inbox. Returns how many rooms changed hands.
 pub async fn hand_over(state: &AppState) -> AppResult<usize> {
     let since = format!("-{OWNER_GONE_DAYS} days");
-    let rooms: Vec<(i64, i64, i64, String)> = sqlx::query_as(
+    let rooms: Vec<(RoomId, MemberId, MemberId, String)> = sqlx::query_as(
         "SELECT g.id, o.id, h.id, g.name FROM groups g \
          JOIN members o ON o.group_id = g.id AND o.removed_at IS NULL AND o.role = 'owner' \
          JOIN members h ON h.id = (SELECT m.id FROM members m WHERE m.group_id = g.id AND m.removed_at IS NULL \
@@ -126,7 +127,7 @@ pub async fn hand_over(state: &AppState) -> AppResult<usize> {
         match hand_room(state, room, owner, heir, &name).await {
             Ok(true) => moved += 1,
             Ok(false) => {}
-            Err(e) => tracing::warn!(room, error = ?e, "owner hand-over failed"),
+            Err(e) => tracing::warn!(%room, error = ?e, "owner hand-over failed"),
         }
     }
     Ok(moved)
@@ -134,9 +135,9 @@ pub async fn hand_over(state: &AppState) -> AppResult<usize> {
 
 async fn hand_room(
     state: &AppState,
-    room: i64,
-    owner: i64,
-    heir: i64,
+    room: RoomId,
+    owner: MemberId,
+    heir: MemberId,
     name: &str,
 ) -> AppResult<bool> {
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
@@ -181,14 +182,14 @@ pub const DECK_LOW: i64 = 3;
 
 /// After a question opened in a room: when that leaves exactly [`DECK_LOW`] questions to ask, its
 /// owner hears it in the inbox (`ask`, a tap opens the Questions tab). Errors are logged.
-pub async fn deck_low(state: &AppState, group_id: i64) {
+pub async fn deck_low(state: &AppState, group_id: RoomId) {
     if let Err(e) = try_deck_low(state, group_id).await {
-        tracing::warn!(group_id, error = ?e, "low deck notice failed");
+        tracing::warn!(%group_id, error = ?e, "low deck notice failed");
     }
 }
 
-async fn try_deck_low(state: &AppState, group_id: i64) -> AppResult<()> {
-    let row: Option<(String, i64)> = sqlx::query_as(
+async fn try_deck_low(state: &AppState, group_id: RoomId) -> AppResult<()> {
+    let row: Option<(String, MemberId)> = sqlx::query_as(
         "SELECT g.name, o.id FROM groups g \
          JOIN members o ON o.group_id = g.id AND o.removed_at IS NULL AND o.role = 'owner' \
          WHERE g.id = ? AND g.kind = 'room' AND g.deleted_at IS NULL",
@@ -214,14 +215,14 @@ async fn try_deck_low(state: &AppState, group_id: i64) -> AppResult<()> {
 /// After a question closed (or a pause ended) without opening the next one: when the room is out of
 /// questions (two people or more, not paced, nothing open), its owner hears it in the inbox, with a
 /// tap to the Questions tab. Errors are logged.
-pub async fn deck_empty(state: &AppState, group_id: i64) {
+pub async fn deck_empty(state: &AppState, group_id: RoomId) {
     if let Err(e) = try_deck_empty(state, group_id).await {
-        tracing::warn!(group_id, error = ?e, "empty deck notice failed");
+        tracing::warn!(%group_id, error = ?e, "empty deck notice failed");
     }
 }
 
-async fn try_deck_empty(state: &AppState, group_id: i64) -> AppResult<()> {
-    let row: Option<(String, i64)> = sqlx::query_as(
+async fn try_deck_empty(state: &AppState, group_id: RoomId) -> AppResult<()> {
+    let row: Option<(String, MemberId)> = sqlx::query_as(
         "SELECT g.name, o.id FROM groups g \
          JOIN members o ON o.group_id = g.id AND o.removed_at IS NULL AND o.role = 'owner' \
          WHERE g.id = ?1 AND g.kind = 'room' AND g.deleted_at IS NULL AND g.paused_at IS NULL \

@@ -1,4 +1,5 @@
 use super::*;
+use crate::platform::ids::{PackId, UserId};
 
 /// What `seed-packs` did (or would do) with one file.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -6,12 +7,12 @@ pub enum SeedAction {
     /// Published (`id` is `None` in a dry run). `dropped`: question lines left out (too short or
     /// long, duplicate, choose answers that don't hold).
     Created {
-        id: Option<i64>,
+        id: Option<PackId>,
         count: usize,
         dropped: usize,
     },
     /// The author already has a pack with this title in this language (not deleted).
-    Exists { id: i64 },
+    Exists { id: PackId },
     /// Not a valid pack (missing title or language, bad category, too few questions…).
     Invalid(String),
 }
@@ -77,7 +78,7 @@ pub(super) fn pack_files(
 pub async fn seed_dir(
     db: &sqlx::SqlitePool,
     dir: &std::path::Path,
-    author: i64,
+    author: UserId,
     featured: bool,
     dry_run: bool,
 ) -> Result<Vec<SeedOutcome>, String> {
@@ -112,7 +113,7 @@ pub async fn seed_dir(
                 continue;
             }
         };
-        let existing: Option<i64> = sqlx::query_scalar(
+        let existing: Option<PackId> = sqlx::query_scalar(
             "SELECT id FROM packs WHERE author_id = ? AND lower(name) = lower(?) AND language = ? \
              AND status != 'deleted' ORDER BY id LIMIT 1",
         )

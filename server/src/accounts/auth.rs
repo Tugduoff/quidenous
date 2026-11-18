@@ -1,3 +1,4 @@
+use crate::platform::ids::{RoomId, UserId};
 use axum::{extract::FromRequestParts, http::request::Parts};
 use rand::Rng;
 use sha2::{Digest, Sha256};
@@ -23,7 +24,7 @@ pub fn hash_token(token: &str) -> String {
 pub async fn member_in_room(
     state: &AppState,
     token: &str,
-    room: Option<i64>,
+    room: Option<RoomId>,
 ) -> Result<MemberRow, AppError> {
     member_in_room_by_hash(state, &hash_token(token), room).await
 }
@@ -32,7 +33,7 @@ pub async fn member_in_room(
 pub async fn member_in_room_by_hash(
     state: &AppState,
     hash: &str,
-    room: Option<i64>,
+    room: Option<RoomId>,
 ) -> Result<MemberRow, AppError> {
     let member = sqlx::query_as::<_, MemberRow>(
         "SELECT m.* FROM user_tokens t JOIN users u ON u.id = t.user_id \
@@ -65,12 +66,12 @@ pub async fn member_in_room_by_hash(
 }
 
 /// The account behind a token, whatever room.
-pub async fn user_for_token(state: &AppState, token: &str) -> Result<i64, AppError> {
+pub async fn user_for_token(state: &AppState, token: &str) -> Result<UserId, AppError> {
     user_for_hash(state, &hash_token(token)).await
 }
 
 /// A suspended account's token is no session (`suspend` deletes them; one issued meanwhile too).
-async fn user_for_hash(state: &AppState, hash: &str) -> Result<i64, AppError> {
+async fn user_for_hash(state: &AppState, hash: &str) -> Result<UserId, AppError> {
     let user = sqlx::query_scalar(
         "SELECT t.user_id FROM user_tokens t JOIN users u ON u.id = t.user_id \
          WHERE t.token_hash = ? AND u.suspended_at IS NULL",
@@ -81,6 +82,14 @@ async fn user_for_hash(state: &AppState, hash: &str) -> Result<i64, AppError> {
     .ok_or(AppError::Unauthorized)?;
     crate::accounts::touch(state, hash).await;
     Ok(user)
+}
+
+pub(crate) fn x_room(headers: &axum::http::HeaderMap) -> Option<RoomId> {
+    headers
+        .get("x-room")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.parse::<i64>().ok())
+        .map(RoomId::from_raw)
 }
 
 fn bearer(parts: &Parts) -> Option<&str> {
@@ -102,19 +111,14 @@ impl FromRequestParts<AppState> for Me {
         state: &AppState,
     ) -> Result<Self, Self::Rejection> {
         let token = bearer(parts).ok_or(AppError::Unauthorized)?;
-        let room = parts
-            .headers
-            .get("x-room")
-            .and_then(|v| v.to_str().ok())
-            .and_then(|v| v.parse::<i64>().ok());
-        let me = member_in_room(state, token, room).await?;
+        let me = member_in_room(state, token, x_room(&parts.headers)).await?;
         crate::accounts::label(state, token, &parts.headers).await;
         Ok(Me(me))
     }
 }
 
 /// The signed-in account, room or not (create a room, list my rooms, join one).
-pub struct SignedIn(pub i64);
+pub struct SignedIn(pub UserId);
 
 impl FromRequestParts<AppState> for SignedIn {
     type Rejection = AppError;
@@ -144,7 +148,7 @@ macro_rules! guest_sql {
 pub(crate) use guest_sql;
 
 /// Is this account a party guest (see [`guest_sql`])?
-pub async fn is_guest<'e, E>(db: E, user: i64) -> Result<bool, AppError>
+pub async fn is_guest<'e, E>(db: E, user: UserId) -> Result<bool, AppError>
 where
     E: sqlx::Executor<'e, Database = sqlx::Sqlite>,
 {
@@ -162,7 +166,7 @@ where
 /// The signed-in account, refused for a party guest (`403 guest_account`): a guest only plays in
 /// the party it joined (and that party once kept as a room). Creating rooms or parties, joining
 /// rooms, friends, invitations, packs, suggestions and reports need a real account.
-pub struct Account(pub i64);
+pub struct Account(pub UserId);
 
 impl FromRequestParts<AppState> for Account {
     type Rejection = AppError;
@@ -186,7 +190,7 @@ pub(crate) async fn member_from_query(
     token: Option<&str>,
     ticket: Option<&str>,
     purpose: crate::accounts::tickets::Purpose,
-    room: Option<i64>,
+    room: Option<RoomId>,
 ) -> AppResult<(MemberRow, String)> {
     if let Some(ticket) = ticket {
         let hash = state

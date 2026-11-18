@@ -1,3 +1,4 @@
+use crate::platform::ids::{MemberId, RoomId, RoundId};
 use crate::{
     AppState,
     platform::error::AppResult,
@@ -12,9 +13,9 @@ use crate::{
 /// into an error for a request whose write already happened (its retry would only get a 409).
 pub(crate) async fn notify_round(
     state: &AppState,
-    group_id: i64,
-    skip: Option<i64>,
-    opened: Option<i64>,
+    group_id: RoomId,
+    skip: Option<MemberId>,
+    opened: Option<RoundId>,
     closed: bool,
 ) {
     // Badges the question that closed may have earned (background, logs its errors).
@@ -22,7 +23,7 @@ pub(crate) async fn notify_round(
         crate::insights::badges::after_close(state, group_id);
     }
     if let Err(e) = try_notify_round(state, group_id, skip, opened, closed).await {
-        tracing::warn!(group_id, error = ?e, "round notification failed");
+        tracing::warn!(%group_id, error = ?e, "round notification failed");
     }
     if opened.is_some() {
         crate::rooms::flow::deck_low(state, group_id).await;
@@ -33,9 +34,9 @@ pub(crate) async fn notify_round(
 
 async fn try_notify_round(
     state: &AppState,
-    group_id: i64,
-    skip: Option<i64>,
-    opened: Option<i64>,
+    group_id: RoomId,
+    skip: Option<MemberId>,
+    opened: Option<RoundId>,
     closed: bool,
 ) -> AppResult<()> {
     // Home-screen widgets show this room's state: they refresh (parties too).
@@ -89,7 +90,7 @@ async fn try_notify_round(
         },
     );
     if closed {
-        let (round_id, text): (i64, String) = sqlx::query_as(
+        let (round_id, text): (RoundId, String) = sqlx::query_as(
             "SELECT r.id, q.text FROM rounds r JOIN questions q ON q.id = r.question_id \
              WHERE r.group_id = ? AND r.closed_at IS NOT NULL ORDER BY r.number DESC LIMIT 1",
         )

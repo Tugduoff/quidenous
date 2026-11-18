@@ -1,3 +1,4 @@
+use crate::platform::ids::{MemberId, RoomId, RoundId};
 use sqlx::{Sqlite, SqlitePool, Transaction};
 
 use crate::{
@@ -12,10 +13,10 @@ use super::*;
 /// `guesses`: a said question's matching (see [`crate::rounds::said::ballot`]).
 pub async fn vote(
     db: &SqlitePool,
-    group_id: i64,
-    voter_id: i64,
-    target_id: Option<i64>,
-    ranking: Option<Vec<i64>>,
+    group_id: RoomId,
+    voter_id: MemberId,
+    target_id: Option<MemberId>,
+    ranking: Option<Vec<MemberId>>,
     choices: Option<Vec<Choice>>,
     guesses: Option<Vec<crate::rounds::said::Guess>>,
 ) -> AppResult<Vec<Event>> {
@@ -25,7 +26,7 @@ pub async fn vote(
     if party.is_some_and(|p| p.over) {
         return Err(AppError::Gone("party_over"));
     }
-    let (round_id, kind, items, time_up): (i64, String, Option<String>, bool) = sqlx::query_as(
+    let (round_id, kind, items, time_up): (RoundId, String, Option<String>, bool) = sqlx::query_as(
         "SELECT r.id, q.kind, q.items, \
          COALESCE(r.deadline_at <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), 0) \
          FROM rounds r JOIN questions q ON q.id = r.question_id \
@@ -53,23 +54,23 @@ pub async fn vote(
         crate::rounds::said::ballot(&mut tx, round_id, voter_id, target_id, guesses).await?;
         voter_id
     } else if (kind == "rank" && ranking.is_none() || kind == "choose" && choices.is_none())
-        && target_id.is_some()
+        && let Some(target_id) = target_id
     {
         // An app too old to know ranking (or choose) questions sends a single pick: it counts as
         // voted (nobody waits for them) but adds nothing to the result.
-        target_id.unwrap_or_default()
+        target_id
     } else if kind == "choose" {
         // Every active member wired exactly once, to an existing item; the votes row points at the voter.
         let choices = choices.ok_or(AppError::BadRequest("choices_needed"))?;
         let count =
             crate::rounds::model::parse_items(items.as_deref()).map_or(0, |i| i.len()) as i64;
-        let active: Vec<i64> = sqlx::query_scalar(
+        let active: Vec<MemberId> = sqlx::query_scalar(
             "SELECT id FROM members WHERE group_id = ? AND removed_at IS NULL ORDER BY id",
         )
         .bind(group_id)
         .fetch_all(&mut *tx)
         .await?;
-        let mut given: Vec<i64> = choices.iter().map(|c| c.member_id).collect();
+        let mut given: Vec<MemberId> = choices.iter().map(|c| c.member_id).collect();
         given.sort_unstable();
         if given != active || choices.iter().any(|c| !(0..count).contains(&c.item)) {
             return Err(AppError::BadRequest("bad_choices"));
@@ -91,7 +92,7 @@ pub async fn vote(
         voter_id
     } else if kind == "rank" {
         let ranking = ranking.ok_or(AppError::BadRequest("ranking_needed"))?;
-        let mut active: Vec<i64> = sqlx::query_scalar(
+        let mut active: Vec<MemberId> = sqlx::query_scalar(
             "SELECT id FROM members WHERE group_id = ? AND removed_at IS NULL ORDER BY id",
         )
         .bind(group_id)
@@ -119,7 +120,7 @@ pub async fn vote(
     } else {
         target_id.ok_or(AppError::BadRequest("target_needed"))?
     };
-    let target_in_group: Option<i64> = sqlx::query_scalar(
+    let target_in_group: Option<MemberId> = sqlx::query_scalar(
         "SELECT id FROM members WHERE id = ? AND group_id = ? AND removed_at IS NULL",
     )
     .bind(target_id)
@@ -153,8 +154,8 @@ pub async fn vote(
 /// Drops a member's rank / choose / said ballot on a question (their seat ended, or a new ballot replaces it).
 pub async fn clear_ballot(
     tx: &mut Transaction<'_, Sqlite>,
-    round_id: i64,
-    voter_id: i64,
+    round_id: RoundId,
+    voter_id: MemberId,
 ) -> AppResult<()> {
     for sql in [
         "DELETE FROM rankings WHERE round_id = ? AND voter_id = ?",
@@ -173,8 +174,8 @@ pub async fn clear_ballot(
 /// Was this member in the party when the question opened?
 pub(crate) async fn party_player(
     tx: &mut Transaction<'_, Sqlite>,
-    round_id: i64,
-    member_id: i64,
+    round_id: RoundId,
+    member_id: MemberId,
 ) -> AppResult<bool> {
     Ok(sqlx::query_scalar(
         "SELECT EXISTS (SELECT 1 FROM party_players WHERE round_id = ? AND member_id = ?)",

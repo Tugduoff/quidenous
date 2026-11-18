@@ -2,6 +2,7 @@
 //! cards, the December notice, erasure.
 
 use crate::common;
+use quidenous_server::platform::ids::UserId;
 
 use crate::common::{call, join, room_id, temp_dir, unique};
 use axum::{
@@ -43,7 +44,7 @@ fn this_year() -> i64 {
 /// Account 1 (Ana, the first to join) is an admin.
 async fn setup_with(open: bool, preview: bool) -> (Router, AppState) {
     let config = Config {
-        admin_user_ids: vec![1],
+        admin_user_ids: vec![UserId::from_raw(1)],
         wrapped: window(open),
         wrapped_preview: preview,
         ..common::config(&temp_dir("qdn-wrapped"))

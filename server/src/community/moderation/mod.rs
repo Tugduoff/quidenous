@@ -5,6 +5,7 @@
 //! reporters hide a message (or a said answer, docs/SAID.md) until an admin decides. Admins see open reports in `/admin/review`
 //! and close them (dismiss, delete the content, suspend or erase the account).
 
+use crate::platform::ids::{MemberId, MessageId, RoomId, RoundId, UserId};
 use axum::{
     Json,
     extract::{Path, State},
@@ -37,9 +38,9 @@ pub struct ReportBody {
 }
 
 /// What is reported: a snapshot of it, who wrote / is it, and the room it belongs to.
-type Target = (String, Option<i64>, Option<String>, Option<i64>);
+type Target = (String, Option<UserId>, Option<String>, Option<RoomId>);
 
-async fn target(state: &AppState, me: i64, kind: &str, id: i64) -> AppResult<Target> {
+async fn target(state: &AppState, me: UserId, kind: &str, id: i64) -> AppResult<Target> {
     let row: Option<Target> = match kind {
         "message" => {
             sqlx::query_as(
@@ -216,7 +217,7 @@ pub async fn list_blocks(
     State(state): State<AppState>,
     SignedIn(me): SignedIn,
 ) -> AppResult<Json<Value>> {
-    type Row = (i64, String, String, Option<String>, Option<String>);
+    type Row = (UserId, String, String, Option<String>, Option<String>);
     let rows: Vec<Row> = sqlx::query_as(
         "SELECT u.id, u.name, u.color, u.photo, u.avatar FROM blocks b JOIN users u ON u.id = b.blocked_id \
          WHERE b.user_id = ? ORDER BY b.created_at DESC, u.id",
@@ -239,14 +240,14 @@ pub async fn list_blocks(
 pub async fn block(
     State(state): State<AppState>,
     SignedIn(me): SignedIn,
-    Path(other): Path<i64>,
+    Path(other): Path<UserId>,
 ) -> AppResult<Json<Value>> {
     if other == me {
         return Err(AppError::BadRequest("bad_target"));
     }
     // Only people I know (a room shared now or before, or a friend): the blocked list shows names
     // and photos, so it must not become a way to look up any account by id.
-    let known: Option<i64> = sqlx::query_scalar(
+    let known: Option<UserId> = sqlx::query_scalar(
         "SELECT u.id FROM users u WHERE u.id = ?2 AND u.deleted_at IS NULL AND ( \
          EXISTS (SELECT 1 FROM members a JOIN members b ON a.group_id = b.group_id \
                  WHERE a.user_id = ?1 AND b.user_id = ?2) \
@@ -282,7 +283,7 @@ pub async fn block(
 pub async fn unblock(
     State(state): State<AppState>,
     SignedIn(me): SignedIn,
-    Path(other): Path<i64>,
+    Path(other): Path<UserId>,
 ) -> AppResult<Json<Value>> {
     sqlx::query("DELETE FROM blocks WHERE user_id = ? AND blocked_id = ?")
         .bind(me)
@@ -323,7 +324,7 @@ async fn hide_if_reported(
     state: &AppState,
     kind: &str,
     id: i64,
-    room: Option<i64>,
+    room: Option<RoomId>,
 ) -> AppResult<()> {
     let open: i64 = sqlx::query_scalar(concat!(
         "SELECT COUNT(*) FROM reports r WHERE r.kind = ?1 AND r.target_id = ?2 AND r.resolved_at IS NULL \
@@ -339,7 +340,7 @@ async fn hide_if_reported(
     }
     if kind == "message" {
         let mut tx = crate::platform::db::write_tx(&state.db).await?;
-        let hidden: Option<(i64, i64, String, String)> = sqlx::query_as(
+        let hidden: Option<(RoundId, MemberId, String, String)> = sqlx::query_as(
             "UPDATE messages SET hidden_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') \
              WHERE id = ? AND hidden_at IS NULL RETURNING round_id, member_id, text, created_at",
         )
@@ -356,13 +357,13 @@ async fn hide_if_reported(
                 room,
                 Event::MessageDeleted {
                     round_id,
-                    message_id: id,
+                    message_id: MessageId::from_raw(id),
                 },
             );
             state.live.send(room, Event::InboxChanged);
         }
     } else if kind == "answer" {
-        let hidden: Option<i64> = sqlx::query_scalar(
+        let hidden: Option<RoundId> = sqlx::query_scalar(
             "UPDATE said_answers SET hidden_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') \
              WHERE id = ? AND hidden_at IS NULL RETURNING round_id",
         )
@@ -387,8 +388,8 @@ async fn hide_if_reported(
 /// the first one made since it was sent (the same text sent twice, like two "📷 Photo", keeps the other).
 async fn drop_inbox_copies(
     tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
-    round_id: i64,
-    author: i64,
+    round_id: RoundId,
+    author: MemberId,
     text: &str,
     created_at: &str,
 ) -> AppResult<()> {

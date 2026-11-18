@@ -1,3 +1,4 @@
+use crate::platform::ids::{RoomId, UserId};
 use std::{
     collections::HashMap,
     sync::{
@@ -18,7 +19,7 @@ pub struct Presence {
 }
 
 /// (account, room)
-pub(super) type Seat = (i64, i64);
+pub(super) type Seat = (UserId, RoomId);
 
 /// Each live connection and when it last said it was on the screen.
 pub(super) type Connections = HashMap<u64, Instant>;
@@ -30,7 +31,7 @@ impl Presence {
     }
 
     /// The app is in front on this room (sent again every few seconds while it stays there).
-    pub fn here(&self, user_id: i64, group_id: i64, connection: u64) {
+    pub fn here(&self, user_id: UserId, group_id: RoomId, connection: u64) {
         let mut map = self.seats.lock().unwrap_or_else(|e| e.into_inner());
         map.entry((user_id, group_id))
             .or_default()
@@ -38,7 +39,7 @@ impl Presence {
     }
 
     /// The app went to the background, or the connection closed.
-    pub fn away(&self, user_id: i64, group_id: i64, connection: u64) {
+    pub fn away(&self, user_id: UserId, group_id: RoomId, connection: u64) {
         let mut map = self.seats.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(connections) = map.get_mut(&(user_id, group_id)) {
             connections.remove(&connection);
@@ -48,7 +49,7 @@ impl Presence {
         }
     }
 
-    pub fn is_here(&self, user_id: i64, group_id: i64) -> bool {
+    pub fn is_here(&self, user_id: UserId, group_id: RoomId) -> bool {
         let map = self.seats.lock().unwrap_or_else(|e| e.into_inner());
         map.get(&(user_id, group_id))
             .is_some_and(|c| c.values().any(|seen| seen.elapsed() < PRESENCE_TTL))

@@ -3,6 +3,7 @@
 //! one install per room, editing (versions), reports that send a pack to review, and the admin
 //! side (review, approve, remove, Coflop's selection).
 
+use crate::platform::ids::{PackId, RoomId, UserId};
 use axum::{
     Json,
     extract::{Path, Query, State},
@@ -59,7 +60,7 @@ pub const CATEGORIES: [&str; 7] = [
 pub const SPICY_TAG: &str = "pimente";
 
 /// Accounts listed in `ADMIN_USER_IDS`.
-pub fn is_admin(state: &AppState, user: i64) -> bool {
+pub fn is_admin(state: &AppState, user: UserId) -> bool {
     state.config.admin_user_ids.contains(&user)
 }
 
@@ -67,7 +68,7 @@ pub fn is_admin(state: &AppState, user: i64) -> bool {
 /// verified e-mail or a linked provider (`403 unverified`). Never-verified e-mails are the cheapest
 /// throwaway accounts; legacy accounts (no e-mail: anyone who types their first name can take them
 /// over) and guests secure themselves first. Admins always can.
-pub async fn require_verified(state: &AppState, user: i64) -> AppResult<()> {
+pub async fn require_verified(state: &AppState, user: UserId) -> AppResult<()> {
     if is_admin(state, user) {
         return Ok(());
     }
@@ -85,7 +86,7 @@ pub async fn require_verified(state: &AppState, user: i64) -> AppResult<()> {
     Ok(())
 }
 
-pub fn require_admin(state: &AppState, user: i64) -> AppResult<()> {
+pub fn require_admin(state: &AppState, user: UserId) -> AppResult<()> {
     if is_admin(state, user) {
         Ok(())
     } else {
@@ -93,20 +94,13 @@ pub fn require_admin(state: &AppState, user: i64) -> AppResult<()> {
     }
 }
 
-fn header_room(headers: &HeaderMap) -> Option<i64> {
-    headers
-        .get("x-room")
-        .and_then(|v| v.to_str().ok())
-        .and_then(|v| v.parse::<i64>().ok())
-}
-
 /// The room the app is in, for endpoints that work without one: the `X-Room` room if I sit in it,
 /// else (no header) the room I used last, like `Me`.
 pub async fn current_room(
     state: &AppState,
-    user: i64,
+    user: UserId,
     headers: &HeaderMap,
-) -> AppResult<Option<i64>> {
+) -> AppResult<Option<RoomId>> {
     Ok(sqlx::query_scalar(
         "SELECT m.group_id FROM members m JOIN groups g ON g.id = m.group_id AND g.deleted_at IS NULL \
          JOIN users u ON u.id = m.user_id \
@@ -114,18 +108,18 @@ pub async fn current_room(
          ORDER BY (m.group_id = u.last_group_id) DESC, m.id DESC LIMIT 1",
     )
     .bind(user)
-    .bind(header_room(headers))
+    .bind(crate::accounts::auth::x_room(headers))
     .fetch_optional(&state.db)
     .await?)
 }
 
 #[derive(sqlx::FromRow)]
 struct PackRow {
-    id: i64,
+    id: PackId,
     name: String,
     description: String,
     author: String,
-    author_id: i64,
+    author_id: UserId,
     installs: i64,
     likes: i64,
     liked: bool,
@@ -163,7 +157,7 @@ fn stored_tags(tags: &str) -> Vec<String> {
 }
 
 /// The JSON pack item (lists, creator page, mine), with its first three questions.
-async fn item(state: &AppState, row: PackRow, me: i64) -> AppResult<Value> {
+async fn item(state: &AppState, row: PackRow, me: UserId) -> AppResult<Value> {
     let sample: Vec<String> = sqlx::query_scalar(
         "SELECT text FROM pack_questions WHERE pack_id = ? ORDER BY position LIMIT 3",
     )
@@ -188,7 +182,7 @@ async fn item(state: &AppState, row: PackRow, me: i64) -> AppResult<Value> {
     }))
 }
 
-async fn items(state: &AppState, rows: Vec<PackRow>, me: i64) -> AppResult<Vec<Value>> {
+async fn items(state: &AppState, rows: Vec<PackRow>, me: UserId) -> AppResult<Vec<Value>> {
     let mut out = Vec::with_capacity(rows.len());
     for row in rows {
         out.push(item(state, row, me).await?);
@@ -197,7 +191,7 @@ async fn items(state: &AppState, rows: Vec<PackRow>, me: i64) -> AppResult<Vec<V
 }
 
 /// One pack as an item, whatever its status (callers check visibility).
-async fn one(state: &AppState, id: i64, me: i64, room: Option<i64>) -> AppResult<PackRow> {
+async fn one(state: &AppState, id: PackId, me: UserId, room: Option<RoomId>) -> AppResult<PackRow> {
     sqlx::query_as::<_, PackRow>(select("WHERE p.id = ?3"))
         .bind(me)
         .bind(room)
@@ -217,7 +211,7 @@ pub struct ListQuery {
 }
 
 /// 16+ packs are for those who opted in (and confirmed their age), or in a `pimente` room.
-async fn sees_spicy(state: &AppState, me: i64, room: Option<i64>) -> AppResult<bool> {
+async fn sees_spicy(state: &AppState, me: UserId, room: Option<RoomId>) -> AppResult<bool> {
     Ok(sqlx::query_scalar(
         "SELECT COALESCE((SELECT show_spicy FROM users WHERE id = ?1), 0) \
              OR COALESCE((SELECT vibe IS 'pimente' FROM groups WHERE id = ?2), 0)",
@@ -287,7 +281,7 @@ pub async fn get(
     State(state): State<AppState>,
     SignedIn(me): SignedIn,
     headers: HeaderMap,
-    Path(id): Path<i64>,
+    Path(id): Path<PackId>,
 ) -> AppResult<Json<Value>> {
     let room = current_room(&state, me, &headers).await?;
     let row = one(&state, id, me, room).await?;

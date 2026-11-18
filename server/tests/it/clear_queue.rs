@@ -84,7 +84,7 @@ async fn the_owner_clears_only_upcoming_custom_questions() {
     assert_eq!(queued(&app, &ana, room).await, Vec::<i64>::new());
     let mut told = Vec::new();
     while let Ok(e) = rx.try_recv() {
-        told.push((e.group_id, serde_json::to_value(&e.event).unwrap()));
+        told.push((e.group_id.raw(), serde_json::to_value(&e.event).unwrap()));
     }
     assert_eq!(
         told,

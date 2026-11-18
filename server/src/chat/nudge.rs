@@ -1,3 +1,4 @@
+use crate::platform::ids::MemberId;
 use axum::{Json, extract::State};
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -14,7 +15,7 @@ use crate::{
 
 #[derive(Deserialize)]
 pub(crate) struct NudgeBody {
-    member_id: i64,
+    member_id: MemberId,
 }
 
 /// "Hurry up": a push to one member who has not voted on the open question (a said question still
@@ -69,7 +70,7 @@ pub(crate) async fn nudge(
     )
     .await
     {
-        tracing::warn!(round_id = round.id, error = ?e, "nudge inbox failed");
+        tracing::warn!(round_id = %round.id, error = ?e, "nudge inbox failed");
     }
     state.live.send(me.group_id, Event::InboxChanged);
     state.push.notify_member(

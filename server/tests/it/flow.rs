@@ -3,6 +3,7 @@
 
 use crate::common::{call, join, room_id, setup};
 use axum::{Router, http::StatusCode};
+use quidenous_server::platform::ids::{MemberId, RoomId};
 use quidenous_server::{AppState, party, rooms::flow, rooms::pacing, rounds::game};
 use serde_json::{Value, json};
 
@@ -195,11 +196,17 @@ async fn a_member_who_leaves_takes_their_ballot_and_a_new_ballot_replaces_an_old
 #[test]
 fn a_guesser_with_nothing_checkable_ranks_after_a_wrong_guess() {
     // 1 and 2 answered item 0; 1 guessed 2 wrong (0/1); 2 only guessed 3, who didn't answer (0/0).
-    let result = game::compute_choose(&[(1, 1, 0), (2, 2, 0), (1, 2, 1), (2, 3, 1)]);
+    let m = MemberId::from_raw;
+    let result = game::compute_choose(&[
+        (m(1), m(1), 0),
+        (m(2), m(2), 0),
+        (m(1), m(2), 1),
+        (m(2), m(3), 1),
+    ]);
     let order: Vec<(i64, i64, i64)> = result
         .scores
         .iter()
-        .map(|s| (s.member_id, s.hits, s.total))
+        .map(|s| (s.member_id.raw(), s.hits, s.total))
         .collect();
     assert_eq!(order, vec![(1, 0, 1), (2, 0, 0)]);
 }
@@ -479,7 +486,12 @@ async fn a_low_deck_tells_the_owner_once() {
         .await;
         assert_eq!(s, StatusCode::OK, "{b}");
     }
-    assert_eq!(game::questions_left(&state.db, room).await.unwrap(), 4);
+    assert_eq!(
+        game::questions_left(&state.db, RoomId::from_raw(room))
+            .await
+            .unwrap(),
+        4
+    );
     assert_eq!(asks(&app, &ana).await, 0);
     // Question 2 opens: 3 left, the owner hears it (and only the owner).
     vote(&app, &ana, bob_id).await;

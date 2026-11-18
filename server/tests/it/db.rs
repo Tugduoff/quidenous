@@ -2,6 +2,7 @@
 //! repair of a half-recorded migration, indexes and settings, and a few data rules.
 
 use crate::common;
+use quidenous_server::platform::ids::{RoomId, RoundId};
 
 use std::str::FromStr;
 
@@ -358,9 +359,13 @@ async fn a_closed_question_is_not_announced_twice() {
     }
     // Re-checking the closed question (a late skip or removal) has nothing to say.
     let mut tx = write_tx(&state.db).await.unwrap();
-    let events = quidenous_server::rounds::game::close_if_done(&mut tx, room, round)
-        .await
-        .unwrap();
+    let events = quidenous_server::rounds::game::close_if_done(
+        &mut tx,
+        RoomId::from_raw(room),
+        RoundId::from_raw(round),
+    )
+    .await
+    .unwrap();
     tx.commit().await.unwrap();
     assert!(events.is_empty(), "{events:?}");
 }

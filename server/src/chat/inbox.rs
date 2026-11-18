@@ -1,6 +1,7 @@
 //! In-app notifications: one row per recipient, read all at once from the inbox screen.
 //! The text is stored in the recipient's language (`users.locale`) at the time it is written.
 
+use crate::platform::ids::{MemberId, RoomId, RoundId};
 use axum::{Json, extract::State};
 use serde::Serialize;
 use serde_json::{Value, json};
@@ -28,24 +29,23 @@ macro_rules! text_for {
 pub struct InboxItem {
     pub id: i64,
     pub kind: String,
-    pub round_id: Option<i64>,
-    pub actor_id: Option<i64>,
+    pub round_id: Option<RoundId>,
+    pub actor_id: Option<MemberId>,
     pub text: String,
     pub created_at: String,
     pub read: bool,
     /// The room this entry belongs to (an inbox is per seat): a tap opens it.
-    #[sqlx(default)]
-    pub room_id: i64,
+    pub room_id: RoomId,
 }
 
 /// One entry for every active member of the group, except `skip` (usually whoever caused it).
 pub async fn to_group(
     db: &SqlitePool,
-    group_id: i64,
-    skip: Option<i64>,
+    group_id: RoomId,
+    skip: Option<MemberId>,
     kind: &str,
-    round_id: Option<i64>,
-    actor_id: Option<i64>,
+    round_id: Option<RoundId>,
+    actor_id: Option<MemberId>,
     text: &Text,
 ) -> AppResult<()> {
     sqlx::query(concat!(
@@ -69,10 +69,10 @@ pub async fn to_group(
 /// One entry for each of these members (ids of one room's seats; removed seats are skipped).
 pub async fn to_members(
     db: &SqlitePool,
-    member_ids: &[i64],
+    member_ids: &[MemberId],
     kind: &str,
-    round_id: Option<i64>,
-    actor_id: Option<i64>,
+    round_id: Option<RoundId>,
+    actor_id: Option<MemberId>,
     text: &Text,
 ) -> AppResult<()> {
     if member_ids.is_empty() {
@@ -97,10 +97,10 @@ pub async fn to_members(
 
 pub async fn to_member(
     db: &SqlitePool,
-    member_id: i64,
+    member_id: MemberId,
     kind: &str,
-    round_id: Option<i64>,
-    actor_id: Option<i64>,
+    round_id: Option<RoundId>,
+    actor_id: Option<MemberId>,
     text: &Text,
 ) -> AppResult<()> {
     sqlx::query(concat!(
@@ -130,19 +130,17 @@ pub(crate) use not_blocked;
 
 /// Latest 50 entries, newest first, and how many are unread; nothing from people I blocked.
 pub async fn list(db: &SqlitePool, me: &MemberRow) -> AppResult<(Vec<InboxItem>, i64)> {
-    let mut items = sqlx::query_as::<_, InboxItem>(concat!(
-        "SELECT id, kind, round_id, actor_id, text, created_at, read_at IS NOT NULL AS read \
-         FROM inbox WHERE member_id = ?2 AND ",
+    let items = sqlx::query_as::<_, InboxItem>(concat!(
+        "SELECT id, kind, round_id, actor_id, text, created_at, read_at IS NOT NULL AS read, \
+         ?3 AS room_id FROM inbox WHERE member_id = ?2 AND ",
         not_blocked!(),
         " ORDER BY id DESC LIMIT 50"
     ))
     .bind(me.user_id)
     .bind(me.id)
+    .bind(me.group_id)
     .fetch_all(db)
     .await?;
-    for item in &mut items {
-        item.room_id = me.group_id;
-    }
     let unread: i64 = sqlx::query_scalar(concat!(
         "SELECT COUNT(*) FROM inbox WHERE member_id = ?2 AND read_at IS NULL AND ",
         not_blocked!()

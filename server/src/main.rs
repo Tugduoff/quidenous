@@ -1,3 +1,4 @@
+use quidenous_server::platform::ids::{RoomId, UserId};
 use quidenous_server::{app, platform::config::Config, state};
 use tracing_subscriber::EnvFilter;
 
@@ -62,11 +63,12 @@ async fn main() -> quidenous_server::anyhow_free::Result<()> {
         // Into one room's own queue: the shared deck is the built-in deck files only.
         const USAGE: &str = "usage: server --import <questions.txt> --room <room id>";
         let path = args.get(i + 1).ok_or(USAGE)?;
-        let room: i64 = args
+        let room: RoomId = args
             .iter()
             .position(|a| a == "--room")
             .and_then(|r| args.get(r + 1))
             .and_then(|r| r.parse().ok())
+            .map(RoomId::from_raw)
             .ok_or(USAGE)?;
         let text = tokio::fs::read_to_string(path).await?;
         let added = quidenous_server::community::deck::import_room(&state.db, room, &text)
@@ -99,11 +101,12 @@ async fn seed_packs(args: &[String]) -> quidenous_server::anyhow_free::Result<()
     const USAGE: &str =
         "usage: server seed-packs <dir> --author-id <user id> [--featured] [--dry-run]";
     let dir = args.first().filter(|a| !a.starts_with("--")).ok_or(USAGE)?;
-    let author: i64 = args
+    let author = args
         .iter()
         .position(|a| a == "--author-id")
         .and_then(|i| args.get(i + 1))
         .and_then(|a| a.parse().ok())
+        .map(UserId::from_raw)
         .ok_or(USAGE)?;
     let featured = args.iter().any(|a| a == "--featured");
     let dry_run = args.iter().any(|a| a == "--dry-run");

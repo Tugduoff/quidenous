@@ -1,3 +1,4 @@
+use crate::platform::ids::{MemberId, QuestionId};
 use axum::{
     Json,
     extract::{Path, State},
@@ -132,7 +133,7 @@ pub(crate) async fn shuffle_questions(
     use rand::seq::SliceRandom;
     may_add_questions(&state, &me).await?;
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
-    let rows: Vec<(i64, i64)> = sqlx::query_as(concat!(
+    let rows: Vec<(QuestionId, i64)> = sqlx::query_as(concat!(
         "SELECT q.id, COALESCE(q.sort_key, q.id) FROM questions q WHERE q.group_id = ?1 AND ",
         game::unused!(),
         " ORDER BY 2, 1"
@@ -150,15 +151,13 @@ pub(crate) async fn shuffle_questions(
             .await?;
     }
     tx.commit().await?;
-    state
-        .live
-        .send(me.group_id, Event::QuestionAdded { question_id: 0 });
+    state.live.send(me.group_id, Event::questions_changed());
     Ok(Json(json!({ "shuffled": rows.len() })))
 }
 
 #[derive(Deserialize)]
 pub(crate) struct OrderBody {
-    ids: Vec<i64>,
+    ids: Vec<QuestionId>,
 }
 
 /// Put the room's upcoming questions in the given order: their existing order keys are dealt
@@ -171,7 +170,7 @@ pub(crate) async fn order_questions(
 ) -> AppResult<Json<Value>> {
     may_add_questions(&state, &me).await?;
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
-    let rows: Vec<(i64, i64)> = sqlx::query_as(concat!(
+    let rows: Vec<(QuestionId, i64)> = sqlx::query_as(concat!(
         "SELECT q.id, COALESCE(q.sort_key, q.id) FROM questions q WHERE q.group_id = ?1 AND ",
         game::unused!(),
         " ORDER BY 2, 1"
@@ -179,7 +178,7 @@ pub(crate) async fn order_questions(
     .bind(me.group_id)
     .fetch_all(&mut *tx)
     .await?;
-    let mut current: Vec<i64> = rows.iter().map(|r| r.0).collect();
+    let mut current: Vec<QuestionId> = rows.iter().map(|r| r.0).collect();
     let mut wanted = body.ids.clone();
     current.sort_unstable();
     wanted.sort_unstable();
@@ -201,9 +200,7 @@ pub(crate) async fn order_questions(
             .await?;
     }
     tx.commit().await?;
-    state
-        .live
-        .send(me.group_id, Event::QuestionAdded { question_id: 0 });
+    state.live.send(me.group_id, Event::questions_changed());
     Ok(Json(json!({ "ordered": body.ids.len() })))
 }
 
@@ -212,11 +209,11 @@ pub(crate) async fn order_questions(
 pub(crate) async fn delete_question(
     State(state): State<AppState>,
     Me(me): Me,
-    Path(id): Path<i64>,
+    Path(id): Path<QuestionId>,
 ) -> AppResult<Json<Value>> {
     // Checked in the write transaction: a vote can't open this very question in between.
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
-    let row: Option<(Option<i64>, bool)> = sqlx::query_as(concat!(
+    let row: Option<(Option<MemberId>, bool)> = sqlx::query_as(concat!(
         "SELECT q.author_id, ",
         game::unused!(),
         " FROM questions q WHERE q.id = ?2 AND q.group_id = ?1"
@@ -255,13 +252,13 @@ pub(crate) async fn delete_question(
 
 /// The body of a batch request: `POST /questions/delete`, `POST /packs/delete`.
 #[derive(Deserialize)]
-pub struct IdsBody {
-    ids: Vec<i64>,
+pub struct IdsBody<Id> {
+    ids: Vec<Id>,
 }
 
-impl IdsBody {
+impl<Id: Copy + Eq + std::hash::Hash> IdsBody<Id> {
     /// The ids, each once in request order: `400 too_many` past `max` (counted before removing doubles).
-    pub fn distinct(&self, max: usize) -> AppResult<Vec<i64>> {
+    pub fn distinct(&self, max: usize) -> AppResult<Vec<Id>> {
         if self.ids.len() > max {
             return Err(AppError::BadRequest("too_many"));
         }
@@ -282,13 +279,13 @@ impl IdsBody {
 pub(crate) async fn delete_questions(
     State(state): State<AppState>,
     Me(me): Me,
-    Json(body): Json<IdsBody>,
+    Json(body): Json<IdsBody<QuestionId>>,
 ) -> AppResult<Json<Value>> {
     let ids = body.distinct(DELETE_QUESTIONS_MAX)?;
     let ids_json = serde_json::to_string(&ids).unwrap_or_else(|_| "[]".into());
     // Checked and deleted in one write transaction: a vote can't open one of them in between.
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
-    let rows: Vec<(i64, Option<i64>, bool)> = sqlx::query_as(concat!(
+    let rows: Vec<(QuestionId, Option<MemberId>, bool)> = sqlx::query_as(concat!(
         "SELECT q.id, q.author_id, ",
         game::unused!(),
         " FROM questions q WHERE q.group_id = ?1 AND q.id IN (SELECT value FROM json_each(?2))"
@@ -297,7 +294,7 @@ pub(crate) async fn delete_questions(
     .bind(&ids_json)
     .fetch_all(&mut *tx)
     .await?;
-    let found: std::collections::HashMap<i64, (Option<i64>, bool)> =
+    let found: std::collections::HashMap<QuestionId, (Option<MemberId>, bool)> =
         rows.into_iter().map(|(id, a, u)| (id, (a, u))).collect();
     let (mut deleted, mut skipped) = (Vec::new(), Vec::new());
     for id in ids {
@@ -327,9 +324,7 @@ pub(crate) async fn delete_questions(
                 .await?;
         }
         tx.commit().await?;
-        state
-            .live
-            .send(me.group_id, Event::QuestionAdded { question_id: 0 });
+        state.live.send(me.group_id, Event::questions_changed());
     }
     Ok(Json(json!({ "deleted": deleted, "skipped": skipped })))
 }
@@ -345,7 +340,7 @@ pub(crate) async fn clear_queue(
     }
     // One write transaction: a vote can't open one of them in between.
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
-    let ids: Vec<i64> = sqlx::query_scalar(concat!(
+    let ids: Vec<QuestionId> = sqlx::query_scalar(concat!(
         "SELECT q.id FROM questions q WHERE q.group_id = ?1 AND ",
         game::unused!()
     ))
@@ -362,9 +357,7 @@ pub(crate) async fn clear_queue(
     }
     tx.commit().await?;
     if !ids.is_empty() {
-        state
-            .live
-            .send(me.group_id, Event::QuestionAdded { question_id: 0 });
+        state.live.send(me.group_id, Event::questions_changed());
     }
     Ok(Json(json!({ "deleted": ids.len() })))
 }
@@ -391,7 +384,7 @@ pub(crate) async fn ask_questions(
     if may_add_questions(&state, &me).await.is_ok() {
         return Err(AppError::BadRequest("not_needed"));
     }
-    let (owner, room): (i64, String) = sqlx::query_as(
+    let (owner, room): (MemberId, String) = sqlx::query_as(
         "SELECT m.id, g.name FROM members m JOIN groups g ON g.id = m.group_id \
          WHERE m.group_id = ? AND m.role = 'owner' AND m.removed_at IS NULL",
     )
@@ -510,9 +503,7 @@ pub(crate) async fn import_questions(
         )
         .await;
     }
-    state
-        .live
-        .send(me.group_id, Event::QuestionAdded { question_id: 0 });
+    state.live.send(me.group_id, Event::questions_changed());
     Ok(Json(
         json!({ "added": added, "skipped": valid.len() as u64 - added }),
     ))

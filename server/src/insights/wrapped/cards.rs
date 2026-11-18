@@ -1,3 +1,4 @@
+use crate::platform::ids::{MemberId, RoomId, RoundId, UserId};
 use std::collections::{HashMap, HashSet};
 
 use crate::{
@@ -138,7 +139,7 @@ pub(super) fn best_in_year(days: &Days, first: i64, last: i64, today: i64) -> i6
 
 /// A seat in one of the reader's rooms, as loaded.
 pub(super) struct Seat {
-    pub(crate) user: Option<i64>,
+    pub(crate) user: Option<UserId>,
     pub(crate) name: String,
     pub(crate) color: String,
     pub(crate) photo: Option<String>,
@@ -147,7 +148,7 @@ pub(super) struct Seat {
 }
 
 impl Seat {
-    pub(crate) fn person(&self, id: i64) -> Person {
+    pub(crate) fn person(&self, id: MemberId) -> Person {
         Person {
             name: first_name(&self.name),
             color: self.color.clone(),
@@ -159,20 +160,20 @@ impl Seat {
 }
 
 pub(super) struct YearRound {
-    pub(crate) id: i64,
-    pub(crate) group: i64,
+    pub(crate) id: RoundId,
+    pub(crate) group: RoomId,
     pub(crate) text: String,
     pub(crate) kind: String,
     pub(crate) anonymous: bool,
     /// (voter, target, unix time), in vote order.
-    pub(crate) votes: Vec<(i64, i64, f64)>,
+    pub(crate) votes: Vec<(MemberId, MemberId, f64)>,
     /// Ranking points per member.
-    pub(crate) points: HashMap<i64, i64>,
+    pub(crate) points: HashMap<MemberId, i64>,
     pub(crate) messages: i64,
 }
 
 impl YearRound {
-    pub(crate) fn tally(&self) -> HashMap<i64, i64> {
+    pub(crate) fn tally(&self) -> HashMap<MemberId, i64> {
         let mut t = HashMap::new();
         for v in &self.votes {
             *t.entry(v.1).or_insert(0) += 1;
@@ -181,7 +182,7 @@ impl YearRound {
     }
 
     /// Pick: most votes (ties count); ranking: most points.
-    pub(crate) fn winners(&self) -> HashSet<i64> {
+    pub(crate) fn winners(&self) -> HashSet<MemberId> {
         let scores = if self.kind == "rank" {
             self.points.clone()
         } else {
@@ -214,7 +215,7 @@ pub(super) fn top<K: Ord + Copy + std::hash::Hash>(
 /// The title of the year: the highest tier earned during it, else the title I display.
 pub(super) async fn title_card(
     state: &AppState,
-    user: i64,
+    user: UserId,
     year: i64,
     lang: Lang,
 ) -> AppResult<Option<Card>> {

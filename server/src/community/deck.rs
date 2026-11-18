@@ -1,3 +1,4 @@
+use crate::platform::ids::RoomId;
 use sqlx::{Sqlite, SqlitePool, Transaction};
 
 use crate::platform::i18n::Lang;
@@ -213,7 +214,7 @@ pub async fn ensure_group(db: &SqlitePool, name: &str, code: &str) -> sqlx::Resu
 /// `server --import <file> --room <id>`: adds a file's questions (one per line, `#` comments,
 /// `[classement]` / `[choix] … | A | B` / `[quiadit]` like the in-app import) to a room's own queue, skipping
 /// ones it already has. `None` when the room does not exist (or was deleted).
-pub async fn import_room(db: &SqlitePool, room: i64, text: &str) -> sqlx::Result<Option<u64>> {
+pub async fn import_room(db: &SqlitePool, room: RoomId, text: &str) -> sqlx::Result<Option<u64>> {
     let mut tx = crate::platform::db::write_tx(db).await?;
     let live: Option<i64> =
         sqlx::query_scalar("SELECT id FROM groups WHERE id = ? AND deleted_at IS NULL")

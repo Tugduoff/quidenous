@@ -2,6 +2,7 @@
 //! votes up, down or skips; a well-liked one waits for an admin, who puts it in the shared deck
 //! of its language (`questions.suggested_by`: rounds show "proposée par X").
 
+use crate::platform::ids::{QuestionId, SuggestionId, UserId};
 use axum::{
     Json,
     body::Bytes,
@@ -45,7 +46,7 @@ macro_rules! suggestion_select {
 
 #[derive(sqlx::FromRow)]
 struct Row {
-    id: i64,
+    id: SuggestionId,
     text: String,
     kind: String,
     lang: String,
@@ -53,17 +54,17 @@ struct Row {
     up: i64,
     down: i64,
     author: String,
-    user_id: i64,
+    user_id: UserId,
 }
 
-fn item(row: &Row, me: i64) -> Value {
+fn item(row: &Row, me: UserId) -> Value {
     json!({
         "id": row.id, "text": row.text, "kind": row.kind, "lang": row.lang, "status": row.status,
         "up": row.up, "down": row.down, "author": row.author, "mine": row.user_id == me,
     })
 }
 
-async fn one(db: &SqlitePool, id: i64) -> AppResult<Row> {
+async fn one(db: &SqlitePool, id: SuggestionId) -> AppResult<Row> {
     sqlx::query_as::<_, Row>(suggestion_select!("WHERE s.id = ?"))
         .bind(id)
         .fetch_optional(db)
@@ -72,7 +73,7 @@ async fn one(db: &SqlitePool, id: i64) -> AppResult<Row> {
 }
 
 /// Suggestions I can still make in the rolling 24 hours.
-pub async fn left(db: &SqlitePool, me: i64) -> AppResult<i64> {
+pub async fn left(db: &SqlitePool, me: UserId) -> AppResult<i64> {
     let made: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM suggestions WHERE user_id = ? \
          AND created_at >= strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-1 day')",
@@ -129,7 +130,7 @@ pub async fn create(
     if same_length.iter().any(|t| t.to_lowercase() == key) {
         return Err(AppError::Conflict("duplicate"));
     }
-    let id: i64 = sqlx::query_scalar(
+    let id: SuggestionId = sqlx::query_scalar(
         "INSERT INTO suggestions (user_id, text, kind, lang) VALUES (?, ?, ?, ?) RETURNING id",
     )
     .bind(me)
@@ -180,7 +181,7 @@ pub struct VoteBody {
 pub async fn vote(
     State(state): State<AppState>,
     crate::accounts::auth::Account(me): crate::accounts::auth::Account,
-    Path(id): Path<i64>,
+    Path(id): Path<SuggestionId>,
     Json(body): Json<VoteBody>,
 ) -> AppResult<Json<Value>> {
     if !(-1..=1).contains(&body.value) {
@@ -188,7 +189,7 @@ pub async fn vote(
     }
     crate::community::packs::require_verified(&state, me).await?;
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
-    let (author, status): (i64, String) =
+    let (author, status): (UserId, String) =
         sqlx::query_as("SELECT user_id, status FROM suggestions WHERE id = ?")
             .bind(id)
             .fetch_optional(&mut *tx)
@@ -257,7 +258,7 @@ pub async fn mine(State(state): State<AppState>, SignedIn(me): SignedIn) -> AppR
 
 /// Suggestions waiting for an admin, oldest first, then the best-scored ones still being voted
 /// on (a small community never reaches the threshold), with their author's account id.
-pub async fn queued(db: &SqlitePool, me: i64) -> AppResult<Vec<Value>> {
+pub async fn queued(db: &SqlitePool, me: UserId) -> AppResult<Vec<Value>> {
     let mut rows: Vec<Row> = sqlx::query_as(suggestion_select!(
         "WHERE s.status = 'queued' ORDER BY s.id"
     ))
@@ -290,7 +291,7 @@ pub struct ApproveBody {
 pub async fn approve(
     State(state): State<AppState>,
     SignedIn(me): SignedIn,
-    Path(id): Path<i64>,
+    Path(id): Path<SuggestionId>,
     body: Bytes,
 ) -> AppResult<Json<Value>> {
     require_admin(&state, me)?;
@@ -309,7 +310,7 @@ pub async fn approve(
         tags.push(crate::rooms::vibes::DEFAULT_TAG.to_owned());
     }
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
-    let (author, text, kind, lang, status): (i64, String, String, String, String) =
+    let (author, text, kind, lang, status): (UserId, String, String, String, String) =
         sqlx::query_as("SELECT user_id, text, kind, lang, status FROM suggestions WHERE id = ?")
             .bind(id)
             .fetch_optional(&mut *tx)
@@ -318,7 +319,7 @@ pub async fn approve(
     if status != "voting" && status != "queued" {
         return Err(AppError::Conflict("closed"));
     }
-    let question: Option<i64> = sqlx::query_scalar(
+    let question: Option<QuestionId> = sqlx::query_scalar(
         "INSERT INTO questions (text, kind, lang, vibes, suggested_by) VALUES (?, ?, ?, ?, ?) \
          ON CONFLICT DO NOTHING RETURNING id",
     )
@@ -347,7 +348,7 @@ pub async fn approve(
 pub async fn reject(
     State(state): State<AppState>,
     SignedIn(me): SignedIn,
-    Path(id): Path<i64>,
+    Path(id): Path<SuggestionId>,
 ) -> AppResult<Json<Value>> {
     require_admin(&state, me)?;
     let done = sqlx::query(

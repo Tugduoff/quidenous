@@ -19,6 +19,7 @@
 //! of [`REMIND_MIN`] days or more who hasn't voted today and can still vote on the open question
 //! gets one push per room and day (`members.streak_reminded`).
 
+use crate::platform::ids::{MemberId, RoomId, RoundId};
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use axum::{Json, extract::State};
@@ -74,14 +75,14 @@ pub struct Streak {
 /// (a removed question closes with none). Times in unix seconds.
 #[derive(Clone, Debug)]
 struct Round {
-    id: i64,
+    id: RoundId,
     opened: i64,
     closed: Option<i64>,
 }
 
 #[derive(Clone, Debug)]
 struct Seat {
-    id: i64,
+    id: MemberId,
     joined: i64,
     /// When the seat ended (left or removed); `None` while in the room.
     left: Option<i64>,
@@ -96,9 +97,9 @@ pub struct Room {
     rounds: Vec<Round>,
     seats: Vec<Seat>,
     /// Per member: (round, unix time) of each vote.
-    votes: HashMap<i64, Vec<(i64, i64)>>,
+    votes: HashMap<MemberId, Vec<(RoundId, i64)>>,
     /// (round, member) the group agreed not to wait for.
-    skipped: HashSet<(i64, i64)>,
+    skipped: HashSet<(RoundId, MemberId)>,
 }
 
 /// SQL: a timestamp column as unix seconds.
@@ -156,21 +157,25 @@ pub fn streak(days: &Days, today: i64) -> Streak {
 }
 
 /// A seat as loaded for [`Room::assemble`]: (id, joined, left, owner, tz).
-type SeatRow = (i64, i64, Option<i64>, bool, Option<i64>);
+type SeatRow = (MemberId, i64, Option<i64>, bool, Option<i64>);
 
 impl Room {
     /// Everything streaks need from one room. `None` for a party or a deleted room (no streaks).
-    pub async fn load(db: &SqlitePool, group_id: i64) -> AppResult<Option<Room>> {
+    pub async fn load(db: &SqlitePool, group_id: RoomId) -> AppResult<Option<Room>> {
         Self::load_with(db, group_id, false).await
     }
 
     /// [`Room::load`], deleted rooms included (badges: someone's own history, docs/BADGES.md).
-    pub async fn load_history(db: &SqlitePool, group_id: i64) -> AppResult<Option<Room>> {
+    pub async fn load_history(db: &SqlitePool, group_id: RoomId) -> AppResult<Option<Room>> {
         Self::load_with(db, group_id, true).await
     }
 
-    async fn load_with(db: &SqlitePool, group_id: i64, deleted: bool) -> AppResult<Option<Room>> {
-        let room: Option<i64> = sqlx::query_scalar(
+    async fn load_with(
+        db: &SqlitePool,
+        group_id: RoomId,
+        deleted: bool,
+    ) -> AppResult<Option<Room>> {
+        let room: Option<RoomId> = sqlx::query_scalar(
             "SELECT id FROM groups WHERE id = ? AND kind = 'room' AND (deleted_at IS NULL OR ?)",
         )
         .bind(group_id)
@@ -180,7 +185,7 @@ impl Room {
         if room.is_none() {
             return Ok(None);
         }
-        let rounds_q = sqlx::query_as::<_, (i64, i64, Option<i64>)>(concat!(
+        let rounds_q = sqlx::query_as::<_, (RoundId, i64, Option<i64>)>(concat!(
             "SELECT r.id, ",
             secs!("r.opened_at"),
             ", ",
@@ -191,7 +196,7 @@ impl Room {
         ))
         .bind(group_id)
         .fetch_all(db);
-        let seats_q = sqlx::query_as::<_, (i64, i64, Option<i64>, bool, Option<i64>)>(concat!(
+        let seats_q = sqlx::query_as::<_, SeatRow>(concat!(
             "SELECT m.id, ",
             secs!("m.created_at"),
             ", ",
@@ -202,7 +207,7 @@ impl Room {
         .bind(group_id)
         .fetch_all(db);
         // A said question's answer counts like a vote (docs/SAID.md): writing is playing.
-        let votes_q = sqlx::query_as::<_, (i64, i64, i64)>(concat!(
+        let votes_q = sqlx::query_as::<_, (MemberId, RoundId, i64)>(concat!(
             "SELECT v.voter_id, v.round_id, ",
             secs!("v.created_at"),
             " AS at FROM votes v JOIN rounds r ON r.id = v.round_id WHERE r.group_id = ?1 AND r.deadline_at IS NULL \
@@ -213,7 +218,7 @@ impl Room {
         ))
         .bind(group_id)
         .fetch_all(db);
-        let skips_q = sqlx::query_as::<_, (i64, i64, i64)>(
+        let skips_q = sqlx::query_as::<_, (RoundId, MemberId, i64)>(
             "SELECT s.round_id, s.target_id, COUNT(*) FROM skips s JOIN rounds r ON r.id = s.round_id \
              WHERE r.group_id = ? AND r.deadline_at IS NULL GROUP BY s.round_id, s.target_id",
         )
@@ -227,7 +232,10 @@ impl Room {
     /// number of queries whatever their count (`GET /today`). Only these seats' votes and skips are
     /// loaded: enough for [`Room::member`] and [`Room::voted_today`] of these seats, not for anyone
     /// else's streak nor the room's.
-    pub async fn load_seats(db: &SqlitePool, seats: &[i64]) -> AppResult<HashMap<i64, Room>> {
+    pub async fn load_seats(
+        db: &SqlitePool,
+        seats: &[MemberId],
+    ) -> AppResult<HashMap<RoomId, Room>> {
         let seats_json = serde_json::to_string(seats).unwrap_or_else(|_| "[]".into());
         // `?1` = the seats; their rooms, when they still count for streaks.
         macro_rules! rooms {
@@ -236,7 +244,7 @@ impl Room {
                   AND g.kind = 'room' AND g.deleted_at IS NULL WHERE m.id IN (SELECT value FROM json_each(?1)))"
             };
         }
-        let rounds_q = sqlx::query_as::<_, (i64, i64, i64, Option<i64>)>(concat!(
+        let rounds_q = sqlx::query_as::<_, (RoomId, RoundId, i64, Option<i64>)>(concat!(
             "SELECT r.group_id, r.id, ",
             secs!("r.opened_at"),
             ", ",
@@ -250,7 +258,7 @@ impl Room {
         .bind(&seats_json)
         .fetch_all(db);
         let seats_q =
-            sqlx::query_as::<_, (i64, i64, i64, Option<i64>, bool, Option<i64>)>(concat!(
+            sqlx::query_as::<_, (RoomId, MemberId, i64, Option<i64>, bool, Option<i64>)>(concat!(
                 "SELECT m.group_id, m.id, ",
                 secs!("m.created_at"),
                 ", ",
@@ -263,7 +271,7 @@ impl Room {
             .bind(&seats_json)
             .fetch_all(db);
         // Through the rooms' rounds: votes and skips are indexed by round.
-        let votes_q = sqlx::query_as::<_, (i64, i64, i64, i64)>(concat!(
+        let votes_q = sqlx::query_as::<_, (RoomId, MemberId, RoundId, i64)>(concat!(
             "SELECT r.group_id, v.voter_id, v.round_id, ",
             secs!("v.created_at"),
             " FROM rounds r JOIN votes v ON v.round_id = r.id WHERE r.group_id IN ",
@@ -273,7 +281,7 @@ impl Room {
         ))
         .bind(&seats_json)
         .fetch_all(db);
-        let skips_q = sqlx::query_as::<_, (i64, i64, i64, i64)>(concat!(
+        let skips_q = sqlx::query_as::<_, (RoomId, RoundId, MemberId, i64)>(concat!(
             "SELECT r.group_id, s.round_id, s.target_id, COUNT(*) FROM rounds r \
              JOIN skips s ON s.round_id = r.id WHERE r.group_id IN ",
             rooms!(),
@@ -286,12 +294,12 @@ impl Room {
             tokio::try_join!(rounds_q, seats_q, votes_q, skips_q)?;
 
         type Parts = (
-            Vec<(i64, i64, Option<i64>)>,
+            Vec<(RoundId, i64, Option<i64>)>,
             Vec<SeatRow>,
-            Vec<(i64, i64, i64)>,
-            Vec<(i64, i64, i64)>,
+            Vec<(MemberId, RoundId, i64)>,
+            Vec<(RoundId, MemberId, i64)>,
         );
-        let mut parts: HashMap<i64, Parts> = HashMap::new();
+        let mut parts: HashMap<RoomId, Parts> = HashMap::new();
         for (g, id, opened, closed) in rounds {
             parts.entry(g).or_default().0.push((id, opened, closed));
         }
@@ -319,10 +327,10 @@ impl Room {
     /// A room from its rows: rounds (id, opened, closed), seats (id, joined, left, owner, tz), votes
     /// (voter, round, at) in time order, skips (round, target, how many asked).
     fn assemble(
-        rounds: Vec<(i64, i64, Option<i64>)>,
+        rounds: Vec<(RoundId, i64, Option<i64>)>,
         seats: Vec<SeatRow>,
-        votes: Vec<(i64, i64, i64)>,
-        skips: Vec<(i64, i64, i64)>,
+        votes: Vec<(MemberId, RoundId, i64)>,
+        skips: Vec<(RoundId, MemberId, i64)>,
     ) -> Room {
         let seats: Vec<Seat> = seats
             .into_iter()
@@ -337,7 +345,7 @@ impl Room {
         // Skips are judged with today's room size (the past one isn't recorded).
         let needed =
             crate::rounds::game::majority(seats.iter().filter(|s| s.left.is_none()).count() as i64);
-        let mut by_member: HashMap<i64, Vec<(i64, i64)>> = HashMap::new();
+        let mut by_member: HashMap<MemberId, Vec<(RoundId, i64)>> = HashMap::new();
         for (voter, round, at) in votes {
             by_member.entry(voter).or_default().push((round, at));
         }
@@ -366,7 +374,7 @@ impl Room {
     }
 
     /// A member's time zone: their own, else the room's.
-    pub fn tz_of(&self, member: i64) -> i64 {
+    pub fn tz_of(&self, member: MemberId) -> i64 {
         self.seats
             .iter()
             .find(|s| s.id == member)
@@ -375,23 +383,23 @@ impl Room {
     }
 
     /// Current members (seats still in the room).
-    pub fn members(&self) -> impl Iterator<Item = i64> + '_ {
+    pub fn members(&self) -> impl Iterator<Item = MemberId> + '_ {
         self.seats.iter().filter(|s| s.left.is_none()).map(|s| s.id)
     }
 
     /// Was this member skipped by the group on this question?
-    pub fn skipped(&self, round: i64, member: i64) -> bool {
+    pub fn skipped(&self, round: RoundId, member: MemberId) -> bool {
         self.skipped.contains(&(round, member))
     }
 
     /// A member's days, in time zone `tz` (minutes), up to `now`.
-    pub fn days(&self, member: i64, tz: i64, now: i64) -> Days {
+    pub fn days(&self, member: MemberId, tz: i64, now: i64) -> Days {
         let mut out = Days::new();
         let Some(seat) = self.seats.iter().find(|s| s.id == member) else {
             return out;
         };
         let day = |t: i64| local_day(t, tz);
-        let votes: HashMap<i64, i64> = self
+        let votes: HashMap<RoundId, i64> = self
             .votes
             .get(&member)
             .map(|v| v.iter().copied().collect())
@@ -418,7 +426,7 @@ impl Room {
                 }
             }
         }
-        let counted: HashSet<i64> = self.rounds.iter().map(|r| r.id).collect();
+        let counted: HashSet<RoundId> = self.rounds.iter().map(|r| r.id).collect();
         for (round, at) in self.votes.get(&member).into_iter().flatten() {
             if counted.contains(round) && *at <= now {
                 out.insert(day(*at), Day::Voted);
@@ -428,13 +436,13 @@ impl Room {
     }
 
     /// A member's streak at `now`, in their time zone.
-    pub fn member(&self, member: i64, now: i64) -> Streak {
+    pub fn member(&self, member: MemberId, now: i64) -> Streak {
         let tz = self.tz_of(member);
         streak(&self.days(member, tz, now), local_day(now, tz))
     }
 
     /// Did this member vote in the room today (their time zone)?
-    pub fn voted_today(&self, member: i64, now: i64) -> bool {
+    pub fn voted_today(&self, member: MemberId, now: i64) -> bool {
         let tz = self.tz_of(member);
         self.days(member, tz, now).get(&local_day(now, tz)) == Some(&Day::Voted)
     }
@@ -442,12 +450,12 @@ impl Room {
     /// When each seat counted as away (docs/ROOMS.md: the last [`crate::rounds::game::AWAY_AFTER`]
     /// questions closed without their vote), as (time, away from then on), in time order.
     fn away_timeline(&self, seat: &Seat) -> Away {
-        let mine: HashSet<i64> = self
+        let mine: HashSet<RoundId> = self
             .votes
             .get(&seat.id)
             .map(|v| v.iter().map(|(r, _)| *r).collect())
             .unwrap_or_default();
-        let mut events: Vec<(i64, Option<i64>)> = self
+        let mut events: Vec<(i64, Option<RoundId>)> = self
             .votes
             .get(&seat.id)
             .into_iter()
@@ -543,7 +551,7 @@ pub struct Records {
 }
 
 /// [`Records`] for a room at `now`; `None` for a party.
-pub async fn records(db: &SqlitePool, group_id: i64, now: i64) -> AppResult<Option<Records>> {
+pub async fn records(db: &SqlitePool, group_id: RoomId, now: i64) -> AppResult<Option<Records>> {
     let Some(room) = Room::load(db, group_id).await? else {
         return Ok(None);
     };
@@ -552,7 +560,7 @@ pub async fn records(db: &SqlitePool, group_id: i64, now: i64) -> AppResult<Opti
         .map(|id| (id, room.member(id, now)))
         .filter(|(_, s)| s.best >= 2)
         // Longest ever, then the one still going, then the earliest seat.
-        .max_by_key(|(id, s)| (s.best, s.current, -id))
+        .max_by_key(|(id, s)| (s.best, s.current, std::cmp::Reverse(*id)))
         .map(|(member_id, s)| crate::insights::stats::Award {
             member_id,
             value: s.best,
@@ -567,9 +575,9 @@ pub async fn records(db: &SqlitePool, group_id: i64, now: i64) -> AppResult<Opti
 /// One seat the reminder looks at: (member, room, open question, own tz, owner's tz,
 /// reminded on, push on, kinds off, quiet start, quiet end).
 type Candidate = (
-    i64,
-    i64,
-    i64,
+    MemberId,
+    RoomId,
+    RoundId,
     Option<i64>,
     Option<i64>,
     Option<i64>,
@@ -581,7 +589,7 @@ type Candidate = (
 
 /// The evening reminder at `now` (unix seconds): pushes "your N-day streak ends tonight" to every
 /// seat that qualifies and records it. Returns the members reminded.
-pub async fn remind_at(state: &AppState, now: i64) -> AppResult<Vec<i64>> {
+pub async fn remind_at(state: &AppState, now: i64) -> AppResult<Vec<MemberId>> {
     // Seats with an open question they haven't answered (a said question still writing: not
     // written), in rooms of two or more.
     let rows: Vec<Candidate> = sqlx::query_as(concat!(
@@ -598,7 +606,7 @@ pub async fn remind_at(state: &AppState, now: i64) -> AppResult<Vec<i64>> {
     ))
     .fetch_all(&state.db)
     .await?;
-    let mut rooms: HashMap<i64, Option<Room>> = HashMap::new();
+    let mut rooms: HashMap<RoomId, Option<Room>> = HashMap::new();
     let mut reminded = Vec::new();
     for (member, group, round, own_tz, owner_tz, last, enabled, off, quiet_start, quiet_end) in rows
     {

@@ -1,3 +1,4 @@
+use crate::platform::ids::UserId;
 use serde_json::Value;
 
 use super::crypto::{constant_eq, now_unix};
@@ -64,7 +65,7 @@ impl Kind {
 pub struct Row {
     pub id: i64,
     pub code_hash: String,
-    pub user_id: Option<i64>,
+    pub user_id: Option<UserId>,
     pub data: Option<String>,
     pub expires_at: i64,
     pub attempts: i64,
@@ -91,7 +92,7 @@ pub async fn create(
     state: &AppState,
     kind: Kind,
     secret: &str,
-    user_id: Option<i64>,
+    user_id: Option<UserId>,
     email: Option<&str>,
     ttl: u64,
     data: Option<Value>,

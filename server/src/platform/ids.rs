@@ -39,4 +39,6 @@ ids!(
     PackId,
     SuggestionId,
     InviteId,
+    AnswerId,
+    ChallengeId,
 );

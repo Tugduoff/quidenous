@@ -13,6 +13,7 @@
 //!   (any of the tied ones), in proportion to their stakes; nobody on a winner, a question removed
 //!   or with no winner: everyone gets their stake back. The house takes nothing.
 
+use crate::platform::ids::{MemberId, RoomId, RoundId};
 use axum::{
     Json,
     extract::{Path, State},
@@ -45,7 +46,7 @@ macro_rules! month {
 pub(crate) use month;
 
 /// Tripot is on in this room: a room (never a party) whose owner didn't turn it off.
-pub async fn enabled<'e, E: sqlx::SqliteExecutor<'e>>(db: E, group_id: i64) -> AppResult<bool> {
+pub async fn enabled<'e, E: sqlx::SqliteExecutor<'e>>(db: E, group_id: RoomId) -> AppResult<bool> {
     Ok(
         sqlx::query_scalar("SELECT kind = 'room' AND tripot FROM groups WHERE id = ?")
             .bind(group_id)
@@ -58,7 +59,7 @@ pub async fn enabled<'e, E: sqlx::SqliteExecutor<'e>>(db: E, group_id: i64) -> A
 /// A member's chips for a month (`None`: the current one).
 pub async fn balance<'e, E: sqlx::SqliteExecutor<'e>>(
     db: E,
-    member_id: i64,
+    member_id: MemberId,
     month: Option<&str>,
 ) -> AppResult<i64> {
     let sum: i64 = sqlx::query_scalar(concat!(
@@ -77,8 +78,8 @@ pub async fn balance<'e, E: sqlx::SqliteExecutor<'e>>(
 /// A balance at the cap gets a 0 row, so the day still counts as granted.
 pub async fn on_vote(
     tx: &mut Transaction<'_, Sqlite>,
-    group_id: i64,
-    member_id: i64,
+    group_id: RoomId,
+    member_id: MemberId,
 ) -> AppResult<()> {
     if !enabled(&mut **tx, group_id).await? {
         return Ok(());
@@ -128,9 +129,9 @@ pub fn split(bets: &[(i64, bool)]) -> Option<Vec<i64>> {
 /// Who won a closed question: most votes (pick), most points (ranking); ties all win.
 async fn winners(
     tx: &mut Transaction<'_, Sqlite>,
-    round_id: i64,
+    round_id: RoundId,
     kind: &str,
-) -> AppResult<Vec<i64>> {
+) -> AppResult<Vec<MemberId>> {
     let sql = if kind == "rank" {
         "WITH pts AS (SELECT r.member_id, SUM(n.size - r.position + 1) AS p FROM rankings r \
            JOIN (SELECT voter_id, COUNT(*) AS size FROM rankings WHERE round_id = ?1 GROUP BY voter_id) n \
@@ -148,8 +149,8 @@ async fn winners(
 
 /// A question just closed (its transaction): pays out its bets, or refunds them when there is no
 /// winner to bet on. Bets already settled are left alone (idempotent).
-pub async fn settle(tx: &mut Transaction<'_, Sqlite>, round_id: i64) -> AppResult<()> {
-    let bets: Vec<(i64, i64, i64, i64, i64, String)> = sqlx::query_as(
+pub async fn settle(tx: &mut Transaction<'_, Sqlite>, round_id: RoundId) -> AppResult<()> {
+    let bets: Vec<(i64, MemberId, MemberId, i64, RoomId, String)> = sqlx::query_as(
         "SELECT b.id, b.member_id, b.target_id, b.amount, r.group_id, b.month FROM tripot_bets b \
          JOIN rounds r ON r.id = b.round_id WHERE b.round_id = ? AND b.payout IS NULL \
          ORDER BY b.amount DESC, b.id",
@@ -192,10 +193,10 @@ pub async fn settle(tx: &mut Transaction<'_, Sqlite>, round_id: i64) -> AppResul
 async fn pay(
     tx: &mut Transaction<'_, Sqlite>,
     bet: i64,
-    member_id: i64,
-    group_id: i64,
+    member_id: MemberId,
+    group_id: RoomId,
     month: &str,
-    round_id: i64,
+    round_id: RoundId,
     amount: i64,
     refund: bool,
 ) -> AppResult<()> {
@@ -223,8 +224,8 @@ async fn pay(
 }
 
 /// A question closes without a result (removed): every bet on it comes back.
-pub async fn refund(tx: &mut Transaction<'_, Sqlite>, round_id: i64) -> AppResult<()> {
-    let bets: Vec<(i64, i64, i64, i64, String)> = sqlx::query_as(
+pub async fn refund(tx: &mut Transaction<'_, Sqlite>, round_id: RoundId) -> AppResult<()> {
+    let bets: Vec<(i64, MemberId, i64, RoomId, String)> = sqlx::query_as(
         "SELECT b.id, b.member_id, b.amount, r.group_id, b.month FROM tripot_bets b \
          JOIN rounds r ON r.id = b.round_id WHERE b.round_id = ? AND b.payout IS NULL",
     )
@@ -239,8 +240,8 @@ pub async fn refund(tx: &mut Transaction<'_, Sqlite>, round_id: i64) -> AppResul
 
 /// The owner turned Tripot off, or the open question became anonymous: its bets are refunded and
 /// dropped (turned back on, everyone may bet again). The ledger keeps both moves.
-pub async fn cancel_open(tx: &mut Transaction<'_, Sqlite>, group_id: i64) -> AppResult<bool> {
-    let open: Option<i64> =
+pub async fn cancel_open(tx: &mut Transaction<'_, Sqlite>, group_id: RoomId) -> AppResult<bool> {
+    let open: Option<RoundId> =
         sqlx::query_scalar("SELECT id FROM rounds WHERE group_id = ? AND closed_at IS NULL")
             .bind(group_id)
             .fetch_optional(&mut **tx)
@@ -259,7 +260,7 @@ pub async fn cancel_open(tx: &mut Transaction<'_, Sqlite>, group_id: i64) -> App
 /// The owner switched it (rooms only; checked by the caller). Off refunds the open question's bets.
 pub async fn set_enabled(
     tx: &mut Transaction<'_, Sqlite>,
-    group_id: i64,
+    group_id: RoomId,
     on: bool,
 ) -> AppResult<()> {
     sqlx::query("UPDATE groups SET tripot = ? WHERE id = ?")
@@ -274,7 +275,7 @@ pub async fn set_enabled(
 }
 
 /// The open question just became anonymous (a new room rule): nothing about it may show, its bets go.
-pub async fn after_anonymous(tx: &mut Transaction<'_, Sqlite>, group_id: i64) -> AppResult<()> {
+pub async fn after_anonymous(tx: &mut Transaction<'_, Sqlite>, group_id: RoomId) -> AppResult<()> {
     let anonymous: bool = sqlx::query_scalar(
         "SELECT COALESCE((SELECT anonymous FROM rounds WHERE group_id = ? AND closed_at IS NULL), 0)",
     )
@@ -289,7 +290,7 @@ pub async fn after_anonymous(tx: &mut Transaction<'_, Sqlite>, group_id: i64) ->
 
 #[derive(Clone, Debug, Serialize)]
 pub struct MyBet {
-    pub target_id: i64,
+    pub target_id: MemberId,
     pub amount: i64,
     /// Once settled: what came back (0 = lost; the stake on a refund).
     pub payout: Option<i64>,
@@ -298,7 +299,7 @@ pub struct MyBet {
 #[derive(Clone, Debug, Serialize)]
 pub struct Winner {
     /// The bettor.
-    pub member_id: i64,
+    pub member_id: MemberId,
     pub stake: i64,
     pub won: i64,
 }
@@ -329,7 +330,11 @@ async fn bettable<'e, E: sqlx::SqliteExecutor<'e>>(db: E, round: &RoundRow) -> A
 }
 
 /// The question's Tripot, for a member; `None` where Tripot doesn't apply (and must not show).
-pub async fn view(db: &SqlitePool, round: &RoundRow, me: i64) -> AppResult<Option<TripotView>> {
+pub async fn view(
+    db: &SqlitePool,
+    round: &RoundRow,
+    me: MemberId,
+) -> AppResult<Option<TripotView>> {
     if !bettable(db, round).await? {
         return Ok(None);
     }
@@ -340,7 +345,7 @@ pub async fn view(db: &SqlitePool, round: &RoundRow, me: i64) -> AppResult<Optio
     .bind(round.id)
     .fetch_one(db)
     .await?;
-    let my_bet = sqlx::query_as::<_, (i64, i64, Option<i64>)>(
+    let my_bet = sqlx::query_as::<_, (MemberId, i64, Option<i64>)>(
         "SELECT target_id, amount, payout FROM tripot_bets WHERE round_id = ? AND member_id = ?",
     )
     .bind(round.id)
@@ -357,7 +362,7 @@ pub async fn view(db: &SqlitePool, round: &RoundRow, me: i64) -> AppResult<Optio
     let winners = if open {
         None
     } else {
-        let rows: Vec<(i64, i64, i64)> = sqlx::query_as(
+        let rows: Vec<(MemberId, i64, i64)> = sqlx::query_as(
             "SELECT member_id, amount, payout FROM tripot_bets \
              WHERE round_id = ? AND NOT refunded AND payout > 0 ORDER BY payout DESC, id",
         )
@@ -387,7 +392,7 @@ pub async fn view(db: &SqlitePool, round: &RoundRow, me: i64) -> AppResult<Optio
 
 #[derive(Deserialize)]
 pub struct BetBody {
-    target: i64,
+    target: MemberId,
     amount: i64,
 }
 
@@ -395,7 +400,7 @@ pub struct BetBody {
 pub async fn bet(
     State(state): State<AppState>,
     Me(me): Me,
-    Path(round_id): Path<i64>,
+    Path(round_id): Path<RoundId>,
     Json(body): Json<BetBody>,
 ) -> AppResult<Json<Option<TripotView>>> {
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
@@ -418,7 +423,7 @@ pub async fn bet(
     if !bettable(&mut *tx, &round).await? {
         return Err(AppError::BadRequest("no_bets"));
     }
-    let target: Option<i64> = sqlx::query_scalar(
+    let target: Option<MemberId> = sqlx::query_scalar(
         "SELECT id FROM members WHERE id = ? AND group_id = ? AND removed_at IS NULL",
     )
     .bind(body.target)
@@ -489,7 +494,7 @@ pub async fn board(State(state): State<AppState>, Me(me): Me) -> AppResult<Json<
     ))
     .fetch_one(&state.db)
     .await?;
-    let rows: Vec<(i64, i64)> = sqlx::query_as(
+    let rows: Vec<(MemberId, i64)> = sqlx::query_as(
         "SELECT m.id, ?3 + COALESCE((SELECT SUM(l.amount) FROM tripot_ledger l \
                                      WHERE l.member_id = m.id AND l.month = ?2), 0) AS b \
          FROM members m WHERE m.group_id = ?1 AND m.removed_at IS NULL ORDER BY b DESC, m.id",
@@ -499,7 +504,7 @@ pub async fn board(State(state): State<AppState>, Me(me): Me) -> AppResult<Json<
     .bind(START)
     .fetch_all(&state.db)
     .await?;
-    let podium: Vec<(i64, i64)> = sqlx::query_as(
+    let podium: Vec<(MemberId, i64)> = sqlx::query_as(
         "SELECT l.member_id, ?3 + SUM(l.amount) AS b FROM tripot_ledger l \
          JOIN members m ON m.id = l.member_id AND m.removed_at IS NULL \
          WHERE l.group_id = ?1 AND l.month = ?2 GROUP BY l.member_id ORDER BY b DESC, l.member_id LIMIT 3",
@@ -509,8 +514,7 @@ pub async fn board(State(state): State<AppState>, Me(me): Me) -> AppResult<Json<
     .bind(START)
     .fetch_all(&state.db)
     .await?;
-    let entry =
-        |(member_id, balance): (i64, i64)| json!({ "member_id": member_id, "balance": balance });
+    let entry = |(member_id, balance): (MemberId, i64)| json!({ "member_id": member_id, "balance": balance });
     Ok(Json(json!({
         "month": month,
         "last_month": last,

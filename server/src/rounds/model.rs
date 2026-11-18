@@ -1,10 +1,11 @@
+use crate::platform::ids::{MemberId, QuestionId, RoomId, RoundId};
 use serde::{Deserialize, Serialize, Serializer};
 
 #[derive(Clone, Debug, sqlx::FromRow)]
 pub struct RoundRow {
-    pub id: i64,
-    pub group_id: i64,
-    pub question_id: i64,
+    pub id: RoundId,
+    pub group_id: RoomId,
+    pub question_id: QuestionId,
     pub number: i64,
     pub opened_at: String,
     pub closed_at: Option<String>,
@@ -19,14 +20,14 @@ pub struct RoundRow {
 
 #[derive(Clone, Debug, Serialize)]
 pub struct Tally {
-    pub target_id: i64,
+    pub target_id: MemberId,
     pub count: i64,
-    pub voter_ids: Vec<i64>,
+    pub voter_ids: Vec<MemberId>,
 }
 
 #[derive(Clone, Debug, Serialize)]
 pub struct RoundView {
-    pub id: i64,
+    pub id: RoundId,
     pub number: i64,
     pub question: String,
     pub custom: bool,
@@ -36,8 +37,8 @@ pub struct RoundView {
     pub opened_at: String,
     pub closed_at: Option<String>,
     pub member_count: i64,
-    pub voter_ids: Vec<i64>,
-    pub my_vote: Option<i64>,
+    pub voter_ids: Vec<MemberId>,
+    pub my_vote: Option<MemberId>,
     /// Only once the round is closed: votes are public but revealed together.
     pub result: Option<Vec<Tally>>,
     /// Pinned to the top of the history (for the whole group).
@@ -47,13 +48,13 @@ pub struct RoundView {
     /// Agreements needed to skip someone.
     pub skip_needed: i64,
     /// Members the group decided not to wait for on this question.
-    pub skipped_ids: Vec<i64>,
+    pub skipped_ids: Vec<MemberId>,
     /// Members away (missed the last few questions in a row): not waited for until they vote again.
-    pub away_ids: Vec<i64>,
+    pub away_ids: Vec<MemberId>,
     /// Ranking questions, once closed: everyone ordered by points.
     pub ranking: Option<Vec<RankEntry>>,
     /// Ranking questions: my order, first to last.
-    pub my_ranking: Option<Vec<i64>>,
+    pub my_ranking: Option<Vec<MemberId>>,
     /// A deck question that came from an approved suggestion: its author's name.
     pub suggested_by: Option<String>,
     /// Choose questions: the items people are wired to.
@@ -74,7 +75,7 @@ pub struct RoundView {
 /// A wire: `member_id` goes to item number `item`.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Choice {
-    pub member_id: i64,
+    pub member_id: MemberId,
     pub item: i64,
 }
 
@@ -87,7 +88,7 @@ pub struct ChooseResult {
 /// One person's reveal: their own choice against what the others guessed for them.
 #[derive(Clone, Debug, Serialize)]
 pub struct ChoosePerson {
-    pub member_id: i64,
+    pub member_id: MemberId,
     /// Their own wire (`None` when they didn't answer with wires).
     pub real: Option<i64>,
     /// The most guessed item(s); empty when nobody guessed.
@@ -97,14 +98,14 @@ pub struct ChoosePerson {
 
 #[derive(Clone, Debug, Serialize)]
 pub struct ChooseGuess {
-    pub voter_id: i64,
+    pub voter_id: MemberId,
     pub item: i64,
 }
 
 /// "Who knows you best": guesses that matched someone's real choice, out of those that could.
 #[derive(Clone, Debug, Serialize)]
 pub struct ChooseScore {
-    pub member_id: i64,
+    pub member_id: MemberId,
     pub hits: i64,
     pub total: i64,
 }
@@ -112,7 +113,7 @@ pub struct ChooseScore {
 /// Borda count: last place 1 point, first place N points; ties broken by number of firsts.
 #[derive(Clone, Debug, Serialize)]
 pub struct RankEntry {
-    pub member_id: i64,
+    pub member_id: MemberId,
     pub points: i64,
     pub average: f64,
     pub firsts: i64,
@@ -120,18 +121,18 @@ pub struct RankEntry {
 
 #[derive(Clone, Debug, Serialize)]
 pub struct SkipState {
-    pub target_id: i64,
+    pub target_id: MemberId,
     pub count: i64,
     pub mine: bool,
 }
 
 #[derive(Clone, Debug, Serialize)]
 pub struct HistoryItem {
-    pub id: i64,
+    pub id: RoundId,
     pub number: i64,
     pub question: String,
     pub closed_at: String,
-    pub winner_ids: Vec<i64>,
+    pub winner_ids: Vec<MemberId>,
     pub top_count: i64,
     pub vote_count: i64,
     pub pinned: bool,
@@ -141,9 +142,9 @@ pub struct HistoryItem {
 
 #[derive(Clone, Debug, Serialize, sqlx::FromRow)]
 pub struct QueuedQuestion {
-    pub id: i64,
+    pub id: QuestionId,
     pub text: String,
-    pub author_id: Option<i64>,
+    pub author_id: Option<MemberId>,
     pub kind: String,
     /// Choose questions: the items, JSON-encoded in the database, an array in the API.
     #[serde(serialize_with = "items_array")]

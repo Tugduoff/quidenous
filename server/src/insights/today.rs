@@ -8,6 +8,7 @@
 //! - `GET /api/live?…&others=1`: also a compact `{"type":"room_activity","room_id":7}` when something
 //!   happens in another of my rooms ([`OtherRooms`]), at most one per room per [`ACTIVITY_GAP`].
 
+use crate::platform::ids::{MemberId, RoomId, RoundId, UserId};
 use std::{
     cmp::Reverse,
     collections::{HashMap, HashSet},
@@ -36,7 +37,7 @@ pub struct Today {
 
 #[derive(Debug, Serialize)]
 pub struct TodayRoom {
-    pub id: i64,
+    pub id: RoomId,
     pub name: String,
     pub role: String,
     pub members: i64,
@@ -65,7 +66,7 @@ pub struct TodayRoom {
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct TodayRound {
-    pub id: i64,
+    pub id: RoundId,
     pub number: i64,
     pub text: String,
     pub kind: String,
@@ -75,7 +76,7 @@ pub struct TodayRound {
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct TodayResult {
-    pub id: i64,
+    pub id: RoundId,
     pub number: i64,
     pub text: String,
     pub kind: String,
@@ -127,9 +128,9 @@ impl Status {
 /// One of my seats, with what the room's own row tells.
 #[derive(sqlx::FromRow)]
 struct Seat {
-    room: i64,
+    room: RoomId,
     name: String,
-    seat: i64,
+    seat: MemberId,
     role: String,
     muted: bool,
     members: i64,
@@ -143,7 +144,7 @@ struct Seat {
 /// The open question of one of my rooms, as I see it.
 #[derive(sqlx::FromRow)]
 struct Open {
-    room: i64,
+    room: RoomId,
     #[sqlx(flatten)]
     round: TodayRound,
     votes: i64,
@@ -153,19 +154,22 @@ struct Open {
 
 #[derive(sqlx::FromRow)]
 struct Unseen {
-    room: i64,
+    room: RoomId,
     #[sqlx(flatten)]
     result: TodayResult,
     count: i64,
 }
 
 /// `GET /today`: every room I sit in (parties, deleted rooms and removed seats aside).
-pub async fn get(State(state): State<AppState>, SignedIn(user): SignedIn) -> AppResult<Json<Today>> {
+pub async fn get(
+    State(state): State<AppState>,
+    SignedIn(user): SignedIn,
+) -> AppResult<Json<Today>> {
     Ok(Json(today(&state.db, user, streaks::now_secs()).await?))
 }
 
 /// [`Today`] for an account at `now` (unix seconds, for the streaks).
-pub async fn today(db: &SqlitePool, user: i64, now: i64) -> AppResult<Today> {
+pub async fn today(db: &SqlitePool, user: UserId, now: i64) -> AppResult<Today> {
     let seats: Vec<Seat> = sqlx::query_as(concat!(
         "SELECT g.id AS room, g.name, m.id AS seat, m.role, m.muted, \
                 (SELECT COUNT(*) FROM members x WHERE x.group_id = g.id AND x.removed_at IS NULL) AS members, \
@@ -189,7 +193,7 @@ pub async fn today(db: &SqlitePool, user: i64, now: i64) -> AppResult<Today> {
     if seats.is_empty() {
         return Ok(Today { rooms: Vec::new() });
     }
-    let ids: Vec<i64> = seats.iter().map(|s| s.seat).collect();
+    let ids: Vec<MemberId> = seats.iter().map(|s| s.seat).collect();
     let ids_json = serde_json::to_string(&ids).unwrap_or_else(|_| "[]".into());
 
     // A said question still in its writing phase: written counts as voted (as `said::done!`).
@@ -208,7 +212,7 @@ pub async fn today(db: &SqlitePool, user: i64, now: i64) -> AppResult<Today> {
     .fetch_all(db);
     // As `game::skipped`, for every open question of my rooms: (room, target, skips asked) by
     // people still there, on people still there who haven't voted. The majority is applied below.
-    let skips_q = sqlx::query_as::<_, (i64, i64, i64)>(concat!(
+    let skips_q = sqlx::query_as::<_, (RoomId, MemberId, i64)>(concat!(
         "SELECT r.group_id, s.target_id, COUNT(*) FROM members me \
          JOIN rounds r ON r.group_id = me.group_id AND r.closed_at IS NULL \
          JOIN skips s ON s.round_id = r.id \
@@ -222,7 +226,7 @@ pub async fn today(db: &SqlitePool, user: i64, now: i64) -> AppResult<Today> {
     .bind(&ids_json)
     .fetch_all(db);
     // `game::away`, for my rooms with an open question.
-    let away_q = sqlx::query_as::<_, (i64, i64)>(concat!(
+    let away_q = sqlx::query_as::<_, (RoomId, MemberId)>(concat!(
         "SELECT m.group_id, m.id FROM members m WHERE m.removed_at IS NULL AND m.group_id IN \
            (SELECT r.group_id FROM members me JOIN rounds r ON r.group_id = me.group_id AND r.closed_at IS NULL \
             WHERE me.id IN (SELECT value FROM json_each(?1))) AND ",
@@ -250,13 +254,13 @@ pub async fn today(db: &SqlitePool, user: i64, now: i64) -> AppResult<Today> {
     let sql = async { Ok::<_, AppError>(tokio::try_join!(open_q, skips_q, away_q, unseen_q)?) };
     let ((open, skips, away, unseen), streak_rooms) = tokio::try_join!(sql, streaks_q)?;
 
-    let mut open: HashMap<i64, Open> = open.into_iter().map(|o| (o.room, o)).collect();
-    let mut unseen: HashMap<i64, Unseen> = unseen.into_iter().map(|u| (u.room, u)).collect();
-    let mut skip_counts: HashMap<i64, Vec<(i64, i64)>> = HashMap::new();
+    let mut open: HashMap<RoomId, Open> = open.into_iter().map(|o| (o.room, o)).collect();
+    let mut unseen: HashMap<RoomId, Unseen> = unseen.into_iter().map(|u| (u.room, u)).collect();
+    let mut skip_counts: HashMap<RoomId, Vec<(MemberId, i64)>> = HashMap::new();
     for (room, target, n) in skips {
         skip_counts.entry(room).or_default().push((target, n));
     }
-    let mut away_by_room: HashMap<i64, Vec<i64>> = HashMap::new();
+    let mut away_by_room: HashMap<RoomId, Vec<MemberId>> = HashMap::new();
     for (room, member) in away {
         away_by_room.entry(room).or_default().push(member);
     }
@@ -268,7 +272,7 @@ pub async fn today(db: &SqlitePool, user: i64, now: i64) -> AppResult<Today> {
             let unseen = unseen.remove(&s.room);
             // Who the open question no longer waits for, as in `game::view`.
             let majority = game::majority(s.members);
-            let mut not_waited: HashSet<i64> = skip_counts
+            let mut not_waited: HashSet<MemberId> = skip_counts
                 .remove(&s.room)
                 .unwrap_or_default()
                 .into_iter()
@@ -345,18 +349,18 @@ pub const ACTIVITY_GAP: Duration = Duration::from_secs(1);
 /// per-room throttle of their `room_activity` events (the first goes out at once, the ones in the
 /// gap become a single trailing one: the last change is never lost).
 pub struct OtherRooms {
-    user: i64,
+    user: UserId,
     /// The socket's own room (its events go out in full).
-    current: i64,
-    rooms: HashSet<i64>,
-    last: HashMap<i64, Instant>,
+    current: RoomId,
+    rooms: HashSet<RoomId>,
+    last: HashMap<RoomId, Instant>,
     /// Rooms with a trailing event, and when it is due.
-    pending: HashMap<i64, Instant>,
+    pending: HashMap<RoomId, Instant>,
 }
 
 impl OtherRooms {
     /// The account's other rooms when the socket opens.
-    pub async fn open(db: &SqlitePool, user: i64, current: i64) -> AppResult<Self> {
+    pub async fn open(db: &SqlitePool, user: UserId, current: RoomId) -> AppResult<Self> {
         let mut me = Self {
             user,
             current,
@@ -370,7 +374,7 @@ impl OtherRooms {
 
     /// Loads the rooms again (a room joined since is followed, one left no longer is).
     pub async fn refresh(&mut self, db: &SqlitePool) -> AppResult<()> {
-        let rooms: Vec<i64> = sqlx::query_scalar(
+        let rooms: Vec<RoomId> = sqlx::query_scalar(
             "SELECT m.group_id FROM members m \
              JOIN groups g ON g.id = m.group_id AND g.deleted_at IS NULL AND g.kind <> 'party' \
              WHERE m.user_id = ? AND m.removed_at IS NULL AND m.group_id <> ?",
@@ -388,7 +392,7 @@ impl OtherRooms {
 
     /// An event of some room: `Some(room)` when a `room_activity` for it goes out now. In the gap
     /// after the last one, it is kept as the room's trailing event (see [`Self::due`]).
-    pub fn hear(&mut self, group_id: i64, event: &Event, now: Instant) -> Option<i64> {
+    pub fn hear(&mut self, group_id: RoomId, event: &Event, now: Instant) -> Option<RoomId> {
         if !self.rooms.contains(&group_id) || !changes_today(event) {
             return None;
         }
@@ -409,8 +413,8 @@ impl OtherRooms {
     }
 
     /// The rooms whose trailing event is due at `now` (sent: the gap starts again).
-    pub fn due(&mut self, now: Instant) -> Vec<i64> {
-        let rooms: Vec<i64> = self
+    pub fn due(&mut self, now: Instant) -> Vec<RoomId> {
+        let rooms: Vec<RoomId> = self
             .pending
             .iter()
             .filter(|(_, at)| **at <= now)
@@ -425,7 +429,7 @@ impl OtherRooms {
 }
 
 /// The socket frame for activity in another room.
-pub fn activity_frame(room: i64) -> String {
+pub fn activity_frame(room: RoomId) -> String {
     serde_json::json!({ "type": "room_activity", "room_id": room }).to_string()
 }
 
@@ -452,11 +456,15 @@ fn changes_today(event: &Event) -> bool {
 mod tests {
     use super::*;
 
+    fn room(n: i64) -> RoomId {
+        RoomId::from_raw(n)
+    }
+
     fn rooms(list: &[i64]) -> OtherRooms {
         OtherRooms {
-            user: 1,
-            current: 0,
-            rooms: list.iter().copied().collect(),
+            user: UserId::from_raw(1),
+            current: room(0),
+            rooms: list.iter().copied().map(room).collect(),
             last: HashMap::new(),
             pending: HashMap::new(),
         }
@@ -467,28 +475,37 @@ mod tests {
         let mut o = rooms(&[7, 8]);
         let t0 = Instant::now();
         let vote = Event::VoteCast {
-            round_id: 1,
-            voter_id: 2,
+            round_id: RoundId::from_raw(1),
+            voter_id: MemberId::from_raw(2),
         };
-        assert_eq!(o.hear(7, &vote, t0), Some(7));
+        assert_eq!(o.hear(room(7), &vote, t0), Some(room(7)));
         // Not my room, or nothing Today shows.
-        assert_eq!(o.hear(9, &vote, t0), None);
-        assert_eq!(o.hear(8, &Event::MemberUpdated { member_id: 1 }, t0), None);
+        assert_eq!(o.hear(room(9), &vote, t0), None);
+        assert_eq!(
+            o.hear(
+                room(8),
+                &Event::MemberUpdated {
+                    member_id: MemberId::from_raw(1)
+                },
+                t0
+            ),
+            None
+        );
         // Another room has its own gap.
-        assert_eq!(o.hear(8, &Event::InboxChanged, t0), Some(8));
+        assert_eq!(o.hear(room(8), &Event::InboxChanged, t0), Some(room(8)));
         // In the gap: one trailing event, however many come.
         let soon = t0 + Duration::from_millis(100);
-        assert_eq!(o.hear(7, &vote, soon), None);
-        assert_eq!(o.hear(7, &vote, soon), None);
+        assert_eq!(o.hear(room(7), &vote, soon), None);
+        assert_eq!(o.hear(room(7), &vote, soon), None);
         assert_eq!(o.next_due(), Some(t0 + ACTIVITY_GAP));
         assert!(o.due(soon).is_empty());
-        assert_eq!(o.due(t0 + ACTIVITY_GAP), vec![7]);
+        assert_eq!(o.due(t0 + ACTIVITY_GAP), vec![room(7)]);
         assert_eq!(o.next_due(), None);
         // The trailing one restarted the gap.
-        assert_eq!(o.hear(7, &vote, t0 + ACTIVITY_GAP), None);
-        assert_eq!(o.due(t0 + ACTIVITY_GAP * 2), vec![7]);
+        assert_eq!(o.hear(room(7), &vote, t0 + ACTIVITY_GAP), None);
+        assert_eq!(o.due(t0 + ACTIVITY_GAP * 2), vec![room(7)]);
         // Past the gap: right away again, nothing left trailing.
-        assert_eq!(o.hear(7, &vote, t0 + ACTIVITY_GAP * 4), Some(7));
+        assert_eq!(o.hear(room(7), &vote, t0 + ACTIVITY_GAP * 4), Some(room(7)));
         assert_eq!(o.next_due(), None);
     }
 }

@@ -4,6 +4,7 @@
 //! the room's members get with the messages. Files go with their message, the author's account
 //! or the room.
 
+use crate::platform::ids::{MessageId, RoomId, RoundId};
 use std::{
     io::Cursor,
     path::{Path as FsPath, PathBuf},
@@ -200,12 +201,12 @@ fn upload_error(e: MultipartError) -> AppError {
 }
 
 /// A room's image directory.
-fn room_dir(data_dir: &FsPath, room: i64) -> PathBuf {
+fn room_dir(data_dir: &FsPath, room: RoomId) -> PathBuf {
     data_dir.join("chat").join(room.to_string())
 }
 
 /// The file behind an image message's stored media (server-made names only; never a path).
-pub fn file_path(data_dir: &FsPath, room: i64, media: Option<&str>) -> Option<PathBuf> {
+pub fn file_path(data_dir: &FsPath, room: RoomId, media: Option<&str>) -> Option<PathBuf> {
     let media: Value = serde_json::from_str(media?).ok()?;
     let file = media["file"].as_str()?;
     let safe = !file.is_empty()
@@ -226,12 +227,12 @@ pub async fn remove_files(paths: Vec<PathBuf>) {
 }
 
 /// A deleted room's images, all at once (nobody can open its chat any more).
-pub async fn remove_room(state: &AppState, room: i64) {
+pub async fn remove_room(state: &AppState, room: RoomId) {
     let dir = room_dir(&state.config.data_dir, room);
     if let Err(e) = tokio::fs::remove_dir_all(&dir).await
         && e.kind() != std::io::ErrorKind::NotFound
     {
-        tracing::warn!(room, error = %e, "chat images of a deleted room not removed");
+        tracing::warn!(%room, error = %e, "chat images of a deleted room not removed");
     }
 }
 
@@ -242,7 +243,7 @@ pub async fn remove_room(state: &AppState, room: i64) {
 pub(crate) async fn upload(
     State(state): State<AppState>,
     Me(me): Me,
-    Path(id): Path<i64>,
+    Path(id): Path<RoundId>,
     mut multipart: Multipart,
 ) -> AppResult<Json<MessageRow>> {
     let round = crate::chat::messages::chat_round(&state, &me, id).await?;
@@ -372,7 +373,7 @@ const PURPOSE: &str = "chat media";
 
 /// The URL of an image message for the app (`review`: an admin reviewing a report, which also
 /// shows it while hidden).
-pub fn image_url(state: &AppState, message_id: i64, review: bool) -> String {
+pub fn image_url(state: &AppState, message_id: MessageId, review: bool) -> String {
     let exp = expiry(now_unix());
     let payload = if review {
         format!("{message_id}.{exp}.r")
@@ -385,7 +386,7 @@ pub fn image_url(state: &AppState, message_id: i64, review: bool) -> String {
 /// A message's `media` as the app gets it: fresh URLs, the size, the type (`None` for text).
 pub fn payload(
     state: &AppState,
-    message_id: i64,
+    message_id: MessageId,
     kind: &str,
     stored: Option<&str>,
 ) -> Option<Value> {
@@ -412,7 +413,10 @@ pub async fn serve(
     let payload = verify(&state, PURPOSE, &token).ok_or(AppError::NotFound)?;
     let mut parts = payload.split('.');
     let (Some(id), Some(exp), review) = (
-        parts.next().and_then(|p| p.parse::<i64>().ok()),
+        parts
+            .next()
+            .and_then(|p| p.parse::<i64>().ok())
+            .map(MessageId::from_raw),
         parts.next().and_then(|p| p.parse::<u64>().ok()),
         parts.next() == Some("r"),
     ) else {
@@ -422,7 +426,7 @@ pub async fn serve(
     if exp <= now {
         return Err(AppError::NotFound);
     }
-    let (room, media): (i64, Option<String>) = sqlx::query_as(
+    let (room, media): (RoomId, Option<String>) = sqlx::query_as(
         "SELECT r.group_id, x.media FROM messages x JOIN rounds r ON r.id = x.round_id \
          JOIN groups g ON g.id = r.group_id \
          WHERE x.id = ?1 AND x.kind = 'image' AND (x.hidden_at IS NULL OR ?2) AND g.deleted_at IS NULL",
@@ -513,7 +517,7 @@ mod tests {
     fn file_paths_are_server_names_only() {
         let dir = FsPath::new("/data");
         assert_eq!(
-            file_path(dir, 3, Some(r#"{"file":"ab12.jpg"}"#)),
+            file_path(dir, RoomId::from_raw(3), Some(r#"{"file":"ab12.jpg"}"#)),
             Some(PathBuf::from("/data/chat/3/ab12.jpg"))
         );
         for bad in [
@@ -522,7 +526,11 @@ mod tests {
             r#"{"file":""}"#,
             "{}",
         ] {
-            assert_eq!(file_path(dir, 3, Some(bad)), None, "{bad}");
+            assert_eq!(
+                file_path(dir, RoomId::from_raw(3), Some(bad)),
+                None,
+                "{bad}"
+            );
         }
     }
 

@@ -1,3 +1,4 @@
+use crate::platform::ids::{MemberId, RoomId, RoundId, UserId};
 use std::collections::{HashMap, HashSet};
 
 use serde_json::json;
@@ -14,14 +15,14 @@ use super::*;
 #[allow(clippy::too_many_lines)]
 pub(super) async fn personal(
     state: &AppState,
-    user: i64,
+    user: UserId,
     year: i64,
     tz: i64,
     lang: Lang,
 ) -> AppResult<Vec<Card>> {
     let db = &state.db;
     // My seats in the rooms I'm in now: group → my member id.
-    let mine: Vec<(i64, i64, String)> = sqlx::query_as(
+    let mine: Vec<(MemberId, RoomId, String)> = sqlx::query_as(
         "SELECT m.id, m.group_id, g.name FROM members m \
          JOIN groups g ON g.id = m.group_id AND g.kind = 'room' AND g.deleted_at IS NULL \
          WHERE m.user_id = ? AND m.removed_at IS NULL ORDER BY m.id",
@@ -32,17 +33,18 @@ pub(super) async fn personal(
     if mine.is_empty() {
         return Ok(Vec::new());
     }
-    let me_in: HashMap<i64, i64> = mine.iter().map(|(m, g, _)| (*g, *m)).collect();
-    let my_seats: HashSet<i64> = mine.iter().map(|s| s.0).collect();
-    let room_names: HashMap<i64, String> = mine.iter().map(|(_, g, n)| (*g, n.clone())).collect();
+    let me_in: HashMap<RoomId, MemberId> = mine.iter().map(|(m, g, _)| (*g, *m)).collect();
+    let my_seats: HashSet<MemberId> = mine.iter().map(|s| s.0).collect();
+    let room_names: HashMap<RoomId, String> =
+        mine.iter().map(|(_, g, n)| (*g, n.clone())).collect();
     let rooms = json!(mine.iter().map(|s| s.1).collect::<Vec<_>>()).to_string();
     let (since, until) = year_range(year, tz);
 
     #[allow(clippy::type_complexity)]
     let seat_rows: Vec<(
-        i64,
-        i64,
-        Option<i64>,
+        MemberId,
+        RoomId,
+        Option<UserId>,
         String,
         String,
         Option<String>,
@@ -55,7 +57,7 @@ pub(super) async fn personal(
     .bind(&rooms)
     .fetch_all(db)
     .await?;
-    let round_rows: Vec<(i64, i64, String, String, bool)> = sqlx::query_as(concat!(
+    let round_rows: Vec<(RoundId, RoomId, String, String, bool)> = sqlx::query_as(concat!(
         "SELECT r.id, r.group_id, q.text, q.kind, r.anonymous FROM rounds r \
          JOIN questions q ON q.id = r.question_id WHERE ",
         in_year!(),
@@ -66,7 +68,7 @@ pub(super) async fn personal(
     .bind(until as f64)
     .fetch_all(db)
     .await?;
-    let vote_rows: Vec<(i64, i64, i64, f64)> = sqlx::query_as(concat!(
+    let vote_rows: Vec<(RoundId, MemberId, MemberId, f64)> = sqlx::query_as(concat!(
         "SELECT v.round_id, v.voter_id, v.target_id, ",
         unix!("v.created_at"),
         " FROM votes v JOIN rounds r ON r.id = v.round_id WHERE ",
@@ -78,7 +80,7 @@ pub(super) async fn personal(
     .bind(until as f64)
     .fetch_all(db)
     .await?;
-    let point_rows: Vec<(i64, i64, i64)> = sqlx::query_as(concat!(
+    let point_rows: Vec<(RoundId, MemberId, i64)> = sqlx::query_as(concat!(
         "WITH p AS (SELECT r.id FROM rounds r WHERE ",
         in_year!(),
         "), n AS (SELECT k.round_id, k.voter_id, COUNT(*) AS size FROM rankings k \
@@ -91,7 +93,7 @@ pub(super) async fn personal(
     .bind(until as f64)
     .fetch_all(db)
     .await?;
-    let message_rows: Vec<(i64, i64)> = sqlx::query_as(concat!(
+    let message_rows: Vec<(RoundId, i64)> = sqlx::query_as(concat!(
         "SELECT m.round_id, COUNT(*) FROM messages m JOIN rounds r ON r.id = m.round_id WHERE ",
         in_year!(),
         " GROUP BY m.round_id"
@@ -113,7 +115,7 @@ pub(super) async fn personal(
     .fetch_one(db)
     .await?;
 
-    let mut seats: HashMap<i64, Seat> = HashMap::new();
+    let mut seats: HashMap<MemberId, Seat> = HashMap::new();
     for (id, _group, user_id, name, color, photo, avatar, current) in seat_rows {
         seats.insert(
             id,
@@ -128,7 +130,7 @@ pub(super) async fn personal(
         );
     }
     // People I may name: someone else with a seat now in one of my rooms; shown with their latest one.
-    let mut faces: HashMap<i64, i64> = HashMap::new();
+    let mut faces: HashMap<UserId, MemberId> = HashMap::new();
     for (id, s) in &seats {
         if let Some(u) = s.user
             && s.current
@@ -138,11 +140,11 @@ pub(super) async fn personal(
             *e = (*e).max(*id);
         }
     }
-    let person_of = |user: i64| -> Option<Person> {
+    let person_of = |user: UserId| -> Option<Person> {
         let id = faces.get(&user)?;
         Some(seats.get(id)?.person(*id))
     };
-    let user_of = |member: i64| seats.get(&member).and_then(|s| s.user);
+    let user_of = |member: MemberId| seats.get(&member).and_then(|s| s.user);
 
     let mut rounds: Vec<YearRound> = round_rows
         .into_iter()
@@ -157,7 +159,8 @@ pub(super) async fn personal(
             messages: 0,
         })
         .collect();
-    let index: HashMap<i64, usize> = rounds.iter().enumerate().map(|(i, r)| (r.id, i)).collect();
+    let index: HashMap<RoundId, usize> =
+        rounds.iter().enumerate().map(|(i, r)| (r.id, i)).collect();
     for (round, voter, target, at) in vote_rows {
         if let Some(&i) = index.get(&round) {
             rounds[i].votes.push((voter, target, at));
@@ -175,11 +178,11 @@ pub(super) async fn personal(
     }
 
     let mut answered = 0;
-    let mut rooms_played: HashSet<i64> = HashSet::new();
+    let mut rooms_played: HashSet<RoomId> = HashSet::new();
     let mut days: HashSet<i64> = HashSet::new();
-    let mut crush: HashMap<i64, i64> = HashMap::new();
-    let mut fans: HashMap<i64, i64> = HashMap::new();
-    let mut nemesis: HashMap<i64, i64> = HashMap::new();
+    let mut crush: HashMap<UserId, i64> = HashMap::new();
+    let mut fans: HashMap<UserId, i64> = HashMap::new();
+    let mut nemesis: HashMap<UserId, i64> = HashMap::new();
     let (mut received, mut wins) = (0, 0);
     let mut best_q: Option<(i64, i64, usize)> = None;
     let (mut eligible, mut good) = (0, 0);
@@ -304,7 +307,7 @@ pub(super) async fn personal(
                 .into(),
             who.clone(),
             pick(
-                n + u,
+                n + u.raw(),
                 lang.pick(
                     vec![
                         format!("Tu as voté {n} fois pour {who}. On ne dira rien."),
@@ -334,7 +337,7 @@ pub(super) async fn personal(
             lang.pick("Ton fan numéro un", "Your number one fan").into(),
             who.clone(),
             pick(
-                n + u,
+                n + u.raw(),
                 lang.pick(
                     vec![
                         format!("{who} a voté {n} fois pour toi. Ça mérite un merci."),
@@ -362,7 +365,7 @@ pub(super) async fn personal(
             lang.pick("Ton rival", "Your nemesis").into(),
             who.clone(),
             pick(
-                n + u,
+                n + u.raw(),
                 lang.pick(
                     vec![
                         format!("{who} t'a soufflé la victoire {n} fois. Revanche en {next}."),

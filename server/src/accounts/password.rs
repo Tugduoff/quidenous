@@ -1,5 +1,6 @@
 //! Email + password: does it exist, sign up, sign in, forgot / reset, verify, change, add to a legacy account.
 
+use crate::platform::ids::UserId;
 use axum::{Json, extract::State};
 use rand::RngExt;
 use serde::Deserialize;
@@ -40,7 +41,7 @@ impl Sent {
 }
 
 /// Sends a fresh verification code.
-pub(super) async fn send_verify(state: &AppState, user_id: i64, email: &str) -> AppResult<Sent> {
+pub(super) async fn send_verify(state: &AppState, user_id: UserId, email: &str) -> AppResult<Sent> {
     let code = six_digits();
     codes::create(
         state,
@@ -112,7 +113,7 @@ pub async fn signup(
         .as_deref()
         .and_then(crate::platform::i18n::Lang::parse)
         .map(|l| l.as_str());
-    let user_id: i64 = sqlx::query_scalar(
+    let user_id: UserId = sqlx::query_scalar(
         "INSERT INTO users (name, color, friend_code, email, password_hash, locale) \
          VALUES (?, ?, upper(hex(randomblob(5))), ?, ?, ?) RETURNING id",
     )
@@ -283,7 +284,7 @@ pub async fn reset(
     ))
 }
 
-pub async fn account_info(state: &AppState, user_id: i64) -> AppResult<Value> {
+pub async fn account_info(state: &AppState, user_id: UserId) -> AppResult<Value> {
     let a = super::account(state, user_id).await?;
     let providers: Vec<String> = sqlx::query_scalar(
         "SELECT DISTINCT provider FROM oauth_identities WHERE user_id = ? ORDER BY provider",

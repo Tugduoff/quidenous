@@ -1,3 +1,4 @@
+use crate::platform::ids::{MemberId, RoomId, RoundId};
 use serde_json::{Value, json};
 
 use crate::{
@@ -10,7 +11,7 @@ use crate::{
 use super::*;
 
 /// The party as the app and the big screen see it (`me` = null on the big screen).
-pub async fn view(state: &AppState, id: i64, me: Option<&MemberRow>) -> AppResult<Value> {
+pub async fn view(state: &AppState, id: RoomId, me: Option<&MemberRow>) -> AppResult<Value> {
     let p = load(state, id).await?;
     let players: Vec<MemberRow> = sqlx::query_as(
         "SELECT * FROM members WHERE group_id = ? AND removed_at IS NULL ORDER BY id",
@@ -19,7 +20,7 @@ pub async fn view(state: &AppState, id: i64, me: Option<&MemberRow>) -> AppResul
     .fetch_all(&state.db)
     .await?;
     // A guest account stops being one once it has an e-mail + password or a linked provider.
-    let guests: Vec<i64> = sqlx::query_scalar(
+    let guests: Vec<MemberId> = sqlx::query_scalar(
         "SELECT m.id FROM members m JOIN users u ON u.id = m.user_id \
          WHERE m.group_id = ? AND m.removed_at IS NULL AND u.guest \
          AND NOT ((u.email IS NOT NULL AND u.password_hash IS NOT NULL) \
@@ -88,7 +89,7 @@ pub async fn view(state: &AppState, id: i64, me: Option<&MemberRow>) -> AppResul
 
 pub(super) async fn round_view(
     state: &AppState,
-    round_id: i64,
+    round_id: RoundId,
     me: Option<&MemberRow>,
     players: i64,
     over: bool,
@@ -107,19 +108,19 @@ pub(super) async fn round_view(
     .bind(round_id)
     .fetch_one(&state.db)
     .await?;
-    let eligible: Vec<i64> = sqlx::query_scalar(
+    let eligible: Vec<MemberId> = sqlx::query_scalar(
         "SELECT p.member_id FROM party_players p JOIN members m ON m.id = p.member_id AND m.removed_at IS NULL \
          WHERE p.round_id = ? ORDER BY p.member_id",
     )
     .bind(round_id)
     .fetch_all(&state.db)
     .await?;
-    let voted: Vec<i64> =
+    let voted: Vec<MemberId> =
         sqlx::query_scalar("SELECT voter_id FROM votes WHERE round_id = ? ORDER BY created_at")
             .bind(round_id)
             .fetch_all(&state.db)
             .await?;
-    let my_vote: Option<i64> = match me {
+    let my_vote: Option<MemberId> = match me {
         Some(m) => {
             sqlx::query_scalar("SELECT target_id FROM votes WHERE round_id = ? AND voter_id = ?")
                 .bind(round_id)
@@ -193,7 +194,7 @@ pub(super) async fn round_view(
 }
 
 /// Active members who tapped "Suivante" on a revealed question.
-pub(super) async fn taps(state: &AppState, round_id: i64) -> AppResult<Vec<i64>> {
+pub(super) async fn taps(state: &AppState, round_id: RoundId) -> AppResult<Vec<MemberId>> {
     Ok(sqlx::query_scalar(
         "SELECT t.member_id FROM party_taps t JOIN members m ON m.id = t.member_id AND m.removed_at IS NULL \
          WHERE t.round_id = ? ORDER BY t.created_at, t.member_id",
@@ -205,7 +206,7 @@ pub(super) async fn taps(state: &AppState, round_id: i64) -> AppResult<Vec<i64>>
 
 pub(super) async fn active_players<'e, E: sqlx::SqliteExecutor<'e>>(
     db: E,
-    id: i64,
+    id: RoomId,
 ) -> AppResult<i64> {
     Ok(
         sqlx::query_scalar(
@@ -218,7 +219,10 @@ pub(super) async fn active_players<'e, E: sqlx::SqliteExecutor<'e>>(
 }
 
 /// (id, closed) of the party's latest question.
-pub(super) async fn latest_round(state: &AppState, id: i64) -> AppResult<Option<(i64, bool)>> {
+pub(super) async fn latest_round(
+    state: &AppState,
+    id: RoomId,
+) -> AppResult<Option<(RoundId, bool)>> {
     Ok(sqlx::query_as(
         "SELECT id, closed_at IS NOT NULL FROM rounds WHERE group_id = ? ORDER BY number DESC LIMIT 1",
     )

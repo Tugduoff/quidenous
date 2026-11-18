@@ -3,6 +3,7 @@
 //! A person's language is `users.locale` (null = French, the language of accounts made before
 //! this existed). Contract: `docs/I18N.md`.
 
+use crate::platform::ids::{MemberId, UserId};
 use axum::{Json, extract::State};
 use serde::Serialize;
 use sqlx::SqliteExecutor;
@@ -95,7 +96,7 @@ pub async fn put_locale(
 }
 
 /// An account's language.
-pub async fn of_user<'e, E: SqliteExecutor<'e>>(db: E, user_id: i64) -> sqlx::Result<Lang> {
+pub async fn of_user<'e, E: SqliteExecutor<'e>>(db: E, user_id: UserId) -> sqlx::Result<Lang> {
     let locale: Option<Option<String>> =
         sqlx::query_scalar("SELECT locale FROM users WHERE id = ?")
             .bind(user_id)
@@ -105,7 +106,10 @@ pub async fn of_user<'e, E: SqliteExecutor<'e>>(db: E, user_id: i64) -> sqlx::Re
 }
 
 /// The language of the account behind a room seat.
-pub async fn of_member<'e, E: SqliteExecutor<'e>>(db: E, member_id: i64) -> sqlx::Result<Lang> {
+pub async fn of_member<'e, E: SqliteExecutor<'e>>(
+    db: E,
+    member_id: MemberId,
+) -> sqlx::Result<Lang> {
     let locale: Option<Option<String>> = sqlx::query_scalar(
         "SELECT u.locale FROM members m JOIN users u ON u.id = m.user_id WHERE m.id = ?",
     )
@@ -282,12 +286,12 @@ pub fn deleted_name(lang: Lang) -> &'static str {
 }
 
 /// Is this seat the leftover of a deleted account? (anonymised: no account, the placeholder name)
-pub fn is_deleted(name: &str, user_id: Option<i64>) -> bool {
+pub fn is_deleted(name: &str, user_id: Option<UserId>) -> bool {
     user_id.is_none() && name == crate::accounts::delete::DELETED_NAME
 }
 
 /// A member's name as shown to a reader: a deleted account's placeholder in the reader's language.
-pub fn member_name(lang: Lang, name: &str, user_id: Option<i64>) -> String {
+pub fn member_name(lang: Lang, name: &str, user_id: Option<UserId>) -> String {
     if is_deleted(name, user_id) {
         deleted_name(lang).to_owned()
     } else {

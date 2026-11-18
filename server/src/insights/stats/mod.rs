@@ -2,6 +2,7 @@
 //! reader's language), computed in Rust from
 //! a handful of queries over the finished questions of a period. Contract: `docs/STATS.md`.
 
+use crate::platform::ids::{MemberId, RoomId, RoundId};
 use std::collections::HashSet;
 
 use serde::Serialize;
@@ -93,7 +94,7 @@ pub fn parse_tz(tz: Option<&str>) -> i32 {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct Award {
-    pub member_id: i64,
+    pub member_id: MemberId,
     pub value: i64,
     /// Denominator, ratio awards only.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -102,8 +103,8 @@ pub struct Award {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct Duo {
-    pub voter_id: i64,
-    pub target_id: i64,
+    pub voter_id: MemberId,
+    pub target_id: MemberId,
     pub value: i64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub total: Option<i64>,
@@ -112,15 +113,15 @@ pub struct Duo {
 /// Two members, `a_id < b_id`.
 #[derive(Debug, Clone, Serialize)]
 pub struct Pair {
-    pub a_id: i64,
-    pub b_id: i64,
+    pub a_id: MemberId,
+    pub b_id: MemberId,
     pub value: i64,
     pub total: i64,
 }
 
 #[derive(Debug, Clone, Serialize)]
 pub struct RankAward {
-    pub member_id: i64,
+    pub member_id: MemberId,
     /// Average position, one decimal.
     pub avg: f64,
     pub count: i64,
@@ -128,7 +129,7 @@ pub struct RankAward {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct QuestionRef {
-    pub round_id: i64,
+    pub round_id: RoundId,
     pub number: i64,
     pub question: String,
     pub kind: String,
@@ -143,20 +144,20 @@ pub struct Story {
     pub title: &'static str,
     pub big: String,
     pub line: String,
-    pub member_ids: Vec<i64>,
+    pub member_ids: Vec<MemberId>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub round_id: Option<i64>,
+    pub round_id: Option<RoundId>,
 }
 
 #[derive(Debug, Clone, Serialize)]
 pub struct Count {
-    pub member_id: i64,
+    pub member_id: MemberId,
     pub value: i64,
 }
 
 #[derive(Debug, Clone, Serialize)]
 pub struct MemberStats {
-    pub member_id: i64,
+    pub member_id: MemberId,
     pub present: i64,
     pub votes_cast: i64,
     pub received: i64,
@@ -175,8 +176,8 @@ pub struct MemberStats {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct Edge {
-    pub voter_id: i64,
-    pub target_id: i64,
+    pub voter_id: MemberId,
+    pub target_id: MemberId,
     pub value: i64,
 }
 
@@ -215,7 +216,7 @@ pub struct Stats {
     pub most_nudged: Option<Award>,
     pub author: Option<Award>,
     pub duo: Option<Duo>,
-    pub never_chosen: Vec<i64>,
+    pub never_chosen: Vec<MemberId>,
     pub messages: i64,
     pub contrarian: Option<Award>,
     pub sheep: Option<Award>,
@@ -258,7 +259,7 @@ struct MemberInfo {
 
 /// One finished question and what the computation needs about it.
 struct RoundCalc {
-    id: i64,
+    id: RoundId,
     number: i64,
     text: String,
     rank: bool,
@@ -267,15 +268,15 @@ struct RoundCalc {
     /// (voter, target, unix time), in vote order. An anonymous question's targets are blanked
     /// ([`HIDDEN`]) once its tally is counted: it adds to votes cast and received, never to
     /// who-votes-for-whom (pairs, self votes, twins, contrarian, kingmaker, loyal, the graph).
-    votes: Vec<(i64, i64, f64)>,
+    votes: Vec<(MemberId, MemberId, f64)>,
     anonymous: bool,
     /// (target, votes), most voted first, then by id.
-    tally: Vec<(i64, i64)>,
+    tally: Vec<(MemberId, i64)>,
     /// Ranking questions: (member, points, average position).
-    points: Vec<(i64, i64, f64)>,
-    winners: Vec<i64>,
+    points: Vec<(MemberId, i64, f64)>,
+    winners: Vec<MemberId>,
     messages: i64,
-    chatters: HashSet<i64>,
+    chatters: HashSet<MemberId>,
 }
 
 impl RoundCalc {
@@ -294,7 +295,7 @@ impl RoundCalc {
         }
     }
 
-    fn sole_winner(&self) -> Option<i64> {
+    fn sole_winner(&self) -> Option<MemberId> {
         match self.winners.as_slice() {
             [w] => Some(*w),
             _ => None,
@@ -302,16 +303,16 @@ impl RoundCalc {
     }
 }
 
-type RoundRow = (i64, i64, String, String, f64, f64, bool);
+type RoundRow = (RoundId, i64, String, String, f64, f64, bool);
 
 /// The target of a vote on an anonymous question, once counted (no member has id 0).
-const HIDDEN: i64 = 0;
-type MemberRowT = (i64, String, f64, bool, bool);
+const HIDDEN: MemberId = MemberId::from_raw(0);
+type MemberRowT = (MemberId, String, f64, bool, bool);
 
 /// [`for_group_in`] French.
 pub async fn for_group(
     db: &SqlitePool,
-    group_id: i64,
+    group_id: RoomId,
     period: Period,
     tz_minutes: i32,
 ) -> AppResult<Stats> {
@@ -321,7 +322,7 @@ pub async fn for_group(
 /// The room's vibe, then [`compute`]. Story texts are in `lang`.
 pub async fn for_group_in(
     db: &SqlitePool,
-    group_id: i64,
+    group_id: RoomId,
     period: Period,
     tz_minutes: i32,
     lang: Lang,
@@ -336,7 +337,7 @@ pub async fn for_group_in(
 
 pub async fn compute(
     db: &SqlitePool,
-    group_id: i64,
+    group_id: RoomId,
     period: Period,
     tz_minutes: i32,
     vibe: Option<&str>,
@@ -356,7 +357,7 @@ pub async fn compute(
 /// for the Wrapped (docs/WRAPPED.md). `period` only shapes the activity buckets (`All` for a range).
 pub(crate) async fn compute_range(
     db: &SqlitePool,
-    group_id: i64,
+    group_id: RoomId,
     period: Period,
     (since, until): (f64, f64),
     tz_minutes: i32,
@@ -389,7 +390,7 @@ pub(crate) async fn compute_range(
     .bind(since)
     .bind(until)
     .fetch_all(db);
-    let votes_q = sqlx::query_as::<_, (i64, i64, i64, f64)>(concat!(
+    let votes_q = sqlx::query_as::<_, (RoundId, MemberId, MemberId, f64)>(concat!(
         "SELECT v.round_id, v.voter_id, v.target_id, ",
         unix!("v.created_at"),
         " FROM votes v JOIN rounds r ON r.id = v.round_id WHERE ",
@@ -401,7 +402,7 @@ pub(crate) async fn compute_range(
     .bind(until)
     .fetch_all(db);
     // Ranking points per question and member (with N ranked, 1st gets N points, last gets 1).
-    let points_q = sqlx::query_as::<_, (i64, i64, i64, f64)>(concat!(
+    let points_q = sqlx::query_as::<_, (RoundId, MemberId, i64, f64)>(concat!(
         "WITH p AS (SELECT r.id FROM rounds r WHERE ",
         in_period!(),
         "), n AS (SELECT k.round_id, k.voter_id, COUNT(*) AS size FROM rankings k \
@@ -414,7 +415,7 @@ pub(crate) async fn compute_range(
     .bind(since)
     .bind(until)
     .fetch_all(db);
-    let nudges_q = sqlx::query_as::<_, (i64, i64)>(concat!(
+    let nudges_q = sqlx::query_as::<_, (MemberId, MemberId)>(concat!(
         "SELECT n.from_id, n.to_id FROM nudges n JOIN rounds r ON r.id = n.round_id WHERE ",
         in_period!()
     ))
@@ -422,7 +423,7 @@ pub(crate) async fn compute_range(
     .bind(since)
     .bind(until)
     .fetch_all(db);
-    let messages_q = sqlx::query_as::<_, (i64, i64)>(concat!(
+    let messages_q = sqlx::query_as::<_, (RoundId, MemberId)>(concat!(
         "SELECT m.round_id, m.member_id FROM messages m JOIN rounds r ON r.id = m.round_id WHERE ",
         in_period!()
     ))
@@ -431,7 +432,7 @@ pub(crate) async fn compute_range(
     .bind(until)
     .fetch_all(db);
     // Questions actually written in the period: pack installs and file imports don't count.
-    let authors_q = sqlx::query_as::<_, (i64, i64)>(concat!(
+    let authors_q = sqlx::query_as::<_, (MemberId, i64)>(concat!(
         "SELECT author_id, COUNT(*) FROM questions WHERE group_id = ?1 AND author_id IS NOT NULL \
          AND origin = 'written' AND ",
         unix!("created_at"),
@@ -492,19 +493,19 @@ mod tests {
     fn stories_exist_in_both_languages() {
         let award = |member_id, value| {
             Some(Award {
-                member_id,
+                member_id: MemberId::from_raw(member_id),
                 value,
                 total: Some(10),
             })
         };
         let duo = Some(Duo {
-            voter_id: 1,
-            target_id: 2,
+            voter_id: MemberId::from_raw(1),
+            target_id: MemberId::from_raw(2),
             value: 4,
             total: Some(10),
         });
         let question = Some(QuestionRef {
-            round_id: 1,
+            round_id: RoundId::from_raw(1),
             number: 3,
             question: "Qui ?".into(),
             kind: "pick".into(),
@@ -512,7 +513,7 @@ mod tests {
             total: 5,
         });
         let rank = Some(RankAward {
-            member_id: 1,
+            member_id: MemberId::from_raw(1),
             avg: 1.5,
             count: 4,
         });
@@ -530,13 +531,13 @@ mod tests {
             contrarian: award(1, 3),
             sheep: award(2, 7),
             loyal: Some(Duo {
-                voter_id: 2,
-                target_id: 1,
+                voter_id: MemberId::from_raw(2),
+                target_id: MemberId::from_raw(1),
                 ..duo.clone().unwrap()
             }),
             twins: Some(Pair {
-                a_id: 1,
-                b_id: 2,
+                a_id: MemberId::from_raw(1),
+                b_id: MemberId::from_raw(2),
                 value: 8,
                 total: 10,
             }),
@@ -555,7 +556,7 @@ mod tests {
             hottest: question,
             ..Stats::default()
         };
-        let name = |id: i64| ["", "Ana", "Bob"][id as usize].to_owned();
+        let name = |id: MemberId| ["", "Ana", "Bob"][id.raw() as usize].to_owned();
         for spicy in [false, true] {
             let fr = drafts(&s, &name, &[], spicy, Lang::Fr);
             let en = drafts(&s, &name, &[], spicy, Lang::En);

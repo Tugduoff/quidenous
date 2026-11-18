@@ -8,6 +8,7 @@
 //! Links expire after 90 days (older ones never do), their sharer or the room's owner can
 //! revoke them (`DELETE /api/shares/{token}`), and no page is meant for search engines (`noindex`).
 
+use crate::platform::ids::{MemberId, RoomId, RoundId, UserId};
 use axum::{
     Json,
     extract::{Path, State},
@@ -57,7 +58,7 @@ pub struct ShareBody {
 pub async fn create(
     State(state): State<AppState>,
     Me(me): Me,
-    Path(round_id): Path<i64>,
+    Path(round_id): Path<RoundId>,
     Json(body): Json<ShareBody>,
 ) -> AppResult<Json<Value>> {
     let round = game::round(&state.db, me.group_id, round_id).await?;
@@ -127,7 +128,7 @@ pub async fn create_stat(
     // Frozen as `[[first name, colour, avatar|null], ...]` (rows from before avatars have 2 items).
     let mut people: Vec<(String, String, Option<String>)> = Vec::new();
     for id in &story.member_ids {
-        let (name, color, avatar, user_id): (String, String, Option<String>, Option<i64>) =
+        let (name, color, avatar, user_id): (String, String, Option<String>, Option<UserId>) =
             sqlx::query_as(
                 "SELECT name, color, avatar, user_id FROM members WHERE id = ? AND group_id = ?",
             )
@@ -165,9 +166,9 @@ pub async fn create_stat(
 
 /// A stat card about to be frozen into a public link.
 pub(crate) struct Frozen<'a> {
-    pub group_id: i64,
+    pub group_id: RoomId,
     /// The sharer's seat.
-    pub member_id: i64,
+    pub member_id: MemberId,
     pub key: &'a str,
     pub title: &'a str,
     pub big: &'a str,
@@ -344,7 +345,7 @@ struct QuestionCard {
 }
 
 async fn load(state: &AppState, token: &str) -> AppResult<Card> {
-    let question: Option<(i64, i64, bool, String)> = sqlx::query_as(concat!(
+    let question: Option<(RoundId, RoomId, bool, String)> = sqlx::query_as(concat!(
         "SELECT s.round_id, r.group_id, s.with_result, s.lang FROM shares s JOIN rounds r ON r.id = s.round_id \
          JOIN groups g ON g.id = r.group_id AND g.deleted_at IS NULL WHERE s.token = ? AND ",
         live_sql!()
@@ -361,16 +362,16 @@ async fn load(state: &AppState, token: &str) -> AppResult<Card> {
         .bind(group_id)
         .fetch_one(&state.db)
         .await?;
-    let member = |id: i64| {
+    let member = |id: MemberId| {
         let db = state.db.clone();
         async move {
-            let row = sqlx::query_as::<_, (String, String, Option<String>, Option<i64>)>(
+            let row = sqlx::query_as::<_, (String, String, Option<String>, Option<UserId>)>(
                 "SELECT name, color, avatar, user_id FROM members WHERE id = ?",
             )
             .bind(id)
             .fetch_one(&db)
             .await
-            .unwrap_or_else(|_| ("?".into(), "#8D8D99".into(), None, Some(0)));
+            .unwrap_or_else(|_| ("?".into(), "#8D8D99".into(), None, None));
             // First names only, as on stat cards.
             let name = if i18n::is_deleted(&row.0, row.3) {
                 i18n::deleted_name(lang).to_owned()

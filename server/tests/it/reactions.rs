@@ -90,7 +90,7 @@ fn reacted(rx: &mut tokio::sync::broadcast::Receiver<GroupEvent>) -> Vec<(i64, V
     while let Ok(e) = rx.try_recv() {
         let v = serde_json::to_value(&e.event).unwrap();
         if v["type"] == "message_reacted" {
-            seen.push((e.group_id, v));
+            seen.push((e.group_id.raw(), v));
         }
     }
     seen

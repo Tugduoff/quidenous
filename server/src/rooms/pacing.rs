@@ -9,6 +9,7 @@
 //! "Only the owner launches the next one" doesn't wait for an owner who is gone: a room waiting for
 //! [`crate::rooms::flow::OWNER_NEXT_HOURS`] hours whose owner hasn't used it in that time is released too.
 
+use crate::platform::ids::{MemberId, RoomId, RoundId};
 use axum::{
     Json,
     extract::{Path, State},
@@ -32,7 +33,7 @@ pub const DELAYS: [i64; 6] = [0, 900, 3600, 10800, 43200, 86400];
 const TICK: std::time::Duration = std::time::Duration::from_secs(20);
 
 /// Called when a question closes: pauses the room if it is paced. `true` = paused (don't open the next).
-pub async fn pause(tx: &mut Transaction<'_, Sqlite>, group_id: i64) -> AppResult<bool> {
+pub async fn pause(tx: &mut Transaction<'_, Sqlite>, group_id: RoomId) -> AppResult<bool> {
     let done = sqlx::query(
         "UPDATE groups SET paused_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), \
          next_open_at = CASE WHEN next_delay > 0 \
@@ -46,7 +47,7 @@ pub async fn pause(tx: &mut Transaction<'_, Sqlite>, group_id: i64) -> AppResult
 }
 
 /// Ends the pause and opens the next question if one can open. Returns the new round, if any.
-async fn release(tx: &mut Transaction<'_, Sqlite>, group_id: i64) -> AppResult<Option<i64>> {
+async fn release(tx: &mut Transaction<'_, Sqlite>, group_id: RoomId) -> AppResult<Option<RoundId>> {
     sqlx::query("UPDATE groups SET paused_at = NULL, next_open_at = NULL WHERE id = ?")
         .bind(group_id)
         .execute(&mut **tx)
@@ -56,7 +57,12 @@ async fn release(tx: &mut Transaction<'_, Sqlite>, group_id: i64) -> AppResult<O
 
 /// Tells the room the pause is over, and pushes "Nouvelle question" when one opened (when none
 /// could, the owner hears the room is out of questions).
-async fn announce(state: &AppState, group_id: i64, actor: Option<i64>, opened: Option<i64>) {
+async fn announce(
+    state: &AppState,
+    group_id: RoomId,
+    actor: Option<MemberId>,
+    opened: Option<RoundId>,
+) {
     state.live.send(group_id, Event::RoomUpdated);
     if let Some(round_id) = opened {
         state.live.send(group_id, Event::RoundOpened { round_id });
@@ -68,7 +74,11 @@ async fn announce(state: &AppState, group_id: i64, actor: Option<i64>, opened: O
 
 /// After a change that can give an idle room something to ask (vibe, language): opens the next
 /// question if none is open and the room isn't waiting (a paced room keeps its pause).
-pub async fn open_if_idle(state: &AppState, group_id: i64, actor: Option<i64>) -> AppResult<()> {
+pub async fn open_if_idle(
+    state: &AppState,
+    group_id: RoomId,
+    actor: Option<MemberId>,
+) -> AppResult<()> {
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
     let opened = game::ensure_open_round(&mut tx, group_id).await?;
     tx.commit().await?;
@@ -98,13 +108,13 @@ fn owner_wait() -> String {
 
 /// Where the room stands: `waiting` = a closed question (`round_id`, the latest) waits for the next one;
 /// `next_open_at` = when it opens by itself (null: only the owner can launch it).
-pub async fn view(state: &AppState, group_id: i64) -> AppResult<Value> {
+pub async fn view(state: &AppState, group_id: RoomId) -> AppResult<Value> {
     let (paused, next_open_at): (bool, Option<String>) =
         sqlx::query_as("SELECT paused_at IS NOT NULL, next_open_at FROM groups WHERE id = ?")
             .bind(group_id)
             .fetch_one(&state.db)
             .await?;
-    let round_id: Option<i64> = if paused {
+    let round_id: Option<RoundId> = if paused {
         sqlx::query_scalar(
             "SELECT id FROM rounds WHERE group_id = ? AND closed_at IS NOT NULL ORDER BY number DESC LIMIT 1",
         )
@@ -119,7 +129,7 @@ pub async fn view(state: &AppState, group_id: i64) -> AppResult<Value> {
 
 /// After the owner changed `owner_next` / `next_delay`: a waiting room follows the new rules
 /// (new deadline counted from the close; released if nothing holds it any more or the deadline has passed).
-pub async fn settings_changed(state: &AppState, group_id: i64) -> AppResult<()> {
+pub async fn settings_changed(state: &AppState, group_id: RoomId) -> AppResult<()> {
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
     sqlx::query(
         "UPDATE groups SET next_open_at = CASE WHEN next_delay > 0 \
@@ -153,7 +163,7 @@ pub async fn settings_changed(state: &AppState, group_id: i64) -> AppResult<()> 
 pub async fn launch(
     State(state): State<AppState>,
     SignedIn(user): SignedIn,
-    Path(room): Path<i64>,
+    Path(room): Path<RoomId>,
 ) -> AppResult<Json<Value>> {
     let me = crate::rooms::manage::seat(&state, user, room).await?;
     if me.role != "owner" {
@@ -184,7 +194,7 @@ pub async fn launch(
 /// (`YYYY-MM-DDTHH:MM:SS.sssZ`, the format of the database). Returns how many rooms were released.
 /// A room that fails is logged and skipped: the others still open (it is retried next tick).
 pub async fn open_due_at(state: &AppState, now: &str) -> AppResult<usize> {
-    let due: Vec<i64> = sqlx::query_scalar(concat!("SELECT g.id FROM groups g WHERE ", due!()))
+    let due: Vec<RoomId> = sqlx::query_scalar(concat!("SELECT g.id FROM groups g WHERE ", due!()))
         .bind(now)
         .bind(owner_wait())
         .fetch_all(&state.db)
@@ -194,16 +204,16 @@ pub async fn open_due_at(state: &AppState, now: &str) -> AppResult<usize> {
         match open_due_room(state, room, now).await {
             Ok(true) => released += 1,
             Ok(false) => {}
-            Err(e) => tracing::warn!(room, error = ?e, "pacing: room not released"),
+            Err(e) => tracing::warn!(%room, error = ?e, "pacing: room not released"),
         }
     }
     Ok(released)
 }
 
 /// Releases one due room. `false` when it no longer is due (the owner launched it meanwhile).
-async fn open_due_room(state: &AppState, room: i64, now: &str) -> AppResult<bool> {
+async fn open_due_room(state: &AppState, room: RoomId, now: &str) -> AppResult<bool> {
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
-    let still: Option<i64> = sqlx::query_scalar(concat!(
+    let still: Option<RoomId> = sqlx::query_scalar(concat!(
         "SELECT g.id FROM groups g WHERE g.id = ?3 AND ",
         due!()
     ))

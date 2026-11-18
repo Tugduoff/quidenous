@@ -1,6 +1,7 @@
 //! Stats v2 (docs/STATS.md): periods, time zones, awards, profiles, stories and shared stat cards.
 
 use crate::common::{call_last_room as call, join, setup};
+use quidenous_server::platform::ids::RoomId;
 
 use std::collections::{HashMap, HashSet};
 
@@ -750,9 +751,14 @@ async fn bench_stats_on_a_big_room() {
         let runs = 10;
         let t = std::time::Instant::now();
         for _ in 0..runs {
-            quidenous_server::insights::stats::for_group(&st.db, group, period, 60)
-                .await
-                .unwrap();
+            quidenous_server::insights::stats::for_group(
+                &st.db,
+                RoomId::from_raw(group),
+                period,
+                60,
+            )
+            .await
+            .unwrap();
         }
         println!(
             "stats {period:?}: {:.1} ms per call",

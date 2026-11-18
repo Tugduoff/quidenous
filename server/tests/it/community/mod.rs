@@ -2,6 +2,7 @@
 
 use crate::common;
 use crate::common::{T, join};
+use quidenous_server::platform::ids::UserId;
 
 use std::{sync::Arc, time::Duration};
 
@@ -28,7 +29,7 @@ async fn setup() -> T {
         group_name: "Test".into(),
         join_code: "CODE-1".into(),
         vapid_subject: "mailto:test@example.com".into(),
-        admin_user_ids: vec![1],
+        admin_user_ids: vec![UserId::from_raw(1)],
         ..Config::default()
     };
     let mail = Arc::new(MemoryMailer::default());

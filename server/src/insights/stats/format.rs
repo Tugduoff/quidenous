@@ -1,3 +1,4 @@
+use crate::platform::ids::MemberId;
 use std::{
     collections::{HashMap, HashSet},
     time::{SystemTime, UNIX_EPOCH},
@@ -63,7 +64,11 @@ pub(super) fn round1(v: f64) -> f64 {
 }
 
 /// Highest value (>= `min`), lowest member id on ties, current members only.
-pub(super) fn top(counts: &HashMap<i64, i64>, current: &HashSet<i64>, min: i64) -> Option<Award> {
+pub(super) fn top(
+    counts: &HashMap<MemberId, i64>,
+    current: &HashSet<MemberId>,
+    min: i64,
+) -> Option<Award> {
     counts
         .iter()
         .filter(|(m, v)| **v >= min.max(1) && current.contains(m))
@@ -124,9 +129,9 @@ pub(crate) fn first_name(name: &str) -> String {
 }
 
 /// Award keys each member holds.
-pub(super) fn titles(s: &Stats) -> HashMap<i64, Vec<&'static str>> {
-    let mut t: HashMap<i64, Vec<&'static str>> = HashMap::new();
-    let mut add = |key: &'static str, ids: &[i64]| {
+pub(super) fn titles(s: &Stats) -> HashMap<MemberId, Vec<&'static str>> {
+    let mut t: HashMap<MemberId, Vec<&'static str>> = HashMap::new();
+    let mut add = |key: &'static str, ids: &[MemberId]| {
         for id in ids {
             let list = t.entry(*id).or_default();
             if !list.contains(&key) {

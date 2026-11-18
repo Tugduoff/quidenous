@@ -1,3 +1,4 @@
+use crate::platform::ids::{MemberId, UserId};
 use std::collections::HashMap;
 
 use axum::{
@@ -51,7 +52,7 @@ impl TitleChip {
 }
 
 /// An account's earned badges: key → (highest tier, when it was earned).
-pub async fn earned(db: &SqlitePool, user_id: i64) -> AppResult<HashMap<String, (i64, String)>> {
+pub async fn earned(db: &SqlitePool, user_id: UserId) -> AppResult<HashMap<String, (i64, String)>> {
     let rows: Vec<(String, i64, String)> = sqlx::query_as(
         "SELECT key, tier, earned_at FROM user_badges b WHERE user_id = ? \
          AND tier = (SELECT MAX(tier) FROM user_badges x WHERE x.user_id = b.user_id AND x.key = b.key)",
@@ -66,11 +67,14 @@ pub async fn earned(db: &SqlitePool, user_id: i64) -> AppResult<HashMap<String, 
 }
 
 /// `GET /badges`: my collection, in catalogue order (evaluated first, so a fresh threshold shows).
-pub async fn list(State(state): State<AppState>, SignedIn(user): SignedIn) -> AppResult<Json<Value>> {
+pub async fn list(
+    State(state): State<AppState>,
+    SignedIn(user): SignedIn,
+) -> AppResult<Json<Value>> {
     let lang = crate::platform::i18n::of_user(&state.db, user).await?;
     let values = metrics(&state.db, user, Streaks::All, &mut RoomCache::new()).await?;
     if let Err(e) = award(&state, user, &values, None).await {
-        tracing::warn!(user, error = ?e, "badges not awarded");
+        tracing::warn!(%user, error = ?e, "badges not awarded");
     }
     let held = earned(&state.db, user).await?;
     let title: Option<String> = sqlx::query_scalar("SELECT title FROM users WHERE id = ?")
@@ -151,7 +155,7 @@ pub async fn set_title(
 /// title they hold. A party answers `{members: {}}`.
 pub async fn titles(State(state): State<AppState>, Me(me): Me) -> AppResult<Json<Value>> {
     let lang = crate::platform::i18n::of_member(&state.db, me.id).await?;
-    let rows: Vec<(i64, String, i64)> = sqlx::query_as(
+    let rows: Vec<(MemberId, String, i64)> = sqlx::query_as(
         "SELECT m.id, u.title, MAX(b.tier) FROM members m \
          JOIN groups g ON g.id = m.group_id AND g.kind = 'room' \
          JOIN users u ON u.id = m.user_id AND u.title IS NOT NULL AND u.deleted_at IS NULL \
@@ -175,9 +179,9 @@ pub async fn titles(State(state): State<AppState>, Me(me): Me) -> AppResult<Json
 pub async fn member(
     State(state): State<AppState>,
     Me(me): Me,
-    Path(member_id): Path<i64>,
+    Path(member_id): Path<MemberId>,
 ) -> AppResult<Json<Value>> {
-    let user: i64 = sqlx::query_scalar(
+    let user: UserId = sqlx::query_scalar(
         "SELECT m.user_id FROM members m JOIN users u ON u.id = m.user_id AND u.deleted_at IS NULL \
          WHERE m.id = ? AND m.group_id = ? AND m.removed_at IS NULL",
     )

@@ -1,3 +1,4 @@
+use crate::platform::ids::{MemberId, MessageId, RoundId, UserId};
 use axum::{
     Json,
     extract::{Path, State},
@@ -34,9 +35,9 @@ const EVERYONE_COOLDOWN: &str = "-10 minutes";
 
 #[derive(sqlx::FromRow)]
 pub(crate) struct MessageDb {
-    id: i64,
-    member_id: i64,
-    user_id: Option<i64>,
+    id: MessageId,
+    member_id: MemberId,
+    user_id: Option<UserId>,
     text: String,
     created_at: String,
     mentions: String,
@@ -52,15 +53,15 @@ pub(crate) struct MessageDb {
 
 #[derive(Serialize)]
 pub(crate) struct MessageRow {
-    pub(crate) id: i64,
-    member_id: i64,
+    pub(crate) id: MessageId,
+    member_id: MemberId,
     /// The author's account (null once deleted): the app hides people it blocked.
-    user_id: Option<i64>,
+    user_id: Option<UserId>,
     /// The message; for an image or a GIF, a fallback older apps show ("📷 Photo · caption").
     text: String,
     created_at: String,
     /// Members of the room this message mentions (`@Name` in the text or caption).
-    mentions: Vec<i64>,
+    mentions: Vec<MemberId>,
     /// `@tous`: the whole room.
     everyone: bool,
     /// `text`, `image` or `gif`.
@@ -108,7 +109,7 @@ const MESSAGES_SHOWN: i64 = 200;
 pub(crate) async fn messages(
     State(state): State<AppState>,
     Me(me): Me,
-    Path(id): Path<i64>,
+    Path(id): Path<RoundId>,
 ) -> AppResult<Json<Vec<MessageRow>>> {
     game::round(&state.db, me.group_id, id).await?;
     let rows: Vec<MessageDb> = sqlx::query_as(concat!(
@@ -125,7 +126,7 @@ pub(crate) async fn messages(
     .bind(MESSAGES_SHOWN)
     .fetch_all(&state.db)
     .await?;
-    let ids: Vec<i64> = rows.iter().map(|m| m.id).collect();
+    let ids: Vec<MessageId> = rows.iter().map(|m| m.id).collect();
     let mut reactions = crate::chat::reactions::for_messages(&state.db, &me, &ids).await?;
     Ok(Json(
         rows.into_iter()
@@ -144,7 +145,7 @@ pub(crate) struct MessageBody {
     text: String,
     /// Member ids the text mentions; only current members of the room other than me are kept.
     #[serde(default)]
-    mentions: Vec<i64>,
+    mentions: Vec<MemberId>,
     #[serde(default)]
     everyone: bool,
     /// The app's own id for this message (up to 64 chars): a retry with the same key gets the
@@ -156,7 +157,7 @@ pub(crate) struct MessageBody {
 /// The message this seat already posted with this client key, if any.
 pub(crate) async fn posted_message(
     state: &AppState,
-    member_id: i64,
+    member_id: MemberId,
     key: &str,
 ) -> AppResult<Option<MessageRow>> {
     Ok(sqlx::query_as::<_, MessageDb>(concat!(
@@ -195,7 +196,7 @@ pub(crate) async fn retried(
 pub(crate) async fn post_message(
     State(state): State<AppState>,
     Me(me): Me,
-    Path(id): Path<i64>,
+    Path(id): Path<RoundId>,
     Json(body): Json<MessageBody>,
 ) -> AppResult<Json<MessageRow>> {
     let round = chat_round(&state, &me, id).await?;
@@ -227,7 +228,7 @@ pub(crate) async fn post_message(
 pub(crate) async fn chat_round(
     state: &AppState,
     me: &MemberRow,
-    id: i64,
+    id: RoundId,
 ) -> AppResult<crate::rounds::model::RoundRow> {
     let round = game::round(&state.db, me.group_id, id).await?;
     if round.closed_at.is_none() {
@@ -270,7 +271,7 @@ pub(crate) struct NewMessage {
     /// Media JSON as stored (`crate::chat::media`).
     pub media: Option<Value>,
     /// Member ids named in the text or caption; only current members of the room other than me are kept.
-    pub mentions: Vec<i64>,
+    pub mentions: Vec<MemberId>,
     pub everyone: bool,
     /// Checked by [`client_key`]: a second message with the same key is never stored.
     pub client_key: Option<String>,
@@ -294,14 +295,14 @@ pub(crate) async fn post_chat(
 ) -> AppResult<Posted> {
     let id = round.id;
     // Everyone else still in the room: who hears about it, and who can be mentioned.
-    let others: Vec<i64> = sqlx::query_scalar(
+    let others: Vec<MemberId> = sqlx::query_scalar(
         "SELECT id FROM members WHERE group_id = ? AND removed_at IS NULL AND id != ? ORDER BY id",
     )
     .bind(me.group_id)
     .bind(me.id)
     .fetch_all(&state.db)
     .await?;
-    let mut mentions: Vec<i64> = message
+    let mut mentions: Vec<MemberId> = message
         .mentions
         .into_iter()
         .filter(|m| others.contains(m))
@@ -357,12 +358,12 @@ pub(crate) async fn post_chat(
         }
     };
     // Mentioned people get a mention (inbox and push) instead of the plain message.
-    let pinged: Vec<i64> = if ring_everyone {
+    let pinged: Vec<MemberId> = if ring_everyone {
         others.clone()
     } else {
         mentions
     };
-    let rest: Vec<i64> = others.into_iter().filter(|m| !pinged.contains(m)).collect();
+    let rest: Vec<MemberId> = others.into_iter().filter(|m| !pinged.contains(m)).collect();
     let said = Text::same(message.text);
     // The message is stored: from here on, failures are logged (an error would make the app
     // retry, and the retry answers the stored message without telling anyone).
@@ -370,7 +371,7 @@ pub(crate) async fn post_chat(
         if let Err(e) =
             crate::chat::inbox::to_members(&state.db, to, kind, Some(id), Some(me.id), &said).await
         {
-            tracing::warn!(round_id = id, kind, error = ?e, "chat inbox failed");
+            tracing::warn!(round_id = %id, %kind, error = ?e, "chat inbox failed");
         }
     }
     state.live.send(

@@ -1,3 +1,4 @@
+use crate::platform::ids::{MemberId, MessageId, QuestionId, RoomId, RoundId, UserId};
 use axum::{Json, extract::State};
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -34,8 +35,8 @@ pub(super) async fn resolve(
 pub(super) type OpenRow = (
     String,
     i64,
-    Option<i64>,
-    Option<i64>,
+    Option<RoomId>,
+    Option<UserId>,
     String,
     i64,
     String,
@@ -120,9 +121,9 @@ pub async fn open_reports(state: &AppState) -> AppResult<Vec<Value>> {
             .await?
             .and_then(|(k, m)| match k.as_str() {
                 "image" => m.map(
-                    |_| json!({ "kind": k, "url": crate::chat::media::image_url(state, id, true) }),
+                    |_| json!({ "kind": k, "url": crate::chat::media::image_url(state, MessageId::from_raw(id), true) }),
                 ),
-                _ => crate::chat::media::payload(state, id, &k, m.as_deref()).map(|mut p| {
+                _ => crate::chat::media::payload(state, MessageId::from_raw(id), &k, m.as_deref()).map(|mut p| {
                     p["kind"] = json!(k);
                     p
                 }),
@@ -169,7 +170,7 @@ pub async fn act(
     Json(body): Json<ActBody>,
 ) -> AppResult<Json<Value>> {
     require_admin(&state, me)?;
-    let (count, user): (i64, Option<i64>) = sqlx::query_as(
+    let (count, user): (i64, Option<UserId>) = sqlx::query_as(
         "SELECT COUNT(*), MAX(reported_user_id) FROM reports \
          WHERE kind = ? AND target_id = ? AND resolved_at IS NULL",
     )
@@ -180,7 +181,7 @@ pub async fn act(
     if count == 0 {
         return Err(AppError::NotFound);
     }
-    let account = || -> AppResult<i64> {
+    let account = || -> AppResult<UserId> {
         let user = user.ok_or(AppError::BadRequest("bad_target"))?;
         if crate::community::packs::is_admin(&state, user) {
             return Err(AppError::BadRequest("bad_target"));
@@ -190,7 +191,7 @@ pub async fn act(
     match (body.action.as_str(), body.kind.as_str()) {
         ("dismiss", kind) => {
             if kind == "message" {
-                let back: Option<(i64, i64, i64, Option<i64>)> = sqlx::query_as(
+                let back: Option<(RoundId, MemberId, RoomId, Option<UserId>)> = sqlx::query_as(
                     "UPDATE messages SET hidden_at = NULL WHERE id = ? AND hidden_at IS NOT NULL \
                      RETURNING round_id, member_id, (SELECT group_id FROM members m WHERE m.id = member_id), \
                      (SELECT user_id FROM members m WHERE m.id = member_id)",
@@ -203,14 +204,14 @@ pub async fn act(
                         room,
                         Event::MessagePosted {
                             round_id,
-                            message_id: body.id,
+                            message_id: MessageId::from_raw(body.id),
                             member_id,
                             user_id,
                         },
                     );
                 }
             } else if kind == "answer" {
-                let back: Option<(i64, i64)> = sqlx::query_as(
+                let back: Option<(RoundId, RoomId)> = sqlx::query_as(
                     "UPDATE said_answers SET hidden_at = NULL WHERE id = ? AND hidden_at IS NOT NULL \
                      AND text <> '' RETURNING round_id, (SELECT group_id FROM rounds r WHERE r.id = round_id)",
                 )
@@ -243,12 +244,14 @@ pub async fn act(
             }
         }
         ("delete", "message") => {
-            erase_message(&state, body.id).await?;
+            erase_message(&state, MessageId::from_raw(body.id)).await?;
         }
-        ("delete", "question") => match retire_question(&state, body.id).await {
-            Ok(_) | Err(AppError::NotFound) => {}
-            Err(e) => return Err(e),
-        },
+        ("delete", "question") => {
+            match retire_question(&state, QuestionId::from_raw(body.id)).await {
+                Ok(_) | Err(AppError::NotFound) => {}
+                Err(e) => return Err(e),
+            }
+        }
         ("delete", "answer") => erase_answer(&state, body.id).await?,
         ("delete", "suggestion") => {
             sqlx::query(
@@ -274,7 +277,7 @@ pub async fn act(
 /// (`rooms::leave_seat`, as when an account is deleted: an owner hands over, the open question is
 /// checked again without it). A room it is alone in stays as it is (nobody waits there, and a
 /// suspension can be lifted).
-pub(crate) async fn suspend(state: &AppState, user: i64) -> AppResult<()> {
+pub(crate) async fn suspend(state: &AppState, user: UserId) -> AppResult<()> {
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
     sqlx::query(
         "UPDATE users SET suspended_at = COALESCE(suspended_at, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) WHERE id = ?",

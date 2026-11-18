@@ -2,6 +2,7 @@
 
 use crate::common::{call, join, room_id, setup};
 use axum::{Router, http::StatusCode};
+use quidenous_server::platform::ids::{MemberId, RoundId};
 use quidenous_server::{AppState, rounds::tripot};
 use serde_json::{Value, json};
 
@@ -122,7 +123,7 @@ impl Room {
     }
 
     async fn balance(&self, i: usize) -> i64 {
-        tripot::balance(&self.state.db, self.mid(i), None)
+        tripot::balance(&self.state.db, MemberId::from_raw(self.mid(i)), None)
             .await
             .unwrap()
     }
@@ -414,7 +415,7 @@ async fn winners_share_the_pot() {
     // Settling again changes nothing.
     let rows = room.ledger_rows().await;
     let mut tx = room.state.db.begin().await.unwrap();
-    tripot::settle(&mut tx, r).await.unwrap();
+    tripot::settle(&mut tx, RoundId::from_raw(r)).await.unwrap();
     tx.commit().await.unwrap();
     assert_eq!(room.ledger_rows().await, rows);
 }

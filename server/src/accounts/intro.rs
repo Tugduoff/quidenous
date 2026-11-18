@@ -17,7 +17,10 @@ use crate::{
     platform::error::AppResult,
 };
 
-pub async fn get(State(state): State<AppState>, SignedIn(user): SignedIn) -> AppResult<Json<Value>> {
+pub async fn get(
+    State(state): State<AppState>,
+    SignedIn(user): SignedIn,
+) -> AppResult<Json<Value>> {
     let show: bool = sqlx::query_scalar(concat!(
         "SELECT u.intro_done_at IS NULL AND NOT ",
         guest_sql!("u"),

@@ -1,3 +1,4 @@
+use crate::platform::ids::UserId;
 use rand::RngExt;
 
 use crate::accounts::notify;
@@ -6,7 +7,7 @@ use crate::{AppState, platform::error::AppError, platform::i18n::Notice, rooms::
 use super::*;
 
 pub(super) struct Outcome {
-    pub(crate) user_id: i64,
+    pub(crate) user_id: UserId,
     pub(crate) new: bool,
     pub(crate) linked: bool,
 }
@@ -29,10 +30,10 @@ pub(super) async fn resolve(
     state: &AppState,
     provider: &str,
     id: &Identity,
-    link_user: Option<i64>,
+    link_user: Option<UserId>,
 ) -> Result<Outcome, Refusal> {
     let db = &state.db;
-    let owner: Option<i64> = sqlx::query_scalar(
+    let owner: Option<UserId> = sqlx::query_scalar(
         "SELECT user_id FROM oauth_identities WHERE provider = ? AND subject = ?",
     )
     .bind(provider)
@@ -100,7 +101,7 @@ pub(super) async fn resolve(
     }
 
     if let Some(email) = verified_email {
-        let existing: Option<(i64, Option<String>)> =
+        let existing: Option<(UserId, Option<String>)> =
             sqlx::query_as("SELECT id, email_verified_at FROM users WHERE email = ?")
                 .bind(email)
                 .fetch_optional(db)
@@ -135,7 +136,7 @@ pub(super) async fn resolve(
         .collect();
     let color = COLORS[rand::rng().random_range(0..COLORS.len())];
     let mut tx = crate::platform::db::write_tx(db).await?;
-    let user: i64 = sqlx::query_scalar(
+    let user: UserId = sqlx::query_scalar(
         "INSERT INTO users (name, color, friend_code, email, email_verified_at) \
          VALUES (?, ?, upper(hex(randomblob(5))), ?, CASE WHEN ? IS NULL THEN NULL ELSE strftime('%Y-%m-%dT%H:%M:%fZ', 'now') END) \
          RETURNING id",
@@ -165,7 +166,7 @@ pub(super) async fn resolve(
 
 pub(super) async fn insert_identity(
     state: &AppState,
-    user: i64,
+    user: UserId,
     provider: &str,
     id: &Identity,
 ) -> Result<(), Refusal> {

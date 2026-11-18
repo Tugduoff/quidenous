@@ -107,7 +107,7 @@ async fn questions_go_by_the_single_delete_rules_with_partial_success() {
     assert_eq!(queued(&app, &ana, room).await, vec![a1, a2, b2]);
     let mut told = Vec::new();
     while let Ok(e) = rx.try_recv() {
-        told.push((e.group_id, serde_json::to_value(&e.event).unwrap()));
+        told.push((e.group_id.raw(), serde_json::to_value(&e.event).unwrap()));
     }
     assert_eq!(
         told,

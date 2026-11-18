@@ -3,6 +3,7 @@
 //! buckets as the auth limits ([`crate::accounts::limits::Limiter`]); a hit answers `429 rate_limited`.
 //! Per-IP rules end in `_ip`, per-account ones in `_user`.
 
+use crate::platform::ids::UserId;
 use std::{net::IpAddr, time::Duration};
 
 use crate::{
@@ -87,12 +88,12 @@ pub const RULES: [Rule; 18] = [
 ];
 
 /// One token from an account's bucket.
-pub fn hit_user(state: &AppState, rule: &Rule, user: i64) -> AppResult<()> {
+pub fn hit_user(state: &AppState, rule: &Rule, user: UserId) -> AppResult<()> {
     state.auth.limits.hit(rule, &user.to_string())
 }
 
 /// Gives a token back to an account's bucket (the charged work turned out not to be needed).
-pub fn refund_user(state: &AppState, rule: &Rule, user: i64) {
+pub fn refund_user(state: &AppState, rule: &Rule, user: UserId) {
     state.auth.limits.refund(rule, &user.to_string());
 }
 
@@ -101,14 +102,14 @@ pub fn refund_user(state: &AppState, rule: &Rule, user: i64) {
 #[must_use]
 pub struct CodeAttempt<'a> {
     state: &'a AppState,
-    user: Option<i64>,
+    user: Option<UserId>,
     ip: Option<IpAddr>,
 }
 
 /// Before looking a code up: `429` once this account or IP got too many codes wrong.
 pub fn code_attempt(
     state: &AppState,
-    user: Option<i64>,
+    user: Option<UserId>,
     ip: Option<IpAddr>,
 ) -> AppResult<CodeAttempt<'_>> {
     let limits = &state.auth.limits;

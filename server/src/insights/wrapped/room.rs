@@ -1,3 +1,4 @@
+use crate::platform::ids::MemberId;
 use std::collections::HashMap;
 
 use crate::{
@@ -39,14 +40,14 @@ pub(super) async fn room(
     )
     .await?;
     #[allow(clippy::type_complexity)]
-    let rows: Vec<(i64, String, String, Option<String>, Option<String>)> = sqlx::query_as(
+    let rows: Vec<(MemberId, String, String, Option<String>, Option<String>)> = sqlx::query_as(
         "SELECT id, name, color, photo, avatar FROM members WHERE group_id = ? AND removed_at IS NULL \
          AND user_id IS NOT NULL",
     )
     .bind(group)
     .fetch_all(db)
     .await?;
-    let people: HashMap<i64, Person> = rows
+    let people: HashMap<MemberId, Person> = rows
         .into_iter()
         .map(|(id, name, color, photo, avatar)| {
             (
@@ -61,7 +62,7 @@ pub(super) async fn room(
             )
         })
         .collect();
-    let face = |id: i64| people.get(&id).cloned();
+    let face = |id: MemberId| people.get(&id).cloned();
 
     let intro = (s.questions > 0).then(|| {
         let (v, m, p) = (s.votes, s.messages, s.members);
@@ -204,7 +205,7 @@ pub(super) async fn room(
         ));
     }
     // The forecaster: most chips won at the Tripot this year, else the one most often on the winning side.
-    let chips: Vec<(i64, i64)> = sqlx::query_as(concat!(
+    let chips: Vec<(MemberId, i64)> = sqlx::query_as(concat!(
         "SELECT b.member_id, SUM(b.payout - b.amount) FROM tripot_bets b JOIN rounds r ON r.id = b.round_id \
          WHERE r.group_id = ?1 AND r.closed_at IS NOT NULL AND ",
         unix!("r.opened_at"),
@@ -217,7 +218,7 @@ pub(super) async fn room(
     .bind(until as f64)
     .fetch_all(db)
     .await?;
-    let chips: HashMap<i64, i64> = chips
+    let chips: HashMap<MemberId, i64> = chips
         .into_iter()
         .filter(|(m, _)| people.contains_key(m))
         .collect();

@@ -12,6 +12,7 @@
 //! [`ballot`] from `game::vote`, [`leave`] when a seat ends, [`view`] for `RoundView.said`, and
 //! [`at_deadline`] from the party sweep.
 
+use crate::platform::ids::{AnswerId, MemberId, RoundId};
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
@@ -68,7 +69,7 @@ pub struct SaidView {
     /// When the guessing started.
     pub guess_at: Option<String>,
     /// Who has written (passes included), member order.
-    pub writer_ids: Vec<i64>,
+    pub writer_ids: Vec<MemberId>,
     pub my_answer: Option<MyAnswer>,
     /// Guessing and done: every real answer, by id (a random order fixed for the round).
     pub answers: Option<Vec<SaidAnswer>>,
@@ -80,14 +81,14 @@ pub struct SaidView {
 
 #[derive(Clone, Debug, Serialize)]
 pub struct MyAnswer {
-    pub id: i64,
+    pub id: AnswerId,
     pub text: String,
 }
 
 /// One answer as everyone sees it: `text` null when hidden by reports.
 #[derive(Clone, Debug, Serialize)]
 pub struct SaidAnswer {
-    pub id: i64,
+    pub id: AnswerId,
     pub text: Option<String>,
     pub hidden: bool,
 }
@@ -95,8 +96,8 @@ pub struct SaidAnswer {
 /// A guess: answer `answer_id` was written by `member_id`.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Guess {
-    pub answer_id: i64,
-    pub member_id: i64,
+    pub answer_id: AnswerId,
+    pub member_id: MemberId,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -109,8 +110,8 @@ pub struct SaidResult {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct AnswerResult {
-    pub id: i64,
-    pub author_id: i64,
+    pub id: AnswerId,
+    pub author_id: MemberId,
     /// Guessers who named the author.
     pub found: i64,
     /// Guessers who named someone else.
@@ -121,14 +122,14 @@ pub struct AnswerResult {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct VoterGuess {
-    pub voter_id: i64,
-    pub member_id: i64,
+    pub voter_id: MemberId,
+    pub member_id: MemberId,
 }
 
 /// `found` (+1 per author found) plus `fooled` (+1 per guesser who missed me) = `points`.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct SaidScore {
-    pub member_id: i64,
+    pub member_id: MemberId,
     pub points: i64,
     pub found: i64,
     pub fooled: i64,
@@ -136,8 +137,11 @@ pub struct SaidScore {
 
 /// The result from the real answers `(id, author)` and the guesses `(voter, answer, member)`.
 /// Guesses on an answer that isn't there (or on one's own) are ignored.
-pub fn compute(answers: &[(i64, i64)], guesses: &[(i64, i64, i64)]) -> SaidResult {
-    let mut scores: BTreeMap<i64, SaidScore> = BTreeMap::new();
+pub fn compute(
+    answers: &[(AnswerId, MemberId)],
+    guesses: &[(MemberId, AnswerId, MemberId)],
+) -> SaidResult {
+    let mut scores: BTreeMap<MemberId, SaidScore> = BTreeMap::new();
     let mut out = Vec::with_capacity(answers.len());
     for &(id, author_id) in answers {
         let mut on_it: Vec<VoterGuess> = guesses
@@ -195,7 +199,7 @@ pub fn compute(answers: &[(i64, i64)], guesses: &[(i64, i64, i64)]) -> SaidResul
 }
 
 /// A member's line in the scores being counted.
-fn score(scores: &mut BTreeMap<i64, SaidScore>, member_id: i64) -> &mut SaidScore {
+fn score(scores: &mut BTreeMap<MemberId, SaidScore>, member_id: MemberId) -> &mut SaidScore {
     scores.entry(member_id).or_insert(SaidScore {
         member_id,
         points: 0,
@@ -205,7 +209,7 @@ fn score(scores: &mut BTreeMap<i64, SaidScore>, member_id: i64) -> &mut SaidScor
 }
 
 /// The winners of a result: the top scorers (`points > 0`, ties share) and their points.
-pub fn winners(result: &SaidResult) -> (Vec<i64>, i64) {
+pub fn winners(result: &SaidResult) -> (Vec<MemberId>, i64) {
     let best = result.scores.first().map_or(0, |s| s.points);
     let ids = result
         .scores
@@ -217,9 +221,9 @@ pub fn winners(result: &SaidResult) -> (Vec<i64>, i64) {
 }
 
 /// An answer row: (id, author, text, hidden).
-type AnswerRow = (i64, i64, Option<String>, bool);
+type AnswerRow = (AnswerId, MemberId, Option<String>, bool);
 
-async fn answer_rows(db: &SqlitePool, round_id: i64) -> AppResult<Vec<AnswerRow>> {
+async fn answer_rows(db: &SqlitePool, round_id: RoundId) -> AppResult<Vec<AnswerRow>> {
     Ok(sqlx::query_as(
         "SELECT id, member_id, text, hidden_at IS NOT NULL FROM said_answers WHERE round_id = ? ORDER BY id",
     )
@@ -228,7 +232,10 @@ async fn answer_rows(db: &SqlitePool, round_id: i64) -> AppResult<Vec<AnswerRow>
     .await?)
 }
 
-async fn guess_rows(db: &SqlitePool, round_id: i64) -> AppResult<Vec<(i64, i64, i64)>> {
+async fn guess_rows(
+    db: &SqlitePool,
+    round_id: RoundId,
+) -> AppResult<Vec<(MemberId, AnswerId, MemberId)>> {
     Ok(sqlx::query_as(
         "SELECT voter_id, answer_id, member_id FROM said_guesses WHERE round_id = ? \
          ORDER BY voter_id, answer_id",
@@ -241,7 +248,7 @@ async fn guess_rows(db: &SqlitePool, round_id: i64) -> AppResult<Vec<(i64, i64, 
 /// When the guessing started (`None` while writing, for other kinds, and for a round that isn't there).
 async fn guess_at<'e, E: sqlx::SqliteExecutor<'e>>(
     db: E,
-    round_id: i64,
+    round_id: RoundId,
 ) -> AppResult<Option<String>> {
     Ok(
         sqlx::query_scalar("SELECT said_guess_at FROM rounds WHERE id = ?")
@@ -253,7 +260,7 @@ async fn guess_at<'e, E: sqlx::SqliteExecutor<'e>>(
 }
 
 /// The result of a closed said question, `None` when it closed before any guessing (too few answers).
-pub async fn result(db: &SqlitePool, round_id: i64) -> AppResult<Option<SaidResult>> {
+pub async fn result(db: &SqlitePool, round_id: RoundId) -> AppResult<Option<SaidResult>> {
     if guess_at(db, round_id).await?.is_none() {
         return Ok(None);
     }
@@ -263,7 +270,7 @@ pub async fn result(db: &SqlitePool, round_id: i64) -> AppResult<Option<SaidResu
 }
 
 /// `(id, author)` of the real answers (a pass from an older app has no text).
-fn real(rows: &[AnswerRow]) -> Vec<(i64, i64)> {
+fn real(rows: &[AnswerRow]) -> Vec<(AnswerId, MemberId)> {
     rows.iter()
         .filter(|r| r.2.is_some())
         .map(|r| (r.0, r.1))
@@ -273,10 +280,10 @@ fn real(rows: &[AnswerRow]) -> Vec<(i64, i64)> {
 /// The said part of a round view (`None` for other kinds). `me` = null on a party's big screen.
 pub async fn view(
     db: &SqlitePool,
-    round_id: i64,
+    round_id: RoundId,
     kind: &str,
     closed: bool,
-    me: Option<i64>,
+    me: Option<MemberId>,
 ) -> AppResult<Option<SaidView>> {
     if kind != "said" {
         return Ok(None);
@@ -289,7 +296,7 @@ pub async fn view(
         (false, Some(_)) => "guessing",
         (false, None) => "writing",
     };
-    let mut writer_ids: Vec<i64> = rows.iter().map(|r| r.1).collect();
+    let mut writer_ids: Vec<MemberId> = rows.iter().map(|r| r.1).collect();
     writer_ids.sort_unstable();
     let my_answer = rows
         .iter()
@@ -330,6 +337,30 @@ pub async fn view(
 mod tests {
     use super::*;
 
+    fn typed(answers: &[(i64, i64)]) -> Vec<(AnswerId, MemberId)> {
+        answers
+            .iter()
+            .map(|&(a, m)| (AnswerId::from_raw(a), MemberId::from_raw(m)))
+            .collect()
+    }
+
+    fn typed_guesses(guesses: &[(i64, i64, i64)]) -> Vec<(MemberId, AnswerId, MemberId)> {
+        guesses
+            .iter()
+            .map(|&(v, a, m)| {
+                (
+                    MemberId::from_raw(v),
+                    AnswerId::from_raw(a),
+                    MemberId::from_raw(m),
+                )
+            })
+            .collect()
+    }
+
+    fn m(id: i64) -> MemberId {
+        MemberId::from_raw(id)
+    }
+
     #[test]
     fn points_for_finding_and_fooling() {
         // Ana (1) wrote 10, Bob (2) wrote 20, Cyd (3) wrote 30.
@@ -345,35 +376,35 @@ mod tests {
             (3, 10, 1),
             (3, 20, 2),
         ];
-        let r = compute(&answers, &guesses);
+        let r = compute(&typed(&answers), &typed_guesses(&guesses));
         // Bob's answer found twice, Ana's once (Bob missed), Cyd's never (fooled both).
         let order: Vec<(i64, i64, i64)> = r
             .answers
             .iter()
-            .map(|a| (a.id, a.found, a.fooled))
+            .map(|a| (a.id.raw(), a.found, a.fooled))
             .collect();
         assert_eq!(order, [(20, 2, 0), (10, 1, 1), (30, 0, 2)]);
         assert_eq!(
             r.answers[2].guesses,
             [
                 VoterGuess {
-                    voter_id: 1,
-                    member_id: 1
+                    voter_id: m(1),
+                    member_id: m(1)
                 },
                 VoterGuess {
-                    voter_id: 2,
-                    member_id: 1
+                    voter_id: m(2),
+                    member_id: m(1)
                 }
             ]
         );
         let scores: Vec<(i64, i64, i64, i64)> = r
             .scores
             .iter()
-            .map(|s| (s.member_id, s.points, s.found, s.fooled))
+            .map(|s| (s.member_id.raw(), s.points, s.found, s.fooled))
             .collect();
         // Cyd 2 found + 2 fooled; Ana 1 + 1; Bob 0 + 0.
         assert_eq!(scores, [(3, 4, 2, 2), (1, 2, 1, 1), (2, 0, 0, 0)]);
-        assert_eq!(winners(&r), (vec![3], 4));
+        assert_eq!(winners(&r), (vec![m(3)], 4));
     }
 
     #[test]
@@ -389,19 +420,26 @@ mod tests {
             (1, 5, 1),
             (1, 99, 2),
         ];
-        let r = compute(&answers, &guesses);
+        let r = compute(&typed(&answers), &typed_guesses(&guesses));
         assert_eq!(
             r.answers.iter().map(|a| a.found).collect::<Vec<_>>(),
             [2, 2]
         );
-        assert_eq!(r.answers.iter().map(|a| a.id).collect::<Vec<_>>(), [5, 6]);
-        let scores: Vec<(i64, i64)> = r.scores.iter().map(|s| (s.member_id, s.points)).collect();
+        assert_eq!(
+            r.answers.iter().map(|a| a.id.raw()).collect::<Vec<_>>(),
+            [5, 6]
+        );
+        let scores: Vec<(i64, i64)> = r
+            .scores
+            .iter()
+            .map(|s| (s.member_id.raw(), s.points))
+            .collect();
         // Everyone found everything: the one who guessed both first, then member order.
         assert_eq!(scores, [(3, 2), (1, 1), (2, 1)]);
-        assert_eq!(winners(&r), (vec![3], 2));
+        assert_eq!(winners(&r), (vec![m(3)], 2));
 
         // Nobody guessed: no winner.
-        let r = compute(&answers, &[]);
+        let r = compute(&typed(&answers), &[]);
         assert!(r.scores.iter().all(|s| s.points == 0));
         assert_eq!(winners(&r), (vec![], 0));
         assert_eq!(r.scores.len(), 2, "authors keep their line");

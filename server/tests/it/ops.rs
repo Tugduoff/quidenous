@@ -1,5 +1,6 @@
 //! Operations: `/api/version`, app crash reports, database snapshots.
 
+use quidenous_server::platform::ids::UserId;
 use std::path::PathBuf;
 
 use axum::{
@@ -77,7 +78,7 @@ async fn account(state: &AppState, name: &str) -> String {
     .fetch_one(&state.db)
     .await
     .unwrap();
-    quidenous_server::accounts::issue_token(&state.db, id, None)
+    quidenous_server::accounts::issue_token(&state.db, UserId::from_raw(id), None)
         .await
         .unwrap()
 }
@@ -126,7 +127,10 @@ async fn version_reports_the_release_and_commit_built() {
             .filter(|o| o.status.success())
     };
     if !sha_set && git(&["rev-parse", "HEAD"]).is_some() {
-        assert!(baked.is_some(), "a git checkout's build bakes its commit in");
+        assert!(
+            baked.is_some(),
+            "a git checkout's build bakes its commit in"
+        );
         assert!(
             git(&["merge-base", "--is-ancestor", sha, "HEAD"]).is_some(),
             "{sha} is not HEAD nor one of its ancestors"

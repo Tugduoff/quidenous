@@ -1,3 +1,4 @@
+use crate::platform::ids::{MemberId, RoomId, RoundId, UserId};
 use axum::{
     Json,
     extract::{Path, Query, State},
@@ -62,7 +63,7 @@ pub(crate) async fn pinned_history(
     Ok(Json(history_items(&state.db, rounds).await?))
 }
 
-type HistoryRow = (i64, i64, String, String, bool, String, bool);
+type HistoryRow = (RoundId, i64, String, String, bool, String, bool);
 
 async fn history_items(
     db: &sqlx::SqlitePool,
@@ -162,7 +163,7 @@ pub(crate) struct ExportQuery {
     token: Option<String>,
     /// A 60 s single-use ticket from `POST /auth/ticket` (`purpose: "export"`).
     ticket: Option<String>,
-    room: Option<i64>,
+    room: Option<RoomId>,
     /// Minutes east of UTC, for the dates (default: the account's notification setting, else UTC).
     tz: Option<String>,
 }
@@ -181,8 +182,8 @@ pub(crate) async fn export_history(
     )
     .await?;
     let lang = i18n::of_member(&state.db, me.id).await?;
-    let names: std::collections::HashMap<i64, String> =
-        sqlx::query_as::<_, (i64, String, Option<i64>)>(
+    let names: std::collections::HashMap<MemberId, String> =
+        sqlx::query_as::<_, (MemberId, String, Option<UserId>)>(
             "SELECT id, name, user_id FROM members WHERE group_id = ?",
         )
         .bind(me.group_id)
@@ -191,7 +192,7 @@ pub(crate) async fn export_history(
         .into_iter()
         .map(|(id, name, user_id)| (id, i18n::member_name(lang, &name, user_id)))
         .collect();
-    let name = |id: i64| names.get(&id).cloned().unwrap_or_else(|| "?".into());
+    let name = |id: MemberId| names.get(&id).cloned().unwrap_or_else(|| "?".into());
     // Dates in the reader's time zone: a question closed at 00:30 in Paris is dated that day.
     let tz = match q.tz.as_deref() {
         Some(tz) => crate::insights::stats::parse_tz(Some(tz)),
@@ -204,7 +205,7 @@ pub(crate) async fn export_history(
             saved.map_or(0, crate::insights::stats::clamp_tz)
         }
     };
-    let rounds: Vec<(i64, i64, String, String, String)> = sqlx::query_as(
+    let rounds: Vec<(RoundId, i64, String, String, String)> = sqlx::query_as(
         "SELECT r.id, r.number, q.text, strftime('%Y-%m-%d', r.closed_at, ? || ' minutes'), q.kind \
          FROM rounds r JOIN questions q ON q.id = r.question_id \
          WHERE r.group_id = ? AND r.closed_at IS NOT NULL ORDER BY r.number",
@@ -335,7 +336,7 @@ const PINS_MAX: i64 = 100;
 pub(crate) async fn pin(
     State(state): State<AppState>,
     Me(me): Me,
-    Path(id): Path<i64>,
+    Path(id): Path<RoundId>,
 ) -> AppResult<Json<Value>> {
     let round = game::round(&state.db, me.group_id, id).await?;
     if round.closed_at.is_none() {
@@ -369,11 +370,11 @@ pub(crate) async fn pin(
 pub(crate) async fn unpin(
     State(state): State<AppState>,
     Me(me): Me,
-    Path(id): Path<i64>,
+    Path(id): Path<RoundId>,
 ) -> AppResult<Json<Value>> {
     game::round(&state.db, me.group_id, id).await?;
     // Whoever pinned it, or the owner (not anyone undoing everyone's pins).
-    let by: Option<i64> = sqlx::query_scalar("SELECT member_id FROM pins WHERE round_id = ?")
+    let by: Option<MemberId> = sqlx::query_scalar("SELECT member_id FROM pins WHERE round_id = ?")
         .bind(id)
         .fetch_optional(&state.db)
         .await?;

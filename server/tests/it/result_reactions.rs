@@ -2,6 +2,7 @@
 //! parties (guests, the old toggle, the state), account deletion and the live event's opt-in.
 
 use crate::common::{Socket, connect, next_event, serve};
+use quidenous_server::platform::ids::RoomId;
 
 use crate::common::{call, join, room_id, setup};
 use axum::{Router, http::StatusCode};
@@ -133,10 +134,10 @@ fn heard(
                 for t in list {
                     match taps
                         .iter_mut()
-                        .find(|x| x.0 == t.member_id && x.1 == t.emoji)
+                        .find(|x| x.0 == t.member_id.raw() && x.1 == t.emoji)
                     {
                         Some(x) => x.2 += t.count,
-                        None => taps.push((t.member_id, t.emoji, t.count)),
+                        None => taps.push((t.member_id.raw(), t.emoji, t.count)),
                     }
                 }
             }
@@ -530,7 +531,7 @@ async fn only_sockets_that_ask_hear_the_taps() {
     for socket in &mut sockets {
         let mut ok = false;
         for _ in 0..50 {
-            state.live.send(id, Event::RoomUpdated);
+            state.live.send(RoomId::from_raw(id), Event::RoomUpdated);
             if next_event(socket, 100).await.is_some() {
                 ok = true;
                 break;

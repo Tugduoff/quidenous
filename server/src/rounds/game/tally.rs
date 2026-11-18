@@ -1,3 +1,4 @@
+use crate::platform::ids::{MemberId, RoundId};
 use sqlx::SqlitePool;
 
 use crate::{
@@ -12,9 +13,9 @@ use super::*;
 
 /// Votes per person, most voted first. An anonymous question's tallies carry no voter ids: this is
 /// the one place results read who voted for whom (`anonymous`).
-pub async fn tallies(db: &SqlitePool, round_id: i64) -> AppResult<Vec<Tally>> {
+pub async fn tallies(db: &SqlitePool, round_id: RoundId) -> AppResult<Vec<Tally>> {
     let anonymous = crate::rooms::anonymous::is_anonymous(db, round_id).await?;
-    let rows: Vec<(i64, i64)> = sqlx::query_as(
+    let rows: Vec<(MemberId, MemberId)> = sqlx::query_as(
         "SELECT target_id, voter_id FROM votes WHERE round_id = ? ORDER BY created_at",
     )
     .bind(round_id)
@@ -43,13 +44,13 @@ pub async fn tallies(db: &SqlitePool, round_id: i64) -> AppResult<Vec<Tally>> {
     Ok(tallies)
 }
 
-pub async fn view(db: &SqlitePool, round: RoundRow, me: i64) -> AppResult<RoundView> {
-    let voter_ids: Vec<i64> =
+pub async fn view(db: &SqlitePool, round: RoundRow, me: MemberId) -> AppResult<RoundView> {
+    let voter_ids: Vec<MemberId> =
         sqlx::query_scalar("SELECT voter_id FROM votes WHERE round_id = ? ORDER BY created_at")
             .bind(round.id)
             .fetch_all(db)
             .await?;
-    let my_vote: Option<i64> =
+    let my_vote: Option<MemberId> =
         sqlx::query_scalar("SELECT target_id FROM votes WHERE round_id = ? AND voter_id = ?")
             .bind(round.id)
             .bind(me)
@@ -58,7 +59,7 @@ pub async fn view(db: &SqlitePool, round: RoundRow, me: i64) -> AppResult<RoundV
     let mut tx = db.begin().await?;
     let active = active_count(&mut tx, round.group_id).await?;
     let (skips, skipped_ids, away_ids) = if round.closed_at.is_none() {
-        let rows: Vec<(i64, i64, bool)> = sqlx::query_as(
+        let rows: Vec<(MemberId, i64, bool)> = sqlx::query_as(
             "SELECT target_id, COUNT(*), MAX(from_id = ?) FROM skips WHERE round_id = ? GROUP BY target_id",
         )
         .bind(me)
@@ -88,7 +89,7 @@ pub async fn view(db: &SqlitePool, round: RoundRow, me: i64) -> AppResult<RoundV
     };
     let pinned = is_pinned(db, round.id).await?;
     let (ranking, my_ranking) = if round.kind == "rank" {
-        let mine: Vec<i64> = sqlx::query_scalar(
+        let mine: Vec<MemberId> = sqlx::query_scalar(
             "SELECT member_id FROM rankings WHERE round_id = ? AND voter_id = ? ORDER BY position",
         )
         .bind(round.id)
@@ -104,7 +105,7 @@ pub async fn view(db: &SqlitePool, round: RoundRow, me: i64) -> AppResult<RoundV
         (None, None)
     };
     let (items, my_choices, choose) = if round.kind == "choose" {
-        let mine: Vec<(i64, i64)> = sqlx::query_as(
+        let mine: Vec<(MemberId, i64)> = sqlx::query_as(
             "SELECT member_id, item FROM choices WHERE round_id = ? AND voter_id = ? ORDER BY member_id",
         )
         .bind(round.id)
@@ -173,8 +174,8 @@ pub async fn view(db: &SqlitePool, round: RoundRow, me: i64) -> AppResult<RoundV
 
 /// A choose question's result: per person (member order) their own wire, the others' guesses and
 /// the most guessed item(s); per voter how many guesses matched a real choice, best first.
-pub async fn choose_result(db: &SqlitePool, round_id: i64) -> AppResult<ChooseResult> {
-    let rows: Vec<(i64, i64, i64)> = sqlx::query_as(
+pub async fn choose_result(db: &SqlitePool, round_id: RoundId) -> AppResult<ChooseResult> {
+    let rows: Vec<(MemberId, MemberId, i64)> = sqlx::query_as(
         "SELECT voter_id, member_id, item FROM choices WHERE round_id = ? ORDER BY member_id, voter_id",
     )
     .bind(round_id)
@@ -184,15 +185,15 @@ pub async fn choose_result(db: &SqlitePool, round_id: i64) -> AppResult<ChooseRe
 }
 
 /// [`choose_result`] from `(voter, member, item)` wires.
-pub fn compute_choose(rows: &[(i64, i64, i64)]) -> ChooseResult {
+pub fn compute_choose(rows: &[(MemberId, MemberId, i64)]) -> ChooseResult {
     use std::collections::BTreeMap;
-    let real: BTreeMap<i64, i64> = rows
+    let real: BTreeMap<MemberId, i64> = rows
         .iter()
         .filter(|(v, m, _)| v == m)
         .map(|(_, m, i)| (*m, *i))
         .collect();
-    let mut people: BTreeMap<i64, ChoosePerson> = BTreeMap::new();
-    let mut scores: BTreeMap<i64, ChooseScore> = BTreeMap::new();
+    let mut people: BTreeMap<MemberId, ChoosePerson> = BTreeMap::new();
+    let mut scores: BTreeMap<MemberId, ChooseScore> = BTreeMap::new();
     for &(voter_id, member_id, item) in rows {
         let person = people.entry(member_id).or_insert_with(|| ChoosePerson {
             member_id,
@@ -251,8 +252,8 @@ pub fn compute_choose(rows: &[(i64, i64, i64)]) -> ChooseResult {
 }
 
 /// Points per member for a ranking question: with N members ranked, 1st gets N points, last gets 1.
-pub async fn borda(db: &SqlitePool, round_id: i64) -> AppResult<Vec<RankEntry>> {
-    let rows: Vec<(i64, i64, f64, i64)> = sqlx::query_as(
+pub async fn borda(db: &SqlitePool, round_id: RoundId) -> AppResult<Vec<RankEntry>> {
+    let rows: Vec<(MemberId, i64, f64, i64)> = sqlx::query_as(
         "SELECT r.member_id, \
                 SUM(n.size - r.position + 1), AVG(CAST(r.position AS REAL)), SUM(r.position = 1) \
          FROM rankings r \
@@ -275,7 +276,7 @@ pub async fn borda(db: &SqlitePool, round_id: i64) -> AppResult<Vec<RankEntry>> 
         .collect())
 }
 
-pub async fn is_pinned(db: &SqlitePool, round_id: i64) -> AppResult<bool> {
+pub async fn is_pinned(db: &SqlitePool, round_id: RoundId) -> AppResult<bool> {
     let pinned: Option<i64> = sqlx::query_scalar("SELECT 1 FROM pins WHERE round_id = ?")
         .bind(round_id)
         .fetch_optional(db)

@@ -2,6 +2,7 @@
 //! (a code by email). Rooms are left the usual way, personal data is erased, the votes stay
 //! (attributed to an anonymous member) so the others' history still adds up.
 
+use crate::platform::ids::{RoomId, UserId};
 use axum::{Json, extract::State};
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -133,7 +134,7 @@ pub async fn confirm(
 /// alone = room deleted), then in one transaction: chat messages, reactions and inbox entries go,
 /// seats are anonymised, sessions, codes, providers, push, friends and blocks go, and the users row is
 /// scrubbed (kept: votes, packs and reports point at it). Photos and chat images are removed last.
-pub(crate) async fn erase(state: &AppState, user_id: i64) -> AppResult<()> {
+pub(crate) async fn erase(state: &AppState, user_id: UserId) -> AppResult<()> {
     // Signed out everywhere first: nothing the account does can race the rest.
     sqlx::query("DELETE FROM user_tokens WHERE user_id = ?")
         .bind(user_id)
@@ -163,7 +164,7 @@ pub(crate) async fn erase(state: &AppState, user_id: i64) -> AppResult<()> {
     .fetch_all(&state.db)
     .await?;
     // Their chat images (the messages go below).
-    let images: Vec<(i64, Option<String>)> = sqlx::query_as(
+    let images: Vec<(RoomId, Option<String>)> = sqlx::query_as(
         "SELECT r.group_id, x.media FROM messages x JOIN rounds r ON r.id = x.round_id \
          WHERE x.kind = 'image' AND x.member_id IN (SELECT id FROM members WHERE user_id = ?)",
     )
@@ -271,6 +272,6 @@ pub(crate) async fn erase(state: &AppState, user_id: i64) -> AppResult<()> {
         })
         .collect();
     crate::chat::media::remove_files(files).await;
-    tracing::info!(user_id, "account deleted");
+    tracing::info!(%user_id, "account deleted");
     Ok(())
 }

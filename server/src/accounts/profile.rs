@@ -1,3 +1,4 @@
+use crate::platform::ids::{MemberId, RoomId};
 use axum::{
     Json,
     extract::{Multipart, State},
@@ -116,7 +117,7 @@ pub(crate) async fn upload_photo(
 
 /// After a name, photo or avatar change (account-wide): every room I sit in hears it live; my seat here comes back.
 async fn profile_changed(state: &AppState, me: &MemberRow) -> AppResult<Json<Member>> {
-    let seats: Vec<(i64, i64)> = sqlx::query_as(
+    let seats: Vec<(MemberId, RoomId)> = sqlx::query_as(
         "SELECT id, group_id FROM members WHERE (user_id = ?1 OR id = ?2) AND removed_at IS NULL",
     )
     .bind(me.user_id)

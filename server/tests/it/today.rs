@@ -3,6 +3,7 @@
 
 use crate::common;
 use crate::common::{Socket, connect, serve};
+use quidenous_server::platform::ids::{MemberId, RoomId};
 
 use std::str::FromStr;
 
@@ -72,10 +73,11 @@ async fn enter(app: &Router, token: &str, code: &str) {
 
 /// My seat in a room.
 async fn seat(state: &AppState, token: &str, room: i64) -> i64 {
-    quidenous_server::accounts::auth::member_in_room(state, token, Some(room))
+    quidenous_server::accounts::auth::member_in_room(state, token, Some(RoomId::from_raw(room)))
         .await
         .unwrap()
         .id
+        .raw()
 }
 
 async fn ok(app: &Router, method: &str, path: &str, token: &str, room: i64, body: Option<Value>) {
@@ -297,7 +299,9 @@ async fn tripot_asks_for_a_bet_once_i_voted() {
     let l = line(&app, &ana, room).await;
     assert_eq!(l["state"], "tripot", "{l}");
     assert_eq!(l["tripot"]["can_bet"], true);
-    let balance = tripot::balance(&state.db, ana_id, None).await.unwrap();
+    let balance = tripot::balance(&state.db, MemberId::from_raw(ana_id), None)
+        .await
+        .unwrap();
     assert_eq!(l["tripot"]["balance"], balance);
 
     ok(
@@ -513,11 +517,15 @@ async fn unread_chat_per_room_without_blocked_people() {
     assert_eq!(line(&app, &bob, main).await["unread"], 1);
 
     // Blocked: Cyd's message no longer counts.
-    let cyd_user = quidenous_server::accounts::auth::member_in_room(&state, &cyd, Some(main))
-        .await
-        .unwrap()
-        .user_id
-        .unwrap();
+    let cyd_user = quidenous_server::accounts::auth::member_in_room(
+        &state,
+        &cyd,
+        Some(RoomId::from_raw(main)),
+    )
+    .await
+    .unwrap()
+    .user_id
+    .unwrap();
     ok(
         &app,
         "PUT",
@@ -689,7 +697,7 @@ async fn next_event(socket: &mut Socket, ms: u64) -> Option<Value> {
 /// Waits until the socket hears its own room (it subscribes once the upgrade is done).
 async fn subscribed(state: &AppState, socket: &mut Socket, room: i64) {
     for _ in 0..50 {
-        state.live.send(room, Event::RoomUpdated);
+        state.live.send(RoomId::from_raw(room), Event::RoomUpdated);
         let got = tokio::time::timeout(std::time::Duration::from_millis(100), socket.next()).await;
         if let Ok(Some(Ok(Message::Text(t)))) = got
             && t.contains("room_updated")
@@ -719,15 +727,17 @@ async fn the_live_socket_tells_about_my_other_rooms() {
     subscribed(&state, &mut plain, main).await;
 
     // A room I'm not in: nothing. Mine: a compact `room_activity`, only where asked for.
-    state.live.send(not_mine, Event::RoomUpdated);
-    state.live.send(mine, Event::RoomUpdated);
+    state
+        .live
+        .send(RoomId::from_raw(not_mine), Event::RoomUpdated);
+    state.live.send(RoomId::from_raw(mine), Event::RoomUpdated);
     let activity = json!({ "type": "room_activity", "room_id": mine });
     assert_eq!(next_event(&mut socket, 2000).await, Some(activity.clone()));
     assert_eq!(next_event(&mut plain, 300).await, None);
 
     // A burst within the gap: one trailing event, then quiet.
     for _ in 0..3 {
-        state.live.send(mine, Event::RoomUpdated);
+        state.live.send(RoomId::from_raw(mine), Event::RoomUpdated);
     }
     assert_eq!(next_event(&mut socket, 2000).await, Some(activity));
     assert_eq!(next_event(&mut socket, 1500).await, None);

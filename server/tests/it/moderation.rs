@@ -4,6 +4,7 @@
 //! restoring hidden messages.
 
 use crate::common;
+use quidenous_server::platform::ids::UserId;
 
 use crate::common::{call, join, room_id, temp_dir, trust_all};
 use axum::{Router, http::StatusCode};
@@ -13,7 +14,7 @@ use serde_json::{Value, json};
 /// A fresh server where account 1 (the first to join) is the admin.
 async fn setup() -> (Router, AppState) {
     let config = Config {
-        admin_user_ids: vec![1],
+        admin_user_ids: vec![UserId::from_raw(1)],
         ..common::config(&temp_dir("qdn-moderation"))
     };
     let state = state(config).await.unwrap();
@@ -237,7 +238,7 @@ async fn a_suspended_account_is_signed_out_for_good() {
         .await
         .unwrap();
     // No new session either.
-    let err = quidenous_server::accounts::sign_in(&state, bob_user, false, None)
+    let err = quidenous_server::accounts::sign_in(&state, UserId::from_raw(bob_user), false, None)
         .await
         .unwrap_err();
     assert_eq!(err.to_string(), "suspended");

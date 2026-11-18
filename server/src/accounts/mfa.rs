@@ -1,5 +1,6 @@
 //! 2FA: TOTP set up / enable / disable, recovery codes, the second sign-in step.
 
+use crate::platform::ids::UserId;
 use axum::{Json, extract::State};
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -29,7 +30,7 @@ fn open_secret(state: &AppState, sealed: &str) -> AppResult<String> {
         })
 }
 
-fn recovery_hash(state: &AppState, user_id: i64, code: &str) -> String {
+fn recovery_hash(state: &AppState, user_id: UserId, code: &str) -> String {
     state
         .auth
         .keys
@@ -78,7 +79,7 @@ pub(super) async fn second_factor(
 }
 
 /// Ten new one-time codes; the old ones stop working.
-async fn new_recovery_codes(state: &AppState, user_id: i64) -> AppResult<Vec<String>> {
+async fn new_recovery_codes(state: &AppState, user_id: UserId) -> AppResult<Vec<String>> {
     let codes: Vec<String> = (0..RECOVERY_COUNT)
         .map(|_| crypto::recovery_code())
         .collect();
@@ -273,7 +274,7 @@ pub async fn regenerate(
 }
 
 /// 2FA off: secret, pending set-up, recovery codes and a pending reset go.
-async fn remove_2fa(state: &AppState, user_id: i64) -> AppResult<()> {
+async fn remove_2fa(state: &AppState, user_id: UserId) -> AppResult<()> {
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
     sqlx::query(
         "UPDATE users SET totp_secret = NULL, totp_pending = NULL, totp_last_step = NULL, \
@@ -302,7 +303,7 @@ pub const RESET_AFTER_PASSWORD_RESET: i64 = 7 * 24 * 3600;
 
 /// `403 password_reset_recent` while a password reset by e-mail is less than
 /// `RESET_AFTER_PASSWORD_RESET` old.
-async fn not_after_password_reset(state: &AppState, user_id: i64) -> AppResult<()> {
+async fn not_after_password_reset(state: &AppState, user_id: UserId) -> AppResult<()> {
     let at: Option<i64> = sqlx::query_scalar("SELECT password_reset_at FROM users WHERE id = ?")
         .bind(user_id)
         .fetch_one(&state.db)
@@ -422,7 +423,7 @@ pub async fn reset_cancel(
 }
 
 /// At sign-in: a reset whose delay is over removes 2FA (this sign-in then needs no code).
-pub(super) async fn finish_due_reset(state: &AppState, user_id: i64) -> AppResult<()> {
+pub(super) async fn finish_due_reset(state: &AppState, user_id: UserId) -> AppResult<()> {
     let due: Option<(Option<String>,)> = sqlx::query_as(
         "SELECT totp_secret FROM users WHERE id = ? AND mfa_reset_at IS NOT NULL AND mfa_reset_at <= ?",
     )
@@ -435,7 +436,7 @@ pub(super) async fn finish_due_reset(state: &AppState, user_id: i64) -> AppResul
     };
     remove_2fa(state, user_id).await?;
     if secret.is_some() {
-        tracing::info!(user_id, "2FA removed by a delayed e-mail reset");
+        tracing::info!(%user_id, "2FA removed by a delayed e-mail reset");
         notify(state, user_id, Notice::MfaResetDone);
     }
     Ok(())

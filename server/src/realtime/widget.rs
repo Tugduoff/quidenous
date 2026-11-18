@@ -9,6 +9,7 @@
 //! The widget token works on `/api/widget` only, and session tokens don't work there: a leaked widget
 //! token shows today's question and nothing more (no vote, no chat, no account change).
 
+use crate::platform::ids::{RoomId, RoundId, UserId};
 use axum::{
     Json, Router,
     extract::{Query, State},
@@ -83,12 +84,12 @@ async fn mint(
 }
 
 /// The account behind a widget token (`Authorization: Bearer w_…`).
-async fn widget_user(state: &AppState, headers: &HeaderMap) -> AppResult<(String, i64)> {
+async fn widget_user(state: &AppState, headers: &HeaderMap) -> AppResult<(String, UserId)> {
     let token = crate::accounts::bearer(headers)
         .filter(|t| t.starts_with("w_"))
         .ok_or(AppError::Unauthorized)?;
     let hash = hash_token(token);
-    let user: i64 = sqlx::query_scalar(
+    let user: UserId = sqlx::query_scalar(
         "SELECT w.user_id FROM widget_tokens w JOIN users u ON u.id = w.user_id \
          WHERE w.token_hash = ? AND u.suspended_at IS NULL",
     )
@@ -110,7 +111,7 @@ async fn revoke(State(state): State<AppState>, headers: HeaderMap) -> AppResult<
 
 #[derive(Deserialize)]
 struct WidgetQuery {
-    room: Option<i64>,
+    room: Option<RoomId>,
 }
 
 /// What the widget draws. `state`, by priority:
@@ -141,14 +142,14 @@ pub struct WidgetState {
 
 #[derive(Debug, Serialize)]
 pub struct WidgetRoom {
-    pub id: i64,
+    pub id: RoomId,
     pub name: String,
     pub kind: String,
 }
 
 #[derive(Debug, Serialize)]
 pub struct WidgetRound {
-    pub id: i64,
+    pub id: RoundId,
     pub number: i64,
     pub question: String,
     pub kind: String,
@@ -181,8 +182,8 @@ async fn get_state(
 /// more falls back to that too, so a widget never breaks on a room left).
 pub async fn widget_state(
     state: &AppState,
-    user: i64,
-    room: Option<i64>,
+    user: UserId,
+    room: Option<RoomId>,
 ) -> AppResult<WidgetState> {
     let lang = i18n::of_user(&state.db, user).await?.as_str();
     // Not `auth::member_in_room`: a glance at the widget is no visit (no "last used", no activity).
@@ -294,8 +295,8 @@ pub async fn widget_state(
 
 /// A question opened or closed in this room: every widget of its members refreshes (Android, a silent
 /// FCM data message, collapsed and normal priority: it waits for the phone's next wake-up).
-pub async fn ping_room(state: &AppState, group_id: i64) {
-    let tokens: Vec<(i64, String)> = match sqlx::query_as(
+pub async fn ping_room(state: &AppState, group_id: RoomId) {
+    let tokens: Vec<(UserId, String)> = match sqlx::query_as(
         "SELECT DISTINCT w.user_id, w.fcm_token FROM widget_tokens w \
          JOIN members m ON m.user_id = w.user_id AND m.removed_at IS NULL \
          WHERE m.group_id = ? AND w.fcm_token IS NOT NULL",
@@ -305,7 +306,7 @@ pub async fn ping_room(state: &AppState, group_id: i64) {
     .await
     {
         Ok(t) => t,
-        Err(e) => return tracing::warn!(group_id, error = %e, "widget ping: load tokens"),
+        Err(e) => return tracing::warn!(%group_id, error = %e, "widget ping: load tokens"),
     };
     if !tokens.is_empty() {
         state.push.widget_ping(state.db.clone(), group_id, tokens);

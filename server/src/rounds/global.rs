@@ -3,6 +3,7 @@
 //! questions. Each seat answers it once, about someone of its room; after voting it sees its
 //! room's tally and anonymous aggregates across rooms (only once enough rooms answered).
 
+use crate::platform::ids::{MemberId, QuestionId, RoomId};
 use std::collections::HashMap;
 
 use axum::{
@@ -68,12 +69,12 @@ pub async fn question_for(
     db: &SqlitePool,
     lang: Lang,
     day: &str,
-) -> sqlx::Result<Option<(i64, String)>> {
+) -> sqlx::Result<Option<(QuestionId, String)>> {
     let stored = stored_question(db, lang, day).await?;
     if stored.is_some() {
         return Ok(stored);
     }
-    let deck: Vec<(i64, String, Option<String>)> = sqlx::query_as(ELIGIBLE)
+    let deck: Vec<(QuestionId, String, Option<String>)> = sqlx::query_as(ELIGIBLE)
         .bind(lang.as_str())
         .bind(day)
         .fetch_all(db)
@@ -83,7 +84,7 @@ pub async fn question_for(
         .bind(format!("-{NO_REPEAT_DAYS} days"))
         .fetch_one(db)
         .await?;
-    let fresh: Vec<&(i64, String, Option<String>)> = deck
+    let fresh: Vec<&(QuestionId, String, Option<String>)> = deck
         .iter()
         .filter(|(_, _, last)| last.as_ref().is_none_or(|l| *l <= cutoff))
         .collect();
@@ -116,7 +117,7 @@ async fn stored_question(
     db: &SqlitePool,
     lang: Lang,
     day: &str,
-) -> sqlx::Result<Option<(i64, String)>> {
+) -> sqlx::Result<Option<(QuestionId, String)>> {
     sqlx::query_as("SELECT question_id, text FROM global_questions WHERE day = ? AND language = ?")
         .bind(day)
         .bind(lang.as_str())
@@ -153,7 +154,7 @@ async fn gate(db: &SqlitePool, me: &MemberRow) -> AppResult<Result<Lang, &'stati
     Ok(Ok(Lang::from_db(Some(&language))))
 }
 
-async fn members(db: &SqlitePool, room: i64) -> sqlx::Result<i64> {
+async fn members(db: &SqlitePool, room: RoomId) -> sqlx::Result<i64> {
     sqlx::query_scalar("SELECT COUNT(*) FROM members WHERE group_id = ? AND removed_at IS NULL")
         .bind(room)
         .fetch_one(db)
@@ -166,8 +167,8 @@ async fn counted_votes(
     db: &SqlitePool,
     lang: Lang,
     day: &str,
-    room: Option<i64>,
-) -> sqlx::Result<Vec<(i64, i64, i64)>> {
+    room: Option<RoomId>,
+) -> sqlx::Result<Vec<(RoomId, MemberId, MemberId)>> {
     sqlx::query_as(
         "SELECT v.group_id, v.voter_id, v.target_id FROM global_votes v \
          JOIN groups g ON g.id = v.group_id AND g.deleted_at IS NULL AND g.kind = 'room' \
@@ -185,13 +186,13 @@ async fn counted_votes(
 /// One person's count in my room's tally (no voter ids: the global question is anonymous).
 #[derive(Debug, Serialize, PartialEq)]
 pub struct Count {
-    pub target_id: i64,
+    pub target_id: MemberId,
     pub count: i64,
 }
 
 /// Most votes first, then by id.
-fn tally(targets: impl Iterator<Item = i64>) -> Vec<Count> {
-    let mut counts: HashMap<i64, i64> = HashMap::new();
+fn tally(targets: impl Iterator<Item = MemberId>) -> Vec<Count> {
+    let mut counts: HashMap<MemberId, i64> = HashMap::new();
     for t in targets {
         *counts.entry(t).or_default() += 1;
     }
@@ -204,7 +205,7 @@ fn tally(targets: impl Iterator<Item = i64>) -> Vec<Count> {
 }
 
 /// Whoever has the most votes (all of them on a tie).
-fn winners(tally: &[Count]) -> Vec<i64> {
+fn winners(tally: &[Count]) -> Vec<MemberId> {
     let top = tally.first().map_or(0, |c| c.count);
     tally
         .iter()
@@ -245,7 +246,7 @@ async fn aggregates(
     lang: Lang,
     day: &str,
 ) -> AppResult<(usize, usize, Option<Vec<Fact>>)> {
-    let mut by_room: HashMap<i64, Vec<(i64, i64)>> = HashMap::new();
+    let mut by_room: HashMap<RoomId, Vec<(MemberId, MemberId)>> = HashMap::new();
     for (room, voter, target) in counted_votes(db, lang, day, None).await? {
         by_room.entry(room).or_default().push((voter, target));
     }
@@ -270,7 +271,7 @@ async fn aggregates(
             themselves.add(voter == target);
         }
         // The owner, and whoever joined last (the owner never counts as the newcomer).
-        let people: Vec<(i64, String)> = sqlx::query_as(
+        let people: Vec<(MemberId, String)> = sqlx::query_as(
             "SELECT id, role FROM members WHERE group_id = ? AND removed_at IS NULL \
              ORDER BY created_at DESC, id DESC",
         )
@@ -284,7 +285,7 @@ async fn aggregates(
             newest.add(won.contains(id));
         }
         // The room's latest closed pick question that got votes (a skipped one keeps none).
-        let last: Vec<i64> = sqlx::query_scalar(
+        let last: Vec<MemberId> = sqlx::query_scalar(
             "SELECT target_id FROM votes WHERE round_id = (SELECT r.id FROM rounds r \
              JOIN questions q ON q.id = r.question_id AND q.kind = 'pick' \
              WHERE r.group_id = ? AND r.closed_at IS NOT NULL \
@@ -358,7 +359,7 @@ pub async fn view_at(state: &AppState, me: &MemberRow, day: &str) -> AppResult<V
     let Some((_, question)) = question_for(db, lang, day).await? else {
         return Ok(unavailable("no_question"));
     };
-    let my_vote: Option<i64> = sqlx::query_scalar(
+    let my_vote: Option<MemberId> = sqlx::query_scalar(
         "SELECT target_id FROM global_votes WHERE day = ? AND language = ? AND voter_id = ?",
     )
     .bind(day)
@@ -418,13 +419,18 @@ async fn get_today(State(state): State<AppState>, Me(me): Me) -> AppResult<Json<
 #[derive(Deserialize)]
 pub(crate) struct VoteBody {
     #[serde(alias = "target_id")]
-    target: i64,
+    target: MemberId,
 }
 
 /// Answers the question of `day` for someone of my room. Final: `409 already_voted` after.
 /// `403 party | guest | small_room` when the room can't answer it, `400 unknown_member` for
 /// someone not in my room.
-pub async fn vote_at(state: &AppState, me: &MemberRow, target: i64, day: &str) -> AppResult<()> {
+pub async fn vote_at(
+    state: &AppState,
+    me: &MemberRow,
+    target: MemberId,
+    day: &str,
+) -> AppResult<()> {
     let lang = gate(&state.db, me).await?.map_err(AppError::Forbidden)?;
     if question_for(&state.db, lang, day).await?.is_none() {
         return Err(AppError::Conflict("no_question"));
@@ -474,25 +480,26 @@ mod tests {
 
     #[test]
     fn tallies_and_winners() {
-        let t = tally([3, 1, 3, 2, 1].into_iter());
+        let m = MemberId::from_raw;
+        let t = tally([3, 1, 3, 2, 1].into_iter().map(m));
         assert_eq!(
             t,
             vec![
                 Count {
-                    target_id: 1,
+                    target_id: m(1),
                     count: 2
                 },
                 Count {
-                    target_id: 3,
+                    target_id: m(3),
                     count: 2
                 },
                 Count {
-                    target_id: 2,
+                    target_id: m(2),
                     count: 1
                 },
             ]
         );
-        assert_eq!(winners(&t), vec![1, 3]);
+        assert_eq!(winners(&t), vec![m(1), m(3)]);
         assert!(winners(&[]).is_empty());
         let r = Ratio { hits: 2, of: 3 };
         assert_eq!(r.pct(), 67);

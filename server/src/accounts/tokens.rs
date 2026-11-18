@@ -1,3 +1,4 @@
+use crate::platform::ids::UserId;
 use std::{
     net::{IpAddr, SocketAddr},
     time::{Duration, Instant},
@@ -117,7 +118,7 @@ pub(crate) fn bearer(headers: &HeaderMap) -> Option<&str> {
 
 /// The signed-in account and the hash of the token used (sessions, logout).
 pub struct Session {
-    pub user_id: i64,
+    pub user_id: UserId,
     pub token_hash: String,
 }
 
@@ -219,7 +220,7 @@ pub async fn label(state: &AppState, token: &str, headers: &HeaderMap) {
 /// A new session token for this account.
 pub async fn issue_token(
     db: &sqlx::SqlitePool,
-    user_id: i64,
+    user_id: UserId,
     device: Option<&str>,
 ) -> AppResult<String> {
     let token = crate::accounts::auth::new_token();
@@ -269,7 +270,7 @@ pub async fn purge_idle_sessions(state: &AppState) -> AppResult<u64> {
 /// `{token, user_id, new}`, or `{mfa: "totp", challenge}` when the account has 2FA on.
 pub async fn sign_in(
     state: &AppState,
-    user_id: i64,
+    user_id: UserId,
     new: bool,
     device: Option<&str>,
 ) -> AppResult<Value> {

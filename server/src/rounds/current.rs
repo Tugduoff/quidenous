@@ -1,3 +1,4 @@
+use crate::platform::ids::{MemberId, RoomId, RoundId};
 use axum::{
     Json,
     extract::{Path, State},
@@ -32,7 +33,7 @@ pub(crate) async fn current_round(
 pub(crate) async fn for_client(
     state: &AppState,
     headers: &axum::http::HeaderMap,
-    me: i64,
+    me: MemberId,
     mut view: RoundView,
 ) -> AppResult<RoundView> {
     let knows = headers
@@ -48,9 +49,9 @@ pub(crate) async fn for_client(
 
 #[derive(Deserialize)]
 pub(crate) struct VoteBody {
-    target_id: Option<i64>,
+    target_id: Option<MemberId>,
     /// Ranking questions: every member, first to last.
-    ranking: Option<Vec<i64>>,
+    ranking: Option<Vec<MemberId>>,
     /// Choose questions: every member wired to an item.
     choices: Option<Vec<crate::rounds::model::Choice>>,
     /// Said questions: every answer but mine matched to its author.
@@ -78,7 +79,12 @@ pub(crate) async fn vote(
 
 /// After a vote (or a said answer) committed: the room hears it, a said question's guessing is
 /// announced, and a question it closed is notified.
-pub(crate) async fn after_vote(state: &AppState, group_id: i64, actor: i64, events: Vec<Event>) {
+pub(crate) async fn after_vote(
+    state: &AppState,
+    group_id: RoomId,
+    actor: MemberId,
+    events: Vec<Event>,
+) {
     let closed = events
         .iter()
         .any(|e| matches!(e, Event::RoundClosed { .. }));
@@ -98,7 +104,7 @@ pub(crate) async fn after_vote(state: &AppState, group_id: i64, actor: i64, even
 pub(crate) async fn round(
     State(state): State<AppState>,
     Me(me): Me,
-    Path(id): Path<i64>,
+    Path(id): Path<RoundId>,
     headers: axum::http::HeaderMap,
 ) -> AppResult<Json<RoundView>> {
     let round = game::round(&state.db, me.group_id, id).await?;
@@ -113,7 +119,7 @@ pub(crate) struct UnseenView {
     #[serde(flatten)]
     round: RoundView,
     unseen_count: usize,
-    unseen_last_id: i64,
+    unseen_last_id: RoundId,
 }
 
 pub(crate) async fn unseen_round(
@@ -137,7 +143,7 @@ pub(crate) async fn unseen_round(
 pub(crate) async fn mark_seen(
     State(state): State<AppState>,
     Me(me): Me,
-    Path(id): Path<i64>,
+    Path(id): Path<RoundId>,
 ) -> AppResult<Json<Value>> {
     let round = game::round(&state.db, me.group_id, id).await?;
     sqlx::query("UPDATE members SET seen_round = MAX(seen_round, ?) WHERE id = ?")

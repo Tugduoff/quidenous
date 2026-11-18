@@ -1,3 +1,4 @@
+use crate::platform::ids::{MemberId, RoomId, RoundId};
 use sqlx::{Sqlite, Transaction};
 
 use crate::{platform::error::AppResult, realtime::live::Event};
@@ -13,7 +14,7 @@ pub const QUORUM_HOURS: i64 = 24;
 /// Members who are away: the last [`AWAY_AFTER`] questions of the room closed without their vote
 /// (closed since they joined; a removed question nobody could answer doesn't count). The room
 /// stops waiting for them until they vote again. Rooms only.
-pub async fn away(tx: &mut Transaction<'_, Sqlite>, group_id: i64) -> AppResult<Vec<i64>> {
+pub async fn away(tx: &mut Transaction<'_, Sqlite>, group_id: RoomId) -> AppResult<Vec<MemberId>> {
     Ok(sqlx::query_scalar(concat!(
         "SELECT m.id FROM members m WHERE m.group_id = ?1 AND m.removed_at IS NULL AND ",
         away_sql!("?2"),
@@ -28,16 +29,16 @@ pub async fn away(tx: &mut Transaction<'_, Sqlite>, group_id: i64) -> AppResult<
 /// Who an open question no longer waits for: skipped by the room, or away. Sorted, no duplicates.
 pub async fn not_waited(
     tx: &mut Transaction<'_, Sqlite>,
-    group_id: i64,
-    round_id: i64,
-) -> AppResult<(Vec<i64>, Vec<i64>)> {
+    group_id: RoomId,
+    round_id: RoundId,
+) -> AppResult<(Vec<MemberId>, Vec<MemberId>)> {
     let skipped = skipped(tx, group_id, round_id).await?;
     let away = away(tx, group_id).await?;
     Ok((skipped, away))
 }
 
-pub(super) fn union(a: &[i64], b: &[i64]) -> usize {
-    let mut all: Vec<i64> = a.iter().chain(b).copied().collect();
+pub(super) fn union(a: &[MemberId], b: &[MemberId]) -> usize {
+    let mut all: Vec<MemberId> = a.iter().chain(b).copied().collect();
     all.sort_unstable();
     all.dedup();
     all.len()
@@ -46,8 +47,8 @@ pub(super) fn union(a: &[i64], b: &[i64]) -> usize {
 /// How many people a room's open question waits for: its active members minus the skipped and the away.
 pub(crate) async fn waiting_for(
     tx: &mut Transaction<'_, Sqlite>,
-    group_id: i64,
-    round_id: i64,
+    group_id: RoomId,
+    round_id: RoundId,
 ) -> AppResult<i64> {
     let (skipped, away) = not_waited(tx, group_id, round_id).await?;
     Ok(active_count(tx, group_id).await? - union(&skipped, &away) as i64)
@@ -55,7 +56,7 @@ pub(crate) async fn waiting_for(
 
 /// Open for [`QUORUM_HOURS`] (a said question's guessing: counted from its start), so half of the
 /// people it waits for is enough.
-pub(crate) async fn late(tx: &mut Transaction<'_, Sqlite>, round_id: i64) -> AppResult<bool> {
+pub(crate) async fn late(tx: &mut Transaction<'_, Sqlite>, round_id: RoundId) -> AppResult<bool> {
     Ok(sqlx::query_scalar(
         "SELECT COALESCE(said_guess_at, opened_at) <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now', ?) \
          FROM rounds WHERE id = ?",
@@ -73,8 +74,8 @@ pub(crate) async fn late(tx: &mut Transaction<'_, Sqlite>, round_id: i64) -> App
 /// A said question still writing moves on to its guessing instead (see [`crate::rounds::said::advance`]).
 pub async fn close_if_done(
     tx: &mut Transaction<'_, Sqlite>,
-    group_id: i64,
-    round_id: i64,
+    group_id: RoomId,
+    round_id: RoundId,
 ) -> AppResult<Vec<Event>> {
     let party = party(&mut **tx, group_id).await?;
     let mut events = Vec::new();
@@ -120,8 +121,8 @@ pub async fn close_if_done(
 /// Closes a room question now, settles its bets and opens the next one (unless the room is paced).
 pub(super) async fn close_room_round(
     tx: &mut Transaction<'_, Sqlite>,
-    group_id: i64,
-    round_id: i64,
+    group_id: RoomId,
+    round_id: RoundId,
 ) -> AppResult<Vec<Event>> {
     let done = sqlx::query("UPDATE rounds SET closed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ? AND closed_at IS NULL")
         .bind(round_id)
@@ -146,8 +147,8 @@ pub(super) async fn close_room_round(
 /// A room never counts such a question as missed (see [`away`]).
 pub async fn drop_round(
     tx: &mut Transaction<'_, Sqlite>,
-    group_id: i64,
-    round_id: i64,
+    group_id: RoomId,
+    round_id: RoundId,
 ) -> AppResult<Vec<Event>> {
     for sql in [
         "DELETE FROM votes WHERE round_id = ?",
@@ -184,8 +185,8 @@ pub async fn drop_round(
 /// gives no events.
 pub async fn close_party_round(
     tx: &mut Transaction<'_, Sqlite>,
-    group_id: i64,
-    round_id: i64,
+    group_id: RoomId,
+    round_id: RoundId,
     now: Option<&str>,
 ) -> AppResult<Vec<Event>> {
     let done = sqlx::query(
@@ -210,7 +211,7 @@ pub async fn close_party_round(
     Ok(vec![Event::RoundClosed { round_id }, Event::RoomUpdated])
 }
 
-pub async fn active_count(tx: &mut Transaction<'_, Sqlite>, group_id: i64) -> AppResult<i64> {
+pub async fn active_count(tx: &mut Transaction<'_, Sqlite>, group_id: RoomId) -> AppResult<i64> {
     Ok(
         sqlx::query_scalar(
             "SELECT COUNT(*) FROM members WHERE group_id = ? AND removed_at IS NULL",
@@ -225,9 +226,9 @@ pub async fn active_count(tx: &mut Transaction<'_, Sqlite>, group_id: i64) -> Ap
 /// said question still writing, not written).
 pub async fn skipped(
     tx: &mut Transaction<'_, Sqlite>,
-    group_id: i64,
-    round_id: i64,
-) -> AppResult<Vec<i64>> {
+    group_id: RoomId,
+    round_id: RoundId,
+) -> AppResult<Vec<MemberId>> {
     let needed = majority(active_count(tx, group_id).await?);
     Ok(sqlx::query_scalar(concat!(
         "SELECT s.target_id FROM skips s JOIN members m ON m.id = s.target_id AND m.removed_at IS NULL \

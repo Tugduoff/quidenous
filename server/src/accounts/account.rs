@@ -1,3 +1,4 @@
+use crate::platform::ids::UserId;
 use crate::{
     AppState,
     platform::error::{AppError, AppResult},
@@ -9,7 +10,7 @@ use super::*;
 
 /// Has a password (with its e-mail, or one whose unverified e-mail was freed: still not a legacy
 /// account), or a linked provider: can't be claimed by first name any more.
-pub async fn is_secured<'e, E>(db: E, user_id: i64) -> AppResult<bool>
+pub async fn is_secured<'e, E>(db: E, user_id: UserId) -> AppResult<bool>
 where
     E: sqlx::Executor<'e, Database = sqlx::Sqlite>,
 {
@@ -25,7 +26,7 @@ where
 }
 
 /// An admin suspended it (reports): it gets no session, by any way in (`403 suspended`).
-pub async fn is_suspended<'e, E>(db: E, user_id: i64) -> AppResult<bool>
+pub async fn is_suspended<'e, E>(db: E, user_id: UserId) -> AppResult<bool>
 where
     E: sqlx::Executor<'e, Database = sqlx::Sqlite>,
 {
@@ -41,7 +42,7 @@ where
 /// The account columns the auth endpoints need.
 #[derive(sqlx::FromRow)]
 pub(crate) struct Account {
-    pub id: i64,
+    pub id: UserId,
     pub name: String,
     pub email: Option<String>,
     pub password_hash: Option<String>,
@@ -50,7 +51,7 @@ pub(crate) struct Account {
     pub totp_pending: Option<String>,
 }
 
-pub(crate) async fn account(state: &AppState, user_id: i64) -> AppResult<Account> {
+pub(crate) async fn account(state: &AppState, user_id: UserId) -> AppResult<Account> {
     sqlx::query_as(
         "SELECT id, name, email, password_hash, email_verified_at, totp_secret, totp_pending \
          FROM users WHERE id = ?",
@@ -78,7 +79,11 @@ pub const CLAIM_IDLE_DAYS: i64 = 30;
 /// signs in nor sign other devices out, unless it is the account's only session in use (the
 /// others unused for `CLAIM_IDLE_DAYS`: nothing is then taken from anyone, and a lost phone can't
 /// lock its owner out for good). `403 claimed_session`.
-pub(crate) async fn not_claimed(state: &AppState, user_id: i64, token_hash: &str) -> AppResult<()> {
+pub(crate) async fn not_claimed(
+    state: &AppState,
+    user_id: UserId,
+    token_hash: &str,
+) -> AppResult<()> {
     let row: Option<(bool, bool)> = sqlx::query_as(
         "SELECT claimed != 0, EXISTS (SELECT 1 FROM user_tokens o \
              WHERE o.user_id = t.user_id AND o.token_hash != t.token_hash \
@@ -144,7 +149,7 @@ pub(crate) async fn require_reauth(
 /// Records that this session just proved who it is.
 pub(crate) async fn mark_reauth(
     state: &AppState,
-    user_id: i64,
+    user_id: UserId,
     token_hash: &str,
 ) -> AppResult<bool> {
     let done =
@@ -160,7 +165,7 @@ pub(crate) async fn mark_reauth(
 /// Deletes every session of an account but `keep` (a token hash). Returns how many.
 pub(crate) async fn revoke_sessions(
     state: &AppState,
-    user_id: i64,
+    user_id: UserId,
     keep: Option<&str>,
 ) -> AppResult<u64> {
     let done = sqlx::query("DELETE FROM user_tokens WHERE user_id = ? AND token_hash != ?")
@@ -173,7 +178,7 @@ pub(crate) async fn revoke_sessions(
 
 /// A short e-mail about a security change to the account's address, if it is verified (an
 /// unverified one may be someone else's). In the background: never slows or fails the request.
-pub(crate) fn notify(state: &AppState, user_id: i64, notice: crate::platform::i18n::Notice) {
+pub(crate) fn notify(state: &AppState, user_id: UserId, notice: crate::platform::i18n::Notice) {
     let state = state.clone();
     tokio::spawn(async move {
         let row: Option<(Option<String>, bool)> =

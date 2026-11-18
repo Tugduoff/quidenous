@@ -5,6 +5,7 @@
 //! - Result reactions (docs/REACTIONS.md): taps on a revealed result, daily or party, counted per
 //!   member and emoji up to a cap, sent live as `result_reacted` to the sockets that asked for it.
 
+use crate::platform::ids::{MemberId, MessageId, RoomId, RoundId, UserId};
 use std::collections::HashMap;
 
 use axum::{
@@ -35,7 +36,7 @@ pub struct Reaction {
     /// I am one of them.
     pub mine: bool,
     /// Who reacted (member ids), oldest first.
-    pub members: Vec<i64>,
+    pub members: Vec<MemberId>,
 }
 
 /// The allow-listed emoji `raw` stands for (a bare "❤" is "❤️"), or `None`.
@@ -50,12 +51,12 @@ pub fn clean_emoji(raw: &str) -> Option<&'static str> {
 pub async fn for_messages<'e, E: SqliteExecutor<'e>>(
     db: E,
     viewer: &MemberRow,
-    ids: &[i64],
-) -> AppResult<HashMap<i64, Vec<Reaction>>> {
+    ids: &[MessageId],
+) -> AppResult<HashMap<MessageId, Vec<Reaction>>> {
     if ids.is_empty() {
         return Ok(HashMap::new());
     }
-    let rows: Vec<(i64, String, i64)> = sqlx::query_as(
+    let rows: Vec<(MessageId, String, MemberId)> = sqlx::query_as(
         "SELECT r.message_id, r.emoji, r.member_id FROM message_reactions r \
          JOIN members m ON m.id = r.member_id \
          WHERE r.message_id IN (SELECT value FROM json_each(?1)) \
@@ -66,7 +67,7 @@ pub async fn for_messages<'e, E: SqliteExecutor<'e>>(
     .bind(viewer.user_id)
     .fetch_all(db)
     .await?;
-    let mut by_message: HashMap<i64, Vec<Reaction>> = HashMap::new();
+    let mut by_message: HashMap<MessageId, Vec<Reaction>> = HashMap::new();
     for (message_id, emoji, member_id) in rows {
         // Only the allow-list is ever stored; anything else would be skipped.
         let Some(emoji) = clean_emoji(&emoji) else {
@@ -105,7 +106,7 @@ pub struct ReactBody {
 pub async fn add(
     State(state): State<AppState>,
     Me(me): Me,
-    Path(id): Path<i64>,
+    Path(id): Path<MessageId>,
     Json(body): Json<ReactBody>,
 ) -> AppResult<Json<Value>> {
     change(&state, &me, id, &body.emoji, true).await
@@ -115,7 +116,7 @@ pub async fn add(
 pub async fn remove(
     State(state): State<AppState>,
     Me(me): Me,
-    Path(id): Path<i64>,
+    Path(id): Path<MessageId>,
     Json(body): Json<ReactBody>,
 ) -> AppResult<Json<Value>> {
     change(&state, &me, id, &body.emoji, false).await
@@ -127,7 +128,7 @@ pub async fn remove(
 async fn change(
     state: &AppState,
     me: &MemberRow,
-    id: i64,
+    id: MessageId,
     emoji: &str,
     on: bool,
 ) -> AppResult<Json<Value>> {
@@ -138,7 +139,7 @@ async fn change(
     }
     // Checked in the write transaction: the message can't be deleted in between.
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
-    let round_id: i64 = sqlx::query_scalar(
+    let round_id: RoundId = sqlx::query_scalar(
         "SELECT x.round_id FROM messages x JOIN rounds r ON r.id = x.round_id \
          JOIN members m ON m.id = x.member_id \
          WHERE x.id = ?1 AND r.group_id = ?2 AND r.closed_at IS NOT NULL AND x.hidden_at IS NULL \
@@ -201,7 +202,7 @@ pub fn clean_result_emoji(raw: &str) -> Option<&'static str> {
 /// Someone's taps on one emoji of a result.
 #[derive(Serialize, Debug, Clone, PartialEq)]
 pub struct MemberTaps {
-    pub member_id: i64,
+    pub member_id: MemberId,
     pub count: i64,
 }
 
@@ -219,7 +220,7 @@ pub struct ResultReaction {
 /// A result's reactions, as the viewer sees them (the `GET` and `POST` answer).
 #[derive(Serialize, Debug)]
 pub struct RoundReactions {
-    pub round_id: i64,
+    pub round_id: RoundId,
     pub cap: i64,
     /// My taps on this result, all emojis.
     pub mine: i64,
@@ -234,9 +235,9 @@ pub struct RoundReactions {
 pub async fn for_round<'e, E: SqliteExecutor<'e>>(
     db: E,
     viewer: &MemberRow,
-    round_id: i64,
+    round_id: RoundId,
 ) -> AppResult<RoundReactions> {
-    let rows: Vec<(String, i64, i64)> = sqlx::query_as(
+    let rows: Vec<(String, MemberId, i64)> = sqlx::query_as(
         "SELECT r.emoji, r.member_id, r.count FROM round_reactions r \
          JOIN members m ON m.id = r.member_id \
          WHERE r.round_id = ?1 \
@@ -286,8 +287,8 @@ pub async fn for_round<'e, E: SqliteExecutor<'e>>(
 /// Counts `taps` (in this order) for `member_id` on a result until the cap: what was counted, per emoji.
 pub async fn add_taps(
     tx: &mut sqlx::SqliteConnection,
-    round_id: i64,
-    member_id: i64,
+    round_id: RoundId,
+    member_id: MemberId,
     taps: &[(&'static str, i64)],
 ) -> AppResult<Vec<(&'static str, i64)>> {
     let had: i64 = sqlx::query_scalar(
@@ -326,7 +327,7 @@ pub async fn add_taps(
 pub fn tell_taps(
     state: &AppState,
     me: &MemberRow,
-    round_id: i64,
+    round_id: RoundId,
     party: bool,
     accepted: &[(&'static str, i64)],
 ) {
@@ -354,8 +355,12 @@ pub fn tell_taps(
 
 /// My seat in the room of a revealed round, and whether that room is a party. A round that doesn't
 /// exist or isn't of one of my rooms: `404`; still open: `409 not_reveal`.
-async fn round_seat(state: &AppState, user: i64, round_id: i64) -> AppResult<(MemberRow, bool)> {
-    let (group_id, closed, party): (i64, bool, bool) = sqlx::query_as(
+async fn round_seat(
+    state: &AppState,
+    user: UserId,
+    round_id: RoundId,
+) -> AppResult<(MemberRow, bool)> {
+    let (group_id, closed, party): (RoomId, bool, bool) = sqlx::query_as(
         "SELECT r.group_id, r.closed_at IS NOT NULL, g.kind = 'party' FROM rounds r \
          JOIN groups g ON g.id = r.group_id WHERE r.id = ?",
     )
@@ -379,7 +384,7 @@ async fn round_seat(state: &AppState, user: i64, round_id: i64) -> AppResult<(Me
 async fn get_round(
     State(state): State<AppState>,
     SignedIn(user): SignedIn,
-    Path(id): Path<i64>,
+    Path(id): Path<RoundId>,
 ) -> AppResult<Json<RoundReactions>> {
     let (me, _) = round_seat(&state, user, id).await?;
     Ok(Json(for_round(&state.db, &me, id).await?))
@@ -402,7 +407,7 @@ pub struct TapBody {
 async fn post_round(
     State(state): State<AppState>,
     SignedIn(user): SignedIn,
-    Path(id): Path<i64>,
+    Path(id): Path<RoundId>,
     Json(body): Json<TapsBody>,
 ) -> AppResult<Json<RoundReactions>> {
     if body.taps.is_empty() || body.taps.len() > RESULT_EMOJIS.len() {

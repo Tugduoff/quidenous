@@ -1,5 +1,6 @@
 //! The round loop: one open question per group, closed when every member has voted.
 
+use crate::platform::ids::{QuestionId, RoomId, RoundId};
 use sqlx::{Sqlite, SqlitePool, Transaction};
 
 use crate::{
@@ -46,10 +47,10 @@ pub(crate) use unused;
 /// see [`crate::platform::text::key`]): same length in SQL, then compared here.
 pub(crate) async fn same_question(
     tx: &mut Transaction<'_, Sqlite>,
-    group_id: i64,
+    group_id: RoomId,
     text: &str,
-) -> AppResult<Option<i64>> {
-    let rows: Vec<(i64, String)> = sqlx::query_as(
+) -> AppResult<Option<QuestionId>> {
+    let rows: Vec<(QuestionId, String)> = sqlx::query_as(
         "SELECT id, text FROM (\
            SELECT 0 AS o, id, text FROM questions WHERE group_id = ?1 AND length(text) = length(?2) \
            UNION ALL SELECT 1, q.id, q.text FROM rounds r JOIN questions q ON q.id = r.question_id \
@@ -66,7 +67,7 @@ pub(crate) async fn same_question(
         .map(|(id, _)| id))
 }
 
-pub async fn open_round(db: &SqlitePool, group_id: i64) -> AppResult<Option<RoundRow>> {
+pub async fn open_round(db: &SqlitePool, group_id: RoomId) -> AppResult<Option<RoundRow>> {
     Ok(sqlx::query_as::<_, RoundRow>(round_select!(
         "WHERE r.group_id = ? AND r.closed_at IS NULL"
     ))
@@ -97,7 +98,7 @@ pub async fn unseen_round(
 pub async fn unseen_ids(
     db: &SqlitePool,
     me: &crate::rooms::model::MemberRow,
-) -> AppResult<Vec<i64>> {
+) -> AppResult<Vec<RoundId>> {
     Ok(sqlx::query_scalar(
         "SELECT r.id FROM rounds r WHERE r.group_id = ? AND r.closed_at IS NOT NULL AND r.number > ? \
          AND EXISTS (SELECT 1 FROM votes v WHERE v.round_id = r.id AND v.voter_id = ?) \
@@ -110,7 +111,7 @@ pub async fn unseen_ids(
     .await?)
 }
 
-pub async fn round(db: &SqlitePool, group_id: i64, round_id: i64) -> AppResult<RoundRow> {
+pub async fn round(db: &SqlitePool, group_id: RoomId, round_id: RoundId) -> AppResult<RoundRow> {
     sqlx::query_as::<_, RoundRow>(round_select!("WHERE r.group_id = ? AND r.id = ?"))
         .bind(group_id)
         .bind(round_id)
@@ -124,8 +125,8 @@ pub async fn round(db: &SqlitePool, group_id: i64, round_id: i64) -> AppResult<R
 /// One the room has its own copy of (added by hand) is left to that copy.
 async fn deck_candidates<'e, E: sqlx::SqliteExecutor<'e>>(
     db: E,
-    group_id: i64,
-) -> AppResult<Vec<(i64, Option<String>)>> {
+    group_id: RoomId,
+) -> AppResult<Vec<(QuestionId, Option<String>)>> {
     Ok(sqlx::query_as(concat!(
         "SELECT q.id, q.vibes FROM questions q WHERE q.group_id IS NULL \
          AND q.lang = (SELECT language FROM groups WHERE id = ?1) \
@@ -151,7 +152,7 @@ pub struct Party {
 /// `Some` when the room is a party (see `party`).
 pub async fn party<'e, E: sqlx::SqliteExecutor<'e>>(
     db: E,
-    group_id: i64,
+    group_id: RoomId,
 ) -> AppResult<Option<Party>> {
     let row: Option<(bool, i64, bool)> = sqlx::query_as(
         "SELECT kind = 'party', party_timer, \
@@ -168,7 +169,7 @@ pub async fn party<'e, E: sqlx::SqliteExecutor<'e>>(
 
 async fn room_vibe<'e, E: sqlx::SqliteExecutor<'e>>(
     db: E,
-    group_id: i64,
+    group_id: RoomId,
 ) -> AppResult<Option<String>> {
     Ok(sqlx::query_scalar("SELECT vibe FROM groups WHERE id = ?")
         .bind(group_id)
@@ -178,7 +179,7 @@ async fn room_vibe<'e, E: sqlx::SqliteExecutor<'e>>(
 }
 
 /// Deck questions left for this room, given its vibe and language.
-pub async fn deck_left(db: &SqlitePool, group_id: i64) -> AppResult<i64> {
+pub async fn deck_left(db: &SqlitePool, group_id: RoomId) -> AppResult<i64> {
     let draws = crate::rooms::vibes::draws(room_vibe(db, group_id).await?.as_deref());
     Ok(deck_candidates(db, group_id)
         .await?
@@ -192,7 +193,7 @@ pub async fn deck_left(db: &SqlitePool, group_id: i64) -> AppResult<i64> {
 }
 
 /// Questions a room can still open: its own unasked ones plus what's left in its deck.
-pub async fn questions_left(db: &SqlitePool, group_id: i64) -> AppResult<i64> {
+pub async fn questions_left(db: &SqlitePool, group_id: RoomId) -> AppResult<i64> {
     let custom: i64 = sqlx::query_scalar(concat!(
         "SELECT COUNT(*) FROM questions q WHERE q.group_id = ?1 AND ",
         votable!(),
@@ -208,9 +209,12 @@ pub async fn questions_left(db: &SqlitePool, group_id: i64) -> AppResult<i64> {
 /// Group questions first (queue order: oldest first unless shuffled; a said question waits while the
 /// room is too small), then a random deck question
 /// the group has not seen, in the room's language, from its vibe (its favourite tag first).
-async fn next_question(tx: &mut Transaction<'_, Sqlite>, group_id: i64) -> AppResult<Option<i64>> {
+async fn next_question(
+    tx: &mut Transaction<'_, Sqlite>,
+    group_id: RoomId,
+) -> AppResult<Option<QuestionId>> {
     use rand::seq::IndexedRandom;
-    let custom: Option<i64> = sqlx::query_scalar(concat!(
+    let custom: Option<QuestionId> = sqlx::query_scalar(concat!(
         "SELECT q.id FROM questions q WHERE q.group_id = ?1 AND ",
         drawable!(),
         " AND ",
@@ -228,7 +232,7 @@ async fn next_question(tx: &mut Transaction<'_, Sqlite>, group_id: i64) -> AppRe
     let draws = crate::rooms::vibes::draws(room_vibe(&mut **tx, group_id).await?.as_deref());
     let candidates = deck_candidates(&mut **tx, group_id).await?;
     for tag in &draws {
-        let pool: Vec<i64> = candidates
+        let pool: Vec<QuestionId> = candidates
             .iter()
             .filter(|(_, tags)| crate::rooms::vibes::has_tag(tags.as_deref(), tag))
             .map(|(id, _)| *id)
@@ -246,8 +250,8 @@ async fn next_question(tx: &mut Transaction<'_, Sqlite>, group_id: i64) -> AppRe
 /// [`crate::rounds::said::writing_secs`]) and the list of who may vote on it.
 pub async fn ensure_open_round(
     tx: &mut Transaction<'_, Sqlite>,
-    group_id: i64,
-) -> AppResult<Option<i64>> {
+    group_id: RoomId,
+) -> AppResult<Option<RoundId>> {
     if active_count(tx, group_id).await? < 2 {
         return Ok(None);
     }
@@ -264,7 +268,7 @@ pub async fn ensure_open_round(
     if paused {
         return Ok(None);
     }
-    let open: Option<i64> =
+    let open: Option<RoundId> =
         sqlx::query_scalar("SELECT id FROM rounds WHERE group_id = ? AND closed_at IS NULL")
             .bind(group_id)
             .fetch_optional(&mut **tx)
@@ -289,7 +293,7 @@ pub async fn ensure_open_round(
         }
         None => None,
     };
-    let id: i64 = sqlx::query_scalar(
+    let id: RoundId = sqlx::query_scalar(
         "INSERT INTO rounds (group_id, question_id, number, deadline_at) \
          VALUES (?1, ?2, (SELECT COALESCE(MAX(number), 0) + 1 FROM rounds WHERE group_id = ?1), \
                  CASE WHEN ?3 IS NOT NULL THEN strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '+' || ?3 || ' seconds') END) \
@@ -316,7 +320,7 @@ pub async fn ensure_open_round(
 
 /// A room with active members always has an owner: when none is left, the longest-standing
 /// active member takes over. `true` when someone was promoted.
-pub async fn ensure_owner(tx: &mut Transaction<'_, Sqlite>, group_id: i64) -> AppResult<bool> {
+pub async fn ensure_owner(tx: &mut Transaction<'_, Sqlite>, group_id: RoomId) -> AppResult<bool> {
     let promoted = sqlx::query(
         "UPDATE members SET role = 'owner' WHERE id = \
          (SELECT id FROM members WHERE group_id = ?1 AND removed_at IS NULL ORDER BY id LIMIT 1) \

@@ -1,3 +1,4 @@
+use crate::platform::ids::UserId;
 use std::{env, path::PathBuf};
 
 #[derive(Clone, Debug, Default)]
@@ -41,7 +42,7 @@ pub struct Config {
     /// `CLIENT_ERRORS_WEBHOOK`: Discord webhook URL that app crash reports are forwarded to.
     pub client_errors_webhook: Option<String>,
     /// `ADMIN_USER_IDS`: accounts that moderate community packs and suggestions (comma-separated ids).
-    pub admin_user_ids: Vec<i64>,
+    pub admin_user_ids: Vec<UserId>,
     /// `CORS_ORIGINS`: web origins besides `PUBLIC_URL` allowed to call the API (comma-separated).
     pub cors_origins: Vec<String>,
     /// How often open live sockets re-check their session and seat (tests shorten it; 60 s when unset).
@@ -314,7 +315,12 @@ impl Config {
             updates_certificate: var("UPDATES_CERTIFICATE").map(PathBuf::from),
             client_errors_webhook: var("CLIENT_ERRORS_WEBHOOK"),
             admin_user_ids: var("ADMIN_USER_IDS")
-                .map(|v| v.split(',').filter_map(|s| s.trim().parse().ok()).collect())
+                .map(|v| {
+                    v.split(',')
+                        .filter_map(|s| s.trim().parse().ok())
+                        .map(UserId::from_raw)
+                        .collect()
+                })
                 .unwrap_or_default(),
             cors_origins: var("CORS_ORIGINS")
                 .map(|v| {

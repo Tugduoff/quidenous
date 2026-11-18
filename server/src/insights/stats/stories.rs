@@ -1,26 +1,31 @@
 use crate::platform::i18n::Lang;
+use crate::platform::ids::{MemberId, RoundId};
 
 use super::*;
 
 pub(super) struct Draft {
     pub(crate) key: &'static str,
-    pub(crate) members: Vec<i64>,
+    pub(crate) members: Vec<MemberId>,
     pub(crate) big: String,
     /// Candidate punchlines; one is picked from `seed`.
     pub(crate) lines: Vec<String>,
     pub(crate) seed: usize,
-    pub(crate) round_id: Option<i64>,
+    pub(crate) round_id: Option<RoundId>,
 }
 
 pub(super) fn draft(
     key: &'static str,
-    members: Vec<i64>,
+    members: Vec<MemberId>,
     big: String,
     lines: Vec<String>,
     seed: i64,
 ) -> Draft {
-    let seed = (seed.unsigned_abs() as usize)
-        .wrapping_add(members.iter().map(|m| m.unsigned_abs() as usize).sum());
+    let seed = (seed.unsigned_abs() as usize).wrapping_add(
+        members
+            .iter()
+            .map(|m| m.raw().unsigned_abs() as usize)
+            .sum(),
+    );
     Draft {
         key,
         members,
@@ -59,13 +64,13 @@ pub(super) fn pick_line(lines: &[String], seed: usize) -> String {
 }
 
 pub(super) struct Writer<'a> {
-    name: &'a dyn Fn(i64) -> String,
+    name: &'a dyn Fn(MemberId) -> String,
     spicy: bool,
     pub(crate) lang: Lang,
 }
 
 impl Writer<'_> {
-    pub(crate) fn name(&self, member: i64) -> String {
+    pub(crate) fn name(&self, member: MemberId) -> String {
         (self.name)(member)
     }
 
@@ -95,7 +100,7 @@ impl Writer<'_> {
 /// Each story has its lines in French and in English (same count, same tone).
 pub(super) fn drafts(
     s: &Stats,
-    name: &dyn Fn(i64) -> String,
+    name: &dyn Fn(MemberId) -> String,
     rounds: &[RoundCalc],
     spicy: bool,
     lang: Lang,
@@ -169,7 +174,7 @@ pub(super) fn streak(w: &Writer, a: &Award) -> Draft {
 pub(super) fn round_draft(
     q: &QuestionRef,
     key: &'static str,
-    members: Vec<i64>,
+    members: Vec<MemberId>,
     big: String,
     lines: Vec<String>,
 ) -> Draft {

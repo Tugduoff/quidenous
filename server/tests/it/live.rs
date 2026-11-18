@@ -1,6 +1,7 @@
 //! The live WebSocket (`/api/live`) and push subscriptions.
 
 use crate::common::{next_event, serve};
+use quidenous_server::platform::ids::RoomId;
 
 use crate::common::{call, join, room_id, setup};
 use axum::http::StatusCode;
@@ -39,7 +40,7 @@ async fn the_live_socket_relays_my_rooms_events() {
     // The socket subscribes once the upgrade is done: ping the room until it hears it.
     let mut heard = None;
     for _ in 0..50 {
-        state.live.send(room, Event::RoomUpdated);
+        state.live.send(RoomId::from_raw(room), Event::RoomUpdated);
         if let Some(e) = next_event(&mut socket, 100).await {
             heard = Some(e);
             break;
@@ -47,7 +48,9 @@ async fn the_live_socket_relays_my_rooms_events() {
     }
     assert_eq!(heard, Some(json!({ "type": "room_updated" })));
     // Another room's events don't reach it.
-    state.live.send(room + 1000, Event::RoomDeleted);
+    state
+        .live
+        .send(RoomId::from_raw(room + 1000), Event::RoomDeleted);
     // A vote in my room does.
     let (s, _) = call(
         &app,
@@ -78,6 +81,7 @@ async fn room_member(state: &quidenous_server::AppState, token: &str) -> i64 {
         .await
         .unwrap()
         .id
+        .raw()
 }
 
 #[tokio::test]

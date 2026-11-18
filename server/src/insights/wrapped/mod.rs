@@ -8,6 +8,7 @@
 //! people who share one of those rooms with them now, by first name; an anonymous question never
 //! says who voted for whom (it still counts in votes received and in who won).
 
+use crate::platform::ids::{MemberId, UserId};
 use axum::{
     Json,
     extract::{Query, State},
@@ -152,7 +153,7 @@ pub struct Person {
     pub avatar: Option<String>,
     /// Their seat (share links list it, so erasing the account removes the card).
     #[serde(skip)]
-    pub member_id: i64,
+    pub member_id: MemberId,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -196,7 +197,7 @@ pub struct Wrapped {
 
 /// Who asks: the account, and the seat (scope `room`).
 struct Reader {
-    user: i64,
+    user: UserId,
     seat: Option<MemberRow>,
 }
 
@@ -212,10 +213,7 @@ async fn reader(state: &AppState, headers: &HeaderMap, scope: &str) -> AppResult
             seat: None,
         }),
         "room" => {
-            let room = headers
-                .get("x-room")
-                .and_then(|v| v.to_str().ok())
-                .and_then(|v| v.parse::<i64>().ok());
+            let room = crate::accounts::auth::x_room(headers);
             let me = crate::accounts::auth::member_in_room(state, token, room).await?;
             if crate::rounds::game::party(&state.db, me.group_id)
                 .await?
@@ -375,7 +373,7 @@ pub async fn share(
         .iter()
         .map(|p| (p.name.clone(), p.color.clone(), p.avatar.clone()))
         .collect();
-    let member_ids: Vec<i64> = card.people.iter().map(|p| p.member_id).collect();
+    let member_ids: Vec<MemberId> = card.people.iter().map(|p| p.member_id).collect();
     // On the picture, a question card shows its question rather than the punchline.
     let line = match &card.question {
         Some(q) => lang.pick(format!("« {q} »"), format!("“{q}”")),
@@ -409,7 +407,7 @@ pub async fn notify_at(state: &AppState, now: i64) -> AppResult<usize> {
     let Some(year) = window_year(state.config.wrapped, civil(now.div_euclid(DAY))) else {
         return Ok(0);
     };
-    let users: Vec<(i64, Option<String>)> = sqlx::query_as(
+    let users: Vec<(UserId, Option<String>)> = sqlx::query_as(
         "SELECT u.id, u.locale FROM users u WHERE u.deleted_at IS NULL AND u.wrapped_notified IS NOT ?1 \
          AND EXISTS (SELECT 1 FROM members m JOIN votes v ON v.voter_id = m.id WHERE m.user_id = u.id \
            AND v.created_at >= strftime('%Y-%m-%dT%H:%M:%fZ', ?2, 'unixepoch', ?3)) ORDER BY u.id",

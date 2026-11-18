@@ -1,3 +1,4 @@
+use crate::platform::ids::{MemberId, RoomId, RoundId, UserId};
 use axum::{
     Json,
     extract::{Path, State},
@@ -24,7 +25,7 @@ use super::*;
 /// transaction that takes the seat: QR codes scanned at the same moment can't beat the cap.
 pub async fn may_take_seat(
     tx: &mut sqlx::SqliteConnection,
-    id: i64,
+    id: RoomId,
     existing: Option<&MemberRow>,
 ) -> AppResult<()> {
     if game::party(&mut *tx, id).await?.is_some_and(|p| p.over) {
@@ -92,10 +93,10 @@ pub(super) async fn create(
     let name = clean_party_name(body.name.as_deref(), my_lang, &host)?;
     crate::platform::quotas::hit_user(&state, &crate::platform::quotas::ROOM_CREATE_USER, user)?;
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
-    let mut created: Option<(i64, String)> = None;
+    let mut created: Option<(RoomId, String)> = None;
     for _ in 0..8 {
         let code = crate::rooms::manage::code_of_len(CODE_LEN);
-        let id: Option<i64> = sqlx::query_scalar(concat!(
+        let id: Option<RoomId> = sqlx::query_scalar(concat!(
             "INSERT INTO groups (name, join_code, vibe, language, kind, party_timer, party_ends_at, paused_at) \
              VALUES (?, ?, ?, ?, 'party', ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '+' || ? || ' hours'), ", now!(), ") \
              ON CONFLICT DO NOTHING RETURNING id"
@@ -242,7 +243,7 @@ pub(super) async fn join(
         }
         (None, _) => {
             let (name, color) = guest.unwrap_or_default();
-            let user: i64 = sqlx::query_scalar(
+            let user: UserId = sqlx::query_scalar(
                 "INSERT INTO users (name, color, friend_code, guest) VALUES (?, ?, upper(hex(randomblob(5))), 1) RETURNING id",
             )
             .bind(&name)
@@ -263,7 +264,7 @@ pub(super) async fn join(
             (member_id, true)
         }
     };
-    let user_id: i64 = sqlx::query_scalar("SELECT user_id FROM members WHERE id = ?")
+    let user_id: UserId = sqlx::query_scalar("SELECT user_id FROM members WHERE id = ?")
         .bind(member_id)
         .fetch_one(&mut *tx)
         .await?;
@@ -285,13 +286,13 @@ pub(super) async fn join(
 
 pub(super) async fn insert_member(
     tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
-    id: i64,
-    user: i64,
+    id: RoomId,
+    user: UserId,
     name: &str,
     color: &str,
     photo: Option<String>,
     avatar: Option<String>,
-) -> AppResult<i64> {
+) -> AppResult<MemberId> {
     Ok(sqlx::query_scalar(
         "INSERT INTO members (group_id, name, color, photo, avatar, token_hash, user_id) \
          VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id",
@@ -312,7 +313,7 @@ pub(super) async fn insert_member(
 pub(super) async fn get_state(
     State(state): State<AppState>,
     SignedIn(user): SignedIn,
-    Path(id): Path<i64>,
+    Path(id): Path<RoomId>,
 ) -> AppResult<Json<Value>> {
     let me = crate::rooms::manage::seat(&state, user, id).await?;
     Ok(Json(view(&state, id, Some(&me)).await?))
@@ -332,7 +333,7 @@ pub(super) async fn screen(
 pub(super) async fn start(
     State(state): State<AppState>,
     SignedIn(user): SignedIn,
-    Path(id): Path<i64>,
+    Path(id): Path<RoomId>,
 ) -> AppResult<Json<Value>> {
     let (me, p) = owner_seat(&state, user, id).await?;
     not_over(&p)?;
@@ -349,7 +350,7 @@ pub(super) async fn start(
 #[derive(Deserialize)]
 pub struct VoteBody {
     #[serde(default)]
-    target_id: Option<i64>,
+    target_id: Option<MemberId>,
     /// A said question's guesses (docs/SAID.md).
     #[serde(default)]
     guesses: Option<Vec<crate::rounds::said::Guess>>,
@@ -358,7 +359,7 @@ pub struct VoteBody {
 pub(super) async fn vote(
     State(state): State<AppState>,
     SignedIn(user): SignedIn,
-    Path(id): Path<i64>,
+    Path(id): Path<RoomId>,
     Json(body): Json<VoteBody>,
 ) -> AppResult<Json<Value>> {
     let (me, _) = party_seat(&state, user, id).await?;
@@ -388,7 +389,7 @@ pub struct AnswerBody {
 pub(super) async fn answer_said(
     State(state): State<AppState>,
     SignedIn(user): SignedIn,
-    Path(id): Path<i64>,
+    Path(id): Path<RoomId>,
     Json(body): Json<AnswerBody>,
 ) -> AppResult<Json<Value>> {
     let (me, _) = party_seat(&state, user, id).await?;
@@ -400,7 +401,7 @@ pub(super) async fn answer_said(
 pub(super) async fn tap(
     State(state): State<AppState>,
     SignedIn(user): SignedIn,
-    Path(id): Path<i64>,
+    Path(id): Path<RoomId>,
 ) -> AppResult<Json<Value>> {
     let (me, p) = party_seat(&state, user, id).await?;
     not_over(&p)?;
@@ -426,7 +427,7 @@ pub(super) async fn tap(
 pub(super) async fn untap(
     State(state): State<AppState>,
     SignedIn(user): SignedIn,
-    Path(id): Path<i64>,
+    Path(id): Path<RoomId>,
 ) -> AppResult<Json<Value>> {
     let (me, _) = party_seat(&state, user, id).await?;
     if let Some((round_id, true)) = latest_round(&state, id).await? {
@@ -444,7 +445,7 @@ pub(super) async fn untap(
 
 #[derive(Deserialize)]
 pub struct ReactBody {
-    round_id: i64,
+    round_id: RoundId,
     emoji: String,
 }
 
@@ -453,7 +454,7 @@ pub struct ReactBody {
 pub(super) async fn react(
     State(state): State<AppState>,
     SignedIn(user): SignedIn,
-    Path(id): Path<i64>,
+    Path(id): Path<RoomId>,
     Json(body): Json<ReactBody>,
 ) -> AppResult<Json<Value>> {
     let (me, p) = party_seat(&state, user, id).await?;
@@ -505,7 +506,7 @@ pub struct UpdateBody {
 pub(super) async fn update(
     State(state): State<AppState>,
     SignedIn(user): SignedIn,
-    Path(id): Path<i64>,
+    Path(id): Path<RoomId>,
     Json(body): Json<UpdateBody>,
 ) -> AppResult<Json<Value>> {
     let (me, p) = owner_seat(&state, user, id).await?;
@@ -536,7 +537,7 @@ pub(super) async fn update(
 pub(super) async fn end(
     State(state): State<AppState>,
     SignedIn(user): SignedIn,
-    Path(id): Path<i64>,
+    Path(id): Path<RoomId>,
 ) -> AppResult<Json<Value>> {
     let (me, _) = owner_seat(&state, user, id).await?;
     finish(&state, id).await?;
@@ -544,7 +545,7 @@ pub(super) async fn end(
 }
 
 /// Ends the party now (the owner's "Terminer", or no question left).
-pub(super) async fn finish(state: &AppState, id: i64) -> AppResult<bool> {
+pub(super) async fn finish(state: &AppState, id: RoomId) -> AppResult<bool> {
     let now = db_now(state).await?;
     sqlx::query(
         "UPDATE groups SET party_ends_at = ?1 WHERE id = ?2 AND (party_ends_at IS NULL OR party_ends_at > ?1)",
@@ -561,7 +562,7 @@ pub(super) async fn finish(state: &AppState, id: i64) -> AppResult<bool> {
 pub(super) async fn keep(
     State(state): State<AppState>,
     SignedIn(user): SignedIn,
-    Path(id): Path<i64>,
+    Path(id): Path<RoomId>,
 ) -> AppResult<Json<Value>> {
     let (me, _) = owner_seat(&state, user, id).await?;
     let mut tx = crate::platform::db::write_tx(&state.db).await?;

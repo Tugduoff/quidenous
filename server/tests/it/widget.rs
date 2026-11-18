@@ -1,5 +1,6 @@
 //! The home-screen widget (docs/WIDGET.md): `GET /api/widget` and its narrow, read-only token.
 
+use quidenous_server::platform::ids::{RoomId, UserId};
 use std::time::Duration;
 
 use crate::common::{call, join, room_id, setup};
@@ -237,12 +238,12 @@ async fn questions_opening_and_closing_ping_the_widgets_of_the_room() {
         .fetch_one(&state.db)
         .await
         .unwrap();
-    assert_eq!(got[0].user_id, Some(alice_user));
+    assert_eq!(got[0].user_id, Some(UserId::from_raw(alice_user)));
 }
 
 #[test]
 fn the_ping_is_silent_collapsed_and_low_priority() {
-    let m = quidenous_server::realtime::push::widget_ping_message("tok", 7);
+    let m = quidenous_server::realtime::push::widget_ping_message("tok", RoomId::from_raw(7));
     assert!(
         m["message"].get("notification").is_none(),
         "data only: nothing shows"

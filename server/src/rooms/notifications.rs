@@ -1,6 +1,7 @@
 //! Notification settings: what an account wants pushed, quiet hours, and muted rooms.
 //! Only pushes are filtered (see `push::Push::recipients`); the inbox records everything.
 
+use crate::platform::ids::{RoomId, UserId};
 use axum::{
     Json,
     extract::{Path, State},
@@ -43,7 +44,10 @@ impl Default for Prefs {
 /// `off` as stored: comma-separated kinds.
 type PrefsRow = (bool, String, Option<i64>, Option<i64>, i64);
 
-pub async fn get(State(state): State<AppState>, SignedIn(user): SignedIn) -> AppResult<Json<Prefs>> {
+pub async fn get(
+    State(state): State<AppState>,
+    SignedIn(user): SignedIn,
+) -> AppResult<Json<Prefs>> {
     let row: Option<PrefsRow> = sqlx::query_as(
         "SELECT enabled, off, quiet_start, quiet_end, tz_offset FROM notification_prefs WHERE user_id = ?",
     )
@@ -101,7 +105,7 @@ pub async fn put(
 pub async fn mute(
     State(state): State<AppState>,
     SignedIn(user): SignedIn,
-    Path(room): Path<i64>,
+    Path(room): Path<RoomId>,
 ) -> AppResult<Json<Value>> {
     set_muted(&state, user, room, true).await
 }
@@ -109,12 +113,17 @@ pub async fn mute(
 pub async fn unmute(
     State(state): State<AppState>,
     SignedIn(user): SignedIn,
-    Path(room): Path<i64>,
+    Path(room): Path<RoomId>,
 ) -> AppResult<Json<Value>> {
     set_muted(&state, user, room, false).await
 }
 
-async fn set_muted(state: &AppState, user: i64, room: i64, muted: bool) -> AppResult<Json<Value>> {
+async fn set_muted(
+    state: &AppState,
+    user: UserId,
+    room: RoomId,
+    muted: bool,
+) -> AppResult<Json<Value>> {
     let me = crate::rooms::manage::seat(state, user, room).await?;
     sqlx::query("UPDATE members SET muted = ? WHERE id = ?")
         .bind(muted)

@@ -1,3 +1,4 @@
+use crate::platform::ids::{MemberId, RoomId, UserId};
 use axum::{
     extract::{
         Query, State,
@@ -18,7 +19,7 @@ pub(crate) struct LiveQuery {
     token: Option<String>,
     /// A 60 s single-use ticket from `POST /auth/ticket` (`purpose: "live"`), instead of `token`.
     ticket: Option<String>,
-    room: Option<i64>,
+    room: Option<RoomId>,
     /// A party's code: the big screen follows that party without an account.
     screen: Option<String>,
     /// Events this app understands beyond the old ones, comma-separated (`crate::realtime::live::OptIns`).
@@ -43,8 +44,8 @@ const WS_RECHECK: std::time::Duration = std::time::Duration::from_secs(60);
 enum Watcher {
     /// A signed-in seat: closed after a kick, a leave, a room deletion or a sign-out.
     Member {
-        member_id: i64,
-        user_id: Option<i64>,
+        member_id: MemberId,
+        user_id: Option<UserId>,
         token_hash: String,
     },
     /// A party's big screen: closed once the party is gone or over for good.
@@ -52,7 +53,7 @@ enum Watcher {
 }
 
 impl Watcher {
-    fn user_id(&self) -> Option<i64> {
+    fn user_id(&self) -> Option<UserId> {
         match self {
             Self::Member { user_id, .. } => *user_id,
             Self::Screen => None,
@@ -60,7 +61,7 @@ impl Watcher {
     }
 
     /// Still allowed to follow `group_id`?
-    async fn still_allowed(&self, state: &AppState, group_id: i64) -> AppResult<bool> {
+    async fn still_allowed(&self, state: &AppState, group_id: RoomId) -> AppResult<bool> {
         match self {
             Self::Member {
                 member_id,
@@ -143,7 +144,7 @@ pub(crate) async fn live(
 async fn relay(
     mut socket: WebSocket,
     state: AppState,
-    group_id: i64,
+    group_id: RoomId,
     watcher: Watcher,
     opt_ins: crate::realtime::live::OptIns,
     mut others: Option<crate::insights::today::OtherRooms>,

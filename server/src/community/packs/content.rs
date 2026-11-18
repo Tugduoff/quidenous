@@ -1,3 +1,4 @@
+use crate::platform::ids::{PackId, UserId};
 use serde::Deserialize;
 
 use crate::{
@@ -33,7 +34,7 @@ pub struct PackQuestion {
 /// A pack's questions in order.
 pub(super) async fn stored_questions<'e, E: sqlx::SqliteExecutor<'e>>(
     db: E,
-    id: i64,
+    id: PackId,
 ) -> AppResult<Vec<PackQuestion>> {
     let rows: Vec<(String, String, Option<String>, bool)> = sqlx::query_as(
         "SELECT text, kind, items, anonymous FROM pack_questions WHERE pack_id = ? ORDER BY position",
@@ -182,7 +183,7 @@ pub fn clean_questions(mut questions: Vec<PackQuestion>) -> AppResult<Vec<PackQu
 
 pub(super) async fn insert_questions(
     tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
-    id: i64,
+    id: PackId,
     questions: &[PackQuestion],
 ) -> AppResult<()> {
     for (i, q) in questions.iter().enumerate() {
@@ -216,7 +217,7 @@ pub struct NewPack {
 /// How many packs this author has up (public or in review).
 pub(super) async fn live_packs<'e, E: sqlx::SqliteExecutor<'e>>(
     db: E,
-    author: i64,
+    author: UserId,
 ) -> AppResult<i64> {
     Ok(sqlx::query_scalar(
         "SELECT COUNT(*) FROM packs WHERE author_id = ? AND status IN ('public', 'review')",
@@ -230,15 +231,15 @@ pub(super) async fn live_packs<'e, E: sqlx::SqliteExecutor<'e>>(
 /// counted in the write transaction (publishes at the same moment can't beat it).
 pub async fn create_pack(
     db: &sqlx::SqlitePool,
-    author: i64,
+    author: UserId,
     pack: &NewPack,
     capped: bool,
-) -> AppResult<i64> {
+) -> AppResult<PackId> {
     let mut tx = crate::platform::db::write_tx(db).await?;
     if capped && live_packs(&mut *tx, author).await? >= PACKS_PER_USER {
         return Err(AppError::Conflict("too_many_packs"));
     }
-    let id: i64 = sqlx::query_scalar(
+    let id: PackId = sqlx::query_scalar(
         "INSERT INTO packs (name, description, author_id, language, tags, spicy, featured, status) \
          VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id",
     )

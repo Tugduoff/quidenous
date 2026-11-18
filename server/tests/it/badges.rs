@@ -1,6 +1,7 @@
 //! Titles & badges (docs/BADGES.md): metrics, tiers, idempotent awarding with a silent backfill,
 //! the inbox entry, titles and the endpoints.
 
+use quidenous_server::platform::ids::{RoomId, UserId};
 use std::collections::HashMap;
 
 use crate::common::{call, join, room_id, setup, unique};
@@ -49,8 +50,8 @@ impl World {
         self.people[i].1
     }
 
-    fn uid(&self, i: usize) -> i64 {
-        self.people[i].2
+    fn uid(&self, i: usize) -> UserId {
+        UserId::from_raw(self.people[i].2)
     }
 
     async fn metrics(&self, i: usize) -> HashMap<&'static str, i64> {
@@ -65,10 +66,14 @@ impl World {
         CATALOGUE.iter().map(|b| b.key).zip(m).collect()
     }
 
-    async fn evaluate(&self, i: usize) -> Vec<(i64, &'static str, i64)> {
-        badges::evaluate(&self.state, &[self.uid(i)], Some(self.room))
-            .await
-            .unwrap()
+    async fn evaluate(&self, i: usize) -> Vec<(UserId, &'static str, i64)> {
+        badges::evaluate(
+            &self.state,
+            &[self.uid(i)],
+            Some(RoomId::from_raw(self.room)),
+        )
+        .await
+        .unwrap()
     }
 
     async fn sql(&self, sql: &'static str) -> i64 {

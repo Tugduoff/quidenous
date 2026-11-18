@@ -1,5 +1,6 @@
 use crate::common;
 use crate::common::{call_last_room as call, join, setup};
+use quidenous_server::platform::ids::UserId;
 
 use axum::{
     Router,
@@ -137,6 +138,7 @@ async fn audience(
         .unwrap()
         .iter()
         .filter_map(|r| r.user_id)
+        .map(UserId::raw)
         .collect();
     users.sort();
     users.dedup();

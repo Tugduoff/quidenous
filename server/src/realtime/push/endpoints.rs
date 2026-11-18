@@ -1,3 +1,5 @@
+use crate::platform::ids::RoomId;
+
 /// The Web Push services browsers use: Chrome and most Chromium browsers (FCM), Firefox
 /// (Mozilla autopush), Safari (Apple) and Edge (Windows Push Notification Services).
 /// Endpoints anywhere else are refused, so the server never posts to arbitrary hosts.
@@ -46,7 +48,7 @@ pub const WIDGET_PING: &str = "widget";
 /// A widget refresh: data only (no `notification`, so nothing shows), `widget` + `room` for the app's
 /// background task, one pending per room and device (`collapse_key`), normal priority, dropped after
 /// an hour undelivered (the widget's own timer catches up by then).
-pub fn widget_ping_message(fcm_token: &str, group_id: i64) -> serde_json::Value {
+pub fn widget_ping_message(fcm_token: &str, group_id: RoomId) -> serde_json::Value {
     serde_json::json!({
         "message": {
             "token": fcm_token,

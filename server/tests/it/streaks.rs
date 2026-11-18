@@ -1,6 +1,7 @@
 //! Streaks (docs/STREAKS.md): consecutive days with a vote, per member and per room, and the
 //! evening "your streak ends tonight" push.
 
+use quidenous_server::platform::ids::{MemberId, RoomId, RoundId};
 use std::time::Duration;
 
 use crate::common::{call, join, room_id, setup};
@@ -100,7 +101,14 @@ async fn daily(state: &AppState, room: i64, days: impl IntoIterator<Item = i64>,
 }
 
 async fn load(state: &AppState, room: i64) -> Room {
-    Room::load(&state.db, room).await.unwrap().unwrap()
+    Room::load(&state.db, RoomId::from_raw(room))
+        .await
+        .unwrap()
+        .unwrap()
+}
+
+fn m(id: i64) -> MemberId {
+    MemberId::from_raw(id)
 }
 
 fn s(current: i64, best: i64) -> Streak {
@@ -130,17 +138,17 @@ async fn days_in_a_row_make_a_streak_and_today_never_breaks_it() {
     // Today's question is open since this morning, nobody has voted yet: nothing breaks.
     let today = round(&state, room, at(0, 9), None).await;
     let r = load(&state, room).await;
-    assert_eq!(r.member(ana_id, NOW), s(3, 3));
-    assert_eq!(r.member(bob_id, NOW), s(3, 3));
+    assert_eq!(r.member(m(ana_id), NOW), s(3, 3));
+    assert_eq!(r.member(m(bob_id), NOW), s(3, 3));
     assert_eq!(r.room(NOW), s(3, 3));
-    assert!(!r.voted_today(ana_id, NOW));
+    assert!(!r.voted_today(m(ana_id), NOW));
 
     // Ana votes today: her streak includes today; the room's waits for Bob.
     vote(&state, today, ana_id, at(0, 12)).await;
     let r = load(&state, room).await;
-    assert_eq!(r.member(ana_id, NOW), s(4, 4));
-    assert!(r.voted_today(ana_id, NOW));
-    assert_eq!(r.member(bob_id, NOW), s(3, 3));
+    assert_eq!(r.member(m(ana_id), NOW), s(4, 4));
+    assert!(r.voted_today(m(ana_id), NOW));
+    assert_eq!(r.member(m(bob_id), NOW), s(3, 3));
     assert_eq!(r.room(NOW), s(3, 3));
     vote(&state, today, bob_id, at(0, 13)).await;
     assert_eq!(load(&state, room).await.room(NOW), s(4, 4));
@@ -158,9 +166,15 @@ async fn days_in_a_row_make_a_streak_and_today_never_breaks_it() {
     .unwrap();
     round(&state, room, at(1, 9), None).await;
     let tomorrow = at(1, 20);
-    assert_eq!(load(&state, room).await.member(bob_id, tomorrow), s(4, 4));
+    assert_eq!(
+        load(&state, room).await.member(m(bob_id), tomorrow),
+        s(4, 4)
+    );
     // …and 0 the day after (the question stayed open all of tomorrow).
-    assert_eq!(load(&state, room).await.member(bob_id, at(2, 10)), s(0, 4));
+    assert_eq!(
+        load(&state, room).await.member(m(bob_id), at(2, 10)),
+        s(0, 4)
+    );
 }
 
 #[tokio::test]
@@ -175,8 +189,8 @@ async fn a_missed_day_breaks_the_streak_and_the_best_one_stays() {
     daily(&state, room, [-5], &[bob_id]).await;
     daily(&state, room, -4..=-1, &[ana_id, bob_id]).await;
     let r = load(&state, room).await;
-    assert_eq!(r.member(ana_id, NOW), s(4, 4));
-    assert_eq!(r.member(bob_id, NOW), s(9, 9));
+    assert_eq!(r.member(m(ana_id), NOW), s(4, 4));
+    assert_eq!(r.member(m(bob_id), NOW), s(9, 9));
     // The room missed day -5 too.
     assert_eq!(r.room(NOW), s(4, 4));
 
@@ -185,7 +199,7 @@ async fn a_missed_day_breaks_the_streak_and_the_best_one_stays() {
     daily(&state, room, -9..=-6, &[ana_id, bob_id]).await;
     daily(&state, room, -5..=-1, &[bob_id]).await;
     let r = load(&state, room).await;
-    assert_eq!(r.member(ana_id, NOW), s(0, 4));
+    assert_eq!(r.member(m(ana_id), NOW), s(0, 4));
     // The room missed days -5 to -3; after three questions without her Ana is away, and the room
     // stops waiting for her: days -2 and -1 count again.
     assert_eq!(r.room(NOW), s(2, 4));
@@ -207,9 +221,9 @@ async fn days_with_nothing_to_vote_on_are_neutral() {
     daily(&state, room, -3..=-1, &[ana_id, bob_id]).await;
     let r = load(&state, room).await;
     // Ana: -8, (-7 had nothing left for her), -6, (-5, -4 nothing open), -3, -2, -1.
-    assert_eq!(r.member(ana_id, NOW), s(5, 5));
+    assert_eq!(r.member(m(ana_id), NOW), s(5, 5));
     // Bob let the question wait on days -8 and -7.
-    assert_eq!(r.member(bob_id, NOW), s(4, 4));
+    assert_eq!(r.member(m(bob_id), NOW), s(4, 4));
     assert_eq!(r.room(NOW), s(4, 4));
 
     // Before joining is neutral too: someone who joined two days ago has a 2-day streak.
@@ -225,7 +239,7 @@ async fn days_with_nothing_to_vote_on_are_neutral() {
     .unwrap();
     reset_votes_of(&state, room, bob_id, at(-2, 0)).await;
     let r = load(&state, room).await;
-    assert_eq!(r.member(bob_id, NOW), s(2, 2));
+    assert_eq!(r.member(m(bob_id), NOW), s(2, 2));
     // He joined during day -2: the room didn't wait for him that day, and he voted on day -1.
     assert_eq!(r.room(NOW), s(5, 5));
 }
@@ -270,9 +284,9 @@ async fn days_the_group_skipped_me_are_neutral() {
     }
     daily(&state, room, [-1], &[ana_id, bob_id, cid_id]).await;
     let r = load(&state, room).await;
-    assert_eq!(r.member(cid_id, NOW), s(2, 2));
+    assert_eq!(r.member(m(cid_id), NOW), s(2, 2));
     assert_eq!(r.room(NOW), s(3, 3));
-    assert!(r.skipped(r2, cid_id));
+    assert!(r.skipped(RoundId::from_raw(r2), m(cid_id)));
 
     // One agreement alone is not the group's decision: then the day breaks Cid's streak.
     sqlx::query("DELETE FROM skips WHERE from_id = ?")
@@ -281,7 +295,7 @@ async fn days_the_group_skipped_me_are_neutral() {
         .await
         .unwrap();
     let r = load(&state, room).await;
-    assert_eq!(r.member(cid_id, NOW), s(1, 1));
+    assert_eq!(r.member(m(cid_id), NOW), s(1, 1));
     assert_eq!(r.room(NOW), s(1, 1));
 }
 
@@ -301,7 +315,7 @@ async fn the_room_streak_doesnt_wait_for_away_or_new_members() {
     }
     daily(&state, room, -4..=-1, &[ana_id, bob_id]).await;
     let r = load(&state, room).await;
-    assert_eq!(r.member(cid_id, NOW), s(0, 0));
+    assert_eq!(r.member(m(cid_id), NOW), s(0, 0));
     // Day -5 is a miss (Cid wasn't away yet), the next four count without him.
     assert_eq!(r.room(NOW), s(4, 4));
 
@@ -319,7 +333,7 @@ async fn the_room_streak_doesnt_wait_for_away_or_new_members() {
     .unwrap();
     let r = load(&state, room).await;
     assert_eq!(r.room(NOW), s(4, 4));
-    assert_eq!(r.member(dan_id, NOW), s(0, 0));
+    assert_eq!(r.member(m(dan_id), NOW), s(0, 0));
 }
 
 #[tokio::test]
@@ -333,16 +347,16 @@ async fn days_follow_each_members_time_zone() {
     set_tz(&state, ana_id, 300).await;
     let r = load(&state, room).await;
     assert_eq!(r.room_tz(), 300);
-    assert_eq!(r.tz_of(bob_id), 300);
+    assert_eq!(r.tz_of(m(bob_id)), 300);
     // 20:00 UTC yesterday is 01:00 today in UTC+5 (and it is 19:00 there now).
     let q = round(&state, room, at(-1, 19), None).await;
     vote(&state, q, ana_id, at(-1, 20)).await;
     let r = load(&state, room).await;
-    assert!(r.voted_today(ana_id, NOW));
-    assert_eq!(r.member(ana_id, NOW), s(1, 1));
+    assert!(r.voted_today(m(ana_id), NOW));
+    assert_eq!(r.member(m(ana_id), NOW), s(1, 1));
     // In UTC, the same vote was yesterday.
     set_tz(&state, ana_id, 0).await;
-    assert!(!load(&state, room).await.voted_today(ana_id, NOW));
+    assert!(!load(&state, room).await.voted_today(m(ana_id), NOW));
 }
 
 #[tokio::test]
@@ -359,13 +373,18 @@ async fn parties_have_no_streaks() {
         .execute(&state.db)
         .await
         .unwrap();
-    assert_eq!(load(&state, room).await.member(ana_id, NOW), s(0, 0));
+    assert_eq!(load(&state, room).await.member(m(ana_id), NOW), s(0, 0));
     sqlx::query("UPDATE groups SET kind = 'party' WHERE id = ?")
         .bind(room)
         .execute(&state.db)
         .await
         .unwrap();
-    assert!(Room::load(&state.db, room).await.unwrap().is_none());
+    assert!(
+        Room::load(&state.db, RoomId::from_raw(room))
+            .await
+            .unwrap()
+            .is_none()
+    );
     let (status, body) = call(&app, "GET", "/streaks", Some(&ana), None, None).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body, json!({ "members": {}, "room": null }));
@@ -465,13 +484,13 @@ async fn the_evening_reminder_goes_once_to_those_about_to_lose_a_streak() {
     // Not before 19:00 (local time: UTC here).
     assert_eq!(
         streaks::remind_at(&state, at(0, 18)).await.unwrap(),
-        Vec::<i64>::new()
+        Vec::<MemberId>::new()
     );
     // 19:10: only Ana.
     let evening = at(0, 19) + 600;
     assert_eq!(
         streaks::remind_at(&state, evening).await.unwrap(),
-        vec![ana]
+        vec![m(ana)]
     );
     let sent = wait_for_push(&state).await;
     assert_eq!(sent.title, "Ta série de 3 jours va s'arrêter");
@@ -535,7 +554,7 @@ async fn the_evening_reminder_goes_once_to_those_about_to_lose_a_streak() {
         streaks::remind_at(&state, evening - 2 * 3600)
             .await
             .unwrap(),
-        vec![ana]
+        vec![m(ana)]
     );
 
     // The settings screen takes the new kind.
@@ -582,8 +601,8 @@ async fn a_question_asked_late_in_the_evening_counts_from_the_next_day() {
     vote(&state, late, ana_id, at(-1, 8)).await;
     vote(&state, late, bob_id, at(-2, 23)).await;
     let r = load(&state, room).await;
-    assert_eq!(r.member(ana_id, NOW), s(3, 3));
-    assert_eq!(r.member(bob_id, NOW), s(3, 3));
+    assert_eq!(r.member(m(ana_id), NOW), s(3, 3));
+    assert_eq!(r.member(m(bob_id), NOW), s(3, 3));
     // Opened at 19:00, it would have cost Ana day -2.
     sqlx::query(concat!(
         "UPDATE rounds SET opened_at = ",
@@ -595,7 +614,7 @@ async fn a_question_asked_late_in_the_evening_counts_from_the_next_day() {
     .execute(&state.db)
     .await
     .unwrap();
-    assert_eq!(load(&state, room).await.member(ana_id, NOW), s(1, 2));
+    assert_eq!(load(&state, room).await.member(m(ana_id), NOW), s(1, 2));
 }
 
 #[tokio::test]

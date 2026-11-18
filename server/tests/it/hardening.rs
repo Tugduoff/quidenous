@@ -2,6 +2,7 @@
 //! bearer mints no token, deleted rooms take nobody, startup never rewrites user data.
 
 use crate::common;
+use quidenous_server::platform::ids::{RoomId, UserId};
 
 use std::path::{Path, PathBuf};
 
@@ -475,11 +476,11 @@ async fn the_cli_import_fills_one_room() {
     let file = "# comment\nQui chante le plus faux ?\n[classement] Classe-nous du plus drôle au moins drôle.\n\
                 [choix] Qui prendrait quoi ? | Thé | Café\n[choix] Sans choix valides ? | Seul\nqui chante le plus faux ?\n";
     let db = &state.db;
-    let added = quidenous_server::community::deck::import_room(db, other, file)
+    let added = quidenous_server::community::deck::import_room(db, RoomId::from_raw(other), file)
         .await
         .unwrap();
     assert_eq!(added, Some(3));
-    let again = quidenous_server::community::deck::import_room(db, other, file)
+    let again = quidenous_server::community::deck::import_room(db, RoomId::from_raw(other), file)
         .await
         .unwrap();
     assert_eq!(again, Some(0), "duplicates skipped");
@@ -508,7 +509,7 @@ async fn the_cli_import_fills_one_room() {
         .unwrap();
     assert_eq!(in_first, 0, "nothing lands in room #1");
     assert_eq!(
-        quidenous_server::community::deck::import_room(db, 9999, file)
+        quidenous_server::community::deck::import_room(db, RoomId::from_raw(9999), file)
             .await
             .unwrap(),
         None
@@ -540,7 +541,7 @@ fn unsafe_production_settings_are_warned_about() {
         vapid_private_key: Some("key".into()),
         vapid_subject: "mailto:me@my.domain".into(),
         auth_required: true,
-        admin_user_ids: vec![1],
+        admin_user_ids: vec![UserId::from_raw(1)],
         updates_publish_token: Some("token".into()),
         updates_certificate: Some("certificate.pem".into()),
         client_errors_webhook: Some("https://discord.com/api/webhooks/1/x".into()),

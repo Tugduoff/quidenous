@@ -12,6 +12,7 @@
 //! count as votes cast and received, never as who-for-whom). Features that must hide themselves
 //! on an anonymous question read [`is_anonymous`] (or `rounds.anonymous` in SQL).
 
+use crate::platform::ids::{RoomId, RoundId};
 use sqlx::{Sqlite, Transaction};
 
 use crate::platform::error::{AppError, AppResult};
@@ -38,7 +39,7 @@ macro_rules! decided {
 }
 
 /// Called as a question opens: records whether its votes are anonymous.
-pub async fn decide(tx: &mut Transaction<'_, Sqlite>, round_id: i64) -> AppResult<()> {
+pub async fn decide(tx: &mut Transaction<'_, Sqlite>, round_id: RoundId) -> AppResult<()> {
     sqlx::query(concat!(
         "UPDATE rounds SET anonymous = COALESCE(",
         decided!(),
@@ -55,7 +56,7 @@ pub async fn decide(tx: &mut Transaction<'_, Sqlite>, round_id: i64) -> AppResul
 /// nobody saw who voted for whom yet, so it is safe; nothing ever goes the other way.
 pub async fn set_mode(
     tx: &mut Transaction<'_, Sqlite>,
-    group_id: i64,
+    group_id: RoomId,
     mode: &str,
 ) -> AppResult<()> {
     sqlx::query("UPDATE groups SET anonymous_votes = ? WHERE id = ?")
@@ -76,7 +77,7 @@ pub async fn set_mode(
 }
 
 /// The room's rule (`per_question` for a room that is gone).
-pub async fn mode<'e, E: sqlx::SqliteExecutor<'e>>(db: E, group_id: i64) -> AppResult<String> {
+pub async fn mode<'e, E: sqlx::SqliteExecutor<'e>>(db: E, group_id: RoomId) -> AppResult<String> {
     Ok(
         sqlx::query_scalar("SELECT anonymous_votes FROM groups WHERE id = ?")
             .bind(group_id)
@@ -91,7 +92,7 @@ pub async fn mode<'e, E: sqlx::SqliteExecutor<'e>>(db: E, group_id: i64) -> AppR
 /// `false` for a round that doesn't exist.
 pub async fn is_anonymous<'e, E: sqlx::SqliteExecutor<'e>>(
     db: E,
-    round_id: i64,
+    round_id: RoundId,
 ) -> AppResult<bool> {
     Ok(
         sqlx::query_scalar("SELECT anonymous FROM rounds WHERE id = ?")

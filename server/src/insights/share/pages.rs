@@ -1,3 +1,4 @@
+use crate::platform::ids::PackId;
 use axum::{
     extract::{Path, State},
     http::{HeaderMap, StatusCode, header},
@@ -112,7 +113,7 @@ pub(super) struct PackCard {
     pub(crate) samples: Vec<String>,
 }
 
-pub(super) async fn load_pack(state: &AppState, id: i64) -> AppResult<PackCard> {
+pub(super) async fn load_pack(state: &AppState, id: PackId) -> AppResult<PackCard> {
     let (name, description, author, language, count): (String, String, String, String, i64) =
         sqlx::query_as(
             "SELECT p.name, p.description, u.name, p.language, \
@@ -143,7 +144,7 @@ pub(super) async fn load_pack(state: &AppState, id: i64) -> AppResult<PackCard> 
 /// `/p/{id}`: a public pack's page (preview tags, card), and "install in a room" in the web app.
 pub async fn pack_page(
     State(state): State<AppState>,
-    Path(id): Path<i64>,
+    Path(id): Path<PackId>,
     headers: HeaderMap,
 ) -> Response {
     let Ok(card) = load_pack(&state, id).await else {

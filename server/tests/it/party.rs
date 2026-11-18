@@ -2,6 +2,7 @@
 //! "Suivante" taps (75 %), the end, keeping it as a room, the big screen.
 
 use crate::common;
+use quidenous_server::platform::ids::{RoomId, RoundId};
 
 use axum::{
     Router,
@@ -923,13 +924,23 @@ async fn party_updates_are_coalesced() {
     let live = Live::new();
     let mut rx = live.subscribe();
     for round_id in 1..=10 {
-        live.send(7, Event::PartyUpdated { round_id });
+        live.send(
+            RoomId::from_raw(7),
+            Event::PartyUpdated {
+                round_id: RoundId::from_raw(round_id),
+            },
+        );
     }
-    live.send(8, Event::PartyUpdated { round_id: 99 });
-    live.send(7, Event::RoomUpdated);
+    live.send(
+        RoomId::from_raw(8),
+        Event::PartyUpdated {
+            round_id: RoundId::from_raw(99),
+        },
+    );
+    live.send(RoomId::from_raw(7), Event::RoomUpdated);
     let mut now = Vec::new();
     while let Ok(e) = rx.try_recv() {
-        now.push((e.group_id, serde_json::to_value(&e.event).unwrap()));
+        now.push((e.group_id.raw(), serde_json::to_value(&e.event).unwrap()));
     }
     assert_eq!(
         now,
@@ -944,7 +955,7 @@ async fn party_updates_are_coalesced() {
         .await
         .expect("a trailing update")
         .unwrap();
-    assert_eq!(trailing.group_id, 7);
+    assert_eq!(trailing.group_id.raw(), 7);
     assert_eq!(
         serde_json::to_value(&trailing.event).unwrap(),
         json!({ "type": "party_updated", "round_id": 10 })
@@ -953,7 +964,12 @@ async fn party_updates_are_coalesced() {
     assert!(rx.try_recv().is_err(), "only one trailing update");
 
     // Quiet for a gap: the next one goes out right away again.
-    live.send(7, Event::PartyUpdated { round_id: 11 });
+    live.send(
+        RoomId::from_raw(7),
+        Event::PartyUpdated {
+            round_id: RoundId::from_raw(11),
+        },
+    );
     let e = rx.try_recv().unwrap();
     assert_eq!(
         serde_json::to_value(&e.event).unwrap(),

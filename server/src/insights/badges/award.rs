@@ -1,3 +1,4 @@
+use crate::platform::ids::{MemberId, RoomId, RoundId, UserId};
 use std::collections::HashMap;
 
 use serde_json::json;
@@ -15,13 +16,13 @@ use super::*;
 
 /// Room seats of an account (any state, deleted rooms included) and its party seats.
 pub(super) struct Seats {
-    rooms: Vec<(i64, i64)>,
-    parties: Vec<i64>,
+    rooms: Vec<(MemberId, RoomId)>,
+    parties: Vec<MemberId>,
 }
 
 impl Seats {
-    async fn load(db: &SqlitePool, user_id: i64) -> AppResult<Self> {
-        let rows: Vec<(i64, i64, bool)> = sqlx::query_as(
+    async fn load(db: &SqlitePool, user_id: UserId) -> AppResult<Self> {
+        let rows: Vec<(MemberId, RoomId, bool)> = sqlx::query_as(
             "SELECT m.id, m.group_id, g.kind = 'party' FROM members m JOIN groups g ON g.id = m.group_id \
              WHERE m.user_id = ? ORDER BY m.id",
         )
@@ -53,17 +54,17 @@ pub enum Streaks {
     /// Every room of the account (the collection, the sweep).
     All,
     /// Only this one (right after one of its questions closed: the others haven't changed).
-    Only(i64),
+    Only(RoomId),
 }
 
 /// Rooms loaded once per evaluation run (several accounts share them).
-pub type RoomCache = HashMap<i64, Option<Room>>;
+pub type RoomCache = HashMap<RoomId, Option<Room>>;
 
 /// Every metric of an account. A few aggregate queries over its seats (indexed: `votes_voter`,
 /// `messages_member`, `nudges_from`, `tripot_bets_member`, rounds by room) and the streak replay.
 pub async fn metrics(
     db: &SqlitePool,
-    user_id: i64,
+    user_id: UserId,
     streak_rooms: Streaks,
     cache: &mut RoomCache,
 ) -> AppResult<Metrics> {
@@ -196,9 +197,9 @@ pub async fn metrics(
 /// entry). Returns the badges newly earned, `(key, highest new tier)`.
 pub async fn award(
     state: &AppState,
-    user_id: i64,
+    user_id: UserId,
     values: &Metrics,
-    group_id: Option<i64>,
+    group_id: Option<RoomId>,
 ) -> AppResult<Vec<(&'static str, i64)>> {
     // Nothing new and already evaluated once: no write at all (spares the SD card).
     let (evaluated, held): (bool, String) = sqlx::query_as(
@@ -278,9 +279,9 @@ pub async fn award(
 /// used last, else my most recently active room. `(member, room)`.
 pub(crate) async fn inbox_seat(
     tx: &mut sqlx::SqliteConnection,
-    user_id: i64,
-    group_id: Option<i64>,
-) -> AppResult<Option<(i64, i64)>> {
+    user_id: UserId,
+    group_id: Option<RoomId>,
+) -> AppResult<Option<(MemberId, RoomId)>> {
     Ok(sqlx::query_as(
         "SELECT m.id, m.group_id FROM members m \
          JOIN groups g ON g.id = m.group_id AND g.kind = 'room' AND g.deleted_at IS NULL \
@@ -299,9 +300,9 @@ pub(crate) async fn inbox_seat(
 /// room just closed), the day streaks are only replayed for that room. Returns what was earned.
 pub async fn evaluate(
     state: &AppState,
-    user_ids: &[i64],
-    group_id: Option<i64>,
-) -> AppResult<Vec<(i64, &'static str, i64)>> {
+    user_ids: &[UserId],
+    group_id: Option<RoomId>,
+) -> AppResult<Vec<(UserId, &'static str, i64)>> {
     let mut cache = RoomCache::new();
     let streak_rooms = group_id.map_or(Streaks::All, Streaks::Only);
     let mut out = Vec::new();
@@ -318,9 +319,9 @@ pub async fn evaluate(
 /// voted for or ranked, and its author.
 pub async fn after_close_now(
     state: &AppState,
-    group_id: i64,
-) -> AppResult<Vec<(i64, &'static str, i64)>> {
-    let round: Option<i64> = sqlx::query_scalar(
+    group_id: RoomId,
+) -> AppResult<Vec<(UserId, &'static str, i64)>> {
+    let round: Option<RoundId> = sqlx::query_scalar(
         "SELECT id FROM rounds WHERE group_id = ? AND closed_at IS NOT NULL ORDER BY closed_at DESC, id DESC LIMIT 1",
     )
     .bind(group_id)
@@ -329,7 +330,7 @@ pub async fn after_close_now(
     let Some(round) = round else {
         return Ok(Vec::new());
     };
-    let users: Vec<i64> = sqlx::query_scalar(
+    let users: Vec<UserId> = sqlx::query_scalar(
         "SELECT DISTINCT m.user_id FROM members m WHERE m.user_id IS NOT NULL AND m.id IN ( \
            SELECT voter_id FROM votes WHERE round_id = ?1 UNION SELECT target_id FROM votes WHERE round_id = ?1 \
            UNION SELECT member_id FROM rankings WHERE round_id = ?1 \
@@ -344,11 +345,11 @@ pub async fn after_close_now(
 
 /// After a question closed (committed): [`after_close_now`] in the background. Errors are logged,
 /// never the request's.
-pub fn after_close(state: &AppState, group_id: i64) {
+pub fn after_close(state: &AppState, group_id: RoomId) {
     let state = state.clone();
     tokio::spawn(async move {
         if let Err(e) = after_close_now(&state, group_id).await {
-            tracing::warn!(group_id, error = ?e, "badges after a question closed");
+            tracing::warn!(%group_id, error = ?e, "badges after a question closed");
         }
     });
 }
@@ -368,7 +369,7 @@ pub struct Swept {
 /// settles, party deadlines, nudges and chat don't go through a question closing in their room), and
 /// in the Wrapped window the "your year is ready" notice goes out (docs/WRAPPED.md).
 pub async fn sweep_at(state: &AppState, now: i64) -> AppResult<Swept> {
-    let users: Vec<i64> = sqlx::query_scalar(
+    let users: Vec<UserId> = sqlx::query_scalar(
         "SELECT DISTINCT m.user_id FROM members m JOIN users u ON u.id = m.user_id AND u.deleted_at IS NULL \
          WHERE m.active_at >= strftime('%Y-%m-%dT%H:%M:%fZ', ?, 'unixepoch', '-2 hours') ORDER BY m.user_id",
     )
@@ -388,7 +389,7 @@ pub async fn sweep_at(state: &AppState, now: i64) -> AppResult<Swept> {
         .await;
         match earned {
             Ok(news) => swept.earned += news.len(),
-            Err(e) => tracing::warn!(user, error = ?e, "badge sweep"),
+            Err(e) => tracing::warn!(%user, error = ?e, "badge sweep"),
         }
     }
     swept.wrapped_notices = crate::insights::wrapped::notify_at(state, now).await?;

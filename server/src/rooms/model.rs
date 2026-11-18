@@ -1,9 +1,10 @@
+use crate::platform::ids::{MemberId, RoomId, UserId};
 use serde::Serialize;
 
 #[derive(Clone, Debug, sqlx::FromRow)]
 pub struct MemberRow {
-    pub id: i64,
-    pub group_id: i64,
+    pub id: MemberId,
+    pub group_id: RoomId,
     pub name: String,
     pub color: String,
     pub photo: Option<String>,
@@ -11,7 +12,7 @@ pub struct MemberRow {
     pub created_at: String,
     pub seen_round: i64,
     pub removed_at: Option<String>,
-    pub user_id: Option<i64>,
+    pub user_id: Option<UserId>,
     pub role: String,
     /// The seat ended because they left (not removed): the invite code brings them back.
     #[sqlx(default)]
@@ -23,7 +24,7 @@ pub struct MemberRow {
 
 #[derive(Clone, Debug, Serialize)]
 pub struct Member {
-    pub id: i64,
+    pub id: MemberId,
     pub name: String,
     pub color: String,
     pub photo_url: Option<String>,

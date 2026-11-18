@@ -1,3 +1,4 @@
+use crate::platform::ids::{MemberId, MessageId, QuestionId, RoomId, RoundId, UserId};
 use axum::{
     Json,
     extract::{Path, State},
@@ -20,13 +21,13 @@ use super::*;
 pub async fn restore_message(
     State(state): State<AppState>,
     Me(me): Me,
-    Path((round_id, message_id)): Path<(i64, i64)>,
+    Path((round_id, message_id)): Path<(RoundId, MessageId)>,
 ) -> AppResult<Json<Value>> {
     if me.role != "owner" {
         return Err(AppError::Forbidden("owner_only"));
     }
     crate::rounds::game::round(&state.db, me.group_id, round_id).await?;
-    let back: Option<(i64, Option<i64>)> = sqlx::query_as(
+    let back: Option<(MemberId, Option<UserId>)> = sqlx::query_as(
         "UPDATE messages SET hidden_at = NULL, unhidden_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') \
          WHERE id = ? AND round_id = ? AND hidden_at IS NOT NULL \
          RETURNING member_id, (SELECT user_id FROM members m WHERE m.id = member_id)",
@@ -49,11 +50,20 @@ pub async fn restore_message(
 }
 
 /// A message about to be erased: round, author, text, sent at, room, kind, media, hidden.
-pub(super) type Erased = (i64, i64, String, String, i64, String, Option<String>, bool);
+pub(super) type Erased = (
+    RoundId,
+    MemberId,
+    String,
+    String,
+    RoomId,
+    String,
+    Option<String>,
+    bool,
+);
 
 /// Deletes a chat message (and its image file) and the inbox entries it made, closes its open reports and tells the
 /// room. `false` if it was already gone.
-pub(crate) async fn erase_message(state: &AppState, id: i64) -> AppResult<bool> {
+pub(crate) async fn erase_message(state: &AppState, id: MessageId) -> AppResult<bool> {
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
     let row: Option<Erased> = sqlx::query_as(
         "SELECT x.round_id, x.member_id, x.text, x.created_at, r.group_id, x.kind, x.media, x.hidden_at IS NOT NULL \
@@ -74,7 +84,7 @@ pub(crate) async fn erase_message(state: &AppState, id: i64) -> AppResult<bool> 
         .bind(id)
         .execute(&mut *tx)
         .await?;
-    resolve(&mut tx, "message", id, "delete").await?;
+    resolve(&mut tx, "message", id.raw(), "delete").await?;
     tx.commit().await?;
     // An image goes with its message.
     if kind == "image" {
@@ -96,10 +106,10 @@ pub(crate) async fn erase_message(state: &AppState, id: i64) -> AppResult<bool> 
 pub async fn delete_message(
     State(state): State<AppState>,
     Me(me): Me,
-    Path((round_id, message_id)): Path<(i64, i64)>,
+    Path((round_id, message_id)): Path<(RoundId, MessageId)>,
 ) -> AppResult<Json<Value>> {
     crate::rounds::game::round(&state.db, me.group_id, round_id).await?;
-    let author: i64 =
+    let author: MemberId =
         sqlx::query_scalar("SELECT member_id FROM messages WHERE id = ? AND round_id = ?")
             .bind(message_id)
             .bind(round_id)
@@ -124,9 +134,9 @@ pub(super) fn retired_text(lang: Lang) -> &'static str {
 /// everywhere it shows, its inbox entries ("new question", "result") included. Its open question
 /// closes without a result (votes dropped) and the next one opens. `409 deck_question` for the
 /// shared deck. Returns its room.
-pub(crate) async fn retire_question(state: &AppState, id: i64) -> AppResult<i64> {
+pub(crate) async fn retire_question(state: &AppState, id: QuestionId) -> AppResult<RoomId> {
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
-    let row: Option<(Option<i64>, bool, String)> = sqlx::query_as(
+    let row: Option<(Option<RoomId>, bool, String)> = sqlx::query_as(
         "SELECT q.group_id, NOT EXISTS (SELECT 1 FROM rounds r WHERE r.group_id = q.group_id AND r.question_id = q.id), \
          COALESCE(g.language, 'fr') FROM questions q LEFT JOIN groups g ON g.id = q.group_id WHERE q.id = ?",
     )
@@ -164,7 +174,7 @@ pub(crate) async fn retire_question(state: &AppState, id: i64) -> AppResult<i64>
         .bind(id)
         .execute(&mut *tx)
         .await?;
-        let open: Option<i64> = sqlx::query_scalar(
+        let open: Option<RoundId> = sqlx::query_scalar(
             "SELECT id FROM rounds WHERE group_id = ? AND question_id = ? AND closed_at IS NULL",
         )
         .bind(room)
@@ -175,7 +185,7 @@ pub(crate) async fn retire_question(state: &AppState, id: i64) -> AppResult<i64>
             events = crate::rounds::game::drop_round(&mut tx, room, round_id).await?;
         }
     }
-    resolve(&mut tx, "question", id, "delete").await?;
+    resolve(&mut tx, "question", id.raw(), "delete").await?;
     tx.commit().await?;
     state
         .live
@@ -200,12 +210,12 @@ pub(crate) async fn retire_question(state: &AppState, id: i64) -> AppResult<i64>
 pub async fn retire_round_question(
     State(state): State<AppState>,
     Me(me): Me,
-    Path(round_id): Path<i64>,
+    Path(round_id): Path<RoundId>,
 ) -> AppResult<Json<Value>> {
     if me.role != "owner" {
         return Err(AppError::Forbidden("owner_only"));
     }
-    let question: i64 =
+    let question: QuestionId =
         sqlx::query_scalar("SELECT question_id FROM rounds WHERE id = ? AND group_id = ?")
             .bind(round_id)
             .bind(me.group_id)
@@ -219,7 +229,7 @@ pub async fn retire_round_question(
 /// An admin's delete on a said answer: its text is blanked for good and it shows as hidden (it was
 /// written: it stays in the game, its guesses and points too).
 pub(super) async fn erase_answer(state: &AppState, id: i64) -> AppResult<()> {
-    let gone: Option<(i64, i64)> = sqlx::query_as(
+    let gone: Option<(RoundId, RoomId)> = sqlx::query_as(
         "UPDATE said_answers SET text = '', \
          hidden_at = COALESCE(hidden_at, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) \
          WHERE id = ? AND text IS NOT NULL \

@@ -4,6 +4,7 @@
 //! unless they secured the account (e-mail + password or a linked provider) or the party was kept
 //! as a room they are still in. A background task purges them hourly (first run at startup).
 
+use crate::platform::ids::UserId;
 use crate::{AppState, accounts::auth::guest_sql, platform::error::AppResult};
 
 /// Days a guest account lives after its last party ends.
@@ -22,7 +23,7 @@ pub async fn purge_at(state: &AppState, now: &str) -> AppResult<usize> {
             .await?;
     // Kept: a seat in a party that hasn't ended or ended after the cutoff (left or not), or an
     // active seat in a room (a party kept as a room). A guest made after the cutoff is kept too.
-    let users: Vec<i64> = sqlx::query_scalar(concat!(
+    let users: Vec<UserId> = sqlx::query_scalar(concat!(
         "SELECT u.id FROM users u WHERE u.guest = 1 AND u.deleted_at IS NULL AND ",
         guest_sql!("u"),
         " AND u.created_at <= ?1 \
@@ -38,7 +39,7 @@ pub async fn purge_at(state: &AppState, now: &str) -> AppResult<usize> {
     for user in users {
         match crate::accounts::delete::erase(state, user).await {
             Ok(()) => purged += 1,
-            Err(e) => tracing::warn!(user, error = ?e, "guest purge: not erased"),
+            Err(e) => tracing::warn!(%user, error = ?e, "guest purge: not erased"),
         }
     }
     Ok(purged)

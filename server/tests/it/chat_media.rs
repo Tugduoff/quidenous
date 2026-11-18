@@ -4,6 +4,7 @@
 
 use crate::common;
 use crate::common::messages;
+use quidenous_server::platform::ids::{MessageId, UserId};
 
 use std::sync::{Arc, Mutex};
 
@@ -475,8 +476,11 @@ async fn chat_rules_and_tokens() {
         Some(json!({ "text": "texte" })),
     )
     .await;
-    let text_url =
-        quidenous_server::chat::media::image_url(&state, t["id"].as_i64().unwrap(), false);
+    let text_url = quidenous_server::chat::media::image_url(
+        &state,
+        MessageId::from_raw(t["id"].as_i64().unwrap()),
+        false,
+    );
     let other_id = format!(
         "/api/media/{}",
         quidenous_server::chat::media::sign(&state, "klipy media", &format!("{id}.99999999999"))
@@ -573,7 +577,7 @@ async fn blocks_reports_and_deletions() {
     .await;
     assert_eq!(s, StatusCode::NOT_FOUND);
     // An admin reviewing the report still sees it.
-    let review = quidenous_server::chat::media::image_url(&state, rid, true);
+    let review = quidenous_server::chat::media::image_url(&state, MessageId::from_raw(rid), true);
     let (s, _, _) = raw(&app, "GET", &review, None, None, None, Vec::new()).await;
     assert_eq!(s, StatusCode::OK);
 
@@ -686,7 +690,7 @@ async fn image_quota() {
         quidenous_server::platform::quotas::hit_user(
             &state,
             &quidenous_server::platform::quotas::CHAT_IMAGE_USER,
-            user,
+            UserId::from_raw(user),
         )
         .unwrap();
     }

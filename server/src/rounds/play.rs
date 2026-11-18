@@ -2,6 +2,7 @@
 //! in another room (front of its queue); a closed round sent to another room is a challenge, and
 //! both rooms see each other's podium once both rounds are closed.
 
+use crate::platform::ids::{ChallengeId, MemberId, QuestionId, RoomId, RoundId, UserId};
 use axum::{
     Json,
     extract::{Path, State},
@@ -21,8 +22,8 @@ use crate::{
 
 /// The question behind a share link.
 struct Shared {
-    round_id: i64,
-    group_id: i64,
+    round_id: RoundId,
+    group_id: RoomId,
     text: String,
     kind: String,
     /// A choose question's items (JSON array), copied with it.
@@ -37,7 +38,7 @@ struct Shared {
 async fn shared(state: &AppState, token: &str) -> AppResult<Shared> {
     // A deck question has a language; a room's own question speaks the sharer's.
     #[allow(clippy::type_complexity)]
-    let row: (i64, i64, String, String, Option<String>, String, String, bool, bool) = sqlx::query_as(concat!(
+    let row: (RoundId, RoomId, String, String, Option<String>, String, String, bool, bool) = sqlx::query_as(concat!(
         "SELECT s.round_id, r.group_id, q.text, q.kind, q.items, \
                 CASE WHEN q.group_id IS NULL THEN q.lang ELSE s.lang END, g.name, r.closed_at IS NOT NULL, \
                 s.with_result \
@@ -76,12 +77,12 @@ pub async fn get(
 /// Round `from` sent to `room` as its question `question` (once per round and room).
 async fn record_challenge(
     tx: &mut Transaction<'_, Sqlite>,
-    from: i64,
-    room: i64,
-    question: i64,
-    by: Option<i64>,
+    from: RoundId,
+    room: RoomId,
+    question: QuestionId,
+    by: Option<UserId>,
     with_result: bool,
-) -> AppResult<i64> {
+) -> AppResult<ChallengeId> {
     // Once shown (a share with the result, or my own rooms), a podium stays shown.
     Ok(sqlx::query_scalar(
         "INSERT INTO challenges (from_round_id, to_group_id, question_id, created_by, with_result) \
@@ -115,8 +116,8 @@ async fn send(
     state: &AppState,
     target: &MemberRow,
     q: Copied<'_>,
-    challenge_from: Option<(i64, bool)>,
-) -> AppResult<(i64, Option<i64>)> {
+    challenge_from: Option<(RoundId, bool)>,
+) -> AppResult<(QuestionId, Option<ChallengeId>)> {
     let Copied {
         text,
         kind,
@@ -129,7 +130,7 @@ async fn send(
     crate::rounds::queue::may_add_questions(state, target).await?;
     let room = target.group_id;
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
-    let played: Option<i64> = sqlx::query_scalar(
+    let played: Option<QuestionId> = sqlx::query_scalar(
         "SELECT r.question_id FROM rounds r JOIN questions q ON q.id = r.question_id \
          WHERE r.group_id = ? AND lower(q.text) = lower(?) ORDER BY r.id DESC LIMIT 1",
     )
@@ -153,7 +154,7 @@ async fn send(
     .fetch_one(&mut *tx)
     .await?;
     let copy = game::same_question(&mut tx, room, text).await?;
-    let question: i64 =
+    let question: QuestionId =
         match copy {
             Some(id) => {
                 // A choose copy left without its items (by older servers) gets them back.
@@ -236,14 +237,14 @@ pub async fn play(
 
 #[derive(Deserialize)]
 pub struct ChallengeBody {
-    room_id: i64,
+    room_id: RoomId,
 }
 
 /// `POST /rounds/{id}/challenge`: send a closed round of my `X-Room` room to another of my rooms.
 pub async fn challenge(
     State(state): State<AppState>,
     Me(me): Me,
-    Path(id): Path<i64>,
+    Path(id): Path<RoundId>,
     Json(body): Json<ChallengeBody>,
 ) -> AppResult<Json<Value>> {
     let round = game::round(&state.db, me.group_id, id).await?;
@@ -276,14 +277,14 @@ pub async fn challenge(
 
 /// Top 3 of a round: votes for a pick question, points for a ranking or a said question. First names and drawn
 /// avatars only: the other room may be strangers, so no photos.
-async fn podium(db: &SqlitePool, round_id: i64) -> AppResult<Vec<Value>> {
+async fn podium(db: &SqlitePool, round_id: RoundId) -> AppResult<Vec<Value>> {
     let kind: String = sqlx::query_scalar(
         "SELECT q.kind FROM rounds r JOIN questions q ON q.id = r.question_id WHERE r.id = ?",
     )
     .bind(round_id)
     .fetch_one(db)
     .await?;
-    let top: Vec<(i64, i64)> = if kind == "said" {
+    let top: Vec<(MemberId, i64)> = if kind == "said" {
         // The top scorers.
         crate::rounds::said::result(db, round_id)
             .await?
@@ -338,7 +339,7 @@ async fn podium(db: &SqlitePool, round_id: i64) -> AppResult<Vec<Value>> {
 pub async fn challenges(
     State(state): State<AppState>,
     Me(me): Me,
-    Path(id): Path<i64>,
+    Path(id): Path<RoundId>,
 ) -> AppResult<Json<Value>> {
     let round = game::round(&state.db, me.group_id, id).await?;
     let mine_closed = round.closed_at.is_some();
@@ -349,7 +350,7 @@ pub async fn challenges(
     };
     // (room, its round, closed, podiums shown), sent to then came from. A challenge from a share
     // without the result shows the other room's name only, both ways.
-    let mut rows: Vec<(String, Option<i64>, bool, bool)> = sqlx::query_as(
+    let mut rows: Vec<(String, Option<RoundId>, bool, bool)> = sqlx::query_as(
         "SELECT g.name, r.id, COALESCE(r.closed_at IS NOT NULL, 0), c.with_result FROM challenges c \
          JOIN groups g ON g.id = c.to_group_id AND g.deleted_at IS NULL \
          LEFT JOIN rounds r ON r.group_id = c.to_group_id AND r.question_id = c.question_id \
@@ -358,7 +359,7 @@ pub async fn challenges(
     .bind(round.id)
     .fetch_all(&state.db)
     .await?;
-    let came_from: Vec<(String, Option<i64>, bool, bool)> = sqlx::query_as(
+    let came_from: Vec<(String, Option<RoundId>, bool, bool)> = sqlx::query_as(
         "SELECT g.name, r.id, r.closed_at IS NOT NULL, c.with_result FROM challenges c \
          JOIN rounds r ON r.id = c.from_round_id \
          JOIN groups g ON g.id = r.group_id AND g.deleted_at IS NULL \

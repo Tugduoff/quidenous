@@ -3,6 +3,7 @@
 //! the URLs the app gets are `/api/gifs/media/<token>`, a signed original URL on Klipy's static
 //! hosts. Only when `KLIPY_API_KEY` is set (`chat_gifs` feature); else `404 gifs_off`.
 
+use crate::platform::ids::{MemberId, RoundId};
 use std::{sync::OnceLock, time::Duration};
 
 use axum::{
@@ -336,7 +337,7 @@ pub struct GifBody {
     height: u64,
     caption: Option<String>,
     #[serde(default)]
-    mentions: Vec<i64>,
+    mentions: Vec<MemberId>,
     #[serde(default)]
     everyone: bool,
     /// As for a text message: a retry with the same key gets the message already posted.
@@ -349,7 +350,7 @@ pub struct GifBody {
 pub(crate) async fn post(
     State(state): State<AppState>,
     Me(me): Me,
-    Path(id): Path<i64>,
+    Path(id): Path<RoundId>,
     Json(body): Json<GifBody>,
 ) -> AppResult<Json<MessageRow>> {
     klipy(&state)?;

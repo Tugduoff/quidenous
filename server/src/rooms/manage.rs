@@ -1,5 +1,6 @@
 //! Rooms: one account can create, join and leave several. The owner runs the room.
 
+use crate::platform::ids::{MemberId, RoomId, UserId};
 use axum::{
     Json,
     extract::{Path, Query, State},
@@ -48,7 +49,10 @@ pub const MEMBERS_MAX: i64 = 50;
 pub const OWNED_MAX: i64 = 20;
 
 /// `409 room_full` when this room already seats [`MEMBERS_MAX`] people.
-pub(crate) async fn seat_free<'e, E: sqlx::SqliteExecutor<'e>>(db: E, room: i64) -> AppResult<()> {
+pub(crate) async fn seat_free<'e, E: sqlx::SqliteExecutor<'e>>(
+    db: E,
+    room: RoomId,
+) -> AppResult<()> {
     let seated: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM members WHERE group_id = ? AND removed_at IS NULL",
     )
@@ -63,7 +67,10 @@ pub(crate) async fn seat_free<'e, E: sqlx::SqliteExecutor<'e>>(db: E, room: i64)
 
 /// `400 bad_code` when the room was deleted in the meantime (its owner left it alone just before):
 /// checked in the write transaction that takes a seat, so nobody joins a deleted room.
-pub(crate) async fn still_open<'e, E: sqlx::SqliteExecutor<'e>>(db: E, room: i64) -> AppResult<()> {
+pub(crate) async fn still_open<'e, E: sqlx::SqliteExecutor<'e>>(
+    db: E,
+    room: RoomId,
+) -> AppResult<()> {
     let open: bool = sqlx::query_scalar(
         "SELECT EXISTS (SELECT 1 FROM groups WHERE id = ? AND deleted_at IS NULL)",
     )
@@ -85,7 +92,7 @@ fn clean_room_name(name: &str) -> AppResult<String> {
 }
 
 /// My active seat in a room that still exists.
-pub async fn seat(state: &AppState, user_id: i64, room: i64) -> AppResult<MemberRow> {
+pub async fn seat(state: &AppState, user_id: UserId, room: RoomId) -> AppResult<MemberRow> {
     sqlx::query_as::<_, MemberRow>(
         "SELECT m.* FROM members m JOIN groups g ON g.id = m.group_id AND g.deleted_at IS NULL \
          WHERE m.user_id = ? AND m.group_id = ? AND m.removed_at IS NULL",
@@ -97,7 +104,7 @@ pub async fn seat(state: &AppState, user_id: i64, room: i64) -> AppResult<Member
     .ok_or(AppError::Forbidden("not_in_room"))
 }
 
-async fn owner_seat(state: &AppState, user_id: i64, room: i64) -> AppResult<MemberRow> {
+async fn owner_seat(state: &AppState, user_id: UserId, room: RoomId) -> AppResult<MemberRow> {
     let me = seat(state, user_id, room).await?;
     if me.role != "owner" {
         return Err(AppError::Forbidden("owner_only"));
@@ -107,7 +114,7 @@ async fn owner_seat(state: &AppState, user_id: i64, room: i64) -> AppResult<Memb
 
 /// My rooms, most recently used first, with what's waiting for me in each.
 type RoomRow = (
-    i64,
+    RoomId,
     String,
     String,
     i64,
@@ -121,7 +128,10 @@ type RoomRow = (
     bool,
 );
 
-pub async fn list(State(state): State<AppState>, SignedIn(user): SignedIn) -> AppResult<Json<Value>> {
+pub async fn list(
+    State(state): State<AppState>,
+    SignedIn(user): SignedIn,
+) -> AppResult<Json<Value>> {
     let rows: Vec<RoomRow> = sqlx::query_as(
         "SELECT g.id, g.name, m.role, \
                 (SELECT COUNT(*) FROM members x WHERE x.group_id = g.id AND x.removed_at IS NULL), \
@@ -199,7 +209,7 @@ fn clean_vibe(vibe: Option<&str>) -> AppResult<Option<&'static str>> {
 }
 
 /// How many live rooms (not parties) this account owns.
-async fn owned_rooms<'e, E: sqlx::SqliteExecutor<'e>>(db: E, user: i64) -> AppResult<i64> {
+async fn owned_rooms<'e, E: sqlx::SqliteExecutor<'e>>(db: E, user: UserId) -> AppResult<i64> {
     Ok(sqlx::query_scalar(
         "SELECT COUNT(*) FROM members m JOIN groups g ON g.id = m.group_id AND g.deleted_at IS NULL \
          AND g.kind = 'room' WHERE m.user_id = ? AND m.role = 'owner' AND m.removed_at IS NULL",
@@ -233,7 +243,7 @@ pub async fn create(
     let mut room_id = None;
     // Codes are unique: retry on the (rare) clash.
     for _ in 0..5 {
-        let inserted: Option<i64> = sqlx::query_scalar(
+        let inserted: Option<RoomId> = sqlx::query_scalar(
             "INSERT INTO groups (name, join_code, vibe, language) VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING RETURNING id",
         )
         .bind(&name)
@@ -290,7 +300,7 @@ pub async fn join(
     Json(body): Json<JoinBody>,
 ) -> AppResult<Json<Value>> {
     let attempt = crate::platform::quotas::code_attempt(&state, Some(user), ip)?;
-    let (room_id, kind): (i64, String) =
+    let (room_id, kind): (RoomId, String) =
         sqlx::query_as("SELECT id, kind FROM groups WHERE join_code = ? AND deleted_at IS NULL")
             .bind(body.code.trim().to_uppercase())
             .fetch_optional(&state.db)
@@ -339,7 +349,7 @@ pub async fn join(
                     .bind(user)
                     .fetch_one(&mut *tx)
                     .await?;
-            let member_id: i64 = sqlx::query_scalar(
+            let member_id: MemberId = sqlx::query_scalar(
                 "INSERT INTO members (group_id, name, color, photo, avatar, token_hash, user_id) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id",
             )
             .bind(room_id)
@@ -391,14 +401,14 @@ pub async fn preview(
         .auth
         .limits
         .hit_ip(&crate::accounts::limits::ROOM_PREVIEW_IP, ip)?;
-    let (room_id, name): (i64, String) = sqlx::query_as(
+    let (room_id, name): (RoomId, String) = sqlx::query_as(
         "SELECT id, name FROM groups WHERE join_code = ? AND kind = 'room' AND deleted_at IS NULL",
     )
     .bind(q.code.trim().to_uppercase())
     .fetch_optional(&state.db)
     .await?
     .ok_or(AppError::Missing("bad_code"))?;
-    let members: Vec<(String, Option<i64>)> = sqlx::query_as(
+    let members: Vec<(String, Option<UserId>)> = sqlx::query_as(
         "SELECT name, user_id FROM members WHERE group_id = ? AND removed_at IS NULL \
          ORDER BY role = 'owner' DESC, id",
     )
@@ -443,7 +453,7 @@ pub struct SettingsBody {
 pub async fn update(
     State(state): State<AppState>,
     SignedIn(user): SignedIn,
-    Path(room): Path<i64>,
+    Path(room): Path<RoomId>,
     Json(body): Json<SettingsBody>,
 ) -> AppResult<Json<Value>> {
     let me = owner_seat(&state, user, room).await?;
@@ -517,13 +527,13 @@ pub async fn update(
     // The settings are saved: what follows from them logs its failures (the scheduler and the
     // next request catch up), never turns the saved change into an error.
     if pacing && let Err(e) = crate::rooms::pacing::settings_changed(&state, room).await {
-        tracing::warn!(room, error = ?e, "pacing after a settings change");
+        tracing::warn!(%room, error = ?e, "pacing after a settings change");
     }
     // A room that ran out of questions has a whole new deck after a vibe or language change.
     if (body.vibe.is_some() || language.is_some())
         && let Err(e) = crate::rooms::pacing::open_if_idle(&state, room, Some(me.id)).await
     {
-        tracing::warn!(room, error = ?e, "opening a question after a settings change");
+        tracing::warn!(%room, error = ?e, "opening a question after a settings change");
     }
     Ok(Json(json!({ "ok": true })))
 }
@@ -532,7 +542,7 @@ pub async fn update(
 pub async fn rotate_code(
     State(state): State<AppState>,
     SignedIn(user): SignedIn,
-    Path(room): Path<i64>,
+    Path(room): Path<RoomId>,
 ) -> AppResult<Json<Value>> {
     owner_seat(&state, user, room).await?;
     for _ in 0..5 {
@@ -554,13 +564,13 @@ pub async fn rotate_code(
 pub async fn force_remove(
     State(state): State<AppState>,
     SignedIn(user): SignedIn,
-    Path((room, member_id)): Path<(i64, i64)>,
+    Path((room, member_id)): Path<(RoomId, MemberId)>,
 ) -> AppResult<Json<Value>> {
     let me = owner_seat(&state, user, room).await?;
     if member_id == me.id {
         return Err(AppError::BadRequest("self_kick"));
     }
-    let target: Option<i64> = sqlx::query_scalar(
+    let target: Option<MemberId> = sqlx::query_scalar(
         "SELECT id FROM members WHERE id = ? AND group_id = ? AND removed_at IS NULL",
     )
     .bind(member_id)
@@ -577,14 +587,14 @@ pub async fn force_remove(
 
 #[derive(Deserialize)]
 pub struct OwnerBody {
-    member_id: i64,
+    member_id: MemberId,
 }
 
 /// Owner only: hand the room over to another member.
 pub async fn transfer(
     State(state): State<AppState>,
     SignedIn(user): SignedIn,
-    Path(room): Path<i64>,
+    Path(room): Path<RoomId>,
     Json(body): Json<OwnerBody>,
 ) -> AppResult<Json<Value>> {
     // Only a seat here: whether I'm (still) the owner is decided in the transaction, so a double tap
@@ -631,7 +641,7 @@ pub async fn transfer(
 pub async fn leave(
     State(state): State<AppState>,
     SignedIn(user): SignedIn,
-    Path(room): Path<i64>,
+    Path(room): Path<RoomId>,
 ) -> AppResult<Json<Value>> {
     let me = seat(&state, user, room).await?;
     let deleted = leave_seat(&state, &me).await?;
@@ -673,20 +683,20 @@ pub(crate) async fn leave_seat(state: &AppState, me: &MemberRow) -> AppResult<bo
 pub async fn delete(
     State(state): State<AppState>,
     SignedIn(user): SignedIn,
-    Path(room): Path<i64>,
+    Path(room): Path<RoomId>,
 ) -> AppResult<Json<Value>> {
     owner_seat(&state, user, room).await?;
     delete_room(&state, room).await?;
     Ok(Json(json!({ "ok": true })))
 }
 
-async fn delete_room(state: &AppState, room: i64) -> AppResult<()> {
+async fn delete_room(state: &AppState, room: RoomId) -> AppResult<()> {
     mark_deleted(&state.db, room).await?;
     room_deleted(state, room).await;
     Ok(())
 }
 
-async fn mark_deleted<'e, E: sqlx::SqliteExecutor<'e>>(db: E, room: i64) -> AppResult<()> {
+async fn mark_deleted<'e, E: sqlx::SqliteExecutor<'e>>(db: E, room: RoomId) -> AppResult<()> {
     sqlx::query(
         "UPDATE groups SET deleted_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
     )
@@ -697,7 +707,7 @@ async fn mark_deleted<'e, E: sqlx::SqliteExecutor<'e>>(db: E, room: i64) -> AppR
 }
 
 /// After the deletion committed.
-async fn room_deleted(state: &AppState, room: i64) {
+async fn room_deleted(state: &AppState, room: RoomId) {
     // Nobody can open its chat any more: its images go now (rooms are never restored).
     crate::chat::media::remove_room(state, room).await;
     state.live.send(room, Event::RoomDeleted);
@@ -732,7 +742,7 @@ pub async fn start(
     clean_vibe(body.vibe.as_deref())?;
     let token = crate::accounts::auth::new_token();
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
-    let user: i64 = sqlx::query_scalar(
+    let user: UserId = sqlx::query_scalar(
         "INSERT INTO users (name, color, friend_code) VALUES (?, ?, upper(hex(randomblob(5)))) RETURNING id",
     )
     .bind(name)
