@@ -18,7 +18,7 @@ use sqlx::SqliteExecutor;
 
 use crate::{
     AppState,
-    accounts::auth::{Me, UserId},
+    accounts::auth::{Me, SignedIn},
     platform::error::{AppError, AppResult},
     realtime::live::{Event, Tap},
     rooms::model::MemberRow,
@@ -378,7 +378,7 @@ async fn round_seat(state: &AppState, user: i64, round_id: i64) -> AppResult<(Me
 /// `GET /rounds/{id}/reactions`.
 async fn get_round(
     State(state): State<AppState>,
-    UserId(user): UserId,
+    SignedIn(user): SignedIn,
     Path(id): Path<i64>,
 ) -> AppResult<Json<RoundReactions>> {
     let (me, _) = round_seat(&state, user, id).await?;
@@ -401,7 +401,7 @@ pub struct TapBody {
 /// emojis (`400 bad_emoji`). Counted in order until the cap; the rest is dropped quietly.
 async fn post_round(
     State(state): State<AppState>,
-    UserId(user): UserId,
+    SignedIn(user): SignedIn,
     Path(id): Path<i64>,
     Json(body): Json<TapsBody>,
 ) -> AppResult<Json<RoundReactions>> {

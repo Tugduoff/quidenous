@@ -12,7 +12,7 @@ use serde_json::{Value, json};
 
 use crate::{
     AppState,
-    accounts::auth::{Account, UserId, guest_sql},
+    accounts::auth::{Account, SignedIn, guest_sql},
     chat::inbox,
     platform::error::{AppError, AppResult},
     platform::i18n::{self, Text},
@@ -324,7 +324,7 @@ pub async fn keep(
 /// (people I share a room with stay friends).
 pub async fn remove(
     State(state): State<AppState>,
-    UserId(me): UserId,
+    SignedIn(me): SignedIn,
     Path(other): Path<i64>,
 ) -> AppResult<Json<Value>> {
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
@@ -433,7 +433,7 @@ macro_rules! invite_valid {
 }
 
 /// The room invitations waiting for me, newest first.
-pub async fn invites(State(state): State<AppState>, UserId(me): UserId) -> AppResult<Json<Value>> {
+pub async fn invites(State(state): State<AppState>, SignedIn(me): SignedIn) -> AppResult<Json<Value>> {
     type Row = (
         i64,
         i64,
@@ -597,7 +597,7 @@ pub async fn accept_invite(
 /// Decline an invitation (the invited person) or take it back (whoever sent it).
 pub async fn decline_invite(
     State(state): State<AppState>,
-    UserId(me): UserId,
+    SignedIn(me): SignedIn,
     Path(id): Path<i64>,
 ) -> AppResult<Json<Value>> {
     sqlx::query("DELETE FROM room_invites WHERE id = ?1 AND (user_id = ?2 OR from_id = ?2)")
@@ -611,7 +611,7 @@ pub async fn decline_invite(
 /// Who has been invited into this room and hasn't answered yet (members only): `{user_ids}`.
 pub async fn room_invites(
     State(state): State<AppState>,
-    UserId(me): UserId,
+    SignedIn(me): SignedIn,
     Path(room): Path<i64>,
 ) -> AppResult<Json<Value>> {
     seat(&state, me, room).await?;
@@ -629,7 +629,7 @@ pub async fn room_invites(
 /// Take back an invitation into this room: whoever sent it, or the owner.
 pub async fn cancel_room_invite(
     State(state): State<AppState>,
-    UserId(me): UserId,
+    SignedIn(me): SignedIn,
     Path((room, user)): Path<(i64, i64)>,
 ) -> AppResult<Json<Value>> {
     let my_seat = seat(&state, me, room).await?;

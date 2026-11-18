@@ -9,7 +9,7 @@ use sqlx::SqliteExecutor;
 
 use crate::{
     AppState,
-    accounts::auth::UserId,
+    accounts::auth::SignedIn,
     platform::error::{AppError, AppResult},
 };
 
@@ -60,7 +60,7 @@ pub struct Locale {
 
 pub async fn get_locale(
     State(state): State<AppState>,
-    UserId(user): UserId,
+    SignedIn(user): SignedIn,
 ) -> AppResult<Json<Locale>> {
     let row: Locale = sqlx::query_as("SELECT locale, locale_pref AS pref FROM users WHERE id = ?")
         .bind(user)
@@ -72,7 +72,7 @@ pub async fn get_locale(
 
 pub async fn put_locale(
     State(state): State<AppState>,
-    UserId(user): UserId,
+    SignedIn(user): SignedIn,
     Json(body): Json<serde_json::Value>,
 ) -> AppResult<Json<Locale>> {
     let locale = body["locale"].as_str().and_then(Lang::parse);

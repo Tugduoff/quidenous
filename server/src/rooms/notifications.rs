@@ -10,7 +10,7 @@ use serde_json::{Value, json};
 
 use crate::{
     AppState,
-    accounts::auth::UserId,
+    accounts::auth::SignedIn,
     platform::error::{AppError, AppResult},
     realtime::push::Kind,
 };
@@ -43,7 +43,7 @@ impl Default for Prefs {
 /// `off` as stored: comma-separated kinds.
 type PrefsRow = (bool, String, Option<i64>, Option<i64>, i64);
 
-pub async fn get(State(state): State<AppState>, UserId(user): UserId) -> AppResult<Json<Prefs>> {
+pub async fn get(State(state): State<AppState>, SignedIn(user): SignedIn) -> AppResult<Json<Prefs>> {
     let row: Option<PrefsRow> = sqlx::query_as(
         "SELECT enabled, off, quiet_start, quiet_end, tz_offset FROM notification_prefs WHERE user_id = ?",
     )
@@ -64,7 +64,7 @@ pub async fn get(State(state): State<AppState>, UserId(user): UserId) -> AppResu
 
 pub async fn put(
     State(state): State<AppState>,
-    UserId(user): UserId,
+    SignedIn(user): SignedIn,
     Json(mut body): Json<Prefs>,
 ) -> AppResult<Json<Prefs>> {
     let minutes = |m: Option<i64>| m.is_none_or(|m| (0..DAY_MINUTES).contains(&m));
@@ -100,7 +100,7 @@ pub async fn put(
 /// No push at all from this room (PUT), or back on (DELETE).
 pub async fn mute(
     State(state): State<AppState>,
-    UserId(user): UserId,
+    SignedIn(user): SignedIn,
     Path(room): Path<i64>,
 ) -> AppResult<Json<Value>> {
     set_muted(&state, user, room, true).await
@@ -108,7 +108,7 @@ pub async fn mute(
 
 pub async fn unmute(
     State(state): State<AppState>,
-    UserId(user): UserId,
+    SignedIn(user): SignedIn,
     Path(room): Path<i64>,
 ) -> AppResult<Json<Value>> {
     set_muted(&state, user, room, false).await

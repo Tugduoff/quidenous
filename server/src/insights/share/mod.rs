@@ -229,7 +229,7 @@ pub(crate) async fn freeze_stat(db: &sqlx::SqlitePool, f: Frozen<'_>) -> AppResu
 /// `GET /shares`: my public links that still work (every room, newest first), for "My links".
 pub async fn mine(
     State(state): State<AppState>,
-    crate::accounts::auth::UserId(me): crate::accounts::auth::UserId,
+    crate::accounts::auth::SignedIn(me): crate::accounts::auth::SignedIn,
 ) -> AppResult<Json<Value>> {
     #[allow(clippy::type_complexity)]
     let rows: Vec<(String, String, String, String, bool, String, Option<String>)> =
@@ -271,7 +271,7 @@ pub async fn mine(
 /// whoever made it, or the owner of its room. `404` for anyone else.
 pub async fn revoke(
     State(state): State<AppState>,
-    crate::accounts::auth::UserId(me): crate::accounts::auth::UserId,
+    crate::accounts::auth::SignedIn(me): crate::accounts::auth::SignedIn,
     Path(token): Path<String>,
 ) -> AppResult<Json<Value>> {
     // Mine, or in a room I own.

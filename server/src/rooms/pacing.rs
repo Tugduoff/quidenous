@@ -18,7 +18,7 @@ use sqlx::{Sqlite, Transaction};
 
 use crate::{
     AppState,
-    accounts::auth::UserId,
+    accounts::auth::SignedIn,
     platform::error::{AppError, AppResult},
     realtime::live::Event,
     realtime::notify::notify_round,
@@ -152,7 +152,7 @@ pub async fn settings_changed(state: &AppState, group_id: i64) -> AppResult<()> 
 /// (also before the delay is over). `round_id` is null when there is no question left to open.
 pub async fn launch(
     State(state): State<AppState>,
-    UserId(user): UserId,
+    SignedIn(user): SignedIn,
     Path(room): Path<i64>,
 ) -> AppResult<Json<Value>> {
     let me = crate::rooms::manage::seat(&state, user, room).await?;

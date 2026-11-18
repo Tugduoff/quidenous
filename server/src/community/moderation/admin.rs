@@ -4,7 +4,7 @@ use serde_json::{Value, json};
 
 use crate::{
     AppState,
-    accounts::auth::UserId,
+    accounts::auth::SignedIn,
     community::packs::require_admin,
     platform::error::{AppError, AppResult},
     realtime::live::Event,
@@ -165,7 +165,7 @@ pub struct ActBody {
 /// `POST /admin/reports`: an admin closes the open reports on one thing.
 pub async fn act(
     State(state): State<AppState>,
-    UserId(me): UserId,
+    SignedIn(me): SignedIn,
     Json(body): Json<ActBody>,
 ) -> AppResult<Json<Value>> {
     require_admin(&state, me)?;

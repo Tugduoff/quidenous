@@ -13,11 +13,11 @@ use serde_json::{Value, json};
 
 use crate::{
     AppState,
-    accounts::auth::{UserId, guest_sql},
+    accounts::auth::{SignedIn, guest_sql},
     platform::error::AppResult,
 };
 
-pub async fn get(State(state): State<AppState>, UserId(user): UserId) -> AppResult<Json<Value>> {
+pub async fn get(State(state): State<AppState>, SignedIn(user): SignedIn) -> AppResult<Json<Value>> {
     let show: bool = sqlx::query_scalar(concat!(
         "SELECT u.intro_done_at IS NULL AND NOT ",
         guest_sql!("u"),
@@ -39,7 +39,7 @@ pub struct DoneBody {
 
 pub async fn done(
     State(state): State<AppState>,
-    UserId(user): UserId,
+    SignedIn(user): SignedIn,
     _body: Option<Json<DoneBody>>,
 ) -> AppResult<Json<Value>> {
     sqlx::query(

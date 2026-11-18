@@ -10,7 +10,7 @@ use sqlx::SqlitePool;
 
 use crate::{
     AppState,
-    accounts::auth::{Me, UserId},
+    accounts::auth::{Me, SignedIn},
     platform::error::{AppError, AppResult},
     platform::i18n::Lang,
 };
@@ -66,7 +66,7 @@ pub async fn earned(db: &SqlitePool, user_id: i64) -> AppResult<HashMap<String, 
 }
 
 /// `GET /badges`: my collection, in catalogue order (evaluated first, so a fresh threshold shows).
-pub async fn list(State(state): State<AppState>, UserId(user): UserId) -> AppResult<Json<Value>> {
+pub async fn list(State(state): State<AppState>, SignedIn(user): SignedIn) -> AppResult<Json<Value>> {
     let lang = crate::platform::i18n::of_user(&state.db, user).await?;
     let values = metrics(&state.db, user, Streaks::All, &mut RoomCache::new()).await?;
     if let Err(e) = award(&state, user, &values, None).await {
@@ -119,7 +119,7 @@ pub struct TitleBody {
 /// `PUT /me/title {key}`: display one of my titles (`null` clears). `400 bad_title`, `403 not_earned`.
 pub async fn set_title(
     State(state): State<AppState>,
-    UserId(user): UserId,
+    SignedIn(user): SignedIn,
     Json(body): Json<TitleBody>,
 ) -> AppResult<Json<Value>> {
     let key = match body.key {

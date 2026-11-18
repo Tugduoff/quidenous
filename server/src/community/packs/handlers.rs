@@ -9,7 +9,7 @@ use serde_json::{Value, json};
 
 use crate::{
     AppState,
-    accounts::auth::{Me, UserId},
+    accounts::auth::{Me, SignedIn},
     accounts::{limits, mail},
     platform::error::{AppError, AppResult},
     platform::i18n::Lang,
@@ -185,7 +185,7 @@ pub async fn edit(
 /// My packs that are not deleted (public, in review, removed with its reason), newest first.
 pub async fn mine(
     State(state): State<AppState>,
-    UserId(me): UserId,
+    SignedIn(me): SignedIn,
     headers: HeaderMap,
 ) -> AppResult<Json<Value>> {
     let room = current_room(&state, me, &headers).await?;
@@ -467,7 +467,7 @@ pub async fn report(
 /// The author deletes their pack (it stays installed where it was).
 pub async fn delete(
     State(state): State<AppState>,
-    UserId(me): UserId,
+    SignedIn(me): SignedIn,
     Path(id): Path<i64>,
 ) -> AppResult<Json<Value>> {
     let done = sqlx::query(DELETE_SQL)
@@ -488,7 +488,7 @@ pub async fn delete(
 /// request order; 100 ids at most (`400 too_many`).
 pub async fn delete_many(
     State(state): State<AppState>,
-    UserId(me): UserId,
+    SignedIn(me): SignedIn,
     Json(body): Json<crate::rounds::queue::IdsBody>,
 ) -> AppResult<Json<Value>> {
     let ids = body.distinct(DELETE_MANY_MAX)?;
@@ -514,7 +514,7 @@ pub async fn delete_many(
 /// A creator's page: who they are and their public packs. 404 if none (unless it's me).
 pub async fn creator(
     State(state): State<AppState>,
-    UserId(me): UserId,
+    SignedIn(me): SignedIn,
     headers: HeaderMap,
     Path(user_id): Path<i64>,
 ) -> AppResult<Json<Value>> {
@@ -568,7 +568,7 @@ pub(super) async fn community_state(state: &AppState, me: i64) -> AppResult<Valu
 /// `GET /community/me`: am I an admin, do I see 16+ packs, suggestions left today.
 pub async fn community_me(
     State(state): State<AppState>,
-    UserId(me): UserId,
+    SignedIn(me): SignedIn,
 ) -> AppResult<Json<Value>> {
     Ok(Json(community_state(&state, me).await?))
 }

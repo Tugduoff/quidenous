@@ -114,9 +114,9 @@ impl FromRequestParts<AppState> for Me {
 }
 
 /// The signed-in account, room or not (create a room, list my rooms, join one).
-pub struct UserId(pub i64);
+pub struct SignedIn(pub i64);
 
-impl FromRequestParts<AppState> for UserId {
+impl FromRequestParts<AppState> for SignedIn {
     type Rejection = AppError;
 
     async fn from_request_parts(
@@ -126,7 +126,7 @@ impl FromRequestParts<AppState> for UserId {
         let token = bearer(parts).ok_or(AppError::Unauthorized)?;
         let user = user_for_token(state, token).await?;
         crate::accounts::label(state, token, &parts.headers).await;
-        Ok(UserId(user))
+        Ok(SignedIn(user))
     }
 }
 
@@ -171,7 +171,7 @@ impl FromRequestParts<AppState> for Account {
         parts: &mut Parts,
         state: &AppState,
     ) -> Result<Self, Self::Rejection> {
-        let UserId(user) = UserId::from_request_parts(parts, state).await?;
+        let SignedIn(user) = SignedIn::from_request_parts(parts, state).await?;
         if is_guest(&state.db, user).await? {
             return Err(AppError::Forbidden("guest_account"));
         }

@@ -3,6 +3,7 @@ pub mod db;
 pub mod error;
 pub mod features;
 pub mod i18n;
+pub mod ids;
 pub mod ops;
 pub mod quotas;
 pub mod text;

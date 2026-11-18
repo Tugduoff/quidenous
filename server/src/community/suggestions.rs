@@ -13,7 +13,7 @@ use sqlx::SqlitePool;
 
 use crate::{
     AppState,
-    accounts::auth::UserId,
+    accounts::auth::SignedIn,
     community::packs::{optional_body, require_admin},
     platform::error::{AppError, AppResult},
     platform::i18n::{self, Lang},
@@ -149,7 +149,7 @@ pub struct NextQuery {
 /// Up to 20 suggestions to vote on: in that language, not mine, not voted or skipped, oldest first.
 pub async fn next(
     State(state): State<AppState>,
-    UserId(me): UserId,
+    SignedIn(me): SignedIn,
     Query(q): Query<NextQuery>,
 ) -> AppResult<Json<Value>> {
     let lang = match q.lang.as_deref().and_then(|l| Lang::parse(l.trim())) {
@@ -243,7 +243,7 @@ pub async fn vote(
 }
 
 /// My suggestions, newest first, and how many I can still make today.
-pub async fn mine(State(state): State<AppState>, UserId(me): UserId) -> AppResult<Json<Value>> {
+pub async fn mine(State(state): State<AppState>, SignedIn(me): SignedIn) -> AppResult<Json<Value>> {
     let rows: Vec<Row> =
         sqlx::query_as(suggestion_select!("WHERE s.user_id = ? ORDER BY s.id DESC"))
             .bind(me)
@@ -289,7 +289,7 @@ pub struct ApproveBody {
 /// The question joins the shared deck of its language, tagged (default `potes`), credited to its author.
 pub async fn approve(
     State(state): State<AppState>,
-    UserId(me): UserId,
+    SignedIn(me): SignedIn,
     Path(id): Path<i64>,
     body: Bytes,
 ) -> AppResult<Json<Value>> {
@@ -346,7 +346,7 @@ pub async fn approve(
 
 pub async fn reject(
     State(state): State<AppState>,
-    UserId(me): UserId,
+    SignedIn(me): SignedIn,
     Path(id): Path<i64>,
 ) -> AppResult<Json<Value>> {
     require_admin(&state, me)?;

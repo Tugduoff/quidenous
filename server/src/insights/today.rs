@@ -20,7 +20,7 @@ use sqlx::SqlitePool;
 
 use crate::{
     AppState,
-    accounts::auth::UserId,
+    accounts::auth::SignedIn,
     chat::inbox::not_blocked,
     insights::streaks,
     platform::error::{AppError, AppResult},
@@ -160,7 +160,7 @@ struct Unseen {
 }
 
 /// `GET /today`: every room I sit in (parties, deleted rooms and removed seats aside).
-pub async fn get(State(state): State<AppState>, UserId(user): UserId) -> AppResult<Json<Today>> {
+pub async fn get(State(state): State<AppState>, SignedIn(user): SignedIn) -> AppResult<Json<Today>> {
     Ok(Json(today(&state.db, user, streaks::now_secs()).await?))
 }
 

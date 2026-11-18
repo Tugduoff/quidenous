@@ -10,7 +10,7 @@ use serde_json::{Value, json};
 
 use crate::{
     AppState,
-    accounts::auth::UserId,
+    accounts::auth::SignedIn,
     platform::error::{AppError, AppResult},
     platform::i18n::Lang,
     realtime::live::Event,
@@ -121,7 +121,7 @@ type RoomRow = (
     bool,
 );
 
-pub async fn list(State(state): State<AppState>, UserId(user): UserId) -> AppResult<Json<Value>> {
+pub async fn list(State(state): State<AppState>, SignedIn(user): SignedIn) -> AppResult<Json<Value>> {
     let rows: Vec<RoomRow> = sqlx::query_as(
         "SELECT g.id, g.name, m.role, \
                 (SELECT COUNT(*) FROM members x WHERE x.group_id = g.id AND x.removed_at IS NULL), \
@@ -285,7 +285,7 @@ pub struct JoinBody {
 /// Join a room with its invite code, as the account I already have.
 pub async fn join(
     State(state): State<AppState>,
-    UserId(user): UserId,
+    SignedIn(user): SignedIn,
     crate::accounts::ClientIp(ip): crate::accounts::ClientIp,
     Json(body): Json<JoinBody>,
 ) -> AppResult<Json<Value>> {
@@ -442,7 +442,7 @@ pub struct SettingsBody {
 /// language (only future questions change).
 pub async fn update(
     State(state): State<AppState>,
-    UserId(user): UserId,
+    SignedIn(user): SignedIn,
     Path(room): Path<i64>,
     Json(body): Json<SettingsBody>,
 ) -> AppResult<Json<Value>> {
@@ -531,7 +531,7 @@ pub async fn update(
 /// Owner only: a new invite code; the old one stops working.
 pub async fn rotate_code(
     State(state): State<AppState>,
-    UserId(user): UserId,
+    SignedIn(user): SignedIn,
     Path(room): Path<i64>,
 ) -> AppResult<Json<Value>> {
     owner_seat(&state, user, room).await?;
@@ -553,7 +553,7 @@ pub async fn rotate_code(
 /// Owner only: remove someone right away, no vote.
 pub async fn force_remove(
     State(state): State<AppState>,
-    UserId(user): UserId,
+    SignedIn(user): SignedIn,
     Path((room, member_id)): Path<(i64, i64)>,
 ) -> AppResult<Json<Value>> {
     let me = owner_seat(&state, user, room).await?;
@@ -583,7 +583,7 @@ pub struct OwnerBody {
 /// Owner only: hand the room over to another member.
 pub async fn transfer(
     State(state): State<AppState>,
-    UserId(user): UserId,
+    SignedIn(user): SignedIn,
     Path(room): Path<i64>,
     Json(body): Json<OwnerBody>,
 ) -> AppResult<Json<Value>> {
@@ -630,7 +630,7 @@ pub async fn transfer(
 /// Leave a room. An owner hands over to the longest-standing member first; alone, the room is deleted.
 pub async fn leave(
     State(state): State<AppState>,
-    UserId(user): UserId,
+    SignedIn(user): SignedIn,
     Path(room): Path<i64>,
 ) -> AppResult<Json<Value>> {
     let me = seat(&state, user, room).await?;
@@ -672,7 +672,7 @@ pub(crate) async fn leave_seat(state: &AppState, me: &MemberRow) -> AppResult<bo
 /// Owner only: the room disappears for everyone.
 pub async fn delete(
     State(state): State<AppState>,
-    UserId(user): UserId,
+    SignedIn(user): SignedIn,
     Path(room): Path<i64>,
 ) -> AppResult<Json<Value>> {
     owner_seat(&state, user, room).await?;

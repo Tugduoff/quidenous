@@ -13,7 +13,7 @@ use serde_json::{Value, json};
 
 use crate::{
     AppState,
-    accounts::auth::UserId,
+    accounts::auth::SignedIn,
     platform::error::{AppError, AppResult},
     platform::i18n::Lang,
 };
@@ -231,7 +231,7 @@ async fn sees_spicy(state: &AppState, me: i64, room: Option<i64>) -> AppResult<b
 /// Public packs, sorted and filtered. 16+ packs only for those who opted in, or in a `pimente` room.
 pub async fn list(
     State(state): State<AppState>,
-    UserId(me): UserId,
+    SignedIn(me): SignedIn,
     headers: HeaderMap,
     Query(q): Query<ListQuery>,
 ) -> AppResult<Json<Value>> {
@@ -285,7 +285,7 @@ pub async fn list(
 /// deleted), or for an admin.
 pub async fn get(
     State(state): State<AppState>,
-    UserId(me): UserId,
+    SignedIn(me): SignedIn,
     headers: HeaderMap,
     Path(id): Path<i64>,
 ) -> AppResult<Json<Value>> {

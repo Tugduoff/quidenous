@@ -21,7 +21,7 @@ use serde_json::{Value, json};
 
 use crate::{
     AppState,
-    accounts::auth::{UserId, hash_token, new_token},
+    accounts::auth::{SignedIn, hash_token, new_token},
     platform::error::{AppError, AppResult},
     platform::i18n,
     rounds::game,
@@ -41,7 +41,7 @@ struct MintBody {
 
 async fn mint(
     State(state): State<AppState>,
-    UserId(user): UserId,
+    SignedIn(user): SignedIn,
     headers: HeaderMap,
     body: Option<Json<MintBody>>,
 ) -> AppResult<Json<Value>> {

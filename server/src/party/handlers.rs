@@ -8,7 +8,7 @@ use serde_json::{Value, json};
 
 use crate::{
     AppState,
-    accounts::auth::UserId,
+    accounts::auth::SignedIn,
     platform::error::{AppError, AppResult},
     platform::i18n::{self, Lang},
     platform::text::clean_name,
@@ -311,7 +311,7 @@ pub(super) async fn insert_member(
 
 pub(super) async fn get_state(
     State(state): State<AppState>,
-    UserId(user): UserId,
+    SignedIn(user): SignedIn,
     Path(id): Path<i64>,
 ) -> AppResult<Json<Value>> {
     let me = crate::rooms::manage::seat(&state, user, id).await?;
@@ -331,7 +331,7 @@ pub(super) async fn screen(
 /// Owner: "Commencer" (2 players at least).
 pub(super) async fn start(
     State(state): State<AppState>,
-    UserId(user): UserId,
+    SignedIn(user): SignedIn,
     Path(id): Path<i64>,
 ) -> AppResult<Json<Value>> {
     let (me, p) = owner_seat(&state, user, id).await?;
@@ -357,7 +357,7 @@ pub struct VoteBody {
 
 pub(super) async fn vote(
     State(state): State<AppState>,
-    UserId(user): UserId,
+    SignedIn(user): SignedIn,
     Path(id): Path<i64>,
     Json(body): Json<VoteBody>,
 ) -> AppResult<Json<Value>> {
@@ -387,7 +387,7 @@ pub struct AnswerBody {
 /// A said question's answer (docs/SAID.md): `POST /parties/{id}/answer {text}`.
 pub(super) async fn answer_said(
     State(state): State<AppState>,
-    UserId(user): UserId,
+    SignedIn(user): SignedIn,
     Path(id): Path<i64>,
     Json(body): Json<AnswerBody>,
 ) -> AppResult<Json<Value>> {
@@ -399,7 +399,7 @@ pub(super) async fn answer_said(
 /// "Suivante": the owner opens the next question; anyone else's tap counts towards 75 %.
 pub(super) async fn tap(
     State(state): State<AppState>,
-    UserId(user): UserId,
+    SignedIn(user): SignedIn,
     Path(id): Path<i64>,
 ) -> AppResult<Json<Value>> {
     let (me, p) = party_seat(&state, user, id).await?;
@@ -425,7 +425,7 @@ pub(super) async fn tap(
 
 pub(super) async fn untap(
     State(state): State<AppState>,
-    UserId(user): UserId,
+    SignedIn(user): SignedIn,
     Path(id): Path<i64>,
 ) -> AppResult<Json<Value>> {
     let (me, _) = party_seat(&state, user, id).await?;
@@ -452,7 +452,7 @@ pub struct ReactBody {
 /// tap is added (within the cap, docs/REACTIONS.md).
 pub(super) async fn react(
     State(state): State<AppState>,
-    UserId(user): UserId,
+    SignedIn(user): SignedIn,
     Path(id): Path<i64>,
     Json(body): Json<ReactBody>,
 ) -> AppResult<Json<Value>> {
@@ -504,7 +504,7 @@ pub struct UpdateBody {
 /// Owner: rename, change the timer (next questions), lock or unlock the door.
 pub(super) async fn update(
     State(state): State<AppState>,
-    UserId(user): UserId,
+    SignedIn(user): SignedIn,
     Path(id): Path<i64>,
     Json(body): Json<UpdateBody>,
 ) -> AppResult<Json<Value>> {
@@ -535,7 +535,7 @@ pub(super) async fn update(
 /// Owner: "Terminer" now. Already over: nothing changes.
 pub(super) async fn end(
     State(state): State<AppState>,
-    UserId(user): UserId,
+    SignedIn(user): SignedIn,
     Path(id): Path<i64>,
 ) -> AppResult<Json<Value>> {
     let (me, _) = owner_seat(&state, user, id).await?;
@@ -560,7 +560,7 @@ pub(super) async fn finish(state: &AppState, id: i64) -> AppResult<bool> {
 /// question opens like in any room.
 pub(super) async fn keep(
     State(state): State<AppState>,
-    UserId(user): UserId,
+    SignedIn(user): SignedIn,
     Path(id): Path<i64>,
 ) -> AppResult<Json<Value>> {
     let (me, _) = owner_seat(&state, user, id).await?;

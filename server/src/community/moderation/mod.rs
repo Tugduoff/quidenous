@@ -14,7 +14,7 @@ use serde_json::{Value, json};
 
 use crate::{
     AppState,
-    accounts::auth::UserId,
+    accounts::auth::SignedIn,
     accounts::{limits, mail},
     platform::error::{AppError, AppResult},
     realtime::live::Event,
@@ -214,7 +214,7 @@ pub async fn report(
 /// People I blocked, most recent first.
 pub async fn list_blocks(
     State(state): State<AppState>,
-    UserId(me): UserId,
+    SignedIn(me): SignedIn,
 ) -> AppResult<Json<Value>> {
     type Row = (i64, String, String, Option<String>, Option<String>);
     let rows: Vec<Row> = sqlx::query_as(
@@ -238,7 +238,7 @@ pub async fn list_blocks(
 /// us goes, both ways.
 pub async fn block(
     State(state): State<AppState>,
-    UserId(me): UserId,
+    SignedIn(me): SignedIn,
     Path(other): Path<i64>,
 ) -> AppResult<Json<Value>> {
     if other == me {
@@ -281,7 +281,7 @@ pub async fn block(
 
 pub async fn unblock(
     State(state): State<AppState>,
-    UserId(me): UserId,
+    SignedIn(me): SignedIn,
     Path(other): Path<i64>,
 ) -> AppResult<Json<Value>> {
     sqlx::query("DELETE FROM blocks WHERE user_id = ? AND blocked_id = ?")

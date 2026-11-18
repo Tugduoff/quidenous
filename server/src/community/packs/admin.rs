@@ -9,7 +9,7 @@ use serde_json::{Value, json};
 
 use crate::{
     AppState,
-    accounts::auth::UserId,
+    accounts::auth::SignedIn,
     platform::error::{AppError, AppResult},
 };
 
@@ -18,7 +18,7 @@ use super::*;
 /// Packs waiting for review (with their reports) and suggestions waiting for approval.
 pub async fn review(
     State(state): State<AppState>,
-    UserId(me): UserId,
+    SignedIn(me): SignedIn,
     headers: HeaderMap,
 ) -> AppResult<Json<Value>> {
     require_admin(&state, me)?;
@@ -66,7 +66,7 @@ pub(super) async fn admin_answer(state: &AppState, id: i64, me: i64) -> AppResul
 /// Back to `public`, reports cleared.
 pub async fn approve(
     State(state): State<AppState>,
-    UserId(me): UserId,
+    SignedIn(me): SignedIn,
     Path(id): Path<i64>,
 ) -> AppResult<Json<Value>> {
     require_admin(&state, me)?;
@@ -97,7 +97,7 @@ pub struct RemoveBody {
 /// `removed`, with the reason its author sees in Mes packs.
 pub async fn remove(
     State(state): State<AppState>,
-    UserId(me): UserId,
+    SignedIn(me): SignedIn,
     Path(id): Path<i64>,
     body: Bytes,
 ) -> AppResult<Json<Value>> {
@@ -133,7 +133,7 @@ pub struct FeatureBody {
 /// In or out of Coflop's selection.
 pub async fn feature(
     State(state): State<AppState>,
-    UserId(me): UserId,
+    SignedIn(me): SignedIn,
     Path(id): Path<i64>,
     Json(body): Json<FeatureBody>,
 ) -> AppResult<Json<Value>> {
