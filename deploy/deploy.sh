@@ -1,18 +1,39 @@
 #!/usr/bin/env bash
-# Reference deploy poller for the homelab: deploys the newest v* tag once CI is green on it.
-#
-#   deploy/deploy.sh            # run from cron / a systemd timer every few minutes (one run at a time: flock)
-#   deploy/deploy.sh v0.31.0    # deploy that tag now (still gated on CI)
-#
-# Steps: newest v* tag newer than the one deployed -> CI green on its commit (wait-green.sh) -> database snapshot
-# (backup.sh --pre-deploy) -> keep the running image as quidenous:prev -> build the tag -> start -> check
-# /api/health and that /api/version reports the tag's commit. If the new version doesn't come up healthy: back to
-# quidenous:prev with the pre-deploy database (migrations may have changed it; an older binary refuses a newer
-# schema), and exit 1.
-#
-# Env (or deploy/deploy.env): DEPLOY_URL (default http://127.0.0.1:8080), DEPLOY_WEBHOOK (optional Discord webhook
-# for deploy and rollback notices), plus what wait-green.sh and backup.sh read.
 set -euo pipefail
+
+usage() {
+  cat <<'USAGE'
+Reference deploy poller for the homelab: deploys the newest v* tag once CI is green on it.
+
+  deploy/deploy.sh    run from cron / a systemd timer every few minutes (one run at a time: flock)
+  deploy/deploy.sh v0.31.0    deploy that tag now (still gated on CI)
+
+Steps: newest v* tag newer than the one deployed -> CI green on its commit (wait-green.sh) -> database snapshot
+(backup.sh --pre-deploy) -> keep the running image as quidenous:prev -> build the tag -> start -> check
+/api/health and that /api/version reports the tag's commit. If the new version doesn't come up healthy: back to
+quidenous:prev with the pre-deploy database (migrations may have changed it; an older binary refuses a newer
+schema), and exit 1.
+
+Env (or deploy/deploy.env): DEPLOY_URL (default http://127.0.0.1:8080), DEPLOY_WEBHOOK (optional Discord webhook
+for deploy and rollback notices), plus what wait-green.sh and backup.sh read.
+
+Schedule it (root, or a user in the docker group that can read deploy/data):
+  */5 * * * * cd /srv/quidenous && deploy/deploy.sh >> /var/log/quidenous-deploy.log 2>&1
+The deployed tag is recorded in deploy/.deployed; a red CI is reported once per tag (deploy/.ci-red).
+
+Roll back by hand:
+  docker compose stop quidenous && deploy/backup.sh --restore-pre-deploy <tag>
+  docker tag quidenous:prev quidenous:latest && docker compose up -d --no-build
+The failed database is kept as data/app.db.failed-<tag>.
+USAGE
+}
+
+case "${1:-}" in
+  -h | --help)
+    usage
+    exit 0
+    ;;
+esac
 
 here="$(cd "$(dirname "$0")" && pwd)"
 repo="$(cd "$here/.." && pwd)"
@@ -38,14 +59,11 @@ tag="${1:-$(git tag -l 'v*' --sort=-v:refname | head -n1)}"
 [ -n "$tag" ] || { echo "no v* tag"; exit 0; }
 current="$(cat "$state" 2>/dev/null || true)"
 if [ -z "${1:-}" ] && [ -n "$current" ]; then
-  # Only forward: a tag older than (or equal to) the deployed one is ignored.
   newest="$(printf '%s\n%s\n' "$current" "$tag" | sort -V | tail -n1)"
   if [ "$tag" = "$current" ] || [ "$newest" = "$current" ]; then exit 0; fi
 fi
 sha="$(git rev-list -n1 "$tag")"
 
-# H2: never deploy a commit whose CI is red or still running (next run tries again). Red (exit 1) is said once per
-# tag (marker .ci-red next to .deployed), still running (exit 2) stays silent.
 gate=0
 "$here/wait-green.sh" "$sha" || gate=$?
 if [ "$gate" -ne 0 ]; then
@@ -83,7 +101,6 @@ if healthy "$sha"; then
   exit 0
 fi
 
-# Rollback: previous image + the database as it was before this deploy.
 docker compose logs --tail 50 quidenous || true
 if ! docker image inspect quidenous:prev >/dev/null 2>&1; then
   notify "Quidenous $tag is unhealthy after deploy and there is no previous image to go back to"

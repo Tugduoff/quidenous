@@ -1,18 +1,30 @@
 #!/usr/bin/env bash
-# Deploy gate: is CI green on this commit?
-#
-#   deploy/wait-green.sh <sha> [--wait <seconds>]
-#
-# Exit 0 when the latest run of every required check on <sha> succeeded, 1 when one failed (or was cancelled),
-# 2 when one is still running or missing (after --wait seconds of polling, default 0: answer right away).
-# Required checks: $REQUIRED_CHECKS (space-separated job names), default "check app apk": the server tests
-# (server.yml), the app type check (app.yml) and the Android build (android.yml). Several runs of a check on the same
-# commit (main push + tag push, a re-run): the most recent one counts, so a red tag run blocks even if main was green.
-# A skipped run (the weekly scheduled server.yml run skips `check`) only counts when the check never really ran.
-#
-# Env: GITHUB_REPOSITORY (default Tugduoff/quidenous), GITHUB_TOKEN (optional, public repo: raises the API rate
-# limit from 60 to 5000 requests an hour). Needs curl and python3.
 set -euo pipefail
+
+usage() {
+  cat <<'USAGE'
+Deploy gate: is CI green on this commit?
+
+  deploy/wait-green.sh <sha> [--wait <seconds>]
+
+Exit 0 when the latest run of every required check on <sha> succeeded, 1 when one failed (or was cancelled),
+2 when one is still running or missing (after --wait seconds of polling, default 0: answer right away).
+Required checks: $REQUIRED_CHECKS (space-separated job names), default "check app apk": the server tests
+(server.yml), the app type check (app.yml) and the Android build (android.yml). Several runs of a check on the same
+commit (main push + tag push, a re-run): the most recent one counts, so a red tag run blocks even if main was green.
+A skipped run (the weekly scheduled server.yml run skips `check`) only counts when the check never really ran.
+
+Env: GITHUB_REPOSITORY (default Tugduoff/quidenous), GITHUB_TOKEN (optional, public repo: raises the API rate
+limit from 60 to 5000 requests an hour). Needs curl and python3.
+USAGE
+}
+
+case "${1:-}" in
+  -h | --help)
+    usage
+    exit 0
+    ;;
+esac
 
 repo="${GITHUB_REPOSITORY:-Tugduoff/quidenous}"
 required="${REQUIRED_CHECKS:-check app apk}"
@@ -20,11 +32,10 @@ sha="${1:-}"
 wait=0
 if [ "${2:-}" = "--wait" ]; then wait="${3:-0}"; fi
 if ! [[ "$sha" =~ ^[0-9a-f]{7,40}$ ]]; then
-  echo "usage: $0 <commit sha> [--wait <seconds>]" >&2
+  usage >&2
   exit 64
 fi
 
-# One line per required check: "<name> <status> <conclusion>" of its most recent run.
 status() {
   local auth=()
   if [ -n "${GITHUB_TOKEN:-}" ]; then auth=(-H "Authorization: Bearer $GITHUB_TOKEN"); fi
@@ -56,7 +67,6 @@ while :; do
       case "$state/$conclusion" in
         completed/success) ;;
         completed/*)
-          # Failed, cancelled, timed out, or skipped: a skipped required job is not a green light either.
           echo "$name: $conclusion" >&2
           result=1
           ;;

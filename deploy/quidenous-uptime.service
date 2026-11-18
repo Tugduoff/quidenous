@@ -1,0 +1,10 @@
+[Unit]
+Description=Quidenous uptime check
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=monitor
+EnvironmentFile=/etc/quidenous-uptime.env
+ExecStart=/opt/quidenous/uptime-check.sh
