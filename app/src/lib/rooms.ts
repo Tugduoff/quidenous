@@ -1,8 +1,9 @@
-import { useQueryClient } from '@tanstack/react-query';
+import { type QueryKey, useQueryClient } from '@tanstack/react-query';
 import { router, useGlobalSearchParams } from 'expo-router';
 import { useEffect, useRef } from 'react';
 
 import { api, setApiRoom, type RoomSummary } from './api';
+import { keys } from './queries';
 import { clearRoomData } from './query-client';
 import { useSession } from './session';
 
@@ -35,13 +36,45 @@ export function useRoomGone() {
   };
 }
 
-/** Switch the whole app to another room: every cached screen belongs to the old one. A party opens on its own screen. */
+/** How long a switch waits for the next room's first screen (`warmRoom`) on top of `/me`, before going anyway. */
+const WARM_MS = 500;
+
+/**
+ * Fetches what the vote tab shows first in room `id` (the room, its open question, a result I haven't seen) while the
+ * switch asks for my seat there, so the tab opens filled in instead of blank. What isn't back in time loads on screen.
+ */
+async function warmRoom(id: number) {
+  const got: [QueryKey, unknown][] = [];
+  const get = <T>(key: QueryKey, path: string) =>
+    api<T>(path, { room: id }).then(
+      (data) => {
+        got.push([key, data]);
+        return data;
+      },
+      () => undefined,
+    );
+  const all = Promise.all([
+    get(keys.group, '/group'),
+    get(keys.current, '/round/current'),
+    get<{ id: number } | null>(keys.unseen, '/round/unseen').then((u) => u && get(keys.round(u.id), `/rounds/${u.id}`)),
+  ]);
+  await Promise.race([all, new Promise((done) => setTimeout(done, WARM_MS))]);
+  return [...got];
+}
+
+/**
+ * Switch the whole app to another room: every cached screen belongs to the old one. A party opens on its own screen.
+ * `warm`: the vote tab opens already filled in (« Aujourd'hui », where the tap names what to do there).
+ */
 export function useSwitchRoom() {
   const qc = useQueryClient();
   const { setRoom } = useSession();
-  return async (id: number, kind?: 'room' | 'party') => {
+  return async (id: number, kind?: 'room' | 'party', { warm = false } = {}) => {
+    const warming = warm && kind !== 'party' ? warmRoom(id) : null;
     await setRoom(id);
+    const fresh = (await warming) ?? [];
     clearRoomData(qc);
+    for (const [key, data] of fresh) qc.setQueryData(key, data);
     router.replace(kind === 'party' ? `/party/${id}` : '/');
   };
 }

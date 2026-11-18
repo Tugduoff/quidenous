@@ -5,6 +5,7 @@ import { API_URL, api, ApiError, apiRoom, presetRoom, setApiRoom, setApiToken, s
 import { auth, flow, pendingJoinCode, setPendingCode, type SessionResult } from './auth';
 import { deviceHeader } from './device';
 import { adoptAccountLang, loadLang, syncLang } from './i18n';
+import { introAtSignIn, introAtStart, introFinish, introForget } from './intro-sync';
 import { clearRoomData } from './query-client';
 import { storage } from './storage';
 
@@ -24,6 +25,10 @@ type Session = {
   roomless: boolean;
   /** Just signed up and a code was emailed: the code screen comes first. */
   verifying: boolean;
+  /** A new account's first-run intro is due (lib/intro.ts): after the code screen, before the first room. */
+  intro: boolean;
+  /** The intro is over (`skipped`: left before the end): never shown again. */
+  endIntro: (skipped: boolean) => void;
   setRoom: (id: number | null) => Promise<void>;
   /** Legacy (token-only) entry: join with a code and a first name. */
   join: (code: string, name: string, server?: string) => Promise<void>;
@@ -84,6 +89,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
   const [room, setRoomState] = useState<number | null>(null);
   const [roomless, setRoomless] = useState(false);
   const [verifying, setVerifying] = useState(false);
+  const [intro, setIntro] = useState(false);
 
   const setRoom = async (id: number | null) => {
     setApiRoom(id);
@@ -108,7 +114,8 @@ export function SessionProvider({ children }: PropsWithChildren) {
       if (saved) {
         setApiToken(saved);
         setApiRoom(preset ?? savedRoom);
-        const found = await loadMe();
+        // Alongside `/me`: an account that already had its answer asks nothing.
+        const [found, showIntro] = await Promise.all([loadMe(), introAtStart(qc)]);
         if (preset != null && typeof found === 'object' && apiRoom() === preset) await storage.set(ROOM_KEY, String(preset));
         if (found === 'out') {
           setApiToken(null);
@@ -118,11 +125,14 @@ export function SessionProvider({ children }: PropsWithChildren) {
           if (found !== 'offline') syncLang();
           setRoomless(found === 'no_room');
           setRoomState(apiRoom());
+          setIntro(showIntro);
           setToken(saved); // offline too: keep the session
         }
       }
       setReady(true);
     })();
+    // Once, at start (the query client never changes).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const join = (code: string, name: string, server?: string) => enter('/join', { code, name }, server);
@@ -149,6 +159,8 @@ export function SessionProvider({ children }: PropsWithChildren) {
     await storage.remove(ROOM_KEY);
     await storage.set(TOKEN_KEY, res.token);
     await storage.set(SERVER_KEY, API_URL);
+    // A new account's intro: asked while the invite's room is joined and `/me` loads.
+    const introDue = introAtSignIn(qc);
     const code = pendingJoinCode();
     if (code) {
       try {
@@ -160,6 +172,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
     }
     const found = await loadMe();
     if (found === 'out') throw new ApiError(401, 'unauthorized');
+    const showIntro = await introDue;
     adoptAccountLang();
     // Set together: the screens switch once, straight to the right one.
     setMe(typeof found === 'object' ? found : null);
@@ -168,6 +181,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
     // The code e-mail failed: the code screen still opens, saying so (resend from there).
     flow.mailFailed = !!res.email_failed;
     setVerifying(!!res.email_sent || !!res.email_failed);
+    setIntro(showIntro);
     setToken(res.token);
   };
 
@@ -213,6 +227,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
     await storage.remove(TOKEN_KEY);
     await storage.remove(ROOM_KEY);
     await storage.remove(ROOMLESS_KEY);
+    await introForget();
     setApiRoom(null);
     setRoomState(null);
     setApiToken(null);
@@ -220,6 +235,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
     setMe(null);
     setRoomless(false);
     setVerifying(false);
+    setIntro(false);
     qc.clear();
   };
 
@@ -244,6 +260,11 @@ export function SessionProvider({ children }: PropsWithChildren) {
         room,
         roomless,
         verifying,
+        intro,
+        endIntro: (skipped: boolean) => {
+          setIntro(false);
+          void introFinish(skipped);
+        },
         setRoom,
         join,
         start,

@@ -278,11 +278,11 @@ export function ResultSummary({
 }
 
 // Bars start 120 ms in, each row 70 ms after the previous one, and take 450 ms to fill.
-const fillDelay = (i: number) => 120 + Math.min(i, 6) * 70;
-const FILL_MS = 450;
+export const fillDelay = (i: number) => 120 + Math.min(i, 6) * 70;
+export const FILL_MS = 450;
 
 /** A result row; the winner's lands with a small bump once its own bar is full. */
-function Land({ on, style, children }: { on: boolean; style: StyleProp<ViewStyle>; children: ReactNode }) {
+export function Land({ on, style, children }: { on: boolean; style: StyleProp<ViewStyle>; children: ReactNode }) {
   const reduced = useReducedMotion();
   const s = useSharedValue(1);
   useEffect(() => {
@@ -294,7 +294,7 @@ function Land({ on, style, children }: { on: boolean; style: StyleProp<ViewStyle
 }
 
 /** The crown: pops in once every bar has finished growing. */
-function Landed({ rows, children }: { rows: number; children: ReactNode }) {
+export function Landed({ rows, children }: { rows: number; children: ReactNode }) {
   const reduced = useReducedMotion();
   const s = useSharedValue(reduced ? 1 : 0);
   useEffect(() => {
@@ -305,7 +305,7 @@ function Landed({ rows, children }: { rows: number; children: ReactNode }) {
 }
 
 /** A row's coloured fill: grows from the left when the result shows, one row after the other. */
-function Fill({ index, width, color, opacity }: { index: number; width: number; color: string; opacity: number }) {
+export function Fill({ index, width, color, opacity }: { index: number; width: number; color: string; opacity: number }) {
   const reduced = useReducedMotion();
   const grow = useSharedValue(reduced ? 1 : 0);
   useEffect(() => {

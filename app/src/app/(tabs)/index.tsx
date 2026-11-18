@@ -55,6 +55,7 @@ import { useSession } from '@/lib/session';
 import { setHideVote, useHideVote } from '@/lib/prefs';
 import { confirmPublic, publicLink, questionMessage, resultMessage, shareText } from '@/lib/share';
 import { useTheme } from '@/lib/theme';
+import { useLandOnToday } from '@/lib/today';
 
 function PushBell() {
   const t = useTheme();
@@ -206,6 +207,9 @@ export default function VoteScreen() {
   const held = !round && pace?.waiting && pace.round_id ? pace.round_id : null;
   // A party has its own screen (the room list says so too, in case the room's own answer doesn't).
   const { data: rooms } = useRooms();
+  // A plain start with two rooms or more opens on « Aujourd'hui » (lib/today.ts): straight there, nothing drawn here.
+  const land = useLandOnToday();
+  if (land) return <Redirect href="/today" />;
   const roomId = group.data?.id;
   if (roomId != null && (group.data?.kind === 'party' || rooms?.find((r) => r.id === roomId)?.kind === 'party'))
     return <Redirect href={`/party/${roomId}`} />;

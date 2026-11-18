@@ -36,6 +36,8 @@ import { reactions } from './en/reactions';
 import { said } from './en/said';
 import { badges } from './en/badges';
 import { wrapped } from './en/wrapped';
+import { today } from './en/today';
+import { intro } from './en/intro';
 
 export const en: Messages = {
   common,
@@ -74,4 +76,6 @@ export const en: Messages = {
   said,
   badges,
   wrapped,
+  today,
+  intro,
 };

@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { ChartNoAxesColumn, History, MessageCircleQuestion, Vote } from 'lucide-react-native';
+import { ChartNoAxesColumn, History, MessageCircleQuestion, Sun, Vote } from 'lucide-react-native';
 import type { ComponentType } from 'react';
 import { useEffect } from 'react';
 import { Platform, View, type ViewStyle } from 'react-native';
@@ -10,11 +10,14 @@ import { TabSwipe } from '@/components/tab-swipe';
 import { type TKey, useT } from '@/lib/i18n';
 import { useMilestone } from '@/lib/milestones';
 import { useStreakMilestone } from '@/lib/streaks';
+import { useTodayTab } from '@/lib/today';
 import { BOUNCE, SPRING, usePop } from '@/lib/motion';
 import { useTheme } from '@/lib/theme';
 
 type Icon = ComponentType<{ size?: number; color?: string }>;
 
+// « Aujourd'hui », shown first when on (useTodayTab), then the others; the bar and swiping follow this order.
+const TODAY = { name: 'today', Icon: Sun as Icon, label: 'today.tab' as TKey };
 // The tabs, left to right: the bar and swiping between pages both follow this order.
 const TABS: { name: string; Icon: Icon; label: TKey }[] = [
   { name: 'index', Icon: Vote, label: 'vote.tabs.vote' },
@@ -56,6 +59,9 @@ export default function TabsLayout() {
   const { milestone, dismiss } = useMilestone();
   const streak = useStreakMilestone();
   const reduced = useReducedMotion();
+  // « Aujourd'hui », first, with two rooms or more on a server that has it (lib/today.ts).
+  const today = useTodayTab();
+  const tabs = today ? [TODAY, ...TABS] : TABS;
   const tab = (Icon: Icon, label: string) => ({
     tabBarAccessibilityLabel: label,
     tabBarIcon: ({ focused }: { focused: boolean }) => <TabIcon Icon={Icon} focused={focused} />,
@@ -67,7 +73,7 @@ export default function TabsLayout() {
         layout={({ state, navigation, children }) => (
           <TabSwipe
             onSwipe={(dir) => {
-              const to = TABS[TABS.findIndex((s) => s.name === state.routes[state.index]?.name) + dir];
+              const to = tabs[tabs.findIndex((s) => s.name === state.routes[state.index]?.name) + dir];
               // Only the tabs opened so far are in `routes`; `routeNames` has them all.
               if (!to || !state.routeNames.includes(to.name)) return;
               navigation.navigate(to.name, state.routes.find((r) => r.name === to.name)?.params);
@@ -85,7 +91,9 @@ export default function TabsLayout() {
           tabBarStyle: [{ backgroundColor: t.bg, borderTopColor: t.line }, Platform.OS === 'web' && WEB_TAB_BAR],
           tabBarItemStyle: { paddingTop: 6 },
         }}>
-        {TABS.map((s) => (
+        {/* Hidden (no button, no swipe) without « Aujourd'hui »: the route stays declared. */}
+        {!today && <Tabs.Screen name="today" options={{ href: null }} />}
+        {tabs.map((s) => (
           <Tabs.Screen key={s.name} name={s.name} options={tab(s.Icon, tr(s.label))} />
         ))}
       </Tabs>

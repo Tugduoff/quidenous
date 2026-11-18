@@ -121,6 +121,7 @@ macro_rules! not_blocked {
          WHERE a.id = inbox.actor_id AND b.user_id = ?1)"
     };
 }
+pub(crate) use not_blocked;
 
 /// Latest 50 entries, newest first, and how many are unread; nothing from people I blocked.
 pub async fn list(db: &SqlitePool, me: &MemberRow) -> AppResult<(Vec<InboxItem>, i64)> {

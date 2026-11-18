@@ -41,9 +41,9 @@ SplashScreen.preventAutoHideAsync();
 installGlobalErrorHandlers();
 
 function Root() {
-  const { ready, token, room, roomless, verifying } = useSession();
-  // Signed out → sign-in screens; just signed up → email code; no room yet → join or create one; else the app.
-  const stage = !token ? 'out' : verifying ? 'verify' : roomless ? 'room' : 'in';
+  const { ready, token, room, roomless, verifying, intro } = useSession();
+  // Signed out → sign-in screens; just signed up → email code, then the Petons' intro; no room yet → join or create one; else the app.
+  const stage = !token ? 'out' : verifying ? 'verify' : intro ? 'intro' : roomless ? 'room' : 'in';
   const lock = useLock();
   const t = useTheme();
   const scheme = useScheme();
@@ -131,6 +131,9 @@ function Root() {
         <Stack.Protected guard={stage === 'verify'}>
           <Stack.Screen name="auth/verify" />
         </Stack.Protected>
+        <Stack.Protected guard={stage === 'intro'}>
+          <Stack.Screen name="intro" options={{ animation: reduced ? 'none' : 'fade' }} />
+        </Stack.Protected>
         <Stack.Protected guard={stage === 'out'}>
           <Stack.Screen name="join" options={{ animation: reduced ? 'none' : 'fade' }} />
           <Stack.Screen name="auth/email" />
@@ -155,7 +158,7 @@ function Root() {
       )}
       <CelebrationPreview />
       <AppLock active={!!token} />
-      {(stage === 'in' || stage === 'room') && <TermsGate />}
+      {(stage === 'in' || stage === 'room' || stage === 'intro') && <TermsGate />}
       <ConfirmHost />
       <UpdateDialog />
       {stage === 'in' && <OtaToast />}
@@ -184,8 +187,8 @@ function SameLanguage({ children }: { children: ReactNode }) {
   return <Fragment key={lang}>{children}</Fragment>;
 }
 
-type Stage = 'out' | 'verify' | 'room' | 'in';
-const STAGE_HOME: Record<Stage, string> = { out: '/join', verify: '/auth/verify', room: '/setup', in: '/' };
+type Stage = 'out' | 'verify' | 'intro' | 'room' | 'in';
+const STAGE_HOME: Record<Stage, string> = { out: '/join', verify: '/auth/verify', intro: '/intro', room: '/setup', in: '/' };
 /** What a signed-in account without a room can open besides /setup: the account itself (and deleting it). */
 const ROOMLESS = ['/setup', '/profile', '/friends', '/security', '/notifications', '/badges', '/wrapped'];
 const SIGNED_OUT = ['/join', '/auth/email', '/auth/password', '/auth/two-factor', '/auth/forgot', '/auth/reset', '/auth/mfa-reset'];
@@ -215,7 +218,8 @@ function useStageRoute(stage: Stage, mounted: boolean) {
     // A party's join link and big screen work at every stage (a guest has no account yet).
     const open = pathname.startsWith('/party/join/') || pathname.startsWith('/party/screen/');
     // /play only with a shared question to show: the router also falls back to it when the guarded screens swap.
-    const play = pathname === '/play' && stage !== 'verify' && !!(share || pendingPlayToken());
+    // (After the intro: it ends on /play, see wasOut above.)
+    const play = pathname === '/play' && stage !== 'verify' && stage !== 'intro' && !!(share || pendingPlayToken());
     // An invite link opened while signed in: the router drops /join and lands on home; from there, on to the join form with the code filled in.
     // Opened signed out (or before any room): signing in or /setup uses that code, not this.
     if (stage !== 'in') presetUsed = true;
@@ -241,9 +245,11 @@ function useStageRoute(stage: Stage, mounted: boolean) {
           ? SIGNED_OUT.includes(pathname)
           : stage === 'verify'
             ? pathname === '/auth/verify'
-            : stage === 'room'
-              ? ROOMLESS.includes(pathname)
-              : pathname !== '/oauth' && pathname !== '/setup' && pathname !== '/join' && !pathname.startsWith('/auth');
+            : stage === 'intro'
+              ? pathname === '/intro'
+              : stage === 'room'
+                ? ROOMLESS.includes(pathname)
+                : pathname !== '/oauth' && pathname !== '/setup' && pathname !== '/join' && pathname !== '/intro' && !pathname.startsWith('/auth');
     if (!ok) router.replace(STAGE_HOME[stage] as never);
   }, [stage, pathname, mounted, code, error, share]);
 }

@@ -34,10 +34,11 @@ export const queryClient = new QueryClient({
 /**
  * Forget the previous room's (or account's) data on a switch or a sign-in, but not what the server can do
  * (`features`): the live socket needs it at once to ask for a ticket instead of putting the token in its URL.
+ * Nor « Aujourd'hui » (`today`): all my rooms, the same whichever is on screen (signing out clears everything).
  */
 export function clearRoomData(qc: QueryClient) {
   qc.getMutationCache().clear();
-  qc.removeQueries({ predicate: (q) => q.queryKey[0] !== 'features' });
+  qc.removeQueries({ predicate: (q) => q.queryKey[0] !== 'features' && q.queryKey[0] !== 'today' });
 }
 
 // On a phone, coming back to the app counts as focus: what's on screen refreshes (the web does this by itself).

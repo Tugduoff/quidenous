@@ -26,6 +26,8 @@ export const keys = {
   queue: ['queue'] as const,
   blocks: ['blocks'] as const,
   vibes: ['vibes'] as const,
+  /** Every room of mine at once (lib/today.ts): about me, not the room on screen, so a room switch keeps it. */
+  today: ['today'] as const,
 };
 
 /** The room, deleted accounts named in my language (`select` runs again when the screen re-renders on a language change). */
