@@ -11,7 +11,7 @@ const groups = (c: ReturnType<typeof compose>): Group[] => [...c.back, ...c.over
 
 describe('mascot parts', () => {
   test('the generated JSON (app and server copies) is up to date with scripts/mascot-parts.mjs', () => {
-    const r = spawnSync('node', ['scripts/mascot-parts.mjs', '--check'], { cwd: `${__dirname}/../..`, encoding: 'utf8' });
+    const r = spawnSync('node', ['scripts/mascot-parts.mjs', '--check'], { cwd: `${__dirname}/../../..`, encoding: 'utf8' });
     assert.equal(r.status, 0, r.stderr || r.stdout);
   });
 
