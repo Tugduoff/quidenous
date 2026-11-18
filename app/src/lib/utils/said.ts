@@ -151,3 +151,26 @@ export function topScorers(scores: SaidResult['scores']): number[] {
 export function pickLine<T>(lines: readonly T[], seed: number): T {
   return lines[(Math.imul(seed | 0, 2654435761) >>> 0) % lines.length];
 }
+
+/** The reveal of one answer: the guesses come in one by one (from `GUESS_IN`, every `GUESS_STEP`), then the author's card flips. */
+export const GUESS_IN = 250;
+export const GUESS_STEP = 120;
+export const FLIP_MS = 460;
+const READ_GUESSES_MS = 650;
+export const flipAt = (groups: number) => GUESS_IN + Math.max(1, groups) * GUESS_STEP + READ_GUESSES_MS;
+
+/** Once the author is out: time to read, point and laugh before the next answer. */
+const SCREEN_HOLD = 4500;
+/** How long the big screen stays on each answer (ms), in reveal order. */
+export const screenRevealSteps = (items: RevealItem[]) => items.map((it) => flipAt(guessGroups(it).length) + FLIP_MS + SCREEN_HOLD);
+
+/** The big screen shows this many names under an answer, then "and 2 more". */
+const SCREEN_GROUPS = 3;
+
+/** The names the big screen shows: the most named first, the right one kept even when it comes after the cut. */
+export function screenGroups<G extends { right: boolean }>(all: G[]): { groups: G[]; rest: number } {
+  let groups = all.slice(0, SCREEN_GROUPS);
+  const right = all.find((g) => g.right);
+  if (right && !groups.includes(right)) groups = [...groups.slice(0, SCREEN_GROUPS - 1), right];
+  return { groups, rest: all.length - groups.length };
+}

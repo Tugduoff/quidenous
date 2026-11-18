@@ -30,3 +30,9 @@ export function localizeGroup(g: Group): Group {
   groups.set(g, { lang, group });
   return group;
 }
+
+/** "Léa Martin" → "Léa": chips, signatures and narrow columns stay short. */
+export const firstName = (name: string) => name.trim().split(/\s+/)[0] || name;
+
+/** A person's name from the room's people by id, "?" when unknown. */
+export const nameOf = (byId: Map<number, Member>, id: number | null) => (id == null ? undefined : byId.get(id))?.name ?? '?';

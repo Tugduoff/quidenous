@@ -1,7 +1,7 @@
 // « Qui a dit ça ? » logic tests. Run from app/: `bun test src/lib/said.test.ts`.
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
-import { guessGroups, holderOf, initMatch, isComplete, type Match, type MatchAction, matchReducer, nextOpen, pickLine, places, placed, revealItems, suspects, toGuess, toGuesses, topScorers } from '@/lib/utils/said';
+import { FLIP_MS, flipAt, GUESS_IN, GUESS_STEP, guessGroups, holderOf, initMatch, isComplete, type Match, type MatchAction, matchReducer, nextOpen, pickLine, places, placed, type RevealItem, revealItems, screenGroups, screenRevealSteps, suspects, toGuess, toGuesses, topScorers } from '@/lib/utils/said';
 import type { SaidView } from '@/lib/api/rounds';
 
 const run = (s: Match, ...actions: MatchAction[]) => actions.reduce(matchReducer, s);
@@ -225,4 +225,36 @@ test('pickLine is stable for a seed and always in range', () => {
     assert.equal(pickLine(lines, seed), pickLine(lines, seed));
   }
   assert.ok(new Set(Array.from({ length: 30 }, (_, i) => pickLine(lines, i))).size > 1);
+});
+
+describe('the reveal timing', () => {
+  test('the author flips after every guess came in, at least one step in', () => {
+    assert.equal(flipAt(0), flipAt(1));
+    assert.equal(flipAt(3) - flipAt(2), GUESS_STEP);
+    assert.ok(flipAt(1) > GUESS_IN + GUESS_STEP);
+  });
+
+  test('the big screen holds each answer past its flip', () => {
+    const item = (author_id: number, voters: number[]): RevealItem => ({
+      id: author_id,
+      text: 'x',
+      hidden: false,
+      author_id,
+      guesses: voters.map((v) => ({ voter_id: v, member_id: author_id })),
+      found: 0,
+      fooled: 0,
+      own: false,
+      myGuess: null,
+    });
+    const [a, b] = screenRevealSteps([item(1, []), item(2, [3])]);
+    assert.equal(a, b);
+    assert.ok(a > flipAt(1) + FLIP_MS);
+  });
+
+  test('screen groups: three at most, the right one always shown', () => {
+    const g = (id: number, right = false) => ({ id, right });
+    assert.deepEqual(screenGroups([g(1), g(2)]), { groups: [g(1), g(2)], rest: 0 });
+    assert.deepEqual(screenGroups([g(1), g(2), g(3), g(4), g(5, true)]), { groups: [g(1), g(2), g(5, true)], rest: 2 });
+    assert.deepEqual(screenGroups([g(1, true), g(2), g(3), g(4)]), { groups: [g(1, true), g(2), g(3)], rest: 1 });
+  });
 });
