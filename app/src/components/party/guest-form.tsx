@@ -10,7 +10,6 @@ import { PARTS } from '@/lib/utils/avatar';
 /** The avatar backgrounds people already pick from, minus the dark one (the initial drawn on it would not show). */
 export const GUEST_COLORS = PARTS.bg.map(([c]) => c).filter((c) => c.toUpperCase() !== '#2E2E38');
 
-/** Joining without an account: a first name, a colour and the terms make a guest account. */
 export function GuestForm({
   name,
   onName,

@@ -24,7 +24,6 @@ export function toggled(list: Reaction[] | undefined, emoji: string, me: number,
   return next.sort((a, b) => rank(a.emoji) - rank(b.emoji));
 }
 
-/** Width over height, 1 when unknown. */
 export const ratioOf = (w: number, h: number) => (w > 0 && h > 0 ? w / h : 1);
 
 /** A photo in the chat: at most this tall, at least this wide (a very tall one is cropped rather than a sliver). */

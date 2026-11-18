@@ -17,7 +17,6 @@ export function itemsWidth(items: string[]) {
   return letters * 9 + 28;
 }
 
-/** The first `count` entries once they are all measured, else null. */
 export function measured<T>(list: readonly (T | undefined)[], count: number): T[] | null {
   const out: T[] = [];
   for (let k = 0; k < count; k++) {

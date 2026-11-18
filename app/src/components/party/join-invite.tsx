@@ -8,7 +8,6 @@ import { useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
 import { useTheme } from '@/lib/theme';
 
-/** The party a join link points at: its code, its name (or why it can't be joined), who is in. */
 export function JoinInvite({ code, loading, closed, over, party }: { code: string; loading: boolean; closed: boolean; over: boolean; party: Party | undefined }) {
   const t = useTheme();
   const tr = useT();

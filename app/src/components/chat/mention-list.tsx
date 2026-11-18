@@ -13,7 +13,6 @@ export type Suggestion = { key: string; insert: string; member?: Member };
 /** One suggestion row; the list shows about five and a half, so a longer one visibly scrolls. */
 const ROW = 40;
 
-/** The people (and `@tous`) offered while typing `@`, right above the field. */
 export function MentionList({
   rows,
   active,
