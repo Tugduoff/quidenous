@@ -22,12 +22,12 @@ use crate::{
 };
 
 #[derive(Debug, Serialize)]
-pub struct Today {
+pub(crate) struct Today {
     pub rooms: Vec<TodayRoom>,
 }
 
 #[derive(Debug, Serialize)]
-pub struct TodayRoom {
+pub(crate) struct TodayRoom {
     pub id: RoomId,
     pub name: String,
     pub role: Role,
@@ -47,7 +47,7 @@ pub struct TodayRoom {
 }
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
-pub struct TodayRound {
+pub(crate) struct TodayRound {
     pub id: RoundId,
     pub number: i64,
     pub text: String,
@@ -57,7 +57,7 @@ pub struct TodayRound {
 }
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
-pub struct TodayResult {
+pub(crate) struct TodayResult {
     pub id: RoundId,
     pub number: i64,
     pub text: String,
@@ -66,13 +66,13 @@ pub struct TodayResult {
 }
 
 #[derive(Debug, Serialize)]
-pub struct TodayTripot {
+pub(crate) struct TodayTripot {
     pub can_bet: bool,
     pub balance: i64,
 }
 
 #[derive(Debug, Serialize)]
-pub struct TodayStreak {
+pub(crate) struct TodayStreak {
     pub days: i64,
     pub today: bool,
 }
@@ -131,14 +131,14 @@ struct Unseen {
     count: i64,
 }
 
-pub async fn get(
+pub(crate) async fn get(
     State(state): State<AppState>,
     SignedIn(user): SignedIn,
 ) -> AppResult<Json<Today>> {
     Ok(Json(today(&state.db, user, streaks::now_secs()).await?))
 }
 
-pub async fn today(db: &SqlitePool, user: UserId, now: i64) -> AppResult<Today> {
+pub(crate) async fn today(db: &SqlitePool, user: UserId, now: i64) -> AppResult<Today> {
     let seats: Vec<Seat> = sqlx::query_as(concat!(
         "SELECT g.id AS room, g.name, m.id AS member, m.role, m.muted, \
                 (SELECT COUNT(*) FROM members x WHERE x.group_id = g.id AND x.removed_at IS NULL) AS members, \
@@ -303,9 +303,9 @@ pub async fn today(db: &SqlitePool, user: UserId, now: i64) -> AppResult<Today> 
     })
 }
 
-pub const ACTIVITY_GAP: Duration = Duration::from_secs(1);
+pub(crate) const ACTIVITY_GAP: Duration = Duration::from_secs(1);
 
-pub struct OtherRooms {
+pub(crate) struct OtherRooms {
     user: UserId,
     current: RoomId,
     rooms: HashSet<RoomId>,
@@ -314,7 +314,7 @@ pub struct OtherRooms {
 }
 
 impl OtherRooms {
-    pub async fn open(db: &SqlitePool, user: UserId, current: RoomId) -> AppResult<Self> {
+    pub(crate) async fn open(db: &SqlitePool, user: UserId, current: RoomId) -> AppResult<Self> {
         let mut me = Self {
             user,
             current,
@@ -326,7 +326,7 @@ impl OtherRooms {
         Ok(me)
     }
 
-    pub async fn refresh(&mut self, db: &SqlitePool) -> AppResult<()> {
+    pub(crate) async fn refresh(&mut self, db: &SqlitePool) -> AppResult<()> {
         let rooms: Vec<RoomId> = sqlx::query_scalar(
             "SELECT m.group_id FROM members m \
              JOIN groups g ON g.id = m.group_id AND g.deleted_at IS NULL AND g.kind <> 'party' \
@@ -343,7 +343,7 @@ impl OtherRooms {
         Ok(())
     }
 
-    pub fn hear(&mut self, group_id: RoomId, event: &Event, now: Instant) -> Option<RoomId> {
+    pub(crate) fn hear(&mut self, group_id: RoomId, event: &Event, now: Instant) -> Option<RoomId> {
         if !self.rooms.contains(&group_id) || !changes_today(event) {
             return None;
         }
@@ -358,11 +358,11 @@ impl OtherRooms {
         Some(group_id)
     }
 
-    pub fn next_due(&self) -> Option<Instant> {
+    pub(crate) fn next_due(&self) -> Option<Instant> {
         self.pending.values().min().copied()
     }
 
-    pub fn due(&mut self, now: Instant) -> Vec<RoomId> {
+    pub(crate) fn due(&mut self, now: Instant) -> Vec<RoomId> {
         let rooms: Vec<RoomId> = self
             .pending
             .iter()
@@ -377,7 +377,7 @@ impl OtherRooms {
     }
 }
 
-pub fn activity_frame(room: RoomId) -> String {
+pub(crate) fn activity_frame(room: RoomId) -> String {
     serde_json::json!({ "type": "room_activity", "room_id": room }).to_string()
 }
 

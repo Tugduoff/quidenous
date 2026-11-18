@@ -5,7 +5,7 @@ use quidenous_server::{
     AppState, accounts::MemoryMailer, app, platform::config::Config, state, state_with_mailer,
 };
 
-pub fn unique() -> String {
+pub(crate) fn unique() -> String {
     static NEXT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
     let nanos = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -15,13 +15,13 @@ pub fn unique() -> String {
     format!("{}-{nanos}-{n}", std::process::id())
 }
 
-pub fn temp_dir(prefix: &str) -> std::path::PathBuf {
+pub(crate) fn temp_dir(prefix: &str) -> std::path::PathBuf {
     let dir = std::env::temp_dir().join(format!("{prefix}-{}", unique()));
     std::fs::create_dir_all(&dir).unwrap();
     dir
 }
 
-pub fn config(dir: &std::path::Path) -> Config {
+pub(crate) fn config(dir: &std::path::Path) -> Config {
     Config {
         database_url: format!("sqlite://{}?mode=rwc", dir.join("test.db").display()),
         data_dir: dir.to_path_buf(),
@@ -32,7 +32,7 @@ pub fn config(dir: &std::path::Path) -> Config {
     }
 }
 
-pub async fn setup() -> (Router, AppState) {
+pub(crate) async fn setup() -> (Router, AppState) {
     let state = state(config(&temp_dir("qdn-common"))).await.unwrap();
     sqlx::query("DELETE FROM questions WHERE group_id IS NULL AND kind <> 'pick'")
         .execute(&state.db)
@@ -41,13 +41,13 @@ pub async fn setup() -> (Router, AppState) {
     (app(state.clone()), state)
 }
 
-pub struct T {
+pub(crate) struct T {
     pub app: Router,
     pub state: AppState,
     pub mail: Arc<MemoryMailer>,
 }
 
-pub async fn with_mailer(config: Config) -> T {
+pub(crate) async fn with_mailer(config: Config) -> T {
     let mail = Arc::new(MemoryMailer::default());
     let state = state_with_mailer(config, mail.clone()).await.unwrap();
     T {
@@ -57,7 +57,7 @@ pub async fn with_mailer(config: Config) -> T {
     }
 }
 
-pub async fn user_of(state: &AppState, member: i64) -> i64 {
+pub(crate) async fn user_of(state: &AppState, member: i64) -> i64 {
     sqlx::query_scalar("SELECT user_id FROM members WHERE id = ?")
         .bind(member)
         .fetch_one(&state.db)
@@ -65,7 +65,7 @@ pub async fn user_of(state: &AppState, member: i64) -> i64 {
         .unwrap()
 }
 
-pub async fn trust_all(state: &AppState) {
+pub(crate) async fn trust_all(state: &AppState) {
     sqlx::query(
         "UPDATE users SET email = COALESCE(email, 'user' || id || '@example.test'), \
          email_verified_at = COALESCE(email_verified_at, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')), \

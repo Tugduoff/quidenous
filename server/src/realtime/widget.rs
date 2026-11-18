@@ -17,7 +17,7 @@ use crate::{
     rounds::game,
 };
 
-pub fn router() -> Router<AppState> {
+pub(crate) fn router() -> Router<AppState> {
     Router::new()
         .route("/widget", get(get_state))
         .route("/widget/token", post(mint).delete(revoke))
@@ -100,7 +100,7 @@ struct WidgetQuery {
 }
 
 #[derive(Debug, Serialize)]
-pub struct WidgetState {
+pub(crate) struct WidgetState {
     pub state: &'static str,
     pub lang: &'static str,
     pub room: Option<WidgetRoom>,
@@ -115,14 +115,14 @@ pub struct WidgetState {
 }
 
 #[derive(Debug, Serialize)]
-pub struct WidgetRoom {
+pub(crate) struct WidgetRoom {
     pub id: RoomId,
     pub name: String,
     pub kind: String,
 }
 
 #[derive(Debug, Serialize)]
-pub struct WidgetRound {
+pub(crate) struct WidgetRound {
     pub id: RoundId,
     pub number: i64,
     pub question: String,
@@ -130,7 +130,7 @@ pub struct WidgetRound {
 }
 
 #[derive(Debug, Serialize)]
-pub struct WidgetStreak {
+pub(crate) struct WidgetStreak {
     pub current: i64,
     pub today: bool,
 }
@@ -150,7 +150,7 @@ async fn get_state(
     Ok(res)
 }
 
-pub async fn widget_state(
+pub(crate) async fn widget_state(
     state: &AppState,
     user: UserId,
     room: Option<RoomId>,
@@ -262,7 +262,7 @@ pub async fn widget_state(
     })
 }
 
-pub async fn ping_room(state: &AppState, group_id: RoomId) {
+pub(crate) async fn ping_room(state: &AppState, group_id: RoomId) {
     let tokens: Vec<(UserId, String)> = match sqlx::query_as(
         "SELECT DISTINCT w.user_id, w.fcm_token FROM widget_tokens w \
          JOIN members m ON m.user_id = w.user_id AND m.removed_at IS NULL \

@@ -3,7 +3,7 @@ use futures::StreamExt;
 use serde_json::Value;
 use tokio_tungstenite::tungstenite::{Message, client::IntoClientRequest};
 
-pub async fn serve(app: Router) -> std::net::SocketAddr {
+pub(crate) async fn serve(app: Router) -> std::net::SocketAddr {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     tokio::spawn(async move {
@@ -17,9 +17,9 @@ pub async fn serve(app: Router) -> std::net::SocketAddr {
     addr
 }
 
-pub type Socket = tokio_tungstenite::WebSocketStream<tokio::net::TcpStream>;
+pub(crate) type Socket = tokio_tungstenite::WebSocketStream<tokio::net::TcpStream>;
 
-pub async fn connect(addr: std::net::SocketAddr, query: &str) -> Socket {
+pub(crate) async fn connect(addr: std::net::SocketAddr, query: &str) -> Socket {
     let stream = tokio::net::TcpStream::connect(addr).await.unwrap();
     let request = format!("ws://{addr}/api/live?{query}")
         .into_client_request()
@@ -30,7 +30,7 @@ pub async fn connect(addr: std::net::SocketAddr, query: &str) -> Socket {
         .0
 }
 
-pub async fn next_event(socket: &mut Socket, ms: u64) -> Option<Value> {
+pub(crate) async fn next_event(socket: &mut Socket, ms: u64) -> Option<Value> {
     loop {
         let msg = tokio::time::timeout(std::time::Duration::from_millis(ms), socket.next())
             .await

@@ -42,7 +42,7 @@ pub(super) type OpenRow = (
     String,
 );
 
-pub async fn open_reports(state: &AppState) -> AppResult<Vec<Value>> {
+pub(crate) async fn open_reports(state: &AppState) -> AppResult<Vec<Value>> {
     let rows: Vec<OpenRow> = sqlx::query_as(
         "SELECT kind, target_id, MAX(room_id), MAX(reported_user_id), MAX(content), COUNT(*), MIN(created_at), \
          json_group_array(reason), json_group_array(details) \
@@ -148,13 +148,13 @@ pub async fn open_reports(state: &AppState) -> AppResult<Vec<Value>> {
 }
 
 #[derive(Deserialize)]
-pub struct ActBody {
+pub(crate) struct ActBody {
     kind: String,
     id: i64,
     action: String,
 }
 
-pub async fn act(
+pub(crate) async fn act(
     State(state): State<AppState>,
     Admin(_): Admin,
     Json(body): Json<ActBody>,

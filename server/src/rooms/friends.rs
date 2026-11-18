@@ -55,7 +55,10 @@ fn person((id, name, color, photo, avatar): PersonRow) -> Value {
             "photo_url": photo.map(|p| format!("/photos/{p}")), "avatar": avatar })
 }
 
-pub async fn list(State(state): State<AppState>, Account(me): Account) -> AppResult<Json<Value>> {
+pub(crate) async fn list(
+    State(state): State<AppState>,
+    Account(me): Account,
+) -> AppResult<Json<Value>> {
     let code: String = sqlx::query_scalar("SELECT friend_code FROM users WHERE id = ?")
         .bind(me)
         .fetch_one(&state.db)
@@ -238,11 +241,11 @@ async fn my_name(state: &AppState, me: UserId) -> AppResult<String> {
 }
 
 #[derive(Deserialize)]
-pub struct AddBody {
+pub(crate) struct AddBody {
     code: String,
 }
 
-pub async fn add(
+pub(crate) async fn add(
     State(state): State<AppState>,
     Account(me): Account,
     crate::accounts::ClientIp(ip): crate::accounts::ClientIp,
@@ -270,7 +273,7 @@ pub async fn add(
                     "status": if friends { "friends" } else { "requested" } })))
 }
 
-pub async fn keep(
+pub(crate) async fn keep(
     State(state): State<AppState>,
     Account(me): Account,
     Path(other): Path<UserId>,
@@ -298,7 +301,7 @@ pub async fn keep(
                     "status": if friends { "friends" } else { "requested" } })))
 }
 
-pub async fn remove(
+pub(crate) async fn remove(
     State(state): State<AppState>,
     SignedIn(me): SignedIn,
     Path(other): Path<UserId>,
@@ -319,11 +322,11 @@ pub async fn remove(
 }
 
 #[derive(Deserialize)]
-pub struct AddToRoomBody {
+pub(crate) struct AddToRoomBody {
     user_id: UserId,
 }
 
-pub async fn add_to_room(
+pub(crate) async fn add_to_room(
     State(state): State<AppState>,
     Account(me): Account,
     RoomMember(my_seat): RoomMember,
@@ -402,7 +405,7 @@ macro_rules! invite_valid {
     };
 }
 
-pub async fn invites(
+pub(crate) async fn invites(
     State(state): State<AppState>,
     SignedIn(me): SignedIn,
 ) -> AppResult<Json<Value>> {
@@ -442,7 +445,7 @@ pub async fn invites(
     Ok(Json(json!({ "invites": list })))
 }
 
-pub async fn accept_invite(
+pub(crate) async fn accept_invite(
     State(state): State<AppState>,
     Account(me): Account,
     Path(id): Path<InviteId>,
@@ -557,7 +560,7 @@ pub async fn accept_invite(
     Ok(Json(json!({ "room_id": room, "member_id": member_id })))
 }
 
-pub async fn decline_invite(
+pub(crate) async fn decline_invite(
     State(state): State<AppState>,
     SignedIn(me): SignedIn,
     Path(id): Path<InviteId>,
@@ -570,7 +573,7 @@ pub async fn decline_invite(
     Ok(Json(json!({ "ok": true })))
 }
 
-pub async fn room_invites(
+pub(crate) async fn room_invites(
     State(state): State<AppState>,
     RoomMember(my_seat): RoomMember,
 ) -> AppResult<Json<Value>> {
@@ -586,7 +589,7 @@ pub async fn room_invites(
     Ok(Json(json!({ "user_ids": ids })))
 }
 
-pub async fn cancel_room_invite(
+pub(crate) async fn cancel_room_invite(
     State(state): State<AppState>,
     SignedIn(me): SignedIn,
     RoomMember(my_seat): RoomMember,

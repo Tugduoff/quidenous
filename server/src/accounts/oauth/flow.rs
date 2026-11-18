@@ -23,12 +23,12 @@ use crate::{
 
 use super::{Flavor, Identity, Refusal, key_hash, pkce_challenge, provider_name, resolve};
 
-pub async fn providers(State(state): State<AppState>) -> Json<Value> {
+pub(crate) async fn providers(State(state): State<AppState>) -> Json<Value> {
     Json(json!(state.auth.oauth.enabled()))
 }
 
 #[derive(Deserialize)]
-pub struct StartBody {
+pub(crate) struct StartBody {
     app_redirect: String,
     #[serde(default)]
     link: bool,
@@ -36,7 +36,7 @@ pub struct StartBody {
     reauth: bool,
 }
 
-pub async fn start(
+pub(crate) async fn start(
     State(state): State<AppState>,
     Path(provider): Path<String>,
     ClientIp(ip): ClientIp,
@@ -105,7 +105,7 @@ pub async fn start(
 }
 
 #[derive(Deserialize)]
-pub struct CallbackQuery {
+pub(crate) struct CallbackQuery {
     code: Option<String>,
     state: Option<String>,
     error: Option<String>,
@@ -131,7 +131,7 @@ pub(super) fn expired_page() -> Response {
         .into_response()
 }
 
-pub async fn callback(
+pub(crate) async fn callback(
     State(state): State<AppState>,
     Path(provider): Path<String>,
     Query(q): Query<CallbackQuery>,
@@ -302,12 +302,12 @@ pub(super) async fn identify(
 }
 
 #[derive(Deserialize)]
-pub struct RedeemBody {
+pub(crate) struct RedeemBody {
     code: String,
     key: String,
 }
 
-pub async fn redeem(
+pub(crate) async fn redeem(
     State(state): State<AppState>,
     ClientIp(ip): ClientIp,
     Device(device): Device,
@@ -383,7 +383,7 @@ pub(super) async fn reauth_result(
     Ok(Json(json!({ "reauth": true })))
 }
 
-pub async fn unlink(
+pub(crate) async fn unlink(
     State(state): State<AppState>,
     session: Session,
     Path(provider): Path<String>,

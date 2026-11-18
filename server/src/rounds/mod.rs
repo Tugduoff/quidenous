@@ -1,11 +1,11 @@
-pub mod current;
+pub(crate) mod current;
 pub mod game;
 pub mod global;
-pub mod history;
-pub mod model;
-pub mod play;
-pub mod queue;
-pub mod said;
+pub(crate) mod history;
+pub(crate) mod model;
+pub(crate) mod play;
+pub(crate) mod queue;
+pub(crate) mod said;
 pub mod tripot;
 
 use axum::{

@@ -59,11 +59,11 @@ pub(super) async fn send_verify(state: &AppState, user_id: UserId, email: &str) 
 }
 
 #[derive(Deserialize)]
-pub struct EmailBody {
+pub(crate) struct EmailBody {
     email: String,
 }
 
-pub async fn email_exists(
+pub(crate) async fn email_exists(
     State(state): State<AppState>,
     ClientIp(ip): ClientIp,
     Json(body): Json<EmailBody>,
@@ -75,7 +75,7 @@ pub async fn email_exists(
 }
 
 #[derive(Deserialize)]
-pub struct SignupBody {
+pub(crate) struct SignupBody {
     email: String,
     password: String,
     name: String,
@@ -83,7 +83,7 @@ pub struct SignupBody {
     locale: Option<String>,
 }
 
-pub async fn signup(
+pub(crate) async fn signup(
     State(state): State<AppState>,
     ClientIp(ip): ClientIp,
     Device(device): Device,
@@ -130,12 +130,12 @@ pub async fn signup(
 }
 
 #[derive(Deserialize)]
-pub struct LoginBody {
+pub(crate) struct LoginBody {
     email: String,
     password: String,
 }
 
-pub async fn login(
+pub(crate) async fn login(
     State(state): State<AppState>,
     ClientIp(ip): ClientIp,
     Device(device): Device,
@@ -158,7 +158,7 @@ pub async fn login(
     }
 }
 
-pub async fn forgot(
+pub(crate) async fn forgot(
     State(state): State<AppState>,
     ClientIp(ip): ClientIp,
     Json(body): Json<EmailBody>,
@@ -196,13 +196,13 @@ pub async fn forgot(
 }
 
 #[derive(Deserialize)]
-pub struct ResetBody {
+pub(crate) struct ResetBody {
     email: String,
     code: String,
     password: String,
 }
 
-pub async fn reset(
+pub(crate) async fn reset(
     State(state): State<AppState>,
     ClientIp(ip): ClientIp,
     Device(device): Device,
@@ -263,7 +263,7 @@ pub async fn reset(
     ))
 }
 
-pub async fn account_info(state: &AppState, user_id: UserId) -> AppResult<Value> {
+pub(crate) async fn account_info(state: &AppState, user_id: UserId) -> AppResult<Value> {
     let a = super::account(state, user_id).await?;
     let providers: Vec<String> = sqlx::query_scalar(
         "SELECT DISTINCT provider FROM oauth_identities WHERE user_id = ? ORDER BY provider",
@@ -303,9 +303,9 @@ pub async fn account_info(state: &AppState, user_id: UserId) -> AppResult<Value>
     }))
 }
 
-pub const TERMS_VERSION: i64 = 1;
+pub(crate) const TERMS_VERSION: i64 = 1;
 
-pub async fn accept_terms(
+pub(crate) async fn accept_terms(
     State(state): State<AppState>,
     session: Session,
 ) -> AppResult<Json<Value>> {
@@ -319,17 +319,20 @@ pub async fn accept_terms(
     Ok(Json(json!({ "ok": true, "version": TERMS_VERSION })))
 }
 
-pub async fn account(State(state): State<AppState>, session: Session) -> AppResult<Json<Value>> {
+pub(crate) async fn account(
+    State(state): State<AppState>,
+    session: Session,
+) -> AppResult<Json<Value>> {
     Ok(Json(account_info(&state, session.user_id).await?))
 }
 
 #[derive(Deserialize)]
-pub struct CredentialsBody {
+pub(crate) struct CredentialsBody {
     email: String,
     password: String,
 }
 
-pub async fn credentials(
+pub(crate) async fn credentials(
     State(state): State<AppState>,
     session: Session,
     Json(body): Json<CredentialsBody>,
@@ -368,7 +371,7 @@ pub async fn credentials(
     ))
 }
 
-pub async fn verify_send(
+pub(crate) async fn verify_send(
     State(state): State<AppState>,
     session: Session,
 ) -> AppResult<Json<Value>> {
@@ -388,11 +391,11 @@ pub async fn verify_send(
 }
 
 #[derive(Deserialize)]
-pub struct CodeBody {
+pub(crate) struct CodeBody {
     code: String,
 }
 
-pub async fn verify(
+pub(crate) async fn verify(
     State(state): State<AppState>,
     ClientIp(ip): ClientIp,
     session: Session,
@@ -419,14 +422,14 @@ pub async fn verify(
 }
 
 #[derive(Deserialize)]
-pub struct PasswordBody {
+pub(crate) struct PasswordBody {
     current: Option<String>,
     password: String,
     #[serde(default)]
     revoke_others: bool,
 }
 
-pub async fn change_password(
+pub(crate) async fn change_password(
     State(state): State<AppState>,
     ClientIp(ip): ClientIp,
     session: Session,
@@ -475,11 +478,11 @@ pub async fn change_password(
 }
 
 #[derive(Deserialize)]
-pub struct ChangeEmailBody {
+pub(crate) struct ChangeEmailBody {
     email: String,
 }
 
-pub async fn change_email(
+pub(crate) async fn change_email(
     State(state): State<AppState>,
     session: Session,
     Json(body): Json<ChangeEmailBody>,
@@ -527,12 +530,12 @@ pub async fn change_email(
 }
 
 #[derive(Deserialize)]
-pub struct ConfirmEmailBody {
+pub(crate) struct ConfirmEmailBody {
     email: String,
     code: String,
 }
 
-pub async fn confirm_email(
+pub(crate) async fn confirm_email(
     State(state): State<AppState>,
     ClientIp(ip): ClientIp,
     session: Session,

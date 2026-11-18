@@ -25,7 +25,7 @@ mod serve;
 use publish::{publish, remove};
 use serve::{asset, entries, list, manifest};
 
-pub const PUBLISH_MAX: usize = 100 * 1024 * 1024;
+pub(crate) const PUBLISH_MAX: usize = 100 * 1024 * 1024;
 const UNPACKED_MAX: u64 = 200 * 1024 * 1024;
 const JSON_MAX: u64 = 8 * 1024 * 1024;
 const KEEP: usize = 5;
@@ -60,7 +60,7 @@ impl PublishClock {
     }
 }
 
-pub fn router() -> Router<AppState> {
+pub(crate) fn router() -> Router<AppState> {
     Router::new()
         .route("/updates", get(list))
         .route("/updates/manifest", get(manifest))

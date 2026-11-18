@@ -17,10 +17,10 @@ use crate::{
     platform::i18n::{self, Lang},
 };
 
-pub const PER_DAY: i64 = 5;
-pub const SCORE_MIN: i64 = 10;
-pub const RATIO_MIN: f64 = 0.7;
-pub const SCORE_REJECT: i64 = 5;
+pub(crate) const PER_DAY: i64 = 5;
+pub(crate) const SCORE_MIN: i64 = 10;
+pub(crate) const RATIO_MIN: f64 = 0.7;
+pub(crate) const SCORE_REJECT: i64 = 5;
 const VOTING_SHOWN: i64 = 30;
 const TEXT_MIN: usize = 8;
 const TEXT_MAX: usize = 200;
@@ -64,7 +64,7 @@ async fn one(db: &SqlitePool, id: SuggestionId) -> AppResult<Row> {
         .ok_or(AppError::NotFound)
 }
 
-pub async fn left(db: &SqlitePool, me: UserId) -> AppResult<i64> {
+pub(crate) async fn left(db: &SqlitePool, me: UserId) -> AppResult<i64> {
     let made: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM suggestions WHERE user_id = ? \
          AND created_at >= strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-1 day')",
@@ -75,18 +75,18 @@ pub async fn left(db: &SqlitePool, me: UserId) -> AppResult<i64> {
     Ok((PER_DAY - made).max(0))
 }
 
-pub fn qualifies(up: i64, down: i64) -> bool {
+pub(crate) fn qualifies(up: i64, down: i64) -> bool {
     up - down >= SCORE_MIN && up as f64 >= RATIO_MIN * (up + down) as f64
 }
 
 #[derive(Deserialize)]
-pub struct CreateBody {
+pub(crate) struct CreateBody {
     text: String,
     kind: Option<String>,
     lang: Option<String>,
 }
 
-pub async fn create(
+pub(crate) async fn create(
     State(state): State<AppState>,
     crate::accounts::auth::Account(me): crate::accounts::auth::Account,
     Json(body): Json<CreateBody>,
@@ -132,11 +132,11 @@ pub async fn create(
 }
 
 #[derive(Deserialize)]
-pub struct NextQuery {
+pub(crate) struct NextQuery {
     lang: Option<String>,
 }
 
-pub async fn next(
+pub(crate) async fn next(
     State(state): State<AppState>,
     SignedIn(me): SignedIn,
     Query(q): Query<NextQuery>,
@@ -161,11 +161,11 @@ pub async fn next(
 }
 
 #[derive(Deserialize)]
-pub struct VoteBody {
+pub(crate) struct VoteBody {
     value: i64,
 }
 
-pub async fn vote(
+pub(crate) async fn vote(
     State(state): State<AppState>,
     crate::accounts::auth::Account(me): crate::accounts::auth::Account,
     Path(id): Path<SuggestionId>,
@@ -229,7 +229,10 @@ pub async fn vote(
     Ok(Json(json!({ "up": up, "down": down, "status": status })))
 }
 
-pub async fn mine(State(state): State<AppState>, SignedIn(me): SignedIn) -> AppResult<Json<Value>> {
+pub(crate) async fn mine(
+    State(state): State<AppState>,
+    SignedIn(me): SignedIn,
+) -> AppResult<Json<Value>> {
     let rows: Vec<Row> =
         sqlx::query_as(suggestion_select!("WHERE s.user_id = ? ORDER BY s.id DESC"))
             .bind(me)
@@ -241,7 +244,7 @@ pub async fn mine(State(state): State<AppState>, SignedIn(me): SignedIn) -> AppR
     })))
 }
 
-pub async fn queued(db: &SqlitePool, me: UserId) -> AppResult<Vec<Value>> {
+pub(crate) async fn queued(db: &SqlitePool, me: UserId) -> AppResult<Vec<Value>> {
     let mut rows: Vec<Row> = sqlx::query_as(suggestion_select!(
         "WHERE s.status = 'queued' ORDER BY s.id"
     ))
@@ -266,11 +269,11 @@ pub async fn queued(db: &SqlitePool, me: UserId) -> AppResult<Vec<Value>> {
 }
 
 #[derive(Deserialize, Default)]
-pub struct ApproveBody {
+pub(crate) struct ApproveBody {
     tags: Option<Vec<String>>,
 }
 
-pub async fn approve(
+pub(crate) async fn approve(
     State(state): State<AppState>,
     Admin(me): Admin,
     Path(id): Path<SuggestionId>,
@@ -326,7 +329,7 @@ pub async fn approve(
     Ok(Json(out))
 }
 
-pub async fn reject(
+pub(crate) async fn reject(
     State(state): State<AppState>,
     Admin(me): Admin,
     Path(id): Path<SuggestionId>,

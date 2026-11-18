@@ -7,7 +7,7 @@ use http_body_util::BodyExt;
 use serde_json::{Value, json};
 use tower::ServiceExt;
 
-pub async fn call(
+pub(crate) async fn call(
     app: &Router,
     method: &str,
     path: &str,
@@ -25,7 +25,7 @@ pub async fn call(
     send(app, req, body).await
 }
 
-pub async fn call_last_room(
+pub(crate) async fn call_last_room(
     app: &Router,
     method: &str,
     path: &str,
@@ -35,7 +35,7 @@ pub async fn call_last_room(
     call(app, method, path, token, None, body).await
 }
 
-pub async fn call_with_kinds(
+pub(crate) async fn call_with_kinds(
     app: &Router,
     method: &str,
     path: &str,
@@ -74,7 +74,7 @@ async fn send(
     )
 }
 
-pub async fn join(app: &Router, name: &str) -> (String, i64) {
+pub(crate) async fn join(app: &Router, name: &str) -> (String, i64) {
     let (status, body) = call(
         app,
         "POST",
@@ -91,12 +91,12 @@ pub async fn join(app: &Router, name: &str) -> (String, i64) {
     )
 }
 
-pub async fn room_id(app: &Router, token: &str) -> i64 {
+pub(crate) async fn room_id(app: &Router, token: &str) -> i64 {
     let (_, g) = call(app, "GET", "/group", Some(token), None, None).await;
     g["id"].as_i64().unwrap()
 }
 
-pub async fn queued(app: &Router, token: &str, room: i64) -> Vec<i64> {
+pub(crate) async fn queued(app: &Router, token: &str, room: i64) -> Vec<i64> {
     let (s, q) = call(
         app,
         "GET",
@@ -115,7 +115,7 @@ pub async fn queued(app: &Router, token: &str, room: i64) -> Vec<i64> {
         .collect()
 }
 
-pub async fn add_question(app: &Router, token: &str, room: i64, text: &str) -> i64 {
+pub(crate) async fn add_question(app: &Router, token: &str, room: i64, text: &str) -> i64 {
     let (s, q) = call(
         app,
         "POST",
@@ -129,7 +129,7 @@ pub async fn add_question(app: &Router, token: &str, room: i64, text: &str) -> i
     q["id"].as_i64().unwrap()
 }
 
-pub async fn messages(app: &Router, token: &str, room: i64, round: i64) -> Vec<Value> {
+pub(crate) async fn messages(app: &Router, token: &str, room: i64, round: i64) -> Vec<Value> {
     let (s, list) = call(
         app,
         "GET",

@@ -12,7 +12,7 @@ use crate::{
     rooms::model::MemberRow,
 };
 
-pub async fn seat(state: &AppState, user_id: UserId, room: RoomId) -> AppResult<MemberRow> {
+pub(crate) async fn seat(state: &AppState, user_id: UserId, room: RoomId) -> AppResult<MemberRow> {
     sqlx::query_as::<_, MemberRow>(
         "SELECT m.* FROM members m JOIN groups g ON g.id = m.group_id AND g.deleted_at IS NULL \
          WHERE m.user_id = ? AND m.group_id = ? AND m.removed_at IS NULL",
@@ -31,7 +31,7 @@ fn owner(me: MemberRow) -> AppResult<MemberRow> {
     Ok(me)
 }
 
-pub async fn may_add_questions(state: &AppState, me: &MemberRow) -> AppResult<()> {
+pub(crate) async fn may_add_questions(state: &AppState, me: &MemberRow) -> AppResult<()> {
     let by: String = sqlx::query_scalar("SELECT questions_by FROM groups WHERE id = ?")
         .bind(me.group_id)
         .fetch_one(&state.db)
@@ -92,7 +92,7 @@ impl FromRequestParts<AppState> for RoomOwner {
     }
 }
 
-pub struct Owner(pub MemberRow);
+pub(crate) struct Owner(pub MemberRow);
 
 impl FromRequestParts<AppState> for Owner {
     type Rejection = AppError;

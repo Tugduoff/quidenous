@@ -8,7 +8,7 @@ use crate::{
     platform::error::AppResult,
 };
 
-pub async fn get(
+pub(crate) async fn get(
     State(state): State<AppState>,
     SignedIn(user): SignedIn,
 ) -> AppResult<Json<Value>> {
@@ -24,13 +24,13 @@ pub async fn get(
 }
 
 #[derive(Deserialize, Default)]
-pub struct DoneBody {
+pub(crate) struct DoneBody {
     #[serde(default)]
     #[allow(dead_code)]
     skipped: bool,
 }
 
-pub async fn done(
+pub(crate) async fn done(
     State(state): State<AppState>,
     SignedIn(user): SignedIn,
     _body: Option<Json<DoneBody>>,

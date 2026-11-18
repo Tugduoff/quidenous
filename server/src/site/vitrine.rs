@@ -12,16 +12,16 @@ use std::path::PathBuf;
 
 use crate::platform::web::{BASE_CSP, inline_scripts};
 
-pub const PAGE_FR: &str = include_str!(concat!(
+pub(crate) const PAGE_FR: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/assets/vitrine/index.html"
 ));
-pub const PAGE_EN: &str = include_str!(concat!(
+pub(crate) const PAGE_EN: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/assets/vitrine/index.en.html"
 ));
 
-pub const APP_COOKIE: &str = "qdn_app";
+pub(crate) const APP_COOKIE: &str = "qdn_app";
 
 const TRACKING: [&str; 9] = [
     "fbclid", "gclid", "gbraid", "wbraid", "msclkid", "igshid", "mc_cid", "mc_eid", "ref",
@@ -198,7 +198,7 @@ const FILES: [(&str, &str, &[u8]); 21] = [
     ),
 ];
 
-pub fn csp() -> String {
+pub(crate) fn csp() -> String {
     let mut hashes: Vec<String> = [PAGE_FR, PAGE_EN]
         .iter()
         .flat_map(|page| inline_scripts(page))
@@ -219,7 +219,7 @@ pub fn csp() -> String {
     )
 }
 
-pub fn wants_app(headers: &HeaderMap, query: Option<&str>) -> bool {
+pub(crate) fn wants_app(headers: &HeaderMap, query: Option<&str>) -> bool {
     let cookie = headers
         .get_all(header::COOKIE)
         .iter()
@@ -235,7 +235,9 @@ pub fn wants_app(headers: &HeaderMap, query: Option<&str>) -> bool {
     cookie || app_query
 }
 
-pub fn router<S: Clone + Send + Sync + 'static>(app: Option<(PathBuf, HeaderValue)>) -> Router<S> {
+pub(crate) fn router<S: Clone + Send + Sync + 'static>(
+    app: Option<(PathBuf, HeaderValue)>,
+) -> Router<S> {
     let csp = HeaderValue::from_str(&csp()).unwrap_or(HeaderValue::from_static(BASE_CSP));
     let home_csp = csp.clone();
     Router::new()

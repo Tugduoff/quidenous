@@ -3,9 +3,9 @@ use sqlx::{Sqlite, Transaction};
 
 use crate::platform::error::{AppError, AppResult};
 
-pub const MODES: [&str; 3] = ["never", "per_question", "always"];
+pub(crate) const MODES: [&str; 3] = ["never", "per_question", "always"];
 
-pub fn clean_mode(mode: &str) -> AppResult<&'static str> {
+pub(crate) fn clean_mode(mode: &str) -> AppResult<&'static str> {
     MODES
         .iter()
         .find(|m| **m == mode)
@@ -21,7 +21,7 @@ macro_rules! decided {
     };
 }
 
-pub async fn decide(tx: &mut Transaction<'_, Sqlite>, round_id: RoundId) -> AppResult<()> {
+pub(crate) async fn decide(tx: &mut Transaction<'_, Sqlite>, round_id: RoundId) -> AppResult<()> {
     sqlx::query(concat!(
         "UPDATE rounds SET anonymous = COALESCE(",
         decided!(),
@@ -33,7 +33,7 @@ pub async fn decide(tx: &mut Transaction<'_, Sqlite>, round_id: RoundId) -> AppR
     Ok(())
 }
 
-pub async fn set_mode(
+pub(crate) async fn set_mode(
     tx: &mut Transaction<'_, Sqlite>,
     group_id: RoomId,
     mode: &str,
@@ -55,7 +55,10 @@ pub async fn set_mode(
     Ok(())
 }
 
-pub async fn mode<'e, E: sqlx::SqliteExecutor<'e>>(db: E, group_id: RoomId) -> AppResult<String> {
+pub(crate) async fn mode<'e, E: sqlx::SqliteExecutor<'e>>(
+    db: E,
+    group_id: RoomId,
+) -> AppResult<String> {
     Ok(
         sqlx::query_scalar("SELECT anonymous_votes FROM groups WHERE id = ?")
             .bind(group_id)
@@ -65,7 +68,7 @@ pub async fn mode<'e, E: sqlx::SqliteExecutor<'e>>(db: E, group_id: RoomId) -> A
     )
 }
 
-pub async fn is_anonymous<'e, E: sqlx::SqliteExecutor<'e>>(
+pub(crate) async fn is_anonymous<'e, E: sqlx::SqliteExecutor<'e>>(
     db: E,
     round_id: RoundId,
 ) -> AppResult<bool> {
@@ -78,6 +81,6 @@ pub async fn is_anonymous<'e, E: sqlx::SqliteExecutor<'e>>(
     )
 }
 
-pub fn wanted(kind: &str, anonymous: bool) -> bool {
+pub(crate) fn wanted(kind: &str, anonymous: bool) -> bool {
     anonymous && matches!(kind, "pick" | "rank")
 }

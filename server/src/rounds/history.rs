@@ -305,7 +305,7 @@ pub(crate) async fn export_history(
     )))
 }
 
-pub fn csv_cell(v: &str) -> String {
+pub(crate) fn csv_cell(v: &str) -> String {
     let guard = if v.starts_with(['=', '+', '-', '@', '\t', '\r']) {
         "'"
     } else {

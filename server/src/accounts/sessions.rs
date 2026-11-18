@@ -14,7 +14,10 @@ fn public_id(hash: &str) -> &str {
     &hash[..hash.len().min(16)]
 }
 
-pub async fn list(State(state): State<AppState>, session: Session) -> AppResult<Json<Value>> {
+pub(crate) async fn list(
+    State(state): State<AppState>,
+    session: Session,
+) -> AppResult<Json<Value>> {
     let rows: Vec<(String, Option<String>, String, Option<String>)> = sqlx::query_as(
         "SELECT token_hash, device, created_at, last_used_at FROM user_tokens WHERE user_id = ? \
          ORDER BY COALESCE(last_used_at, created_at) DESC",
@@ -37,7 +40,7 @@ pub async fn list(State(state): State<AppState>, session: Session) -> AppResult<
     Ok(Json(json!(list)))
 }
 
-pub async fn revoke(
+pub(crate) async fn revoke(
     State(state): State<AppState>,
     session: Session,
     Path(id): Path<String>,
@@ -61,7 +64,7 @@ pub async fn revoke(
     Ok(Json(json!({ "ok": true })))
 }
 
-pub async fn revoke_others(
+pub(crate) async fn revoke_others(
     State(state): State<AppState>,
     session: Session,
 ) -> AppResult<Json<Value>> {
@@ -70,7 +73,10 @@ pub async fn revoke_others(
     Ok(Json(json!({ "revoked": revoked })))
 }
 
-pub async fn logout(State(state): State<AppState>, session: Session) -> AppResult<Json<Value>> {
+pub(crate) async fn logout(
+    State(state): State<AppState>,
+    session: Session,
+) -> AppResult<Json<Value>> {
     sqlx::query("DELETE FROM user_tokens WHERE token_hash = ?")
         .bind(&session.token_hash)
         .execute(&state.db)

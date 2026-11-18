@@ -55,7 +55,7 @@ async fn shared(state: &AppState, token: &str) -> AppResult<Shared> {
     })
 }
 
-pub async fn get(
+pub(crate) async fn get(
     State(state): State<AppState>,
     Path(token): Path<String>,
 ) -> AppResult<Json<Value>> {
@@ -187,7 +187,7 @@ async fn send(
     Ok((question, challenge))
 }
 
-pub async fn play(
+pub(crate) async fn play(
     State(state): State<AppState>,
     Me(me): Me,
     Path(token): Path<String>,
@@ -215,11 +215,11 @@ pub async fn play(
 }
 
 #[derive(Deserialize)]
-pub struct ChallengeBody {
+pub(crate) struct ChallengeBody {
     room_id: RoomId,
 }
 
-pub async fn challenge(
+pub(crate) async fn challenge(
     State(state): State<AppState>,
     Me(me): Me,
     Path(id): Path<RoundId>,
@@ -307,7 +307,7 @@ async fn podium(db: &SqlitePool, round_id: RoundId) -> AppResult<Vec<Value>> {
     Ok(out)
 }
 
-pub async fn challenges(
+pub(crate) async fn challenges(
     State(state): State<AppState>,
     Me(me): Me,
     Path(id): Path<RoundId>,

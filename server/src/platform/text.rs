@@ -16,7 +16,7 @@ fn blank(c: char) -> bool {
     c.is_whitespace() || matches!(c, '\u{200C}' | '\u{200D}' | '\u{FE00}'..='\u{FE0F}')
 }
 
-pub fn line(s: &str) -> String {
+pub(crate) fn line(s: &str) -> String {
     let kept: String = s.chars().filter(|c| !hidden(*c)).collect();
     let out = kept.split_whitespace().collect::<Vec<_>>().join(" ");
     if out.chars().all(blank) {
@@ -26,7 +26,7 @@ pub fn line(s: &str) -> String {
     }
 }
 
-pub fn lines(s: &str) -> String {
+pub(crate) fn lines(s: &str) -> String {
     let mut out: Vec<String> = Vec::new();
     for l in s.lines() {
         let l = line(l);
@@ -41,7 +41,7 @@ pub fn lines(s: &str) -> String {
     out.join("\n")
 }
 
-pub fn key(s: &str) -> String {
+pub(crate) fn key(s: &str) -> String {
     line(s).to_lowercase()
 }
 

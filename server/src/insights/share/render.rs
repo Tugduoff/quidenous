@@ -67,7 +67,7 @@ pub(super) fn render_svg(svg: &str) -> Option<Vec<u8>> {
     pixmap.encode_png().ok()
 }
 
-pub async fn card_png(State(state): State<AppState>, Path(token): Path<String>) -> Response {
+pub(crate) async fn card_png(State(state): State<AppState>, Path(token): Path<String>) -> Response {
     let Ok(card) = load(&state, &token).await else {
         return StatusCode::NOT_FOUND.into_response();
     };
@@ -97,7 +97,7 @@ impl Default for Cards {
     }
 }
 
-pub async fn card(cards: &Cards, svg: String) -> Option<axum::body::Bytes> {
+pub(crate) async fn card(cards: &Cards, svg: String) -> Option<axum::body::Bytes> {
     use sha2::{Digest, Sha256};
     let key: [u8; 32] = Sha256::digest(svg.as_bytes()).into();
     let cached = |now: Instant| {
@@ -152,7 +152,10 @@ pub(super) async fn png_response(cards: &Cards, svg: String) -> Response {
     }
 }
 
-pub async fn pack_card_png(State(state): State<AppState>, Path(id): Path<PackId>) -> Response {
+pub(crate) async fn pack_card_png(
+    State(state): State<AppState>,
+    Path(id): Path<PackId>,
+) -> Response {
     let Ok(card) = load_pack(&state, id).await else {
         return StatusCode::NOT_FOUND.into_response();
     };

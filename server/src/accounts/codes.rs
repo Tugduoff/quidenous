@@ -7,20 +7,20 @@ use crate::{
     platform::error::{AppError, AppResult},
 };
 
-pub const VERIFY_TTL: u64 = 15 * 60;
-pub const RESET_TTL: u64 = 30 * 60;
-pub const DELETE_TTL: u64 = 30 * 60;
-pub const CHANGE_EMAIL_TTL: u64 = 30 * 60;
-pub const MFA_RESET_TTL: u64 = 30 * 60;
-pub const MFA_TTL: u64 = 5 * 60;
-pub const OAUTH_STATE_TTL: u64 = 10 * 60;
-pub const OAUTH_RESULT_TTL: u64 = 60;
-pub const MAX_TRIES: i64 = 5;
-pub const DAILY_FAILURES: i64 = 20;
+pub(crate) const VERIFY_TTL: u64 = 15 * 60;
+pub(crate) const RESET_TTL: u64 = 30 * 60;
+pub(crate) const DELETE_TTL: u64 = 30 * 60;
+pub(crate) const CHANGE_EMAIL_TTL: u64 = 30 * 60;
+pub(crate) const MFA_RESET_TTL: u64 = 30 * 60;
+pub(crate) const MFA_TTL: u64 = 5 * 60;
+pub(crate) const OAUTH_STATE_TTL: u64 = 10 * 60;
+pub(crate) const OAUTH_RESULT_TTL: u64 = 60;
+pub(crate) const MAX_TRIES: i64 = 5;
+pub(crate) const DAILY_FAILURES: i64 = 20;
 const DAY: i64 = 86_400;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub enum Kind {
+pub(crate) enum Kind {
     VerifyEmail,
     ResetPassword,
     Mfa,
@@ -32,7 +32,7 @@ pub enum Kind {
 }
 
 impl Kind {
-    pub fn as_str(self) -> &'static str {
+    pub(crate) fn as_str(self) -> &'static str {
         match self {
             Kind::VerifyEmail => "verify_email",
             Kind::ResetPassword => "reset_password",
@@ -58,7 +58,7 @@ impl Kind {
 }
 
 #[derive(sqlx::FromRow)]
-pub struct Row {
+pub(crate) struct Row {
     pub id: i64,
     pub code_hash: String,
     pub user_id: Option<UserId>,
@@ -68,7 +68,7 @@ pub struct Row {
 }
 
 impl Row {
-    pub fn data(&self) -> Value {
+    pub(crate) fn data(&self) -> Value {
         self.data
             .as_deref()
             .and_then(|d| serde_json::from_str(d).ok())
@@ -83,7 +83,7 @@ fn hash(state: &AppState, kind: Kind, email: Option<&str>, secret: &str) -> Stri
         .mac(&[kind.as_str(), email.unwrap_or(""), secret.trim()])
 }
 
-pub async fn create(
+pub(crate) async fn create(
     state: &AppState,
     kind: Kind,
     secret: &str,
@@ -124,7 +124,12 @@ pub async fn create(
     Ok(())
 }
 
-pub async fn redeem_short(state: &AppState, kind: Kind, email: &str, code: &str) -> AppResult<Row> {
+pub(crate) async fn redeem_short(
+    state: &AppState,
+    kind: Kind,
+    email: &str,
+    code: &str,
+) -> AppResult<Row> {
     let row: Option<Row> = sqlx::query_as(
         "SELECT id, code_hash, user_id, data, expires_at, attempts FROM auth_codes \
          WHERE kind = ? AND email = ? AND used_at IS NULL ORDER BY id DESC LIMIT 1",
@@ -187,7 +192,7 @@ async fn kill(state: &AppState, id: i64) -> AppResult<()> {
     Ok(())
 }
 
-pub async fn find(state: &AppState, kind: Kind, secret: &str) -> AppResult<Option<Row>> {
+pub(crate) async fn find(state: &AppState, kind: Kind, secret: &str) -> AppResult<Option<Row>> {
     Ok(sqlx::query_as(
         "SELECT id, code_hash, user_id, data, expires_at, attempts FROM auth_codes \
          WHERE kind = ? AND code_hash = ? AND used_at IS NULL",
@@ -198,14 +203,14 @@ pub async fn find(state: &AppState, kind: Kind, secret: &str) -> AppResult<Optio
     .await?)
 }
 
-pub fn alive(row: &Row) -> AppResult<()> {
+pub(crate) fn alive(row: &Row) -> AppResult<()> {
     if row.expires_at < now_unix() as i64 || row.attempts >= MAX_TRIES {
         return Err(AppError::BadRequest("expired"));
     }
     Ok(())
 }
 
-pub async fn take_try(state: &AppState, row: &Row) -> AppResult<()> {
+pub(crate) async fn take_try(state: &AppState, row: &Row) -> AppResult<()> {
     let done = sqlx::query(
         "UPDATE auth_codes SET attempts = attempts + 1 \
          WHERE id = ? AND used_at IS NULL AND attempts < ? AND expires_at >= ?",
@@ -221,7 +226,7 @@ pub async fn take_try(state: &AppState, row: &Row) -> AppResult<()> {
     Ok(())
 }
 
-pub async fn consume(state: &AppState, id: i64) -> AppResult<()> {
+pub(crate) async fn consume(state: &AppState, id: i64) -> AppResult<()> {
     let done = sqlx::query("UPDATE auth_codes SET used_at = ? WHERE id = ? AND used_at IS NULL")
         .bind(now_unix() as i64)
         .bind(id)

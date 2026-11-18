@@ -112,7 +112,7 @@ impl Mailer for MailgunMailer {
     }
 }
 
-pub const FAILURE_WINDOW: Duration = Duration::from_mins(15);
+pub(crate) const FAILURE_WINDOW: Duration = Duration::from_mins(15);
 
 pub struct Watched {
     inner: Arc<dyn Mailer>,
@@ -235,27 +235,27 @@ fn code_email(to: &str, code: &str, lang: Lang, m: i18n::CodeMail) -> Email {
     }
 }
 
-pub fn verify_email(to: &str, code: &str, lang: Lang) -> Email {
+pub(crate) fn verify_email(to: &str, code: &str, lang: Lang) -> Email {
     code_email(to, code, lang, i18n::verify_email(lang, code))
 }
 
-pub fn reset_password(to: &str, code: &str, lang: Lang) -> Email {
+pub(crate) fn reset_password(to: &str, code: &str, lang: Lang) -> Email {
     code_email(to, code, lang, i18n::reset_password(lang, code))
 }
 
-pub fn delete_account(to: &str, code: &str, lang: Lang) -> Email {
+pub(crate) fn delete_account(to: &str, code: &str, lang: Lang) -> Email {
     code_email(to, code, lang, i18n::delete_account(lang, code))
 }
 
-pub fn change_email(to: &str, code: &str, lang: Lang) -> Email {
+pub(crate) fn change_email(to: &str, code: &str, lang: Lang) -> Email {
     code_email(to, code, lang, i18n::change_email(lang, code))
 }
 
-pub fn mfa_reset(to: &str, code: &str, lang: Lang) -> Email {
+pub(crate) fn mfa_reset(to: &str, code: &str, lang: Lang) -> Email {
     code_email(to, code, lang, i18n::mfa_reset(lang, code))
 }
 
-pub fn notice(to: &str, lang: Lang, n: &i18n::Notice) -> Email {
+pub(crate) fn notice(to: &str, lang: Lang, n: &i18n::Notice) -> Email {
     let m = i18n::notice(lang, n);
     let html = format!(
         "<!doctype html><html lang=\"{}\"><body style=\"margin:0;padding:24px;background:#f4f1ec;font-family:-apple-system,Segoe UI,Roboto,sans-serif;color:#1d1a16\">\
@@ -278,14 +278,14 @@ pub fn notice(to: &str, lang: Lang, n: &i18n::Notice) -> Email {
     }
 }
 
-pub fn escape(s: &str) -> String {
+pub(crate) fn escape(s: &str) -> String {
     s.replace('&', "&amp;")
         .replace('<', "&lt;")
         .replace('>', "&gt;")
         .replace('"', "&quot;")
 }
 
-pub fn report(to: &str, subject: &str, lines: &[(&str, String)]) -> Email {
+pub(crate) fn report(to: &str, subject: &str, lines: &[(&str, String)]) -> Email {
     let text: String = lines.iter().map(|(k, v)| format!("{k} : {v}\n")).collect();
     let rows: String = lines
         .iter()

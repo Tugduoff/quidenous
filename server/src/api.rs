@@ -4,7 +4,7 @@ use crate::{
     AppState, accounts, chat, community, insights, party, platform, realtime, rooms, rounds, site,
 };
 
-pub fn router() -> Router<AppState> {
+pub(crate) fn router() -> Router<AppState> {
     Router::new()
         .merge(platform::router())
         .merge(accounts::router())

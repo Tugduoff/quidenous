@@ -1,9 +1,9 @@
-pub mod gifs;
+pub(crate) mod gifs;
 pub mod inbox;
 pub mod media;
-pub mod messages;
-pub mod nudge;
-pub mod reactions;
+pub(crate) mod messages;
+pub(crate) mod nudge;
+pub(crate) mod reactions;
 
 use axum::{
     Router,

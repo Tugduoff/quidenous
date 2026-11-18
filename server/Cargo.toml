@@ -53,6 +53,7 @@ opt-level = 3
 
 [lints.rust]
 unsafe_code = "deny"
+unreachable_pub = "deny"
 
 [lints.clippy]
 pedantic = { level = "deny", priority = -1 }

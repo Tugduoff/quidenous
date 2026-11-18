@@ -24,7 +24,7 @@ const LEGAL_PAGES: [(&str, &str); 8] = [
     ("/en/beta", legal!("beta.en.html")),
 ];
 
-pub fn pages() -> Router<AppState> {
+pub(crate) fn pages() -> Router<AppState> {
     let mut router = Router::new()
         .route("/robots.txt", get(robots))
         .route(

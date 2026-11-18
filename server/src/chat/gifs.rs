@@ -112,7 +112,7 @@ fn mime_of(url: &str) -> Option<&'static str> {
     }
 }
 
-pub fn payload(state: &AppState, media: &Value) -> Option<Value> {
+pub(crate) fn payload(state: &AppState, media: &Value) -> Option<Value> {
     let url = media["url"].as_str()?;
     let preview = media["preview_url"].as_str().unwrap_or(url);
     Some(json!({
@@ -175,13 +175,13 @@ fn results(state: &AppState, body: &Value) -> Value {
 }
 
 #[derive(Deserialize)]
-pub struct SearchQuery {
+pub(crate) struct SearchQuery {
     #[serde(default)]
     q: String,
     page: Option<u32>,
 }
 
-pub async fn search(
+pub(crate) async fn search(
     State(state): State<AppState>,
     Me(me): Me,
     Query(query): Query<SearchQuery>,
@@ -234,7 +234,7 @@ pub async fn search(
     Ok(Json(results(&state, &body)))
 }
 
-pub async fn proxy(
+pub(crate) async fn proxy(
     State(state): State<AppState>,
     Path(token): Path<String>,
 ) -> AppResult<Response> {
@@ -296,7 +296,7 @@ pub async fn proxy(
 }
 
 #[derive(Deserialize)]
-pub struct GifBody {
+pub(crate) struct GifBody {
     id: Value,
     url: String,
     preview_url: Option<String>,

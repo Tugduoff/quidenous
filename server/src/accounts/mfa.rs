@@ -95,12 +95,12 @@ async fn new_recovery_codes(state: &AppState, user_id: UserId) -> AppResult<Vec<
 }
 
 #[derive(Deserialize)]
-pub struct ChallengeBody {
+pub(crate) struct ChallengeBody {
     challenge: String,
     code: String,
 }
 
-pub async fn login_2fa(
+pub(crate) async fn login_2fa(
     State(state): State<AppState>,
     ClientIp(ip): ClientIp,
     Device(device): Device,
@@ -138,7 +138,10 @@ pub async fn login_2fa(
     ))
 }
 
-pub async fn setup(State(state): State<AppState>, session: Session) -> AppResult<Json<Value>> {
+pub(crate) async fn setup(
+    State(state): State<AppState>,
+    session: Session,
+) -> AppResult<Json<Value>> {
     let acct = account(&state, session.user_id).await?;
     if acct.totp_secret.is_some() {
         return Err(AppError::Conflict("totp_enabled"));
@@ -161,13 +164,13 @@ pub async fn setup(State(state): State<AppState>, session: Session) -> AppResult
 }
 
 #[derive(Deserialize)]
-pub struct EnableBody {
+pub(crate) struct EnableBody {
     code: String,
     #[serde(default)]
     revoke_others: bool,
 }
 
-pub async fn enable(
+pub(crate) async fn enable(
     State(state): State<AppState>,
     session: Session,
     Json(body): Json<EnableBody>,
@@ -211,11 +214,11 @@ pub async fn enable(
 }
 
 #[derive(Deserialize)]
-pub struct CodeBody {
+pub(crate) struct CodeBody {
     code: String,
 }
 
-pub async fn disable(
+pub(crate) async fn disable(
     State(state): State<AppState>,
     ClientIp(ip): ClientIp,
     session: Session,
@@ -238,7 +241,7 @@ pub async fn disable(
     Ok(Json(json!({ "ok": true })))
 }
 
-pub async fn regenerate(
+pub(crate) async fn regenerate(
     State(state): State<AppState>,
     session: Session,
     Json(body): Json<CodeBody>,
@@ -276,9 +279,9 @@ async fn remove_2fa(state: &AppState, user_id: UserId) -> AppResult<()> {
     Ok(())
 }
 
-pub const MFA_RESET_DELAY: i64 = 24 * 3600;
+pub(crate) const MFA_RESET_DELAY: i64 = 24 * 3600;
 
-pub const RESET_AFTER_PASSWORD_RESET: i64 = 7 * 24 * 3600;
+pub(crate) const RESET_AFTER_PASSWORD_RESET: i64 = 7 * 24 * 3600;
 
 async fn not_after_password_reset(state: &AppState, user_id: UserId) -> AppResult<()> {
     let at: Option<i64> = sqlx::query_scalar("SELECT password_reset_at FROM users WHERE id = ?")
@@ -306,11 +309,11 @@ async fn challenge_account(state: &AppState, challenge: &str) -> AppResult<(Acco
 }
 
 #[derive(Deserialize)]
-pub struct ResetSendBody {
+pub(crate) struct ResetSendBody {
     challenge: String,
 }
 
-pub async fn reset_send(
+pub(crate) async fn reset_send(
     State(state): State<AppState>,
     ClientIp(ip): ClientIp,
     Json(body): Json<ResetSendBody>,
@@ -349,12 +352,12 @@ pub async fn reset_send(
 }
 
 #[derive(Deserialize)]
-pub struct ResetConfirmBody {
+pub(crate) struct ResetConfirmBody {
     challenge: String,
     code: String,
 }
 
-pub async fn reset_confirm(
+pub(crate) async fn reset_confirm(
     State(state): State<AppState>,
     ClientIp(ip): ClientIp,
     Json(body): Json<ResetConfirmBody>,
@@ -380,7 +383,7 @@ pub async fn reset_confirm(
     Ok(Json(json!({ "reset_at": at })))
 }
 
-pub async fn reset_cancel(
+pub(crate) async fn reset_cancel(
     State(state): State<AppState>,
     session: Session,
 ) -> AppResult<Json<Value>> {

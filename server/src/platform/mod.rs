@@ -1,14 +1,14 @@
 pub mod config;
 pub mod db;
 pub mod env;
-pub mod error;
-pub mod features;
+pub(crate) mod error;
+pub(crate) mod features;
 pub mod i18n;
 pub mod ids;
 pub mod ops;
 pub mod quotas;
-pub mod text;
-pub mod web;
+pub(crate) mod text;
+pub(crate) mod web;
 
 use axum::{Router, routing::get};
 

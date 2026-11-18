@@ -13,15 +13,15 @@ use crate::{
     rooms::model::MemberRow,
 };
 
-pub const DELETED_NAME: &str = "Compte supprimé";
+pub(crate) const DELETED_NAME: &str = "Compte supprimé";
 
 #[derive(Deserialize, Default)]
-pub struct DeleteBody {
+pub(crate) struct DeleteBody {
     password: Option<String>,
     code: Option<String>,
 }
 
-pub async fn delete_account(
+pub(crate) async fn delete_account(
     State(state): State<AppState>,
     ClientIp(ip): ClientIp,
     session: Session,
@@ -46,11 +46,11 @@ pub async fn delete_account(
 }
 
 #[derive(Deserialize)]
-pub struct EmailBody {
+pub(crate) struct EmailBody {
     email: String,
 }
 
-pub async fn send(
+pub(crate) async fn send(
     State(state): State<AppState>,
     ClientIp(ip): ClientIp,
     Json(body): Json<EmailBody>,
@@ -91,12 +91,12 @@ pub async fn send(
 }
 
 #[derive(Deserialize)]
-pub struct ConfirmBody {
+pub(crate) struct ConfirmBody {
     email: String,
     code: String,
 }
 
-pub async fn confirm(
+pub(crate) async fn confirm(
     State(state): State<AppState>,
     ClientIp(ip): ClientIp,
     Json(body): Json<ConfirmBody>,

@@ -1,13 +1,13 @@
-mod pages;
-pub mod updates;
-pub mod vitrine;
+pub(crate) mod pages;
+pub(crate) mod updates;
+pub(crate) mod vitrine;
 
 use axum::Router;
 
 use crate::AppState;
 
-pub use pages::pages;
+pub(crate) use pages::pages;
 
-pub fn router() -> Router<AppState> {
+pub(crate) fn router() -> Router<AppState> {
     Router::new().merge(updates::router())
 }

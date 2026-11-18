@@ -1,9 +1,9 @@
 pub mod live;
-pub mod notify;
+pub(crate) mod notify;
 pub mod push;
-pub mod socket;
-pub mod subscriptions;
-pub mod widget;
+pub(crate) mod socket;
+pub(crate) mod subscriptions;
+pub(crate) mod widget;
 
 use axum::{
     Router,

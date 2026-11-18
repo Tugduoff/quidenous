@@ -16,12 +16,12 @@ use crate::{
 
 const DETAILS_MAX: usize = 500;
 const KINDS: [&str; 5] = ["message", "member", "question", "suggestion", "answer"];
-pub const HIDE_AFTER: i64 = 3;
+pub(crate) const HIDE_AFTER: i64 = 3;
 const ADMIN_LIST_MAX: i64 = 100;
 const REASONS: [&str; 5] = ["offensive", "harassment", "sexual", "spam", "other"];
 
 #[derive(Deserialize)]
-pub struct ReportBody {
+pub(crate) struct ReportBody {
     kind: String,
     id: i64,
     reason: String,
@@ -83,7 +83,7 @@ async fn target(state: &AppState, me: UserId, kind: &str, id: i64) -> AppResult<
     row.ok_or(AppError::NotFound)
 }
 
-pub async fn report(
+pub(crate) async fn report(
     State(state): State<AppState>,
     crate::accounts::auth::Account(me): crate::accounts::auth::Account,
     Json(body): Json<ReportBody>,
@@ -195,7 +195,7 @@ pub async fn report(
     Ok(Json(json!({ "ok": true })))
 }
 
-pub async fn list_blocks(
+pub(crate) async fn list_blocks(
     State(state): State<AppState>,
     SignedIn(me): SignedIn,
 ) -> AppResult<Json<Value>> {
@@ -217,7 +217,7 @@ pub async fn list_blocks(
     Ok(Json(json!(list)))
 }
 
-pub async fn block(
+pub(crate) async fn block(
     State(state): State<AppState>,
     SignedIn(me): SignedIn,
     Path(other): Path<UserId>,
@@ -258,7 +258,7 @@ pub async fn block(
     Ok(Json(json!({ "ok": true })))
 }
 
-pub async fn unblock(
+pub(crate) async fn unblock(
     State(state): State<AppState>,
     SignedIn(me): SignedIn,
     Path(other): Path<UserId>,
@@ -285,8 +285,8 @@ macro_rules! trusted {
 
 mod admin;
 mod messages;
-pub use admin::*;
-pub use messages::*;
+pub(crate) use admin::*;
+pub(crate) use messages::*;
 pub(crate) use trusted;
 
 async fn hide_if_reported(

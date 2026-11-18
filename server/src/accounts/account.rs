@@ -4,8 +4,6 @@ use crate::{
     platform::error::{AppError, AppResult},
 };
 
-pub use mail::Mailer;
-
 use super::{crypto, mail};
 
 pub async fn is_secured<'e, E>(db: E, user_id: UserId) -> AppResult<bool>

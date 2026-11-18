@@ -16,7 +16,7 @@ use crate::{
 
 use super::{drop_inbox_copies, resolve};
 
-pub async fn restore_message(
+pub(crate) async fn restore_message(
     State(state): State<AppState>,
     Owner(me): Owner,
     Path((round_id, message_id)): Path<(RoundId, MessageId)>,
@@ -92,7 +92,7 @@ pub(crate) async fn erase_message(state: &AppState, id: MessageId) -> AppResult<
     Ok(true)
 }
 
-pub async fn delete_message(
+pub(crate) async fn delete_message(
     State(state): State<AppState>,
     Me(me): Me,
     Path((round_id, message_id)): Path<(RoundId, MessageId)>,
@@ -188,7 +188,7 @@ pub(crate) async fn retire_question(state: &AppState, id: QuestionId) -> AppResu
     Ok(room)
 }
 
-pub async fn retire_round_question(
+pub(crate) async fn retire_round_question(
     State(state): State<AppState>,
     Owner(me): Owner,
     Path(round_id): Path<RoundId>,

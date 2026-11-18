@@ -6,9 +6,8 @@ use sqlx::SqlitePool;
 
 use crate::platform::error::AppResult;
 
-pub const ANSWER_MAX: usize = 140;
-pub const MIN_PEOPLE: i64 = 3;
-pub const MIN_ANSWERS: i64 = 2;
+pub(crate) const ANSWER_MAX: usize = 140;
+pub(crate) const MIN_ANSWERS: i64 = 2;
 
 macro_rules! done {
     ($r:literal, $m:literal) => {
@@ -29,13 +28,13 @@ macro_rules! done {
 
 mod play;
 pub(crate) use done;
-pub use play::*;
+pub(crate) use play::*;
 
-pub fn writing_secs(timer: i64) -> i64 {
+pub(crate) fn writing_secs(timer: i64) -> i64 {
     (2 * timer).max(60)
 }
 
-pub fn guessing_secs(timer: i64) -> i64 {
+pub(crate) fn guessing_secs(timer: i64) -> i64 {
     (2 * timer).max(45)
 }
 
@@ -98,7 +97,7 @@ pub struct SaidScore {
     pub fooled: i64,
 }
 
-pub fn compute(
+pub(crate) fn compute(
     answers: &[(AnswerId, MemberId)],
     guesses: &[(MemberId, AnswerId, MemberId)],
 ) -> SaidResult {
@@ -167,7 +166,7 @@ fn score(scores: &mut BTreeMap<MemberId, SaidScore>, member_id: MemberId) -> &mu
     })
 }
 
-pub fn winners(result: &SaidResult) -> (Vec<MemberId>, i64) {
+pub(crate) fn winners(result: &SaidResult) -> (Vec<MemberId>, i64) {
     let best = result.scores.first().map_or(0, |s| s.points);
     let ids = result
         .scores
@@ -215,7 +214,7 @@ async fn guess_at<'e, E: sqlx::SqliteExecutor<'e>>(
     )
 }
 
-pub async fn result(db: &SqlitePool, round_id: RoundId) -> AppResult<Option<SaidResult>> {
+pub(crate) async fn result(db: &SqlitePool, round_id: RoundId) -> AppResult<Option<SaidResult>> {
     if guess_at(db, round_id).await?.is_none() {
         return Ok(None);
     }
@@ -231,7 +230,7 @@ fn real(rows: &[AnswerRow]) -> Vec<(AnswerId, MemberId)> {
         .collect()
 }
 
-pub async fn view(
+pub(crate) async fn view(
     db: &SqlitePool,
     round_id: RoundId,
     kind: &str,

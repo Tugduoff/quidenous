@@ -78,9 +78,9 @@ impl IntoResponse for AppError {
 }
 
 #[derive(Clone, Debug)]
-pub struct InternalError(pub String);
+pub(crate) struct InternalError(pub String);
 
-pub async fn log_server_errors(req: Request, next: Next) -> Response {
+pub(crate) async fn log_server_errors(req: Request, next: Next) -> Response {
     let method = req.method().clone();
     let path = req.uri().path().to_owned();
     let res = next.run(req).await;
@@ -94,4 +94,4 @@ pub async fn log_server_errors(req: Request, next: Next) -> Response {
     res
 }
 
-pub type AppResult<T> = Result<T, AppError>;
+pub(crate) type AppResult<T> = Result<T, AppError>;

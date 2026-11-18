@@ -1,13 +1,13 @@
-pub mod access;
-pub mod anonymous;
+pub(crate) mod access;
+pub(crate) mod anonymous;
 pub mod flow;
-pub mod friends;
+pub(crate) mod friends;
 pub mod manage;
-pub mod members;
+pub(crate) mod members;
 pub mod model;
-pub mod notifications;
+pub(crate) mod notifications;
 pub mod pacing;
-pub mod vibes;
+pub(crate) mod vibes;
 
 use axum::{
     Router,

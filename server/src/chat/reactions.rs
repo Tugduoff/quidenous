@@ -18,23 +18,23 @@ use crate::{
     rooms::model::MemberRow,
 };
 
-pub const EMOJIS: [&str; 6] = ["❤️", "😂", "😮", "😢", "👍", "🔥"];
+pub(crate) const EMOJIS: [&str; 6] = ["❤️", "😂", "😮", "😢", "👍", "🔥"];
 
 #[derive(Serialize, Debug, Clone, PartialEq)]
-pub struct Reaction {
+pub(crate) struct Reaction {
     pub emoji: &'static str,
     pub count: usize,
     pub mine: bool,
     pub members: Vec<MemberId>,
 }
 
-pub fn clean_emoji(raw: &str) -> Option<&'static str> {
+pub(crate) fn clean_emoji(raw: &str) -> Option<&'static str> {
     let raw = raw.trim();
     let raw = if raw == "❤" { "❤️" } else { raw };
     EMOJIS.iter().copied().find(|e| *e == raw)
 }
 
-pub async fn for_messages<'e, E: SqliteExecutor<'e>>(
+pub(crate) async fn for_messages<'e, E: SqliteExecutor<'e>>(
     db: E,
     viewer: &MemberRow,
     ids: &[MessageId],
@@ -82,11 +82,11 @@ pub async fn for_messages<'e, E: SqliteExecutor<'e>>(
 }
 
 #[derive(Deserialize)]
-pub struct ReactBody {
+pub(crate) struct ReactBody {
     emoji: String,
 }
 
-pub async fn add(
+pub(crate) async fn add(
     State(state): State<AppState>,
     Me(me): Me,
     Path(id): Path<MessageId>,
@@ -95,7 +95,7 @@ pub async fn add(
     change(&state, &me, id, &body.emoji, true).await
 }
 
-pub async fn remove(
+pub(crate) async fn remove(
     State(state): State<AppState>,
     Me(me): Me,
     Path(id): Path<MessageId>,
@@ -159,27 +159,27 @@ async fn change(
     Ok(Json(json!({ "message_id": id, "reactions": reactions })))
 }
 
-pub const RESULT_EMOJIS: [&str; 8] = ["😂", "🔥", "😱", "👀", "💀", "❤️", "👏", "🙈"];
-pub const RESULT_CAP: i64 = 30;
+pub(crate) const RESULT_EMOJIS: [&str; 8] = ["😂", "🔥", "😱", "👀", "💀", "❤️", "👏", "🙈"];
+pub(crate) const RESULT_CAP: i64 = 30;
 
-pub fn router() -> Router<AppState> {
+pub(crate) fn router() -> Router<AppState> {
     Router::new().route("/rounds/{id}/reactions", get(get_round).post(post_round))
 }
 
-pub fn clean_result_emoji(raw: &str) -> Option<&'static str> {
+pub(crate) fn clean_result_emoji(raw: &str) -> Option<&'static str> {
     let raw = raw.trim();
     let raw = if raw == "❤" { "❤️" } else { raw };
     RESULT_EMOJIS.iter().copied().find(|e| *e == raw)
 }
 
 #[derive(Serialize, Debug, Clone, PartialEq)]
-pub struct MemberTaps {
+pub(crate) struct MemberTaps {
     pub member_id: MemberId,
     pub count: i64,
 }
 
 #[derive(Serialize, Debug, Clone, PartialEq)]
-pub struct ResultReaction {
+pub(crate) struct ResultReaction {
     pub emoji: &'static str,
     pub count: i64,
     pub mine: i64,
@@ -187,7 +187,7 @@ pub struct ResultReaction {
 }
 
 #[derive(Serialize, Debug)]
-pub struct RoundReactions {
+pub(crate) struct RoundReactions {
     pub round_id: RoundId,
     pub cap: i64,
     pub mine: i64,
@@ -196,7 +196,7 @@ pub struct RoundReactions {
     pub reactions: Vec<ResultReaction>,
 }
 
-pub async fn for_round<'e, E: SqliteExecutor<'e>>(
+pub(crate) async fn for_round<'e, E: SqliteExecutor<'e>>(
     db: E,
     viewer: &MemberRow,
     round_id: RoundId,
@@ -247,7 +247,7 @@ pub async fn for_round<'e, E: SqliteExecutor<'e>>(
     })
 }
 
-pub async fn add_taps(
+pub(crate) async fn add_taps(
     tx: &mut sqlx::SqliteConnection,
     round_id: RoundId,
     member_id: MemberId,
@@ -284,7 +284,7 @@ pub async fn add_taps(
     Ok(accepted)
 }
 
-pub fn tell_taps(
+pub(crate) fn tell_taps(
     state: &AppState,
     me: &MemberRow,
     round_id: RoundId,
@@ -348,13 +348,13 @@ async fn get_round(
 }
 
 #[derive(Deserialize)]
-pub struct TapsBody {
+pub(crate) struct TapsBody {
     #[serde(default)]
     taps: Vec<TapBody>,
 }
 
 #[derive(Deserialize)]
-pub struct TapBody {
+pub(crate) struct TapBody {
     emoji: String,
     count: i64,
 }

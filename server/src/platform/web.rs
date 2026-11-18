@@ -12,15 +12,15 @@ use tower_http::cors::{AllowOrigin, Any, CorsLayer};
 
 use crate::platform::config::Config;
 
-pub const BASE_CSP: &str = "frame-ancestors 'none'; base-uri 'self'; object-src 'none'";
+pub(crate) const BASE_CSP: &str = "frame-ancestors 'none'; base-uri 'self'; object-src 'none'";
 
 #[derive(Clone)]
-pub struct Headers {
+pub(crate) struct Headers {
     hsts: bool,
 }
 
 impl Headers {
-    pub fn new(config: &Config) -> Self {
+    pub(crate) fn new(config: &Config) -> Self {
         Self {
             hsts: config
                 .public_url
@@ -29,7 +29,7 @@ impl Headers {
         }
     }
 
-    pub async fn apply(self, req: Request, next: Next) -> Response {
+    pub(crate) async fn apply(self, req: Request, next: Next) -> Response {
         let noindex = noindex(req.uri().path());
         let mut res = next.run(req).await;
         let h = res.headers_mut();
@@ -67,10 +67,10 @@ fn noindex(path: &str) -> bool {
     .any(|p| path.starts_with(p))
 }
 
-pub const ROBOTS: &str = "User-agent: *\nDisallow: /api/\nDisallow: /photos/\nDisallow: /play\n\
+pub(crate) const ROBOTS: &str = "User-agent: *\nDisallow: /api/\nDisallow: /photos/\nDisallow: /play\n\
 Disallow: /creator/\nDisallow: /pack/\nDisallow: /party/\n";
 
-pub fn app_csp(web_dir: &Path, public_url: Option<&str>) -> String {
+pub(crate) fn app_csp(web_dir: &Path, public_url: Option<&str>) -> String {
     let index = std::fs::read_to_string(web_dir.join("index.html")).unwrap_or_default();
     let hashes: String = inline_scripts(&index)
         .map(|s| {
@@ -93,13 +93,13 @@ pub fn app_csp(web_dir: &Path, public_url: Option<&str>) -> String {
     )
 }
 
-pub fn inline_scripts(html: &str) -> impl Iterator<Item = &str> {
+pub(crate) fn inline_scripts(html: &str) -> impl Iterator<Item = &str> {
     html.split("<script>")
         .skip(1)
         .filter_map(|rest| rest.split_once("</script>").map(|(body, _)| body))
 }
 
-pub fn app_files(dir: &Path, csp: HeaderValue) -> axum::Router {
+pub(crate) fn app_files(dir: &Path, csp: HeaderValue) -> axum::Router {
     let files = tower_http::services::ServeDir::new(dir)
         .fallback(tower_http::services::ServeFile::new(dir.join("index.html")));
     axum::Router::new()
@@ -121,7 +121,7 @@ pub fn app_files(dir: &Path, csp: HeaderValue) -> axum::Router {
         }))
 }
 
-pub fn cors(config: &Config) -> CorsLayer {
+pub(crate) fn cors(config: &Config) -> CorsLayer {
     let Some(public) = config.public_url.as_deref() else {
         return CorsLayer::permissive();
     };

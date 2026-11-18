@@ -1,5 +1,5 @@
 pub mod accounts;
-pub mod api;
+pub(crate) mod api;
 pub mod chat;
 pub mod cli;
 pub mod community;
@@ -9,7 +9,7 @@ pub mod platform;
 pub mod realtime;
 pub mod rooms;
 pub mod rounds;
-pub mod site;
+pub(crate) mod site;
 
 pub use platform::config;
 

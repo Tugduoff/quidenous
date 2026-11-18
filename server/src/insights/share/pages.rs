@@ -13,7 +13,7 @@ use crate::{
 
 use super::{Card, H, QuestionCard, W, esc, load};
 
-pub async fn page(
+pub(crate) async fn page(
     State(state): State<AppState>,
     Path(token): Path<String>,
     headers: HeaderMap,
@@ -135,7 +135,7 @@ pub(super) async fn load_pack(state: &AppState, id: PackId) -> AppResult<PackCar
     })
 }
 
-pub async fn pack_page(
+pub(crate) async fn pack_page(
     State(state): State<AppState>,
     Path(id): Path<PackId>,
     headers: HeaderMap,

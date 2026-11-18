@@ -18,7 +18,7 @@ pub(super) struct PasswordBudget {
 }
 
 impl PasswordBudget {
-    pub fn take(state: &AppState, email: &str, ip: Option<IpAddr>) -> AppResult<Self> {
+    pub(super) fn take(state: &AppState, email: &str, ip: Option<IpAddr>) -> AppResult<Self> {
         let limits = &state.auth.limits;
         let email_ip = format!("{email}|{}", ip.map_or_else(|| "-".into(), limits::ip_key));
         limits.hit(&limits::LOGIN_ACCOUNT_IP, &email_ip)?;
@@ -32,7 +32,7 @@ impl PasswordBudget {
         })
     }
 
-    pub fn refund(self, state: &AppState) {
+    pub(super) fn refund(self, state: &AppState) {
         let limits = &state.auth.limits;
         limits.refund(&limits::LOGIN_ACCOUNT_IP, &self.email_ip);
         limits.refund(&limits::LOGIN_ACCOUNT, &self.email);
@@ -79,12 +79,12 @@ pub(super) async fn prove(
 }
 
 #[derive(Deserialize, Default)]
-pub struct ReauthBody {
+pub(crate) struct ReauthBody {
     password: Option<String>,
     code: Option<String>,
 }
 
-pub async fn reauth(
+pub(crate) async fn reauth(
     State(state): State<AppState>,
     ClientIp(ip): ClientIp,
     session: Session,

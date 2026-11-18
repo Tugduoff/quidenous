@@ -15,7 +15,7 @@ const DAY_MINUTES: i64 = 24 * 60;
 const TZ_RANGE: std::ops::RangeInclusive<i64> = -12 * 60..=14 * 60;
 
 #[derive(Serialize, Deserialize)]
-pub struct Prefs {
+pub(crate) struct Prefs {
     enabled: bool,
     off: Vec<Kind>,
     quiet_start: Option<i64>,
@@ -37,7 +37,7 @@ impl Default for Prefs {
 
 type PrefsRow = (bool, String, Option<i64>, Option<i64>, i64);
 
-pub async fn get(
+pub(crate) async fn get(
     State(state): State<AppState>,
     SignedIn(user): SignedIn,
 ) -> AppResult<Json<Prefs>> {
@@ -59,7 +59,7 @@ pub async fn get(
     }))
 }
 
-pub async fn put(
+pub(crate) async fn put(
     State(state): State<AppState>,
     SignedIn(user): SignedIn,
     Json(mut body): Json<Prefs>,
@@ -94,14 +94,14 @@ pub async fn put(
     Ok(Json(body))
 }
 
-pub async fn mute(
+pub(crate) async fn mute(
     State(state): State<AppState>,
     RoomMember(me): RoomMember,
 ) -> AppResult<Json<Value>> {
     set_muted(&state, &me, true).await
 }
 
-pub async fn unmute(
+pub(crate) async fn unmute(
     State(state): State<AppState>,
     RoomMember(me): RoomMember,
 ) -> AppResult<Json<Value>> {

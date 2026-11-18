@@ -17,7 +17,7 @@ use crate::{
 
 mod flow;
 mod link;
-pub use flow::*;
+pub(crate) use flow::*;
 use link::{Refusal, resolve};
 
 fn provider_name(provider: &str) -> String {
@@ -89,7 +89,7 @@ pub struct OAuth {
     jwks: tokio::sync::Mutex<HashMap<String, CachedKeys>>,
 }
 
-pub const APP_REDIRECT: &str = "quidenous://oauth";
+pub(crate) const APP_REDIRECT: &str = "quidenous://oauth";
 
 impl OAuth {
     pub fn new(config: &Config) -> Self {

@@ -32,17 +32,17 @@ macro_rules! expires_sql {
 mod pages;
 mod render;
 mod svg;
-pub use pages::*;
-pub use render::*;
+pub(crate) use pages::*;
+pub(crate) use render::*;
 use svg::{esc, pack_svg, svg};
 
 #[derive(Deserialize)]
-pub struct ShareBody {
+pub(crate) struct ShareBody {
     #[serde(default)]
     result: bool,
 }
 
-pub async fn create(
+pub(crate) async fn create(
     State(state): State<AppState>,
     Me(me): Me,
     Path(round_id): Path<RoundId>,
@@ -86,7 +86,7 @@ pub async fn create(
 }
 
 #[derive(Deserialize)]
-pub struct StatShareBody {
+pub(crate) struct StatShareBody {
     #[serde(default)]
     period: Option<String>,
     key: String,
@@ -94,7 +94,7 @@ pub struct StatShareBody {
     tz: Option<i64>,
 }
 
-pub async fn create_stat(
+pub(crate) async fn create_stat(
     State(state): State<AppState>,
     Me(me): Me,
     Json(body): Json<StatShareBody>,
@@ -202,7 +202,7 @@ pub(crate) async fn freeze_stat(db: &sqlx::SqlitePool, f: Frozen<'_>) -> AppResu
     Ok(token)
 }
 
-pub async fn mine(
+pub(crate) async fn mine(
     State(state): State<AppState>,
     crate::accounts::auth::SignedIn(me): crate::accounts::auth::SignedIn,
 ) -> AppResult<Json<Value>> {
@@ -242,7 +242,7 @@ pub async fn mine(
     Ok(Json(json!(out)))
 }
 
-pub async fn revoke(
+pub(crate) async fn revoke(
     State(state): State<AppState>,
     crate::accounts::auth::SignedIn(me): crate::accounts::auth::SignedIn,
     Path(token): Path<String>,

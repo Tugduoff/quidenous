@@ -1,17 +1,17 @@
 pub mod auth;
 pub mod avatar;
-pub mod crypto;
-pub mod delete;
+pub(crate) mod crypto;
+pub(crate) mod delete;
 pub mod guests;
-pub mod intro;
+pub(crate) mod intro;
 pub mod limits;
-pub mod mail;
-mod mfa;
-pub mod oauth;
-mod password;
-pub mod profile;
-mod reauth;
-mod sessions;
+pub(crate) mod mail;
+pub(crate) mod mfa;
+pub(crate) mod oauth;
+pub(crate) mod password;
+pub(crate) mod profile;
+pub(crate) mod reauth;
+pub(crate) mod sessions;
 pub mod tickets;
 
 use std::{
@@ -27,8 +27,8 @@ use axum::{
 
 use crate::{AppState, platform::config::Config};
 
-mod account;
-mod tokens;
+pub(crate) mod account;
+pub(crate) mod tokens;
 pub use account::*;
 pub use tokens::*;
 

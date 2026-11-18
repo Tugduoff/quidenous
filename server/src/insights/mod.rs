@@ -5,11 +5,11 @@ macro_rules! unix {
 }
 
 pub mod badges;
-pub mod room_stats;
-pub mod share;
+pub(crate) mod room_stats;
+pub(crate) mod share;
 pub mod stats;
 pub mod streaks;
-pub mod today;
+pub(crate) mod today;
 pub mod wrapped;
 
 use axum::{

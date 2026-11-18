@@ -25,7 +25,7 @@ pub(super) fn answer_id() -> AnswerId {
     AnswerId::from_raw((u64::from_le_bytes(bytes) >> 11) as i64)
 }
 
-pub async fn write(
+pub(crate) async fn write(
     db: &SqlitePool,
     group_id: RoomId,
     member_id: MemberId,
@@ -86,7 +86,7 @@ pub async fn write(
     Ok((round_id, events))
 }
 
-pub async fn ballot(
+pub(crate) async fn ballot(
     tx: &mut Transaction<'_, Sqlite>,
     round_id: RoundId,
     voter_id: MemberId,
@@ -164,7 +164,7 @@ pub(super) async fn store_guesses(
     Ok(())
 }
 
-pub async fn leave(
+pub(crate) async fn leave(
     tx: &mut Transaction<'_, Sqlite>,
     round_id: RoundId,
     member_id: MemberId,
@@ -184,14 +184,14 @@ pub async fn leave(
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Step {
+pub(crate) enum Step {
     NotWriting,
     Writing,
     Guessing,
     TooFew,
 }
 
-pub async fn advance(
+pub(crate) async fn advance(
     tx: &mut Transaction<'_, Sqlite>,
     group_id: RoomId,
     round_id: RoundId,
@@ -271,7 +271,7 @@ pub(super) async fn start_guessing(
     Ok(())
 }
 
-pub async fn at_deadline(
+pub(crate) async fn at_deadline(
     tx: &mut Transaction<'_, Sqlite>,
     group_id: RoomId,
     round_id: RoundId,
@@ -300,7 +300,7 @@ pub async fn at_deadline(
     }
 }
 
-pub async fn announce(
+pub(crate) async fn announce(
     state: &AppState,
     group_id: RoomId,
     actor: Option<MemberId>,
@@ -362,11 +362,11 @@ pub(super) async fn notify_guessing(
 }
 
 #[derive(Deserialize)]
-pub struct AnswerBody {
+pub(crate) struct AnswerBody {
     text: String,
 }
 
-pub async fn answer(
+pub(crate) async fn answer(
     State(state): State<AppState>,
     Me(me): Me,
     headers: HeaderMap,
@@ -381,7 +381,7 @@ pub async fn answer(
     ))
 }
 
-pub async fn party_answer(
+pub(crate) async fn party_answer(
     state: &AppState,
     party_id: RoomId,
     member_id: MemberId,

@@ -3,10 +3,10 @@ use std::sync::LazyLock;
 use axum::Json;
 use serde::{Deserialize, Serialize};
 
-pub const DEFAULT_TAG: &str = "potes";
+pub(crate) const DEFAULT_TAG: &str = "potes";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Vibe {
+pub(crate) struct Vibe {
     pub id: String,
     pub name: String,
     pub icon: String,
@@ -16,7 +16,7 @@ pub struct Vibe {
 }
 
 #[allow(clippy::expect_used)]
-pub static VIBES: LazyLock<Vec<Vibe>> = LazyLock::new(|| {
+pub(crate) static VIBES: LazyLock<Vec<Vibe>> = LazyLock::new(|| {
     serde_json::from_str(include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/deck/vibes.json"
@@ -24,29 +24,29 @@ pub static VIBES: LazyLock<Vec<Vibe>> = LazyLock::new(|| {
     .expect("deck/vibes.json is valid")
 });
 
-pub fn find(id: &str) -> Option<&'static Vibe> {
+pub(crate) fn find(id: &str) -> Option<&'static Vibe> {
     VIBES.iter().find(|v| v.id == id)
 }
 
-pub fn is_tag(tag: &str) -> bool {
+pub(crate) fn is_tag(tag: &str) -> bool {
     VIBES
         .iter()
         .any(|v| v.id == tag || v.draws.iter().any(|d| d == tag))
 }
 
-pub fn draws(vibe: Option<&str>) -> Vec<String> {
+pub(crate) fn draws(vibe: Option<&str>) -> Vec<String> {
     vibe.and_then(find)
         .map_or_else(|| vec![DEFAULT_TAG.to_owned()], |v| v.draws.clone())
 }
 
-pub fn has_tag(stored: Option<&str>, tag: &str) -> bool {
+pub(crate) fn has_tag(stored: Option<&str>, tag: &str) -> bool {
     match stored {
         Some(s) if !s.is_empty() => s.split(',').any(|t| t == tag),
         _ => tag == DEFAULT_TAG,
     }
 }
 
-pub async fn list() -> Json<&'static [Vibe]> {
+pub(crate) async fn list() -> Json<&'static [Vibe]> {
     Json(VIBES.as_slice())
 }
 

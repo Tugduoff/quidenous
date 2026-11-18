@@ -102,7 +102,7 @@ pub struct SkipState {
 }
 
 #[derive(Clone, Debug, Serialize)]
-pub struct HistoryItem {
+pub(crate) struct HistoryItem {
     pub id: RoundId,
     pub number: i64,
     pub question: String,
@@ -116,7 +116,7 @@ pub struct HistoryItem {
 }
 
 #[derive(Clone, Debug, Serialize, sqlx::FromRow)]
-pub struct QueuedQuestion {
+pub(crate) struct QueuedQuestion {
     pub id: QuestionId,
     pub text: String,
     pub author_id: Option<MemberId>,
@@ -126,7 +126,7 @@ pub struct QueuedQuestion {
     pub anonymous: bool,
 }
 
-pub fn parse_items(items: Option<&str>) -> Option<Vec<String>> {
+pub(crate) fn parse_items(items: Option<&str>) -> Option<Vec<String>> {
     items.and_then(|i| serde_json::from_str(i).ok())
 }
 

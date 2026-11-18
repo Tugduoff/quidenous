@@ -117,25 +117,25 @@ fn write_private(path: &Path, content: &str) -> std::io::Result<()> {
     std::fs::write(path, content)
 }
 
-pub fn random_hex(bytes: usize) -> String {
+pub(crate) fn random_hex(bytes: usize) -> String {
     let mut b = vec![0u8; bytes];
     rand::rng().fill_bytes(&mut b);
     hex::encode(b)
 }
 
-pub fn random_b64url(bytes: usize) -> String {
+pub(crate) fn random_b64url(bytes: usize) -> String {
     let mut b = vec![0u8; bytes];
     rand::rng().fill_bytes(&mut b);
     base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(b)
 }
 
-pub fn six_digits() -> String {
+pub(crate) fn six_digits() -> String {
     format!("{:06}", rand::rng().random_range(0..1_000_000u32))
 }
 
 const RECOVERY_ALPHABET: &[u8] = b"abcdefghjkmnpqrstuvwxyz23456789";
 
-pub fn recovery_code() -> String {
+pub(crate) fn recovery_code() -> String {
     let mut rng = rand::rng();
     let mut s = String::with_capacity(11);
     for i in 0..10 {
@@ -147,14 +147,14 @@ pub fn recovery_code() -> String {
     s
 }
 
-pub fn normalize_recovery(code: &str) -> String {
+pub(crate) fn normalize_recovery(code: &str) -> String {
     code.chars()
         .filter(char::is_ascii_alphanumeric)
         .map(|c| c.to_ascii_lowercase())
         .collect()
 }
 
-pub fn constant_eq(a: &str, b: &str) -> bool {
+pub(crate) fn constant_eq(a: &str, b: &str) -> bool {
     a.len() == b.len()
         && a.bytes()
             .zip(b.bytes())
@@ -232,9 +232,9 @@ fn dummy_hash() -> &'static str {
     })
 }
 
-pub const TOTP_PERIOD: u64 = 30;
+pub(crate) const TOTP_PERIOD: u64 = 30;
 
-pub fn new_totp_secret() -> String {
+pub(crate) fn new_totp_secret() -> String {
     let mut b = [0u8; 20];
     rand::rng().fill_bytes(&mut b);
     data_encoding::BASE32_NOPAD.encode(&b)
@@ -249,7 +249,7 @@ fn decode_secret(secret_b32: &str) -> Option<Vec<u8>> {
     data_encoding::BASE32_NOPAD.decode(clean.as_bytes()).ok()
 }
 
-pub fn totp_at_step(secret_b32: &str, step: u64) -> Option<String> {
+pub(crate) fn totp_at_step(secret_b32: &str, step: u64) -> Option<String> {
     let key = decode_secret(secret_b32)?;
     let mut m = <Hmac<sha1::Sha1> as KeyInit>::new_from_slice(&key).ok()?;
     m.update(&step.to_be_bytes());
@@ -277,13 +277,13 @@ pub fn totp_match(secret_b32: &str, code: &str, unix_time: u64) -> Option<u64> {
         .find(|s| totp_at_step(secret_b32, *s).is_some_and(|c| constant_eq(&c, code)))
 }
 
-pub fn now_unix() -> u64 {
+pub(crate) fn now_unix() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |d| d.as_secs())
 }
 
-pub fn pct(s: &str) -> String {
+pub(crate) fn pct(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     for b in s.bytes() {
         if b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.' | b'~') {
@@ -295,9 +295,9 @@ pub fn pct(s: &str) -> String {
     out
 }
 
-pub const ISSUER: &str = "Qui de nous ?";
+pub(crate) const ISSUER: &str = "Qui de nous ?";
 
-pub fn otpauth_url(secret_b32: &str, account: &str) -> String {
+pub(crate) fn otpauth_url(secret_b32: &str, account: &str) -> String {
     format!(
         "otpauth://totp/{}:{}?secret={secret_b32}&issuer={}&algorithm=SHA1&digits=6&period=30",
         pct(ISSUER),
