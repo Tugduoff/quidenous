@@ -6,9 +6,9 @@ module.exports = defineConfig([
   expo,
   { ignores: ['dist/*', '.expo/*', 'node_modules/*'] },
   {
-    // Node scripts (OTA publishing, avatar parts).
+    // Node and Bun scripts (OTA publishing, avatar parts, widget previews).
     files: ['scripts/**/*.mjs'],
-    languageOptions: { globals: { Buffer: 'readonly', process: 'readonly', console: 'readonly' } },
+    languageOptions: { globals: { Buffer: 'readonly', process: 'readonly', console: 'readonly', Bun: 'readonly' } },
   },
   {
     // React Compiler diagnostics: each one only makes the compiler skip that component (it stays correct, just not auto-memoised).
