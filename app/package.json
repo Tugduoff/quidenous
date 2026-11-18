@@ -51,6 +51,8 @@
     "@types/react": "~19.3.0",
     "eslint": "^9.39.0",
     "eslint-config-expo": "~58.0.4",
+    "knip": "^6.46.0",
+    "tsx": "^4.23.15",
     "typescript": "~6.0.3"
   },
   "scripts": {
