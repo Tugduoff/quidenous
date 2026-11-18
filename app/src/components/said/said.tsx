@@ -5,7 +5,7 @@
 // open question (it talks to `/round/current/*`).
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowRight, Check, EyeOff, Pencil, Quote, RotateCcw, Trophy, X } from 'lucide-react-native';
-import { memo, type ReactNode, useCallback, useEffect, useMemo, useReducer, useState, useSyncExternalStore } from 'react';
+import { memo, type ReactNode, useCallback, useMemo, useReducer, useState, useSyncExternalStore } from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown, ReduceMotion, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withRepeat, withSequence, withSpring, withTiming } from 'react-native-reanimated';
 import { Mascot } from '@/components/mascot/mascot';
@@ -28,6 +28,8 @@ import type { Round, SaidAnswer, SaidGuess, SaidResult, SaidView } from '@/lib/a
 import { roundKeys, answerCurrent, voteCurrent } from '@/lib/api/rounds';
 import { groupKeys } from '@/lib/api/group';
 import { impactHaptic, selectionHaptic } from '@/lib/device/haptics';
+import { useAnimateOnChange } from '@/lib/hooks/use-animate-on-change';
+import { useTimeout } from '@/lib/hooks/use-timeout';
 
 const sys = ReduceMotion.System;
 
@@ -356,12 +358,11 @@ function WhoSlot({ waiting }: { waiting: boolean }) {
   const tr = useT();
   const reduced = useReducedMotion();
   const s = useSharedValue(1);
-  useEffect(() => {
-    s.value =
-      waiting && !reduced
-        ? withRepeat(withSequence(withTiming(1.07, { duration: 520, easing: EASE }), withTiming(1, { duration: 520, easing: EASE })), -1)
-        : withTiming(1, { duration: 120 });
-  }, [waiting, reduced, s]);
+  useAnimateOnChange(s, [waiting, reduced], () =>
+    waiting && !reduced
+      ? withRepeat(withSequence(withTiming(1.07, { duration: 520, easing: EASE }), withTiming(1, { duration: 520, easing: EASE })), -1)
+      : withTiming(1, { duration: 120 }),
+  );
   const breathe = useAnimatedStyle(() => ({ transform: [{ scale: s.value }] }));
   return (
     <Animated.View
@@ -938,11 +939,7 @@ function RevealStep({ item, byId }: { item: RevealItem; byId: Map<number, Member
   const author = byId.get(item.author_id);
   // A small knock when the author shows (not on the web, nor under reduced motion).
   const reduced = useReducedMotion();
-  useEffect(() => {
-    if (reduced) return;
-    const id = setTimeout(thud, at + FLIP_MS / 2);
-    return () => clearTimeout(id);
-  }, [at, reduced]);
+  useTimeout(thud, reduced ? null : at + FLIP_MS / 2);
   return (
     <View style={{ gap: 16 }}>
       <View style={{ flexDirection: 'row', gap: 10 }}>
@@ -1022,9 +1019,9 @@ function GuessRow({
   const m = byId.get(g.member_id);
   const reduced = useReducedMotion();
   const fade = useSharedValue(1);
-  useEffect(() => {
-    if (!g.right) fade.value = reduced ? 0.45 : withDelay(settle, withTiming(0.45, { duration: 260, easing: EASE }));
-  }, [g.right, settle, reduced, fade]);
+  useAnimateOnChange(fade, [g.right, settle, reduced], () =>
+    g.right ? undefined : reduced ? 0.45 : withDelay(settle, withTiming(0.45, { duration: 260, easing: EASE })),
+  );
   const dim = useAnimatedStyle(() => ({ opacity: fade.value }));
   return (
     <Animated.View entering={FadeInDown.delay(delay).duration(240).easing(LAYOUT_EASE).reduceMotion(sys)}>
@@ -1077,15 +1074,11 @@ function Flip({ member, at, size: S = 64 }: { member: Member | undefined; at: nu
   const t = useTheme();
   const reduced = useReducedMotion();
   const p = useSharedValue(reduced ? 1 : 0);
-  useEffect(() => {
-    if (reduced) return;
-    p.value = withDelay(at, withTiming(1, { duration: FLIP_MS, easing: EASE }));
-  }, [at, reduced, p]);
+  useAnimateOnChange(p, [at, reduced], () => (reduced ? undefined : withDelay(at, withTiming(1, { duration: FLIP_MS, easing: EASE }))));
   const pop = useSharedValue(1);
-  useEffect(() => {
-    if (reduced) return;
-    pop.value = withDelay(at + FLIP_MS, withSequence(withTiming(1.12, { duration: 110, easing: EASE }), withSpring(1, BOUNCE)));
-  }, [at, reduced, pop]);
+  useAnimateOnChange(pop, [at, reduced], () =>
+    reduced ? undefined : withDelay(at + FLIP_MS, withSequence(withTiming(1.12, { duration: 110, easing: EASE }), withSpring(1, BOUNCE))),
+  );
   const front = useAnimatedStyle(() => ({
     opacity: p.value < 0.5 ? 1 : 0,
     transform: [{ perspective: 600 }, { rotateY: `${p.value * 180}deg` }],
