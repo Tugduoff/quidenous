@@ -36,7 +36,7 @@ pub(crate) async fn nudge(
         .await?
         .ok_or(AppError::Conflict("no_open_round"))?;
     // Not done yet (on a said question still writing: not written).
-    let target: Option<i64> = sqlx::query_scalar(concat!(
+    let target: Option<MemberId> = sqlx::query_scalar(concat!(
         "SELECT id FROM members m WHERE m.id = ?1 AND m.group_id = ?2 AND m.removed_at IS NULL AND NOT ",
         crate::rounds::said::done!("?3", "m.id")
     ))

@@ -1,4 +1,4 @@
-use crate::platform::ids::{MemberId, MessageId, QuestionId, RoomId, RoundId, UserId};
+use crate::platform::ids::{AnswerId, MemberId, MessageId, QuestionId, RoomId, RoundId, UserId};
 use axum::{
     Json,
     extract::{Path, State},
@@ -228,7 +228,7 @@ pub async fn retire_round_question(
 
 /// An admin's delete on a said answer: its text is blanked for good and it shows as hidden (it was
 /// written: it stays in the game, its guesses and points too).
-pub(super) async fn erase_answer(state: &AppState, id: i64) -> AppResult<()> {
+pub(super) async fn erase_answer(state: &AppState, id: AnswerId) -> AppResult<()> {
     let gone: Option<(RoundId, RoomId)> = sqlx::query_as(
         "UPDATE said_answers SET text = '', \
          hidden_at = COALESCE(hidden_at, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) \

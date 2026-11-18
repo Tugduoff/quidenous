@@ -1,4 +1,4 @@
-use crate::platform::ids::{MemberId, MessageId, QuestionId, RoomId, RoundId, UserId};
+use crate::platform::ids::{AnswerId, MemberId, MessageId, QuestionId, RoomId, RoundId, UserId};
 use axum::{Json, extract::State};
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -252,7 +252,7 @@ pub async fn act(
                 Err(e) => return Err(e),
             }
         }
-        ("delete", "answer") => erase_answer(&state, body.id).await?,
+        ("delete", "answer") => erase_answer(&state, AnswerId::from_raw(body.id)).await?,
         ("delete", "suggestion") => {
             sqlx::query(
                 "UPDATE suggestions SET status = 'rejected', decided_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') \

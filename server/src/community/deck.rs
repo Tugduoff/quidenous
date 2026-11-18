@@ -1,4 +1,4 @@
-use crate::platform::ids::RoomId;
+use crate::platform::ids::{QuestionId, RoomId};
 use sqlx::{Sqlite, SqlitePool, Transaction};
 
 use crate::platform::i18n::Lang;
@@ -195,8 +195,8 @@ pub fn items_json(line: &str) -> Option<String> {
 /// Creates the configured group (`GROUP_NAME`, `JOIN_CODE`) on first start, when there is no
 /// group at all. Afterwards it never touches it: its name and code belong to its owner (a code
 /// rotated in the app stays rotated). Returns the first group's id.
-pub async fn ensure_group(db: &SqlitePool, name: &str, code: &str) -> sqlx::Result<i64> {
-    let existing: Option<i64> = sqlx::query_scalar("SELECT id FROM groups ORDER BY id LIMIT 1")
+pub async fn ensure_group(db: &SqlitePool, name: &str, code: &str) -> sqlx::Result<RoomId> {
+    let existing: Option<RoomId> = sqlx::query_scalar("SELECT id FROM groups ORDER BY id LIMIT 1")
         .fetch_optional(db)
         .await?;
     match existing {
@@ -216,7 +216,7 @@ pub async fn ensure_group(db: &SqlitePool, name: &str, code: &str) -> sqlx::Resu
 /// ones it already has. `None` when the room does not exist (or was deleted).
 pub async fn import_room(db: &SqlitePool, room: RoomId, text: &str) -> sqlx::Result<Option<u64>> {
     let mut tx = crate::platform::db::write_tx(db).await?;
-    let live: Option<i64> =
+    let live: Option<RoomId> =
         sqlx::query_scalar("SELECT id FROM groups WHERE id = ? AND deleted_at IS NULL")
             .bind(room)
             .fetch_optional(&mut *tx)
@@ -231,7 +231,7 @@ pub async fn import_room(db: &SqlitePool, room: RoomId, text: &str) -> sqlx::Res
         if kind == "choose" && items.is_none() {
             continue;
         }
-        let known: Option<i64> = sqlx::query_scalar(
+        let known: Option<QuestionId> = sqlx::query_scalar(
             "SELECT id FROM questions WHERE group_id = ? AND lower(text) = lower(?)",
         )
         .bind(room)
