@@ -75,6 +75,26 @@ pub fn key_ok(key: &str, max: usize) -> bool {
             .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'+' | b'/' | b'='))
 }
 
+/// `Sent.title` of a recorded widget ping (tests); its `body` is the room id.
+pub const WIDGET_PING: &str = "widget";
+
+/// A widget refresh: data only (no `notification`, so nothing shows), `widget` + `room` for the app's
+/// background task, one pending per room and device (`collapse_key`), normal priority, dropped after
+/// an hour undelivered (the widget's own timer catches up by then).
+pub fn widget_ping_message(fcm_token: &str, group_id: i64) -> serde_json::Value {
+    serde_json::json!({
+        "message": {
+            "token": fcm_token,
+            "data": { "widget": "1", "room": group_id.to_string() },
+            "android": {
+                "priority": "normal",
+                "collapse_key": format!("widget-{group_id}"),
+                "ttl": "3600s"
+            }
+        }
+    })
+}
+
 /// An FCM registration token: printable ASCII, 4 KB at most.
 pub fn fcm_token_ok(token: &str) -> bool {
     !token.is_empty() && token.len() <= 4096 && token.bytes().all(|b| b.is_ascii_graphic())
@@ -745,6 +765,80 @@ impl Push {
                 r.status(),
                 r.text().await.unwrap_or_default()
             )),
+            Err(e) => Delivery::Failed(e.to_string()),
+        }
+    }
+
+    /// Silent FCM data messages to home-screen widgets (`tokens`: account, FCM token), see
+    /// `widget::ping_room`. Nothing shown: the app's background task refreshes its widgets. Collapsed
+    /// per room and normal priority (no wake-up from Doze: it waits for the phone's next window).
+    /// A dead FCM token is dropped from its widget token. Runs in the background.
+    pub fn widget_ping(&self, db: SqlitePool, group_id: i64, tokens: Vec<(i64, String)>) {
+        {
+            let mut rec = self.recorded.lock().unwrap_or_else(|e| e.into_inner());
+            if let Some(rec) = rec.as_mut() {
+                rec.extend(tokens.iter().map(|(user_id, _)| Sent {
+                    user_id: Some(*user_id),
+                    title: WIDGET_PING.into(),
+                    body: group_id.to_string(),
+                }));
+                return;
+            }
+        }
+        let push = self.clone();
+        tokio::spawn(async move {
+            let sends = tokens
+                .iter()
+                .map(|(_, t)| push.deliver_widget_ping(t, group_id));
+            let results = futures::future::join_all(sends).await;
+            for ((_, token), result) in tokens.iter().zip(results) {
+                match result {
+                    Delivery::Sent => {}
+                    Delivery::Gone => {
+                        let _ = sqlx::query(
+                            "UPDATE widget_tokens SET fcm_token = NULL WHERE fcm_token = ?",
+                        )
+                        .bind(token)
+                        .execute(&db)
+                        .await;
+                    }
+                    Delivery::Failed(e) => tracing::warn!(error = %e, "widget ping failed"),
+                }
+            }
+        });
+    }
+
+    async fn deliver_widget_ping(&self, fcm_token: &str, group_id: i64) -> Delivery {
+        let Some(fcm) = &self.fcm else {
+            return Delivery::Failed("FCM not configured".into());
+        };
+        let token = match fcm.access_token(&self.http).await {
+            Ok(t) => t,
+            Err(e) => return Delivery::Failed(e),
+        };
+        let message = widget_ping_message(fcm_token, group_id);
+        let url = format!(
+            "https://fcm.googleapis.com/v1/projects/{}/messages:send",
+            fcm.account.project_id
+        );
+        match self
+            .http
+            .post(url)
+            .bearer_auth(token)
+            .json(&message)
+            .send()
+            .await
+        {
+            Ok(r) if r.status().is_success() => Delivery::Sent,
+            Ok(r) => {
+                let status = r.status().as_u16();
+                let text = r.text().await.unwrap_or_default();
+                if fcm_token_gone(status, &text) {
+                    Delivery::Gone
+                } else {
+                    Delivery::Failed(format!("{status} {text}"))
+                }
+            }
             Err(e) => Delivery::Failed(e.to_string()),
         }
     }

@@ -47,3 +47,4 @@ google-services.json
 
 # expo-updates code signing: the public certificate is committed (the private key is a CI secret only)
 !certs/certificate.pem
+widget-preview.html

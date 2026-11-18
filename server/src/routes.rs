@@ -45,6 +45,8 @@ pub fn router() -> Router<AppState> {
         .route("/vibes", get(crate::vibes::list))
         // Build version (`/api/version`) and app crash reports (`/api/client-errors`).
         .merge(crate::ops::router())
+        // The home-screen widget's read and its narrow token (docs/WIDGET.md).
+        .merge(crate::widget::router())
         .nest("/auth", crate::accounts::router())
         .route("/join", post(join))
         .route("/me", get(me).put(update_me))
@@ -297,6 +299,8 @@ async fn features(State(state): State<AppState>) -> Json<Value> {
         "today",
         // The first-run intro, once per account (`GET/POST /intro`).
         "intro",
+        // `GET /api/widget` and widget tokens (docs/WIDGET.md).
+        "widget",
     ];
     if state.config.klipy.is_some() {
         f.push("chat_gifs");
@@ -2208,6 +2212,10 @@ async fn try_notify_round(
     opened: Option<i64>,
     closed: bool,
 ) -> AppResult<()> {
+    // Home-screen widgets show this room's state: they refresh (parties too).
+    if opened.is_some() || closed {
+        crate::widget::ping_room(state, group_id).await;
+    }
     // Parties happen in the same place: no push, no inbox for their questions and results.
     if game::party(&state.db, group_id).await?.is_some() {
         return Ok(());

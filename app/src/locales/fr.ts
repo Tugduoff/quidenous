@@ -37,6 +37,7 @@ import { badges } from './fr/badges';
 import { wrapped } from './fr/wrapped';
 import { today } from './fr/today';
 import { intro } from './fr/intro';
+import { widget } from './fr/widget';
 
 export const fr = {
   common,
@@ -77,6 +78,7 @@ export const fr = {
   wrapped,
   today,
   intro,
+  widget,
 };
 
 /** The shape every language follows (strings widened, same keys). */

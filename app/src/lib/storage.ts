@@ -11,3 +11,8 @@ export const storage = {
   remove: (key: string) =>
     web ? Promise.resolve(localStorage.removeItem(key)) : SecureStore.deleteItemAsync(key),
 };
+
+/** The session (lib/session.tsx), also read by the home-screen widget's background task (widget/state.ts). */
+export const TOKEN_KEY = 'qdn.token';
+export const SERVER_KEY = 'qdn.server';
+export const ROOM_KEY = 'qdn.room';

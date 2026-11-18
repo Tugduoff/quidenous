@@ -70,6 +70,44 @@
         {
           "faceIDPermission": "Pour verrouiller l’app avec Face ID."
         }
+      ],
+      [
+        "react-native-android-widget",
+        {
+          "fonts": [
+            "./node_modules/@expo-google-fonts/bricolage-grotesque/800ExtraBold/BricolageGrotesque_800ExtraBold.ttf",
+            "./node_modules/@expo-google-fonts/inter/600SemiBold/Inter_600SemiBold.ttf",
+            "./node_modules/@expo-google-fonts/inter/700Bold/Inter_700Bold.ttf"
+          ],
+          "widgets": [
+            {
+              "name": "QdnSmall",
+              "label": "qui de nous ?",
+              "description": "La question du jour de ton salon · Your room's question of the day",
+              "minWidth": "110dp",
+              "minHeight": "110dp",
+              "targetCellWidth": 2,
+              "targetCellHeight": 2,
+              "resizeMode": "horizontal|vertical",
+              "widgetCategory": "home_screen",
+              "updatePeriodMillis": 3600000,
+              "previewImage": "./assets/widget/preview-small.png"
+            },
+            {
+              "name": "QdnMedium",
+              "label": "qui de nous ?",
+              "description": "La question du jour de ton salon · Your room's question of the day",
+              "minWidth": "250dp",
+              "minHeight": "110dp",
+              "targetCellWidth": 4,
+              "targetCellHeight": 2,
+              "resizeMode": "horizontal|vertical",
+              "widgetCategory": "home_screen",
+              "updatePeriodMillis": 3600000,
+              "previewImage": "./assets/widget/preview-medium.png"
+            }
+          ]
+        }
       ]
     ],
     "runtimeVersion": {

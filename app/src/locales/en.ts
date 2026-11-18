@@ -38,6 +38,7 @@ import { badges } from './en/badges';
 import { wrapped } from './en/wrapped';
 import { today } from './en/today';
 import { intro } from './en/intro';
+import { widget } from './en/widget';
 
 export const en: Messages = {
   common,
@@ -78,4 +79,5 @@ export const en: Messages = {
   wrapped,
   today,
   intro,
+  widget,
 };

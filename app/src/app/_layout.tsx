@@ -29,6 +29,7 @@ import { queryClient } from '@/lib/query-client';
 import { registerNativePush, useNotificationTaps } from '@/lib/native-push';
 import { useNotifTzSync } from '@/lib/notifications';
 import { useRoomParam } from '@/lib/rooms';
+import { useWidgetSync } from '@/widget/task';
 import { SessionProvider, useSession } from '@/lib/session';
 import { useScheme, useTheme, useThemeLoaded } from '@/lib/theme';
 import { useUpdateCheck } from '@/lib/update';
@@ -61,6 +62,8 @@ function Root() {
   useRoomParam(inApp);
   useStageRoute(stage, ready && !!fonts && themeLoaded && lock.loaded && install !== 'block');
   useNotificationTaps(inApp);
+  // The home-screen widget (Android) follows the session, the room and what happened while the app was open.
+  useWidgetSync(ready ? stage : null, room);
   useEffect(() => {
     if (stage === 'in') registerNativePush().catch(() => {});
   }, [stage]);
