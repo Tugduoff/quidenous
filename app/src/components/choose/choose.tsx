@@ -18,13 +18,6 @@ import { usePop } from '@/lib/motion';
 import { useSession } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
 
-// "Qui choisirait quoi ?" (docs/CHOOSE.md): wire every member to an item (mine: my real choice, the others: my guesses),
-// then the result person by person.
-
-/**
- * The ballot of a choose question: everyone in a column on the left, the items on the right. Drag a person to an item
- * (or tap a person, then an item); I'm first, my wire is my real choice, the others' are my guesses.
- */
 export function ChooseBallot({
   round,
   members,
@@ -36,7 +29,6 @@ export function ChooseBallot({
   members: Member[];
   byId: Map<number, Member>;
   onVoted: () => void;
-  /** Header and question, drawn by the Vote tab. */
   top: ReactNode;
 }) {
   const t = useTheme();
@@ -44,7 +36,6 @@ export function ChooseBallot({
   const qc = useQueryClient();
   const { me } = useSession();
   const items = round.items ?? [];
-  // Me first: the one real choice, then everyone I guess for.
   const people = useMemo(() => {
     const mine = members.find((m) => m.id === me?.id);
     return mine ? [mine, ...members.filter((m) => m.id !== mine.id)] : members;
@@ -57,7 +48,6 @@ export function ChooseBallot({
     mutationFn: (c: Choice[]) => voteCurrent({ choices: c }),
     onSuccess: onVoted,
     onSettled: () => qc.invalidateQueries({ queryKey: roundKeys.current }),
-    // Someone joined or left meanwhile: refresh the room so the ballot shows who to wire now.
     onError: () => qc.invalidateQueries({ queryKey: groupKeys.all }),
   });
   const send = () => all && vote.mutate(people.map((p) => ({ member_id: p.id, item: choices[p.id] })));
@@ -91,13 +81,11 @@ export function ChooseBallot({
   );
 }
 
-/** My own real choice, once I voted (null: an older server, or not found). */
 export function myRealChoice(round: Round, me: number | undefined): string | null {
   const c = round.my_choices?.find((x) => x.member_id === me);
   return c ? (round.items?.[c.item] ?? null) : null;
 }
 
-/** A finished choose question: one person at a time (or all at once), what they thought of me, who guessed best. */
 export function ChooseResult({ round, data, byId }: { round: Round; data: ChooseData; byId: Map<number, Member> }) {
   const items = round.items ?? [];
   const { me } = useSession();

@@ -6,7 +6,6 @@ import { useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 import { ANSWER_MAX, ANSWER_WARN } from '@/lib/utils/said';
 
-/** The answer being written: a big field, the counter near the limit, Enter sends. Controlled (the button is elsewhere). */
 export function AnswerField({
   value,
   onChange,
@@ -18,7 +17,6 @@ export function AnswerField({
   onChange: (text: string) => void;
   onSubmit: () => void;
   autoFocus?: boolean;
-  /** Under the field, in pink (not sent, too late). */
   error?: string | null;
 }) {
   const t = useTheme();

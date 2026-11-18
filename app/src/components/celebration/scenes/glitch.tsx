@@ -1,4 +1,3 @@
-/** 404: glitch — the number tears into bands, ghosts and noise. */
 import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, { Extrapolation, interpolate, useAnimatedStyle } from 'react-native-reanimated';
@@ -12,7 +11,6 @@ import { Headline, numberSize, type SceneFactory, type SceneProps } from '@/comp
 
 const GLITCH_ON = 250;
 
-/** How glitchy the screen is at `c` ms: a storm at first, then calm with two short relapses. */
 const glitchAt = (c: number) => {
   'worklet';
   if (c < GLITCH_ON) return 0;
@@ -65,7 +63,6 @@ function Ghost({ clock, dir, children }: { clock: Clock; dir: 1 | -1; children: 
   return <Animated.View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center' }, a]}>{children}</Animated.View>;
 }
 
-/** Coloured bars flashing at random places while it glitches. */
 function Noise({ clock, i, w, h }: { clock: Clock; i: number; w: number; h: number }) {
   const colors = ['#FF2A6D', '#05D9E8', '#FFFFFF'];
   const a = useAnimatedStyle(() => {

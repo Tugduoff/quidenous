@@ -9,7 +9,6 @@ import type { ChooseResult as ChooseData } from '@/lib/api/rounds';
 import { useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 
-/** Who guessed best: hits out of the guesses that could hit. */
 export function BestGuessers({ scores, byId }: { scores: ChooseData['scores']; byId: Map<number, Member> }) {
   const t = useTheme();
   const tr = useT();

@@ -18,7 +18,6 @@ import { useRooms } from '@/lib/api/rooms';
 import { useFeatures } from '@/lib/api/features';
 import { shareKeys } from '@/lib/api/share';
 
-/** "Défier un autre salon" on a closed result: send it to another of my rooms, or share a link to play it. */
 export function ChallengeButton({ round }: { round: Round }) {
   const t = useTheme();
   const tr = useT();
@@ -48,7 +47,6 @@ function ChallengeDialog({ round, onDone }: { round: Round; onDone: () => void }
   const qc = useQueryClient();
   const { data: group } = useGroup();
   const { data: rooms } = useRooms();
-  // Rooms only: a party is a one-night thing (and two "Anniv de Léa" can't be told apart).
   const others = rooms?.filter((r) => r.id !== group?.id && r.kind !== 'party') ?? [];
   const [sent, setSent] = useState<Set<number>>(() => new Set());
   const [error, setError] = useState<string | null>(null);
@@ -119,7 +117,6 @@ function ChallengeDialog({ round, onDone }: { round: Round; onDone: () => void }
   );
 }
 
-/** Under a closed result: each room it was played against, side by side once both are over. Nothing when none. */
 export function Challenges({ roundId }: { roundId: number }) {
   const t = useTheme();
   const tr = useT();
@@ -165,7 +162,6 @@ export function Challenges({ roundId }: { roundId: number }) {
   );
 }
 
-/** One room's top 3, compact: face, name, score. */
 function Podium({ title, entries }: { title: string; entries: PodiumEntry[] }) {
   const t = useTheme();
   return (

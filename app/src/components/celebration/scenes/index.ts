@@ -28,7 +28,6 @@ import { streak } from '@/components/celebration/scenes/streak';
 import { tiles } from '@/components/celebration/scenes/tiles';
 import { wink } from '@/components/celebration/scenes/wink';
 
-/** Numbers with a scene of their own. */
 const BESPOKE: Record<number, SceneFactory> = {
   42: galaxy,
   69: wink,
@@ -57,7 +56,6 @@ const BESPOKE: Record<number, SceneFactory> = {
 };
 
 export function sceneFor(m: Milestone, t: Theme) {
-  // Streaks: the generic parties (the bespoke ones are about question numbers), with Paillette hopping in.
   if (m.streak) return streak(m, t);
   const own = BESPOKE[m.n];
   if (own) return own(m, t);

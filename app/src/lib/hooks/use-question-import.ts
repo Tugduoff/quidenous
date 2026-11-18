@@ -7,7 +7,6 @@ import { pickQuestionFile } from '@/lib/device/files';
 import { useT } from '@/lib/i18n';
 import type { DraftLine } from '@/lib/utils/import-draft';
 
-/** Pick a question file, show what's in it, send only what's ticked. */
 export function useQuestionImport(onStatus: (status: string) => void) {
   const tr = useT();
   const qc = useQueryClient();

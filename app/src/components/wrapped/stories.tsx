@@ -17,13 +17,8 @@ import { StorySegment } from '@/components/wrapped/story-segment';
 import { closeWrapped, INK, sys } from '@/components/wrapped/constants';
 import { clamp } from '@/lib/utils/easing';
 
-/** How long a card stays before the next one (auto-advance). */
 const CARD_MS = 6000;
 
-/**
- * The cards, one at a time: tap right / left (or swipe) to move, hold to pause. Each card moves on by itself after
- * CARD_MS, unless motion is reduced or a screen reader is on. The timer and the bars run on the UI thread.
- */
 export function Stories({ w, chrome }: { w: Wrapped; chrome: (ink: string) => ReactNode }) {
   const tr = useT();
   const reduced = useReducedMotion();
@@ -33,7 +28,6 @@ export function Stories({ w, chrome }: { w: Wrapped; chrome: (ink: string) => Re
   const [index, setIndex] = useState(0);
   const [prev, setPrev] = useState<number | null>(null);
   const drag = useSharedValue(0);
-  // A swipe also ends as a press on the tap zones (the web): that press is ignored.
   const swiped = useRef(false);
 
   const go = (d: number) => {
@@ -107,7 +101,6 @@ export function Stories({ w, chrome }: { w: Wrapped; chrome: (ink: string) => Re
         <GestureDetector gesture={pan} touchAction="pan-y">
           <Animated.View style={[{ flex: 1 }, dragged]}>
             <CardBody key={card.key} card={card} n={index + 1} total={count} />
-            {/* Tap zones: a third on the left goes back, the rest goes on; holding either pauses. */}
             <View style={[StyleSheet.absoluteFill, { flexDirection: 'row' }]}>
               <Pressable
                 accessibilityRole="button"

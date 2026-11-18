@@ -7,10 +7,8 @@ import { useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 import { Button } from '@/components/ui/button';
 
-/** Paillette, knocked flat. */
 const KNOCKED: Pose = { eyes: 'wide', brows: 'worried', mouth: 'gasp', arms: ['droop', 'droop'], legs: ['sit', 'sit'], prop: 'sweat', tilt: -7 };
 
-/** Any screen that throws while rendering lands here (expo-router's ErrorBoundary): the error goes to the server log. */
 export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
   const t = useTheme();
   const tr = useT();

@@ -9,7 +9,6 @@ import { PressableScale } from '@/components/ui/pressable-scale';
 import { TAG_BG } from '@/components/ui/tag';
 import { Card } from '@/components/ui/card';
 
-/** A small tag next to a pack's name: its language ("EN") when not the room's, "16+". */
 export function MiniTag({ label, tone = 'mut' }: { label: string; tone?: 'mut' | 'hot' }) {
   const t = useTheme();
   return (
@@ -26,7 +25,6 @@ export function MiniTag({ label, tone = 'mut' }: { label: string; tone?: 'mut' |
   );
 }
 
-/** A pack's status for its author: "En revue" (grey) or "Retiré" (pink). Nothing when public. */
 export function StatusBadge({ status }: { status: PackItem['status'] }) {
   const t = useTheme();
   const tr = useT();
@@ -46,7 +44,6 @@ export function StatusBadge({ status }: { status: PackItem['status'] }) {
   );
 }
 
-/** A count with its icon (likes, installs). */
 export function Stat({ icon: Icon, value, on, label }: { icon: typeof Heart; value: number; on?: boolean; label: string }) {
   const t = useTheme();
   return (
@@ -57,10 +54,6 @@ export function Stat({ icon: Icon, value, on, label }: { icon: typeof Heart; val
   );
 }
 
-/**
- * One pack in a list: name with its marks, author and size, description, likes and installs, "Installé" when in this room.
- * `roomLang`: a pack in another language gets a tag. `withStatus`: my packs, with their moderation status.
- */
 export function PackCard({
   pack: p,
   roomLang,
@@ -70,7 +63,6 @@ export function PackCard({
   pack: PackItem;
   roomLang?: string;
   withStatus?: boolean;
-  /** Held: start selecting (my packs). */
   onLongPress?: () => void;
 }) {
   const t = useTheme();
@@ -123,7 +115,6 @@ export function PackCard({
   );
 }
 
-/** A round icon button for page headers. */
 export function IconButton({
   icon: Icon,
   label,
@@ -160,7 +151,6 @@ export function IconButton({
   );
 }
 
-/** Back on the left (to `fallback` when there is nothing to go back to), icon buttons on the right. */
 export function PageHeader({ fallback, children }: { fallback: Href; children?: ReactNode }) {
   const tr = useT();
   return (
@@ -172,7 +162,6 @@ export function PageHeader({ fallback, children }: { fallback: Href; children?: 
   );
 }
 
-/** A category filter (or the 16+ switch, `hot`). */
 export function Chip({
   icon: Icon,
   label,

@@ -13,10 +13,8 @@ import { QuestionText } from '@/components/ui/text';
 import { type Member } from '@/lib/api/group';
 import { type HistoryItem } from '@/lib/api/history';
 
-/** Solo winner size; tied faces are 4 px smaller so that with their 2 px ring they match it. */
 const SOLO = 44;
 const TIED = 40;
-/** A tie shows two faces at most (the second one "+n" past two): the names are spelled out under the question. */
 const MAX = 2;
 
 export function HistoryCard({ item, byId, order }: { item: HistoryItem; byId: Map<number, Member>; order?: number }) {
@@ -24,12 +22,10 @@ export function HistoryCard({ item, byId, order }: { item: HistoryItem; byId: Ma
   const tr = useT();
   const winners = item.winner_ids.map((id) => byId.get(id));
   const winner = winners[0];
-  // A choose question's "winners" are its best guessers (none when nobody guessed right); a said one's, its top scorers.
   const choose = item.kind === 'choose';
   const said = item.kind === 'said';
   const Mark = choose ? Target : Crown;
   const Empty = said ? MessageSquareQuote : Cable;
-  // Each row as wide as its own faces: a tie elsewhere doesn't squeeze this title.
   const lead = winners.length > 1 ? avatarStackWidth(winners.length, TIED, MAX) : SOLO;
   return (
     <Animated.View entering={order != null ? motion.stagger(order) : undefined}>
@@ -75,7 +71,6 @@ export function HistoryCard({ item, byId, order }: { item: HistoryItem; byId: Ma
         {(item.pinned || isMilestone(item.number)) && (
           <View style={{ alignSelf: 'flex-start', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
             {item.pinned && <Pin size={16} color={t.accInk} />}
-            {/* A milestone question: tap to replay its party. */}
             {isMilestone(item.number) && (
               <View
                 style={{

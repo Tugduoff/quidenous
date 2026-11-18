@@ -21,19 +21,16 @@ import { Pop } from '@/components/vote/pop';
 import { Springy } from '@/components/vote/springy';
 import { VoteTip } from '@/components/vote/vote-tip';
 
-/** Ranking question: tap everyone in order, first to last. Tap a ranked person again to take them out. */
 export function RankBallot({ round, members, byId, onVoted }: { round: Round; members: Member[]; byId: Map<number, Member>; onVoted: () => void }) {
   const t = useTheme();
   const tr = useT();
   const qc = useQueryClient();
   const [picked, setOrder] = useState<number[]>([]);
-  // Only one person left to place: there is only one place left for them, no need to tap.
   const last = members.length > 1 && picked.length === members.length - 1 ? members.find((m) => !picked.includes(m.id)) : undefined;
   const order = last ? [...picked, last.id] : picked;
   const vote = useMutation({
     mutationFn: (ranking: number[]) => voteCurrent({ ranking }),
     onSuccess: onVoted,
-    // Someone joined or left meanwhile: the room refreshed shows who to vote on now (the error is a toast).
     onError: () => qc.invalidateQueries({ queryKey: groupKeys.all }),
     onSettled: () => qc.invalidateQueries({ queryKey: roundKeys.current }),
   });
@@ -72,7 +69,6 @@ export function RankBallot({ round, members, byId, onVoted }: { round: Round; me
       </View>
       <BetRow round={round} members={members} byId={byId} />
       <VoteTip />
-      {/* Ranked people move up to their place, the rest slide down. A big group gets a grid of faces (no endless list). */}
       {members.length > BIG_GROUP + 1 ? (
         <MemberGrid>
           {sorted.map((m) => {

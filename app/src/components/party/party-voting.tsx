@@ -22,7 +22,6 @@ import { motion } from '@/lib/motion';
 import { useTheme } from '@/lib/theme';
 import { playersById } from '@/lib/utils/party';
 
-/** The open question: countdown, pick someone, then who has voted. Someone who arrived after it opened watches. */
 export function PartyVoting({ party, round }: { party: Party; round: PartyRound }) {
   const t = useTheme();
   const tr = useT();

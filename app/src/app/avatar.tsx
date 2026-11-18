@@ -21,7 +21,6 @@ import { AvatarSwatches } from '@/components/avatar/avatar-swatches';
 import { AvatarTabs, TABS } from '@/components/avatar/avatar-tabs';
 import { AvatarOptions } from '@/components/avatar/avatar-options';
 
-/** The avatar builder: presets, every part, a dice; saving replaces the photo. */
 export default function AvatarBuilder() {
   const t = useTheme();
   const tr = useT();

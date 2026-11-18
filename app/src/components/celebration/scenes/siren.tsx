@@ -1,4 +1,3 @@
-/** 112: siren — red and blue beams turning, the screen washed in turn. */
 import { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, { Extrapolation, interpolate, useAnimatedStyle } from 'react-native-reanimated';
@@ -11,13 +10,11 @@ import { Flash, Shockwave } from '@/components/celebration/effects';
 import { centred } from '@/components/celebration/layout';
 import { numberSize, type SceneFactory, type SceneProps, SlamNumber } from '@/components/celebration/scene';
 
-/** Each light cone spreads 20° on either side. */
 const BEAM_HALF_WIDTH = (20 * Math.PI) / 180;
 
 const RED = '#FF1E3C';
 const BLUE = '#1E5BFF';
 
-/** Two light cones (red, blue) turning around the beacon. */
 function Beams({ clock, x, y, size }: { clock: Clock; x: number; y: number; size: number }) {
   const path = (a: number) => wedgePath(size / 2, a, BEAM_HALF_WIDTH);
   const style = useAnimatedStyle(() => ({
@@ -44,7 +41,6 @@ function Beams({ clock, x, y, size }: { clock: Clock; x: number; y: number; size
   );
 }
 
-/** Whole-screen wash alternating red and blue; `phase` 0 = red, 1 = blue. */
 function Wash({ clock, color, phase, peak, period = 520 }: { clock: Clock; color: string; phase: 0 | 1; peak: number; period?: number }) {
   const style = useAnimatedStyle(() => {
     const c = clock.value;
@@ -56,7 +52,6 @@ function Wash({ clock, color, phase, peak, period = 520 }: { clock: Clock; color
   return <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: color }, style]} />;
 }
 
-/** The light bar on top of the screen: two domes whose halos blink in turn. */
 function LightBar({ clock, x, y }: { clock: Clock; x: number; y: number }) {
   return (
     <>

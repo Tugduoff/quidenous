@@ -18,7 +18,6 @@ import { type RoomSummary, useRooms } from '@/lib/api/rooms';
 import { pendingJoinCode, setPendingCode } from '@/lib/auth-flow';
 import { useFeatures } from '@/lib/api/features';
 
-/** All my rooms, to switch between them, plus create one or join one with a code. */
 export default function RoomsScreen() {
   const t = useTheme();
   const tr = useT();
@@ -34,7 +33,6 @@ export default function RoomsScreen() {
     else switchRoom(r.id);
   };
   const current = room ?? rooms?.[0]?.id;
-  // Picking a new room's vibe: only that on screen.
   const [creating, setCreating] = useState(false);
 
   return (

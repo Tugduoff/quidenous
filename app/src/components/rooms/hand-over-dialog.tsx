@@ -8,7 +8,6 @@ import { Avatar } from '@/components/ui/avatar';
 import { Dialog, DialogActions, DialogTitle } from '@/components/ui/dialog';
 import type { Member } from '@/lib/api/group';
 
-/** Pick the new owner, then confirm, in the same dialog. */
 export function HandOverDialog({
   visible,
   members,

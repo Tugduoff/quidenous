@@ -12,7 +12,6 @@ import { Display, ErrorText } from '@/components/ui/text';
 import { BackButton } from '@/components/ui/back-button';
 import { authError } from '@/lib/api/errors';
 
-/** Profile > Sécurité: email, password, 2FA, linked accounts, devices, blocked people, app lock, sign out, delete the account. */
 export default function Security() {
   const t = useTheme();
   const tr = useT();

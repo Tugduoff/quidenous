@@ -13,10 +13,6 @@ import { questionKeys } from '@/lib/api/questions';
 import { roundKeys } from '@/lib/api/rounds';
 import { useNow } from '@/lib/hooks/use-now';
 
-/**
- * Paced room, a closed question waiting for the next one (instead of "Suivante"): the owner's
- * "Lancer la suivante" when only they launch it, else when it opens by itself, or who it waits for.
- */
 export function NextGate({ group, onLaunched }: { group: Group; onLaunched?: () => void }) {
   const t = useTheme();
   const tr = useT();
@@ -28,7 +24,6 @@ export function NextGate({ group, onLaunched }: { group: Group; onLaunched?: () 
   const launch = useMutation({
     mutationFn: () => launchNext(group.id),
     onSuccess: () => onLaunched?.(),
-    // The new question, the room's pacing and the queue it came from (not every query).
     onSettled: () => {
       qc.invalidateQueries({ queryKey: roundKeys.all });
       qc.invalidateQueries({ queryKey: groupKeys.all });

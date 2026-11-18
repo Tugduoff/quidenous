@@ -7,13 +7,11 @@ import { Card } from '@/components/ui/card';
 import type { Member } from '@/lib/api/group';
 import type { Person } from '@/lib/api/friends';
 
-/** A section title above a group of cards. */
 export function FriendsLabel({ children }: { children: string }) {
   const t = useTheme();
   return <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut, marginLeft: 4, marginTop: 4 }}>{children}</Text>;
 }
 
-/** One person: avatar, name, a grey line, and the actions on the right. */
 export function PersonRow({ person, sub, children }: { person: Person; sub?: string; children?: ReactNode }) {
   const t = useTheme();
   return (
@@ -34,7 +32,6 @@ export function PersonRow({ person, sub, children }: { person: Person; sub?: str
   );
 }
 
-/** A round icon button; `tone="acc"` for the one action that matters (accept). */
 export function RoundAction({ label, onPress, disabled, tone, children }: { label: string; onPress: () => void; disabled?: boolean; tone?: 'acc'; children: ReactNode }) {
   const t = useTheme();
   return (

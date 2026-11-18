@@ -1,4 +1,3 @@
-/** Stats tab: periods, key numbers, awards, podium, vote matrix, heatmap, rhythm, profiles, stories. */
 export const stats = {
   title: 'Stats',
   empty: {
@@ -8,12 +7,9 @@ export const stats = {
   },
   period: { week: '7 jours', month: '30 jours', all: 'Tout' },
   section: { podium: 'Le podium', matrix: 'Qui vote pour qui', heatmap: 'Quand on vote', rhythm: 'Le rythme' },
-  /** Durations: "45 s", "3 h", "2 j 4 h" (minutes and "3 h 20" are in common.time). */
   duration: { seconds: '{count} s', hours: '{h} h', days: '{d} j', daysHours: '{d} j {h} h' },
   percent: '{n} %',
-  /** An average place: "2,3e". */
   place: '{n}e',
-  /** Words after a big number (the number is shown on its own). */
   unit: {
     questions: { one: 'question', other: 'questions' },
     votes: { one: 'vote', other: 'votes' },
@@ -37,7 +33,6 @@ export const stats = {
     ofVotes: 'des votes',
     onAverage: 'en moyenne',
   },
-  /** The four big tiles and the list of smaller facts. */
   key: {
     voting: 'Temps passé à voter',
     unanimous: { one: 'Unanime', other: 'Unanimes' },
@@ -46,7 +41,6 @@ export const stats = {
     waiting: 'Attente du dernier vote',
     perQuestion: "Durée médiane d'une question",
   },
-  /** Award titles, by the server's keys (docs/STATS.md). */
   award: {
     most_chosen: 'La star',
     most_crowned: 'Collection de couronnes',
@@ -77,7 +71,6 @@ export const stats = {
     most_unanimous: 'La plus unanime',
     hottest: 'Le moment le plus chaud',
   },
-  /** The line under each award. */
   quip: {
     most_chosen: 'Autographes sur demande.',
     most_crowned: 'La couronne commence à peser.',
@@ -109,7 +102,6 @@ export const stats = {
     hottest: { one: '{count} message. Ça a chauffé.', other: '{count} messages. Ça a chauffé.' },
   },
   group: { titles: 'Les titres', votes: 'Les votes', chat: 'Le chat', questions: 'Les questions' },
-  /** "Léa pour Max" (a crush), "Léa et Max" (vote twins). */
   forWhom: '{a} pour {b}',
   pair: '{a} et {b}',
   podiumVotes: { one: '{count} vote', other: '{count} votes' },
@@ -117,9 +109,7 @@ export const stats = {
   heatmap: {
     peak: 'Pic : le {day} vers {hour} h',
     hour: '{h} h',
-    /** Monday first. */
     days: { mon: 'Lun', tue: 'Mar', wed: 'Mer', thu: 'Jeu', fri: 'Ven', sat: 'Sam', sun: 'Dim' },
-    /** In the peak line. */
     dayNames: { mon: 'lundi', tue: 'mardi', wed: 'mercredi', thu: 'jeudi', fri: 'vendredi', sat: 'samedi', sun: 'dimanche' },
   },
   rhythm: { perWeek: '{n} par semaine', perDay: '{n} par jour', thisWeek: 'cette semaine', today: "aujourd'hui" },

@@ -1,4 +1,3 @@
-/** 256, 512: pixels — an old console's falling squares and a hard hit flash. */
 import { type ReactNode, useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
@@ -11,7 +10,6 @@ import { Headline, numberSize, type SceneFactory, type SceneProps } from '@/comp
 
 type Px = { x: number; y: number; vx: number; vy: number; g: number; at: number; life: number; size: number };
 
-/** A square moving at 12 frames per second on a 4 px grid, like an old console. */
 function Pixel({ clock, p, color }: { clock: Clock; p: Px; color: string }) {
   const a = useAnimatedStyle(() => {
     const ms = clock.value - p.at;
@@ -24,7 +22,6 @@ function Pixel({ clock, p, color }: { clock: Clock; p: Px; color: string }) {
   return <Animated.View style={[{ position: 'absolute', left: 0, top: 0, width: p.size, height: p.size, backgroundColor: color }, a]} />;
 }
 
-/** Appears in a few hard steps (no easing), then holds. */
 function StepPop({ clock, at: start, children }: { clock: Clock; at: number; children: ReactNode }) {
   const a = useAnimatedStyle(() => {
     const c = clock.value - start;
@@ -34,7 +31,6 @@ function StepPop({ clock, at: start, children }: { clock: Clock; at: number; chi
   return <Animated.View style={a}>{children}</Animated.View>;
 }
 
-/** Two hard white frames, the old-game hit flash. */
 function HardFlash({ clock, at: start }: { clock: Clock; at: number }) {
   const a = useAnimatedStyle(() => {
     const c = clock.value - start;

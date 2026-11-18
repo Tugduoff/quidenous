@@ -3,19 +3,14 @@ import { fr } from '@/locales/fr';
 import { t } from '@/lib/i18n';
 import type { Member } from '@/lib/api/group';
 
-/** The whole-room token in the app's language (`tous`, `everyone`): pings everyone in the room. */
 export const everyone = () => t('chat.everyone');
-/** Every language's word: a message written in either one shows (and pings) the whole room. */
 const EVERYONE_WORDS = [...new Set([fr.chat.everyone, en.chat.everyone])];
 
-/** Lower case, no accents: "Éloïse" → "eloise". */
 const fold = (s: string) => (typeof s.normalize === 'function' ? s.normalize('NFD').replace(/[\u0300-\u036f]/g, '') : s).toLowerCase();
 
 const isSpace = (c: string | undefined) => c == null || /\s/.test(c);
-/** Part of a name: a letter (any script), a digit, `-`, `_` or an apostrophe. Ends a token when it isn't. */
 const isNameChar = (c: string | undefined) => c != null && (c.toLowerCase() !== c.toUpperCase() || /[0-9_'’-]/.test(c));
 
-/** The `@query` being typed right before the caret (no space in it), or null. `at` is the index of the `@`. */
 export function activeMention(text: string, caret: number): { at: number; query: string } | null {
   const end = Math.min(caret, text.length);
   for (let i = end - 1; i >= 0 && end - i <= 40; i--) {
@@ -26,7 +21,6 @@ export function activeMention(text: string, caret: number): { at: number; query:
   return null;
 }
 
-/** A name matches when it, or one of its words, starts with the query (case and accents ignored). */
 export function matches(name: string, query: string) {
   const q = fold(query);
   if (!q) return true;
@@ -34,7 +28,6 @@ export function matches(name: string, query: string) {
   return n.startsWith(q) || n.split(/[\s'’.-]+/).some((w) => w.startsWith(q));
 }
 
-/** Where `token` (e.g. "@Louis") stands on its own in `text`: after a space or the start, not followed by more of a name. */
 function tokenAt(text: string, token: string, i: number) {
   return text.slice(i, i + token.length).toLowerCase() === token.toLowerCase() && isSpace(text[i - 1]) && !isNameChar(text[i + token.length]);
 }
@@ -44,10 +37,6 @@ function hasToken(text: string, token: string) {
   return false;
 }
 
-/**
- * Who a message about to be sent pings: the people picked from the list whose `@Name` is still in the text,
- * plus anyone whose full name was typed by hand (when no one else in the room has that name).
- */
 export function outgoing(text: string, picked: number[], members: Member[]) {
   const ids = new Set<number>();
   for (const id of picked) {
@@ -64,7 +53,6 @@ export function outgoing(text: string, picked: number[], members: Member[]) {
 
 export type Segment = { text: string; member?: Member; everyone?: boolean };
 
-/** Splits a message into plain text and mentions. Longest names first, so "@Louis-Marie" isn't read as "@Louis". */
 export function segments(text: string, mentioned: Member[], everyone: boolean): Segment[] {
   const tokens: { token: string; member?: Member }[] = mentioned.filter((m) => m.name.trim()).map((m) => ({ token: `@${m.name}`, member: m }));
   if (everyone) for (const w of EVERYONE_WORDS) tokens.push({ token: `@${w}` });

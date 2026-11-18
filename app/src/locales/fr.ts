@@ -1,4 +1,3 @@
-// French: the source of truth. Every key here must exist in en.ts (tsc checks it). See docs/I18N.md.
 import { common } from '@/locales/fr/common';
 import { vote } from '@/locales/fr/vote';
 import { results } from '@/locales/fr/results';
@@ -81,5 +80,4 @@ export const fr = {
   widget,
 };
 
-/** The shape every language follows (strings widened, same keys). */
 export type Messages = typeof fr;

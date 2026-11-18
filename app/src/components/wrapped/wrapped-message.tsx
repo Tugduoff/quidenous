@@ -4,7 +4,6 @@ import { Mascot } from '@/components/mascot/mascot';
 import { useTheme } from '@/lib/theme';
 import { sys } from '@/components/wrapped/constants';
 
-/** Not a card: a mascot and a few words (out of season, not enough played, an older server). */
 export function WrappedMessage({ who, mood, title, line }: { who: 'roupi' | 'pave'; mood: 'sleepy' | 'think'; title: string; line?: string }) {
   const t = useTheme();
   return (

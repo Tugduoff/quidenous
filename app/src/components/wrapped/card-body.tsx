@@ -11,7 +11,6 @@ import type { Member } from '@/lib/api/group';
 import { bigSize } from '@/lib/utils/wrapped';
 import { INK, sys } from '@/components/wrapped/constants';
 
-/** Someone on a card, as an avatar can show them (a photo, a drawn avatar or their initial on their colour). */
 const asMember = (p: WrappedCard['people'][number], i: number): Member => ({
   id: -1 - i,
   name: p.name,
@@ -20,7 +19,6 @@ const asMember = (p: WrappedCard['people'][number], i: number): Member => ({
   avatar: p.avatar,
 });
 
-/** What a card says: its title, the big figure, the punchline, the people and the card's mascot. */
 export function CardBody({ card, n, total }: { card: WrappedCard; n: number; total: number }) {
   const t = useTheme();
   const tr = useT();

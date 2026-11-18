@@ -1,4 +1,3 @@
-/** 1337: digital rain, the number decodes itself. */
 import { useMemo } from 'react';
 import { Platform, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import Animated, { Extrapolation, interpolate, useAnimatedStyle } from 'react-native-reanimated';
@@ -54,7 +53,6 @@ function RainColumn({
   );
 }
 
-/** One character of the number: scrambles through hex digits, stepping (no smooth roll), then locks. */
 function DecodeChar({ clock, strip, start, land, size, w }: { clock: Clock; strip: string[]; start: number; land: number; size: number; w: number }) {
   const lineH = Math.round(size * 1.08);
   const n = strip.length;

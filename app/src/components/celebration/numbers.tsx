@@ -1,4 +1,3 @@
-/** The big number: plain, glowing, or rolling up like a counter. */
 import { useMemo } from 'react';
 import { Text, type TextStyle, View } from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
@@ -7,10 +6,8 @@ import { backOut, clamp01 } from '@/lib/utils/easing';
 
 import type { Clock } from '@/components/celebration/engine';
 
-/** A text glow: a soft shadow all around. */
 export const glowText = (color: string, radius = 24) => ({ textShadowColor: color, textShadowRadius: radius, textShadowOffset: { width: 0, height: 0 } });
 
-/** Overshoot of a digit rolling into place. */
 const ROLL_OVERSHOOT = 1.4;
 
 function RollDigit({
@@ -33,7 +30,6 @@ function RollDigit({
   spins: number;
 }) {
   const lineH = Math.round(size * 1.02);
-  // A strip of digits counting up into the target: 0…9 `spins` times, then up to the digit.
   const strip = useMemo(() => {
     const out: number[] = [];
     for (let i = 0; i < spins * 10 + digit + 1; i++) out.push(i % 10);
@@ -67,7 +63,6 @@ function RollDigit({
   );
 }
 
-/** A counter roll: each digit spins up into place, left to right. Ends around `at + dur + (digits-1) × stagger`. */
 export function RollNumber({
   clock,
   value,
@@ -107,7 +102,6 @@ export function RollNumber({
   );
 }
 
-/** Big number text with an optional glow (text shadow). */
 export function BigNumber({
   value,
   size,

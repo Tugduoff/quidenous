@@ -11,7 +11,6 @@ import { useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 import { firstName } from '@/lib/utils/names';
 
-/** My guesses once sent: each answer and who I said wrote it. */
 export function GuessRecap({ answers, guesses, byId }: { answers: SaidAnswer[]; guesses: SaidGuess[]; byId: Map<number, Member> }) {
   const t = useTheme();
   const tr = useT();

@@ -7,7 +7,6 @@ import { EyeOff, Eye } from 'lucide-react-native';
 
 export type InputRef = ComponentRef<typeof TextInput>;
 
-/** A text field in its own card; `inset` = inside a card already (second-level background). */
 export function Field({ ref, style, right, inset, ...props }: TextInputProps & { ref?: Ref<InputRef>; right?: ReactNode; inset?: boolean }) {
   const t = useTheme();
   const Box = inset ? View : Card;
@@ -26,7 +25,6 @@ export function Field({ ref, style, right, inset, ...props }: TextInputProps & {
   );
 }
 
-/** Password with a show/hide eye. `fresh` = a new password (the phone may offer a strong one). */
 export function PasswordField({ fresh, ...props }: TextInputProps & { ref?: Ref<InputRef>; fresh?: boolean; inset?: boolean }) {
   const t = useTheme();
   const tr = useT();
@@ -56,7 +54,6 @@ export function PasswordField({ fresh, ...props }: TextInputProps & { ref?: Ref<
 
 export const CODE_LENGTH = 6;
 
-/** Six boxes for a 6-digit code; one hidden field underneath takes the typing, pasting and the phone's autofill. */
 export function CodeField({
   value,
   onChange,
@@ -116,7 +113,6 @@ export function CodeField({
   );
 }
 
-/** Recovery code field (`xxxxx-xxxxx`), spaced out like the code boxes. */
 export function RecoveryField({ value, onChange, onDone }: { value: string; onChange: (v: string) => void; onDone: () => void }) {
   const tr = useT();
   return (

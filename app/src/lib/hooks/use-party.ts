@@ -23,10 +23,6 @@ export function useGuestScreenLanguage(language: Lang | undefined, signedIn: boo
   }, [language, signedIn]);
 }
 
-/**
- * Where the big screen's reveal is: the step (an answer) or `steps.length` (the scoreboard), from the time since the
- * question closed on the server's clock. So a screen opened late, or reloaded, catches up, and two screens agree.
- */
 export function useScreenStep(closedAt: string | null, clock: number, steps: number[]) {
   const key = steps.join(',');
   const [step, setStep] = useState(() => stepAt(closedAt, clock, steps, Date.now()).step);

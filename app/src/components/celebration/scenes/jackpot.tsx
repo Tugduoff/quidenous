@@ -1,4 +1,3 @@
-/** 777: a slot machine that lands on 7-7-7, then a coin fountain. */
 import { useMemo } from 'react';
 import { Platform, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
@@ -88,9 +87,7 @@ function SlotSymbol({ kind, font }: { kind: Sym; font: string }) {
   }
 }
 
-/** One reel: a strip of symbols scrolling up, landing on a 7 (with a small bounce past it). */
 function SlotReel({ clock, strip, start, land, font }: { clock: Clock; strip: Sym[]; start: number; land: number; font: string }) {
-  // The 7 is second to last: the bounce overshoots onto the one after it.
   const end = (strip.length - 2) * CELL_H;
   const style = useAnimatedStyle(() => {
     const p = clamp01((clock.value - start) / (land - start));
@@ -105,7 +102,6 @@ function SlotReel({ clock, strip, start, land, font }: { clock: Clock; strip: Sy
           </View>
         ))}
       </Animated.View>
-      {/* Cylinder shading. */}
       <View pointerEvents="none" style={StyleSheet.absoluteFill}>
         <Svg width={CELL_W} height={CELL_H}>
           <Defs>
@@ -123,7 +119,6 @@ function SlotReel({ clock, strip, start, land, font }: { clock: Clock; strip: Sy
   );
 }
 
-/** A marquee bulb: chases slowly while the reels spin, then flashes fast on the jackpot. */
 function Bulb({ clock, x, y, parity, jackpot }: { clock: Clock; x: number; y: number; parity: number; jackpot: number }) {
   const style = useAnimatedStyle(() => {
     const c = clock.value;
@@ -272,7 +267,6 @@ export const jackpot: SceneFactory = (m, t) => {
                   {bulbs.map((b, i) => (
                     <Bulb key={i} clock={clock} x={b.x - 3} y={b.y - 3} parity={(Math.floor(i / 2) + (i % 2)) % 2} jackpot={win} />
                   ))}
-                  {/* The pay line. */}
                   <View
                     pointerEvents="none"
                     style={{

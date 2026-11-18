@@ -8,7 +8,6 @@ import { useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 import type { ChoosePerson as Person } from '@/lib/utils/choose';
 
-/** What each of them guessed for me, by item; my real one ringed in my colour. */
 export function AboutMe({ person: p, items, byId }: { person: Person; items: string[]; byId: Map<number, Member> }) {
   const t = useTheme();
   const tr = useT();

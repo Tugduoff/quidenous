@@ -13,14 +13,8 @@ import { useInstallPrompt } from '@/lib/hooks/use-install-prompt';
 
 const web = Platform.OS === 'web' && typeof window !== 'undefined';
 
-/**
- * The web build is meant for the home screen app (push, full screen, its own session).
- * In a phone browser it works, with a banner to install it; on a computer it only shows how to open it on a phone.
- * Not in development, to keep `expo start --web`.
- */
 export function installMode(): 'none' | 'banner' | 'block' {
   if (!web || __DEV__) return 'none';
-  // A party (its join link, its screen, its big-screen view on a TV or laptop): played right in the browser.
   if (location.pathname.startsWith('/party/')) return 'none';
   const standalone =
     window.matchMedia('(display-mode: standalone)').matches ||
@@ -30,7 +24,6 @@ export function installMode(): 'none' | 'banner' | 'block' {
   return device() === 'desktop' ? 'block' : 'banner';
 }
 
-/** Top of the app in a phone browser: opens the install steps. */
 export function InstallBanner({ onOpen, onClose }: { onOpen: () => void; onClose: () => void }) {
   const t = useTheme();
   const tr = useT();
@@ -60,7 +53,6 @@ export function InstallBanner({ onOpen, onClose }: { onOpen: () => void; onClose
 
 function device(): 'ios' | 'android' | 'desktop' {
   const ua = navigator.userAgent;
-  // iPadOS says it is a Mac: tell them apart by the touch screen.
   if (/iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) return 'ios';
   if (/Android/.test(ua)) return 'android';
   return 'desktop';

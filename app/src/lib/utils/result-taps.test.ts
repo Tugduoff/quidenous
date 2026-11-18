@@ -1,4 +1,3 @@
-// Live reactions' pure logic. Run from app/: `bun test src/lib/result-taps.test.ts`.
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 
@@ -19,7 +18,6 @@ import {
 
 const live = (member_id: number, user_id: number, emoji: string, count: number): LiveTap => ({ member_id, user_id, emoji, count });
 
-/** Timers the test fires by hand. */
 function manualTimers() {
   const pending = new Map<number, () => void>();
   let id = 0;

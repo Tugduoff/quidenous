@@ -4,7 +4,6 @@ import { useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 import type { SaidAnswer } from '@/lib/api/rounds';
 
-/** An answer's text with its opening quote mark, or "Réponse masquée" (hidden by reports). */
 export function AnswerText({ answer, size = 17 }: { answer: Pick<SaidAnswer, 'text' | 'hidden'>; size?: number }) {
   const t = useTheme();
   const tr = useT();

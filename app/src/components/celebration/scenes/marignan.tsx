@@ -1,4 +1,3 @@
-/** 1515: Marignan — two swords clash, then bleu, blanc, rouge. */
 import { useMemo } from 'react';
 import Svg, { Circle, Defs, G, LinearGradient, Path, Polygon, Rect, Stop } from 'react-native-svg';
 
@@ -8,7 +7,6 @@ import { Keyed } from '@/components/celebration/motion';
 import { NAVY, TRICOLORE } from '@/components/celebration/palettes';
 import { numberSize, type SceneFactory, type SceneProps, SlamNumber } from '@/components/celebration/scene';
 
-/** A sword drawn pointing up, `len` px long. */
 function Sword({ len }: { len: number }) {
   const w = len * 0.2;
   return (
@@ -88,7 +86,6 @@ export const marignan: SceneFactory = (m, t) => {
         ],
         [rand, w, h, cx, sy],
       );
-      // Each sword swings in from its side, strikes, recoils, and settles crossed.
       const times = [0, clash - 380, clash, clash + 90, clash + 300, clash + 520];
       const size = numberSize(m.n);
       const sword = (side: -1 | 1) => (

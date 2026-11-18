@@ -17,7 +17,6 @@ import { useTheme } from '@/lib/theme';
 import { isPartyOwner, tallies } from '@/lib/utils/party';
 import { tidy } from '@/lib/utils/text';
 
-/** The result: the winner big, the bars with who voted, reactions, and "Suivante". */
 export function PartyReveal({ party, round }: { party: Party; round: PartyRound }) {
   const t = useTheme();
   const tr = useT();
@@ -71,7 +70,6 @@ export function PartyReveal({ party, round }: { party: Party; round: PartyRound 
           {list.length > 0 && <ResultBars result={list} byId={byId} />}
         </>
       )}
-      {/* Taps with bursts on a newer server (its own counts); the old toggles otherwise. */}
       {resultReactions ? (
         party.me && <LiveReactions roundId={round.id} byId={byId} me={party.me.member_id} />
       ) : (

@@ -2,7 +2,6 @@ import type { ReactNode } from 'react';
 import { type ViewStyle, Pressable, ActivityIndicator, Text } from 'react-native';
 import { useTheme } from '@/lib/theme';
 
-/** A secondary pill button (card colour), with an icon. */
 export function SoftButton({
   children,
   icon,

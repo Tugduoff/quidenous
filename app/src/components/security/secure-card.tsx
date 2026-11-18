@@ -9,7 +9,7 @@ import { storage } from '@/lib/device/storage';
 import { useTheme } from '@/lib/theme';
 
 const KEY = 'qdn.secureDismissed';
-let dismissed: boolean | null = null; // null until read
+let dismissed: boolean | null = null;
 const listeners = new Set<() => void>();
 const set = (v: boolean) => {
   dismissed = v;
@@ -20,7 +20,6 @@ storage
   .then((v) => set(v === '1'))
   .catch(() => set(false));
 
-/** Home screen, legacy account (token only): a nudge to add an email or link Google / Discord. Dismissible for good. */
 export function SecureCard() {
   const t = useTheme();
   const tr = useT();

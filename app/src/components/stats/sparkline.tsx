@@ -15,7 +15,6 @@ const parseDay = (s: string) => {
   return new Date(y, (m || 1) - 1, d || 1);
 };
 
-/** Questions per day (or week): the total, the average, and the curve under it. */
 export function Sparkline({ activity }: { activity: Activity }) {
   const t = useTheme();
   const tr = useT();

@@ -1,4 +1,3 @@
-/** 321: countdown and lift-off. */
 import { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
@@ -71,7 +70,6 @@ export const liftOff: SceneFactory = (m, t) => {
         [rand, w, h],
       );
       const list = useMemo<Particle[]>(() => {
-        // The rocket's tail on screen at time `ms`.
         const tail = (ms: number) => riseY(h, ms) + 50;
         const smoke = Array.from({ length: 16 }, (_, i) => {
           const at = lift + 120 + i * 50;

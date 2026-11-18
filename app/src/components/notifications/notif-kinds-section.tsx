@@ -13,7 +13,6 @@ const KINDS: { kind: NotifKind; label: TKey; Icon: LucideIcon }[] = [
   { kind: 'nudge', label: 'notifications.kinds.nudge', Icon: BellRing },
   { kind: 'added', label: 'notifications.kinds.added', Icon: UserPlus },
   { kind: 'ask', label: 'notifications.kinds.ask', Icon: MessageCircleQuestion },
-  // Only from a server with streaks (docs/STREAKS.md).
   { kind: 'streak', label: 'streaks.notif', Icon: Flame },
 ];
 

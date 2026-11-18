@@ -3,7 +3,6 @@ import { ApiError } from '@/lib/api/client';
 import { type Queue, questionKeys, reorderQueue } from '@/lib/api/questions';
 import { useT } from '@/lib/i18n';
 
-/** Puts the queue in a new order: it shows at once, and comes back if the server says no. */
 export function useQueueReorder(onStatus: (status: string) => void) {
   const tr = useT();
   const qc = useQueryClient();

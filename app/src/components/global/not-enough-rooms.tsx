@@ -3,7 +3,6 @@ import { Text, View } from 'react-native';
 import { useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 
-/** Under the threshold: how many rooms answered so far, out of how many it takes. */
 export function NotEnoughRooms({ rooms, min }: { rooms: number; min: number }) {
   const t = useTheme();
   const tr = useT();

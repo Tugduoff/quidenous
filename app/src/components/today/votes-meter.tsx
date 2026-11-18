@@ -2,7 +2,6 @@ import { Text, View } from 'react-native';
 import { useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 
-/** Votes in out of needed: a short bar and the count. */
 export function VotesMeter({ votes, needed }: { votes: number; needed: number }) {
   const t = useTheme();
   const tr = useT();

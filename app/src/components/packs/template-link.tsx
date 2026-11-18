@@ -5,7 +5,6 @@ import { downloadPackTemplate } from '@/lib/device/share';
 import { useTheme } from '@/lib/theme';
 import { PressableScale } from '@/components/ui/pressable-scale';
 
-/** "AI template": the pack file format, for an AI agent to write a file the app imports (shown when the server has `pack_template`). */
 export function TemplateLink({ style }: { style?: ViewStyle }) {
   const t = useTheme();
   const tr = useT();

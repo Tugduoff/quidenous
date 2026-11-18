@@ -1,4 +1,3 @@
-/** 1000 / 2000: gold fireworks, then MILLE slams down. */
 import { useMemo } from 'react';
 import { Text } from 'react-native';
 
@@ -42,7 +41,6 @@ export const mille: SceneFactory = (m, t) => {
         ],
         [fw, rand, w, h, cx, cy],
       );
-      // Sized for the five letters of "MILLE"; a longer word ("THOUSAND") gets smaller to fit the width.
       const word = Math.min(98, Math.floor((w / 4) * Math.min(1, 5 / thousand.length)));
       const small = 54;
       const box = (two ? word * 0.62 : 0) + word * 1.04 + small * 1.05 + 10;

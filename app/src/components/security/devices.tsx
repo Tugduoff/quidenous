@@ -20,7 +20,6 @@ import { authError } from '@/lib/api/errors';
 import { useFeatures } from '@/lib/api/features';
 import { useLockMethod } from '@/lib/hooks/use-app-lock';
 
-/** Google / Discord: link (the web leaves for the provider and comes back on /oauth), unlink. */
 export function ProvidersSection({ account }: { account: Account }) {
   const tr = useT();
   const qc = useQueryClient();
@@ -79,7 +78,6 @@ export function ProvidersSection({ account }: { account: Account }) {
   );
 }
 
-/** The server stores the label as sent (percent-encoded, see lib/device.ts): shown decoded. */
 function label(s: DeviceSession) {
   if (!s.device) return translate('security.devices.unknown');
   try {
@@ -89,7 +87,6 @@ function label(s: DeviceSession) {
   }
 }
 
-/** Where I'm signed in: this device first, sign one out, or every other one. */
 export function SessionsSection() {
   const t = useTheme();
   const tr = useT();
@@ -152,13 +149,11 @@ export function SessionsSection() {
   );
 }
 
-/** Face ID / fingerprint when coming back to the app (phones with the native module only). */
 export function LockSection() {
   const t = useTheme();
   const tr = useT();
   const { enabled } = useLock();
   const [error, setError] = useState<string | null>(null);
-  // Say what it actually asks for: "Face ID" means nothing on a phone with a fingerprint reader.
   const method = useLockMethod();
   if (!lockSupported) return null;
   const label = tr(`security.lock.${method}`);
@@ -180,7 +175,6 @@ export function LockSection() {
   );
 }
 
-/** Sign out, after a warning when the account has no way back in (legacy, token only). */
 export function useSignOut() {
   const tr = useT();
   const { signOut } = useSession();

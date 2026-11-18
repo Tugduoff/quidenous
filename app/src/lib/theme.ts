@@ -27,7 +27,6 @@ export const themes = {
     accInk: '#C8FF3D',
     accSoft: '#1F2412',
     tag: '#FF4FA3',
-    /** Pink text and its icons (errors, danger rows): `tag` is too light on the light background. */
     tagInk: '#FF4FA3',
     shadow: {},
   },
@@ -61,8 +60,6 @@ const PREF_KEY = 'qdn.theme';
 let pref: ThemePref = 'system';
 const listeners = new Set<() => void>();
 
-// The saved choice loads asynchronously on the phone: the app waits for it (under the splash screen)
-// so a dark choice on a light phone doesn't flash light first.
 let prefLoaded = false;
 storage
   .get(PREF_KEY)
@@ -107,7 +104,6 @@ export function useScheme(): 'light' | 'dark' {
   return chosen === 'system' ? (system === 'light' ? 'light' : 'dark') : chosen;
 }
 
-/** Accent colour, independent of light/dark: buttons, highlights, selections. Names: `profile.accents.<key>`. */
 export const ACCENTS = {
   lime: { acc: '#C8FF3D', inkDark: '#C8FF3D', inkLight: '#4F7D00', softDark: '#1F2412', softLight: '#F1FFD0' },
   rose: { acc: '#FF6DB5', inkDark: '#FF6DB5', inkLight: '#C2186B', softDark: '#2A1220', softLight: '#FFE3F0' },

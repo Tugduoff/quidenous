@@ -11,7 +11,6 @@ const PERIODS: { value: StatsPeriod; label: TKey }[] = [
   { value: 'all', label: 'stats.period.all' },
 ];
 
-/** Compact segmented control: the chosen period sits on an accent pill. */
 export function PeriodSwitch({ value, onChange }: { value: StatsPeriod; onChange: (p: StatsPeriod) => void }) {
   const t = useTheme();
   const tr = useT();

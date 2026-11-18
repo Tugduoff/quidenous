@@ -7,46 +7,30 @@ import { useGroup } from '@/lib/api/group';
 import { useFeatures } from '@/lib/api/features';
 
 export type WrappedScope = 'me' | 'room';
-/** Someone shown on a card (only people who share a room with me). */
 type WrappedPerson = { name: string; color: string; photo_url: string | null; avatar: string | null };
 export type WrappedCard = {
-  /** Unique in the list: 'intro', 'crush', 'nemesis', … */
   key: string;
-  /** Lucide name, kebab-case. */
   icon: string;
   mascot: { who: Who; mood: Mood } | null;
-  /** The small caps line, e.g. "Ton crush de l'année". */
   title: string;
-  /** The big figure or name. */
   big: string;
-  /** One punchline. */
   line: string;
   people: WrappedPerson[];
-  /** Question cards: the question. */
   question?: string;
-  /** Intro and outro can't be shared. */
   shareable: boolean;
 };
-/** `GET /wrapped`: the year's cards (texts in my language), or why there are none. */
 export type Wrapped = {
   year: number;
   scope: WrappedScope;
-  /** False outside the window (no cards) unless previewing. */
   available: boolean;
-  /** Shown thanks to a preview (admin, dev server). */
   preview: boolean;
-  /** I may ask for a preview. */
   can_preview: boolean;
-  /** The window, `YYYY-MM-DD`. */
   from: string;
   until: string;
-  /** scope=room: the room's name. */
   room: string | null;
-  /** Empty when there isn't enough to tell. */
   cards: WrappedCard[];
 };
 
-/** Minutes east of UTC: the year's days are cut in my time zone. */
 const tz = () => -new Date().getTimezoneOffset();
 
 const wrappedKeys = {
@@ -54,19 +38,16 @@ const wrappedKeys = {
   view: (scope: WrappedScope, preview: boolean) => ['wrapped', scope, preview ? 'preview' : 'live'] as const,
 };
 
-/** Whatever the server sent, with the lists the screens rely on. */
 function normalize(w: Wrapped): Wrapped {
   const cards = Array.isArray(w?.cards) ? w.cards.filter((c) => c && typeof c.key === 'string') : [];
   return { ...w, cards: cards.map((c) => ({ ...c, people: Array.isArray(c.people) ? c.people : [], mascot: c.mascot ?? null })) };
 }
 
-/** A room's Wrapped exists for rooms only (not parties, not without a room). */
 export function useRoomWrappedOk() {
   const { data: group } = useGroup();
   return !!group && group.kind !== 'party';
 }
 
-/** My year (`me`, across my rooms) or the room's, from a server that has Wrapped. `preview`: an admin looking early. */
 export function useWrapped(scope: WrappedScope, preview = false) {
   const { wrapped } = useFeatures();
   const roomOk = useRoomWrappedOk();
@@ -75,16 +56,10 @@ export function useWrapped(scope: WrappedScope, preview = false) {
     queryFn: async () =>
       normalize(await api<Wrapped>(`/wrapped?scope=${scope}&tz=${tz()}${preview ? '&preview=1' : ''}`)),
     enabled: wrapped && (scope === 'me' || roomOk),
-    // The year's numbers barely move while I look; the screen and the entry points share one answer.
     staleTime: 10 * 60_000,
   });
 }
 
-/**
- * Whether to offer my Wrapped (Stats banner, profile row): during the window, or anytime as a preview for those who may.
- * `preview`: labelled "Aperçu"; `ask`: the screen must ask for the preview (out of season). Null: nothing to offer
- * (an older server, out of season).
- */
 export function useWrappedEntry(): { year: number; preview: boolean; ask: boolean } | null {
   const { data } = useWrapped('me');
   if (!data) return null;
@@ -93,7 +68,6 @@ export function useWrappedEntry(): { year: number; preview: boolean; ask: boolea
   return null;
 }
 
-/** Share one card: the server freezes it into a public link (its picture is the card), then the usual share flow. */
 export function shareWrappedCard(w: Wrapped, card: WrappedCard) {
   return shareCard(
     () =>

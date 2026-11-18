@@ -6,7 +6,6 @@ import { useTheme } from '@/lib/theme';
 import { shareWrappedCard, type Wrapped, type WrappedCard } from '@/lib/api/wrapped';
 import { INK } from '@/components/wrapped/constants';
 
-/** The share button of a shareable card (the server draws its picture). */
 export function ShareButton({ w, card }: { w: Wrapped; card: WrappedCard }) {
   const t = useTheme();
   const tr = useT();

@@ -10,7 +10,6 @@ import type { guessGroups } from '@/lib/utils/said';
 
 const sys = ReduceMotion.System;
 
-/** One name the others put on the answer, and who did; once the author is out, the right one lights up, the rest fade. */
 export function GuessRow({
   group: g,
   byId,
@@ -22,7 +21,6 @@ export function GuessRow({
   byId: Map<number, Member>;
   delay: number;
   settle: number;
-  /** A size factor (the big screen). */
   k?: number;
 }) {
   const t = useTheme();

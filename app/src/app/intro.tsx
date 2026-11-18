@@ -1,5 +1,3 @@
-// The first-run intro: la bande shows a new account how a round goes, then on to a first room (lib/intro.ts for the rules,
-// docs/TODAY.md "Intro"). Four short steps: hello, a practice vote on the Petons, its verdict, your turn. Skippable at any time.
 import { type ReactNode, useCallback, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
@@ -20,7 +18,6 @@ import { useTheme } from '@/lib/theme';
 type Step = 'hello' | 'vote' | 'verdict' | 'end';
 const STEPS: Step[] = ['hello', 'vote', 'verdict', 'end'];
 
-
 export default function Intro() {
   const tr = useT();
   const { endIntro, roomless } = useSession();
@@ -29,8 +26,6 @@ export default function Intro() {
   const i = STEPS.indexOf(step);
   const counted = useCallback(() => setStep('verdict'), []);
 
-  // Back a step (Android's button; the first step leaves the app, as any first screen). Back to the practice vote
-  // (from its verdict or the end): a fresh ballot.
   useHardwareBack(() => {
     const prev = STEPS[i - 1] === 'verdict' ? 'vote' : STEPS[i - 1];
     if (prev === 'vote') setPick(null);

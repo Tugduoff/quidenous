@@ -9,7 +9,6 @@ import { useTheme } from '@/lib/theme';
 import { Card } from '@/components/ui/card';
 import { QuestionText } from '@/components/ui/text';
 
-/** My suggestions and where each one stands; the three newest unless opened. */
 export function MySuggestions({ items }: { items: Suggestion[] }) {
   const t = useTheme();
   const tr = useT();

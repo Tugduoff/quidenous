@@ -18,15 +18,10 @@ import { Logo } from '@/components/ui/text';
 import { useRooms } from '@/lib/api/rooms';
 import { pendingPlayToken, setPendingPlay } from '@/lib/auth-flow';
 
-/**
- * `/play?share={token}`: a question shared from another room. Add it to one of my rooms (it comes next there)
- * or create a room with it. Signed out: the question, and sign in first (the token waits, see lib/auth).
- */
 export default function PlayScreen() {
   const t = useTheme();
   const tr = useT();
   const { share } = useLocalSearchParams<{ share?: string }>();
-  // A deep link carries it as a param; the web read it at load (the router drops the query).
   const [token] = useState(() => {
     const value = share || pendingPlayToken();
     if (value) setPendingPlay(value);
@@ -35,7 +30,6 @@ export default function PlayScreen() {
   const { token: session, roomless, enterRoom } = useSession();
   const signedIn = !!session;
   const info = usePlay(token);
-  // Signed out or roomless there is no list to ask for.
   const { data: rooms } = useRooms(signedIn && !roomless);
   const switchRoom = useSwitchRoom();
   const [creating, setCreating] = useState(false);
@@ -53,7 +47,6 @@ export default function PlayScreen() {
       router.replace('/');
     } else await switchRoom(id);
   };
-  // An existing room: the question goes in first, then the app moves there.
   const playHere = (id: number) => (token ? playInto(token, id) : Promise.reject(new Error('no shared question')));
   const play = useMutation({
     meta: { quiet: true },
@@ -62,7 +55,6 @@ export default function PlayScreen() {
     onSuccess: (_, id) => enter(id),
     onError: (e) => setError(communityError(e)),
   });
-  // A new room: it's mine, so the question always goes in; even if it didn't, the room is made, go there.
   const created = async (id: number) => {
     await playHere(id).catch(() => {});
     await enter(id);

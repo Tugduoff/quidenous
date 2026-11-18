@@ -15,7 +15,6 @@ import { RoomMembers } from '@/components/rooms/room-members';
 import { LeaveRoomButton } from '@/components/rooms/leave-room-button';
 import { MuteButton } from '@/components/rooms/mute-button';
 
-/** The group's own page: its name, invite and members (my profile stays about me); the owner's settings are behind the gear. */
 export default function GroupScreen() {
   const t = useTheme();
   const tr = useT();

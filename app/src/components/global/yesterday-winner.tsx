@@ -5,7 +5,6 @@ import { useTheme } from '@/lib/theme';
 import { Avatar } from '@/components/ui/avatar';
 import { type Member } from '@/lib/api/group';
 
-/** Yesterday in my room: who came first (everyone tied for first). */
 export function YesterdayWinner({ tally, byId }: { tally: GlobalCount[]; byId: Map<number, Member> }) {
   const t = useTheme();
   const tr = useT();

@@ -2,7 +2,6 @@ import { api, appUrl } from '@/lib/api/client';
 import { queryClient } from '@/lib/api/query-client';
 import { useQuery } from '@tanstack/react-query';
 
-/** One of my public links (`GET /shares`): a question (with its result or not) or a stats story. */
 export type MyLink = {
   token: string;
   path: string;
@@ -11,7 +10,6 @@ export type MyLink = {
   room: string;
   with_result: boolean;
   created_at: string;
-  /** Null for links made before links expired. */
   expires_at: string | null;
 };
 
@@ -28,7 +26,6 @@ export const shareRound = (roundId: number, result: boolean) =>
 
 export const revokeLink = (token: string) => api(`/shares/${token}`, { method: 'DELETE' });
 
-/** Public link to a card of this question (with its podium when `result`), previewed as an image in chats. */
 export async function publicLink(roundId: number, result: boolean): Promise<string | null> {
   try {
     const r = await shareRound(roundId, result);

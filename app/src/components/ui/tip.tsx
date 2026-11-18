@@ -7,7 +7,6 @@ import { motion } from '@/lib/motion';
 import { dismissTip, useTipVisible } from '@/lib/device/prefs';
 import { useTheme } from '@/lib/theme';
 
-/** A one-line first-run hint with an X; once closed it never comes back (kept per device). */
 export function Tip({ id, text }: { id: string; text: string }) {
   const t = useTheme();
   const tr = useT();

@@ -10,10 +10,6 @@ import { NamedIcon } from '@/components/stats/common';
 import { Card } from '@/components/ui/card';
 import { useFeatures } from '@/lib/api/features';
 
-/**
- * The three metals: `fill` the disc, `light` its shine, `rim` its edge, `ink` the tier's name as text (darker on the light
- * background, for 4.5:1). The icon on a disc is always near-black: every fill is light enough for it.
- */
 const TIERS = {
   1: { key: 'bronze', fill: '#D9935A', light: '#F4C79F', rim: '#9A5A2A', inkLight: '#8A4B1C', inkDark: '#E8A673' },
   2: { key: 'silver', fill: '#C3CBD6', light: '#F2F5F9', rim: '#7D8794', inkLight: '#56606E', inkDark: '#D5DCE5' },
@@ -23,15 +19,10 @@ const DISC_INK = '#121216';
 
 export const tierName = (tier: 1 | 2 | 3, tr: typeof translate) => tr(`badges.tiers.${TIERS[tier].key}`);
 
-/** A tier's colour as text, readable on this theme's background. */
 export function useTierInk(tier: 1 | 2 | 3) {
   return useScheme() === 'dark' ? TIERS[tier].inkDark : TIERS[tier].inkLight;
 }
 
-/**
- * A medal: a metal disc with the badge's icon once earned, a muted silhouette (and a small lock) while locked.
- * Decorative: whoever shows it says what it is.
- */
 export const MedalDisc = memo(function MedalDisc({ icon, tier, size = 56 }: { icon: string; tier: Tier; size?: number }) {
   const t = useTheme();
   const id = useId().replace(/:/g, '');
@@ -97,7 +88,6 @@ export const MedalDisc = memo(function MedalDisc({ icon, tier, size = 56 }: { ic
   );
 });
 
-/** Three pips, filled up to the tier, each in its own metal. */
 export function TierPips({ tier, size = 10 }: { tier: Tier; size?: number }) {
   const t = useTheme();
   const tr = useT();
@@ -120,7 +110,6 @@ export function TierPips({ tier, size = 10 }: { tier: Tier; size?: number }) {
   );
 }
 
-/** A title next to a name: a small medal and the title, on one line. */
 export const TitleChip = memo(function TitleChip({ chip, size = 'sm' }: { chip: Chip; size?: 'sm' | 'md' }) {
   const t = useTheme();
   const tr = useT();
@@ -149,13 +138,11 @@ export const TitleChip = memo(function TitleChip({ chip, size = 'sm' }: { chip: 
   );
 });
 
-/** A room member's displayed title (nothing when none, or on a server without titles). */
 export const MemberTitle = memo(function MemberTitle({ id, size }: { id: number; size?: 'sm' | 'md' }) {
   const chip = useMemberTitle(id);
   return chip ? <TitleChip chip={chip} size={size} /> : null;
 });
 
-/** Profile, under my name: the title I display (tap: my collection). */
 export function MyTitle() {
   const tr = useT();
   const chip = useMyTitle();
@@ -167,7 +154,6 @@ export function MyTitle() {
   );
 }
 
-/** Profile row: « Titres et badges », with how many I have. */
 export function BadgesRow() {
   const t = useTheme();
   const tr = useT();

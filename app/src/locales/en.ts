@@ -1,4 +1,3 @@
-// English: same keys as fr.ts. Natural English, not word-for-word. See docs/I18N.md.
 import type { Messages } from '@/locales/fr';
 import { common } from '@/locales/en/common';
 import { vote } from '@/locales/en/vote';

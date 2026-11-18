@@ -1,7 +1,6 @@
 import { useTheme } from '@/lib/theme';
 import { View, Pressable, Text } from 'react-native';
 
-/** A compact two-or-more way choice: pills in a track (`label` names the group for screen readers). */
 export function Segmented<T extends string>({
   label,
   options,
@@ -13,7 +12,6 @@ export function Segmented<T extends string>({
   options: { id: T; name: string }[];
   value: T;
   onChange: (v: T) => void;
-  /** Span the whole width (each option grows from its own size). */
   fill?: boolean;
 }) {
   const t = useTheme();

@@ -18,7 +18,6 @@ import { itemsOk, splitTag } from '@/lib/utils/import-draft';
 
 const MIN = 8;
 
-/** Write one: the add button beside the text, the kind under it, in the same card. */
 export function QuestionComposer({ inputRef, perQuestion }: { inputRef: RefObject<ComponentRef<typeof TextInput> | null>; perQuestion: boolean }) {
   const t = useTheme();
   const tr = useT();

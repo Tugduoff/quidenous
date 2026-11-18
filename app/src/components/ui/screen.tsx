@@ -17,7 +17,6 @@ import { useT } from '@/lib/i18n';
 import { useUnreachable } from '@/lib/api/live';
 import { useTheme } from '@/lib/theme';
 
-// Home screen web app on iPhone: the safe-area inset is only known to CSS (same as the tab bar).
 const WEB_BOTTOM = { paddingBottom: 'env(safe-area-inset-bottom)' } as unknown as ViewStyle;
 
 export function Screen({
@@ -34,23 +33,16 @@ export function Screen({
 }: {
   children: ReactNode;
   footer?: ReactNode;
-  /** Inside the tab bar, which already handles the bottom inset. */
   tabs?: boolean;
-  /** Called when the bottom of the content comes within a screen of view, to load more. */
   onEndReached?: () => void;
-  /** The page's ScrollView, to scroll it from outside. (Not named "…Ref": the React Compiler would take it for a stable ref.) */
   scroller?: RefObject<ComponentRef<typeof ScrollView> | null>;
   onScroll?: (e: NativeScrollEvent) => void;
   onContentSizeChange?: ScrollViewProps['onContentSizeChange'];
-  /** Floats over the top of the content (a pinned summary), outside the scroll. */
   overlay?: ReactNode;
-  /** Off while something on the page is being dragged. */
   scrollEnabled?: boolean;
-  /** Pull to refresh. */
   refreshControl?: ReactElement<RefreshControlProps>;
 }) {
   const t = useTheme();
-  // The web's ScrollView keeps the ref it was mounted with: one of our own, handed out after each render.
   const inner = useRef<ComponentRef<typeof ScrollView>>(null);
   useImperativeHandle<ComponentRef<typeof ScrollView> | null, ComponentRef<typeof ScrollView> | null>(scroller, () => inner.current);
   return (
@@ -58,8 +50,6 @@ export function Screen({
       edges={tabs || Platform.OS === 'web' ? ['top'] : ['top', 'bottom']}
       style={[{ flex: 1, backgroundColor: t.bg }, !tabs && Platform.OS === 'web' && WEB_BOTTOM]}>
       <Unreachable />
-      {/* Lift the footer (message box, buttons) above the keyboard. Android too: the app is edge-to-edge,
-          so the system no longer shrinks the window when the keyboard opens. */}
       <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
         <ScrollView
           ref={inner}
@@ -84,7 +74,6 @@ export function Screen({
   );
 }
 
-/** A thin line while the server can't be reached: what's on screen may be out of date. */
 function Unreachable() {
   const t = useTheme();
   const tr = useT();

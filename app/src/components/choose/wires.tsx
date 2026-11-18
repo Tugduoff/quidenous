@@ -16,7 +16,6 @@ export type WireShared = {
   board: SharedValue<{ itemsX: number; rects: Rect[] }>;
 };
 
-/** A plugged wire: follows its person as the list scrolls; its plug springs into the socket. */
 export function Wire({
   color,
   ax,
@@ -47,7 +46,6 @@ export function Wire({
   );
 }
 
-/** The wire in hand, from its person to the finger (or the mouse). Nothing drawn when no drag is on. */
 export function DragWire({
   color,
   ax,
@@ -80,7 +78,6 @@ export function DragWire({
   );
 }
 
-/** The group's guess: a wire that shoots from the person to the item, plug first. */
 export function FlyingWire({
   color,
   from,

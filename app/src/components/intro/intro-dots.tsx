@@ -4,7 +4,6 @@ import { useT } from '@/lib/i18n';
 import { BOUNCE } from '@/lib/motion';
 import { useTheme } from '@/lib/theme';
 
-/** Where I am in the intro: one dot per step, the current one a short pill. */
 export function IntroDots({ index, count }: { index: number; count: number }) {
   const t = useTheme();
   const tr = useT();

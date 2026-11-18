@@ -5,7 +5,6 @@ import { useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
 import { useTheme } from '@/lib/theme';
 
-/** The question closed with fewer than two answers: nothing to guess. */
 export function SaidTooFew({ size, big }: { size: number; big?: boolean }) {
   const t = useTheme();
   const tr = useT();

@@ -27,10 +27,6 @@ const ERRORS: Record<string, TKey> = {
   bad_language: 'room.errors.badLanguage',
 };
 
-/**
- * Join a room with a code (or its QR code), or create one. `joinFirst` puts the code field on top.
- * Creating takes a second step to pick the room's vibe (a server that has them); `onVibeStep` tells the screen, so it can clear the way.
- */
 export function RoomForms({
   initialCode,
   onEntered,
@@ -42,7 +38,6 @@ export function RoomForms({
   onEntered: (id: number) => void;
   joinFirst?: boolean;
   onVibeStep?: (on: boolean) => void;
-  /** Only the create form, under this title (no code field): a room made for something, like a shared question. */
   createOnly?: string;
 }) {
   const t = useTheme();
@@ -55,7 +50,6 @@ export function RoomForms({
   const { data: vibes } = useVibes(features.vibes);
   const [picking, setPicking] = useState(false);
   const [vibe, setVibe] = useState<string | null>(null);
-  // The language of the room's built-in questions: the one I use the app in, unless I pick the other.
   const [language, setLanguage] = useState<Lang>(getLang);
   const showVibes = (on: boolean) => {
     setPicking(on);
@@ -70,7 +64,6 @@ export function RoomForms({
     onSuccess: (r) => onEntered(r.id),
     onError: fail,
   });
-  // Named: on to the vibes when there are some to pick from, else straight in.
   const next = () => {
     if (!name.trim() || create.isPending) return;
     if (vibes?.length) showVibes(true);
@@ -120,7 +113,6 @@ export function RoomForms({
   );
   const joinForm = (
     <>
-      {/* The invite's room under the "join" label: not one of my rooms. */}
       <Text style={[label, joinFirst ? undefined : { marginTop: 8 }]}>{tr('room.join.title')}</Text>
       {!!initialCode && <InvitePreview code={initialCode} />}
       <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 8, padding: 6, paddingLeft: 16 }}>

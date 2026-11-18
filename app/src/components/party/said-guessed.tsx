@@ -18,7 +18,6 @@ import { useTheme } from '@/lib/theme';
 import { phaseSeconds } from '@/lib/utils/party';
 import { toGuess } from '@/lib/utils/said';
 
-/** Guesses sent (or arrived too late to play this one): the clock, who has guessed, and what I said. */
 export function PartySaidGuessed({ party, round, said, top, late }: { party: Party; round: PartyRound; said: SaidView; top: ReactNode; late: boolean }) {
   const t = useTheme();
   const tr = useT();

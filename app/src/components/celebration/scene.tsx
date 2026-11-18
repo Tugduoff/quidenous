@@ -16,36 +16,25 @@ export type SceneProps = {
   clock: Clock;
   m: Milestone;
   t: Theme;
-  /** Stage size (the window). */
   w: number;
   h: number;
-  /** Seeded with the milestone: same party every time. */
   rand: Rand;
-  /** Where the number sits (its centre). */
   cx: number;
   cy: number;
 };
 
 type Scene = {
-  /** Total length (ms); the party closes by itself at the end. */
   duration: number;
-  /** Backdrop colour, drawn at `dim` opacity over the app. */
   bg: string;
   dim?: number;
-  /** Shake the stage and buzz the phone. */
   impacts: Impact[];
   Render: ComponentType<SceneProps>;
 };
 
 export type SceneFactory = (m: Milestone, t: Theme) => Scene;
 
-/** Font size of the big number for this many digits. */
 export const numberSize = (n: number) => (String(n).length > 3 ? 104 : 128);
 
-/**
- * The number centred on (cx, cy) in a box `box` px tall, then "questions !" and the punchline under it, revealed at `at`.
- * Children overflowing the box (reels, glows) stay visible.
- */
 export function Headline({
   clock,
   m,
@@ -91,7 +80,6 @@ export function Headline({
   );
 }
 
-/** The usual finale: the milestone's number slams down at `slam`, its headline revealed at `at`. */
 export function SlamNumber({
   clock,
   m,

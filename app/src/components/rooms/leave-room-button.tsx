@@ -8,10 +8,8 @@ import { askConfirm } from '@/lib/confirm';
 import { useGroup, leaveRoom } from '@/lib/api/group';
 import { authError } from '@/lib/api/errors';
 
-/** Ask before leaving, in the app's own dialog. */
 const confirm = (message: string, title: string, action: string) => askConfirm(title, message, action);
 
-/** Leave the room (anyone; deleting it is in the owner's settings). */
 export function LeaveRoomButton() {
   const t = useTheme();
   const tr = useT();
@@ -20,7 +18,6 @@ export function LeaveRoomButton() {
   if (!group) return null;
   const owner = group.my_role === 'owner';
   const leave = async () => {
-    // Leaving isn't final: the invite code brings me back, with my history.
     const msg = owner && group.members.length <= 1 ? tr('room.group.leaveAlone') : owner ? tr('room.group.leaveOwner') : tr('room.group.leaveMember');
     if (!(await confirm(msg, tr('room.group.leaveAsk'), tr('common.leave')))) return;
     try {

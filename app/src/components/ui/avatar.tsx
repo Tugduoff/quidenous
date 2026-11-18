@@ -12,7 +12,6 @@ import type { Member } from '@/lib/api/group';
 export function Avatar({ member, size = 40 }: { member?: Member; size?: number }) {
   const t = useTheme();
   const uri = member && photoUrl(member);
-  // A drawn avatar the app knows how to draw (a newer one falls back to the initial).
   const avatar = !uri && parseAvatar(member?.avatar) ? member?.avatar : null;
   return (
     <View
@@ -38,13 +37,11 @@ export function Avatar({ member, size = 40 }: { member?: Member; size?: number }
 
 const stackOverlap = (size: number) => Math.round(size * 0.3);
 
-/** Width of an AvatarStack of `count` members (each cell carries a 2 px ring). */
 export function avatarStackWidth(count: number, size: number, max?: number) {
   const n = max ? Math.min(count, max) : count;
   return n * (size + 4) - (n - 1) * stackOverlap(size);
 }
 
-/** Overlapping avatars. `ring` should match the surface behind it; past `max`, a "+N" bubble. */
 export function AvatarStack({ members, size = 28, ring, max }: { members: (Member | undefined)[]; size?: number; ring?: string; max?: number }) {
   const t = useTheme();
   const shown = max && members.length > max ? members.slice(0, max - 1) : members;
@@ -58,7 +55,6 @@ export function AvatarStack({ members, size = 28, ring, max }: { members: (Membe
       {child}
     </Animated.View>
   );
-  // Faces there from the start just show; one joining later (a new vote) pops in.
   return (
     <LayoutAnimationConfig skipEntering>
       <View style={{ flexDirection: 'row' }}>

@@ -10,10 +10,6 @@ import { useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
 import { tidy } from '@/lib/utils/text';
 
-/**
- * The upcoming questions. Sortable: hold one to drag it elsewhere; held and let go on someone else's, report it.
- * Selecting swaps it for the plain list (and back) at once: the old list's rows don't fade out.
- */
 export function QueueList({
   queue,
   sortable,

@@ -9,7 +9,6 @@ import { Dialog, DialogTitle } from '@/components/ui/dialog';
 import { useVibes } from '@/lib/api/group';
 import { useFeatures } from '@/lib/api/features';
 
-/** The tone of the room's built-in questions (a server that has vibes). */
 export function VibeRow({ value, onChange }: { value: string | null; onChange: (vibe: string | null) => void }) {
   const t = useTheme();
   const tr = useT();

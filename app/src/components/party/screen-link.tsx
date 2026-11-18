@@ -8,7 +8,6 @@ import { useT } from '@/lib/i18n';
 import { partyScreenLink } from '@/lib/links';
 import { useTheme } from '@/lib/theme';
 
-/** The big-screen view: open it here, or send its link to the computer on the TV. */
 export function ScreenLink({ code }: { code: string }) {
   const t = useTheme();
   const tr = useT();

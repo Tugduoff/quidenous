@@ -6,7 +6,6 @@ import { useLatest } from '@/lib/hooks/use-latest';
 import { useSwitchRoom } from '@/lib/hooks/use-switch-room';
 import { useSession } from '@/lib/session';
 
-/** Taps a card: that room's vote tab (switching rooms first, its screen fetched on the way). */
 export function useOpenRoom() {
   const { room } = useSession();
   const switchRoom = useLatest(useSwitchRoom());

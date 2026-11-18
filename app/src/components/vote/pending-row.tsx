@@ -11,13 +11,11 @@ import { type Round } from '@/lib/api/rounds';
 import { NudgeButton } from '@/components/vote/nudge-button';
 import { SkipButton } from '@/components/vote/skip-button';
 
-/** Someone we're waiting for: name, "passé" once skipped, the skip and the bell. */
 export function PendingRow({ member: m, round, canSkip, big }: { member: Member; round: Round; canSkip: boolean; big?: boolean }) {
   const t = useTheme();
   const tr = useT();
   const { me } = useSession();
   const skipped = round.skipped_ids.includes(m.id);
-  // Away (missed the last questions in a row): not waited for, no skip needed.
   const away = !skipped && !!round.away_ids?.includes(m.id);
   return (
     <Animated.View exiting={motion.exit} layout={motion.layout} style={{ flexDirection: 'row', alignItems: 'center', gap: big ? 12 : 10 }}>

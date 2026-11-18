@@ -1,13 +1,9 @@
-// What the home-screen widget shows, and where it gets it (docs/WIDGET.md). Runs in the widget's background task, with
-// the app closed: it reads the session from the secure store, trades it once for a read-only widget token
-// (`POST /api/widget/token`), then reads `GET /api/widget` with that token only. The last answer is kept for offline.
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
 import type { Lang } from '@/lib/i18n';
 import { ROOM_KEY, SERVER_KEY, storage, TOKEN_KEY } from '@/lib/device/storage';
 
-/** `GET /api/widget` (server/src/widget.rs). */
 export type WidgetRound = { id: number; number: number; question: string; kind: 'pick' | 'rank' | 'choose' };
 export type WidgetState = {
   state: 'result' | 'vote' | 'wait' | 'idle' | 'no_room';
@@ -23,10 +19,8 @@ export type WidgetState = {
   next_open_at: string | null;
 };
 
-/** `out`: signed out on this phone. `loading`: never loaded and offline. `stale`: the last answer, reloading failed. */
 export type WidgetView = { kind: 'out' } | { kind: 'loading' } | { kind: 'state'; state: WidgetState; at: number; stale?: boolean };
 
-/** `{token, of}`: the widget token and the end of the session it was minted from (another session = mint again). */
 const WIDGET_TOKEN_KEY = 'qdn.widget.token';
 const CACHE_KEY = 'qdn.widget.cache';
 const TIMEOUT_MS = 10_000;
@@ -47,7 +41,6 @@ async function serverUrl() {
   return ((await storage.get(SERVER_KEY)) || process.env.EXPO_PUBLIC_API_URL || '').replace(/\/+$/, '');
 }
 
-/** This phone's FCM token, for the silent "refresh" pushes (none: the widget's timer only). No permission needed. */
 async function fcmToken() {
   if (Platform.OS !== 'android') return undefined;
   try {
@@ -58,7 +51,6 @@ async function fcmToken() {
   }
 }
 
-/** A widget token for this session: `out` when the session is dead, null when it can't be had now (offline, old server). */
 async function mint(base: string, session: string): Promise<string | 'out' | null> {
   const res = await fetchWithin(`${base}/api/widget/token`, {
     method: 'POST',
@@ -90,7 +82,6 @@ async function cached(): Promise<WidgetView> {
   return { kind: 'loading' };
 }
 
-/** Where the widget stands now. Never throws: offline gives the last answer. */
 export async function loadWidgetView(): Promise<WidgetView> {
   const session = await storage.get(TOKEN_KEY).catch(() => null);
   if (!session) {
@@ -98,10 +89,8 @@ export async function loadWidgetView(): Promise<WidgetView> {
     return { kind: 'out' };
   }
   const base = await serverUrl();
-  // The room the app is on (the server falls back to the last one used when I'm not in it any more).
   const room = Number(await storage.get(ROOM_KEY).catch(() => null)) || null;
   let token = await savedToken(session);
-  // Twice at most: a token the server forgot (removed, replaced) is minted again once.
   for (let attempt = 0; attempt < 2; attempt++) {
     if (!token) {
       const minted = await mint(base, session);
@@ -130,10 +119,6 @@ export async function loadWidgetView(): Promise<WidgetView> {
   return cached();
 }
 
-/**
- * Signed out (or forgot the session) on this phone: the widget token goes too, server side as well (signing out already
- * drops it with the session; forgetting the session only on this phone doesn't).
- */
 export async function forgetWidgetToken() {
   const raw = await storage.get(WIDGET_TOKEN_KEY).catch(() => null);
   await storage.remove(WIDGET_TOKEN_KEY).catch(() => {});

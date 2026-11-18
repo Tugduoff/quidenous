@@ -24,7 +24,6 @@ const toUint8 = (b64url: string) => {
 const toB64Url = (buf: ArrayBuffer | null) =>
   buf ? btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '') : '';
 
-/** Must run from a tap (iOS asks for permission only on a user gesture). */
 export async function enablePush(): Promise<PushState> {
   if (!supported()) return 'unsupported';
   const permission = await Notification.requestPermission();
@@ -52,14 +51,12 @@ async function sendSubscription(subscription: PushSubscription) {
   });
 }
 
-/** This browser has a live push subscription (permission alone isn't enough: a subscription can be dropped). */
 export async function webSubscribed() {
   if (pushState() !== 'granted') return false;
   const registration = await navigator.serviceWorker.getRegistration();
   return !!(await registration?.pushManager.getSubscription());
 }
 
-/** On start: re-send an existing subscription (new login on this device, rotated endpoint). */
 export async function refreshPush() {
   if (pushState() !== 'granted') return;
   const registration = await navigator.serviceWorker.register('/sw.js');

@@ -20,7 +20,6 @@ import { partyJoinLink } from '@/lib/links';
 import { useTheme } from '@/lib/theme';
 import { isPartyOwner } from '@/lib/utils/party';
 
-/** Invite, wait for everyone, and (owner) start. */
 export function PartyLobby({ party }: { party: Party }) {
   const t = useTheme();
   const tr = useT();

@@ -11,7 +11,6 @@ import { useCooldown } from '@/lib/hooks/use-cooldown';
 import { flow } from '@/lib/auth-flow';
 import { authError } from '@/lib/api/errors';
 
-/** 2FA lost with no recovery code (from the 2FA step): a code by e-mail, then 2FA is removed 24 h later. */
 export default function MfaResetStep() {
   const tr = useT();
   const [sentTo, setSentTo] = useState<string | null>(null);

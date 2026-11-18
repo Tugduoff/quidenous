@@ -15,9 +15,7 @@ import { useAnimateOnChange } from '@/lib/hooks/use-animate-on-change';
 
 type Icon = ComponentType<{ size?: number; color?: string }>;
 
-// « Aujourd'hui », shown first when on (useTodayTab), then the others; the bar and swiping follow this order.
 const TODAY = { name: 'today', Icon: Sun as Icon, label: 'today.tab' as TKey };
-// The tabs, left to right: the bar and swiping between pages both follow this order.
 const TABS: { name: string; Icon: Icon; label: TKey }[] = [
   { name: 'index', Icon: Vote, label: 'vote.tabs.vote' },
   { name: 'history', Icon: History, label: 'vote.tabs.history' },
@@ -25,13 +23,11 @@ const TABS: { name: string; Icon: Icon; label: TKey }[] = [
   { name: 'questions', Icon: MessageCircleQuestion, label: 'vote.tabs.questions' },
 ];
 
-// Home screen web app on iPhone: the safe-area inset is only known to CSS, so pad with env().
 const WEB_TAB_BAR = {
   height: 'auto',
   paddingBottom: 'max(env(safe-area-inset-bottom), 8px)',
 } as unknown as ViewStyle;
 
-/** The icon pops when its tab gets selected; the dot under it stretches into a short pill. */
 function TabIcon({ Icon, focused }: { Icon: Icon; focused: boolean }) {
   const t = useTheme();
   const color = focused ? t.accInk : t.mut;
@@ -56,7 +52,6 @@ export default function TabsLayout() {
   const { milestone, dismiss } = useMilestone();
   const streak = useStreakMilestone();
   const reduced = useReducedMotion();
-  // « Aujourd'hui », first, with two rooms or more on a server that has it (lib/today.ts).
   const today = useTodayTab();
   const tabs = today ? [TODAY, ...TABS] : TABS;
   const tab = (Icon: Icon, label: string) => ({
@@ -66,12 +61,10 @@ export default function TabsLayout() {
   return (
     <View style={{ flex: 1 }}>
       <Tabs
-        // Swiping sideways on a page: the next or previous tab, as if its icon was tapped (nothing past either end).
         layout={({ state, navigation, children }) => (
           <TabSwipe
             onSwipe={(dir) => {
               const to = tabs[tabs.findIndex((s) => s.name === state.routes[state.index]?.name) + dir];
-              // Only the tabs opened so far are in `routes`; `routeNames` has them all.
               if (!to || !state.routeNames.includes(to.name)) return;
               navigation.navigate(to.name, state.routes.find((r) => r.name === to.name)?.params);
             }}>
@@ -80,7 +73,6 @@ export default function TabsLayout() {
         )}
         screenOptions={{
           headerShown: false,
-          // Switching tabs: the new screen fades in with a small sideways shift (still under reduced motion).
           animation: reduced ? 'none' : 'shift',
           transitionSpec: { animation: 'timing', config: { duration: 180 } },
           sceneStyle: { backgroundColor: t.bg },
@@ -88,7 +80,6 @@ export default function TabsLayout() {
           tabBarStyle: [{ backgroundColor: t.bg, borderTopColor: t.line }, Platform.OS === 'web' && WEB_TAB_BAR],
           tabBarItemStyle: { paddingTop: 6 },
         }}>
-        {/* Hidden (no button, no swipe) without « Aujourd'hui »: the route stays declared. */}
         {!today && <Tabs.Screen name="today" options={{ href: null }} />}
         {tabs.map((s) => (
           <Tabs.Screen key={s.name} name={s.name} options={tab(s.Icon, tr(s.label))} />

@@ -32,7 +32,6 @@ export function RoomSettingsForm({ group }: { group: Group }) {
   const [dialog, setDialog] = useState<'name' | 'delay' | 'owner' | null>(null);
   const close = () => setDialog(null);
 
-  // Optimistic: the switch moves at once, and springs back if the server says no.
   const save = useMutation({
     meta: { quiet: true },
     mutationFn: (body: RoomPatch) => updateRoom(group.id, body),
@@ -63,7 +62,6 @@ export function RoomSettingsForm({ group }: { group: Group }) {
     mutationFn: () => renewRoomCode(group.id),
     onSettled: () => qc.invalidateQueries({ queryKey: groupKeys.all }),
   });
-  // Once done, I'm no longer the owner: the screen steps back by itself.
   const transfer = useMutation({
     meta: { quiet: true },
     mutationFn: (id: number) => transferOwnership(group.id, id),
@@ -72,7 +70,6 @@ export function RoomSettingsForm({ group }: { group: Group }) {
   });
 
   const s = group.settings;
-  // An older server has no pacing: nothing it could save.
   const pacing = s.owner_next !== undefined || s.next_delay !== undefined;
   const delay = s.next_delay ?? 0;
   const others = group.members.filter((m) => m.id !== me?.id);
@@ -128,11 +125,9 @@ export function RoomSettingsForm({ group }: { group: Group }) {
           label={tr('room.settings.kickVote')}
           right={<Toggle label="" a11y={tr('room.settings.kickVote')} value={s.kick_vote} onChange={(v) => save.mutate({ kick_vote: v })} />}
         />
-        {/* Never for a party (its reveal is on a shared screen); absent from an older server. */}
         {features.anonymousVotes && group.kind !== 'party' && s.anonymous_votes && (
           <AnonymousSetting value={s.anonymous_votes} onChange={(v) => save.mutate({ anonymous_votes: v })} />
         )}
-        {/* Le Tripot (docs/TRIPOT.md): rooms only, absent from an older server. */}
         {features.tripot && group.kind !== 'party' && s.tripot !== undefined && (
           <SettingsRow
             label={tr('tripot.setting')}

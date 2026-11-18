@@ -25,6 +25,7 @@ const DEFAULT_ROOTS = [
   '.github',
 ];
 
+const NATIVE_FINGERPRINT_INPUTS = new Set(['app/.gitignore']);
 const SKIPPED_DIRS = new Set(['node_modules', 'target', 'dist', '.expo', '.git', 'android', 'ios']);
 const SCRIPT_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs']);
 const HASH_EXTENSIONS = new Set(['.sh', '.yml', '.yaml', '.toml', '.service', '.timer']);
@@ -61,6 +62,7 @@ function filesUnder(path) {
   } catch {
     return [];
   }
+  if (NATIVE_FINGERPRINT_INPUTS.has(relative(REPO, path))) return [];
   if (stat.isFile()) return languageOf(path) ? [path] : [];
   return readdirSync(path, { withFileTypes: true })
     .filter((entry) => !SKIPPED_DIRS.has(entry.name))

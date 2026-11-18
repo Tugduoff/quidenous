@@ -7,7 +7,6 @@ import { useTheme } from '@/lib/theme';
 import { Button } from '@/components/ui/button';
 import { Logo } from '@/components/ui/text';
 
-/** When the app lock is on: covers everything at a cold start and after 5 min away, until Face ID / fingerprint / passcode. */
 export function AppLock({ active }: { active: boolean }) {
   const t = useTheme();
   const tr = useT();

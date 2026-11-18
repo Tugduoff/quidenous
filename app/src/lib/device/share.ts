@@ -12,7 +12,6 @@ import { shareKeys } from '@/lib/api/share';
 import { snapshotStory } from '@/lib/api/stats';
 import { getPackTemplate } from '@/lib/api/packs';
 
-/** The first public link on this device asks first: anyone with it sees the card and the room's name. */
 const PUBLIC_OK = 'qdn.publicShareOk';
 export async function confirmPublic(): Promise<boolean> {
   if ((await storage.get(PUBLIC_OK).catch(() => null)) === '1') return true;
@@ -21,7 +20,6 @@ export async function confirmPublic(): Promise<boolean> {
   return ok;
 }
 
-/** Native share sheet; on the web, the browser's share or the clipboard. Returns 'copied' when it fell back to the clipboard. */
 export async function shareText(message: string): Promise<'shared' | 'copied' | 'failed'> {
   try {
     if (Platform.OS === 'web') {
@@ -39,10 +37,6 @@ export async function shareText(message: string): Promise<'shared' | 'copied' | 
   }
 }
 
-/**
- * Share one stats story: the server keeps a snapshot and gives a public link whose preview is the card.
- * On the web, when the browser can share files, the card itself goes out as a picture (with the link in the text).
- */
 export async function shareStory(period: StatsPeriod, story: Story): Promise<'shared' | 'copied' | 'failed'> {
   return shareCard(
     () => snapshotStory(period, story.key),
@@ -50,10 +44,6 @@ export async function shareStory(period: StatsPeriod, story: Story): Promise<'sh
   );
 }
 
-/**
- * Share a card the server freezes into a public link (`snapshot` asks for it): asked first the very first time, then
- * the picture itself where the browser can share files, else the text with the link (the app's address if it failed).
- */
 export async function shareCard(snapshot: () => Promise<{ path: string }>, text: string): Promise<'shared' | 'copied' | 'failed'> {
   if (!(await confirmPublic())) return 'failed';
   let link: string | null = null;
@@ -71,16 +61,13 @@ export async function shareCard(snapshot: () => Promise<{ path: string }>, text:
         return 'shared';
       }
     } catch (e) {
-      // Closing the share sheet is an answer, not a failure; anything else falls back to the text.
       if (e instanceof Error && e.name === 'AbortError') return 'shared';
     }
   }
   return shareText(link ? `${text}\n${link}` : `${text}\n${appUrl()}`);
 }
 
-/** Download the history CSV: a link click on the web, the browser elsewhere. */
 export async function downloadHistory() {
-  // A ticket rather than the token in the URL: features fetched first if not known yet.
   const url = await queryClient
     .ensureQueryData(featuresQuery)
     .then((f) => historyExportUrl(f.includes('tickets')))
@@ -96,10 +83,6 @@ export async function downloadHistory() {
   Linking.openURL(url);
 }
 
-/**
- * The pack file template for an AI agent, in the app's language: a file download on the web, the share sheet with its text
- * elsewhere (to paste into an AI app). Can't fetch it: opened in the browser instead.
- */
 export async function downloadPackTemplate() {
   const url = `${appUrl()}${getLang() === 'en' ? '/en' : ''}/pack-template.md`;
   try {

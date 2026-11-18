@@ -7,7 +7,6 @@ import { useTheme } from '@/lib/theme';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { type RoomSummary, roomKeys, setRoomMuted } from '@/lib/api/rooms';
 
-/** Bell in the header: mute this room's pushes for me (the inbox still gets everything). */
 export function MuteButton({ id, muted }: { id: number; muted: boolean }) {
   const t = useTheme();
   const tr = useT();

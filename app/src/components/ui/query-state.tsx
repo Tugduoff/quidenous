@@ -8,10 +8,6 @@ import { PressableScale } from '@/components/ui/pressable-scale';
 
 type Query = { data?: unknown; isLoading: boolean; isError: boolean; error: unknown; isRefetching?: boolean; refetch: () => unknown };
 
-/**
- * What a screen shows while its data loads (a spinner) or when it failed (offline or error, and Retry).
- * Nothing once there is data: a failed refresh keeps what's on screen.
- */
 export function QueryState({ query, style }: { query: Query; style?: ViewStyle }) {
   const t = useTheme();
   const tr = useT();
@@ -21,7 +17,6 @@ export function QueryState({ query, style }: { query: Query; style?: ViewStyle }
   const offline = !(query.error instanceof ApiError);
   return (
     <View accessibilityRole="alert" style={[{ alignItems: 'center', gap: 10, paddingVertical: 16 }, style]}>
-      {/* Paillette takes it hard: on the floor, in tears. */}
       <Mascot who="paillette" mood="sad" size={104} />
       <Text style={{ fontFamily: t.font.semibold, fontSize: 15, color: t.mut, textAlign: 'center' }}>
         {tr(offline ? 'common.offline' : 'common.loadFailed')}

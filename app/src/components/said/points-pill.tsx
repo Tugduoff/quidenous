@@ -1,7 +1,6 @@
 import { Text, View } from 'react-native';
 import { useTheme } from '@/lib/theme';
 
-/** "+3": what the author scored on this answer (the people it fooled). */
 export function PointsPill({ points, k = 1 }: { points: number; k?: number }) {
   const t = useTheme();
   const on = points > 0;

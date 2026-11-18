@@ -1,4 +1,3 @@
-/** Updates: the APK dialog, the version line in the profile, the over-the-air toast (components/update.tsx). */
 export const update = {
   title: 'Mise à jour',
   megabytes: '{size} Mo',

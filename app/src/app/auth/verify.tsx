@@ -10,13 +10,11 @@ import { useCooldown } from '@/lib/hooks/use-cooldown';
 import { flow } from '@/lib/auth-flow';
 import { authError } from '@/lib/api/errors';
 
-/** Right after sign-up: the 6-digit code sent to the email. Can wait ("Plus tard", then Profile > Sécurité). */
 export default function VerifyStep() {
   const tr = useT();
   const { doneVerifying } = useSession();
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
-  // The sign-up's e-mail couldn't be sent: said right away (resend below).
   const [error, setError] = useState<string | null>(() => (flow.mailFailed ? tr('errors.email_failed') : null));
   const [wait, startWait] = useCooldown();
 

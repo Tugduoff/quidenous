@@ -1,4 +1,3 @@
-/** Every 50: two confetti cannons, the number rolls up, a little pop when it lands. About 2.5 s. */
 import { useMemo } from 'react';
 
 import { burst, cannons, paper, Particles } from '@/components/celebration/engine';
@@ -11,7 +10,6 @@ const ROLL_START = 150;
 const ROLL_DUR = 820;
 const ROLL_STAGGER = 120;
 
-/** When the rolled-up number lands: its last digit settles. */
 export const smallLanding = (n: number) => ROLL_START + ROLL_DUR + (String(n).length - 1) * ROLL_STAGGER;
 
 export const small: SceneFactory = (m, t) => {

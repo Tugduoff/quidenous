@@ -1,4 +1,3 @@
-/** 1789: the Bastille — the flag drops in, tricolour fireworks. */
 import { useMemo } from 'react';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
@@ -12,7 +11,6 @@ import { numberSize, type SceneFactory, type SceneProps, SlamNumber } from '@/co
 
 const STRIPE_DROP_OVERSHOOT = 0.9;
 
-/** One vertical stripe of the flag, dropping in and then waving gently. */
 function Stripe({
   clock,
   x,
@@ -47,7 +45,6 @@ function Stripe({
   );
 }
 
-/** Light and shade drifting across the stripes, like cloth in the wind. */
 function Ripple({ clock, w, h }: { clock: Clock; w: number; h: number }) {
   const style = useAnimatedStyle(() => ({ transform: [{ translateX: -((clock.value / 3200) % 1) * w }] }));
   const stops = Array.from({ length: 9 }, (_, i) => i / 8);

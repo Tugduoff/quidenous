@@ -21,10 +21,6 @@ function shape(s: Shape, i: number) {
   }
 }
 
-/**
- * A drawn avatar, square: the parent clips it round (Avatar does). `viewBox` zooms in (the builder's close-ups).
- * Takes a spec string or an already parsed avatar; an invalid spec draws nothing.
- */
 export const AvatarArt = memo(function AvatarArt({
   avatar,
   size,

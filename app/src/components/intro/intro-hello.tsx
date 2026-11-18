@@ -4,7 +4,6 @@ import { useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 import { Display, Logo } from '@/components/ui/text';
 
-/** The whole band waves hello. */
 export function IntroHello() {
   const t = useTheme();
   const tr = useT();

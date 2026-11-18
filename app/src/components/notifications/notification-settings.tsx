@@ -27,10 +27,8 @@ export function NotificationSettings() {
   const [enabling, setEnabling] = useState(false);
   const [enableFailed, setEnableFailed] = useState(false);
   const [picking, setPicking] = useState<'start' | 'end' | null>(null);
-  // The closing dialog keeps showing what it was picking while it fades out.
   const which = useLastNonNull(picking) ?? 'start';
 
-  // From the cache, not this render: two quick taps both land.
   const set = (patch: Partial<NotifPrefs>) => {
     const current = qc.getQueryData<NotifPrefs>(notificationKeys.prefs);
     if (current) save.mutate({ ...current, ...patch });
@@ -58,10 +56,8 @@ export function NotificationSettings() {
     setEnableFailed(false);
     if (!on) return set({ enabled: false });
     if (!prefs.enabled) set({ enabled: true });
-    // The phone won't ask again: only its settings can.
     if (blocked && Platform.OS !== 'web') return Linking.openSettings();
     if (state !== 'off' && !blocked) return;
-    // Straight from the tap: a browser only asks for permission on a user gesture.
     setEnabling(true);
     device
       .enable()

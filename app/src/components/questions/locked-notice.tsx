@@ -6,7 +6,6 @@ import { Card } from '@/components/ui/card';
 import { useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 
-/** The owner keeps questions to themselves: say so; packs to browse and the official deck stay open to everyone. */
 export function LockedNotice({ community }: { community: boolean }) {
   const t = useTheme();
   const tr = useT();

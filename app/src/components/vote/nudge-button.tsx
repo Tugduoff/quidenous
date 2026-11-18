@@ -8,7 +8,6 @@ import { PressableScale } from '@/components/ui/pressable-scale';
 import { type Member } from '@/lib/api/group';
 import { nudgeMember } from '@/lib/api/rounds';
 
-/** Sends a "hurry up" push to someone who has not voted yet. Once per question. */
 export function NudgeButton({ member, roundId }: { member: Member; roundId: number }) {
   const t = useTheme();
   const tr = useT();
@@ -17,7 +16,6 @@ export function NudgeButton({ member, roundId }: { member: Member; roundId: numb
   const setSent = () => setSentFor(roundId);
   const nudge = useMutation({
     mutationFn: () => nudgeMember(member.id),
-    // Nudged already (another phone of mine, a lost answer): same as sent. Any other failure: a toast, the bell stays.
     meta: { quiet: (e) => e instanceof ApiError && e.code === 'already_nudged' },
     onSuccess: setSent,
     onError: (e) => e instanceof ApiError && e.code === 'already_nudged' && setSent(),

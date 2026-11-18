@@ -6,7 +6,6 @@ import type { WrappedCard } from '@/lib/api/wrapped';
 import { colorsOf } from '@/lib/utils/wrapped';
 import { INK } from '@/components/wrapped/constants';
 
-/** The card's colours, full screen, with a few big shapes for rhythm (where they sit changes from card to card). */
 export function Backdrop({ card, index, year }: { card: WrappedCard; index: number; year: number }) {
   const t = useTheme();
   const [box, setBox] = useState({ w: 0, h: 0 });
@@ -39,7 +38,6 @@ export function Backdrop({ card, index, year }: { card: WrappedCard; index: numb
           />
         </Svg>
       )}
-      {/* The year, huge and faint, in a corner. */}
       <Text
         numberOfLines={1}
         style={{

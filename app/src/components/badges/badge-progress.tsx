@@ -2,7 +2,6 @@ import { View } from 'react-native';
 import { useTheme } from '@/lib/theme';
 import { clamp01 } from '@/lib/utils/easing';
 
-/** A slim bar: how far toward the next tier. */
 export function BadgeProgress({ value, goal, height = 4 }: { value: number; goal: number; height?: number }) {
   const t = useTheme();
   const share = goal > 0 ? clamp01(value / goal) : 0;

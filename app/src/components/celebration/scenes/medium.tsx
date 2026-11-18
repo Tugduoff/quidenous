@@ -1,4 +1,3 @@
-/** Round hundreds and fun numbers: fireworks, then the number slams down with a flash, rays and a confetti shower. About 4 s. */
 import { useMemo } from 'react';
 
 import { burst, firework, paper, Particles, rain } from '@/components/celebration/engine';
@@ -6,7 +5,6 @@ import { Flash, Glow, Rays, Shockwave } from '@/components/celebration/effects';
 import { GOLD, party } from '@/components/celebration/palettes';
 import { numberSize, type SceneFactory, type SceneProps, SlamNumber } from '@/components/celebration/scene';
 
-/** When the number slams down. */
 export const MEDIUM_SLAM = 1350;
 
 export const medium: SceneFactory = (m, t) => {

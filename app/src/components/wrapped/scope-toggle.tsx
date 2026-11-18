@@ -4,7 +4,6 @@ import { useTheme } from '@/lib/theme';
 import type { WrappedScope } from '@/lib/api/wrapped';
 import { INK } from '@/components/wrapped/constants';
 
-/** Two pills: my year or the room's. */
 export function ScopeToggle({ value, onChange, ink, track }: { value: WrappedScope; onChange: (s: WrappedScope) => void; ink: string; track: string }) {
   const t = useTheme();
   const tr = useT();

@@ -14,12 +14,9 @@ import type { Member } from '@/lib/api/group';
 import type { ChooseResult, RankEntry, SaidResult, Tally } from '@/lib/api/rounds';
 import { useAnimateOnChange } from '@/lib/hooks/use-animate-on-change';
 
-/** Rows shown before "Voir tout": a big group's result stays one screen tall. */
 const TOP = 5;
-/** Only fold the list when that hides at least two rows (hiding a single one saves nothing). */
 const folded = <T,>(rows: T[], all: boolean) => (all || rows.length <= TOP + 1 ? rows : rows.slice(0, TOP));
 
-/** Pick result: one bar per person who got votes (the top 5, then "Voir tout"). `anonymous`: counts instead of voters. */
 export function ResultBars({ result, byId, anonymous }: { result: Tally[]; byId: Map<number, Member>; anonymous?: boolean }) {
   const t = useTheme();
   const tr = useT();
@@ -57,10 +54,8 @@ export function ResultBars({ result, byId, anonymous }: { result: Tally[]; byId:
                     </Landed>
                   )}
                 </View>
-                {/* The winner's title, if they show one (only on the winning rows: the rest stay plain). */}
                 {win && <MemberTitle id={r.target_id} />}
               </View>
-              {/* Capped so a big group's voters leave room for the name. */}
               {anonymous ? (
                 <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.txt }}>{tr('anonymous.votes', { count: r.count })}</Text>
               ) : (
@@ -77,7 +72,6 @@ export function ResultBars({ result, byId, anonymous }: { result: Tally[]; byId:
   );
 }
 
-/** "Voir tout (N)" under a folded result, "Réduire" once it is open. */
 function More({ count, less, onPress }: { count?: number; less?: boolean; onPress: () => void }) {
   const t = useTheme();
   const tr = useT();
@@ -104,13 +98,11 @@ function More({ count, less, onPress }: { count?: number; less?: boolean; onPres
   );
 }
 
-/** Ranking result: everyone in order, with points (Borda) and how many put them first. */
 export function RankResult({ ranking, byId, mine }: { ranking: RankEntry[]; byId: Map<number, Member>; mine: number[] | null }) {
   const t = useTheme();
   const tr = useT();
   const [all, setAll] = useState(false);
   const best = ranking[0]?.points || 1;
-  // Gold, silver, bronze discs for the podium.
   const podium = ['#F5C542', '#C9D0DA', '#D9935A'];
   const shown = folded(ranking, all);
   return (
@@ -119,10 +111,8 @@ export function RankResult({ ranking, byId, mine }: { ranking: RankEntry[]; byId
         const m = byId.get(r.member_id);
         const color = m?.color ?? t.mut;
         const myPlace = mine ? mine.indexOf(r.member_id) + 1 : 0;
-        // Same points, same place (1, 1, 3): a tie for first crowns everyone in it.
         const place = 1 + ranking.filter((x) => x.points > r.points).length;
         const top = place === 1;
-        // Past the top 5 (a big group, opened with "Voir tout"), slimmer rows.
         const slim = i >= TOP;
         return (
           <Land
@@ -151,7 +141,6 @@ export function RankResult({ ranking, byId, mine }: { ranking: RankEntry[]; byId
                 <Text style={{ fontFamily: t.font.bold, fontSize: slim ? 15 : 16, color: t.txt }} numberOfLines={1}>
                   {m?.name}
                 </Text>
-                {/* Only where my ranking differs from the group's. */}
                 {myPlace > 0 && myPlace !== place ? (
                   <Text style={{ fontFamily: t.font.regular, fontSize: 12, color: t.mut }}>{tr('results.you', { place: ordinal(myPlace) })}</Text>
                 ) : (
@@ -172,10 +161,6 @@ export function RankResult({ ranking, byId, mine }: { ranking: RankEntry[]; byId
   );
 }
 
-/**
- * The result in one line (winner, share or points), pinned over the top of the page once the
- * full result has scrolled away under the chat. Tap it to go back up.
- */
 export function ResultSummary({
   result,
   ranking,
@@ -186,9 +171,7 @@ export function ResultSummary({
 }: {
   result: Tally[];
   ranking: RankEntry[] | null;
-  /** A choose question: its best guesser, hits out of guesses. */
   choose?: ChooseResult | null;
-  /** A « Qui a dit ça ? » question: its top scorer, their points. */
   said?: SaidResult | null;
   byId: Map<number, Member>;
   onPress: () => void;
@@ -198,7 +181,6 @@ export function ResultSummary({
   const total = result.reduce((n, r) => n + r.count, 0) || 1;
   const guesser = choose?.scores[0];
   const scorer = said?.scores[0];
-  // A choose question nobody guessed right crowns nobody; nor does a said question nobody scored on.
   const nobody = said ? !scorer?.points : !!choose && !guesser?.hits;
   const winnerId = said
     ? nobody
@@ -219,7 +201,6 @@ export function ResultSummary({
       : ranking
         ? tr('results.points', { count: ranking[0]?.points ?? 0 })
         : `${Math.round(((result[0]?.count ?? 0) / total) * 100)}%`;
-  // Several people sharing first place: "+1" after the name.
   const tied = said
     ? nobody
       ? 0
@@ -259,7 +240,6 @@ export function ResultSummary({
       </Text>
       {tied > 0 && <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut }}>+{tied}</Text>}
       <Text style={{ marginLeft: 'auto', fontFamily: t.font.display, fontSize: 18, color: t.txt }}>{score}</Text>
-      {/* A reaction sticker: Zeste points at the winner, Paillette cheers the best guesser, Pavé wonders when nobody saw it coming. */}
       {choose || said ? (
         <Mascot who={nobody ? 'pave' : 'paillette'} mood={nobody ? 'think' : 'celebrate'} prop="none" size={40} style={{ marginVertical: -6 }} />
       ) : (
@@ -270,11 +250,12 @@ export function ResultSummary({
   );
 }
 
-// Bars start 120 ms in, each row 70 ms after the previous one, and take 450 ms to fill.
-const fillDelay = (i: number) => 120 + Math.min(i, 6) * 70;
+const FIRST_BAR_DELAY_MS = 120;
+const NEXT_BAR_STAGGER_MS = 70;
+const STAGGERED_BARS_MAX = 6;
+const fillDelay = (i: number) => FIRST_BAR_DELAY_MS + Math.min(i, STAGGERED_BARS_MAX) * NEXT_BAR_STAGGER_MS;
 const FILL_MS = 450;
 
-/** A result row; the winner's lands with a small bump once its own bar is full. */
 export function Land({ on, style, children }: { on: boolean; style: StyleProp<ViewStyle>; children: ReactNode }) {
   const reduced = useReducedMotion();
   const s = useSharedValue(1);
@@ -285,7 +266,6 @@ export function Land({ on, style, children }: { on: boolean; style: StyleProp<Vi
   return <Animated.View style={[style, bump]}>{children}</Animated.View>;
 }
 
-/** The crown: pops in once every bar has finished growing. */
 export function Landed({ rows, children }: { rows: number; children: ReactNode }) {
   const reduced = useReducedMotion();
   const s = useSharedValue(reduced ? 1 : 0);
@@ -294,12 +274,10 @@ export function Landed({ rows, children }: { rows: number; children: ReactNode }
   return <Animated.View style={pop}>{children}</Animated.View>;
 }
 
-/** A row's coloured fill: grows from the left when the result shows, one row after the other. */
 export function Fill({ index, width, color, opacity }: { index: number; width: number; color: string; opacity: number }) {
   const reduced = useReducedMotion();
   const grow = useSharedValue(reduced ? 1 : 0);
   useAnimateOnChange(grow, index, () => withDelay(fillDelay(index), withTiming(1, { duration: FILL_MS, easing: EASE })));
-  // A transform rather than the width: no layout pass per frame.
   const style = useAnimatedStyle(() => ({ transform: [{ scaleX: grow.value }] }));
   return (
     <Animated.View

@@ -17,7 +17,6 @@ import { BackButton } from '@/components/ui/back-button';
 import { useVibes } from '@/lib/api/group';
 import { useFeatures } from '@/lib/api/features';
 
-/** `/party/new`: name (optional), vibe, how long the party lasts and the time per question. Then its lobby. */
 export default function NewParty() {
   const t = useTheme();
   const tr = useT();
@@ -29,7 +28,6 @@ export default function NewParty() {
   const [hours, setHours] = useState('4');
   const [timer, setTimer] = useState('30');
   const [error, setError] = useState<string | null>(null);
-  // The usual tone until another one is picked.
   const vibe = picked ?? (vibes?.length ? (vibes.find((v) => v.id === 'potes')?.id ?? vibes[0].id) : null);
 
   const create = useMutation({

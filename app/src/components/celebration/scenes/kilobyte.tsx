@@ -1,4 +1,3 @@
-/** 1024: 8-bit — pixels fall in steps, a loading bar fills up to 1 Ko. */
 import { useMemo } from 'react';
 import { Text, View } from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
@@ -114,7 +113,6 @@ export const kilobyte: SceneFactory = (m, t) => {
   };
 };
 
-/** One segment of the loading bar: snaps on at `at`, then the full bar blinks three times. */
 function Segment({ clock, at, blinkFrom, w, color }: { clock: Clock; at: number; blinkFrom: number; w: number; color: string }) {
   const anim = useAnimatedStyle(() => {
     const c = clock.value;
@@ -125,7 +123,6 @@ function Segment({ clock, at, blinkFrom, w, color }: { clock: Clock; at: number;
   return <Animated.View style={[{ width: w, height: '100%', backgroundColor: color }, anim]} />;
 }
 
-/** A pixel falling one cell at a time, like an old console. */
 function StepBlock({
   clock,
   b,

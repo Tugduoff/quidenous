@@ -12,12 +12,10 @@ export const chatKeys = {
   gifs: (q: string) => ['gifs', q] as const,
 };
 
-/** Requests in flight per message: only the last answer is taken as is (an earlier one may land after it). */
 const inFlight = new Map<number, number>();
 
 type Vars = { id: number; emoji: string; on: boolean };
 
-/** Add or take back my reaction on a message of `roundId`: shown at once, put back if the server says no. */
 export function useReact(roundId: number) {
   const qc = useQueryClient();
   const { me } = useSession();
@@ -35,7 +33,6 @@ export function useReact(roundId: number) {
     onSuccess: (res, { id }) => {
       if (inFlight.get(id) === 1 && res?.reactions) patch(id, () => res.reactions);
     },
-    // Undo just this one (other reactions may have changed meanwhile), then the server's word.
     onError: (_e, { id, emoji, on }) => {
       if (me) patch(id, (m) => toggled(m.reactions, emoji, me.id, !on));
       qc.invalidateQueries({ queryKey: key });
@@ -46,7 +43,6 @@ export function useReact(roundId: number) {
       else inFlight.delete(id);
     },
   });
-  /** Toggles `emoji` on `m`: adds it unless it is already mine. */
   return (m: Message, emoji: string) => {
     const on = !m.reactions?.some((r) => r.emoji === emoji && r.mine);
     mutation.mutate({ id: m.id, emoji, on });
@@ -54,36 +50,22 @@ export function useReact(roundId: number) {
   };
 }
 
-/**
- * `user_id`: the author's account (null once deleted; absent from an older server).
- * `mentions`: member ids pinged with `@Name`; `everyone`: the text pings the whole room with `@tous` (both absent from an older server).
- */
-/** One emoji on a chat message: how many, whether I'm among them, and who (member ids, oldest first). */
 export type Reaction = { emoji: string; count: number; mine: boolean; members: number[] };
 
-/**
- * A chat photo or GIF. `url` / `preview_url` are server paths (`/api/media/…`, `/api/gifs/media/…`: signed, short-lived,
- * no header needed) or absolute URLs; `mediaUrl()` makes them loadable.
- */
 export type MessageMedia = { url: string; width: number; height: number; mime?: string; preview_url?: string | null; provider?: string };
 
 export type Message = {
   id: number;
   member_id: number;
   user_id?: number | null;
-  /** For a photo or a GIF: what an older app shows ("📷 Photo", "GIF", plus the caption). */
   text: string;
   created_at: string;
   mentions?: number[];
   everyone?: boolean;
-  /** Absent from an older server. */
   reactions?: Reaction[];
-  /** `text` when absent (an older server); a kind this app doesn't know shows its `text`. */
   kind?: 'text' | 'image' | 'gif' | (string & {});
-  /** Photo or GIF: the text under it (mentions apply to it). */
   caption?: string | null;
   media?: MessageMedia | null;
-  /** Hidden by reports: only the room owner gets it, to restore it. */
   hidden?: boolean;
 };
 
@@ -100,7 +82,6 @@ export const restoreMessage = (roundId: number, id: number) => api(`/rounds/${ro
 
 export type Ping = { mentions: number[]; everyone: boolean };
 
-/** `POST /rounds/{id}/messages/image`, multipart: `image` (the file), `caption`, `mentions` (a JSON array), `everyone` ("1"). */
 export async function uploadImage(roundId: number, img: ImageDraft, caption: string, ping: Ping, clientKey: string) {
   const form = new FormData();
   form.append('client_key', clientKey);
@@ -109,17 +90,14 @@ export async function uploadImage(roundId: number, img: ImageDraft, caption: str
   if (ping.everyone) form.append('everyone', '1');
   const name = img.mime === 'image/gif' ? 'image.gif' : 'photo.jpg';
   if (Platform.OS === 'web') form.append('image', await readUriBlob(img.uri), name);
-  // expo/fetch (the global fetch since SDK 58) can't send React Native's { uri } parts; a file-system File it can.
   else form.append('image', new FsFile(img.uri), name);
   return apiUpload<Message>(`/rounds/${roundId}/messages/image`, form, 'POST');
 }
 
-/** One GIF of a search, its URLs already through our server (`/api/gifs/media/…`). */
 export type Gif = { id: string | number; title?: string | null; width: number; height: number; preview_url: string; url: string };
 
 type GifPage = { items: Gif[]; next: boolean };
 
-/** KLIPY's trending GIFs (empty `q`) or a search, page after page (`GET /gifs?q=&page=`, pages from 1). */
 export function useGifs(q: string, enabled: boolean) {
   return useInfiniteQuery({
     queryKey: chatKeys.gifs(q),
@@ -131,7 +109,6 @@ export function useGifs(q: string, enabled: boolean) {
   });
 }
 
-/** `POST /rounds/{id}/messages/gif` with the GIF as /gifs gave it. */
 export const postGif = (roundId: number, g: Gif, ping: Ping, clientKey: string) =>
   api<Message>(`/rounds/${roundId}/messages/gif`, {
     method: 'POST',

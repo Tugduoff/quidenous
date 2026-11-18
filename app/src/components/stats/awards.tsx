@@ -13,16 +13,13 @@ import type { Member } from '@/lib/api/group';
 import type { Award, Duo, Pair, QuestionRef, RankAward, Stats } from '@/lib/api/stats';
 import { firstName } from '@/lib/utils/names';
 
-/** One award ready to show: who, the figure, and a quip. */
 type Item = { key: string; ids: number[]; who: string; big: string; unit: string; quip: string };
 type Name = (id: number) => string;
 type UnitKey = 'votes' | 'wins' | 'nightVotes' | 'messages' | 'nudges' | 'questions';
 
 const n = (v: number, unit: UnitKey) => ({ big: int(v), unit: t(`stats.unit.${unit}`, { count: v }) });
 const quip = (key: string) => t(`stats.quip.${key}` as TKey);
-/** "Léa Martin" → "Léa": two names fit on the award's one line. */
 
-/** Single-person awards: the figure and its unit, from its value (and total, for ratios). */
 const SOLO: Record<string, (a: Award) => { big: string; unit: string }> = {
   most_chosen: (a) => n(a.value, 'votes'),
   most_crowned: (a) => n(a.value, 'wins'),
@@ -49,10 +46,6 @@ const rank = (a: RankAward) => ({ big: place(a.avg), unit: t('stats.unit.onAvera
 
 type GroupKey = 'titles' | 'votes' | 'chat' | 'questions';
 
-/**
- * The award cards, in titled groups; an award nobody holds this period is left out, and so is an empty group.
- * Call at render: the texts are in the current language.
- */
 function awardGroups(s: Stats, name: Name) {
   const solo = (key: string): Item | null => {
     const a = s[key as keyof Stats] as Award | null;
@@ -182,7 +175,6 @@ const QUESTION_LINE: Record<string, (q: QuestionRef) => string> = {
   hottest: (q) => t('stats.quip.hottest', { count: q.value }),
 };
 
-/** A question award: its title, the question, one line; opens the question. */
 function QuestionCard({ k, q, index }: { k: string; q: QuestionRef; index: number }) {
   const t = useTheme();
   useT();

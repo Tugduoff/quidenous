@@ -1,4 +1,3 @@
-/** 2048: tiles slide and merge all the way up. */
 import { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, { Extrapolation, interpolate, useAnimatedStyle } from 'react-native-reanimated';
@@ -123,7 +122,6 @@ export const tiles: SceneFactory = (m, t) => {
                 })}
               </View>
             </Pop>
-            {/* The tile in the merge cell, one per value, each popping in when it is born. */}
             {mergeCellTiles(chain).map(({ v, from, to }) => (
               <Window key={v} clock={clock} from={from} to={to} style={{ position: 'absolute', left: M.x, top: M.y }}>
                 <Pop clock={clock} at={from}>
@@ -131,7 +129,6 @@ export const tiles: SceneFactory = (m, t) => {
                 </Pop>
               </Window>
             ))}
-            {/* The twin tiles: appear on a neighbour, then slide into the merge cell. */}
             {twinTiles(chain).map(({ v, spawn, start, end, source }) => (
               <Twin key={v} clock={clock} v={v} size={c} font={font} from={sources[source]} to={M} spawn={spawn} start={start} end={end} />
             ))}
@@ -152,7 +149,6 @@ export const tiles: SceneFactory = (m, t) => {
   };
 };
 
-/** A tile that pops in on a neighbour cell at `spawn`, slides into `to` between `start` and `end`, then is gone. */
 function Twin({
   clock,
   v,

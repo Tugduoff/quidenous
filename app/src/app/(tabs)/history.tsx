@@ -22,14 +22,12 @@ export default function HistoryScreen() {
   const { data: pinned } = usePinned();
   const data = useMemo(() => history.data?.pages.flat(), [history.data]);
   const { byId } = useMembers();
-  // The first screenful cascades in once; refetches and later pages just appear.
   const [intro, setIntro] = useState(true);
   const loaded = !!data;
   useTimeout(() => setIntro(false), loaded ? 900 : null);
   const more = () => {
     if (history.hasNextPage && !history.isFetchingNextPage) history.fetchNextPage();
   };
-  // A pin or unpin updates the pinned list alone: it decides the pin on every row.
   const pinnedIds = useMemo(() => (pinned ? new Set(pinned.map((i) => i.id)) : null), [pinned]);
   const sections = useMemo<Section[]>(() => {
     const days = byDay(data ?? []).map((d) => ({ key: d.key, title: d.label, data: d.items.map((i) => (pinnedIds ? { ...i, pinned: pinnedIds.has(i.id) } : i)) }));

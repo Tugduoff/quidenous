@@ -9,7 +9,6 @@ import { useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 import { ratioOf } from '@/lib/utils/chat';
 
-/** The picked photo before it goes, with an optional caption. A spinner while it is being resized. */
 export function PhotoDialog({
   photo,
   onCaption,
@@ -24,7 +23,6 @@ export function PhotoDialog({
   const t = useTheme();
   const tr = useT();
   const [boxW, setBoxW] = useState(0);
-  // The last one stays drawn while the dialog fades out.
   const [shown, setShown] = useState(photo);
   if (photo && photo !== shown) setShown(photo);
   const img = shown?.img;

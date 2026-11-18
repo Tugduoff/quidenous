@@ -12,7 +12,6 @@ import { flow } from '@/lib/auth-flow';
 import { authError } from '@/lib/api/errors';
 import { useFeatures } from '@/lib/api/features';
 
-/** 2FA sign-in: the code of the authenticator app, or a recovery code. */
 export default function TwoFactorStep() {
   const tr = useT();
   const { signIn } = useSession();

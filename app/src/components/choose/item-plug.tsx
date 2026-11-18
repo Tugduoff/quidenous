@@ -5,7 +5,6 @@ import { SPRING, usePop } from '@/lib/motion';
 import { useTheme } from '@/lib/theme';
 import type { Rect } from '@/lib/utils/choose';
 
-/** An item to plug into: grows a little while a wire hovers it, bumps when one snaps in. */
 export function ItemPlug({
   index,
   label,

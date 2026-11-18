@@ -5,7 +5,6 @@ import { useTheme } from '@/lib/theme';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogTitle } from '@/components/ui/dialog';
 
-/** Rename in a dialog. */
 export function NameDialog({ visible, name, onClose, onSave }: { visible: boolean; name: string; onClose: () => void; onSave: (name: string) => void }) {
   const t = useTheme();
   const tr = useT();

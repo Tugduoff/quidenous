@@ -18,7 +18,6 @@ export function AddFriendCard({ onAdded }: { onAdded: () => void }) {
   const tr = useT();
   const [code, setCode] = useState(presetFriendCode() ?? '');
   const [note, setNote] = useState<string | null>(null);
-  // A code sends a request (or accepts theirs); an older server makes friends at once (no `status`).
   const add = useMutation({
     meta: { quiet: true },
     mutationFn: (value: string) => addFriend(value.trim()),

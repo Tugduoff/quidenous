@@ -12,7 +12,6 @@ import { PressableScale } from '@/components/ui/pressable-scale';
 import { Dialog } from '@/components/ui/dialog';
 import { useTimeout } from '@/lib/hooks/use-timeout';
 
-/** A newer APK is out: its notes, Installer (download, then Android's installer) or Plus tard. Mounted once, in the root layout. */
 export function UpdateDialog() {
   const t = useTheme();
   const tr = useT();
@@ -105,7 +104,6 @@ export function UpdateDialog() {
   );
 }
 
-/** The release notes (GitHub markdown, as written by the release job): one row per line, "- " lines as bullets. */
 function Notes({ text }: { text: string }) {
   const t = useTheme();
   const lines = text
@@ -129,12 +127,10 @@ function Notes({ text }: { text: string }) {
   );
 }
 
-/** Bottom of the profile: the installed version and, on the APK, a manual check. */
 export function VersionLine() {
   const t = useTheme();
   const tr = useT();
   const { status, release } = useUpdate();
-  // A manual check's answer stays a few seconds.
   useTimeout(clearCheck, status === 'latest' || status === 'failed' ? 4000 : null, status);
   const small = { fontFamily: t.font.semibold, fontSize: 13, color: t.mut };
   const Icon = status === 'latest' ? Check : release ? Download : RefreshCw;
@@ -168,7 +164,6 @@ export function VersionLine() {
 
 const TABS = ['/', '/history', '/stats', '/questions'];
 
-/** An over-the-air update is downloaded: it applies on the next start, or now with Relancer. Floats above the tab bar (tabs only). */
 export function OtaToast() {
   const t = useTheme();
   const tr = useT();

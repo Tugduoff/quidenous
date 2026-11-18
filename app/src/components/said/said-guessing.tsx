@@ -39,7 +39,6 @@ export function SaidGuessing({
   const tr = useT();
   const qc = useQueryClient();
   const answers = useMemo(() => toGuess(said), [said]);
-  // The writers but me (members are stable objects, so the chips only redraw when their own state changes).
   const people = suspectIds(said, me).flatMap((id) => {
     const m = byId.get(id);
     return m ? [m] : [];
@@ -51,7 +50,6 @@ export function SaidGuessing({
     meta: { quiet: true },
     mutationFn: (guesses: SaidGuess[]) => voteCurrent({ guesses }),
     onSuccess: onVoted,
-    // The writers changed meanwhile (someone left): the refreshed room shows who to place now.
     onError: () => qc.invalidateQueries({ queryKey: groupKeys.all }),
     onSettled: () => qc.invalidateQueries({ queryKey: roundKeys.current }),
   });

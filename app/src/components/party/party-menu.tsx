@@ -17,7 +17,6 @@ import { useTheme } from '@/lib/theme';
 import { showToast } from '@/lib/toast';
 import { isPartyOwner } from '@/lib/utils/party';
 
-/** Owner: time per question, end the party. Everyone: leave. */
 export function PartyMenu({ party, visible, onClose }: { party: Party; visible: boolean; onClose: () => void }) {
   const t = useTheme();
   const tr = useT();
@@ -54,7 +53,6 @@ export function PartyMenu({ party, visible, onClose }: { party: Party; visible: 
     try {
       await partyApi.leave(party.id);
     } catch (e) {
-      // Already out of it (removed, or the party is gone): leave the screen all the same.
       const out = e instanceof ApiError && (e.status === 404 || e.code === 'not_in_room' || e.code === 'removed');
       if (!out) return showToast(partyError(e));
     }

@@ -14,11 +14,6 @@ const GAP = 2;
 const MIN = 12;
 const MAX = 40;
 
-/**
- * Who votes for whom: a row per voter, a column per person voted for, each cell in the target's colour,
- * stronger the more votes. The diagonal (votes for oneself) is drawn as circles. Shrinks to fit the width,
- * and scrolls sideways past a cell of 12 px (around 22 people on a small phone). Under 16 px the column heads are plain dots.
- */
 export function VoteMatrix({
   ids,
   edges,
@@ -75,7 +70,6 @@ export function VoteMatrix({
             </Pressable>
           ))}
         </View>
-        {/* The n x n cells are one drawing, not n x n views. */}
         <Svg width={side} height={side}>
           {ids.flatMap((voter, row) =>
             ids.map((target, col) => {
@@ -131,7 +125,6 @@ export function VoteMatrix({
           (fits ? (
             <View style={{ alignItems: 'center' }}>{grid}</View>
           ) : (
-            // Gesture handler's: it wins over swiping between tabs (components/tab-swipe.tsx) as soon as it scrolls.
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               {grid}
             </ScrollView>

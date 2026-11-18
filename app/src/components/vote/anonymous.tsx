@@ -1,4 +1,3 @@
-// Anonymous votes (docs/ANONYMOUS.md): the marker on a ballot and a result, the room rule, the composer switch.
 import { Glasses } from 'lucide-react-native';
 import { Pressable, Text, View } from 'react-native';
 import { useT } from '@/lib/i18n';
@@ -6,7 +5,6 @@ import { useTheme } from '@/lib/theme';
 import { Segmented } from '@/components/ui/segmented';
 import type { AnonymousMode } from '@/lib/api/group';
 
-/** Next to the question's tag: nobody will see who voted for whom. */
 export function AnonymousBadge() {
   const t = useTheme();
   const tr = useT();
@@ -29,7 +27,6 @@ export function AnonymousBadge() {
   );
 }
 
-/** A small mark (queue rows, import preview, history). */
 export function AnonymousMark({ size = 14 }: { size?: number }) {
   const t = useTheme();
   const tr = useT();
@@ -40,7 +37,6 @@ export function AnonymousMark({ size = 14 }: { size?: number }) {
   );
 }
 
-/** Room settings: never, per question (the composer's switch), always. */
 export function AnonymousSetting({ value, onChange }: { value: AnonymousMode; onChange: (v: AnonymousMode) => void }) {
   const t = useTheme();
   const tr = useT();
@@ -65,7 +61,6 @@ export function AnonymousSetting({ value, onChange }: { value: AnonymousMode; on
   );
 }
 
-/** The composer's switch, beside the kind: this question's votes will be anonymous. */
 export function AnonymousToggle({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
   const t = useTheme();
   const tr = useT();

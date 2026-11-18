@@ -1,20 +1,15 @@
-/** Milestone parties: the big number, "questions !" and a punchline. */
 export const celebration = {
   questions: 'questions !',
   close: '{count} questions ! Toucher pour fermer',
-  /** Hidden picker (the room name long-pressed five times). */
   picker: 'Paliers',
   pick: 'Fête {n}',
-  /** Words drawn by the bespoke scenes. */
   jackpot: 'JACKPOT',
   two: 'DEUX',
   thousand: 'MILLE',
   access: 'ACCÈS AUTORISÉ',
   loading: 'CHARGEMENT…',
   loaded: '1 Ko · 100 %',
-  /** The 365 calendar's month. */
   december: 'DÉC.',
-  /** Punchlines of the numbers that get their own party (`m<number>`). */
   lines: {
     m10: 'Dix. L’échauffement est fini.',
     m42: 'La réponse à la grande question sur la vie, l’univers et le reste.',
@@ -53,7 +48,6 @@ export const celebration = {
     m2000: 'Deux mille. Qui tient encore le compte ?',
     m2048: 'Vous avez gagné la partie.',
   },
-  /** Every 50 without a punchline of its own (`f<number>`), then the default one. */
   fifty: {
     f50: 'Déjà. Ça devient sérieux.',
     f150: 'Et toujours pas fâchés.',

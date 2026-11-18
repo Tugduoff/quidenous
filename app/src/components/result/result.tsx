@@ -25,7 +25,6 @@ import { Challenges } from '@/components/community/challenge';
 import { Question } from '@/components/vote/question';
 import { Header } from '@/components/vote/header';
 
-/** Back arrow (and pin) that replace the header when a result is opened from the history. */
 function BackHeader({ onBack, round }: { onBack: () => void; round?: Round }) {
   const t = useTheme();
   const tr = useT();
@@ -38,7 +37,6 @@ function BackHeader({ onBack, round }: { onBack: () => void; round?: Round }) {
       qc.invalidateQueries({ queryKey: historyKeys.pinned });
     },
   });
-  // Show the state being asked for right away; the server echo confirms it.
   const pinned = pin.isPending ? pin.variables : round?.pinned;
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -77,9 +75,7 @@ export function Result({
   byId: Map<number, Member>;
   onNext?: () => void;
   onBack?: () => void;
-  /** Shown instead of "Suivante" while a paced room waits for its next question. */
   gate?: ReactNode;
-  /** Several results waiting: "Tout passer" next to "Suivante" marks them all seen. */
   skip?: { count: number; onPress: () => void };
 }) {
   const t = useTheme();
@@ -88,15 +84,11 @@ export function Result({
   const { data: round } = roundQuery;
   const { me } = useSession();
   const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
-  // One scroll for the whole page (no box inside a box). Where the full result ends, and whether
-  // it has scrolled out of sight: then its one-line summary stays pinned on top.
   const resultEnd = useRef(0);
   const [away, setAway] = useState(false);
-  // Follow the newest message while the bottom is in view, and right after I write or send one.
   const follow = useRef(false);
   const toEnd = () => {
     follow.current = true;
-    // After the keyboard has opened (and the page shrunk), not before.
     setTimeout(() => scroll.current?.scrollToEnd({ animated: true }), 300);
   };
   const header = onBack ? <BackHeader onBack={onBack} round={round ?? undefined} /> : <Header />;
@@ -132,7 +124,6 @@ export function Result({
     ) : (
       nextButton
     ));
-  // Not loaded (or failed): "Suivante" stays, so an unseen result never blocks the next question.
   if (!round?.result && !round?.choose && !round?.said?.result)
     return (
       <Screen tabs={!onBack} footer={roundQuery.isLoading ? undefined : next}>
@@ -142,7 +133,6 @@ export function Result({
     );
   return (
     <Screen
-      // Opened from the history, the screen has no tab bar to keep it clear of the iPhone home bar.
       tabs={!onBack}
       scroller={scroll}
       onScroll={({ contentOffset, layoutMeasurement, contentSize }) => {

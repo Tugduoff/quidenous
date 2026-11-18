@@ -11,10 +11,6 @@ import { motion } from '@/lib/motion';
 import { useTheme } from '@/lib/theme';
 import { places } from '@/lib/utils/said';
 
-/**
- * Points, best first; the same points share a place; my line stands out. The big screen: `k` (a size factor) and
- * `columns` (2: the list split in two, top to bottom then the second column).
- */
 export function SaidScoreboard({
   scores,
   byId,

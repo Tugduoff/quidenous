@@ -14,7 +14,6 @@ import { Card } from '@/components/ui/card';
 import { INK } from '@/components/wrapped/constants';
 const open = (ask: boolean) => router.push(ask ? '/wrapped?preview=1' : '/wrapped');
 
-/** Stats tab, on top: my year is ready (in season, or as a preview for those who may). Nothing otherwise. */
 export function WrappedBanner() {
   const t = useTheme();
   const tr = useT();
@@ -64,7 +63,6 @@ export function WrappedBanner() {
   );
 }
 
-/** Profile row: my year, when there is one to see. */
 export function WrappedRow() {
   const t = useTheme();
   const tr = useT();

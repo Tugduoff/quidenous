@@ -1,7 +1,4 @@
 'use no memo';
-// The home-screen widget's drawing (docs/WIDGET.md). Not React Native views: react-native-android-widget turns this tree
-// into a bitmap for the launcher, once per update. Plain functions only: no hooks, no state, no React Compiler (the
-// directive above), no animation. Two layouts from the widget's size: small (2×2) and medium (4×2 and wider).
 import { FlexWidget, SvgWidget, TextWidget } from 'react-native-android-widget';
 
 import { tIn, type Lang } from '@/lib/i18n-core';
@@ -12,7 +9,6 @@ import type { WidgetView } from '@/widget/state';
 
 type Mode = 'light' | 'dark';
 
-/** Brand colours (the app's theme), plus the lime and the result pink. */
 type Hex = `#${string}`;
 const palette = (mode: Mode) => {
   const th = themes[mode] as unknown as Record<'bg' | 'card' | 'card2' | 'txt' | 'mut' | 'tag' | 'accInk', Hex>;
@@ -31,19 +27,15 @@ type Palette = ReturnType<typeof palette>;
 
 const FONT = { display: 'BricolageGrotesque_800ExtraBold', bold: 'Inter_700Bold', semibold: 'Inter_600SemiBold' } as const;
 
-/** lucide's Flame, the app's streak mark. */
 const flame = (color: string) =>
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="${color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3q1 4 4 6.5t3 5.5a1 1 0 0 1-14 0 5 5 0 0 1 1-3 1 1 0 0 0 5 0c0-2-1.5-3-1.5-5q0-2 2.5-4"/></svg>`;
 
-/** The mascot's ground shadow follows the theme, like in the app (white and fainter on dark). */
 const art = (key: ArtKey, mode: Mode) =>
   mode === 'dark' ? ART[key].replace(/fill="#000000" opacity="0\.1(6)?"/, (_, hi) => `fill="#FFFFFF" opacity="${hi ? 0.07 : 0.05}"`) : ART[key];
 
-/** What one state shows: the big line, the status chip, the mascot, where a tap goes. */
 type Face = {
   title: string;
   status: string;
-  /** A second, smaller line under the status (medium only). */
   sub: string | null;
   chip: 'lime' | 'pink' | 'plain';
   mascot: ArtKey;
@@ -54,7 +46,6 @@ type Face = {
 
 const SCHEME = 'quidenous://';
 
-/** Local "21:30" of an ISO time, in the widget's language. */
 function clock(iso: string, lang: Lang) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return null;
@@ -131,7 +122,6 @@ function Streak({ face, c, size }: { face: Face; c: Palette; size: number }) {
   );
 }
 
-/** "qui de nous ?" and the room's name. */
 function Header({ face, c, small }: { face: Face; c: Palette; small: boolean }) {
   return (
     <FlexWidget style={{ flexDirection: 'row', alignItems: 'center', width: 'match_parent' }}>
@@ -150,7 +140,6 @@ function Header({ face, c, small }: { face: Face; c: Palette; small: boolean }) 
   );
 }
 
-/** One theme's drawing at this size (dp). */
 export function QdnWidget({ view, mode, width, height, lang }: { view: WidgetView; mode: Mode; width: number; height: number; lang: Lang }) {
   const c = palette(mode);
   const face = faceOf(view, lang);
@@ -213,7 +202,6 @@ export function QdnWidget({ view, mode, width, height, lang }: { view: WidgetVie
   );
 }
 
-/** Both themes: the launcher picks the one the phone uses (and switches without asking us again). */
 export function renderBoth(view: WidgetView, width: number, height: number, lang: Lang) {
   return {
     light: <QdnWidget view={view} mode="light" width={width} height={height} lang={lang} />,

@@ -3,7 +3,6 @@ import type { HistoryItem } from '@/lib/api/history';
 
 const dayKey = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
 
-/** "Aujourd'hui", "Hier", else "dimanche 8 novembre" (with the year when it is not this one). */
 function dayLabel(d: Date) {
   const now = new Date();
   const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
@@ -14,7 +13,6 @@ function dayLabel(d: Date) {
   return label[0].toUpperCase() + label.slice(1);
 }
 
-/** Consecutive items closed on the same local day (the list is newest first). */
 export function byDay(items: HistoryItem[]) {
   const days: { key: string; label: string; items: HistoryItem[] }[] = [];
   for (const item of items) {

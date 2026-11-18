@@ -5,7 +5,6 @@ import { askConfirm } from '@/lib/confirm';
 import { useT } from '@/lib/i18n';
 import { showToast } from '@/lib/toast';
 
-/** Owner: takes a player out of the party, after asking (their name stays taken: no fresh seat by rescanning). */
 export function useRemovePlayer(id: number) {
   const tr = useT();
   const qc = useQueryClient();

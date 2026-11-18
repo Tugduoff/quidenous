@@ -1,4 +1,3 @@
-/** 180: darts — three in the triple 20. */
 import { useMemo } from 'react';
 import Svg, { Circle, G, Path, Rect } from 'react-native-svg';
 
@@ -44,7 +43,6 @@ function Dartboard({ size }: { size: number }) {
   );
 }
 
-/** A dart pointing right, 96 × 26. */
 function Dart({ flight }: { flight: string }) {
   return (
     <Svg width={96} height={26} viewBox="0 0 96 26">
@@ -70,7 +68,6 @@ export const darts: SceneFactory = (m, t) => {
     Render: function Darts({ clock, w, h, rand, cx, cy }: SceneProps) {
       const board = Math.min(210, cy * 0.9);
       const by = Math.max(board / 2 + 24, cy - 150 - board / 2 + 30);
-      // Triple 20: the thin ring at the top of the board.
       const r = (53.5 / 200) * board;
       const L = 96;
       const flights = useMemo(() => {

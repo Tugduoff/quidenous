@@ -4,7 +4,6 @@ import { useTheme } from '@/lib/theme';
 import { type TodayRoom } from '@/lib/api/today';
 import { TAG_BG } from '@/components/ui/tag';
 
-/** What the room wants: a loud pill when it's me (vote: the accent, a result: pink), a quiet line otherwise. */
 export function StatePill({ room: r, line }: { room: TodayRoom; line: string }) {
   const t = useTheme();
   if (r.state === 'vote' || r.state === 'result') {

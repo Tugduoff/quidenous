@@ -1,4 +1,3 @@
-/** 101: dalmatians — spots pop up all over, paw prints cross the screen. */
 import { useMemo } from 'react';
 import Svg, { Ellipse, G } from 'react-native-svg';
 
@@ -47,7 +46,6 @@ export const dalmatians: SceneFactory = (m, t) => {
         for (let tries = 0; out.length < 22 && tries < 400; tries++) {
           const x = rand.range(0, w);
           const y = rand.range(10, h - 10);
-          // Keep the number and its text readable.
           if (Math.abs(y - (cy + 60)) < 175 && Math.abs(x - cx) < 175) continue;
           if (out.some((o) => Math.hypot(o.x - x, o.y - y) < 70)) continue;
           out.push({

@@ -7,7 +7,6 @@ import { PressableScale } from '@/components/ui/pressable-scale';
 import { useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 
-/** A bad or ended link: another code to try. */
 export function OtherCode() {
   const t = useTheme();
   const tr = useT();

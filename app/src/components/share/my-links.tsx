@@ -10,14 +10,12 @@ import { Dialog, DialogTitle } from '@/components/ui/dialog';
 import { useFeatures } from '@/lib/api/features';
 import { type MyLink, shareKeys, revokeLink, useMyLinks } from '@/lib/api/share';
 
-/** Profile > "Mes liens": my public share links, each deletable. Hidden while there are none. */
 export function MyLinksRow() {
   const t = useTheme();
   const tr = useT();
   const { shareLinks } = useFeatures();
   const [open, setOpen] = useState(false);
   const { data: links } = useMyLinks(shareLinks);
-  // The last one deleted: nothing left to show.
   const empty = !!links && !links.length;
   if (empty && open) setOpen(false);
   if (!links?.length && !open) return null;

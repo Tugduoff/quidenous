@@ -10,7 +10,6 @@ import { type ChoosePerson as Person, verdict } from '@/lib/utils/choose';
 
 const sys = ReduceMotion.System;
 
-/** Everyone at once: the group's guess against the real choice. */
 export function ChooseSummary({ people, items, byId, onOne }: { people: Person[]; items: string[]; byId: Map<number, Member>; onOne: () => void }) {
   const t = useTheme();
   const tr = useT();

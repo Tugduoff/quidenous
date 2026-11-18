@@ -8,7 +8,6 @@ import { type Who } from '@/lib/utils/mascot';
 import { useTheme } from '@/lib/theme';
 import { Display, QuestionText } from '@/components/ui/text';
 
-/** The result: Bulle, as always, caught. */
 export function IntroVerdict({ pick }: { pick: Who }) {
   const t = useTheme();
   const tr = useT();

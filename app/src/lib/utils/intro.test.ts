@@ -1,4 +1,3 @@
-// Intro gating and demo round. Run from app/: `bun test src/lib/intro.test.ts`.
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 

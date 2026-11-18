@@ -12,10 +12,6 @@ import { useTheme } from '@/lib/theme';
 import { firstName } from '@/lib/utils/names';
 import { isComplete, type Match, type MatchAction } from '@/lib/utils/said';
 
-/**
- * The people to place, pinned over the button: tap one to put them on the waiting answer. Someone already placed shows
- * the answer's number (tapping them moves them, or swaps with whoever was there).
- */
 export function SuspectTray({ people, state, dispatch }: { people: Member[]; state: Match; dispatch: (a: MatchAction) => void }) {
   const t = useTheme();
   const tr = useT();
@@ -33,7 +29,6 @@ export function SuspectTray({ people, state, dispatch }: { people: Member[]; sta
   });
   const waiting = state.sel != null ? state.order.indexOf(state.sel) + 1 : 0;
   const chips = people.map((m) => <SuspectChip key={m.id} member={m} slot={slotOf.get(m.id) ?? 0} onPick={onPick} />);
-  // A handful wraps on two lines at most; a crowd scrolls sideways on one.
   const crowd = people.length > 6;
   return (
     <View style={{ gap: 8 }}>
@@ -60,7 +55,6 @@ const SuspectChip = memo(function SuspectChip({
   onPick,
 }: {
   member: Member;
-  /** The answer they're on (its number), 0: none. */
   slot: number;
   onPick: (id: number) => void;
 }) {

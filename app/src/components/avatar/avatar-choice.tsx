@@ -5,14 +5,12 @@ import type { Avatar } from '@/lib/utils/avatar';
 import { useTheme } from '@/lib/theme';
 import { PressableScale } from '@/components/ui/pressable-scale';
 
-/** Close-up on the face, for the small features. */
 const ZOOM = '20 24 60 60';
 
 export function AvatarCircle({ size, children }: { size: number; children: ReactNode }) {
   return <View style={{ width: size, height: size, borderRadius: size / 2, overflow: 'hidden' }}>{children}</View>;
 }
 
-/** One choice: the avatar as it would be with it. */
 export function AvatarChoice({
   avatar,
   on,

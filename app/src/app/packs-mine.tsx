@@ -19,13 +19,8 @@ import { roundKeys } from '@/lib/api/rounds';
 import { questionKeys } from '@/lib/api/questions';
 import { useFeatures } from '@/lib/api/features';
 
-/** Whether a pack of mine can go into a room: public, or still in review (as on its page). */
 const installable = (p: PackItem) => p.status === 'public' || p.status === 'review';
 
-/**
- * The packs I published, with their moderation status (in review, removed and why).
- * Several at once (hold one, or the header's button): delete them, or add them to the current room.
- */
 export default function MyPacksScreen() {
   const t = useTheme();
   const tr = useT();
@@ -37,7 +32,6 @@ export default function MyPacksScreen() {
   const sel = useSelection(packs?.map((p) => p.id));
   const picked = packs?.filter((p) => sel.has(p.id)) ?? [];
   const toAdd = picked.filter(installable);
-  // A room where only the owner adds questions: not for me to add packs to.
   const mayAdd = !!group && (group.settings.questions_by !== 'owner' || group.my_role === 'owner');
 
   const remove = useMutation({
@@ -60,7 +54,6 @@ export default function MyPacksScreen() {
       remove.mutate(ids);
   };
 
-  // No batch endpoint: one install per pack, like its page does (each skips questions already in the room).
   const add = useMutation({
     meta: { quiet: true },
     mutationFn: (ids: number[]) => eachOf(ids, (id) => installPack(id), 1),

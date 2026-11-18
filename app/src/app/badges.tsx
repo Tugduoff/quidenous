@@ -14,7 +14,6 @@ import { BadgeSummaryCard } from '@/components/badges/badge-summary-card';
 
 const GAP = 10;
 
-/** My titles and badges: what I display, how many I have, every medal (earned or still to get). */
 export default function BadgesScreen() {
   const t = useTheme();
   const tr = useT();

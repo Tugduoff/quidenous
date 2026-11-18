@@ -1,7 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import { storage } from '@/lib/device/storage';
 
-/** Rounds whose reveal I've watched (on this device): coming back shows the whole result at once. */
 const SEEN_KEY = 'qdn.saidSeen';
 const SEEN_KEPT = 60;
 let seenIds: number[] | null = null;
@@ -23,7 +22,6 @@ export function markSaidSeen(roundId: number) {
   seenListeners.forEach((l) => l());
 }
 
-/** Seen, not seen, or null while the list loads (nothing drawn yet: no reveal flashing before the full result). */
 export function useSaidSeen(roundId: number): boolean | null {
   return useSyncExternalStore(
     (l) => {

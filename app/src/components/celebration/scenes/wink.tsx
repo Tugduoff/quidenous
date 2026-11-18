@@ -1,4 +1,3 @@
-/** 69: a smiley winks, the number turns upside down and stays 69. */
 import { type ReactNode, useMemo } from 'react';
 import { View } from 'react-native';
 import Animated, { Extrapolation, interpolate, useAnimatedStyle } from 'react-native-reanimated';
@@ -64,7 +63,6 @@ export const wink: SceneFactory = (m, t) => {
   };
 };
 
-/** Half a turn with a wind-up and a small overshoot. */
 function Turn({ clock, at, children }: { clock: Clock; at: number; children: ReactNode }) {
   const anim = useAnimatedStyle(() => {
     const r = interpolate(clock.value, [at, at + 140, at + 460, at + 560, at + 680], [0, -12, 192, 176, 180], Extrapolation.CLAMP);
@@ -74,11 +72,9 @@ function Turn({ clock, at, children }: { clock: Clock; at: number; children: Rea
   return <Animated.View style={anim}>{children}</Animated.View>;
 }
 
-/** A drawn smiley: pops in, raises an eyebrow and winks at each time in `winks`. */
 function Face({ clock, x, y, size, winks }: { clock: Clock; x: number; y: number; size: number; winks: number[] }) {
   const s = size / 170;
   const [w1, w2] = winks;
-  // The wink: the right eye closes into an arc, the left brow shoots up, the head tilts.
   const wink = (c: number) => {
     'worklet';
     const a = interpolate(c, [w1, w1 + 90, w1 + 700, w1 + 800], [0, 1, 1, 0], Extrapolation.CLAMP);
@@ -105,10 +101,8 @@ function Face({ clock, x, y, size, winks }: { clock: Clock; x: number; y: number
             <Circle cx={40} cy={108} r={14} fill="#FF7FA8" opacity={0.45} />
             <Circle cx={140} cy={114} r={13} fill="#FF7FA8" opacity={0.45} />
             <Path d="M48 110 Q92 142 132 100" stroke={ink} strokeWidth={9} fill="none" strokeLinecap="round" />
-            {/* Right brow, calm. */}
             <Path d="M100 42 Q116 36 130 44" stroke={ink} strokeWidth={7} fill="none" strokeLinecap="round" />
           </Svg>
-          {/* Left eye, wide open, its brow flying up. */}
           <View style={{ position: 'absolute', left: 44 * s, top: 56 * s, width: 24 * s, height: 32 * s }}>
             <Svg width={24 * s} height={32 * s} viewBox="0 0 24 32">
               <Ellipse cx={12} cy={16} rx={11} ry={15} fill={ink} />
@@ -120,7 +114,6 @@ function Face({ clock, x, y, size, winks }: { clock: Clock; x: number; y: number
               <Path d="M4 14 Q22 2 40 10" stroke={ink} strokeWidth={7} fill="none" strokeLinecap="round" />
             </Svg>
           </Animated.View>
-          {/* Right eye: open, or shut into an arc while winking. */}
           <Animated.View style={[{ position: 'absolute', left: 104 * s, top: 56 * s, width: 24 * s, height: 32 * s }, open]}>
             <Svg width={24 * s} height={32 * s} viewBox="0 0 24 32">
               <Ellipse cx={12} cy={16} rx={11} ry={15} fill={ink} />

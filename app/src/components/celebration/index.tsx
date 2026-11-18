@@ -15,17 +15,12 @@ import { sceneFor } from '@/components/celebration/scenes';
 import { Dialog, DialogTitle } from '@/components/ui/dialog';
 import { PREVIEW_AT, playPreview, STREAK_PREVIEW, usePreview } from '@/lib/hooks/use-milestone';
 
-/**
- * Full-screen party for a milestone, drawn over the app (`streak`: my days in a row instead of the room's questions).
- * Tap anywhere to skip; it also closes by itself. Under reduced motion: a still card instead.
- */
 export function Celebration({ count, onDone, frozen, streak }: { count: number; onDone: () => void; frozen?: number | null; streak?: boolean }) {
   const reduced = useReducedMotion();
   const t = useTheme();
   const tr = useT();
   const { lang } = useLang();
   const { width: w, height: h } = useWindowDimensions();
-  // The punchline is read in the app's language.
   const m = useMemo(() => (streak ? streakMilestone(count, lang) : describe(count, lang)), [count, lang, streak]);
   const scene = useMemo(() => sceneFor(m, t), [m, t]);
   const rand = useMemo(() => makeRand(count * 7919 + 17), [count]);
@@ -72,7 +67,6 @@ export function Celebration({ count, onDone, frozen, streak }: { count: number; 
   );
 }
 
-/** Plays the hidden preview (`?fete=777`, or the room name long-pressed five times), signed in or not. */
 export function CelebrationPreview() {
   const n = usePreview();
   const [streak, setStreak] = useState(STREAK_PREVIEW);
@@ -81,10 +75,8 @@ export function CelebrationPreview() {
   return <Celebration key={n} count={n} frozen={PREVIEW_AT} onDone={() => playPreview(null)} />;
 }
 
-/** Every milestone to preview: each 50 up to 2000 and the special numbers. */
 const ALL = [...new Set([...SPECIAL_NUMBERS, ...Array.from({ length: 40 }, (_, i) => (i + 1) * 50)])].sort((a, b) => a - b);
 
-/** Hidden picker (the room name long-pressed five times): plays any party without touching what this device has seen. */
 function MilestonePicker({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const t = useTheme();
   const tr = useT();
@@ -119,7 +111,6 @@ function MilestonePicker({ visible, onClose }: { visible: boolean; onClose: () =
   );
 }
 
-/** Five long presses within 20 s open the picker. */
 export function useSecretPicker() {
   const [open, setOpen] = useState(false);
   const presses = useRef<number[]>([]);

@@ -15,7 +15,6 @@ import { tallies } from '@/lib/utils/party';
 import { useAnimateOnChange } from '@/lib/hooks/use-animate-on-change';
 import { useCountdownBar } from '@/lib/hooks/use-party';
 
-/** The join QR code on its white tile. */
 export function JoinQr({ code, size }: { code: string; size: number }) {
   return (
     <View style={{ alignSelf: 'center', padding: Math.round(size * 0.06), borderRadius: 16, backgroundColor: '#fff' }}>
@@ -24,12 +23,10 @@ export function JoinQr({ code, size }: { code: string; size: number }) {
   );
 }
 
-/** Seconds left and a bar running down; red for the last five. `big`: the big screen. */
 export function Countdown({ ms, total, big }: { ms: number | null; total: number; big?: boolean }) {
   const t = useTheme();
   const tr = useT();
   const reduced = useReducedMotion();
-  // `ms` changes once a second; the bar runs down to where it will be at the next change.
   const frac = ms == null ? 1 : Math.min(1, ms / Math.max(1, total * 1000));
   const next = ms == null ? 1 : Math.min(1, Math.max(0, ms - 1000) / Math.max(1, total * 1000));
   const w = useCountdownBar(frac, next, !reduced && ms != null);
@@ -62,9 +59,6 @@ export function Countdown({ ms, total, big }: { ms: number | null; total: number
   );
 }
 
-/**
- * Faces of who voted and "3/5 ont voté". A said question: `done` (who has written, or guessed) and the line that says so.
- */
 export function VotedLine({
   round,
   byId,
@@ -91,7 +85,6 @@ export function VotedLine({
 }
 
 const sys = ReduceMotion.System;
-// Fresh builders: a preset's own `.delay()` would change it for the whole app.
 const crownIn = FadeInUp.duration(260).easing(LAYOUT_EASE).delay(500).reduceMotion(sys);
 const nameIn = FadeInDown.duration(280).easing(LAYOUT_EASE).delay(650).reduceMotion(sys);
 const faceIn = (i: number) =>
@@ -101,7 +94,6 @@ const faceIn = (i: number) =>
     .delay(150 + i * 140)
     .reduceMotion(sys);
 
-/** The winner (or the tied ones), big: faces spring in with a ring bursting out, the crown drops, then the name. */
 export function WinnerReveal({ round, byId, size = 120 }: { round: PartyRound; byId: Map<number, Member>; size?: number }) {
   const t = useTheme();
   const tr = useT();
@@ -144,7 +136,6 @@ export function WinnerReveal({ round, byId, size = 120 }: { round: PartyRound; b
 
 const fallback = (id: number): Member => ({ id, name: '?', color: '#8D8D99', photo_url: null });
 
-/** A ring in the person's colour growing out from behind the face and fading, once. Nothing under reduced motion. */
 function Burst({ color, size, delay, children }: { color: string; size: number; delay: number; children: ReactNode }) {
   const reduced = useReducedMotion();
   const p = useSharedValue(0);
@@ -164,7 +155,6 @@ function Burst({ color, size, delay, children }: { color: string; size: number; 
   );
 }
 
-/** The six quick reactions under a result, with their counts; mine are highlighted. */
 export function Reactions({ round, onReact, disabled }: { round: PartyRound; onReact?: (emoji: string) => void; disabled?: boolean }) {
   const t = useTheme();
   const tr = useT();
@@ -206,7 +196,6 @@ export function Reactions({ round, onReact, disabled }: { round: PartyRound; onR
   );
 }
 
-/** "Suivante", filling up as people tap it toward the count that opens the next question. The owner's tap opens it right away. */
 export function NextButton({ round, owner, busy, onPress }: { round: PartyRound; owner: boolean; busy?: boolean; onPress: () => void }) {
   const t = useTheme();
   const tr = useT();
@@ -252,7 +241,6 @@ export function NextButton({ round, owner, busy, onPress }: { round: PartyRound;
           {taps}/{needed}
         </Text>
       </PressableScale>
-      {/* The owner's tap is enough; everyone else learns how many it takes. */}
       {!solid && needed > 1 && (
         <Text style={{ textAlign: 'center', fontFamily: t.font.semibold, fontSize: 13, color: t.mut }}>
           {tr('party.reveal.needed', { count: needed })}
@@ -262,7 +250,6 @@ export function NextButton({ round, owner, busy, onPress }: { round: PartyRound;
   );
 }
 
-/** The players as chips (face and name); the owner wears a crown, and someone arriving pops in. `onPress`: the owner removes someone. */
 export function PlayerChips({ players, big, onPress }: { players: PartyPlayer[]; big?: boolean; onPress?: (p: PartyPlayer) => void }) {
   const t = useTheme();
   const tr = useT();

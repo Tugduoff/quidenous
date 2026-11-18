@@ -10,7 +10,6 @@ import { flow } from '@/lib/auth-flow';
 import { looksLikeEmail } from '@/lib/utils/credentials';
 import { authError } from '@/lib/api/errors';
 
-/** Step 1: the email. The next step signs in or signs up, whichever fits. */
 export default function EmailStep() {
   const tr = useT();
   const [email, setEmail] = useState(flow.email);

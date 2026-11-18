@@ -20,7 +20,6 @@ import { SuggestionCard } from '@/components/admin/suggestion-card';
 import { PackReviewCard } from '@/components/admin/pack-review-card';
 import { WrappedPreviewLink } from '@/components/admin/wrapped-preview-link';
 
-/** A report's id in its list (a message and a member can share a number). */
 const reportKey = (r: ReviewReport) => `${r.kind}:${r.id}`;
 
 type Batch = 'dismiss' | 'approvePacks' | 'removePacks' | 'approveSuggestions' | 'rejectSuggestions';
@@ -29,10 +28,8 @@ export function AdminReview({ admin, showWrappedPreview, review }: { admin: bool
   const t = useTheme();
   const tr = useT();
   const qc = useQueryClient();
-  // A pack, or the selected ones ('batch'), waiting for a reason to be removed.
   const [removing, setRemoving] = useState<number | 'batch' | null>(null);
   const [reason, setReason] = useState('');
-  // Several items of one list at a time (hold a card, or the section's button); starting one list leaves the others.
   const reportSel = useSelection(review?.reports?.map(reportKey));
   const packSel = useSelection(review?.packs.map((p) => p.id));
   const sugSel = useSelection(review?.suggestions.map((s) => s.id));
@@ -66,17 +63,12 @@ export function AdminReview({ admin, showWrappedPreview, review }: { admin: bool
       qc.setQueryData<Review>(packKeys.review, (r) => r && { ...r, reports: r.reports?.filter((x) => x.kind !== report.kind || x.id !== report.id) }),
   });
   const decide = async (report: ReviewReport, action: ReportAction) => {
-    // Acting on the account: asked first (erasing can't be undone).
     if (action === 'suspend' && !(await askConfirm(tr('admin.suspendTitle', { name: report.person?.name ?? '' }), tr('admin.suspendBody'), tr('admin.suspend'))))
       return;
     if (action === 'erase' && !(await askConfirm(tr('admin.eraseTitle', { name: report.person?.name ?? '' }), tr('admin.eraseBody'), tr('admin.erase'))))
       return;
     close.mutate({ report, action });
   };
-  /**
-   * No batch endpoint: the single actions' calls on the selected ones, 3 at a time. The done ones leave the list
-   * (as after a single action); the failed ones stay ticked, to try again.
-   */
   const runBatch = async <K,>(what: Batch, sel: Selection<K>, one: (id: K) => Promise<unknown>, drop: (r: Review, done: Set<K>) => Review) => {
     const ids = sel.selected;
     setRunning(what);
@@ -86,7 +78,6 @@ export function AdminReview({ admin, showWrappedPreview, review }: { admin: bool
     if (done.length && (what === 'approvePacks' || what === 'removePacks')) qc.invalidateQueries({ queryKey: packKeys.all });
     if (done.length < ids.length) {
       showToast(tr('common.select.partial', { done: done.length, count: ids.length }));
-      // Some may have been handled by someone else meanwhile: the list as it is now.
       qc.invalidateQueries({ queryKey: packKeys.review });
     } else sel.cancel();
   };
@@ -146,7 +137,6 @@ export function AdminReview({ admin, showWrappedPreview, review }: { admin: bool
           tone: 'acc',
           busy: running === 'approveSuggestions',
           disabled: busy,
-          // Without deck tones: the server files them under `potes`.
           onPress: () => runBatch('approveSuggestions', sugSel, (id) => approveSuggestion(id), dropSuggestions),
         },
       ]}

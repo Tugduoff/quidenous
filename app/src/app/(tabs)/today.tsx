@@ -1,5 +1,3 @@
-// « Aujourd'hui »: every room of mine on one screen, what each one wants from me today, most pressing first
-// (GET /api/today, lib/today.ts). A tab only with two rooms or more; tapping a card opens that room's vote tab.
 import { useIsFocused } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { RefreshControl, View } from 'react-native';

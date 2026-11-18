@@ -1,4 +1,3 @@
-/** 214: hearts — a big heart beats behind the number, small ones float up. */
 import { type ReactNode, useMemo } from 'react';
 import type { ViewStyle } from 'react-native';
 import Animated, { Extrapolation, interpolate, useAnimatedStyle } from 'react-native-reanimated';
@@ -25,7 +24,6 @@ function Heart({ size, color, opacity = 1 }: { size: number; color: string; opac
   );
 }
 
-/** A heartbeat (boom-boom, rest) every `period` ms from `start`. */
 function Beat({
   clock,
   start,

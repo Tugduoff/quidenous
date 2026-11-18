@@ -29,7 +29,6 @@ export function QuietHourDialog({
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
       {HOURS.map((m) => {
         const on = m === pickedValue;
-        // Start and end can't be the same hour.
         const taken = m === otherValue;
         return (
           <Pressable

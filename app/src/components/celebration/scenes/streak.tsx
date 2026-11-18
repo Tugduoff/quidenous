@@ -1,4 +1,3 @@
-/** Streak milestones (7, 30, 100… days in a row): the generic party, with Paillette hopping in over the number. */
 import Animated, { Extrapolation, interpolate, useAnimatedStyle } from 'react-native-reanimated';
 
 import { Mascot } from '@/components/mascot/mascot';
@@ -10,7 +9,6 @@ import { small, smallLanding } from '@/components/celebration/scenes/small';
 
 const SIZE = 150;
 
-/** Pops up from behind the number at `at` (scene clock, ms), squashes on landing, then keeps hopping on its own. */
 function HopIn({ clock, at, top, cx }: { clock: Clock; at: number; top: number; cx: number }) {
   const a = useAnimatedStyle(() => {
     const c = clock.value;
@@ -33,7 +31,6 @@ function HopIn({ clock, at, top, cx }: { clock: Clock; at: number; top: number; 
 
 export const streak: SceneFactory = (m, t) => {
   const base = (m.n >= 30 ? medium : small)(m, t);
-  // When the number lands (small: rolled up; medium: slammed down).
   const at = m.n >= 30 ? MEDIUM_SLAM : smallLanding(m.n);
   const { Render } = base;
   return {

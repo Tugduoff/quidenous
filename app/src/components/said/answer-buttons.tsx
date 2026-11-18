@@ -4,7 +4,6 @@ import { PressableScale } from '@/components/ui/pressable-scale';
 import { useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 
-/** Under the field: "Envoyer", or "Annuler" and "Enregistrer" while rewriting. */
 export function AnswerButtons({
   editing,
   ok,

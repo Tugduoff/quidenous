@@ -4,14 +4,11 @@ import { ApiError } from '@/lib/api/client';
 import { appVersion } from '@/lib/device/update';
 import { postClientError } from '@/lib/api/client-errors';
 
-/** At most this many reports per session: a crash loop can't burn the server's per-IP limit (20 / 10 min). */
 const MAX_REPORTS = 5;
-/** A fatal native error waits this long at most for its report before the app crashes. */
 const FATAL_WAIT_MS = 2000;
 
 const sent = new Set<string>();
 
-/** Where it happened (web only: no router hook here, it may be what broke). */
 const route = () => (Platform.OS === 'web' && typeof location !== 'undefined' ? location.pathname : undefined);
 
 const messageOf = (error: unknown): string => {
@@ -24,7 +21,6 @@ const messageOf = (error: unknown): string => {
   }
 };
 
-/** Expected failures, not bugs: server answers, being offline, aborted requests, browser noise. */
 function isNoise(error: unknown): boolean {
   if (error instanceof ApiError) return true;
   const message = messageOf(error);
@@ -37,11 +33,6 @@ function isNoise(error: unknown): boolean {
   );
 }
 
-/**
- * Sends a JS error to the server log (`POST /api/client-errors`): once per message, at most `MAX_REPORTS` per session
- * (render errors from the ErrorBoundary and the global handlers below).
- * Never throws; resolves once the report is sent (or failed, or skipped).
- */
 export async function reportClientError(error: unknown, extra?: { componentStack?: string; prefix?: string }): Promise<void> {
   try {
     const message = ((extra?.prefix ?? '') + messageOf(error)).slice(0, 500);
@@ -56,9 +47,7 @@ export async function reportClientError(error: unknown, extra?: { componentStack
       version: appVersion(),
       route: route(),
     });
-  } catch {
-    // A report that can't be sent is dropped.
-  }
+  } catch {}
 }
 
 type Tracker = {
@@ -72,14 +61,9 @@ type Tracker = {
 
 let installed = false;
 
-/** A global handler's report: expected failures are left out. */
 const reportUnexpected = (error: unknown, prefix?: string) =>
   isNoise(error) ? Promise.resolve() : reportClientError(error, prefix ? { prefix } : undefined);
 
-/**
- * Errors outside rendering (event handlers, timers, rejected promises) are reported too; render errors go through the
- * ErrorBoundary. Not in development: the red box and the dev warnings stay as they are.
- */
 export function installGlobalErrorHandlers() {
   if (installed || __DEV__) return;
   installed = true;
@@ -90,8 +74,6 @@ export function installGlobalErrorHandlers() {
       window.addEventListener('unhandledrejection', (e) => void reportUnexpected(e.reason, 'Unhandled rejection: '));
       return;
     }
-    // Native: chained to the previous handler (React Native's, which crashes the app on a fatal error in a release
-    // build). A fatal one waits a little for its report: the crash would otherwise cut the request.
     if (typeof ErrorUtils !== 'undefined' && ErrorUtils.getGlobalHandler) {
       const previous = ErrorUtils.getGlobalHandler();
       ErrorUtils.setGlobalHandler((error, isFatal) => {
@@ -107,7 +89,6 @@ export function installGlobalErrorHandlers() {
         setTimeout(forward, FATAL_WAIT_MS);
       });
     }
-    // Hermes tracks unhandled rejections only when asked (React Native does it in development only).
     const hermes = (globalThis as { HermesInternal?: Tracker | null }).HermesInternal;
     if (hermes?.hasPromise?.() && hermes.enablePromiseRejectionTracker) {
       hermes.enablePromiseRejectionTracker({
@@ -116,7 +97,5 @@ export function installGlobalErrorHandlers() {
         onHandled: () => {},
       });
     }
-  } catch {
-    // Reporting must never stop the app from starting.
-  }
+  } catch {}
 }

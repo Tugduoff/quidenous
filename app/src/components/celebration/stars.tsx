@@ -1,4 +1,3 @@
-/** A starry sky: three layers of stars twinkling out of phase. */
 import { useMemo } from 'react';
 import { StyleSheet } from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
@@ -10,7 +9,6 @@ import type { Clock } from '@/components/celebration/engine';
 
 type Star = { x: number; y: number; r: number };
 
-/** A layer of stars twinkling together (one Svg, one animated opacity). */
 function StarLayer({
   clock,
   stars,
@@ -40,7 +38,6 @@ function StarLayer({
   );
 }
 
-/** Three layers of stars twinkling out of phase. */
 export function StarField({
   clock,
   rand,

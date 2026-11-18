@@ -6,7 +6,6 @@ import { useTheme } from '@/lib/theme';
 import { Avatar } from '@/components/ui/avatar';
 import { Logo } from '@/components/ui/text';
 
-/** The logo, today's date, and me (the profile). */
 export function TodayHeader() {
   const t = useTheme();
   const tr = useT();

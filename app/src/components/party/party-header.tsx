@@ -23,7 +23,6 @@ export function BackToRooms() {
   );
 }
 
-/** Back to the rooms, the party's name and when it ends, and its menu. */
 export function PartyHeader({ party }: { party: Party }) {
   const t = useTheme();
   const tr = useT();

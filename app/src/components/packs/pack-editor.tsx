@@ -33,7 +33,6 @@ export function PackEditor({ id }: { id: number | null }) {
   const { data: queue } = useQueue();
   const { data: group } = useGroup();
   const { data: me } = useCommunityMe();
-  // An older server: packs without choose questions, no AI template.
   const { loaded, packChoose, packTemplate, anonymousVotes } = useFeatures();
 
   const [name, setName] = useState('');
@@ -41,12 +40,10 @@ export function PackEditor({ id }: { id: number | null }) {
   const [tags, setTags] = useState<PackTag[]>([]);
   const [spicyPick, setSpicy] = useState(false);
   const [lang, setLang] = useState<Lang | null>(null);
-  // Admins can publish straight into the Coflop pick.
   const [featured, setFeatured] = useState(false);
   const [questions, setQuestions] = useState<PackQuestion[]>([]);
   const [draft, setDraft] = useState('');
   const [note, setNote] = useState<string | null>(null);
-  // Filled once: from the pack being edited, or from the room's own questions for a new one.
   const [seeded, setSeeded] = useState(false);
   if (!seeded && id != null && pack) {
     setSeeded(true);
@@ -58,7 +55,6 @@ export function PackEditor({ id }: { id: number | null }) {
     setQuestions(pack.questions);
   } else if (!seeded && id == null && queue && loaded) {
     setSeeded(true);
-    // A new pack starts from the room's own questions (choose ones only when the server takes them in packs; never said ones).
     setQuestions((qs) =>
       merge(
         qs,
@@ -71,10 +67,8 @@ export function PackEditor({ id }: { id: number | null }) {
 
   const spicy = spicyPick || tags.includes('pimente');
   const language: Lang = lang ?? group?.language ?? getLang();
-  // Several questions at once (hold one, or the button by the count): remove them, or switch them to a ranking.
   const sel = useSelection(questions.map((q) => keyOf(q.text)));
   const picked = questions.filter((q) => sel.has(keyOf(q.text)) && q.kind !== 'choose');
-  // `[classement] …` and (on a server that takes them) `[choix] Question | A | B` typed by hand.
   const typed = splitTag(draft);
   const draftOk = [...typed.text].length >= QUESTION_MIN && (typed.kind !== 'choose' || (packChoose && itemsOk(typed.items ?? [])));
 
@@ -83,7 +77,6 @@ export function PackEditor({ id }: { id: number | null }) {
     setQuestions((qs) => merge(qs, [{ text: typed.text, kind: typed.kind, items: typed.items, anonymous: typed.anonymous }]));
     setDraft('');
   };
-  // A file fills the list, and the pack's name, description, categories, language and 16+ from its header.
   const importFile = async () => {
     const content = await pickTextFile().catch(() => null);
     if (content == null) return;
@@ -114,7 +107,6 @@ export function PackEditor({ id }: { id: number | null }) {
     setQuestions((qs) => qs.filter((q) => !gone.has(keyOf(q.text))));
     sel.cancel();
   };
-  // All the ticked ones already a ranking: back to a pick; otherwise all become rankings. Choose questions stay as they are.
   const rankPicked = () => {
     const to = picked.every((q) => q.kind === 'rank') ? 'pick' : 'rank';
     const on = new Set(picked.map((q) => keyOf(q.text)));
@@ -131,7 +123,6 @@ export function PackEditor({ id }: { id: number | null }) {
     mutationFn: () => {
       const sent = questions
         .filter((q) => packChoose || q.kind !== 'choose')
-        // An older server keeps each question's anonymous flag as it was (not sent).
         .map((q) =>
           q.kind === 'choose'
             ? { text: q.text, kind: q.kind, items: q.items }

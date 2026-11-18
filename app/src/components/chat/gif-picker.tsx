@@ -14,7 +14,6 @@ import { useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 import { ratioOf, twoColumns } from '@/lib/utils/chat';
 
-/** Trending GIFs, or a search (typed, then 350 ms of quiet), two columns, more as it scrolls. A tap sends one. */
 export function GifPicker({ visible, onClose, onPick }: { visible: boolean; onClose: () => void; onPick: (g: Gif) => void }) {
   const t = useTheme();
   const tr = useT();

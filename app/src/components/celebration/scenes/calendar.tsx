@@ -1,4 +1,3 @@
-/** 365: tear-off calendar — the last days of December fly off. */
 import { useMemo } from 'react';
 import { Text, View } from 'react-native';
 
@@ -80,7 +79,6 @@ export const calendar: SceneFactory = (m, t) => {
               </Thrown>
             </Keyed>
           ))}
-          {/* The binder rings stay with the block. */}
           <Keyed clock={clock} style={centred(cx, cy - 78, 104, 20)} k={{ t: [0, 180, slam - 140, slam - 20], o: [0, 1, 1, 0] }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 20 }}>
               <View style={{ width: 12, height: 20, borderRadius: 6, backgroundColor: '#3A3A44' }} />

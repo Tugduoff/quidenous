@@ -1,4 +1,3 @@
-// « Qui a dit ça ? » logic tests. Run from app/: `bun test src/lib/said.test.ts`.
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 import { FLIP_MS, flipAt, GUESS_IN, GUESS_STEP, guessGroups, holderOf, initMatch, isComplete, type Match, type MatchAction, matchReducer, nextOpen, pickLine, places, placed, type RevealItem, revealItems, screenGroups, screenRevealSteps, suspects, toGuess, toGuesses, topScorers } from '@/lib/utils/said';
@@ -59,10 +58,8 @@ describe('the matching game', () => {
 
   test('a person already used swaps with the one there', () => {
     let s = run(fresh(), { type: 'pick', member: 1 }, { type: 'pick', member: 2 });
-    // 10 → 1, 20 → 2; now put 1 on 20.
     s = run(s, { type: 'select', answer: 20 }, { type: 'pick', member: 1 });
     assert.deepEqual(s.picks, { 10: 2, 20: 1 });
-    // One person per answer, never twice.
     assert.equal(new Set(Object.values(s.picks)).size, Object.keys(s.picks).length);
   });
 
@@ -86,7 +83,6 @@ describe('the matching game', () => {
     assert.equal(s.sel, 20);
     s = run(s, { type: 'select', answer: 20 });
     assert.equal(s.sel, null);
-    // Someone on no answer, nothing waiting: nothing happens.
     assert.equal(run(s, { type: 'pick', member: 9 }), s);
   });
 

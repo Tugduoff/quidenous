@@ -9,7 +9,6 @@ import { useTheme } from '@/lib/theme';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { clamp } from '@/lib/utils/easing';
 
-/** Home (Vote tab): today's global question in one line, tap to answer it or see the numbers. Nothing when the room has none. */
 export function GlobalCard() {
   const t = useTheme();
   const tr = useT();
@@ -61,7 +60,6 @@ const ICONS: Record<GlobalFactId, LucideIcon> = {
   top_share: ChartPie,
 };
 
-/** Aggregates across rooms: an icon, the sentence with its percentage, a thin bar. */
 export function FactRows({ facts }: { facts: GlobalFact[] }) {
   const t = useTheme();
   const tr = useT();

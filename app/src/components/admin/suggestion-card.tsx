@@ -10,10 +10,8 @@ import { QuestionText } from '@/components/ui/text';
 import { TAG_ICONS } from '@/components/packs/tag-icons';
 import { ReviewActions } from '@/components/admin/review-actions';
 
-/** The built-in deck's tones a suggestion can join (none picked: the server files it under `potes`). */
 const DECK_TAGS: PackTag[] = ['potes', 'pimente', 'boulot', 'famille'];
 
-/** A queued suggestion: the question, its votes, the deck tones to file it under, reject / approve. */
 export function SuggestionCard({
   text,
   rank,

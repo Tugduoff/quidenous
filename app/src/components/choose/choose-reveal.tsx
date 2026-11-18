@@ -20,7 +20,6 @@ const sys = ReduceMotion.System;
 
 const WIRE_MS = 520;
 
-/** One person at a time: the wire flies to what the group guessed, then their real choice lights up. */
 export function ChooseReveal({ people, items, byId, onAll }: { people: Person[]; items: string[]; byId: Map<number, Member>; onAll: () => void }) {
   const t = useTheme();
   const tr = useT();
@@ -70,14 +69,12 @@ function RevealStage({ p, items, byId }: { p: Person; items: string[]; byId: Map
   const m = byId.get(p.member_id);
   const color = m?.color ?? t.mut;
   const [size, setSize] = useState({ w: 0, h: 0 });
-  // The face inside its column (name under it), the column inside the row.
   const [face, setFace] = useState<Box | null>(null);
   const [who, setWho] = useState<Box | null>(null);
   const [col, setCol] = useState<Box | null>(null);
   const [rows, setRows] = useState<(Box | undefined)[]>([]);
   const measuredRows = measured(rows, items.length);
   const ready = !!face && !!who && !!col && !!measuredRows;
-  // The wire(s) fly out once everything is measured; the real choice lights up after they land.
   const fly = useSharedValue(0);
   useAnimateOnChange(fly, ready, () => (ready ? withTiming(1, { duration: WIRE_MS, easing: EASE, reduceMotion: sys }) : undefined));
   const from = face && who ? { x: who.x + face.x + face.w + 2, y: who.y + face.y + face.h / 2 } : { x: 0, y: 0 };
@@ -119,7 +116,6 @@ function RevealStage({ p, items, byId }: { p: Person; items: string[]; byId: Map
                   {label}
                 </Text>
                 {voters.length > 0 && <AvatarStack members={voters} size={18} ring={t.card2} max={3} />}
-                {/* Their own wire. */}
                 {real && (
                   <Animated.View
                     entering={FadeIn.delay(WIRE_MS + 120)

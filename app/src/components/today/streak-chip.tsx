@@ -4,7 +4,6 @@ import { useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 import { HOT_FROM } from '@/lib/utils/streaks';
 
-/** My streak here; pink when today has no vote yet and a question waits (it ends tonight otherwise). */
 export function StreakChip({ days, risk }: { days: number; risk: boolean }) {
   const t = useTheme();
   const tr = useT();

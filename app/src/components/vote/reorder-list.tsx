@@ -13,20 +13,13 @@ import { useOnChange } from '@/lib/hooks/use-on-change';
 import { useUnmountEffect } from '@/lib/hooks/use-mount-effect';
 import { clamp } from '@/lib/utils/easing';
 
-// A list whose rows can be put in another order: hold one (~300 ms), it lifts, drag it, the others make room.
-// Rows are absolutely positioned from their measured heights, so a drop never waits on React to re-lay them out.
-
-/** Same gap as the Screen's cards. */
 const GAP = 16;
 const HOLD = 300;
-/** Auto-scroll: how close to the edge of the scroll view it starts, and its top speed (px per frame). */
 const EDGE = 90;
 const SPEED = 14;
 const SLIDE = { duration: 200, easing: EASE, reduceMotion: ReduceMotion.System } as const;
 const UNPLACED = -1e6;
-/** Web: holding a row with the mouse doesn't select its text (nor open the iOS callout). */
 const NO_SELECT = Platform.OS === 'web' ? ({ userSelect: 'none', WebkitTouchCallout: 'none' } as unknown as ViewStyle) : null;
-/** Mobile web: a held row keeps the finger, the page doesn't scroll away under it (that would cancel the drag). */
 const holdPage = (e: Event) => e.preventDefault();
 function pageScroll(on: boolean) {
   if (Platform.OS !== 'web' || typeof document === 'undefined') return;
@@ -39,19 +32,14 @@ type Layout = { h: Record<number, number>; top: Record<number, number> };
 type Shared = {
   order: SharedValue<number[]>;
   layout: SharedValue<Layout>;
-  /** The row in hand (or settling after the drop), -1: none. */
   active: SharedValue<number>;
   lifted: SharedValue<boolean>;
   startTop: SharedValue<number>;
-  /** The finger's travel since the lift, then the slide into its slot. */
   trans: SharedValue<number>;
-  /** How far the page auto-scrolled since the lift. */
   scrolled: SharedValue<number>;
-  /** The finger, in window coordinates (for auto-scroll). */
   pointer: SharedValue<number>;
 };
 
-/** Each row's top: one after the other; a row not measured yet takes no room. */
 function tops(order: number[], h: Record<number, number>) {
   'worklet';
   const top: Record<number, number> = {};
@@ -68,7 +56,6 @@ function total(order: number[], h: Record<number, number>) {
   return hs.reduce((a, b) => a + b, 0) + Math.max(0, hs.length - 1) * GAP;
 }
 
-/** The page's scroll position and content height, for auto-scroll: hand `onScroll` / `onContentSizeChange` to the Screen. */
 export function useScrollTracker() {
   const state = useRef({ y: 0, content: 0, locked: false });
   return {
@@ -106,14 +93,11 @@ export function ReorderList<T extends { id: number }>({
 }: {
   items: T[];
   render: (item: T) => ReactNode;
-  /** Dropped somewhere else: every id, in the new order. */
   onReorder: (ids: number[]) => void;
-  /** Held and let go without moving. */
   onStill?: (id: number) => void;
   onDragChange?: (dragging: boolean) => void;
   scroller: RefObject<ComponentRef<typeof ScrollView> | null>;
   tracker: ScrollTracker;
-  /** Rows added after the list first showed fade in. */
   isNew?: (id: number) => boolean;
 }) {
   const ids = items.map((i) => i.id);
@@ -133,7 +117,6 @@ export function ReorderList<T extends { id: number }>({
     pointer: useSharedValue(0),
   };
 
-  // React's order and the measured heights → where each row sits (left alone while a row is in hand).
   const sync = () => {
     if (dragging.current) return;
     const h = heights.current;
@@ -153,7 +136,6 @@ export function ReorderList<T extends { id: number }>({
     sync();
   };
   useOnChange(key, onOrderChange);
-  // Heights arrive one row at a time: applied together on the next frame, so the first layout doesn't cascade.
   const frame = useRef<number | null>(null);
   const measured = (id: number, h: number) => {
     if (heights.current[id] === h) return;
@@ -165,7 +147,6 @@ export function ReorderList<T extends { id: number }>({
       });
   };
 
-  // While a row is in hand: find its slot from where it is, the others slide out of the way.
   useAnimatedReaction(
     () => (s.lifted.value ? s.startTop.value + s.trans.value + s.scrolled.value : null),
     (top) => {
@@ -175,7 +156,6 @@ export function ReorderList<T extends { id: number }>({
       const own = h[id] ?? 0;
       const center = top + own / 2;
       const others = s.order.value.filter((x) => x !== id);
-      // Before `k` or after it: the switch is halfway between the two places it would take.
       let at = 0;
       let y = 0;
       for (const k of others) {
@@ -191,7 +171,6 @@ export function ReorderList<T extends { id: number }>({
     },
   );
 
-  // Auto-scroll on the JS side (the Screen's ScrollView is a plain one), the row in hand follows.
   const loop = useRef<number | null>(null);
   const startScroll = () => {
     const view = { top: 0, height: Dimensions.get('window').height };
@@ -239,7 +218,6 @@ export function ReorderList<T extends { id: number }>({
     if (loop.current != null) cancelAnimationFrame(loop.current);
     tracker.unlock();
     onDragChange?.(false);
-    // Rows added or removed while the row was in hand: the dropped order, minus the gone ones, then the new ones.
     const now = latest.current;
     const merged = [...order.filter((x) => now.includes(x)), ...now.filter((x) => !order.includes(x))];
     if (merged.join(',') !== now.join(',')) onReorder(merged);
@@ -249,7 +227,6 @@ export function ReorderList<T extends { id: number }>({
     }
   };
 
-  // Without dragging: screen reader actions (and keyboards) move a row one place or to the top.
   const move = (id: number, action: 'moveUp' | 'moveDown' | 'moveTop') => {
     const order = [...latest.current];
     const from = order.indexOf(id);
@@ -292,7 +269,6 @@ function Row({
   const t = useTheme();
   const tr = useT();
   const y = useSharedValue(UNPLACED);
-  // Its slot: jumps there the first time (or while not measured), slides afterwards.
   useAnimatedReaction(
     () => [s.layout.value.top[id], s.layout.value.h[id]] as const,
     ([top, h]) => {

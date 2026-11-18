@@ -7,18 +7,14 @@ import { PressableScale } from '@/components/ui/pressable-scale';
 import { Avatar } from '@/components/ui/avatar';
 import type { Member } from '@/lib/api/group';
 
-/** Above this many people, ballots switch from wide cards to a grid of faces. */
 export const BIG_GROUP = 6;
 
-/** Columns of the grid of faces: three for a mid-size group, four from 13 people. */
 export const gridColumns = (count: number) => (count <= 12 ? 3 : 4);
 
-/** A grid of faces (wraps; children are MemberTiles with the same `cols`). Cells keep 8 px between them. */
 export function MemberGrid({ children }: { children: ReactNode }) {
   return <View style={{ flexDirection: 'row', flexWrap: 'wrap', margin: -4 }}>{children}</View>;
 }
 
-/** One person in a MemberGrid: the face, the name under it on one line, an optional badge on the corner. */
 export function MemberTile({
   member,
   cols,
@@ -33,9 +29,7 @@ export function MemberTile({
   member: Member;
   cols: number;
   selected?: boolean;
-  /** A number or an icon in a small disc on the top right corner. */
   badge?: ReactNode;
-  /** Inside a card: just the face and the name, smaller, no background. */
   plain?: boolean;
   dim?: boolean;
   label?: string;

@@ -9,10 +9,8 @@ import { useTheme } from '@/lib/theme';
 
 export type Scanned = { code?: string; friend?: string };
 
-/** What a qui de nous ? QR code holds: an invite link `/?code=…` or a friend link `/?friend=…`. */
 function read(data: string): Scanned | null {
   try {
-    // A party's join link `/party/join/K7PQM`: its code joins like a room's.
     const party = new URL(data).pathname.match(/^\/party\/join\/([A-Za-z0-9]+)\/?$/);
     if (party) return { code: party[1].toUpperCase() };
     const params = new URL(data).searchParams;
@@ -24,7 +22,6 @@ function read(data: string): Scanned | null {
   }
 }
 
-/** Round button next to a code field: opens the camera and hands back the code of the QR. */
 export function ScanButton({ onScan, label }: { onScan: (s: Scanned) => void; label?: string }) {
   const t = useTheme();
   const tr = useT();
@@ -56,7 +53,6 @@ function QrScanner({ onScan, onClose }: { onScan: (s: Scanned) => void; onClose:
   const tr = useT();
   const [permission, requestPermission] = useCameraPermissions();
   const [wrong, setWrong] = useState(false);
-  // The camera reports the same code many times a second: only the first one counts.
   const done = useRef(false);
   const onBarcode = ({ data }: BarcodeScanningResult) => {
     if (done.current) return;

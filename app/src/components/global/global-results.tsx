@@ -14,7 +14,6 @@ import { useTheme } from '@/lib/theme';
 import { Card } from '@/components/ui/card';
 import { useMembers } from '@/lib/api/group';
 
-/** Counts per person (the bars of a result, without who voted). */
 const bars = (tally: GlobalCount[]) => tally.map((c) => ({ ...c, voter_ids: [] }));
 
 export function GlobalResults({ view, top }: { view: GlobalOpen; top: ReactNode }) {

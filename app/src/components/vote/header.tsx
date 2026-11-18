@@ -25,7 +25,6 @@ function PushBell() {
   useMountEffect(() => {
     refreshPush().catch(() => {});
   });
-  // Only shown while notifications can still be turned on.
   if (state === 'unsupported' || state === 'granted') return null;
   const denied = state === 'denied';
   return (
@@ -45,7 +44,6 @@ function PushBell() {
   );
 }
 
-/** Which room I'm in; tap to switch, create or join one. */
 function RoomPill() {
   const t = useTheme();
   const tr = useT();
@@ -71,7 +69,6 @@ function RoomPill() {
   );
 }
 
-/** The in-app notifications, with a badge for what I have not seen. */
 function InboxButton() {
   const t = useTheme();
   const tr = useT();
@@ -106,7 +103,6 @@ function InboxButton() {
   );
 }
 
-/** Opens the group page (members, and later invites and settings). */
 function GroupButton() {
   const t = useTheme();
   const tr = useT();

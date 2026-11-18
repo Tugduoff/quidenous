@@ -7,7 +7,6 @@ import { BOUNCE, EASE } from '@/lib/motion';
 import { useTheme } from '@/lib/theme';
 import { FLIP_MS } from '@/lib/utils/said';
 
-/** The author's face, face down ("?") until it flips over. */
 export function Flip({ member, at, size: S = 64 }: { member: Member | undefined; at: number; size?: number }) {
   const t = useTheme();
   const reduced = useReducedMotion();

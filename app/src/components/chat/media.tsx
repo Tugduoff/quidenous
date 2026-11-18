@@ -12,10 +12,8 @@ import { frameSize } from '@/lib/utils/chat';
 
 export const MEDIA_RADIUS = 14;
 
-/** Web: no drag-and-drop ghost of the picture, no text selection while zooming. */
 export const NO_DRAG = Platform.OS === 'web' ? ({ userSelect: 'none', WebkitUserDrag: 'none' } as unknown as ImageStyle) : null;
 
-/** A photo or GIF at chat size, rounded; `children` float over it (the time, a spinner). */
 function MediaFrame({ uri, width, height, label, dim, children }: { uri: string; width: number; height: number; label?: string; dim?: boolean; children?: ReactNode }) {
   const t = useTheme();
   const { width: screen } = useWindowDimensions();
@@ -34,7 +32,6 @@ function MediaFrame({ uri, width, height, label, dim, children }: { uri: string;
   );
 }
 
-/** The time over a photo without a caption: white on a dark pill, bottom right. */
 function MediaTime({ at }: { at: string }) {
   const t = useTheme();
   return (
@@ -44,7 +41,6 @@ function MediaTime({ at }: { at: string }) {
   );
 }
 
-/** The picture a message shows in its bubble: the small rendition when there is one. */
 export function MessageMediaFrame({ m, media, label, children }: { m: Message; media: MessageMedia; label: string; children?: ReactNode }) {
   return (
     <MediaFrame uri={mediaUrl(media.preview_url || media.url)} width={media.width} height={media.height} label={label}>
@@ -54,7 +50,6 @@ export function MessageMediaFrame({ m, media, label, children }: { m: Message; m
   );
 }
 
-/** A photo or GIF still on its way, mine, at the end of the chat. Failed: a tap sends it again, the cross drops it. */
 export function PendingBubble({ roundId, p }: { roundId: number; p: Pending }) {
   const t = useTheme();
   const tr = useT();

@@ -18,10 +18,6 @@ import { useT } from '@/lib/i18n';
 import { useSession } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
 
-/**
- * `/party/join/[code]`: the link the party's QR code holds. Signed in: one tap. Without an account: a first name
- * and a colour make a guest account (its token is kept like any session), then straight into the party.
- */
 export default function JoinParty() {
   const t = useTheme();
   const tr = useT();
@@ -37,7 +33,6 @@ export default function JoinParty() {
   const [target, setTarget] = useState<number | null>(null);
   const [terms, setTerms] = useState(false);
 
-  // Once the session is in that party (a guest's goes from signed out to in), on to its screen.
   useRedirect(target != null && token && room === target ? `/party/${target}` : null);
 
   const join = useMutation({
@@ -56,7 +51,6 @@ export default function JoinParty() {
   const over = p?.phase === 'over' || status === 'party_over';
   const unknown = status === 'not_found';
   const closed = over || unknown;
-  // A guest account is made here: the terms first.
   const ready = !closed && (!!token || (!!name.trim() && terms)) && !join.isPending;
   const go = () => ready && join.mutate();
 
@@ -65,7 +59,6 @@ export default function JoinParty() {
       tabs={false}
       footer={
         closed ? (
-          // Nothing to join here: on to the app (home, or the welcome screen without an account).
           <Button onPress={() => router.replace('/')}>{tr('party.join.open')}</Button>
         ) : (
           <>

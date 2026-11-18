@@ -9,7 +9,6 @@ import { useTheme } from '@/lib/theme';
 import { nameOf } from '@/lib/utils/names';
 import type { RevealItem } from '@/lib/utils/said';
 
-/** Every answer with its author at once (after the reveal, or with reduced motion). */
 export function SaidAnswerList({ items, byId }: { items: RevealItem[]; byId: Map<number, Member> }) {
   const t = useTheme();
   const tr = useT();

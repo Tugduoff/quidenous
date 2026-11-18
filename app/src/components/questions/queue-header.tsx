@@ -11,7 +11,6 @@ import { askConfirm } from '@/lib/confirm';
 import { useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 
-/** What's coming: count, last action, shuffle, select; while selecting, how many are ticked. */
 export function QueueHeader({
   count,
   locked,

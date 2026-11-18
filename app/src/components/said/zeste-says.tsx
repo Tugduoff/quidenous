@@ -6,7 +6,6 @@ import { motion } from '@/lib/motion';
 import { useTheme } from '@/lib/theme';
 import { pickLine } from '@/lib/utils/said';
 
-/** Zeste, the instigator, eggs you on from the side: a line for the start, along the way, and once all is placed. */
 export function ZesteSays({ seed, done, total }: { seed: number; done: number; total: number }) {
   const t = useTheme();
   const tr = useT();
@@ -22,7 +21,6 @@ export function ZesteSays({ seed, done, total }: { seed: number; done: number; t
         size={64}
         style={{ marginVertical: -6, marginLeft: -6 }}
       />
-      {/* The bubble's tail, then the bubble. */}
       <View
         style={{
           width: 0,

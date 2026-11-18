@@ -3,7 +3,6 @@ import { t as tr, useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 import { Dialog, DialogTitle } from '@/components/ui/dialog';
 
-/** The waits the server accepts between two questions, in seconds. */
 const DELAYS = [0, 900, 3600, 10800, 43200, 86400];
 export const delayLabel = (s: number) =>
   !s
@@ -12,7 +11,6 @@ export const delayLabel = (s: number) =>
       ? tr('common.time.minutes', { count: Math.round(s / 60) })
       : tr('room.settings.hours', { count: Math.round(s / 3600) });
 
-/** Pick the wait before the next question. */
 export function DelayDialog({ visible, value, onClose, onPick }: { visible: boolean; value: number; onClose: () => void; onPick: (s: number) => void }) {
   const t = useTheme();
   const tr = useT();

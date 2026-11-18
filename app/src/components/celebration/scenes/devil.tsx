@@ -1,4 +1,3 @@
-/** 666: the screen cracks, embers rise, everything pulses red. */
 import { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
@@ -16,7 +15,6 @@ function CrackLine({ clock, s }: { clock: Clock; s: Segment }) {
   const len = s.len + s.thick;
   const style = useAnimatedStyle(() => {
     const p = clamp01((clock.value - at) / dur);
-    // Anchored at its start point: the line grows out of (x, y).
     return {
       opacity: p > 0 ? 1 : 0,
       transform: [{ translateX: x }, { translateY: y }, { rotate: `${deg}deg` }, { translateX: (len * p) / 2 }, { scaleX: Math.max(p, 0.001) }],
@@ -37,12 +35,10 @@ const ember = (r: Rand) => {
   return { shape: 'circle' as const, color: r.pick(EMBER), w: sz, h: sz };
 };
 
-/** A red heartbeat over the whole screen once the beast has landed. */
 function RedPulse({ clock, from }: { clock: Clock; from: number }) {
   const style = useAnimatedStyle(() => {
     const ms = clock.value - from;
     if (ms < 0) return { opacity: 0 };
-    // lub-dub every 900 ms
     const ph = (ms % 900) / 900;
     const beat = Math.exp(-Math.pow((ph - 0.08) / 0.05, 2)) + 0.7 * Math.exp(-Math.pow((ph - 0.26) / 0.05, 2));
     return { opacity: 0.08 + 0.22 * beat };
@@ -64,7 +60,6 @@ export const devil: SceneFactory = (m, t) => {
       const segs = useMemo(() => cracks(rand, cx, cy, slam, w, h), [rand, cx, cy, w, h]);
       const list = useMemo<Particle[]>(
         () => [
-          // Embers drifting up from below the whole time, faster after the slam.
           ...Array.from({ length: 56 }, () => ({
             ...ember(rand),
             x: rand.range(0, w),

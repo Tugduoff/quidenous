@@ -3,7 +3,6 @@ import { useDonateUrl } from '@/lib/api/donate';
 import { useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 
-/** "Buy us a coffee": a quiet link to the donation page in the browser, when there is one (lib/donate.ts). */
 export function DonateLink() {
   const t = useTheme();
   const tr = useT();

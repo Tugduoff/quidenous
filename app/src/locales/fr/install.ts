@@ -1,4 +1,3 @@
-/** Installing the web app (components/install.tsx): the banner, the steps, the QR code on a computer. */
 export const install = {
   banner: "Installe l'app",
   hide: 'Masquer',

@@ -58,7 +58,6 @@ export default function StatsScreen() {
       <Screen>
         {header}
         <WrappedBanner />
-        {/* The calm before the storm: Roupi enjoys it. */}
         <Mascot who="roupi" mood="happy" size={128} style={{ marginTop: 32, alignSelf: 'center' }} />
         <Text style={{ marginTop: 4, textAlign: 'center', fontFamily: t.font.semibold, fontSize: 16, lineHeight: 22, color: t.mut }}>
           {tr(EMPTY[period])}
@@ -69,7 +68,6 @@ export default function StatsScreen() {
 
   const name = (id: number) => byId.get(id)?.name ?? '?';
   const profiles = new Map(s.profiles.map((p) => [p.member_id, p]));
-  // Only people with a profile open one (an older server has none).
   const open = (id: number) => profiles.has(id) && setProfileId(id);
   const openStory = (story: Story) => {
     if (story.round_id != null) router.push(`/round/${story.round_id}`);
@@ -77,7 +75,6 @@ export default function StatsScreen() {
   };
 
   const podium = podiumOf(s.profiles);
-  // The matrix lists current members (profiles), or whoever shows up in the votes on a server without profiles.
   const ids = s.profiles.length
     ? s.profiles.map((p) => p.member_id)
     : [...new Set(s.edges.flatMap((e) => [e.voter_id, e.target_id]))].filter((id) => byId.has(id) && !byId.get(id)?.left).sort((a, b) => a - b);

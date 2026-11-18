@@ -10,7 +10,6 @@ import { useTheme } from '@/lib/theme';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { nextGoal } from '@/lib/utils/badges';
 
-/** One medal of the grid. */
 export function BadgeTile({ badge: b, width, shown, index, onOpen }: { badge: Badge; width: number; shown: boolean; index: number; onOpen: (b: Badge) => void }) {
   const t = useTheme();
   const tr = useT();

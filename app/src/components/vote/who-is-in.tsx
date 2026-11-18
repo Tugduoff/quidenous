@@ -14,13 +14,8 @@ import { type Round } from '@/lib/api/rounds';
 import { PendingRow } from '@/components/vote/pending-row';
 import { VoteProgress } from '@/components/vote/vote-progress';
 
-/** Up to this many people still to vote, one row each; more, a grid of faces. */
 const BIG_WAIT = 5;
 
-/**
- * Who's in, who we're waiting for (`done`: who voted, or for a said question who wrote). A card (not Card) that animates
- * its height as people leave the list; each pending person with the skip and the bell.
- */
 export function WhoIsIn({
   round,
   members,
@@ -37,19 +32,15 @@ export function WhoIsIn({
   const t = useTheme();
   const tr = useT();
   const pending = members.filter((m) => !done.includes(m.id));
-  // The face tapped in the grid; closes by itself once they've voted.
   const [open, setOpen] = useState<number | null>(null);
   const opened = pending.find((m) => m.id === open);
-  // With two people a majority is one person deciding alone: no skip vote then (nor when the owner turned it off).
   const group = useGroup();
   const canSkip = members.length >= 3 && group.data?.settings.skip_vote !== false;
   const label = { fontFamily: t.font.bold, fontSize: 11, letterSpacing: 0.6, color: t.mut } as const;
   return (
     <>
-      {/* Who's in, who we're waiting for. A card (not Card) that animates its height as people leave the list. */}
       <Animated.View layout={motion.layout} style={[{ backgroundColor: t.card, borderRadius: t.radius.card, padding: 16, gap: 14 }, t.shadow]}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-          {/* Roupi dozes while the others take their time (not when there's a whole grid of faces to show). */}
           {pending.length > 0 && pending.length <= BIG_WAIT && (
             <Mascot who="roupi" mood="sleepy" size={56} style={{ marginVertical: -8, marginLeft: -6 }} />
           )}
@@ -58,7 +49,6 @@ export function WhoIsIn({
         </View>
         <VoteProgress value={done.length / Math.max(round.member_count, 1)} />
         {pending.length > 0 && <Text style={label}>{tr('vote.waiting.pending')}</Text>}
-        {/* Many still to vote: a grid of faces; tap one for the bell and the skip. */}
         {pending.length > BIG_WAIT ? (
           <MemberGrid>
             {pending.map((m) => {
@@ -83,7 +73,6 @@ export function WhoIsIn({
             })}
           </MemberGrid>
         ) : (
-          /* Someone who votes fades out of the list and the others close up. */
           pending.map((m) => <PendingRow key={m.id} member={m} round={round} canSkip={canSkip} />)
         )}
       </Animated.View>

@@ -15,7 +15,6 @@ import { Pill } from '@/components/ui/pill';
 import { Row, Section } from '@/components/ui/section';
 import { authError } from '@/lib/api/errors';
 
-/** People I blocked, each with "Débloquer"; nothing when there is nobody. */
 export function BlockedSection() {
   const tr = useT();
   const { list } = useBlocks();
@@ -48,10 +47,6 @@ export function BlockedSection() {
   );
 }
 
-/**
- * "Supprimer mon compte": confirmed with the password, or a 2FA / recovery code, when the account has one. An account
- * signed in with Google / Discord only signs in with it again when the server asks (`reauth_required`).
- */
 export function DeleteAccount({ account }: { account: Account }) {
   const t = useTheme();
   const tr = useT();
@@ -83,7 +78,6 @@ export function DeleteAccount({ account }: { account: Account }) {
       setBusy(false);
       return;
     }
-    // Every token is gone already: forget it here only (no logout call), back to the welcome screen.
     await leave();
   };
 

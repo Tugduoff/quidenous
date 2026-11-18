@@ -20,10 +20,6 @@ import { FLIP_MS, flipAt, GUESS_IN, GUESS_STEP, guessGroups, type RevealItem } f
 
 const sys = ReduceMotion.System;
 
-/**
- * The authors, one answer at a time (the server's order: most found first, best hidden last). `onDone`: past the last
- * one, or "Tout voir".
- */
 export function SaidReveal({ items, byId, onDone }: { items: RevealItem[]; byId: Map<number, Member>; onDone: () => void }) {
   const t = useTheme();
   const tr = useT();
@@ -85,7 +81,6 @@ function RevealStep({ item, byId }: { item: RevealItem; byId: Map<number, Member
   const groups = guessGroups(item);
   const at = flipAt(groups.length);
   const author = byId.get(item.author_id);
-  // A small knock when the author shows (not on the web, nor under reduced motion).
   const reduced = useReducedMotion();
   useTimeout(impactHaptic, reduced ? null : at + FLIP_MS / 2);
   return (
@@ -147,7 +142,6 @@ function RevealStep({ item, byId }: { item: RevealItem; byId: Map<number, Member
   );
 }
 
-/** How I did on this one: found it, missed it (and who I'd said), or it was mine. */
 function MyVerdict({ item, byId }: { item: RevealItem; byId: Map<number, Member> }) {
   const t = useTheme();
   const tr = useT();

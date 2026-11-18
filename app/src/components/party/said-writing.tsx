@@ -38,7 +38,6 @@ export function PartySaidWriting({ party, round, said, top, late }: { party: Par
       setEditing(false);
     },
     onError: (e) => {
-      // Too late (the guessing started, time is up, the party ended): the refetch moves the screen on.
       setError(partyError(e));
       qc.invalidateQueries({ queryKey: partyKeys.party(party.id) });
     },

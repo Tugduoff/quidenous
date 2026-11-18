@@ -1,4 +1,3 @@
-// Mascot rig tests. Run from app/: `bun test src/lib/mascot.test.ts` (CI checks the generated JSON with node alone).
 /// <reference types="node" />
 import { spawnSync } from 'node:child_process';
 import assert from 'node:assert/strict';
@@ -43,8 +42,9 @@ describe('compose', () => {
     assert.ok(hi.fill.gloss);
     assert.equal(lo.fill.gloss, null);
     for (const g of groups(lo)) for (const s of g.shapes) assert.ok(!s.hd, 'a detail shape survived');
-    // brows `up` (2 lines) are gone from the face
-    assert.equal(hi.face.shapes.length - lo.face.shapes.length, 2 + 1 /* glasses temples */);
+    const upBrowLines = 2;
+    const glassesTemples = 1;
+    assert.equal(hi.face.shapes.length - lo.face.shapes.length, upBrowLines + glassesTemples);
     assert.ok(lo.over.length < hi.over.length, 'joints dropped');
   });
 
@@ -52,10 +52,8 @@ describe('compose', () => {
     assert.deepEqual(resolvePose('zeste', 'accuse').mouth, 'grin');
     assert.equal(resolvePose('bulle', 'accuse').mouth, 'wobble');
     assert.equal(resolvePose('paillette', 'celebrate').eyes, 'stars');
-    // Roupi never stands up: sitting lowers the body.
     assert.deepEqual(resolvePose('roupi', 'accuse').legs, ['sit', 'sit']);
     assert.equal(resolvePose('roupi', 'accuse').lift, 13);
-    // A hop lifts it, and the shadow shrinks on the ground.
     const hop = compose('zeste', 'celebrate');
     assert.equal(hop.lift, -15);
     assert.ok(hop.shadow.air && hop.shadow.rx < compose('zeste', 'happy').shadow.rx);

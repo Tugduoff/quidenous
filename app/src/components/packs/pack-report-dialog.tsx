@@ -9,7 +9,6 @@ import { useTheme } from '@/lib/theme';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Dialog, DialogActions, DialogTitle } from '@/components/ui/dialog';
 
-/** Report a pack: a reason, and a few words for "other". */
 export function PackReportDialog({ visible, onClose, onSent, id }: { visible: boolean; onClose: () => void; onSent: () => void; id: number }) {
   const t = useTheme();
   const tr = useT();
@@ -19,7 +18,6 @@ export function PackReportDialog({ visible, onClose, onSent, id }: { visible: bo
     meta: { quiet: true },
     mutationFn: () => reportPack(id, reason, details.trim() || undefined),
     onSuccess: onSent,
-    // Already reported by me: same answer.
     onError: (e) => (e instanceof ApiError && e.status === 409 ? onSent() : undefined),
   });
   return (

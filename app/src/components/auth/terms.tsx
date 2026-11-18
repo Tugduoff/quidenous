@@ -10,12 +10,10 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogTitle } from '@/components/ui/dialog';
 import { TextLink } from '@/components/ui/text';
 
-/** `/terms` or `/privacy` in the app's language. */
 function openLegal(page: 'terms' | 'privacy', lang: 'fr' | 'en') {
   Linking.openURL(`${API_URL}${lang === 'en' ? '/en' : ''}/${page}`).catch(() => {});
 }
 
-/** "J'ai 16 ans ou plus et j'accepte les conditions et la confidentialité", with a box and the two links. */
 export function TermsCheck({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
   const t = useTheme();
   const tr = useT();
@@ -60,10 +58,6 @@ export function TermsCheck({ value, onChange }: { value: boolean; onChange: (v: 
   );
 }
 
-/**
- * Signed in with an account that hasn't accepted the current terms (older accounts, Google / Discord
- * sign-ups, or terms that changed): a short sheet asks once. An older server sends no `terms`: nothing.
- */
 export function TermsGate() {
   const tr = useT();
   const { signOut } = useSession();

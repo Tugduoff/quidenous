@@ -12,7 +12,6 @@ import type { MemberStats } from '@/lib/api/stats';
 const STEP = [104, 78, 60];
 const FACE = [60, 48, 44];
 
-/** Top three by votes received (then wins), on steps: second, first, third. Needs two people with votes. */
 export function podiumOf(profiles: MemberStats[]) {
   const ranked = profiles.filter((p) => p.received > 0).sort((a, b) => b.received - a.received || b.wins - a.wins || a.member_id - b.member_id);
   return ranked.length >= 2 ? ranked.slice(0, 3) : [];
@@ -21,7 +20,6 @@ export function podiumOf(profiles: MemberStats[]) {
 export function Podium({ top, byId, onOpen }: { top: MemberStats[]; byId: Map<number, Member>; onOpen: (id: number) => void }) {
   const t = useTheme();
   const tr = useT();
-  // Places on screen: 2nd on the left, 1st in the middle, 3rd on the right.
   const order = top.length === 3 ? [1, 0, 2] : [1, 0];
   return (
     <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 10, paddingTop: 8 }}>

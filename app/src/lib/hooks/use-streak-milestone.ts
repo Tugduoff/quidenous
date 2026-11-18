@@ -5,13 +5,8 @@ import { useState, useEffect } from 'react';
 import { storage } from '@/lib/device/storage';
 import { lastStreakMilestone, STREAK_MILESTONES } from '@/lib/utils/streaks';
 
-/** One per room: the highest streak milestone this device has celebrated. */
 const KEY = 'qdn.streakMilestone';
 
-/**
- * My streak milestone to celebrate, once per room and milestone. A room never seen here starts from where my streak is,
- * unless it just reached a milestone today (so nobody gets an old party).
- */
 export function useStreakMilestone() {
   const data = useStreaks();
   const { me } = useSession();
@@ -32,7 +27,6 @@ export function useStreakMilestone() {
   const current = mine?.current ?? 0;
   const due = lastStreakMilestone(current);
   useEffect(() => {
-    // First time here: anything already passed counts as seen, except a milestone reached exactly now.
     if (room != null && seen && seen.n == null && mine) {
       const start = STREAK_MILESTONES.includes(current as (typeof STREAK_MILESTONES)[number]) ? lastStreakMilestone(current - 1) : due;
       storage.set(`${KEY}.${room}`, String(start));

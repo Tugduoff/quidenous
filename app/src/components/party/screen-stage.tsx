@@ -18,7 +18,6 @@ import { useTheme } from '@/lib/theme';
 import { playersById, tallies } from '@/lib/utils/party';
 import { tidy } from '@/lib/utils/text';
 
-/** What the room is looking at: the players while waiting, the question, the result, the end. */
 export function ScreenStage({ party, unit, wide, reactions }: { party: Party; unit: number; wide: boolean; reactions: boolean }) {
   const t = useTheme();
   const tr = useT();
@@ -40,7 +39,6 @@ export function ScreenStage({ party, unit, wide, reactions }: { party: Party; un
     );
   return (
     <View style={{ gap: 28 }}>
-      {/* The lobby: the whole band, pointing at whoever is next. */}
       <MascotBand max={big(760)} style={{ alignItems: 'flex-start' }} />
       <Display size={big(80)}>{party.players.length < 2 ? tr('party.screen.waiting') : tr('party.screen.ready')}</Display>
       <PlayerChips players={party.players} big />
@@ -63,7 +61,6 @@ function ScreenQuestion({ party, round, unit }: { party: Party; round: PartyRoun
   );
 }
 
-/** The result: on a wide screen the winner and the bars side by side, so it all fits without scrolling. */
 function ScreenResult({ party, round, unit, wide, reactions }: { party: Party; round: PartyRound; unit: number; wide: boolean; reactions: boolean }) {
   const t = useTheme();
   const byId = playersById(party);

@@ -34,7 +34,6 @@ export const common: Messages['common'] = {
     hoursMinutes: '{h}h{mm}',
   },
   members: { one: '{count} member', other: '{count} members' },
-  /** In place of the name of someone whose account was deleted. */
   deletedAccount: 'Deleted account',
   select: {
     start: 'Select',

@@ -1,4 +1,3 @@
-/** 42: a galaxy swirls, the answer comes out of its core. */
 import { type ReactNode, useMemo } from 'react';
 import Animated, { Extrapolation, interpolate, useAnimatedStyle } from 'react-native-reanimated';
 import Svg, { Circle, Defs, Path, RadialGradient, Stop } from 'react-native-svg';
@@ -13,16 +12,13 @@ import { BigNumber } from '@/components/celebration/numbers';
 import { Headline, numberSize, type SceneFactory, type SceneProps } from '@/components/celebration/scene';
 import { StarField } from '@/components/celebration/stars';
 
-/** The galaxy turns as a whole at this rate (rad/s); its arms bend as `ARM_TWIST` radians from core to rim. */
 const SPIN = 0.45;
 const ARM_TWIST = 3.4;
 const TILT = 0.55;
 const TILT_ROT = -0.32;
 
-/** The soft glowing arms behind the stars: one Svg turning, squashed into the galaxy's ellipse. */
 function Arms({ clock, cx, cy, R, color }: { clock: Clock; cx: number; cy: number; R: number; color: string }) {
   const S = R * 2 + 40;
-  // Each arm: soft dust clouds (radial gradients) shrinking toward the rim.
   const blobs = useMemo(
     () =>
       [0, 1, 2].flatMap((arm) =>
@@ -128,7 +124,6 @@ export const galaxy: SceneFactory = (m, t) => {
   };
 };
 
-/** Grows out of a point while unwinding a quarter turn, with a small overshoot. */
 function Emerge({ clock, at, children }: { clock: Clock; at: number; children: ReactNode }) {
   const anim = useAnimatedStyle(() => {
     const c = clock.value;
@@ -139,7 +134,6 @@ function Emerge({ clock, at, children }: { clock: Clock; at: number; children: R
   return <Animated.View style={anim}>{children}</Animated.View>;
 }
 
-/** A little rocket crossing the bottom of the sky, with a trail of sparks. */
 function Rocket({ clock, from, to, w, h }: { clock: Clock; from: number; to: number; w: number; h: number }) {
   const [x0, y0, x1, y1] = [-50, h * 0.8, w + 50, h * 0.66];
   const angle = (Math.atan2(y1 - y0, x1 - x0) * 180) / Math.PI;

@@ -1,23 +1,9 @@
-// Builds the mascots ("la bande", Petons rig) into the one JSON read by the app (src/lib/utils/mascot-parts.json, drawn by
-// components/mascot.tsx) and the server (server/assets/mascot.json, byte-identical, for share cards later).
-// Run from app/: `node scripts/mascot-parts.mjs` (`--check` only verifies both files are up to date).
-//
-// Five friends, one shared part library. Every character = a BODY (silhouette + anchors) + PARTS (eyes, brows, mouth,
-// arms, legs, props) picked by a MOOD (+ per-character QUIRKS). Parts are drawn once in local coordinates:
-//   - face parts around the face centre (0,0), eyes at x = ±20, mouth at y ≈ 16..33;
-//   - arm and leg parts for the RIGHT socket (+x = outward); the left socket draws the same part mirrored;
-//   - `prop` props around the body's prop anchor, `face` props in face space, `abs` props in the 200×200 box.
-// Shapes use the avatar format (lib/utils/avatar.ts `Shape`): strokes are round-capped. Colours may be tokens resolved per
-// character at draw time: ink, body, shade, cheek, white, acc2. `hd: 1` = detail dropped at small sizes (LOD).
-// Every transform of the original rig (rotated feet, sitting soles) is baked into the geometry: no transform attributes.
 import { readFileSync, writeFileSync } from 'node:fs';
 
 const INK = '#121216';
-const GROUND = 187; // feet rest here; tilt / squash pivot
+const GROUND = 187;
 
-// ---------- numbers ----------
 const r1 = (n) => Math.round(n * 10) / 10 || 0;
-/** Round every number of a path to 0.1 (the box is 200 units: 0.05 at most, under 0.05 px at 160 px). */
 const rp = (d) =>
   d
     .replace(/-?\d*\.?\d+(e-?\d+)?/g, (n) => String(r1(+n)))
@@ -26,24 +12,20 @@ const rp = (d) =>
     .replace(/ -/g, '-')
     .trim();
 
-// ---------- tiny element helpers ----------
 const P = (d, o = {}) => ({ el: 'path', d, ...o });
 const C = (cx, cy, r, o = {}) => ({ el: 'circle', cx, cy, r, ...o });
 const E = (cx, cy, rx, ry, o = {}) => ({ el: 'ellipse', cx, cy, rx, ry, ...o });
 const R = (x, y, w, h, rx, o = {}) => ({ el: 'rect', x, y, w, h, rx, ...o });
 const hd = (s) => ({ ...s, hd: 1 });
-const LW = 5.5; // face line weight
+const LW = 5.5;
 const line = (d, sw = LW) => P(d, { stroke: 'ink', sw });
-/** An outlined tube: ink stroke, then a narrower stroke in `inner` on top (arms, legs, stems, letters). */
 const tube = (d, w = 22, inner = 'body', outline = 5.5) => [P(d, { stroke: 'ink', sw: w }), P(d, { stroke: inner, sw: r1(w - 2 * outline) })];
 
-/** A rotated ellipse as a path (two arcs), so no transform is needed. */
 function rotEllipse(cx, cy, rx, ry, deg, o) {
   const a = (deg * Math.PI) / 180;
   const [dx, dy] = [rx * Math.cos(a), rx * Math.sin(a)];
   return P(`M${cx + dx} ${cy + dy}A${rx} ${ry} ${deg} 1 1 ${cx - dx} ${cy - dy}A${rx} ${ry} ${deg} 1 1 ${cx + dx} ${cy + dy}Z`, o);
 }
-/** Applies translate(tx ty) rotate(deg) to an absolute M/L/C/Q/Z path. */
 function movePath(d, tx, ty, deg) {
   const a = (deg * Math.PI) / 180;
   const [c, s] = [Math.cos(a), Math.sin(a)];
@@ -54,11 +36,6 @@ const movePoint = (x, y, tx, ty, deg) => {
   return [x * Math.cos(a) - y * Math.sin(a) + tx, x * Math.sin(a) + y * Math.cos(a) + ty];
 };
 
-/**
- * Joint: the inner colour of a limb tube redrawn OVER the body outline where the limb leaves the body, so limbs grow out
- * of one continuous silhouette (no ink gap: on dark backgrounds that made hands and feet look detached).
- * Supports 'M x y Q x y x y' and 'M x y L x y'. axis/lo/hi = the stretch of the curve to redraw (local coords).
- */
 function joint(d, w, inner, outline, axis, lo, hi) {
   const n = d.match(/-?[\d.]+/g).map(Number);
   const [p0, p1, p2] = n.length === 6 ? [[n[0], n[1]], [n[2], n[3]], [n[4], n[5]]] : [[n[0], n[1]], null, [n[2], n[3]]];
@@ -90,7 +67,6 @@ const drop = (x, y, h, fill = '#BDEBFF') =>
     stroke: 'ink',
     sw: 4,
   });
-/** Sole seen from the front when sitting: an egg, wide at the toes, splayed outward (toe pads are detail). */
 const sole = (x, y, rot) => [
   P(movePath('M0 -15C9 -15 12.5 -7 11.5 1C10.5 9 6 13 0 13C-6 13 -10.5 9 -11.5 1C-12.5 -7 -9 -15 0 -15Z', x, y, rot), { fill: 'shade', stroke: 'ink', sw: 5.5 }),
   hd(P(movePath('M0 -1C4.5 -1 6 2 5.5 5C5 8 3 9 0 9C-3 9 -5 8 -5.5 5C-6 2 -4.5 -1 0 -1Z', x, y, rot), { fill: 'body' })),
@@ -103,7 +79,6 @@ const sole = (x, y, rot) => [
 const EX = 20;
 const both = (f) => [...f(-EX, -1), ...f(EX, 1)];
 
-// ---------- BODIES: silhouette + anchors. All sit on one baseline: body bottom ≈ 166, hips y = 158, feet on GROUND. ----------
 const BODIES = {
   zeste: {
     color: '#C8FF3D',
@@ -171,7 +146,6 @@ const BODIES = {
     shadow: 60,
     back: tube('M94 74C88 64 94 54 106 54C102 59 104 64 110 68', 14, 'body', 4.8),
     front: [],
-    // round glasses: lenses under the eyes, frames over them
     faceUnder: [hd(R(-36, -16, 32, 30, 12, { fill: 'white', op: 0.5 })), hd(R(4, -16, 32, 30, 12, { fill: 'white', op: 0.5 }))],
     faceExtras: [
       hd(P('M-36 -4L-43 -7M36 -4L43 -7', { stroke: 'ink', sw: 5 })),
@@ -201,7 +175,6 @@ const BODIES = {
     back: [],
     front: [],
     faceUnder: [],
-    // lashes + beauty mark: the drama queen
     faceExtras: [P('M-26 -10L-30 -17M-29.5 -4.5L-36.5 -8M26 -10L30 -17M29.5 -4.5L36.5 -8', { stroke: 'ink', sw: 4.4 }), hd(C(31, 22, 2.8, { fill: 'ink' }))],
   },
   roupi: {
@@ -223,7 +196,6 @@ const BODIES = {
     prop: [46, 62],
     shadow: 66,
     back: [],
-    // menthe nightcap
     front: [
       P('M60 100C60 76 76 54 100 46C122 38 148 38 162 54C170 63 168 76 162 82C158 70 148 64 138 68C141 78 142 90 141 100C120 90 80 90 60 100Z', {
         fill: 'acc2',
@@ -238,8 +210,6 @@ const BODIES = {
   },
 };
 
-// ---------- PARTS ----------
-// Eye highlights: the big one stays, the small second one is detail.
 const hi = (x, y = -4.8, r = 4.4) => [C(x - 3.2, y, r, { fill: 'white' }), hd(C(x + 3.8, y + 9.4, 1.9, { fill: 'white' }))];
 const arm = (d, rest) => ({ z: 'back', els: [...tube(d), ...rest], joint: armJoint(d) });
 const leg = (d, rest, lift = 0, w = 20) => ({ z: 'back', lift, els: [...tube(d, w, 'shade'), ...rest], joint: legJoint(d, w) });
@@ -247,9 +217,7 @@ const leg = (d, rest, lift = 0, w = 20) => ({ z: 'back', lift, els: [...tube(d, 
 const PARTS = {
   eyes: {
     open: both((x) => [E(x, 0, 10, 12.5, { fill: 'ink' }), ...hi(x)]),
-    // half-lidded (bored / smug / sleepy-happy)
     lazy: both((x) => [P(`M${x - 9.85} -1A10 12.5 0 0 0 ${x + 9.85} -1Z`, { fill: 'ink' }), C(x - 3, 3.5, 2.6, { fill: 'white' }), line(`M${x - 12} -2L${x + 12} -2`, 6)]),
-    // suspicious: lid slanted down toward the nose
     squint: both((x, s) => [
       P(`M${x - 9.85} 2A10 12.5 0 0 0 ${x + 9.85} 2Z`, { fill: 'ink' }),
       C(x - 3 * s, 6, 2.4, { fill: 'white' }),
@@ -281,7 +249,6 @@ const PARTS = {
     hmm: [line('M-3 22L11 19')],
     wobble: [line('M-12 23Q-8 18.5 -4 23T4 23T12 23', 5)],
   },
-  // RIGHT socket only (the left one is mirrored). `joint` = redrawn over the body outline.
   arms: {
     rest: arm('M-8 -2Q2 4 5 12', [mitt(6, 15)]),
     wave: arm('M-8 0Q8 -2 12 -18', [mitt(13, -22)]),
@@ -293,7 +260,6 @@ const PARTS = {
     hands: arm('M-8 0Q8 -2 9 -14', [mitt(9, -18, 13.5)]),
     none: { z: 'back', els: [], joint: [] },
   },
-  // RIGHT hip only. `lift` moves the whole body (- = up, + = down); the legs decide the stance.
   legs: {
     stand: leg('M0 -6L2 13', [foot(5, 21)]),
     wide: leg('M0 -6L8 13', [foot(12, 21)]),
@@ -331,7 +297,6 @@ const PARTS = {
   },
 };
 
-// ---------- MOODS: part names + a small whole-body pose (tilt°, dx, squash). Legs pick the stance. ----------
 const MOODS = {
   happy: { eyes: 'open', mouth: 'smile', arms: ['rest', 'wave'], legs: ['stand', 'stand'] },
   accuse: { eyes: 'squint', brows: 'sus', mouth: 'smirk', arms: ['rest', 'point'], legs: ['wide', 'wide'], tilt: 4, dx: -10 },
@@ -339,11 +304,9 @@ const MOODS = {
   celebrate: { eyes: 'happy', brows: 'up', mouth: 'grin', arms: ['up', 'up'], legs: ['hop', 'hop'], prop: 'sparkles' },
   sad: { eyes: 'teary', brows: 'sad', mouth: 'frown', arms: ['droop', 'droop'], legs: ['shy', 'shy'], prop: 'tear', squash: [1.04, 0.96] },
   think: { eyes: 'side', brows: 'think', mouth: 'hmm', arms: ['rest', 'finger'], legs: ['stand', 'tap'], prop: 'ask' },
-  // the one everybody points at (jumps out of their skin)
   caught: { eyes: 'wide', brows: 'worried', mouth: 'wobble', arms: ['hands', 'hands'], legs: ['dangle', 'dangle'], prop: 'sweat' },
 };
 
-// Personality = a few part swaps on top of the shared moods.
 const QUIRKS = {
   zeste: { accuse: { mouth: 'grin', brows: 'up' }, happy: { mouth: 'grin' } },
   bulle: {
@@ -364,7 +327,6 @@ const QUIRKS = {
   },
 };
 
-// ---------- output ----------
 const round = (s) => {
   const o = {};
   for (const [k, v] of Object.entries(s)) o[k] = k === 'd' ? rp(v) : typeof v === 'number' ? r1(v) : v;
@@ -405,7 +367,6 @@ const data = {
   quirks: QUIRKS,
 };
 
-// Every mood and quirk names existing parts.
 const groupOf = { eyes: 'eyes', brows: 'brows', mouth: 'mouth', prop: 'props' };
 for (const [where, m] of [...Object.entries(MOODS), ...Object.entries(QUIRKS).flatMap(([w, q]) => Object.entries(q).map(([k, v]) => [`${w}.${k}`, v]))]) {
   for (const [k, g] of Object.entries(groupOf)) if (m[k] && !PARTS[g][m[k]]) throw new Error(`${where}: unknown ${k} ${m[k]}`);

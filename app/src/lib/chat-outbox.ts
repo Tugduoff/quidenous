@@ -6,23 +6,19 @@ import { type Message, chatKeys, type Ping, uploadImage, type Gif, postGif } fro
 import type { ImageDraft } from '@/lib/device/media';
 import { authError } from '@/lib/api/errors';
 
-/** A photo or GIF on its way: drawn at the end of the chat (dimmed, a spinner) until the server has it. */
 export type Pending = {
   key: string;
   kind: 'image' | 'gif';
-  /** What to draw meanwhile: the local file, or the GIF's preview. */
   uri: string;
   width: number;
   height: number;
   caption: string;
-  /** The upload failed (offline, server down): a tap sends it again. */
   failed: boolean;
 };
 
 const EMPTY: Pending[] = [];
 const pendingByRound = new Map<number, Pending[]>();
 const senders = new Map<string, () => Promise<Message>>();
-/** The server's idempotency key of each send: a retry whose first answer was lost is posted once. */
 export const newClientKey = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 const listeners = new Set<() => void>();
 let seq = 0;
@@ -34,7 +30,6 @@ const update = (roundId: number, f: (list: Pending[]) => Pending[]) => {
   listeners.forEach((l) => l());
 };
 
-/** The photos and GIFs of this round still being sent. */
 export function usePending(roundId: number) {
   return useSyncExternalStore(
     (l) => {
@@ -45,7 +40,6 @@ export function usePending(roundId: number) {
   );
 }
 
-/** Network trouble (worth a retry) rather than a refusal (bad image, too large, quota, closed round). */
 const retryable = (e: unknown) => !(e instanceof ApiError) || e.status >= 500;
 
 async function run(roundId: number, key: string, onSent?: () => void) {

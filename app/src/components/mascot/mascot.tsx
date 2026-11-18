@@ -1,9 +1,3 @@
-// <Mascot/>: one of the five friends of the band, drawn from lib/mascot.ts. Decorative (hidden from screen readers:
-// the copy next to it carries the meaning). Static when small, when motion is reduced or when its screen is not focused.
-//
-// Animation runs on the UI thread from ONE shared clock (a looping shared value in seconds): every mascot derives its
-// breathing, blinking, hops and prop motion from it with its own phase, so idle loops cost no JS and no re-render.
-// The clock only ticks while at least one live mascot is mounted.
 import { useIsFocused } from 'expo-router';
 import { memo, useId } from 'react';
 import { type StyleProp, View, type ViewStyle } from 'react-native';
@@ -23,7 +17,6 @@ import { useScheme } from '@/lib/theme';
 import { mascotClock, useMascotClock } from '@/lib/hooks/use-mascot-clock';
 import { useOnChange } from '@/lib/hooks/use-on-change';
 
-/** Focused screen, or true outside the route tree (the root error boundary). */
 function useFocusedSafe() {
   try {
     return useIsFocused();
@@ -32,13 +25,11 @@ function useFocusedSafe() {
   }
 }
 
-// ---------- motion per mood (units of the 200 box) ----------
 type Kind = 'idle' | 'happy' | 'accuse' | 'sleepy' | 'celebrate' | 'sad' | 'think' | 'caught';
 const TAU = Math.PI * 2;
 const BLINK_EVERY: Record<Who, number> = { zeste: 4, bulle: 5, pave: 6, paillette: 3, roupi: 5 };
 const PHASE: Record<Who, number> = { zeste: 0, bulle: 1.7, pave: 0.9, paillette: 2.6, roupi: 3.4 };
 
-/** Height of the celebrate double hop (0..1) at time t. */
 function hop(t: number) {
   'worklet';
   const u = t % 3;
@@ -49,7 +40,6 @@ function hop(t: number) {
 
 const AG = Animated.createAnimatedComponent(G);
 
-/** One part shape. Unlike the avatars, a shape with no fill is a line: fill none (SVG would fill it black). */
 function shape(s: Shape, i: number) {
   const paint = {
     fill: s.fill ?? 'none',
@@ -72,17 +62,11 @@ const Shapes = ({ g }: { g: Group }) => <G transform={g.tr}>{g.shapes.map(shape)
 
 export type MascotProps = {
   who: Who;
-  /** A mood, or a full custom pose (the group shot). */
   mood?: Mood | Pose;
-  /** Square size in px. Under 48 the drawing drops its finest details. */
   size?: number;
-  /** Idle loop (blink, breathe, mood moves). Off by default under 40 px. */
   animate?: boolean;
-  /** Overrides the mood's prop ('none' hides it). */
   prop?: Prop;
-  /** Repaints the body (#RRGGBB), e.g. the user's accent. */
   tint?: string;
-  /** How a custom pose moves (moods move on their own). */
   motion?: Kind;
   style?: StyleProp<ViewStyle>;
 };
@@ -98,7 +82,6 @@ export const Mascot = memo(function Mascot({ who, mood = 'happy', size = 96, ani
 
   const on = useMascotClock(live);
 
-  // Mood change: a quick squash-and-stretch while the parts swap (never on mount).
   const pop = useSharedValue(0);
   const moodKey = typeof mood === 'string' ? mood : JSON.stringify(mood);
   useOnChange(moodKey, () => {
@@ -154,7 +137,6 @@ export const Mascot = memo(function Mascot({ who, mood = 'happy', size = 96, ani
     };
   });
 
-  // The shadow stays on the ground: smaller and lighter while the body is in the air. Dark mode: a faint light pool.
   const shadowOp = dark ? (c.shadow.air ? 0.05 : 0.07) : c.shadow.air ? 0.11 : 0.16;
   const shadowStyle = useAnimatedStyle(() => {
     const h = on.value && kind === 'celebrate' ? hop(mascotClock.value + phase) : 0;
@@ -164,7 +146,6 @@ export const Mascot = memo(function Mascot({ who, mood = 'happy', size = 96, ani
   const blinkT = (t: number) => {
     'worklet';
     const u = (t + phase * 0.7) % blinkEvery;
-    // one blink per period, a double blink every third one
     const n = Math.floor((t + phase * 0.7) / blinkEvery);
     return u < 0.13 || (n % 3 === 0 && u > 0.26 && u < 0.38);
   };
@@ -192,7 +173,6 @@ export const Mascot = memo(function Mascot({ who, mood = 'happy', size = 96, ani
       s = 1 + 0.06 * Math.sin((TAU * t) / 1.5);
       op = 0.75 + 0.25 * Math.sin((TAU * t) / 0.75);
     } else {
-      // tears, sweat: a slow drip
       const u = (t % 2.4) / 2.4;
       ty = 7 * u;
       op = u > 0.75 ? 1 - (u - 0.75) / 0.25 : 1;
@@ -253,7 +233,6 @@ export const Mascot = memo(function Mascot({ who, mood = 'happy', size = 96, ani
 
 type AP = ReturnType<typeof useAnimatedProps<{ opacity: number }>>;
 
-/** The static drawing: one Svg, ~25-40 elements. Re-renders only when the mood (or size class) changes. */
 const Body = memo(function Body({ c, clip, size, eyesOpen, eyesShut }: { c: Composed; clip: string; size: number; eyesOpen: AP; eyesShut: AP }) {
   const f = c.fill;
   return (
@@ -303,4 +282,3 @@ const Body = memo(function Body({ c, clip, size, eyesOpen, eyesShut }: { c: Comp
     </Svg>
   );
 });
-

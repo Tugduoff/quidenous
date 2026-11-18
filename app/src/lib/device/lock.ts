@@ -7,7 +7,6 @@ import { storage } from '@/lib/device/storage';
 
 type LocalAuth = typeof import('expo-local-authentication');
 
-// Loaded lazily: a build without the native module (older binary getting a JS update) and the web just have no app lock.
 let LA: LocalAuth | null = null;
 if (Platform.OS !== 'web' && requireOptionalNativeModule('ExpoLocalAuthentication')) {
   try {
@@ -18,7 +17,6 @@ if (Platform.OS !== 'web' && requireOptionalNativeModule('ExpoLocalAuthenticatio
 
 export const lockSupported = LA != null;
 
-/** What the phone unlocks with, to name it in the settings: face, fingerprint, or just the passcode. */
 export async function lockMethod(): Promise<'face' | 'fingerprint' | 'code'> {
   if (!LA) return 'code';
   try {
@@ -53,7 +51,6 @@ const subscribe = (l: () => void) => {
   return () => listeners.delete(l);
 };
 
-/** Whether the app lock is on, and whether the saved choice is known yet (the app waits for it at start). */
 export function useLock() {
   return {
     enabled: useSyncExternalStore(subscribe, () => enabled),
@@ -61,7 +58,6 @@ export function useLock() {
   };
 }
 
-/** The phone has no passcode or biometrics any more (removed after the lock was turned on). */
 async function noCredentials(la: LocalAuth): Promise<boolean> {
   try {
     return (await la.getEnrolledLevelAsync()) === la.SecurityLevel.NONE;
@@ -70,10 +66,6 @@ async function noCredentials(la: LocalAuth): Promise<boolean> {
   }
 }
 
-/**
- * Face ID / fingerprint, or the device passcode. With nothing left to unlock with, the lock turns
- * itself off instead of locking the app for good (the phone itself is then open anyway).
- */
 export async function unlock(): Promise<boolean> {
   if (!LA) return true;
   if (await noCredentials(LA)) {
@@ -88,7 +80,6 @@ export async function unlock(): Promise<boolean> {
   return r.success;
 }
 
-/** Turning it on asks once, so a phone with no passcode (or a failed try) never locks itself out. */
 export async function setLock(on: boolean): Promise<'ok' | 'unavailable' | 'failed'> {
   if (!LA) return 'unavailable';
   if (on) {

@@ -5,7 +5,6 @@ import { useTheme } from '@/lib/theme';
 import { Display } from '@/components/ui/text';
 import { BackButton } from '@/components/ui/back-button';
 
-/** A sign-in step: back button, big title, an optional grey line, the fields, the action at the bottom. */
 export function AuthScreen({
   title,
   sub,
@@ -16,7 +15,6 @@ export function AuthScreen({
 }: {
   title: string;
   sub?: ReactNode;
-  /** The grey line holds an e-mail: one line, cut with an ellipsis. */
   oneLine?: boolean;
   children?: ReactNode;
   footer?: ReactNode;

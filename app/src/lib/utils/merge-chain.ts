@@ -1,13 +1,8 @@
-/** The 2048 party's tiles, from the first 2 to the final 2048. */
 const TILE_VALUES = [2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048] as const;
 
 const FIRST_TILE_AT = 300;
 const FOREVER = 1e9;
 
-/**
- * When each merge lands (ms): the chain speeds up, then the last two 1024 take their time (`last`),
- * and the 2048 slams down after (`slam`).
- */
 export function mergeChain() {
   const merges: number[] = [];
   let at = 500;
@@ -21,7 +16,6 @@ export function mergeChain() {
 
 type Chain = ReturnType<typeof mergeChain>;
 
-/** The tile sitting in the merge cell: each value from the moment it is born until the next merge replaces it. */
 export function mergeCellTiles({ merges, last }: Chain) {
   return TILE_VALUES.map((v, i) => ({
     v,
@@ -30,10 +24,6 @@ export function mergeCellTiles({ merges, last }: Chain) {
   }));
 }
 
-/**
- * The twin of each tile: pops in on a neighbour (`spawn`), slides into the merge cell (`start` → `end`).
- * `source` is which neighbour it comes from (0..3, in turn; the final 1024 comes from neighbour 0).
- */
 export function twinTiles({ merges, last }: Chain) {
   return TILE_VALUES.slice(0, 10).map((v, i) => {
     const end = i < 9 ? merges[i] : last;

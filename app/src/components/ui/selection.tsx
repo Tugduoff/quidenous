@@ -11,12 +11,6 @@ import { askConfirm } from '@/lib/confirm';
 import { impactHaptic, selectionHaptic } from '@/lib/device/haptics';
 import { useHardwareBack } from '@/lib/hooks/use-hardware-back';
 
-// Acting on several items of a list at once, the same way on every list:
-// hold an item (or tap the header's "Sélectionner", the only way in on lists whose hold already means
-// something, like dragging the question queue), tick the others, then pick an action in the bar at the bottom.
-// The header shows the count, "Tout sélectionner" and a cross to leave; Android's back button and
-// leaving the screen leave too.
-
 const REDUCE = ReduceMotion.System;
 
 const tick = () => {
@@ -27,22 +21,17 @@ const thud = () => {
 };
 
 export type Selection<K> = {
-  /** Selecting: rows show their checkbox, a tap ticks instead of opening. */
   on: boolean;
-  /** The ticked ids, in the list's order (ids gone from the list drop out on their own). */
   selected: K[];
   count: number;
   has: (id: K) => boolean;
-  /** Start selecting, with `id` ticked (a hold on a row) or nothing (the header's button). */
   start: (id?: K) => void;
   toggle: (id: K) => void;
-  /** Tick everything, or nothing when everything already is. */
   all: () => void;
   allOn: boolean;
   cancel: () => void;
 };
 
-/** `ids`: the items that can be selected, in the list's order. */
 export function useSelection<K extends string | number>(ids: readonly K[] | undefined, enabled = true): Selection<K> {
   const [started, setOn] = useState(false);
   const [picked, setPicked] = useState<ReadonlySet<K>>(() => new Set());
@@ -51,7 +40,6 @@ export function useSelection<K extends string | number>(ids: readonly K[] | unde
     setPicked(new Set());
   }
   const total = ids?.length ?? 0;
-  // Nothing left to pick (the last ones were just deleted): back to the plain list.
   const on = started && total > 0;
   const selected = on ? (ids ?? []).filter((id) => picked.has(id)) : [];
   const ticked = new Set(selected);
@@ -59,9 +47,7 @@ export function useSelection<K extends string | number>(ids: readonly K[] | unde
     setOn(false);
     setPicked(new Set());
   }, []);
-  // Android's back button leaves the selection before the screen.
   useHardwareBack(cancel, on);
-  // Another tab or screen: coming back shows the plain list.
   useFocusEffect(useCallback(() => cancel, [cancel]));
   return {
     on,
@@ -91,7 +77,6 @@ export function useSelection<K extends string | number>(ids: readonly K[] | unde
   };
 }
 
-/** The header's way in (the web has no hold): a round button like the page headers'. */
 export function SelectButton({ onPress, size = 40 }: { onPress: () => void; size?: number }) {
   const t = useTheme();
   const tr = useT();
@@ -107,7 +92,6 @@ export function SelectButton({ onPress, size = 40 }: { onPress: () => void; size
   );
 }
 
-/** Takes the place of the list's header while selecting: leave, how many, all / none. */
 export function SelectionHeader<K>({ sel }: { sel: Selection<K> }) {
   const t = useTheme();
   const tr = useT();
@@ -131,7 +115,6 @@ export function SelectionHeader<K>({ sel }: { sel: Selection<K> }) {
   );
 }
 
-/** The import list's tick box, shared: filled with the accent and a check when on. */
 function Checkbox({ checked, disabled }: { checked: boolean; disabled?: boolean }) {
   const t = useTheme();
   const pop = usePop(checked, 1.15, checked);
@@ -156,10 +139,6 @@ function Checkbox({ checked, disabled }: { checked: boolean; disabled?: boolean 
   );
 }
 
-/**
- * A row of a list while selecting: its checkbox on the left, a tap anywhere ticks it, and what's inside
- * (the row's own buttons and links) stays still. Outside selection it is just `children`.
- */
 export function SelectableRow<K extends string | number>({
   sel,
   id,
@@ -169,9 +148,7 @@ export function SelectableRow<K extends string | number>({
 }: {
   sel: Selection<K>;
   id: K;
-  /** What a screen reader says for it. */
   label: string;
-  /** Shown but not selectable (someone else's question when I can only delete). */
   disabled?: boolean;
   children: ReactNode;
 }) {
@@ -200,18 +177,15 @@ export type BatchAction = {
   icon: LucideIcon;
   label: string;
   onPress: () => void;
-  /** `danger`: deletes (pink); `acc`: the main go-ahead. */
   tone?: 'danger' | 'acc';
   disabled?: boolean;
   busy?: boolean;
 };
 
-/** The actions, at the bottom of the screen while selecting (hand it to the Screen's `footer`). */
 export function SelectionBar<K>({ sel, actions }: { sel: Selection<K>; actions: BatchAction[] }) {
   const t = useTheme();
   if (!sel.on) return null;
   const none = sel.count === 0;
-  // Three or more side by side don't fit a phone's width with their labels in line: icon above the label.
   const compact = actions.length > 2;
   return (
     <Animated.View
@@ -254,13 +228,8 @@ export function SelectionBar<K>({ sel, actions }: { sel: Selection<K>; actions: 
   );
 }
 
-/** One confirmation for a destructive batch, with the count in its title ("Supprimer 5 packs ?"). */
 export const confirmBatch = (title: string, action: string, message?: string) => askConfirm(title, message, action, 'danger');
 
-/**
- * Runs `one` on each id, a few at a time, for lists whose server has no batch endpoint;
- * resolves with the ids done (the others failed, the caller says how many).
- */
 export async function eachOf<K>(ids: K[], one: (id: K) => Promise<unknown>, parallel = 3): Promise<K[]> {
   const done: K[] = [];
   let next = 0;
@@ -270,9 +239,7 @@ export async function eachOf<K>(ids: K[], one: (id: K) => Promise<unknown>, para
       try {
         await one(id);
         done.push(id);
-      } catch {
-        // Counted by the caller as not done.
-      }
+      } catch {}
     }
   };
   await Promise.all(Array.from({ length: Math.min(parallel, ids.length) }, worker));

@@ -68,7 +68,6 @@ export function PackQuestionTools({
           </PressableScale>
         </View>
       )}
-      {/* What a file's header can fill in, and the format for an AI to write one. */}
       {!sel.on && (
         <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginTop: -8, paddingHorizontal: 4 }}>
           <Text style={{ flex: 1, fontFamily: t.font.regular, fontSize: 12, lineHeight: 17, color: t.mut }}>{tr('packs.fileHeader')}</Text>

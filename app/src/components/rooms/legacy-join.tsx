@@ -14,7 +14,6 @@ import { Logo } from '@/components/ui/text';
 import { pendingJoinCode } from '@/lib/auth-flow';
 import { authError } from '@/lib/api/errors';
 
-/** Codes that read differently here than in `authError` (a room code, not an emailed one). */
 const ERRORS: Record<string, TKey> = {
   bad_code: 'auth.legacy.errors.bad_code',
   bad_name: 'auth.legacy.errors.bad_name',
@@ -22,7 +21,6 @@ const ERRORS: Record<string, TKey> = {
   removed: 'auth.legacy.errors.removed',
 };
 
-/** The entry screen of a server without accounts (older server): a first name and a room code, or a new room. */
 export function LegacyJoin() {
   const t = useTheme();
   const tr = useT();
@@ -30,7 +28,6 @@ export function LegacyJoin() {
   const [name, setName] = useState('');
   const [preset] = useState(pendingJoinCode);
   const [code, setCode] = useState(preset ?? '');
-  // Without an invite: join with a code, or start a room of my own.
   const [creating, setCreating] = useState(false);
   const [room, setRoom] = useState('');
   const [server, setServer] = useState('https://');

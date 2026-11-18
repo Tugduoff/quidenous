@@ -12,7 +12,6 @@ import { useMembers } from '@/lib/api/group';
 import { CHAT_REACTIONS, HEART } from '@/lib/utils/chat';
 import { useAnimateOnChange } from '@/lib/hooks/use-animate-on-change';
 
-/** The six reactions, on top of a message's long-press menu; mine are highlighted. */
 export function ReactionBar({ reactions, onPick }: { reactions?: Reaction[]; onPick: (emoji: string) => void }) {
   const t = useTheme();
   const tr = useT();
@@ -46,7 +45,6 @@ export function ReactionBar({ reactions, onPick }: { reactions?: Reaction[]; onP
   );
 }
 
-/** The reactions under a message, on its side. Tap: mine on or off; long-press: who reacted. */
 export function ReactionChips({
   reactions,
   mine,
@@ -54,7 +52,6 @@ export function ReactionChips({
   onWho,
 }: {
   reactions: Reaction[];
-  /** My own message: the chips go right, under it. */
   mine: boolean;
   onToggle?: (emoji: string) => void;
   onWho: (emoji: string) => void;
@@ -71,7 +68,6 @@ export function ReactionChips({
 function Chip({ r, onToggle, onWho }: { r: Reaction; onToggle?: (emoji: string) => void; onWho: (emoji: string) => void }) {
   const t = useTheme();
   const tr = useT();
-  // Pops when it becomes mine.
   const pop = usePop(r.mine, 1.2, r.mine);
   return (
     <Animated.View style={pop}>
@@ -102,12 +98,10 @@ function Chip({ r, onToggle, onWho }: { r: Reaction; onToggle?: (emoji: string) 
   );
 }
 
-/** Who reacted with one emoji, oldest first. Someone no longer in the room's list: a deleted account. */
 export function WhoReacted({ reaction, onClose }: { reaction: Reaction | null; onClose: () => void }) {
   const t = useTheme();
   const tr = useT();
   const { byId } = useMembers();
-  // The last one stays drawn while the dialog fades out.
   const [shown, setShown] = useState<Reaction | null>(null);
   if (reaction && reaction !== shown) setShown(reaction);
   return (
@@ -133,7 +127,6 @@ export function WhoReacted({ reaction, onClose }: { reaction: Reaction | null; o
   );
 }
 
-/** A heart that blooms over a double-tapped message and fades. Nothing under reduced motion (the chip still pops). */
 export function HeartBurst({ trigger }: { trigger: number }) {
   const reduced = useReducedMotion();
   const scale = useSharedValue(0.4);
@@ -146,7 +139,6 @@ export function HeartBurst({ trigger }: { trigger: number }) {
     bursting ? withSequence(withTiming(1, { duration: 0 }), withDelay(380, withTiming(0, { duration: 180, easing: EASE }))) : undefined,
   );
   const style = useAnimatedStyle(() => ({ opacity: opacity.value, transform: [{ scale: scale.value }] }));
-  // Not there before the first double tap; never read out (the chip says it).
   if (reduced || !trigger) return null;
   return (
     <Animated.View aria-hidden pointerEvents="none" style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center' }, style]}>

@@ -8,7 +8,6 @@ import { SuggestCompose } from '@/components/community/suggest-compose';
 import { VoteStack } from '@/components/community/vote-stack';
 import { MySuggestions } from '@/components/community/my-suggestions';
 
-/** "Proposer": write a question for the official deck, vote on others' suggestions, follow mine. */
 export default function SuggestScreen() {
   const tr = useT();
   const mine = useMySuggestions();

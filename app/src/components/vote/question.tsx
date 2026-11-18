@@ -32,7 +32,6 @@ export function Question({ round, result }: { round: Round; result?: boolean }) 
   const qc = useQueryClient();
   const { data: group } = useGroup();
   const { moderation } = useFeatures();
-  // The owner can take an abusive question of the room out of its result (long-press on the question).
   const retire =
     result && round.custom && moderation && group?.my_role === 'owner'
       ? async () => {
@@ -44,7 +43,6 @@ export function Question({ round, result }: { round: Round; result?: boolean }) 
       : undefined;
   const [copied, setCopied] = useState(false);
   const share = async () => {
-    // The link opens a page whose preview is a picture of the card (the result's podium too, once out).
     if (!(await confirmPublic())) return;
     const link = await publicLink(round.id, !!result);
     const text = result ? resultMessage(round, byId) : questionMessage(round);
@@ -77,7 +75,6 @@ export function Question({ round, result }: { round: Round; result?: boolean }) 
         <Pressable disabled={!retire} onLongPress={retire} delayLongPress={500} accessibilityHint={retire ? tr('vote.retireHint') : undefined}>
           <Display size={result ? 28 : 34}>{tidy(round.question)}</Display>
         </Pressable>
-        {/* A deck question that came from someone's suggestion. */}
         {!!round.suggested_by && (
           <Text numberOfLines={1} style={{ fontFamily: t.font.regular, fontSize: 13, color: t.mut }}>
             {tr('community.credit', { name: round.suggested_by })}
@@ -88,7 +85,6 @@ export function Question({ round, result }: { round: Round; result?: boolean }) 
   );
 }
 
-/** The tag over a question: its kind (a choose or ranking question says so even when it's ours), or "Résultat". */
 const kindLabel = (round: Round, result?: boolean) =>
   result
     ? 'vote.kind.result'

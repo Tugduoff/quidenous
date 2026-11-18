@@ -1,4 +1,3 @@
-/** 1001: a night of tales — moon rising, lanterns, shooting stars. */
 import { useMemo } from 'react';
 import { View } from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
@@ -121,7 +120,6 @@ function Sky({ w, h }: { w: number; h: number }) {
   );
 }
 
-/** A crescent rising with its halo. */
 function Moon({ clock, w, h }: { clock: Clock; w: number; h: number }) {
   const S = 150;
   const [x, y0, y1] = [w * 0.74, h * 0.34, h * 0.13];
@@ -151,7 +149,6 @@ function Moon({ clock, w, h }: { clock: Clock; w: number; h: number }) {
   );
 }
 
-/** A paper sky lantern, lit from inside, in its own halo. The box is twice the lantern's width. */
 function Lantern({ w, h }: { w: number; h: number }) {
   const lw = w / 2;
   const lh = (lw * 36) / 26;

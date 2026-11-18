@@ -19,7 +19,6 @@ import { pendingJoinCode, setPendingCode } from '@/lib/auth-flow';
 import { authError } from '@/lib/api/errors';
 import { useFeatures } from '@/lib/api/features';
 
-/** The entry screen. An invite link (`?code=`) is kept for after signing in. An older server keeps the old join screen. */
 export default function Entry() {
   const t = useTheme();
   const { code } = useLocalSearchParams<{ code?: string }>();
@@ -31,7 +30,6 @@ export default function Entry() {
         <ActivityIndicator color={t.mut} />
       </View>
     );
-  // Offline or server down: a retry, not the old join screen (that is for a server too old to have accounts).
   if (features.unreachable)
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: t.bg, padding: 24 }}>
@@ -84,7 +82,6 @@ function Welcome({ providers }: { providers: Provider[] }) {
         <Logo size={44} />
         <Text style={{ fontFamily: t.font.regular, fontSize: 16, lineHeight: 22, color: t.mut }}>{tr('auth.tagline')}</Text>
       </View>
-      {/* "Personne n'est à l'abri": the whole band points at Bulle. */}
       <MascotBand max={invite ? 340 : 460} style={{ marginTop: invite ? 4 : 40 }} />
       {invite && <InvitePreview code={invite} />}
     </Screen>

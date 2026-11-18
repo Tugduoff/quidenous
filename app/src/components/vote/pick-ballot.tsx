@@ -24,10 +24,7 @@ export function PickBallot({ round, members, byId, onVoted }: { round: Round; me
   const [pick, setPick] = useState<number | null>(null);
   const vote = useMutation({
     mutationFn: (target_id: number) => voteCurrent({ target_id }),
-    // Remember the round right away: when my vote is the last one, the next question
-    // replaces it before the refetch could show my vote, and the result must still show.
     onSuccess: onVoted,
-    // Someone joined or left meanwhile: the room refreshed shows who to vote on now (the error is a toast).
     onError: () => qc.invalidateQueries({ queryKey: groupKeys.all }),
     onSettled: () => qc.invalidateQueries({ queryKey: roundKeys.current }),
   });
@@ -49,7 +46,6 @@ export function PickBallot({ round, members, byId, onVoted }: { round: Round; me
       }>
       <Header />
       <Question round={round} />
-      {/* Nobody yet: the button below already says 0/N. */}
       {round.voter_ids.length > 0 && (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           <AvatarStack members={round.voter_ids.map((id) => byId.get(id))} max={6} />

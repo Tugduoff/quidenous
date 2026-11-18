@@ -14,7 +14,6 @@ import { FLIP_MS, flipAt, GUESS_IN, GUESS_STEP, guessGroups, type RevealItem, sc
 
 const sys = ReduceMotion.System;
 
-/** Answer `step` of the reveal, big: the progress, the answer, who was named, then the author flips. `k`: a size factor. */
 export function SaidScreenReveal({
   items,
   step,
@@ -26,7 +25,6 @@ export function SaidScreenReveal({
   step: number;
   byId: Map<number, Member>;
   k: number;
-  /** The answer on the left, the names and the author on the right. */
   wide: boolean;
 }) {
   const t = useTheme();

@@ -3,7 +3,6 @@ import { Text } from 'react-native';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { useTheme } from '@/lib/theme';
 
-/** One of the buttons under the composer (packs, import, suggest). */
 export function BulkButton({
   label,
   icon,

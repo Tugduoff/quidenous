@@ -9,7 +9,6 @@ import { useSession } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
 import { Avatar } from '@/components/ui/avatar';
 
-/** A result row as the real ones look (components/result-bars.tsx), with the Petons as the people. */
 export function DemoBar({ row: r, index, rows }: { row: DemoRow; index: number; rows: number }) {
   const t = useTheme();
   const tr = useT();
@@ -40,7 +39,6 @@ export function DemoBar({ row: r, index, rows }: { row: DemoRow; index: number; 
             </Landed>
           )}
         </View>
-        {/* Who voted for them: me (my face) and the band (their colours). */}
         <View style={{ flexDirection: 'row' }}>
           {r.voters.slice(0, 5).map((v, k) => (
             <View key={v} style={{ marginLeft: k ? -6 : 0, borderRadius: 12, borderWidth: 2, borderColor: t.card }}>

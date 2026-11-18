@@ -3,7 +3,6 @@ import { api, isNotFound, fetchExternal } from '@/lib/api/client';
 import type { TKey } from '@/lib/i18n';
 import type { Member } from '@/lib/api/group';
 
-/** Pack categories (docs/COMMUNITY.md "Categories"): fixed ids, the app names and draws them. `pimente` means 16+. */
 export const PACK_TAGS = ['potes', 'pimente', 'boulot', 'famille', 'soiree', 'culture', 'absurde'] as const;
 export type PackTag = (typeof PACK_TAGS)[number];
 export const isPackTag = (id: string): id is PackTag => (PACK_TAGS as readonly string[]).includes(id);
@@ -11,11 +10,8 @@ export const MAX_TAGS = 3;
 
 type PackStatus = 'public' | 'review' | 'removed' | 'deleted';
 type PackKind = 'pick' | 'rank';
-/** `choose` (with its 2 to 4 `items`) only from a server with `pack_choose`. */
-/** `anonymous`: its votes will be anonymous once installed (absent from an older server). */
 export type PackQuestion = { text: string; kind: PackKind | 'choose'; items?: string[] | null; anonymous?: boolean };
 
-/** A pack as lists show it. `installed`: in the current room. `status`/`removed_reason` only matter to its author (and admins). */
 export type PackItem = {
   id: number;
   name: string;
@@ -47,7 +43,6 @@ export type ReportReason = 'offensive' | 'sexual' | 'spam' | 'other';
 export const REPORT_REASONS: ReportReason[] = ['offensive', 'sexual', 'spam', 'other'];
 type PackReport = { reason: string | null; details: string | null; created_at: string };
 type ReviewSuggestion = { id: number; text: string; kind: PackKind; lang: string; status: string; up: number; down: number; author: string };
-/** Open reports on one thing (a chat message, a member, a question, a suggestion), oldest first. */
 export type ReviewReport = {
   kind: 'message' | 'member' | 'question' | 'suggestion';
   id: number;
@@ -58,13 +53,10 @@ export type ReviewReport = {
   details: string[];
   room: string | null;
   person: { user_id: number; name: string; deleted: boolean; suspended: boolean } | null;
-  /** Already deleted (by its author, the owner…). */
   gone: boolean;
-  /** Hidden by reports until an admin decides. */
   hidden: boolean;
 };
 export type ReportAction = 'dismiss' | 'delete' | 'suspend' | 'erase';
-/** `reports`: absent from an older server. */
 export type Review = { packs: (PackItem & { reports: PackReport[] })[]; suggestions: ReviewSuggestion[]; reports?: ReviewReport[] };
 
 export const packKeys = {
@@ -90,7 +82,6 @@ export const usePackList = (sort: PackSort, tag: string | null, q: string) =>
     placeholderData: keepPreviousData,
   });
 
-/** A link to a pack or creator that's gone: said at once, not after three retries. */
 const notFoundNoRetry = (n: number, e: unknown) => !isNotFound(e) && n < 3;
 
 export const usePackDetail = (id: number) =>
@@ -115,7 +106,6 @@ export const useCommunityMe = () => useQuery({ queryKey: packKeys.me, queryFn: (
 
 export const useReview = (enabled: boolean) => useQuery({ queryKey: packKeys.review, queryFn: () => api<Review>('/admin/review'), enabled });
 
-/** Server error codes of publish / edit, as messages. */
 const ERRORS: Record<string, TKey> = {
   bad_pack: 'packs.errors.bad_pack',
   pack_size: 'packs.errors.pack_size',

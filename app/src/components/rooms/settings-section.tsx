@@ -5,7 +5,6 @@ import { useTheme } from '@/lib/theme';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Card } from '@/components/ui/card';
 
-/** A small titled block: grey header with its icon (red for the danger zone), the rows in a card. */
 export function SettingsSection({ title, Icon, danger, children }: { title: string; Icon: LucideIcon; danger?: boolean; children: ReactNode }) {
   const t = useTheme();
   const color = danger ? t.tagInk : t.mut;
@@ -20,7 +19,6 @@ export function SettingsSection({ title, Icon, danger, children }: { title: stri
   );
 }
 
-/** One setting on one line: its label, then a control (or, with `onPress`, a value and a chevron). */
 export function SettingsRow({
   label,
   value,

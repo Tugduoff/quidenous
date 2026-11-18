@@ -13,7 +13,6 @@ import { flow } from '@/lib/auth-flow';
 import { PASSWORD_MIN } from '@/lib/utils/credentials';
 import { authError } from '@/lib/api/errors';
 
-/** The emailed code and a new password: signed in (or on to 2FA), every other device signed out. */
 export default function ResetStep() {
   const tr = useT();
   const finish = useFinishSignIn();

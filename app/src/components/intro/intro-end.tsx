@@ -4,7 +4,6 @@ import { useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 import { Display } from '@/components/ui/text';
 
-/** On to the real thing: Zeste, the instigator, sends you off. */
 export function IntroEnd({ roomless }: { roomless: boolean }) {
   const t = useTheme();
   const tr = useT();

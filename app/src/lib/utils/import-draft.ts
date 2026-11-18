@@ -1,25 +1,14 @@
-
-
-
-
-/** Same limits as the server (QUESTION_MIN / QUESTION_MAX). */
 const MIN = 8;
 const MAX = 200;
 
-/** Choose questions: 2 to 4 items, each 1 to 40 characters (same as the server). */
 export const ITEMS_MIN = 2;
 export const ITEMS_MAX = 4;
 export const ITEM_MAX = 40;
 
-/** What's wrong with a line (shown as `questions.problem.*`). `items`: a choose line whose items don't hold. */
 type DraftProblem = 'short' | 'long' | 'duplicate' | 'items';
 
 export type DraftKind = 'pick' | 'rank' | 'choose';
 
-/**
- * `line` is what gets sent (tag included); `text` is the question as people will see it; `items` a choose line's items;
- * `anonymous`: `[anonyme]` / `[anonymous]` on a pick or ranking line (docs/ANONYMOUS.md).
- */
 export type DraftLine = {
   line: string;
   text: string;
@@ -31,15 +20,8 @@ export type DraftLine = {
   problem: DraftProblem | null;
 };
 
-/** Tags the built-in deck's vibes use (server/deck/vibes.json): dropped from the question like the server does. */
 const VIBE_TAGS = ['potes', 'famille', 'boulot', 'pimente'];
 
-/**
- * Same rule as the server (`deck::parse_tagged`): leading tags in any order, `[classement]` / `[rank]` make a ranking
- * question, `[choix]` / `[choose]` a choose question (`[choix] Qui prendrait quoi ? | A | B`: the question stops at the
- * first `|`, each other part is an item), `[anonyme]` / `[anonymous]` asks for anonymous votes (never on a choose
- * question), vibe tags are dropped; the first unknown `[…]` is part of the question.
- */
 export function splitTag(line: string): { text: string; rank: boolean; kind: DraftKind; items: string[] | null; anonymous: boolean } {
   let rest = line.trim();
   let kind: DraftKind = 'pick';
@@ -59,7 +41,6 @@ export function splitTag(line: string): { text: string; rank: boolean; kind: Dra
   return { text: text.trim(), rank: false, kind, items: parts.map((p) => p.trim()).filter(Boolean), anonymous: false };
 }
 
-/** 2 to 4 items, each 1 to 40 characters, no two alike (case-insensitive). */
 export function itemsOk(items: string[]) {
   const keys = new Set(items.map((i) => i.trim().toLowerCase()));
   return (
@@ -73,7 +54,6 @@ export function itemsOk(items: string[]) {
   );
 }
 
-/** A question file as the server will read it, with what's wrong with each line, before anything is sent. */
 export function parseQuestions(content: string): DraftLine[] {
   const seen = new Set<string>();
   return content

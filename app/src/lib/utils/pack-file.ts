@@ -1,9 +1,7 @@
 import type { PackTag } from '@/lib/api/packs';
 
-/** What a pack file's header says (absent = not said). */
 export type PackHeader = { title?: string; description?: string; categories: PackTag[]; lang?: 'fr' | 'en'; spicy?: boolean };
 
-/** Lowercase, accents stripped, trimmed: how keys and values are compared. */
 const norm = (s: string) =>
   s
     .normalize('NFD')
@@ -33,7 +31,6 @@ const KEYS = new Map<string, Key>(
   } as const),
 );
 
-/** Category ids, French and English names (normalised) → id. Fixed here: a renamed label must not break old files. */
 const CATEGORY_NAMES = new Map<string, PackTag>(
   Object.entries({
     potes: 'potes',
@@ -57,10 +54,6 @@ const LANGS = new Map<string, 'fr' | 'en'>(Object.entries({ fr: 'fr', francais: 
 const YES = ['oui', 'o', 'yes', 'y', 'true', '1'];
 const NO = ['non', 'n', 'no', 'false', '0'];
 
-/**
- * A pack file's header (same rules as the server): the `# key: value` lines at the top, before the first question line
- * (blank lines allowed). Unknown keys, `#` lines without a known key and empty values are comments; a repeated key: the last wins.
- */
 export function parsePackHeader(content: string): PackHeader {
   const raw: Partial<Record<Key, string>> = {};
   for (const l of content.replace(/^\uFEFF/, '').split(/\r?\n/)) {

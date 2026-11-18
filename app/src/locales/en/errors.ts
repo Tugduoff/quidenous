@@ -43,22 +43,18 @@ export const errors: Messages['errors'] = {
   removed: 'You were removed from this room',
   unverified: 'Verify your e-mail first',
   deck_question: "Built-in question: can't be removed",
-  // Game flow
   already_voted: 'Your vote is already in',
   no_open_round: 'This question has already closed',
   alone: 'Nobody else is in the room yet',
   disabled: 'The owner turned this off',
   time_up: "Too late, time's up",
-  // Limits
   room_full: 'Room is full (50 people max)',
   too_many_rooms: 'You already have 20 rooms',
   question_exists: 'Already in this room',
   update_required: 'Update the app',
-  // Chat media
   bad_image: 'Unsupported image format',
   too_large: 'Image too large',
   gifs_off: 'GIFs unavailable',
-  // Tripot
   already_bet: 'You already bet on this question',
   not_enough_chips: 'Not enough chips',
   round_closed: 'Betting is closed',

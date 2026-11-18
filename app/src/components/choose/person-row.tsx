@@ -12,7 +12,6 @@ import { useTheme } from '@/lib/theme';
 import { type Geometry, hit, PAD, SOCKET } from '@/lib/utils/choose';
 import { firstName } from '@/lib/utils/names';
 
-/** Someone to wire: their face, their name (or "Toi"), the socket the wire leaves from. Drag it to an item, or tap it. */
 export function PersonRow({
   member: m,
   index,
@@ -46,7 +45,6 @@ export function PersonRow({
   const tr = useT();
   const id = m.id;
   const pan = usePanGesture({
-    // Rightwards only: up and down still scrolls the list.
     activeOffsetX: 10,
     failOffsetY: [-20, 20],
     onActivate: (e) => {
@@ -72,7 +70,6 @@ export function PersonRow({
         scheduleOnRN(onDrop, id, s.dragX.value, s.dragY.value, k);
         return;
       }
-      // Nowhere to plug in: the wire springs back into its socket.
       s.dragX.set(withSpring(anchor.x, SPRING));
       s.dragY.set(
         withSpring(anchor.y - s.scrollY.value, SPRING, (finished) => {
@@ -110,7 +107,6 @@ export function PersonRow({
             <Text numberOfLines={1} style={{ fontFamily: t.font.semibold, fontSize: g.row > 42 ? 15 : 14, color: t.txt }}>
               {me ? label : firstName(m.name)}
             </Text>
-            {/* The one real choice; the other rows are guesses. */}
             {me && (
               <Text numberOfLines={1} style={{ fontFamily: t.font.regular, fontSize: 11, color: t.mut }}>
                 {tr('vote.choose.real')}

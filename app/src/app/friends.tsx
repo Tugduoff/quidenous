@@ -13,7 +13,6 @@ import { AddFriendCard } from '@/components/friends/add-friend-card';
 
 const roomsText = (n: number) => tr('friends.roomsInCommon', { count: n });
 
-/** Requests to answer, my friend code (and QR), add someone by code, my friends, then people from my rooms. */
 export default function FriendsScreen() {
   const t = useTheme();
   const tr = useT();
@@ -21,12 +20,10 @@ export default function FriendsScreen() {
   const friendsQuery = useFriends();
   const data = friendsQuery.data;
   const refresh = () => qc.invalidateQueries({ queryKey: friendKeys.all });
-  // Ask a room-mate to stay friends for good, or accept someone's request.
   const keep = useMutation({
     mutationFn: (id: number) => keepFriend(id),
     onSettled: refresh,
   });
-  // Remove a friend, decline a request or cancel mine.
   const remove = useMutation({
     mutationFn: (id: number) => removeFriend(id),
     onSettled: refresh,
@@ -63,7 +60,6 @@ export default function FriendsScreen() {
       {!!friends.length && <FriendsLabel>{tr('friends.count', { count: friends.length })}</FriendsLabel>}
       {friends.map((f) => (
         <PersonRow key={f.user_id} person={f} sub={f.rooms_in_common ? roomsText(f.rooms_in_common) : tr('friends.addedAsFriend')}>
-          {/* Sharing a room keeps us friends anyway: only a friend from outside my rooms can be removed. */}
           {!f.rooms_in_common && (
             <RoundAction label={tr('friends.removeA11y', { name: f.name })} disabled={busy} onPress={() => remove.mutate(f.user_id)}>
               <X size={16} color={t.mut} />

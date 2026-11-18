@@ -17,12 +17,10 @@ import { looksLikeEmail, PASSWORD_MIN } from '@/lib/utils/credentials';
 import { authError } from '@/lib/api/errors';
 import { useFeatures } from '@/lib/api/features';
 
-/** Email (+ its code) and password; a legacy account adds both here. */
 export function SignInSection({ account }: { account: Account }) {
   const tr = useT();
   const qc = useQueryClient();
   const refresh = () => qc.invalidateQueries({ queryKey: authKeys.account });
-  // The code field opens by itself when the server just emailed one (or tried to: then it says so).
   const [entering, setEntering] = useState(false);
   const [mailFailed, setMailFailed] = useState(false);
   return (
@@ -60,7 +58,6 @@ function Credentials({ account, onDone }: { account: Account; onDone: (codeSent:
     setBusy(true);
     setError(null);
     try {
-      // An account signed in with a provider that gave no e-mail proves it is me first.
       const r = await withReauth(account, () => auth.credentials(email.trim().toLowerCase(), password));
       if (r === null) return;
       onDone(!!r?.email_sent, !!r?.email_failed);
@@ -165,7 +162,6 @@ function EmailRow({
   };
 
   const verified = account.email_verified;
-  // A typo or a new address: a code to the new one first (older servers can't).
   const canChange = features.email && features.accountRecovery;
   if (changing)
     return (
@@ -218,7 +214,6 @@ function EmailRow({
   );
 }
 
-/** New address → a code sent to it → confirmed: it replaces the old one (which gets a notice). */
 function ChangeEmail({ account, onClose }: { account: Account; onClose: (changed: boolean) => void }) {
   const t = useTheme();
   const tr = useT();
@@ -247,7 +242,6 @@ function ChangeEmail({ account, onClose }: { account: Account; onClose: (changed
   const send = () =>
     ok &&
     run(async () => {
-      // The address that resets the password: proof that it is me first.
       const r = await withReauth(account, () => auth.changeEmail(value));
       if (!r) return;
       setSentTo(value);
@@ -331,7 +325,6 @@ function PasswordRow({ account, refresh }: { account: Account; refresh: () => vo
     setBusy(true);
     setError(null);
     try {
-      // A first password (no current one to type) needs proof that it is me first.
       const r = await withReauth(account, () => auth.password({ ...(has && { current }), password, revoke_others: revoke }));
       if (!r) return;
       close();

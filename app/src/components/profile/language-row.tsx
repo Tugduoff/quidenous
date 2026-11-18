@@ -7,14 +7,12 @@ import { useTheme } from '@/lib/theme';
 import { Card } from '@/components/ui/card';
 import { Dialog, DialogTitle } from '@/components/ui/dialog';
 
-/** Profile > Langue: follow the phone, or a fixed language (each named in its own language). */
 const LANGS: { pref: LangPref; label: TKey }[] = [
   { pref: 'auto', label: 'profile.language.auto' },
   { pref: 'fr', label: 'profile.language.fr' },
   { pref: 'en', label: 'profile.language.en' },
 ];
 
-/** One of the language choices: a row, ticked when it's the current one. */
 function LangOption({ label, on, onPress }: { label: string; on: boolean; onPress: () => void }) {
   const t = useTheme();
   return (
@@ -65,7 +63,6 @@ export function LanguageRow() {
           on={p === langPref}
           onPress={() => {
             setLangOpen(false);
-            // Server texts (stats stories, inbox) follow the account's language: refetch once it knows.
             if (p !== langPref)
               setLangPref(p).then(
                 () => qc.invalidateQueries(),

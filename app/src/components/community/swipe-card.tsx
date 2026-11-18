@@ -9,13 +9,10 @@ import { QuestionText } from '@/components/ui/text';
 import { useAnimateOnChange } from '@/lib/hooks/use-animate-on-change';
 import { useWhen } from '@/lib/hooks/use-on-change';
 
-/** Height of the card stack; the card behind peeks out under the top one. */
 export const STACK = 210;
 export const PEEK = 10;
-/** How far a card must be dragged (or flung) to count as a vote. */
 const SWIPE = 110;
 
-/** One suggestion card. Only the top one can be dragged; the one behind sits a little smaller and lower. */
 export function SwipeCard({ s, top, fly, onDecide }: { s: Suggestion; top: boolean; fly: SuggestionVote | null; onDecide: (v: SuggestionVote) => void }) {
   const t = useTheme();
   const reduced = useReducedMotion();
@@ -24,7 +21,6 @@ export function SwipeCard({ s, top, fly, onDecide }: { s: Suggestion; top: boole
   const depth = useSharedValue(top ? 0 : 1);
   useAnimateOnChange(depth, top, () => withSpring(top ? 0 : 1, SPRING));
 
-  // Off the screen to the right (up), left (down) or upwards (skipped), then the vote.
   const away = (v: SuggestionVote) => {
     if (reduced) return onDecide(v);
     const done = (finished?: boolean) => {
@@ -39,7 +35,6 @@ export function SwipeCard({ s, top, fly, onDecide }: { s: Suggestion; top: boole
 
   const pan = usePanGesture({
     enabled: top,
-    // Sideways only: dragging up and down still scrolls the page.
     activeOffsetX: [-12, 12],
     failOffsetY: [-14, 14],
     onUpdate: (e) => {

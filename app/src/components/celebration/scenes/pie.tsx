@@ -1,4 +1,3 @@
-/** 314: a pie fills like a pie chart, the digits of π spiral around it. */
 import { useMemo } from 'react';
 import { Text, View } from 'react-native';
 import Animated, { Extrapolation, interpolate, useAnimatedStyle } from 'react-native-reanimated';
@@ -48,7 +47,6 @@ export const pie: SceneFactory = (m, t) => {
       );
       const list = useMemo(
         () => [
-          // Steam off the warm pie.
           ...Array.from(
             { length: 10 },
             (_, i) =>
@@ -100,7 +98,6 @@ export const pie: SceneFactory = (m, t) => {
   };
 };
 
-/** The pie: an empty tin, filling clockwise from noon (two half-discs turning behind two clipping halves), then the crust and lattice. */
 function PieDish({ clock, R, from, to }: { clock: Clock; R: number; from: number; to: number }) {
   const progress = (c: number) => {
     'worklet';
@@ -114,7 +111,6 @@ function PieDish({ clock, R, from, to }: { clock: Clock; R: number; from: number
   const top = useAnimatedStyle(() => ({ opacity: interpolate(clock.value, [to - 100, to + 250], [0, 1], Extrapolation.CLAMP) }));
   const D = R * 2;
   const filling = '#F2A541';
-  // Lattice strips: chords of the inner circle, turned 45°.
   const lattice = useMemo(() => {
     const r = R - 12;
     const c = Math.SQRT1_2;
@@ -184,7 +180,6 @@ function PieDish({ clock, R, from, to }: { clock: Clock; R: number; from: number
   );
 }
 
-/** A soft puff of steam. */
 function Steam() {
   return (
     <Svg width={40} height={40}>

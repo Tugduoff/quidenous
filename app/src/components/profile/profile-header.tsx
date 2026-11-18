@@ -13,7 +13,6 @@ export function ProfileHeader({ me, accountName, photoBusy, onPhoto }: { me: Mem
   const tr = useT();
   return (
     <>
-    {/* No room yet: the photo and the name live on room seats, so only the account's name shows. */}
     {!me && accountName != null && (
       <View style={{ alignItems: 'center', marginVertical: 8 }}>
         <Display size={accountName.length > 14 ? 22 : 28}>{accountName}</Display>

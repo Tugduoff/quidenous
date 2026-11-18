@@ -1,7 +1,6 @@
 import { useTheme } from '@/lib/theme';
 import { Pressable, ActivityIndicator, Text } from 'react-native';
 
-/** A small pill action; `tone` acc = main action, danger = red text. */
 export function Pill({
   children,
   onPress,

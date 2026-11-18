@@ -3,7 +3,6 @@ import type { ReactNode } from 'react';
 import { Text, View } from 'react-native';
 import { useTheme } from '@/lib/theme';
 
-/** Icon, title, an optional short line (red when something needs doing), and a switch. */
 export function NotifLine({
   Icon,
   on,
@@ -34,7 +33,6 @@ export function NotifLine({
   );
 }
 
-/** Greyed out and untouchable while notifications are off. */
 export function Dim({ off, children }: { off: boolean; children: ReactNode }) {
   return (
     <View aria-disabled={off} style={{ opacity: off ? 0.4 : 1, pointerEvents: off ? 'none' : 'auto' }}>

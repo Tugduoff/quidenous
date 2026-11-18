@@ -30,7 +30,6 @@ export function AppStack({ stage, reduced }: { stage: Stage; reduced: boolean })
       <Stack.Protected guard={stage === 'room'}>
         <Stack.Screen name="setup" />
       </Stack.Protected>
-      {/* The account itself (delete it included), with or without a room. */}
       <Stack.Protected guard={stage === 'in' || stage === 'room'}>
         <Stack.Screen name="profile" />
         <Stack.Screen name="friends" />
@@ -54,11 +53,8 @@ export function AppStack({ stage, reduced }: { stage: Stage; reduced: boolean })
         <Stack.Screen name="auth/reset" />
         <Stack.Screen name="auth/mfa-reset" />
       </Stack.Protected>
-      {/* Back from Google / Discord: signing in (signed out) or linking (signed in). */}
       <Stack.Screen name="oauth" />
-      {/* A shared question to play (`/play?share=`): shown signed out too, kept through sign-in. */}
       <Stack.Screen name="play" />
-      {/* A party's join link and its big-screen view: open to anyone, signed in or not. */}
       <Stack.Screen name="party/join/[code]" />
       <Stack.Screen name="party/screen/[code]" />
     </Stack>

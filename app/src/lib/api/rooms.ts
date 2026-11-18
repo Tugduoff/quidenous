@@ -11,10 +11,8 @@ export const roomKeys = {
   preview: (code: string) => ['room-preview', code] as const,
 };
 
-/** A room someone invited me into (`GET /invites`). */
 export type RoomInvite = { id: number; room_id: number; room_name: string; members: number; created_at: string; from: Person };
 
-/** `muted`: no pushes from this room for me (absent from an older server). `kind`, `ends_at`: a party and when it ends (docs/PARTY.md). */
 export type RoomSummary = {
   id: number;
   name: string;
@@ -27,7 +25,6 @@ export type RoomSummary = {
   language?: 'fr' | 'en';
   kind?: 'room' | 'party';
   ends_at?: string | null;
-  /** A party past its end: a read-only memory. */
   over?: boolean;
 };
 
@@ -35,11 +32,9 @@ export const listRooms = () => api<RoomSummary[]>('/rooms');
 
 export const useRooms = (enabled = true) => useQuery({ queryKey: roomKeys.all, queryFn: listRooms, enabled });
 
-/** Room invitations waiting for me (a server without them: none). */
 export const useInvites = (enabled = true) =>
   useQuery({ queryKey: roomKeys.invites, queryFn: async () => (await api<{ invites: RoomInvite[] }>('/invites')).invites, enabled });
 
-/** User ids with a pending invitation into this room. */
 export const useRoomInvites = (room: number | undefined, enabled = true) =>
   useQuery({
     queryKey: roomKeys.roomInvites(room ?? 0),
@@ -74,13 +69,8 @@ export const acceptInvite = (inviteId: number) => api<{ room_id: number }>(`/inv
 
 export const declineInvite = (inviteId: number) => api(`/invites/${inviteId}`, { method: 'DELETE' });
 
-/** How long a switch waits for the next room's first screen (`warmRoom`) on top of `/me`, before going anyway. */
 const WARM_MS = 500;
 
-/**
- * Fetches what the vote tab shows first in room `id` (the room, its open question, a result I haven't seen) while the
- * switch asks for my seat there, so the tab opens filled in instead of blank. What isn't back in time loads on screen.
- */
 export async function warmRoom(id: number) {
   const got: [QueryKey, unknown][] = [];
   const get = <T>(key: QueryKey, load: () => Promise<T>) =>

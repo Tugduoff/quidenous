@@ -6,24 +6,18 @@ export const statsKeys = {
   period: (period: StatsPeriod) => ['stats', period] as const,
 };
 
-
-
-/** `total`: the denominator, ratio awards only. */
 export type Award = { member_id: number; value: number; total?: number };
 
 export type Duo = { voter_id: number; target_id: number; value: number; total?: number };
 
-/** Two voters; `a_id < b_id`. */
 export type Pair = { a_id: number; b_id: number; value: number; total: number };
 
-/** `avg`: average position on ranking questions (1 decimal). */
 export type RankAward = { member_id: number; avg: number; count: number };
 
 export type QuestionRef = { round_id: number; number: number; question: string; kind: 'pick' | 'rank'; value: number; total: number };
 
 export type StatsPeriod = '7d' | '30d' | 'all';
 
-/** A highlight of the period, ready to show: `icon` is a lucide name in kebab-case, `line` already has the names in it. */
 export type Story = { key: string; icon: string; title: string; big: string; line: string; member_ids: number[]; round_id?: number };
 
 export type MemberStats = {
@@ -41,16 +35,11 @@ export type MemberStats = {
   top_targets: { member_id: number; value: number }[];
   best: QuestionRef | null;
   worst: QuestionRef | null;
-  /** Award keys held this period. */
   titles: string[];
 };
 
 export type Activity = { bucket: 'day' | 'week'; start: string; questions: number[]; votes: number[] };
 
-/**
- * `GET /api/stats` (docs/STATS.md). Everything after `never_chosen` is newer: an older server leaves it out,
- * `normalizeStats` fills it in (null awards, empty lists) so the screen only ever hides what is missing.
- */
 export type Stats = {
   period: StatsPeriod;
   members: number;
@@ -59,7 +48,6 @@ export type Stats = {
   unanimous: number;
   ties: number;
   nudges: number;
-  /** Estimate: 20 s per vote. */
   seconds_voting: number;
   seconds_waiting_last: number;
   median_round_seconds: number | null;
@@ -74,7 +62,6 @@ export type Stats = {
   author: Award | null;
   duo: Duo | null;
   never_chosen: number[];
-  /** null: an older server that doesn't count them. */
   messages: number | null;
   contrarian: Award | null;
   sheep: Award | null;
@@ -94,13 +81,10 @@ export type Stats = {
   most_unanimous: QuestionRef | null;
   hottest: QuestionRef | null;
   stories: Story[];
-  /** Who votes for whom, self included, non-zero only. */
   edges: { voter_id: number; target_id: number; value: number }[];
-  /** [7][24] votes cast, weekday 0 = Monday, local hours (empty from an older server). */
   heatmap: number[][];
   activity: Activity | null;
   profiles: MemberStats[];
-  /** Days in a row with a vote, all time (docs/STREAKS.md): absent from an older server and in a party. */
   day_streaks?: { member: Award | null; room: { current: number; best: number } };
 };
 
@@ -114,7 +98,6 @@ const list = <T,>(v: unknown): T[] => (Array.isArray(v) ? (v as T[]) : []);
 
 const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
 
-/** Whatever the server sent (an older one has fewer fields), as a complete `Stats`. */
 function normalizeStats(raw: Partial<Stats> | null, period: StatsPeriod): Stats {
   const r = (raw ?? {}) as Record<string, unknown>;
   const s = { ...r } as Record<string, unknown>;
@@ -142,7 +125,6 @@ function normalizeStats(raw: Partial<Stats> | null, period: StatsPeriod): Stats 
   return s as Stats;
 }
 
-/** Stats of a period, in the phone's time zone (`enabled`: only once needed). Switching period keeps the previous numbers on screen until the new ones land. */
 export const useStats = (period: StatsPeriod, enabled = true) =>
   useQuery({
     queryKey: statsKeys.period(period),

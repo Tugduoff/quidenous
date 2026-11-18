@@ -23,7 +23,6 @@ function Tile({ Icon, value, label }: { Icon: LucideIcon; value: string; label: 
 
 type Fact = { Icon: LucideIcon; value: string; label: string };
 
-/** The smaller facts as one list: icon, label, value aligned on the right. */
 function Facts({ facts }: { facts: Fact[] }) {
   const t = useTheme();
   return (
@@ -52,7 +51,6 @@ function Facts({ facts }: { facts: Fact[] }) {
   );
 }
 
-/** The period in four big numbers, and a few smaller facts as a list (only those that happened). */
 export function KeyNumbers({ s }: { s: Stats }) {
   const tr = useT();
   const facts = [

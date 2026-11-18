@@ -11,15 +11,12 @@ import { useTheme } from '@/lib/theme';
 import { Card } from '@/components/ui/card';
 import { QuestionText } from '@/components/ui/text';
 
-/** Between two of the band's votes coming in, once I voted. */
 const VOTE_MS = 380;
 
-/** The practice question: pick a Peton, then watch the band's votes come in. */
 export function IntroVote({ pick, onPick, onCounted }: { pick: Who | null; onPick: (w: Who) => void; onCounted: () => void }) {
   const t = useTheme();
   const tr = useT();
   const reduced = useReducedMotion();
-  // Votes in: mine, then the band's one by one; all in, on to the verdict.
   const total = 1 + DEMO_ORDER.length;
   const [count, setCount] = useState(pick ? total : 0);
   const choose = (who: Who) => {

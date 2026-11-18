@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 
-/** "Renvoyer" waits a bit between two emails: seconds left, and a way to start the wait. */
 export function useCooldown(seconds = 30): [number, () => void] {
   const [left, setLeft] = useState(0);
   useEffect(() => {

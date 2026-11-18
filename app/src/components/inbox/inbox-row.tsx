@@ -9,7 +9,6 @@ import { useTheme } from '@/lib/theme';
 import { tidy } from '@/lib/utils/text';
 import { ago } from '@/lib/utils/time';
 
-// A kind this version doesn't know (newer server) falls back to a plain bell and title.
 const ICON: Record<string, LucideIcon> = {
   message: MessageCircle,
   mention: AtSign,

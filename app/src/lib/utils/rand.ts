@@ -1,4 +1,3 @@
-/** Seeded random (mulberry32): the same milestone always throws the same confetti, so captures are reproducible. */
 export function makeRand(seed: number) {
   let a = seed >>> 0 || 1;
   const f = () => {

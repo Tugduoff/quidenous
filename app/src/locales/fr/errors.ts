@@ -1,4 +1,3 @@
-/** Server error codes (`{"error": "bad_code"}`) → message, see `authError()` in lib/auth.ts. Keys are the codes. */
 export const errors = {
   bad_email: 'E-mail invalide',
   bad_name: 'Prénom invalide',
@@ -42,22 +41,18 @@ export const errors = {
   removed: 'Tu as été retiré de ce salon',
   unverified: 'Vérifie ton e-mail d’abord',
   deck_question: 'Question du jeu de base : impossible',
-  // Game flow
   already_voted: 'Ton vote est déjà compté',
   no_open_round: 'Cette question est déjà close',
   alone: "Personne d'autre dans le salon pour l'instant",
   disabled: 'Le propriétaire a désactivé cette option',
   time_up: 'Trop tard, le temps est écoulé',
-  // Limits
   room_full: 'Salon complet (50 personnes max)',
   too_many_rooms: 'Tu as déjà 20 salons',
   question_exists: 'Déjà dans ce salon',
   update_required: "Mets l'app à jour",
-  // Chat media
   bad_image: 'Format d’image non pris en charge',
   too_large: 'Image trop lourde',
   gifs_off: 'GIF indisponibles',
-  // Tripot
   already_bet: 'Tu as déjà parié sur cette question',
   not_enough_chips: 'Pas assez de jetons',
   round_closed: 'Les paris sont fermés',

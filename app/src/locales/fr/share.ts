@@ -1,4 +1,3 @@
-/** Texts shared out of the app (messages, file names). "qui de nous ?" is the app's name. */
 export const share = {
   friend: 'Ajoute-moi en ami sur qui de nous ? 👉 {link}\n(code ami : {code})',
   invite: 'Rejoins « {room} » sur qui de nous ? 👉 {link}\n(code : {code})',
@@ -8,7 +7,6 @@ export const share = {
   points: '{points} pts',
   story: 'qui de nous ? · {title}\n{line}',
   historyFile: 'qui-de-nous-historique.csv',
-  // The first public link on this device, and Profile > My links.
   public: {
     title: 'Lien public',
     message: 'Toute personne qui a le lien voit cette carte et le nom du salon, pendant 90 jours. Tu peux le supprimer dans Profil > Mes liens.',

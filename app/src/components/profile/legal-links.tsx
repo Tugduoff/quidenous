@@ -3,7 +3,6 @@ import { API_URL } from '@/lib/api/client';
 import { useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 
-/** Discreet footer: the privacy policy and the terms, in the app's language. */
 export function LegalLinks({ lang }: { lang: 'fr' | 'en' }) {
   const t = useTheme();
   const tr = useT();

@@ -15,7 +15,6 @@ import { useRedirect } from '@/lib/hooks/use-redirect';
 import { useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 
-/** `/party/[id]`: the whole party on one screen, following its phase (lobby, question, result, memory). */
 export default function PartyScreen() {
   const t = useTheme();
   const tr = useT();
@@ -27,7 +26,6 @@ export default function PartyScreen() {
 
   useEnterPartyRoom(id, loaded);
 
-  // Turned into a normal room ("Continuer en salon"): the room's usual screens take over.
   const gone = party.error instanceof ApiError && [404, 409].includes(party.error.status);
   useRedirect(p?.kind === 'room' || (loaded && gone) ? '/' : null);
 
@@ -47,7 +45,6 @@ export default function PartyScreen() {
   if (p.phase === 'voting' && p.round && said)
     return (
       <PartySaidVoting
-        // Each phase starts fresh; the board too if its answers change (someone left).
         key={`${p.round.id}-${said.phase}-${saidBoardKey(said)}`}
         party={p}
         round={p.round}

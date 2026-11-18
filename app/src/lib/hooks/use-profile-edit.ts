@@ -9,7 +9,6 @@ import { type Member, groupKeys } from '@/lib/api/group';
 import { uploadMyPhoto, setMyName } from '@/lib/api/me';
 import { photoForm } from '@/lib/device/photo';
 
-/** Profile: my photo (library or camera) and my name on my seat, with what is busy and the last error. */
 export function useProfileEdit() {
   const tr = useT();
   const qc = useQueryClient();
@@ -36,7 +35,6 @@ export function useProfileEdit() {
       setBusy('photo');
       updated(await uploadMyPhoto(await photoForm(picked.assets[0].uri)));
     } catch (e) {
-      // Say why, so a failure on someone's phone can be told apart (server refusal vs. on the phone).
       setError(
         tr('profile.photo.failed', {
           reason: e instanceof ApiError ? e.status : tr('profile.photo.error'),

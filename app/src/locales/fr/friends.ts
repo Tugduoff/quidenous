@@ -19,7 +19,6 @@ export const friends = {
   wantsToBeFriends: 'veut être ton ami',
   acceptA11y: 'Accepter {name}',
   declineA11y: 'Refuser {name}',
-  /** People I share a room with, not friends for good yet. */
   inRooms: 'Dans tes salons',
   sent: 'Demandes envoyées',
   pending: 'En attente',

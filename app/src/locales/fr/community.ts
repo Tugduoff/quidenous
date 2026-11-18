@@ -1,14 +1,11 @@
-/** community strings: suggestions to the deck, share → play, challenges (see docs/COMMUNITY.md). */
 export const community = {
   title: 'Proposer',
-  /** Entry button on the Questions tab. */
   entry: 'Proposer',
   compose: {
     label: 'Une question pour tout le monde',
     placeholder: 'Qui de nous…',
     placeholderRank: 'Classe-nous du plus… au moins…',
     send: 'Envoyer la proposition',
-    /** Suggestions left today (the day is implied: "aujourd'hui" doesn't fit beside the switch at 360). */
     left: { zero: 'Plus aucune', one: '{count} restante', other: '{count} restantes' },
     sent: 'Envoyée, place au vote',
   },
@@ -28,7 +25,6 @@ export const community = {
     more: 'Tout voir',
     less: 'Moins',
   },
-  /** Under a question card: the deck question came from someone's suggestion. */
   credit: 'proposée par {name}',
   play: {
     from: 'Depuis {room}',

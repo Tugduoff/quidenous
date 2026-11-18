@@ -82,7 +82,6 @@ function Question({ q, line, onPress }: { q: QuestionRef; line: string; onPress:
   );
 }
 
-/** Someone's earned badges (the highest tier of each), as small medals. Nothing on a server without badges. */
 function TheirBadges({ id, open }: { id: number; open: boolean }) {
   const tr = useT();
   const { data } = useMemberBadges(id, open);
@@ -102,7 +101,6 @@ function TheirBadges({ id, open }: { id: number; open: boolean }) {
   );
 }
 
-/** One person's period: their titles, numbers, fans, crushes, best and worst moments. Tapping someone else switches to them. */
 export function ProfileSheet({
   profile,
   byId,
@@ -117,7 +115,6 @@ export function ProfileSheet({
   const t = useTheme();
   const tr = useT();
   const { height } = useWindowDimensions();
-  // Keeps the last person on screen while the dialog fades out.
   const p = useLastNonNull(profile);
   const m = p ? byId.get(p.member_id) : undefined;
   const openRound = (id: number) => {

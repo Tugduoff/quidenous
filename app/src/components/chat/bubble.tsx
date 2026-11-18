@@ -17,15 +17,11 @@ import { useTheme } from '@/lib/theme';
 import { HEART, mediaOf } from '@/lib/utils/chat';
 import { segments } from '@/lib/utils/mentions';
 
-/** `#rrggbb` → the same colour, faint (a mention's background). */
 const soft = (color: string) => (/^#[0-9a-f]{6}$/i.test(color) ? `${color}33` : 'rgba(127,127,127,0.18)');
-/** Two taps closer than this on a message: ❤️. */
 const DOUBLE_TAP_MS = 280;
 
-/** Web: a double tap (❤️) doesn't select a word, a long press doesn't open the iOS text callout over the menu. */
 const NO_SELECT = Platform.OS === 'web' ? ({ userSelect: 'none', WebkitTouchCallout: 'none' } as unknown as ViewStyle) : null;
 
-/** One message. A component of its own, so a new message does not redraw the others. */
 export function Bubble({
   m,
   author,
@@ -45,14 +41,10 @@ export function Bubble({
   fresh: boolean;
   onReport: (target: ModTarget) => void;
   onProfile: (id: number) => void;
-  /** I may delete it (mine, or I own the room): offered on long-press. */
   onDelete?: () => Promise<unknown>;
-  /** Hidden by reports, in a room I own: I may bring it back (long-press). */
   onRestore?: () => Promise<unknown>;
-  /** The server has reactions: toggles mine (true: added). The long-press menu then opens on every message, mine too. */
   onReact?: (emoji: string) => boolean;
   onWho: (emoji: string) => void;
-  /** A photo or GIF was tapped: full screen. */
   onOpen: (m: Message) => void;
 }) {
   const t = useTheme();
@@ -61,7 +53,6 @@ export function Bubble({
   const { byId } = useMembers();
   const mine = m.member_id === me?.id;
   const mentionStyle = (mine: boolean, color: string): TextStyle =>
-    // On my own bubble (my colour behind): dark text on a darker wash, like the rest of the bubble.
     mine
       ? { fontFamily: t.font.bold, color: '#121216', backgroundColor: 'rgba(0,0,0,0.12)', borderRadius: 5, paddingHorizontal: 3 }
       : { fontFamily: t.font.bold, color, backgroundColor: soft(color), borderRadius: 5, paddingHorizontal: 3 };
@@ -79,13 +70,10 @@ export function Bubble({
           onRestore,
         };
   const bubble = useRef<ComponentRef<typeof View>>(null);
-  // Double tap: the time of the last tap, and of the last tap on a mention (that one opens a profile, nothing else).
   const lastTap = useRef(0);
   const mentionTap = useRef(0);
   const [burst, setBurst] = useState(0);
-  // A photo or a GIF (null: a text, or a kind from a newer server, shown as its text).
   const media = mediaOf(m);
-  // A tap on a photo opens it, once it's clear it isn't the first of a double tap (❤️).
   const opening = useRef<ReturnType<typeof setTimeout>>(undefined);
   useUnmountEffect(() => clearTimeout(opening.current));
   const heart = () => {
@@ -108,7 +96,6 @@ export function Bubble({
           else onOpen(m);
         }
       : undefined;
-  // With reactions: a menu floating by the message (reactions on top, then delete / report / block).
   const menu = () => {
     lastTap.current = 0;
     impactHaptic();
@@ -128,7 +115,6 @@ export function Bubble({
       : tr('chat.longPressHint');
   const reactions = m.reactions?.filter((r) => r.count > 0) ?? [];
   const ink = mine ? '#121216' : t.txt;
-  // The text, or a photo's caption, with its mentions.
   const rich = (text: string) => (
     <Text style={{ fontFamily: t.font.regular, fontSize: 15, lineHeight: 20, color: ink, paddingHorizontal: media ? 10 : 0 }}>
       {segments(
@@ -177,14 +163,12 @@ export function Bubble({
             NO_SELECT,
             {
               maxWidth: '78%',
-              // A photo: a thin frame of the bubble around it, the name and caption inset like a text.
               paddingHorizontal: media ? 4 : 14,
               paddingTop: media ? 4 : 9,
               paddingBottom: media ? (m.caption ? 7 : 4) : 9,
               borderRadius: 18,
               borderBottomLeftRadius: mine ? 18 : 6,
               borderBottomRightRadius: mine ? 6 : 18,
-              // My own bubbles in my colour: lime is for actions (Suivante, Envoyer).
               backgroundColor: mine ? (me?.color ?? t.card2) : t.card,
               gap: 2,
             },
@@ -211,7 +195,6 @@ export function Bubble({
           ) : (
             rich(m.text)
           )}
-          {/* A photo without a caption has its time on it. */}
           {(!media || !!m.caption) && (
             <Text
               style={{
@@ -229,7 +212,6 @@ export function Bubble({
         </Pressable>
       </View>
       {reactions.length > 0 && <ReactionChips reactions={reactions} mine={mine} onToggle={onReact && ((e) => void onReact(e))} onWho={onWho} />}
-      {/* Hidden by reports: only I (the owner) see it, faded, until I restore or delete it. */}
       {!!m.hidden && (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: mine ? 'flex-end' : 'flex-start', marginLeft: mine ? 0 : 36 }}>
           <EyeOff size={13} color={t.mut} />

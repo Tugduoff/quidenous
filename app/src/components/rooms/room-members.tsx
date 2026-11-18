@@ -13,7 +13,6 @@ import { Avatar } from '@/components/ui/avatar';
 import { Card } from '@/components/ui/card';
 import { useGroup, groupKeys, removeMember, voteKick } from '@/lib/api/group';
 
-/** The "…" of a member row (36 px): remove, vote to remove, report, block. */
 function MoreButton({ label, onPress }: { label: string; onPress: () => void }) {
   const t = useTheme();
   return (
@@ -28,10 +27,6 @@ function MoreButton({ label, onPress }: { label: string; onPress: () => void }) 
   );
 }
 
-/**
- * The members, each with a "…": the owner removes someone there; with the vote on, the others vote there to remove them
- * (a majority of the others, never the owner, and only from 3 people). A vote in progress shows as a quiet count on the row.
- */
 export function RoomMembers() {
   const t = useTheme();
   const tr = useT();
@@ -49,7 +44,6 @@ export function RoomMembers() {
     onSettled: () => qc.invalidateQueries({ queryKey: groupKeys.all }),
   });
   if (!group) return null;
-  // With two people a majority is one person deciding alone: no vote then.
   const voteOn = group.settings.kick_vote && group.members.length >= 3;
   const others = group.members.filter((m) => m.id !== me?.id);
   return (

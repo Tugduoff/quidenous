@@ -1,4 +1,3 @@
-/** 1664: beer — two mugs clink, the screen fills up with foam on top. */
 import { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';

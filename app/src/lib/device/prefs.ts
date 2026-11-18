@@ -2,7 +2,6 @@ import { useSyncExternalStore } from 'react';
 
 import { storage } from '@/lib/device/storage';
 
-/** Hide who I voted for on the waiting screen, for when friends can see my phone. */
 const KEY = 'qdn.hideVote';
 let hideVote = false;
 const listeners = new Set<() => void>();
@@ -27,7 +26,6 @@ export function useHideVote(): boolean {
   );
 }
 
-/** First-run hints already closed (one per screen), so each shows until its X is tapped. Null until read. */
 const TIPS_KEY = 'qdn.tips';
 let tips: Set<string> | null = null;
 const tipListeners = new Set<() => void>();
@@ -49,7 +47,6 @@ export function dismissTip(id: string) {
   tipsChanged();
 }
 
-/** Whether the hint should show: false while the saved list is still loading, so a closed one never flashes. */
 export function useTipVisible(id: string): boolean {
   return useSyncExternalStore(
     (l) => {

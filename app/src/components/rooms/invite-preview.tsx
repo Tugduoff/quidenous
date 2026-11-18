@@ -5,7 +5,6 @@ import { useTheme } from '@/lib/theme';
 import { Card } from '@/components/ui/card';
 import { useRoomPreview } from '@/lib/api/rooms';
 
-/** What an invite link opens onto: the room's name, how many are in it and who. Nothing if the code is unknown (the code field says so). */
 export function InvitePreview({ code }: { code: string }) {
   const t = useTheme();
   const tr = useT();

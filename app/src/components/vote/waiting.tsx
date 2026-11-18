@@ -20,7 +20,6 @@ export function Waiting({ round, byId, members }: { round: Round; byId: Map<numb
   const t = useTheme();
   const tr = useT();
   const { me } = useSession();
-  // A choose question: my own real choice (my vote's target is me).
   const choice = round.kind === 'choose' ? myRealChoice(round, me?.id) : null;
   const target = round.my_vote != null ? byId.get(round.my_vote) : undefined;
   const hidden = useHideVote();
@@ -30,7 +29,6 @@ export function Waiting({ round, byId, members }: { round: Round; byId: Map<numb
     <Screen>
       <Header />
       <Question round={round} />
-      {/* My vote: who I picked (or hidden), one switch to hide it when friends can see my screen. */}
       <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 }}>
         {hidden ? (
           <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: t.card2, alignItems: 'center', justifyContent: 'center' }}>

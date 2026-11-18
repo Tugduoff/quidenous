@@ -1,10 +1,8 @@
 import { useMemo } from 'react';
 import { type SharedValue, useAnimatedStyle } from 'react-native-reanimated';
 
-/** Impacts: when they hit (ms) and how hard (px). Shake decays fast; strong ones also buzz the phone. */
 export type Impact = { at: number; amp: number };
 
-/** Style for the whole stage: a short, decaying shake after each impact. */
 export function useShake(clock: SharedValue<number>, impacts: Impact[]) {
   const list = useMemo(() => impacts.map((i) => [i.at, i.amp]), [impacts]);
   return useAnimatedStyle(() => {

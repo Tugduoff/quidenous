@@ -4,7 +4,6 @@ import { SPRING } from '@/lib/motion';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
-/** A Pressable that dips a little while held: the app's press feedback (none under reduced motion). */
 export function PressableScale({
   scale = 0.96,
   style,

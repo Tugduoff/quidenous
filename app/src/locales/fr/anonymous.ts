@@ -1,4 +1,3 @@
-// Anonymous votes (docs/ANONYMOUS.md).
 export const anonymous = {
   badge: 'Anonyme',
   a11y: 'Votes anonymes : seuls les totaux sont montrés',

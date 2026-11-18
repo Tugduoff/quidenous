@@ -5,14 +5,10 @@ export const inboxKeys = {
   all: ['inbox'] as const,
 };
 
-
-
 export type InboxItem = {
   id: number;
-  /** Unknown kinds (a newer server) are shown with a generic icon and title. */
   kind: 'message' | 'mention' | 'nudge' | 'result' | 'question' | 'added' | 'ask' | 'badge' | 'wrapped' | (string & {});
   round_id: number | null;
-  /** The room it happened in (absent from an older server). */
   room_id?: number;
   actor_id: number | null;
   text: string;

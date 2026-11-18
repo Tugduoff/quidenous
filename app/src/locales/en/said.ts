@@ -1,6 +1,5 @@
 import type { Messages } from '@/locales/fr';
 
-/** "Who said that?" (docs/SAID.md): write an answer, guess who wrote what, the reveal. */
 export const said: Messages['said'] = {
   short: 'Who said',
   composer: { placeholder: 'E.g. The worst gift you ever got?' },

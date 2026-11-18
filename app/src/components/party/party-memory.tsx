@@ -23,7 +23,6 @@ import { useTheme } from '@/lib/theme';
 import { tidy } from '@/lib/utils/text';
 import { isPartyOwner } from '@/lib/utils/party';
 
-/** The party is over: what was asked and who won, then keep playing as a room (owner) or keep the account (guest). */
 export function PartyMemory({ party }: { party: Party }) {
   const t = useTheme();
   const tr = useT();
@@ -65,7 +64,6 @@ export function PartyMemory({ party }: { party: Party }) {
         )
       }>
       <PartyHeader party={party} />
-      {/* Paillette hops the party out. */}
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
         <View style={{ flex: 1, gap: 6 }}>
           <Display size={34}>{tr('party.over')}</Display>

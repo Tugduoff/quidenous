@@ -42,7 +42,6 @@ export function PackView({ id }: { id: number }) {
   const [note, setNote] = useState<string | null>(null);
   const [picking, setPicking] = useState(false);
   const [reporting, setReporting] = useState(false);
-  // Rooms it went into from this page (the server only tells about the current room).
   const [installedIn, setInstalledIn] = useState<number[]>([]);
   const isIn = (roomId: number | null) => roomId != null && (installedIn.includes(roomId) || (roomId === here && !!pack?.installed));
 
@@ -65,7 +64,6 @@ export function PackView({ id }: { id: number }) {
         qc.invalidateQueries({ queryKey: questionKeys.queue });
         qc.invalidateQueries({ queryKey: roundKeys.current });
       }
-      // Its install count (once per room) comes back from the server.
       qc.invalidateQueries({ queryKey: packKeys.all });
     },
     onError: (e) => setNote(tr(e instanceof ApiError ? packError(e.code) : 'common.failed')),

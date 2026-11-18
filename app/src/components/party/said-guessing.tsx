@@ -34,7 +34,6 @@ export function PartySaidGuessing({ party, round, said, top }: { party: Party; r
   const byId = usePartyPlayers(party);
   const me = party.me?.member_id;
   const answers = useMemo(() => toGuess(said), [said]);
-  // The writers but me (players are stable objects between refetches, so the chips only redraw when their state changes).
   const writers = said.writer_ids;
   const people = useMemo(
     () =>
@@ -60,7 +59,6 @@ export function PartySaidGuessing({ party, round, said, top }: { party: Party; r
   });
   const send = () => (complete || nothing) && vote.mutate(toGuesses(state));
   const bump = usePop(complete, 1.04, complete);
-  // Reporting an answer needs an account (a guest can't report) and the moderation feature.
   const { moderation } = useFeatures();
   const canReport = moderation && !party.me?.guest;
   const [toReport, setToReport] = useState<ModTarget | null>(null);

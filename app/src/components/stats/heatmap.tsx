@@ -6,13 +6,11 @@ import { useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 import { Card } from '@/components/ui/card';
 
-/** Monday first (`stats.heatmap.days.*`, `stats.heatmap.dayNames.*`). */
 const DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
 const LABEL = 32;
 const GAP = 2;
 const ROW = 14;
 
-/** Votes by weekday (Monday first) and local hour: the busier, the stronger the accent. */
 export function Heatmap({ data }: { data: number[][] }) {
   const t = useTheme();
   const tr = useT();

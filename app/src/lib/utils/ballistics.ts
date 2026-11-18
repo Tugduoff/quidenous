@@ -1,7 +1,3 @@
-/**
- * Closed-form flight under gravity `g` (px/s², positive = down) and linear drag `k` (1/s, must be > 0):
- * position and velocity `t` seconds after leaving (x, y) at (vx, vy).
- */
 export function ballistic(x: number, y: number, vx: number, vy: number, g: number, k: number, t: number) {
   'worklet';
   const decay = Math.exp(-k * t);

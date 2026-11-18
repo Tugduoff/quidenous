@@ -1,7 +1,6 @@
 import { Text, View } from 'react-native';
 import { useTheme } from '@/lib/theme';
 
-/** The answer's number in a disc: the same number on its card, in the tray and in the recap. */
 export function NumberDisc({ n, on, size = 26 }: { n: number; on?: boolean; size?: number }) {
   const t = useTheme();
   return (

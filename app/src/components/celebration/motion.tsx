@@ -1,4 +1,3 @@
-/** Animated wrappers driven by the scene clock: reveals, slams, pops, keyframes and simple trajectories. */
 import type { ReactNode } from 'react';
 import type { ViewStyle } from 'react-native';
 import Animated, { Extrapolation, interpolate, useAnimatedStyle } from 'react-native-reanimated';
@@ -9,7 +8,6 @@ import { clamp01, easeOutCubic } from '@/lib/utils/easing';
 import type { Clock } from '@/components/celebration/engine';
 import { ABS } from '@/components/celebration/layout';
 
-/** Fades and rises in at `at`. */
 export function Reveal({
   clock,
   at,
@@ -33,10 +31,6 @@ export function Reveal({
   return <Animated.View style={[style, a]}>{children}</Animated.View>;
 }
 
-/**
- * Typography slam: falls from big onto the screen at `at` (the impact), squashes, stretches back and settles.
- * Lands from `from`× its size over `fall` ms.
- */
 export function Slam({
   clock,
   at,
@@ -63,7 +57,6 @@ export function Slam({
   return <Animated.View style={[style, a]}>{children}</Animated.View>;
 }
 
-/** Pops up from small with one bouncy overshoot. */
 export function Pop({ clock, at, children, style }: { clock: Clock; at: number; children: ReactNode; style?: ViewStyle }) {
   const a = useAnimatedStyle(() => {
     const c = clock.value;
@@ -75,7 +68,6 @@ export function Pop({ clock, at, children, style }: { clock: Clock; at: number; 
 
 type Keys = { t: number[]; x?: number[]; y?: number[]; r?: number[]; s?: number[]; sx?: number[]; sy?: number[]; o?: number[] };
 
-/** Keyframes on the clock: translate, rotate, scale, opacity (each optional, all on the same times `k.t`, clamped). */
 export function Keyed({ clock, k, style, children }: { clock: Clock; k: Keys; style?: ViewStyle; children?: ReactNode }) {
   const a = useAnimatedStyle(() => {
     const c = clock.value;
@@ -100,7 +92,6 @@ export function Keyed({ clock, k, style, children }: { clock: Clock; k: Keys; st
   );
 }
 
-/** Sits still at (x, y) until `at`, then flies off with gravity, drag and spin (bowling pins, torn pages). */
 export type Throw = { x: number; y: number; vx: number; vy: number; g: number; k: number; spin: number; rot: number; at: number; w: number; h: number };
 export function Thrown({ clock, p, children }: { clock: Clock; p: Throw; children: ReactNode }) {
   const a = useAnimatedStyle(() => {
@@ -111,10 +102,6 @@ export function Thrown({ clock, p, children }: { clock: Clock; p: Throw; childre
   return <Animated.View style={[{ position: 'absolute', left: 0, top: 0, width: p.w, height: p.h }, a]}>{children}</Animated.View>;
 }
 
-/**
- * Something orbiting (cx, cy): its angle turns at `spin` rad/s, its radius eases from r0 to r1 after `at`.
- * The orbit is an ellipse (`tilt` squashes it) turned by `tiltRot` radians.
- */
 type Orbit = { r0: number; r1: number; a: number; spin: number; at: number; dur: number; size: number };
 export function Orbiter({
   clock,
@@ -157,13 +144,11 @@ export function Orbiter({
   );
 }
 
-/** Visible only between `from` and `to` (ms). */
 export function Window({ clock, from, to, children, style }: { clock: Clock; from: number; to: number; children: ReactNode; style?: ViewStyle }) {
   const anim = useAnimatedStyle(() => ({ opacity: clock.value >= from && clock.value < to ? 1 : 0 }));
   return <Animated.View style={[style, anim]}>{children}</Animated.View>;
 }
 
-/** Fades from 1 to 0 between `from` and `to`. */
 export function FadeAway({ clock, from, to, children, style }: { clock: Clock; from: number; to: number; children: ReactNode; style?: ViewStyle }) {
   const anim = useAnimatedStyle(() => ({ opacity: interpolate(clock.value, [from, to], [1, 0], Extrapolation.CLAMP) }));
   return <Animated.View style={[style, anim]}>{children}</Animated.View>;

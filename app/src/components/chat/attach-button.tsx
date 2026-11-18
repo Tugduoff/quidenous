@@ -15,6 +15,9 @@ import { useTheme } from '@/lib/theme';
 import { showToast } from '@/lib/toast';
 import { outgoing } from '@/lib/utils/mentions';
 
+const IOS_MENU_MODAL_CLOSE_MS = 350;
+const iosMenuModalClosed = () => new Promise((resolve) => setTimeout(resolve, IOS_MENU_MODAL_CLOSE_MS));
+
 function Row({ icon: Icon, label, onPress }: { icon: LucideIcon; label: string; onPress: () => void }) {
   const t = useTheme();
   return (
@@ -39,10 +42,6 @@ function Row({ icon: Icon, label, onPress }: { icon: LucideIcon; label: string; 
   );
 }
 
-/**
- * The composer's photo / GIF button, and everything it opens: a small menu by it (gallery, camera, GIF), the photo with
- * a caption before it goes (prefilled with what was typed), the GIF search. Nothing at all on a server without either.
- */
 export function AttachButton({
   roundId,
   draft,
@@ -52,11 +51,9 @@ export function AttachButton({
   onSent,
 }: {
   roundId: number;
-  /** What's typed in the message box: becomes the caption. */
   draft: string;
   picked: number[];
   others: Member[];
-  /** The typed text went out as a caption: the box empties. */
   onUseDraft: () => void;
   onSent?: () => void;
 }) {
@@ -77,11 +74,8 @@ export function AttachButton({
   const pick = async (from: 'library' | 'camera') => {
     setMenu(false);
     try {
-      // iOS can't show the picker while the menu's modal is still closing. (The web must open it right away: a file dialog
-      // needs the tap that asked for it.)
-      if (Platform.OS === 'ios') await new Promise((r) => setTimeout(r, 350));
+      if (Platform.OS === 'ios') await iosMenuModalClosed();
       if (from === 'camera' && !(await ImagePicker.requestCameraPermissionsAsync()).granted) return showToast(tr('profile.photo.cameraDenied'));
-      // No `exif`: nothing of it is wanted, and the photo is re-encoded without it anyway.
       const options: ImagePicker.ImagePickerOptions = { mediaTypes: ['images'], quality: 1 };
       const res = await (from === 'camera' ? ImagePicker.launchCameraAsync(options) : ImagePicker.launchImageLibraryAsync(options));
       const asset = !res.canceled && res.assets[0];
@@ -104,7 +98,6 @@ export function AttachButton({
     const caption = photo.caption.trim();
     const ping = caption ? outgoing(caption, picked, others) : { mentions: [], everyone: false };
     sendImage(roundId, photo.img, caption, ping, onSent);
-    // The caption started as the typed text: sent, the box empties (erased, the text stays in the box).
     if (caption) onUseDraft();
     setPhoto(null);
     onSent?.();

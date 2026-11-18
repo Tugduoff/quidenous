@@ -7,7 +7,6 @@ import { PressableScale } from '@/components/ui/pressable-scale';
 import { useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 
-/** My answer once sent: anonymous for the others until the guessing, rewritable until then (`onEdit`). */
 export function MyAnswer({ text, onEdit }: { text: string; onEdit?: () => void }) {
   const t = useTheme();
   const tr = useT();

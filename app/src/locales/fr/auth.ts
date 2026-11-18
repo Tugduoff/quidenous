@@ -1,13 +1,10 @@
-/** Signing in and up (app/join, app/auth/*, app/oauth, app/setup), the old join screen and the QR scanner. */
 export const auth = {
   tagline: "Une question. Tout le monde vote.\nPersonne n'est à l'abri.",
   emailPlaceholder: 'toi@exemple.fr',
   emailLabel: 'E-mail',
   name: 'Prénom',
   password: 'Mot de passe',
-  /** A new password: "Mot de passe (8 min.)". */
   newPassword: 'Mot de passe ({min} min.)',
-  /** Under a new password while it is too short. */
   minLength: '{min} caractères minimum',
   validate: 'Valider',
   resend: 'Renvoyer',
@@ -53,7 +50,6 @@ export const auth = {
     code: 'Code à 6 chiffres',
     recovery: 'Code de secours',
   },
-  /** The join screen of a server without accounts. */
   legacy: {
     create: 'Créer mon salon',
     roomName: 'Nom du salon',

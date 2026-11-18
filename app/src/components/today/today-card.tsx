@@ -14,7 +14,6 @@ import { StreakChip } from '@/components/today/streak-chip';
 import { UnreadChip } from '@/components/today/unread-chip';
 import { VotesMeter } from '@/components/today/votes-meter';
 
-/** One room: its name, my streak and unread chat, the question, and what it wants from me. */
 export const TodayCard = memo(function TodayCard({ room: r, onOpen }: { room: TodayRoom; onOpen: (id: number) => void }) {
   const t = useTheme();
   const tr = useT();

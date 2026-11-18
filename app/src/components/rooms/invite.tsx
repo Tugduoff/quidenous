@@ -21,7 +21,6 @@ import { roundKeys } from '@/lib/api/rounds';
 import { inviteLink, inviteMessage } from '@/lib/links';
 import { useFeatures } from '@/lib/api/features';
 
-/** `true` for a moment after a successful copy (a "Copié" tick). */
 function useFlash(): [boolean, (ok: boolean) => void] {
   const [on, setOn] = useState(false);
   return [
@@ -34,7 +33,6 @@ function useFlash(): [boolean, (ok: boolean) => void] {
   ];
 }
 
-/** The room's invite: QR code, code, share the link, copy the code, and (owner, `rotate`) a new code. */
 export function InviteCard({ qrSize = 168, rotate = true }: { qrSize?: number; rotate?: boolean }) {
   const t = useTheme();
   const tr = useT();
@@ -48,7 +46,6 @@ export function InviteCard({ qrSize = 168, rotate = true }: { qrSize?: number; r
   });
   if (!group) return null;
   const share = async () => flashShared((await shareText(inviteMessage(group.name, group.code))) === 'copied');
-  // On a phone this opens the share sheet with just the code (it has "Copy"): no clipboard module needed.
   const copy = async () => flashCopied((await copyText(group.code)) && Platform.OS === 'web');
   const round = { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card2 } as const;
   return (
@@ -102,11 +99,6 @@ export function InviteCard({ qrSize = 168, rotate = true }: { qrSize?: number; r
   );
 }
 
-/**
- * One row under the room's invite: "Inviter des amis" opens a sheet with my friends who aren't in the room yet (search,
- * one tap sends an invitation they accept). With no friends at all, a way to add some (unless `onlyIfAny`: the invite
- * screen keeps to the invite); nothing when they are all here already, or for a party guest (no friends list).
- */
 export function AddFriends({ onlyIfAny }: { onlyIfAny?: boolean }) {
   const t = useTheme();
   const tr = useT();
@@ -147,7 +139,6 @@ export function AddFriends({ onlyIfAny }: { onlyIfAny?: boolean }) {
   );
 }
 
-/** The sheet: search my friends outside the room, invite one (tap again to take it back). */
 function InviteSheet({ visible, onClose, room, friends }: { visible: boolean; onClose: () => void; room: number; friends: Friend[] }) {
   const t = useTheme();
   const tr = useT();
@@ -157,7 +148,6 @@ function InviteSheet({ visible, onClose, room, friends }: { visible: boolean; on
   const invited = new Set(pending ?? []);
   const refresh = () => {
     qc.invalidateQueries({ queryKey: roomKeys.roomInvites(room) });
-    // An older server seats them straight away.
     qc.invalidateQueries({ queryKey: groupKeys.all });
     qc.invalidateQueries({ queryKey: roundKeys.current });
   };
@@ -247,7 +237,6 @@ function InviteSheet({ visible, onClose, room, friends }: { visible: boolean; on
   );
 }
 
-/** Rooms someone invited me into: join one, or decline. Nothing when there are none. */
 export function RoomInvites({ onJoined }: { onJoined: (room: number) => void }) {
   const t = useTheme();
   const tr = useT();

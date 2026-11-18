@@ -15,47 +15,32 @@ import { flow, pendingJoinCode, setPendingCode } from '@/lib/auth-flow';
 import { listRooms, joinRoom } from '@/lib/api/rooms';
 import { getMe } from '@/lib/api/me';
 
-/** Set while the account is in no room: the next start asks for the room list instead of a `/me` known to fail. */
 const ROOMLESS_KEY = 'qdn.roomless';
 
 type Session = {
   ready: boolean;
   me: Member | null;
   token: string | null;
-  /** The room on screen (null until known: the server then picks the last one used). */
   room: number | null;
-  /** Signed in but in no room yet (`403 no_room`): join or create one first. */
   roomless: boolean;
-  /** Just signed up and a code was emailed: the code screen comes first. */
   verifying: boolean;
-  /** A new account's first-run intro is due (lib/intro.ts): after the code screen, before the first room. */
   intro: boolean;
-  /** The intro is over (`skipped`: left before the end): never shown again. */
   endIntro: (skipped: boolean) => void;
   setRoom: (id: number | null) => Promise<void>;
-  /** Legacy (token-only) entry: join with a code and a first name. */
   join: (code: string, name: string, server?: string) => Promise<void>;
-  /** Legacy entry without a code: a new account with a new room I own. */
   start: (name: string, room: string, server?: string) => Promise<void>;
-  /** A session from sign-in / sign-up / OAuth / reset. Joins the room of an invite opened before. */
   signIn: (res: SessionResult) => Promise<void>;
   doneVerifying: () => void;
-  /** First room of a roomless account (joined or created). */
   enterRoom: (id: number) => Promise<void>;
-  /** Left (or deleted) my last room: back to joining or creating one. */
   noRoomLeft: () => Promise<void>;
-  /** Seated at a party from its link: `guestToken` when that made a new guest account (else my session stays), then into that room. */
   joinParty: (guestToken: string | null, roomId: number) => Promise<void>;
   setMe: (m: Member) => void;
-  /** Forget the session on this device only. */
   leave: () => Promise<void>;
-  /** Sign out: the server drops the token too. */
   signOut: () => Promise<void>;
 };
 
 const SessionContext = createContext<Session | null>(null);
 
-/** Who I am in the current room, or why not. A room I left is forgotten and the server picks another. */
 async function loadMe(): Promise<Member | 'no_room' | 'out' | 'offline'> {
   const found = await askMe();
   if (found === 'no_room') await storage.set(ROOMLESS_KEY, '1');
@@ -64,7 +49,6 @@ async function loadMe(): Promise<Member | 'no_room' | 'out' | 'offline'> {
 }
 
 async function askMe(): Promise<Member | 'no_room' | 'out' | 'offline'> {
-  // In no room last time and still none: `/me` would only answer 403 (an error in the console on every start).
   if (apiRoom() == null && (await storage.get(ROOMLESS_KEY))) {
     const rooms = await listRooms().catch(() => null);
     if (Array.isArray(rooms) && !rooms.length) return 'no_room';
@@ -99,7 +83,6 @@ export function SessionProvider({ children }: PropsWithChildren) {
     if (id == null) await storage.remove(ROOM_KEY);
     else await storage.set(ROOM_KEY, String(id));
     setRoomState(id);
-    // My seat (name, photo) can differ per room.
     try {
       setMe(await getMe());
     } catch {}
@@ -112,12 +95,10 @@ export function SessionProvider({ children }: PropsWithChildren) {
       const saved = await storage.get(TOKEN_KEY);
       await loadLang(!!saved);
       const savedRoom = Number(await storage.get(ROOM_KEY)) || null;
-      // A tapped notification (web) names its room: opened in it from the first request, nothing to refetch.
       const preset = presetRoom();
       if (saved) {
         setApiToken(saved);
         setApiRoom(preset ?? savedRoom);
-        // Alongside `/me`: an account that already had its answer asks nothing.
         const [found, showIntro] = await Promise.all([loadMe(), introAtStart(qc)]);
         if (preset != null && typeof found === 'object' && apiRoom() === preset) await storage.set(ROOM_KEY, String(preset));
         if (found === 'out') {
@@ -129,7 +110,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
           setRoomless(found === 'no_room');
           setRoomState(apiRoom());
           setIntro(showIntro);
-          setToken(saved); // offline too: keep the session
+          setToken(saved);
         }
       }
       setReady(true);
@@ -160,7 +141,6 @@ export function SessionProvider({ children }: PropsWithChildren) {
     await storage.remove(ROOM_KEY);
     await storage.set(TOKEN_KEY, res.token);
     await storage.set(SERVER_KEY, API_URL);
-    // A new account's intro: asked while the invite's room is joined and `/me` loads.
     const introDue = introAtSignIn(qc);
     const code = pendingJoinCode();
     if (code) {
@@ -169,17 +149,15 @@ export function SessionProvider({ children }: PropsWithChildren) {
         setPendingCode(null);
         setApiRoom(joined.id);
         await storage.set(ROOM_KEY, String(joined.id));
-      } catch {} // kept: it fills the code field of the room screen
+      } catch {}
     }
     const found = await loadMe();
     if (found === 'out') throw new ApiError(401, 'unauthorized');
     const showIntro = await introDue;
     adoptAccountLang();
-    // Set together: the screens switch once, straight to the right one.
     setMe(typeof found === 'object' ? found : null);
     setRoomless(found === 'no_room');
     setRoomState(apiRoom());
-    // The code e-mail failed: the code screen still opens, saying so (resend from there).
     flow.mailFailed = !!res.email_failed;
     setVerifying(!!res.email_sent || !!res.email_failed);
     setIntro(showIntro);
@@ -213,7 +191,6 @@ export function SessionProvider({ children }: PropsWithChildren) {
     clearRoomData(qc);
     const found = await loadMe();
     if (found === 'out') throw new ApiError(401, 'unauthorized');
-    // Set together: the screens switch once (a guest goes from signed out to in).
     setMe(typeof found === 'object' ? found : null);
     setRoomless(found === 'no_room');
     setRoomState(apiRoom());
@@ -229,7 +206,6 @@ export function SessionProvider({ children }: PropsWithChildren) {
     await storage.remove(ROOM_KEY);
     await storage.remove(ROOMLESS_KEY);
     await introForget();
-    // The home-screen widget forgets its token too, and shows "signed out" (the session is gone from storage first).
     forgetWidget().catch(() => {});
     setApiRoom(null);
     setRoomState(null);
@@ -243,12 +219,10 @@ export function SessionProvider({ children }: PropsWithChildren) {
   };
 
   const signOut = async () => {
-    // An older server has no /auth/logout: the token is then only forgotten here.
     await auth.logout().catch(() => {});
     await leave();
   };
 
-  // Signed out from another device (or the token is gone): back to the welcome screen.
   useOnSignedOut(() => void leave());
 
   return (

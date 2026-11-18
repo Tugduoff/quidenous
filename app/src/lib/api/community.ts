@@ -5,8 +5,6 @@ import { authError } from '@/lib/api/errors';
 import { useFeatures } from '@/lib/api/features';
 import { shareRound } from '@/lib/api/share';
 
-/** Suggestions to the official deck, share → play and challenges (docs/COMMUNITY.md). */
-
 export type SuggestionStatus = 'voting' | 'queued' | 'approved' | 'rejected';
 export type Suggestion = {
   id: number;
@@ -19,16 +17,11 @@ export type Suggestion = {
   author: string;
   mine: boolean;
 };
-/** 1 = up, -1 = down, 0 = skipped. */
 export type SuggestionVote = 1 | -1 | 0;
 
-/** `GET /play/{token}` (public): the shared question; `closed`: its round is over, so playing it makes a challenge. */
 export type PlayInfo = { question: string; kind: 'pick' | 'rank' | 'choose'; lang: 'fr' | 'en'; room: string; closed: boolean };
 
-/** Someone on a podium of another room (or of this one): no member id, only what the avatar needs. */
 export type PodiumEntry = { name: string; color: string; avatar?: string | null; photo_url: string | null; score: number };
-/** A room this round was sent to or came from; podiums only once both rounds are closed. */
-/** `private`: it came from a link without the result, so only the room's name is shown (absent from an older server). */
 export type Challenge = {
   room: string;
   round_id: number | null;
@@ -60,13 +53,11 @@ const ERRORS: Record<string, TKey> = {
   not_found: 'community.errors.notFound',
 };
 
-/** A short message for a failed community call, in the current language. */
 export function communityError(e: unknown): string {
   if (e instanceof ApiError && ERRORS[e.code]) return t(ERRORS[e.code]);
   return authError(e);
 }
 
-/** My suggestions (newest first) and how many I can still send today. */
 export const useMySuggestions = (enabled = true) =>
   useQuery({
     queryKey: communityKeys.mine,
@@ -74,7 +65,6 @@ export const useMySuggestions = (enabled = true) =>
     enabled,
   });
 
-/** Others' suggestions in my language that I have not voted on yet (up to 20, oldest first). */
 export function useNextSuggestions(enabled = true) {
   const lang = getLang();
   return useQuery({
@@ -106,7 +96,6 @@ export function useVoteSuggestion() {
   });
 }
 
-/** The shared question behind a `/play?share=` link (no account needed). */
 export const usePlay = (token: string | null) =>
   useQuery({
     queryKey: communityKeys.play(token ?? ''),
@@ -116,11 +105,9 @@ export const usePlay = (token: string | null) =>
     staleTime: Infinity,
   });
 
-/** Add the shared question to one of my rooms (`X-Room` = that room), as its next question. */
 export const playInto = (token: string, roomId: number) =>
   api<{ question_id: number; challenge_id: number | null }>(`/play/${encodeURIComponent(token)}`, { method: 'POST', room: roomId });
 
-/** Every room this (closed) round was sent to or came from. Only asked of a server that has them. */
 export function useChallenges(roundId: number, enabled = true) {
   const { community } = useFeatures();
   return useQuery({
@@ -130,11 +117,9 @@ export function useChallenges(roundId: number, enabled = true) {
   });
 }
 
-/** Send a closed round to another of my rooms (from the current one). */
 export const challengeRoom = (roundId: number, roomId: number) =>
   api<{ challenge_id: number }>(`/rounds/${roundId}/challenge`, { method: 'POST', json: { room_id: roomId } });
 
-/** A public link to this question (no podium) whose page leads to /play. */
 export async function questionShareLink(roundId: number): Promise<string> {
   const r = await shareRound(roundId, false);
   const base = appUrl();

@@ -12,12 +12,6 @@ import { useTimeout } from '@/lib/hooks/use-timeout';
 
 const RED = '#FF3B5C';
 
-/**
- * What was long-pressed: a message, a member or a question, and the person behind it when they can be blocked.
- * `onDelete`: I may delete it (my own message, or any message of a room I own). `own`: nothing to report or block.
- * `onRestore`: a message hidden by reports, in a room I own: I may bring it back.
- * `anchor`: the menu floats next to it instead of the middle of the screen.
- */
 export type ModTarget = {
   kind: ReportKind;
   id: number;
@@ -26,11 +20,9 @@ export type ModTarget = {
   onRestore?: () => Promise<unknown>;
   own?: boolean;
   anchor?: Anchor;
-  /** Extra actions at the top of the menu (a room member: remove, vote to remove). */
   actions?: ModAction[];
 };
 
-/** One more line of the menu. `confirm`: asked in the same dialog first. `hint`: quiet text at the end (votes so far). */
 export type ModAction = {
   icon: LucideIcon;
   label: string;
@@ -42,10 +34,6 @@ export type ModAction = {
 
 type Step = 'menu' | 'report' | 'block' | 'delete' | 'action' | 'done';
 
-/**
- * Report (pick a reason) and block / unblock, in one dialog: no second modal on top of the first.
- * `header`: shown at the top of the menu instead of its title (the chat's reactions); the menu then always opens first.
- */
 export function ModerationDialog({
   target,
   onClose,
@@ -61,7 +49,6 @@ export function ModerationDialog({
   const tr = useT();
   const { ids } = useBlocks();
   const { block, unblock } = useBlockActions();
-  // The last target stays drawn while the dialog fades out.
   const [shown, setShown] = useState<ModTarget | null>(null);
   const [step, setStep] = useState<Step>('menu');
   const [reason, setReason] = useState<ReportReason | null>(null);
@@ -80,7 +67,6 @@ export function ModerationDialog({
     setError(null);
   }
 
-  // "Signalé" for a moment, then the dialog closes by itself.
   useTimeout(onClose, step === 'done' ? 1200 : null);
 
   const run = async (f: () => Promise<void>) => {
@@ -174,7 +160,6 @@ export function ModerationDialog({
             <Action icon={Ban} label={tr('moderation.block', { name: person.name })} danger onPress={() => setStep('block')} />
           )}
           <ErrorText>{error}</ErrorText>
-          {/* The floating menu closes with a tap beside it. */}
           {!header && (
             <Pressable
               accessibilityRole="button"

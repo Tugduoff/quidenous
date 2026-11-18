@@ -1,17 +1,9 @@
-/** First retry after a drop; each failed try doubles it, up to `MAX_RETRY_MS`. */
 const RETRY_MS = 1000;
 const MAX_RETRY_MS = 60_000;
-/** The server hung up on purpose (seat or session gone, party over, unexpected message): no hurry to come back. */
 const POLICY_RETRY_MS = 60_000;
 
-/** Somewhere between half and all of `ms`: phones that lost the server together don't all come back at once. */
 const jitter = (ms: number) => ms / 2 + Math.random() * (ms / 2);
 
-/**
- * A WebSocket that reconnects by itself after it drops, until `close()`: 1 s, 2 s, 4 s… up to a minute, with jitter
- * (back to 1 s once a connection opens), or right away on `wake()`. Messages that aren't JSON are ignored.
- * `onClose(policy)`: it dropped (`policy`: the server hung up on purpose, it isn't down).
- */
 export function openSocket<T>(
   url: string | (() => Promise<string>),
   handlers: { onOpen?: () => void; onClose?: (policy: boolean) => void; onEvent: (event: T) => void },
@@ -20,14 +12,12 @@ export function openSocket<T>(
   let stopped = false;
   let retry: ReturnType<typeof setTimeout>;
   let delay = RETRY_MS;
-  // Waiting for the URL (a ticket): a `wake()` then would open a second socket.
   let fetching = false;
   const later = (ms = delay) => {
     retry = setTimeout(connect, jitter(ms));
     delay = Math.min(delay * 2, MAX_RETRY_MS);
   };
   const connect = async () => {
-    // A URL that can't be had yet (a ticket from the server) is asked again at the next try.
     fetching = true;
     const href = typeof url === 'string' ? url : await url().catch(() => null);
     fetching = false;
@@ -63,7 +53,6 @@ export function openSocket<T>(
     send: (text: string) => {
       if (ws?.readyState === WebSocket.OPEN) ws.send(text);
     },
-    /** Back on screen: a dropped connection retries now instead of at the end of its backoff. */
     wake: () => {
       if (stopped || fetching || ws?.readyState === WebSocket.OPEN || ws?.readyState === WebSocket.CONNECTING) return;
       clearTimeout(retry);

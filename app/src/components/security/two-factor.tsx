@@ -21,7 +21,6 @@ const native = Platform.OS !== 'web';
 
 type Mode = null | 'setup' | 'regen' | 'disable' | 'codes';
 
-/** TOTP: set up (QR + secret, a code to turn it on, then 10 recovery codes shown once), turn off, new recovery codes. */
 export function TwoFactorSection({ account }: { account: Account }) {
   const t = useTheme();
   const tr = useT();
@@ -59,7 +58,6 @@ export function TwoFactorSection({ account }: { account: Account }) {
     refresh();
   };
 
-  // Turning 2FA on needs proof that it is me first (asked when the server says so).
   const start = () =>
     run(async () => {
       const next = await withReauth(account, auth.setup2fa);
@@ -144,7 +142,6 @@ export function TwoFactorSection({ account }: { account: Account }) {
   return (
     <Section title={tr('security.twoFactor.title')}>
       {resetAt != null && (
-        // Asked by e-mail at sign-in (2FA lost): if that wasn't me, this is where it stops.
         <Row
           icon={<Clock size={20} color={t.tagInk} />}
           title={tr('security.twoFactor.resetPending')}
@@ -209,7 +206,6 @@ export function TwoFactorSection({ account }: { account: Account }) {
   );
 }
 
-/** The 10 one-time codes, shown once. */
 function RecoveryCodes({ codes, onDone }: { codes: string[]; onDone: () => void }) {
   const t = useTheme();
   const tr = useT();

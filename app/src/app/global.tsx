@@ -8,7 +8,6 @@ import { useGlobal } from '@/lib/api/global';
 import { useTheme } from '@/lib/theme';
 import { BackButton } from '@/components/ui/back-button';
 
-/** The global question of the day (docs/GLOBAL_QUESTION.md): vote for someone of my room, then my room's tally and the aggregates. */
 export default function GlobalScreen() {
   const t = useTheme();
   const global = useGlobal();
@@ -26,7 +25,6 @@ export default function GlobalScreen() {
       </Screen>
     );
   }
-  // The room can't take it (any more): back to the home screen.
   if (!view.available) return <Redirect href="/" />;
   return view.my_vote == null ? <GlobalBallot view={view} top={top} /> : <GlobalResults view={view} top={top} />;
 }

@@ -16,7 +16,6 @@ import { useTheme } from '@/lib/theme';
 import { firstName } from '@/lib/utils/names';
 import type { Match, MatchAction } from '@/lib/utils/said';
 
-/** Every answer to place, as cards: tap one, then a person in the tray. Long-press (or the screen reader's action) reports. */
 export function MatchBoard({
   answers,
   state,
@@ -24,12 +23,10 @@ export function MatchBoard({
   dispatch,
   onReport,
 }: {
-  /** In the order shown (`state.order`). */
   answers: SaidAnswer[];
   state: Match;
   byId: Map<number, Member>;
   dispatch: (a: MatchAction) => void;
-  /** Long-press on an answer: report it (not on a hidden one). */
   onReport?: (answerId: number) => void;
 }) {
   const onSelect = useCallback(
@@ -127,7 +124,6 @@ const AnswerCard = memo(function AnswerCard({
   );
 });
 
-/** "Qui ?" in a dashed pill; breathes while the card waits for a person. */
 function WhoSlot({ waiting }: { waiting: boolean }) {
   const t = useTheme();
   const tr = useT();
@@ -164,7 +160,6 @@ function WhoSlot({ waiting }: { waiting: boolean }) {
   );
 }
 
-/** Who I said wrote it, signed at the bottom of the card. On the selected card, an × takes them off. */
 function Signature({ member, selected, onClear }: { member: Member; selected: boolean; onClear: () => void }) {
   const t = useTheme();
   const tr = useT();

@@ -8,7 +8,6 @@ import { useTheme } from '@/lib/theme';
 import { type TodayRoom } from '@/lib/api/today';
 import { Display } from '@/components/ui/text';
 
-/** The big line: how many questions wait for me, else "all caught up" with Roupi, who has nothing to do either. */
 export const TodaySummary = memo(function TodaySummary({ rooms }: { rooms: TodayRoom[] }) {
   const t = useTheme();
   const tr = useT();

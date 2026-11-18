@@ -1,4 +1,3 @@
-/** Stage effects drawn from the scene clock: shockwaves, flashes, rays, glows and screen textures. */
 import { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, { Extrapolation, interpolate, useAnimatedStyle } from 'react-native-reanimated';
@@ -9,7 +8,6 @@ import { raysPath } from '@/lib/utils/svg-paths';
 
 import type { Clock } from '@/components/celebration/engine';
 
-/** A ring that expands and fades from (x, y). */
 export function Shockwave({
   clock,
   at,
@@ -55,7 +53,6 @@ export function Shockwave({
   );
 }
 
-/** A full-screen colour flash peaking at `at`. */
 export function Flash({
   clock,
   at,
@@ -77,7 +74,6 @@ export function Flash({
   return <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: color }, style]} />;
 }
 
-/** Light rays turning slowly behind the number. */
 export function Rays({
   clock,
   at,
@@ -124,7 +120,6 @@ export function Rays({
   );
 }
 
-/** A soft round glow (radial gradient), fading in at `at` and breathing a little. */
 export function Glow({
   clock,
   at,
@@ -167,7 +162,6 @@ export function Glow({
   );
 }
 
-/** A dark vignette (edges darker), drawn once. */
 export function Vignette({ w, h, color, strength = 0.85 }: { w: number; h: number; color: string; strength?: number }) {
   const id = `vig${color.replace('#', '')}`;
   return (
@@ -185,7 +179,6 @@ export function Vignette({ w, h, color, strength = 0.85 }: { w: number; h: numbe
   );
 }
 
-/** CRT scanlines over the whole screen (static): a `thick` px line every 4 px. */
 export function Scanlines({ w, h, color, opacity, thick }: { w: number; h: number; color: string; opacity: number; thick: number }) {
   const rows = Array.from({ length: Math.ceil(h / 4) }, (_, i) => i * 4);
   return (
@@ -197,10 +190,6 @@ export function Scanlines({ w, h, color, opacity, thick }: { w: number; h: numbe
   );
 }
 
-/**
- * A soft band `size` px tall sweeping down the screen every `period` ms, like an old monitor refreshing;
- * it travels `h + reach` px, brightest at `peak` (0 = its top, 1 = its bottom).
- */
 export function SweepBand({
   clock,
   w,

@@ -15,7 +15,6 @@ export async function photoForm(uri: string) {
   if (Platform.OS === 'web') {
     form.append('photo', await readUriBlob(small.uri), 'photo.jpg');
   } else {
-    // expo/fetch (the global fetch since SDK 58) can't send React Native's { uri } parts; a file-system File it can.
     form.append('photo', new FsFile(small.uri), 'photo.jpg');
   }
   return form;

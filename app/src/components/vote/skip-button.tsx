@@ -9,14 +9,12 @@ import { ConfirmModal } from '@/components/ui/dialog';
 import { type Member } from '@/lib/api/group';
 import { type Round, roundKeys, setSkip } from '@/lib/api/rounds';
 
-/** "Let's not wait": agree to close the question without them. Shows how many already agree. */
 export function SkipButton({ member, round }: { member: Member; round: Round }) {
   const t = useTheme();
   const tr = useT();
   const qc = useQueryClient();
   const state = round.skips.find((s) => s.target_id === member.id);
   const mine = !!state?.mine;
-  // Asking to skip someone takes a confirmation (it sits right next to the bell); taking it back doesn't.
   const [asking, setAsking] = useState(false);
   const skip = useMutation({
     mutationFn: () => setSkip(member.id, !mine),

@@ -9,7 +9,6 @@ export const profile = {
     library: 'Galerie',
     camera: 'Appareil photo',
     cameraDenied: 'Accès à l’appareil photo refusé',
-    /** `reason`: an HTTP status or a short error message. */
     failed: 'Photo non envoyée ({reason})',
     error: 'erreur',
   },
@@ -27,7 +26,6 @@ export const profile = {
     violet: 'Violet',
     menthe: 'Menthe',
   },
-  /** The two languages keep their own name in both UIs. */
   language: {
     title: 'Langue',
     auto: 'Automatique',
@@ -38,7 +36,6 @@ export const profile = {
   notifications: 'Notifications',
   security: 'Sécurité',
   signOut: 'Se déconnecter',
-  /** Discreet footer link to the donation page (web and sideloaded APK only, docs/DONATE.md). */
   donate: {
     title: 'Offrir un café ☕',
     line: 'L\'app est gratuite, sans pub ni pistage, faite entre amis. Un café aide à payer le serveur.',

@@ -13,19 +13,16 @@ import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
 import { nextGoal } from '@/lib/utils/badges';
 
-/** A tier's name in its metal. */
 function TierLabel({ tier }: { tier: 1 | 2 | 3 }) {
   const t = useTheme();
   const tr = useT();
   return <Text style={{ fontFamily: t.font.bold, fontSize: 13, color: useTierInk(tier) }}>{tierName(tier, tr)}</Text>;
 }
 
-/** A badge up close: its family's mascot, tiers, what's next, and showing it as my title. */
 export function BadgeDetail({ badge, shown, onClose }: { badge: Badge | null; shown: boolean; onClose: () => void }) {
   const t = useTheme();
   const tr = useT();
   const setTitle = useSetTitle();
-  // Keeps the badge on screen while the dialog fades out.
   const [last, setLast] = useState(badge);
   if (badge && badge !== last) setLast(badge);
   const b = badge ?? last;
@@ -57,7 +54,6 @@ export function BadgeDetail({ badge, shown, onClose }: { badge: Badge | null; sh
             }}>
             <X size={16} color={t.txt} />
           </Pressable>
-          {/* The badge's family member: delighted at gold, pleased when earned, pondering while locked. */}
           <Mascot who={b.mascot} mood={b.tier === 3 ? 'celebrate' : b.tier > 0 ? 'happy' : 'think'} size={120} style={{ alignSelf: 'center' }} />
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
             <MedalDisc icon={b.icon} tier={b.tier} size={44} />

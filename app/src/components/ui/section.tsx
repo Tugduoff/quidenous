@@ -3,7 +3,6 @@ import { useTheme } from '@/lib/theme';
 import { View, Text } from 'react-native';
 import { Card } from '@/components/ui/card';
 
-/** A titled group of rows (Sécurité screen). */
 export function Section({ title, children }: { title: string; children: ReactNode }) {
   const t = useTheme();
   return (
@@ -14,7 +13,6 @@ export function Section({ title, children }: { title: string; children: ReactNod
   );
 }
 
-/** Icon, a title with an optional grey line, and something on the right (a Pill, a check). */
 export function Row({ icon, title, sub, right }: { icon?: ReactNode; title: string; sub?: string | null; right?: ReactNode }) {
   const t = useTheme();
   return (

@@ -6,10 +6,6 @@ import { useTheme } from '@/lib/theme';
 import { Button } from '@/components/ui/button';
 import { goHome, useOAuthReturn } from '@/lib/hooks/use-oauth-return';
 
-/**
- * Back from Google / Discord. Web: `/oauth?code=…` (or `?error=…`) with the key kept before leaving → the session.
- * Phone: the auth session already has the URL; this route only catches the deep link so it doesn't 404.
- */
 export default function OAuthReturn() {
   const t = useTheme();
   const tr = useT();

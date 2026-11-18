@@ -5,7 +5,6 @@ import { SPRING } from '@/lib/motion';
 import { Pressable, Text } from 'react-native';
 import { useAnimateOnChange } from '@/lib/hooks/use-animate-on-change';
 
-/** A small on/off switch with its label, drawn to match the app (lime when on). An empty label shows the switch alone (`a11y` names it). */
 export function Toggle({
   label,
   value,
@@ -22,13 +21,11 @@ export function Toggle({
   const t = useTheme();
   const on = useSharedValue(value ? 1 : 0);
   useAnimateOnChange(on, value, () => withSpring(value ? 1 : 0, SPRING));
-  // Plain strings: the worklets below copy what they use, and the theme object carries more than colours.
   const { card2, acc, line, mut, accTxt } = t;
   const track = useAnimatedStyle(() => ({
     backgroundColor: interpolateColor(on.value, [0, 1], [card2, acc]),
     borderColor: interpolateColor(on.value, [0, 1], [line, acc]),
   }));
-  // 40 wide, minus the 1 px border and 3 px padding on each side, minus the 16 px thumb.
   const thumb = useAnimatedStyle(() => ({
     transform: [{ translateX: on.value * 16 }],
     backgroundColor: interpolateColor(on.value, [0, 1], [mut, accTxt]),

@@ -1,4 +1,3 @@
-// Party mode (docs/PARTY.md): one question at a time for everyone in the room, a countdown, a big reveal.
 import { type QueryClient, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, API_URL, ApiError } from '@/lib/api/client';
 import { t, type TKey } from '@/lib/i18n';
@@ -17,20 +16,14 @@ export type PartyRound = {
   id: number;
   number: number;
   question: string;
-  /** `pick` or `said` (absent from an older server: a pick). */
   kind?: QuestionKind;
-  /** A said question (docs/SAID.md): its phase, answers and result; `my_*` null on the big screen. */
   said?: SaidView | null;
   opened_at: string;
-  /** The current phase's deadline (a said question: the writing's, then the guessing's). */
   deadline_at: string | null;
   closed_at: string | null;
-  /** Who was there when it opened: only they vote, only they can be picked. */
   eligible: number[];
-  /** Who voted (not for whom). */
   voted: number[];
   my_vote: number | null;
-  /** null while voting: votes are revealed together. */
   results: { member_id: number; votes: number; voters: number[] }[] | null;
   next: { taps: number[]; needed: number; players: number; mine: boolean } | null;
   reactions: { emoji: string; count: number; mine: boolean }[] | null;
@@ -44,29 +37,23 @@ export type Party = {
   language: 'fr' | 'en';
   timer: number;
   ends_at: string;
-  /** The owner closed the door: nobody new can join (absent from an older server). */
   locked?: boolean;
   now: string;
   phase: PartyPhase;
   players: PartyPlayer[];
-  /** null on the big screen (no account). */
   me: { member_id: number; role: Role; guest: boolean } | null;
   round: PartyRound | null;
   played: number;
-  /** Added here: server clock minus mine, in ms, so the countdown matches everyone's. */
   clock: number;
 };
 
 export const HOURS = [2, 4, 8, 12] as const;
 export const TIMERS = [15, 20, 30, 45, 60] as const;
-/** The quick reactions on a result (content, so emojis are fine here). */
 export const REACTIONS = ['😂', '🔥', '😱', '👀', '💀', '❤️'] as const;
 
-/** Live events that change a party's state: its screen refetches on each. */
 export const PARTY_EVENTS = new Set([
   'member_joined',
   'vote_cast',
-  // A said question's guessing started (docs/SAID.md).
   'round_updated',
   'round_closed',
   'round_opened',
@@ -84,7 +71,6 @@ export const partyKeys = {
   memory: (id: number) => ['party', id, 'memory'] as const,
 };
 
-/** Players named as the app shows them, and the server's clock offset measured on arrival. */
 const received = (p: Omit<Party, 'clock'>): Party => ({
   ...p,
   players: localizeMembers(p.players ?? []),
@@ -103,9 +89,7 @@ export const partyApi = {
   screen: (code: string) => call(`/parties/screen/${encodeURIComponent(code)}`),
   start: (id: number) => post(`/parties/${id}/start`),
   vote: (id: number, target_id: number) => post(`/parties/${id}/vote`, { target_id }),
-  /** A said question: write (or rewrite) my answer, until the writing deadline. */
   answer: (id: number, text: string) => post(`/parties/${id}/answer`, { text }),
-  /** A said question: who wrote what, one guess per answer that isn't mine. */
   guess: (id: number, guesses: SaidGuess[]) => post(`/parties/${id}/vote`, { guesses }),
   next: (id: number) => post(`/parties/${id}/next`),
   unnext: (id: number) => call(`/parties/${id}/next`, { method: 'DELETE' }),
@@ -116,20 +100,14 @@ export const partyApi = {
   leave: leaveRoom,
 };
 
-/** A party's state; the screen keeps it fresh from the live socket (lib/live.ts), with a slow poll in case it drops. */
 export const useParty = (id: number) =>
   useQuery({ queryKey: partyKeys.party(id), queryFn: () => partyApi.get(id), refetchInterval: 20_000, retry: 1 });
 
-/** Puts a fresh state from a mutation's answer straight in the cache. */
 export function useSetParty(id: number) {
   const qc = useQueryClient();
   return (p: Party) => qc.setQueryData(partyKeys.party(id), p);
 }
 
-/**
- * The big-screen view's live socket (no account: the party's code instead of a token). Taps on a result
- * (`result_reacted`, asked for when the server has them) go to its bursts, the counts come with `party_updated`.
- */
 export function connectScreen(qc: QueryClient, code: string, onChange: () => void): () => void {
   const url = async () => {
     const features = await qc.ensureQueryData(featuresQuery).catch(() => [] as string[]);
@@ -167,7 +145,6 @@ const ERRORS: Record<string, TKey> = {
   bad_vibe: 'room.errors.badVibe',
 };
 
-/** A short message for a failed party call, in my language. */
 export const partyError = (e: unknown) => (e instanceof ApiError && ERRORS[e.code] ? t(ERRORS[e.code]) : authError(e));
 
 const MEMORY_MAX_PAGES = 20;

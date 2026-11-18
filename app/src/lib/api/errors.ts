@@ -6,7 +6,6 @@ import { PASSWORD_MIN } from '@/lib/utils/credentials';
 const wait = (s?: number) =>
   !s ? t('common.later') : s < 60 ? t('common.inSeconds', { count: s }) : t('common.inMinutes', { count: Math.ceil(s / 60) });
 
-/** A short message for whatever went wrong, in the current language (`errors.<code>`, see locales/fr/errors.ts). */
 export function authError(e: unknown): string {
   if (!(e instanceof ApiError)) return t('common.offline');
   if (e.code === 'rate_limited') return t('common.tooManyTries', { when: wait(e.retryAfter) });

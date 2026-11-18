@@ -18,13 +18,11 @@ import { useTheme } from '@/lib/theme';
 import { showToast } from '@/lib/toast';
 import { mediaOf, ratioOf } from '@/lib/utils/chat';
 
-/** Zoom limits in the viewer, and how far a swipe goes before it closes it. */
 const MAX_ZOOM = 5;
 const DOUBLE_ZOOM = 2.5;
 const CLOSE_DRAG = 120;
 const CLOSE_SPEED = 900;
 
-/** A photo or GIF full screen: pinch, drag, double tap to zoom, swipe down to close; share / save. */
 export function MediaViewer({ message, onClose }: { message: Message | null; onClose: () => void }) {
   const reduced = useReducedMotion();
   const media = message && mediaOf(message);
@@ -56,23 +54,19 @@ function Viewer({ m, media, onClose }: { m: Message; media: MessageMedia; onClos
   const scale = useSharedValue(1);
   const tx = useSharedValue(0);
   const ty = useSharedValue(0);
-  // Pinch: the scale and offset it started from, and its focal point (from the centre).
   const s0 = useSharedValue(1);
   const x0 = useSharedValue(0);
   const y0 = useSharedValue(0);
   const fx = useSharedValue(0);
   const fy = useSharedValue(0);
-  // Drag: where the picture was when it started.
   const px = useSharedValue(0);
   const py = useSharedValue(0);
-  // Swipe to close (not zoomed): how far down / up.
   const drag = useSharedValue(0);
 
   const timing = (v: number) => {
     'worklet';
     return reduced ? v : withTiming(v, { duration: 200, easing: EASE });
   };
-  // A zoomed picture never leaves an empty edge on screen.
   const clampX = (x: number, s: number) => {
     'worklet';
     const max = Math.max(0, (dw * s - W) / 2);
@@ -96,7 +90,6 @@ function Viewer({ m, media, onClose }: { m: Message; media: MessageMedia; onClos
     onUpdate: (e) => {
       'worklet';
       const s = Math.min(MAX_ZOOM, Math.max(0.8, s0.value * e.scale));
-      // The point under the fingers stays under them.
       const r = s / s0.value;
       scale.value = s;
       tx.value = fx.value - (fx.value - x0.value) * r;
@@ -147,7 +140,6 @@ function Viewer({ m, media, onClose }: { m: Message; media: MessageMedia; onClos
         ty.value = timing(0);
         return;
       }
-      // Zoom in on the tapped point.
       const x = e.x - W / 2;
       const y = e.y - H / 2;
       scale.value = timing(DOUBLE_ZOOM);

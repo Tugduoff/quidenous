@@ -13,7 +13,6 @@ import type { Member } from '@/lib/api/group';
 import type { Stats } from '@/lib/api/stats';
 import { HOT_FROM, SHOWN_FROM } from '@/lib/utils/streaks';
 
-/** A flame and a number: muted, in the accent colour from a week. */
 function FlameCount({ n, size = 13, label }: { n: number; size?: number; label: string }) {
   const t = useTheme();
   const color = n >= HOT_FROM ? t.accInk : t.mut;
@@ -25,7 +24,6 @@ function FlameCount({ n, size = 13, label }: { n: number; size?: number; label: 
   );
 }
 
-/** Next to a name: someone's streak in this room, from 2 days (nothing on a server without streaks). */
 export function StreakBadge({ id }: { id: number }) {
   const tr = useT();
   const n = useMemberStreak(id);
@@ -33,7 +31,6 @@ export function StreakBadge({ id }: { id: number }) {
   return <FlameCount n={n} label={tr('streaks.a11y', { count: n })} />;
 }
 
-/** Next to the room's name on the Vote tab: the room's streak (everyone voted), from 2 days. */
 export function RoomStreak() {
   const tr = useT();
   const n = useStreaks()?.room?.current ?? 0;
@@ -45,7 +42,6 @@ export function RoomStreak() {
   );
 }
 
-/** Profile, under my name: my streak in this room and my record. */
 export function MyStreak() {
   const t = useTheme();
   const tr = useT();
@@ -64,7 +60,6 @@ export function MyStreak() {
   );
 }
 
-/** One record card, in the style of the awards. */
 function Record({
   title,
   who,
@@ -133,7 +128,6 @@ function Record({
   );
 }
 
-/** Stats: the longest streak among the members and the room's best (all time), when there is one of 2 days or more. */
 export function StreakRecords({
   s,
   byId,

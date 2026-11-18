@@ -1,4 +1,3 @@
-/** 300: bowling — a strike, the pins fly. */
 import { useMemo } from 'react';
 import { StyleSheet } from 'react-native';
 import Svg, { Circle, Defs, LinearGradient, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
@@ -57,7 +56,6 @@ export const bowling: SceneFactory = (m, t) => {
       const py = Math.max(150, cy - 175);
       const pins = useMemo(() => {
         const out: { p: Throw; w: number }[] = [];
-        // Back row first: front pins are drawn over them.
         for (let r = 3; r >= 0; r--) {
           const sc = 1 - r * 0.1;
           for (let j = 0; j <= r; j++) {

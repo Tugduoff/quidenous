@@ -1,12 +1,7 @@
 import type { Rand } from '@/lib/utils/rand';
 
-/** A straight piece of crack from (x, y), `len` px long at `deg`, drawn from `at` over `dur` ms. */
 export type Segment = { x: number; y: number; len: number; deg: number; at: number; dur: number; thick: number };
 
-/**
- * Broken glass: straight-ish radial cracks from (x, y), then a few concentric rings joining neighbouring cracks.
- * Each segment is drawn after the previous one on its line.
- */
 export function cracks(r: Rand, x: number, y: number, at: number, w: number, h: number): Segment[] {
   const out: Segment[] = [];
   const line = (x0: number, y0: number, x1: number, y1: number, t0: number, thick: number) => {

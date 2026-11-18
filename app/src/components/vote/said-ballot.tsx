@@ -21,7 +21,6 @@ export function SaidBallot({ round, said, members, byId, onVoted }: { round: Rou
           <Question round={round} />
         </>
       }
-      // While writing, "done" is having written; then, having guessed.
       waitList={(done, title) => <WhoIsIn round={round} members={members} byId={byId} done={done} title={title} />}
     />
   );

@@ -36,16 +36,13 @@ export function PackQuestionList({
             entering={motion.enter}
             exiting={motion.exit}
             layout={motion.layout}
-            // Selecting: the checkbox in line with the add field's text, not against the card's edge.
             style={{ paddingLeft: sel.on ? 14 : 0, borderTopWidth: i ? 1 : 0, borderColor: t.line }}>
             <SelectableRow sel={sel} id={keyOf(q.text)} label={tidy(q.text)}>
-              {/* The hold selects; the toggle and the cross inside keep their own taps. */}
               <Pressable
                 accessible={false}
                 onLongPress={() => sel.start(keyOf(q.text))}
                 delayLongPress={400}
                 style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 6, paddingRight: 6 }}>
-                {/* A choose question stays one; the others switch between pick and ranking. */}
                 {choose ? (
                   <View
                     accessibilityLabel={tr('vote.kind.choose')}

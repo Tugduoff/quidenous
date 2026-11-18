@@ -19,13 +19,11 @@ import { askForQuestions } from '@/lib/api/questions';
 import { useFeatures } from '@/lib/api/features';
 import { pickQuestionFile, handOffDraft } from '@/lib/device/files';
 
-/** Alone in the room: nothing to vote on until someone joins, so the whole tab is the invite. */
 export function SoloInvite() {
   const t = useTheme();
   const tr = useT();
   return (
     <Animated.View entering={motion.enter} style={{ gap: 16 }}>
-      {/* Zeste, the instigator, waves the friends in. */}
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
         <View style={{ flex: 1, gap: 6 }}>
           <Display size={30}>{tr('vote.solo.title')}</Display>
@@ -56,10 +54,8 @@ function Action({ icon: Icon, label, onPress }: { icon: LucideIcon; label: strin
   );
 }
 
-/** Rooms I already asked the owner in, this session (the server says so too, with `already_asked`). */
 const asked = new Set<number>();
 
-/** The queue is empty: ways to add questions, or (owner-only room) ask the owner for some. */
 export function NoQuestions() {
   const t = useTheme();
   const tr = useT();
@@ -78,13 +74,11 @@ export function NoQuestions() {
     onSuccess: () => markAsked(),
     onError: (e) => {
       if (e instanceof ApiError && e.code === 'already_asked') return markAsked();
-      // The owner opened questions to everyone meanwhile: the actions show once the room is fresh.
       if (e instanceof ApiError && e.code === 'not_needed') return qc.invalidateQueries({ queryKey: groupKeys.all });
       setNote(tr('common.failed'));
     },
   });
   const locked = group?.settings.questions_by === 'owner' && group.my_role !== 'owner';
-  // Picked right in the tap (browsers want that), then reviewed on the Questions tab.
   const importFile = async () => {
     setNote(null);
     const lines = await pickQuestionFile().catch(() => null);
@@ -96,7 +90,6 @@ export function NoQuestions() {
 
   return (
     <Animated.View entering={motion.enter} style={{ gap: 16 }}>
-      {/* Pavé, the know-it-all, wonders what to ask next. */}
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
         <View style={{ flex: 1 }}>
           <Display size={30}>{tr('vote.empty.title')}</Display>

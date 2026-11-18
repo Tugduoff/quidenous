@@ -4,7 +4,6 @@ import { EASE } from '@/lib/motion';
 import { useTheme } from '@/lib/theme';
 import { useAnimateOnChange } from '@/lib/hooks/use-animate-on-change';
 
-/** Share of the group that has voted (0 to 1): fills up from empty, then grows with each new vote. */
 export function VoteProgress({ value }: { value: number }) {
   const t = useTheme();
   const fill = useSharedValue(0);

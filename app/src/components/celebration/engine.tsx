@@ -1,8 +1,3 @@
-/**
- * The particle engine: one clock (ms since the party started, on the UI thread) drives everything.
- * Particles follow closed-form physics (gravity + linear drag), so each frame is a few maths per piece in a worklet:
- * no per-frame React render, no integration state.
- */
 import { type ReactNode, useMemo } from 'react';
 import { StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import Animated, { type SharedValue, useAnimatedStyle } from 'react-native-reanimated';
@@ -10,21 +5,15 @@ import Animated, { type SharedValue, useAnimatedStyle } from 'react-native-reani
 import { ballistic } from '@/lib/utils/ballistics';
 import type { Rand } from '@/lib/utils/rand';
 
-
 export type Clock = SharedValue<number>;
 
-// ——— Particles ———
-
 export type Particle = {
-  /** Start position (px, stage coordinates) and velocity (px/s). */
   x: number;
   y: number;
   vx: number;
   vy: number;
-  /** Gravity (px/s², positive = down) and linear drag (1/s). */
   g?: number;
   k?: number;
-  /** Appears at `at` ms, gone `life` ms later. */
   at: number;
   life: number;
   w: number;
@@ -32,25 +21,18 @@ export type Particle = {
   color: string;
   shape: 'rect' | 'circle' | 'streak' | 'node' | 'text';
   rot?: number;
-  /** deg/s */
   spin?: number;
-  /** Paper flutter: the piece flips around its horizontal axis (rad/s). */
   flip?: number;
-  /** Sideways sway (px) and its frequency (Hz): leaves, embers, bubbles. */
   sway?: number;
   swayHz?: number;
   fadeIn?: number;
   fadeOut?: number;
-  /** Scale at birth and at death. */
   grow?: [number, number];
-  /** shape 'text' */
   glyph?: string;
   font?: string;
-  /** shape 'node': drawn in a w×h box (an Svg). */
   node?: ReactNode;
 };
 
-/** The numbers only: what the worklet captures (a ReactNode must never cross to the UI thread). */
 function motionOf(p: Particle) {
   return {
     x: p.x,
@@ -96,7 +78,6 @@ function Piece({ p, clock }: { p: Particle; clock: Clock }) {
     let rot = m.rot + m.spin * t;
     let sx = s;
     if (m.streak) {
-      // Sparks point where they fly and shorten as they slow down.
       rot = (Math.atan2(at.vy, at.vx) * 180) / Math.PI;
       sx = s * Math.min(1, Math.max(0.25, Math.hypot(at.vx, at.vy) / m.speed0));
     }
@@ -118,7 +99,6 @@ function Piece({ p, clock }: { p: Particle; clock: Clock }) {
   return <Animated.View style={[base, { backgroundColor: p.color, borderRadius: radius }, style]} />;
 }
 
-/** Draws a list of particles. The list must be stable (useMemo it). */
 export function Particles({ clock, list }: { clock: Clock; list: Particle[] }) {
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
@@ -129,11 +109,8 @@ export function Particles({ clock, list }: { clock: Clock; list: Particle[] }) {
   );
 }
 
-// ——— Emitters: plain functions returning particles ———
-
 type Look = (r: Rand, i: number) => Partial<Particle>;
 
-/** Paper confetti: rectangles and dots that flutter. */
 export const paper =
   (colors: readonly string[]): Look =>
   (r, i) => {
@@ -152,12 +129,10 @@ export const paper =
     };
   };
 
-/** Glowing sparks (fireworks, embers). */
 export const sparks =
   (colors: readonly string[], size = 3): Look =>
   (r) => ({ shape: 'streak', color: r.pick(colors), w: r.range(size * 3, size * 6), h: size });
 
-/** Radial burst from a point. Speeds in px/s. */
 type Burst = {
   x: number;
   y: number;
@@ -168,12 +143,10 @@ type Burst = {
   life?: [number, number];
   g?: number;
   k?: number;
-  /** Direction (deg, 0 = right, -90 = up) and spread (deg) for a cone instead of a full circle. */
   dir?: number;
   spread?: number;
   fadeOut?: number;
   grow?: [number, number];
-  /** Evenly spaced angles (fireworks), else random. */
   ring?: boolean;
 };
 
@@ -207,16 +180,11 @@ export function burst(r: Rand, o: Burst): Particle[] {
   });
 }
 
-/**
- * Two confetti cannons firing from the bottom corners of a `w` wide stage: the left one at `dir` (deg),
- * the right one mirrored, `delay` ms later.
- */
 export function cannons(r: Rand, o: Omit<Burst, 'x' | 'dir'> & { w: number; dir: number; delay?: number }): Particle[] {
   const { w, dir, delay = 0, ...cone } = o;
   return [...burst(r, { ...cone, x: -10, dir }), ...burst(r, { ...cone, x: w + 10, at: cone.at + delay, dir: -180 - dir })];
 }
 
-/** Falling from above the top edge over a time window. */
 export function rain(
   r: Rand,
   o: { w: number; h: number; count: number; from: number; to: number; look: Look; speed?: [number, number]; life?: number; k?: number },
@@ -239,10 +207,6 @@ export function rain(
   })) as Particle[];
 }
 
-/**
- * A firework: a shell climbs from the bottom with a short trail, then bursts at (x, y) at `at + climb`.
- * Returns the particles and the burst time (for flashes, shake, haptics).
- */
 export function firework(
   r: Rand,
   o: { x: number; y: number; from: number; at: number; colors: readonly string[]; count?: number; climb?: number; power?: number },
@@ -252,7 +216,6 @@ export function firework(
   const h = o.from - o.y;
   const g = (2 * h) / (T * T);
   const shell: Particle = { x: o.x, y: o.from, vx: 0, vy: -g * T, g, k: 0, at: o.at, life: climb, w: 14, h: 3, color: '#FFF6D8', shape: 'streak' };
-  // The trail: dim sparks left behind along the way, falling a little.
   const trail = Array.from({ length: 6 }, (_, i) => {
     const s = ((i + 1) / 7) * T;
     return {

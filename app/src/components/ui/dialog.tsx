@@ -8,13 +8,8 @@ import Animated, { useReducedMotion, useSharedValue, withTiming, useAnimatedStyl
 import { EASE } from '@/lib/motion';
 import { useAnimateOnChange } from '@/lib/hooks/use-animate-on-change';
 
-/** Where a Dialog floats instead of the centre: next to something on screen (window coordinates), on its side. */
 export type Anchor = { y: number; height: number; side: 'left' | 'right' };
 
-/**
- * The app's dialog: a card centred on a dark backdrop (tapping the backdrop closes it). Rises with the keyboard.
- * With an `anchor`, a smaller card floats right under it (above when there's no room below), on its side.
- */
 export function Dialog({ visible, onClose, anchor, children }: { visible: boolean; onClose: () => void; anchor?: Anchor; children: ReactNode }) {
   const t = useTheme();
   const tr = useT();
@@ -22,7 +17,6 @@ export function Dialog({ visible, onClose, anchor, children }: { visible: boolea
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-        {/* The backdrop is a sibling of the card, not its parent: screen readers don't take the dialog for one button. */}
         <Pressable
           accessibilityLabel={tr('common.close')}
           onPress={onClose}
@@ -42,7 +36,6 @@ export function Dialog({ visible, onClose, anchor, children }: { visible: boolea
   );
 }
 
-/** The anchored card: placed once its height is known, kept inside the safe area. */
 function Anchored({ anchor, style, children }: { anchor: Anchor; style: ViewStyle; children: ReactNode }) {
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -61,7 +54,6 @@ function Anchored({ anchor, style, children }: { anchor: Anchor; style: ViewStyl
   );
 }
 
-/** Title and grey message of a Dialog. */
 export function DialogTitle({ title, message }: { title: string; message?: string }) {
   const t = useTheme();
   return (
@@ -72,7 +64,6 @@ export function DialogTitle({ title, message }: { title: string; message?: strin
   );
 }
 
-/** Cancel and a red action (or `tone="acc"`: the accent colour), side by side, at the bottom of a Dialog. */
 export function DialogActions({
   confirmLabel,
   onConfirm,
@@ -127,7 +118,6 @@ export function DialogActions({
   );
 }
 
-/** In-app confirmation dialog (same look on every platform): a title, a message, optional fields, Cancel and a red action. */
 export function ConfirmModal({
   visible,
   title,
@@ -160,7 +150,6 @@ export function ConfirmModal({
   );
 }
 
-/** The dialog's card: grows in from slightly smaller while the backdrop fades (the Modal remounts it on every open). */
 function ModalCard({ children, style, onLayout }: { children: ReactNode; style: ViewStyle; onLayout?: (e: LayoutChangeEvent) => void }) {
   const reduced = useReducedMotion();
   const p = useSharedValue(reduced ? 1 : 0);

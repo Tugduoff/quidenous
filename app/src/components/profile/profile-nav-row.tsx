@@ -3,7 +3,6 @@ import { Pressable, Text, View } from 'react-native';
 import { useTheme } from '@/lib/theme';
 import { Card } from '@/components/ui/card';
 
-/** A profile row leading to another screen; `dot` flags something to look at. */
 export function ProfileNavRow({ icon: Icon, label, dot, onPress }: { icon: LucideIcon; label: string; dot?: boolean; onPress: () => void }) {
   const t = useTheme();
   return (

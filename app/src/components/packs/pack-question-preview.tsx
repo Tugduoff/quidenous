@@ -20,14 +20,12 @@ export function PackQuestionPreview({ questions }: { questions: PackQuestion[] }
               style={{ fontFamily: t.font.regular, fontSize: 14, lineHeight: 20, color: t.txt }}
             />
           </View>
-          {/* Anonymous votes once installed. */}
           {q.anonymous && (
             <View style={{ marginTop: 3 }}>
               <AnonymousMark />
             </View>
           )}
         </View>
-        {/* A choose question's items, in one line under it. */}
         {q.kind === 'choose' && !!q.items?.length && (
           <Text numberOfLines={1} style={{ marginLeft: 19, fontFamily: t.font.regular, fontSize: 12, lineHeight: 17, color: t.mut }}>
             {q.items.join(' · ')}

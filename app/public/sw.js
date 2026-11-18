@@ -1,4 +1,3 @@
-// Service worker: shows push notifications and opens the app on tap.
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()));
 
@@ -23,7 +22,6 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  // The url names the room (`/round/12?room=3`): the app opens in it. Added here if an older payload left it out.
   const target = new URL(event.notification.data?.url || '/', self.location.origin);
   const room = event.notification.data?.room;
   if (room != null && !target.searchParams.has('room')) target.searchParams.set('room', String(room));

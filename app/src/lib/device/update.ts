@@ -7,19 +7,13 @@ import { Platform } from 'react-native';
 import { storage } from '@/lib/device/storage';
 import { latestRelease, type Release } from '@/lib/api/releases';
 
-/**
- * In-app updates for the APK installed by hand (GitHub Releases). Only in builds made with
- * EXPO_PUBLIC_DISTRIBUTION=sideload: the Google Play bundle never self-updates (Play policy).
- */
 export const SIDELOAD = Platform.OS === 'android' && process.env.EXPO_PUBLIC_DISTRIBUTION === 'sideload';
 
-/** Screenshots only (`?maj=offer|download|blocked`, in a dev or EXPO_PUBLIC_UPDATE_PREVIEW=1 web build): mocked states. */
 const PREVIEW =
   (__DEV__ || process.env.EXPO_PUBLIC_UPDATE_PREVIEW === '1') && Platform.OS === 'web' && typeof location !== 'undefined'
     ? new URLSearchParams(location.search).get('maj')
     : null;
 
-/** Updates can be offered here (or mocked for a screenshot). */
 export const UPDATES = SIDELOAD || PREVIEW != null;
 const CHECKED_KEY = 'qdn.update.checked';
 const LATER_KEY = 'qdn.update.later';
@@ -30,15 +24,10 @@ const FLAG_GRANT_READ_URI_PERMISSION = 1;
 type Status = 'idle' | 'checking' | 'latest' | 'failed' | 'download' | 'blocked' | 'error';
 type State = { release: Release | null; open: boolean; status: Status; progress: number };
 
-/**
- * The version running: the app config of the JS bundle, which an over-the-air update brings along (so a JS-only
- * release that already arrived over the air is not offered again as an APK), else the version of the build.
- */
 export function appVersion() {
   return Constants.expoConfig?.version ?? (Platform.OS === 'web' ? null : Application.nativeApplicationVersion) ?? '?';
 }
 
-/** `a` is a later version than `b` (x.y.z, a leading "v" ignored). */
 function isNewer(a: string, b: string) {
   const parse = (v: string) =>
     v
@@ -84,10 +73,6 @@ export function useUpdate() {
   );
 }
 
-/**
- * Looks for a newer release. Automatic checks run at most every 6 h and respect "Plus tard"
- * (asked again for the next version, or after 24 h); a manual check always shows what it finds.
- */
 export async function checkForUpdate(manual = false) {
   if (!UPDATES || state.status === 'checking' || state.status === 'download') return;
   if (PREVIEW) {
@@ -112,22 +97,15 @@ export async function checkForUpdate(manual = false) {
   }
 }
 
-/** "Plus tard": closes it until the next version, or for 24 h. */
 export function later() {
   if (state.release && !PREVIEW) storage.set(LATER_KEY, JSON.stringify({ version: state.release.version, at: Date.now() })).catch(() => {});
   set({ open: false, status: state.status === 'download' ? state.status : 'idle' });
 }
 
-/** Back to idle after a manual check's answer has been shown. */
 export function clearCheck() {
   if (state.status === 'latest' || state.status === 'failed') set({ status: 'idle' });
 }
 
-/**
- * Downloads the APK (kept in the cache, reused on a retry), checks it against the SHA-256 GitHub published for the
- * release asset, and only then hands it to Android's package installer. A mismatch (corrupted or swapped file) is
- * deleted and never installed.
- */
 export async function install() {
   const release = state.release;
   if (!release || PREVIEW || state.status === 'download') return;
@@ -136,7 +114,6 @@ export async function install() {
     if (!dir.exists) dir.create({ intermediates: true });
     const apk = new File(dir, `quidenous-${release.version}.apk`);
     if (!apk.exists || apk.size !== release.size) {
-      // Older downloads go: one APK at most in the cache.
       for (const f of dir.list()) f.delete();
       set({ status: 'download', progress: 0 });
       await File.downloadFileAsync(release.url, apk, {
@@ -154,14 +131,12 @@ export async function install() {
       type: APK_TYPE,
       flags: FLAG_GRANT_READ_URI_PERMISSION,
     });
-    // Still running: the update was not installed (cancelled, or installs from this app are not allowed yet).
     set({ status: 'blocked' });
   } catch {
     set({ status: 'error', progress: 0 });
   }
 }
 
-/** The APK of the version now installed is no longer needed. */
 export function cleanUp() {
   try {
     const dir = new Directory(Paths.cache, 'updates');
@@ -170,7 +145,6 @@ export function cleanUp() {
   } catch {}
 }
 
-/** Android's "Install unknown apps" switch for this app. */
 export function openInstallSettings() {
   if (PREVIEW) return;
   IntentLauncher.startActivityAsync(IntentLauncher.ActivityAction.MANAGE_UNKNOWN_APP_SOURCES, {

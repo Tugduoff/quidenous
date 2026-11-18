@@ -1,5 +1,3 @@
-// Le Tripot (docs/TRIPOT.md): bets on who wins, with chips worth nothing. The "Parier" row and its sheet on the ballot and
-// the waiting screen, the pot and its winners on the result (with a short shower of coins), the board on the stats page.
 import { ChevronRight, Coins, Trophy } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
@@ -23,17 +21,13 @@ import { Dialog, DialogActions, DialogTitle } from '@/components/ui/dialog';
 import type { Member } from '@/lib/api/group';
 import type { Round } from '@/lib/api/rounds';
 
-/** Gold that reads on both themes (the accent is for my own things). */
 const GOLD = '#F2B705';
-/** The coins of the shower: a few golds, and the darker ring stamped on them. */
 const GOLD_COIN = { faces: ['#FFD54A', '#FFC107', '#F2B705', '#FFE082'], edge: '#B8860B' } as const;
 
-/** On the ballot and the waiting screen: "Parier", then my bet and the pot. Nothing where the round has no Tripot. */
 export function BetRow({ round, members, byId }: { round: Round; members: Member[]; byId: Map<number, Member> }) {
   const t = useTheme();
   const tr = useT();
   const [open, setOpen] = useState(false);
-  // "Hide my vote" (friends looking at my screen) hides who I bet on too.
   const hidden = useHideVote();
   const tp = round.tripot;
   if (!tp || round.closed_at) return null;
@@ -94,7 +88,6 @@ export function BetRow({ round, members, byId }: { round: Round; members: Member
   );
 }
 
-/** Who (for a ranking: who ends up first), how much, confirm. One bet, no take-backs. */
 function BetSheet({
   visible,
   onClose,
@@ -166,7 +159,6 @@ function BetSheet({
   );
 }
 
-/** A spinning gold coin for the shower. */
 function Coin({ size, color }: { size: number; color: string }) {
   const r = size / 2;
   return (
@@ -177,7 +169,6 @@ function Coin({ size, color }: { size: number; color: string }) {
   );
 }
 
-/** Coins thrown up from the pot and falling back, about a second. Nothing under reduced motion. */
 function CoinShower({ seed, width }: { seed: number; width: number }) {
   const clock = useCelebrationClock(1300);
   const list = useMemo(() => {
@@ -203,7 +194,6 @@ function CoinShower({ seed, width }: { seed: number; width: number }) {
   return <Particles clock={clock} list={list} />;
 }
 
-/** On the result: the pot and who won how much (or the bets coming back), with my own outcome. */
 export function TripotResult({ round, byId }: { round: Round; byId: Map<number, Member> }) {
   const t = useTheme();
   const tr = useT();
@@ -266,7 +256,6 @@ export function TripotResult({ round, byId }: { round: Round; byId: Map<number, 
   );
 }
 
-/** "+44" in gold, with a small bump once it lands. */
 function Won({ value }: { value: number }) {
   const t = useTheme();
   const tr = useT();
@@ -281,7 +270,6 @@ function Won({ value }: { value: number }) {
   );
 }
 
-/** Stats: this month's chips, most first, with last month's podium on top. */
 export function TripotBoard({ byId, onOpen }: { byId: Map<number, Member>; onOpen: (id: number) => void }) {
   const t = useTheme();
   const tr = useT();

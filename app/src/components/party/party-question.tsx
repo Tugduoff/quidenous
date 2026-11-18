@@ -6,7 +6,6 @@ import { useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
 import { tidy } from '@/lib/utils/text';
 
-/** The question number (and kind, for a said one) and text. */
 export function PartyQuestion({ round, size }: { round: PartyRound; size: number }) {
   const tr = useT();
   return (

@@ -15,7 +15,6 @@ const KIND_ICONS: Record<ReviewReport['kind'], LucideIcon> = {
   suggestion: Lightbulb,
 };
 
-/** One reported thing: what it says, who and where, why (reasons and details), and what to do with it. */
 export function ReportCard({ report: r, busy, onAct }: { report: ReviewReport; busy: boolean; onAct: (action: ReportAction) => void }) {
   const t = useTheme();
   const tr = useT();

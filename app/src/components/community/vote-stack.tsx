@@ -13,7 +13,6 @@ import { useWhen } from '@/lib/hooks/use-on-change';
 import { PEEK, STACK, SwipeCard } from '@/components/community/swipe-card';
 import { RoundButton } from '@/components/community/round-button';
 
-/** Others' suggestions, one card at a time: swipe right (up) or left (down), or the buttons below. */
 export function VoteStack() {
   const t = useTheme();
   const tr = useT();
@@ -23,15 +22,12 @@ export function VoteStack() {
   const voting = useIsMutating({ mutationKey: VOTE_KEY });
   const [gone, setGone] = useState<Set<number>>(() => new Set());
   const [error, setError] = useState<string | null>(null);
-  // A button pressed: the top card flies off that way first, then the vote is sent.
   const [fly, setFly] = useState<{ id: number; value: SuggestionVote } | null>(null);
-  // Reporting the card on top (a server that takes suggestion reports).
   const { moderation } = useFeatures();
   const [toReport, setToReport] = useState<ModTarget | null>(null);
   const queue = (data ?? []).filter((s) => !gone.has(s.id));
   const top = queue[0];
 
-  // All voted: ask for more once the votes are in (the server leaves out what I voted on).
   useWhen(!!data?.length && !queue.length && !voting && !isFetching, () => {
     refetch().then(() => setGone(new Set()));
   });
@@ -62,10 +58,8 @@ export function VoteStack() {
           </Pressable>
         )}
       </View>
-      {/* Reported: the card goes. */}
       <ModerationDialog target={toReport} onClose={() => setToReport(null)} onReported={(r) => setGone((g) => new Set(g).add(r.id))} />
       <GestureHandlerRootView style={{ height: STACK + PEEK }}>
-        {/* The card behind first, so the top one is drawn over it. */}
         {queue
           .slice(0, 2)
           .reverse()

@@ -14,10 +14,6 @@ import { partyJoinLink } from '@/lib/links';
 import { useSession } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
 
-/**
- * `/party/screen/[code]`: the party on a TV or a laptop, no account. The QR code and the code to join on one side,
- * the question, countdown, vote count and the big reveal on the other. Live from the party's socket.
- */
 export default function PartyBigScreen() {
   const t = useTheme();
   const tr = useT();
@@ -30,7 +26,6 @@ export default function PartyBigScreen() {
   const q = useQuery({ queryKey: partyKeys.screen(code), queryFn: () => partyApi.screen(code), refetchInterval: 15_000, enabled: !!code });
   useScreenLive(code, () => q.refetch());
   const p = q.data;
-  // A TV has no account: it speaks the party's language. A signed-in phone keeps its own.
   const { token } = useSession();
   useGuestScreenLanguage(p?.language, !!token);
   const wide = width >= 760 && width > height * 1.1;
@@ -48,7 +43,6 @@ export default function PartyBigScreen() {
       </View>
     );
 
-  // A said question's answers and reveal take the whole screen (nobody joins mid-question anyway): the code goes on top.
   const said = p.round?.kind === 'said' ? p.round.said : null;
   const full = !!said && said.phase !== 'writing' && (p.phase === 'voting' || p.phase === 'reveal');
   const qr = Math.round(Math.max(160, Math.min(wide ? height * 0.42 : width * 0.5, 420)));
@@ -87,7 +81,6 @@ export default function PartyBigScreen() {
           </View>
         </View>
       </ScrollView>
-      {/* Taps from the phones float up from the bottom edge, over everything. */}
       {resultReactions && p.phase === 'reveal' && p.round && <ScreenBursts roundId={p.round.id} wide={wide} />}
     </View>
   );

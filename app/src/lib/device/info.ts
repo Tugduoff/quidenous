@@ -1,7 +1,6 @@
 import * as Device from 'expo-device';
 import { Platform } from 'react-native';
 
-/** A generic word of the name, in the current language. Required at call time: api → device → i18n → api would be a require cycle. */
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const word = (k: 'browser' | 'phone'): string => (require('@/lib/i18n') as typeof import('@/lib/i18n')).t(`security.devices.${k}`);
 
@@ -25,7 +24,6 @@ function system(ua: string) {
   return null;
 }
 
-/** What this device is called in the sessions list (generic words in the language of the moment): "iPhone 15 · iOS 18", "Android · Pixel 8", "Web · Safari (iPhone)". */
 function deviceLabel(): string {
   if (Platform.OS === 'web') {
     const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
@@ -37,8 +35,4 @@ function deviceLabel(): string {
   return `Android${major ? ` ${major}` : ''} · ${Device.modelName ?? Device.brand ?? word('phone')}`;
 }
 
-/**
- * The `X-Device` header: percent-encoded, since a header value must stay ASCII
- * (Android's HTTP stack refuses "·", and the server would not read it either).
- */
 export const deviceHeader = () => ({ 'x-device': encodeURIComponent(deviceLabel()) });

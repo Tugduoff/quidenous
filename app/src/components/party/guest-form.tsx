@@ -7,7 +7,6 @@ import { useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 import { PARTS } from '@/lib/utils/avatar';
 
-/** The avatar backgrounds people already pick from, minus the dark one (the initial drawn on it would not show). */
 export const GUEST_COLORS = PARTS.bg.map(([c]) => c).filter((c) => c.toUpperCase() !== '#2E2E38');
 
 export function GuestForm({

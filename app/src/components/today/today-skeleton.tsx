@@ -5,7 +5,6 @@ import { useTheme } from '@/lib/theme';
 import { Card } from '@/components/ui/card';
 import { useAnimateOnChange } from '@/lib/hooks/use-animate-on-change';
 
-/** While the first answer loads: the shape of the screen, breathing (still under reduced motion). */
 export function TodaySkeleton() {
   const t = useTheme();
   const reduced = useReducedMotion();

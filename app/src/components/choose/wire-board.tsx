@@ -14,12 +14,9 @@ import { useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 import { boardLayout, measured, nextToWire, PAD, plugEnds, type Rect, rowTop as rowTopOf } from '@/lib/utils/choose';
 
-/** Web: no text selection while dragging wires with a mouse. */
 const NO_SELECT = Platform.OS === 'web' ? ({ userSelect: 'none' } as object) : null;
-/** Kept free under the board: the vote button and the tab bar. */
 const BOTTOM = 150;
 
-/** The board itself: people (scrolling inside it), items (always in view, centred), the wires between. */
 export function WireBoard({
   people,
   items,
@@ -37,7 +34,6 @@ export function WireBoard({
   const tr = useT();
   const win = useWindowDimensions();
   const [width, setWidth] = useState(0);
-  // Items: their stack's height, and each one in it.
   const [stackH, setStackH] = useState(items.length * 60);
   const [rects, setRects] = useState<(Rect | undefined)[]>([]);
 
@@ -51,7 +47,6 @@ export function WireBoard({
   const onScroll = useAnimatedScrollHandler((e) => {
     scrollY.set(e.contentOffset.y);
   });
-  // The wire being dragged: from row `dragIdx` (-1: none) to (dragX, dragY); `hovered` the item it would plug into.
   const dragIdx = useSharedValue(-1);
   const dragX = useSharedValue(0);
   const dragY = useSharedValue(0);
@@ -61,12 +56,9 @@ export function WireBoard({
   const fullKey = JSON.stringify(full);
   useAnimateOnChange(board, [itemsX, fullKey], () => ({ itemsX, rects: full ?? [] }));
 
-  // Tap mode: the person waiting for an item. Dragging: the person whose wire is in hand (their own wire hides).
   const [sel, setSel] = useState<number | null>(null);
   const [dragging, setDragging] = useState<number | null>(null);
-  // Kept after the drop: the wire springing back keeps its colour.
   const [dragColor, setDragColor] = useState(t.mut);
-  // Each new plug remounts the wire, which springs from where it was let go (or from the person, tapped) into its socket.
   const [plugs, setPlugs] = useState<Record<number, { n: number; x: number; y: number }>>({});
   const [bumps, setBumps] = useState<number[]>(() => items.map(() => 0));
   const justDropped = useRef(false);
@@ -77,7 +69,6 @@ export function WireBoard({
     setBumps((b) => b.map((v, i) => (i === item ? v + 1 : v)));
     impactHaptic();
   };
-  // The live wire goes once the plugged one is on screen (same spot: no flicker).
   const plugged = useRef(false);
   useOnChange(choices, () => {
     if (!plugged.current) return;
@@ -99,7 +90,6 @@ export function WireBoard({
       plugged.current = true;
       connect(id, item, x, y);
     } else if (choices[id] != null) {
-      // Let go anywhere else: unplugged.
       const next = { ...choices };
       delete next[id];
       onChange(next);
@@ -107,7 +97,6 @@ export function WireBoard({
     setDragging(null);
   };
   const tapPerson = (id: number) => {
-    // The end of a drag on the same row is not a tap.
     if (justDropped.current) return;
     setSel((s) => (s === id ? null : id));
   };

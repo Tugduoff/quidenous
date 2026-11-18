@@ -9,15 +9,10 @@ export function Display({ children, size = 34 }: { children: ReactNode; size?: n
   return <Text style={{ fontFamily: t.font.display, fontSize: size, lineHeight: size * 1.08, letterSpacing: -1, color: t.txt }}>{children}</Text>;
 }
 
-/**
- * A code in big type (invite, friend code) that always stays on one line: the font shrinks to the width it gets.
- * Measured rather than `adjustsFontSizeToFit`, which the web build ignores.
- */
 export function CodeText({ code, size = 34, center }: { code: string; size?: number; center?: boolean }) {
   const t = useTheme();
   const [width, setWidth] = useState(0);
   const spacing = code.length > 10 ? 1.5 : 4;
-  // Bricolage ExtraBold capitals and digits are about 0.68 em wide.
   const fit = width ? Math.floor((width / code.length - spacing) / 0.68) : size;
   const fontSize = Math.max(14, Math.min(size, fit));
   return (
@@ -43,7 +38,6 @@ export function Logo({ size = 22 }: { size?: number }) {
   );
 }
 
-/** A question's text; ranking questions get a trophy in front, choose questions wires, said ones a quote, lined up with the first line. */
 export function QuestionText({
   text,
   rank,
@@ -71,7 +65,6 @@ export function QuestionText({
   );
 }
 
-/** A text link (accent colour). */
 export function TextLink({ children, onPress, disabled, style }: { children: string; onPress: () => void; disabled?: boolean; style?: ViewStyle }) {
   const t = useTheme();
   return (

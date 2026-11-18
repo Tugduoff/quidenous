@@ -25,13 +25,11 @@ import { phaseSeconds } from '@/lib/utils/party';
 import { revealItems, screenRevealSteps, toGuess } from '@/lib/utils/said';
 import { tidy } from '@/lib/utils/text';
 
-/** "#3 · Qui a dit ça ?" over the question. */
 function KindTag({ round }: { round: PartyRound }) {
   const tr = useT();
   return <Tag label={`#${round.number} · ${tr('said.reveal.title')}`} />;
 }
 
-/** The big screen while a said question is open: the prompt while people write, the answers while they guess. */
 export function SaidScreenQuestion({ party, round, said, unit, wide }: { party: Party; round: PartyRound; said: SaidView; unit: number; wide: boolean }) {
   const t = useTheme();
   const tr = useT();
@@ -56,7 +54,6 @@ export function SaidScreenQuestion({ party, round, said, unit, wide }: { party: 
   return <ScreenAnswers round={round} said={said} byId={byId} ms={ms} total={total} unit={unit} wide={wide} />;
 }
 
-/** The guessing: every answer big and numbered (anonymous), who has guessed, the clock. */
 function ScreenAnswers({
   round,
   said,
@@ -79,7 +76,6 @@ function ScreenAnswers({
   const answers = useMemo(() => toGuess(said), [said]);
   const cols = wide && answers.length > 3 ? 2 : 1;
   const half = Math.ceil(answers.length / 2);
-  // Fewer, longer answers get bigger type.
   const size = Math.round((answers.length > 6 ? 28 : answers.length > 3 ? 34 : 42) * unit);
   return (
     <Animated.View entering={motion.question} style={{ gap: 28 * unit }}>
@@ -89,7 +85,6 @@ function ScreenAnswers({
           {tidy(round.question)}
         </Text>
       </View>
-      {/* Two columns on a wide screen: 1, 2, 3 down the left, the rest down the right. */}
       <View style={{ flexDirection: 'row', gap: 16 * unit }}>
         {(cols === 2 ? [answers.slice(0, half), answers.slice(half)] : [answers]).map((col, c) => (
           <View key={c} style={{ flex: 1, gap: 16 * unit }}>
@@ -150,7 +145,6 @@ const ScreenAnswer = memo(function ScreenAnswer({
   );
 });
 
-/** The big screen's said result: the authors one by one, then the scoreboard (and the reactions coming in). */
 export function SaidScreenResult({
   party,
   round,

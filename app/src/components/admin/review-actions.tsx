@@ -4,7 +4,6 @@ import { useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 import { PressableScale } from '@/components/ui/pressable-scale';
 
-/** Reject (or remove) and approve, side by side. */
 export function ReviewActions({ busy, onReject, rejectLabel, onApprove }: { busy: boolean; onReject: () => void; rejectLabel: string; onApprove: () => void }) {
   const t = useTheme();
   const tr = useT();
