@@ -16,7 +16,7 @@ use crate::{
 
 use super::{PackRow, REASON_MAX, current_room, item, one, optional_body, select};
 
-pub async fn review(
+pub(crate) async fn review(
     State(state): State<AppState>,
     Admin(me): Admin,
     headers: HeaderMap,
@@ -65,7 +65,7 @@ pub(super) async fn admin_answer(
     Ok(Json(out))
 }
 
-pub async fn approve(
+pub(crate) async fn approve(
     State(state): State<AppState>,
     Admin(me): Admin,
     Path(id): Path<PackId>,
@@ -90,11 +90,11 @@ pub async fn approve(
 }
 
 #[derive(Deserialize, Default)]
-pub struct RemoveBody {
+pub(crate) struct RemoveBody {
     reason: Option<String>,
 }
 
-pub async fn remove(
+pub(crate) async fn remove(
     State(state): State<AppState>,
     Admin(me): Admin,
     Path(id): Path<PackId>,
@@ -124,11 +124,11 @@ pub async fn remove(
 }
 
 #[derive(Deserialize)]
-pub struct FeatureBody {
+pub(crate) struct FeatureBody {
     featured: bool,
 }
 
-pub async fn feature(
+pub(crate) async fn feature(
     State(state): State<AppState>,
     Admin(_): Admin,
     Path(id): Path<PackId>,

@@ -10,7 +10,7 @@ pub struct BadgeDef {
 }
 
 impl BadgeDef {
-    pub fn name(&self, lang: Lang) -> &'static str {
+    pub(crate) fn name(&self, lang: Lang) -> &'static str {
         lang.pick(self.fr, self.en)
     }
 
@@ -152,13 +152,13 @@ pub const CATALOGUE: [BadgeDef; 14] = [
     ),
 ];
 
-pub type Metrics = [i64; CATALOGUE.len()];
+pub(crate) type Metrics = [i64; CATALOGUE.len()];
 
 pub fn find(key: &str) -> Option<&'static BadgeDef> {
     CATALOGUE.iter().find(|b| b.key == key)
 }
 
-pub fn tier_name(tier: i64, lang: Lang) -> &'static str {
+pub(crate) fn tier_name(tier: i64, lang: Lang) -> &'static str {
     match tier {
         3 => lang.pick("or", "gold"),
         2 => lang.pick("argent", "silver"),
@@ -166,7 +166,7 @@ pub fn tier_name(tier: i64, lang: Lang) -> &'static str {
     }
 }
 
-pub fn hint(key: &str, n: i64, lang: Lang, done: bool) -> String {
+pub(crate) fn hint(key: &str, n: i64, lang: Lang, done: bool) -> String {
     let s = if n > 1 { "s" } else { "" };
     let fr = |next: String, got: String| if done { got } else { next };
     match lang {
@@ -279,7 +279,7 @@ pub fn hint(key: &str, n: i64, lang: Lang, done: bool) -> String {
     }
 }
 
-pub fn inbox_text(def: &BadgeDef, tier: i64, lang: Lang) -> String {
+pub(crate) fn inbox_text(def: &BadgeDef, tier: i64, lang: Lang) -> String {
     match lang {
         Lang::Fr => format!(
             "Nouveau titre : {} ({})",
@@ -299,7 +299,7 @@ macro_rules! mine {
 mod award;
 mod handlers;
 pub use award::*;
-pub use handlers::*;
+pub(crate) use handlers::*;
 
 #[cfg(test)]
 mod tests {

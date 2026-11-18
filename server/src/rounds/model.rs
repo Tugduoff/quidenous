@@ -2,7 +2,7 @@ use crate::platform::ids::{MemberId, QuestionId, RoomId, RoundId};
 use serde::{Deserialize, Serialize, Serializer};
 
 #[derive(Clone, Debug, sqlx::FromRow)]
-pub struct RoundRow {
+pub(crate) struct RoundRow {
     pub id: RoundId,
     pub group_id: RoomId,
     pub question_id: QuestionId,
@@ -17,14 +17,14 @@ pub struct RoundRow {
 }
 
 #[derive(Clone, Debug, Serialize)]
-pub struct Tally {
+pub(crate) struct Tally {
     pub target_id: MemberId,
     pub count: i64,
     pub voter_ids: Vec<MemberId>,
 }
 
 #[derive(Clone, Debug, Serialize)]
-pub struct RoundView {
+pub(crate) struct RoundView {
     pub id: RoundId,
     pub number: i64,
     pub question: String,
@@ -54,7 +54,7 @@ pub struct RoundView {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct Choice {
+pub(crate) struct Choice {
     pub member_id: MemberId,
     pub item: i64,
 }
@@ -87,7 +87,7 @@ pub struct ChooseScore {
 }
 
 #[derive(Clone, Debug, Serialize)]
-pub struct RankEntry {
+pub(crate) struct RankEntry {
     pub member_id: MemberId,
     pub points: i64,
     pub average: f64,
@@ -95,7 +95,7 @@ pub struct RankEntry {
 }
 
 #[derive(Clone, Debug, Serialize)]
-pub struct SkipState {
+pub(crate) struct SkipState {
     pub target_id: MemberId,
     pub count: i64,
     pub mine: bool,

@@ -11,7 +11,7 @@ pub mod rooms;
 pub mod rounds;
 pub(crate) mod site;
 
-pub use platform::config;
+pub(crate) use platform::config;
 
 use std::sync::Arc;
 

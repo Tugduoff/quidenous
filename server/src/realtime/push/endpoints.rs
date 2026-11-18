@@ -7,7 +7,7 @@ pub(super) const WEB_PUSH_HOSTS: [&str; 4] = [
     "notify.windows.com",
 ];
 
-pub fn web_endpoint_allowed(endpoint: &str) -> bool {
+pub(crate) fn web_endpoint_allowed(endpoint: &str) -> bool {
     if endpoint.len() > 1024 {
         return false;
     }
@@ -27,7 +27,7 @@ pub fn web_endpoint_allowed(endpoint: &str) -> bool {
             .any(|h| host == *h || host.ends_with(&format!(".{h}")))
 }
 
-pub fn key_ok(key: &str, max: usize) -> bool {
+pub(crate) fn key_ok(key: &str, max: usize) -> bool {
     !key.is_empty()
         && key.len() <= max
         && key
@@ -51,7 +51,7 @@ pub fn widget_ping_message(fcm_token: &str, group_id: RoomId) -> serde_json::Val
     })
 }
 
-pub fn fcm_token_ok(token: &str) -> bool {
+pub(crate) fn fcm_token_ok(token: &str) -> bool {
     !token.is_empty() && token.len() <= 4096 && token.bytes().all(|b| b.is_ascii_graphic())
 }
 

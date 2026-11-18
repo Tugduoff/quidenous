@@ -25,7 +25,7 @@ pub struct PackFile {
     pub lines: Vec<Line>,
 }
 
-pub fn fold(s: &str) -> String {
+pub(crate) fn fold(s: &str) -> String {
     s.trim()
         .chars()
         .flat_map(char::to_lowercase)
@@ -62,7 +62,7 @@ fn key(k: &str) -> Option<Key> {
     })
 }
 
-pub fn category(name: &str) -> Option<&'static str> {
+pub(crate) fn category(name: &str) -> Option<&'static str> {
     let folded = fold(name);
     let name = folded.strip_suffix("16+").unwrap_or(&folded).trim();
     let id = match name {
@@ -177,14 +177,14 @@ pub const TEMPLATES: [(Lang, &str); 2] = [
     ),
 ];
 
-pub fn template(lang: Lang) -> &'static str {
+pub(crate) fn template(lang: Lang) -> &'static str {
     TEMPLATES
         .iter()
         .find(|(l, _)| *l == lang)
         .map_or(TEMPLATES[0].1, |(_, t)| *t)
 }
 
-pub fn template_response(lang: Lang) -> impl axum::response::IntoResponse {
+pub(crate) fn template_response(lang: Lang) -> impl axum::response::IntoResponse {
     use axum::http::header;
     (
         [

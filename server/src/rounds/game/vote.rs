@@ -9,7 +9,7 @@ use crate::{
 
 use super::{active_count, close_if_done, party};
 
-pub async fn vote(
+pub(crate) async fn vote(
     db: &SqlitePool,
     group_id: RoomId,
     voter_id: MemberId,
@@ -138,7 +138,7 @@ pub async fn vote(
     Ok(events)
 }
 
-pub async fn clear_ballot(
+pub(crate) async fn clear_ballot(
     tx: &mut Transaction<'_, Sqlite>,
     round_id: RoundId,
     voter_id: MemberId,
@@ -171,10 +171,10 @@ pub(crate) async fn party_player(
     .await?)
 }
 
-pub fn majority(active: i64) -> i64 {
+pub(crate) fn majority(active: i64) -> i64 {
     ((active - 1) / 2 + 1).max(2)
 }
 
-pub fn votes_possible(active: i64) -> bool {
+pub(crate) fn votes_possible(active: i64) -> bool {
     active >= 3
 }

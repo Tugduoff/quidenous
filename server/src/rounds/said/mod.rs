@@ -39,7 +39,7 @@ pub(crate) fn guessing_secs(timer: i64) -> i64 {
 }
 
 #[derive(Clone, Debug, Serialize)]
-pub struct SaidView {
+pub(crate) struct SaidView {
     pub phase: &'static str,
     pub guess_at: Option<String>,
     pub writer_ids: Vec<MemberId>,
@@ -50,32 +50,32 @@ pub struct SaidView {
 }
 
 #[derive(Clone, Debug, Serialize)]
-pub struct MyAnswer {
+pub(crate) struct MyAnswer {
     pub id: AnswerId,
     pub text: String,
 }
 
 #[derive(Clone, Debug, Serialize)]
-pub struct SaidAnswer {
+pub(crate) struct SaidAnswer {
     pub id: AnswerId,
     pub text: Option<String>,
     pub hidden: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Guess {
+pub(crate) struct Guess {
     pub answer_id: AnswerId,
     pub member_id: MemberId,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
-pub struct SaidResult {
+pub(crate) struct SaidResult {
     pub answers: Vec<AnswerResult>,
     pub scores: Vec<SaidScore>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
-pub struct AnswerResult {
+pub(crate) struct AnswerResult {
     pub id: AnswerId,
     pub author_id: MemberId,
     pub found: i64,
@@ -84,13 +84,13 @@ pub struct AnswerResult {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
-pub struct VoterGuess {
+pub(crate) struct VoterGuess {
     pub voter_id: MemberId,
     pub member_id: MemberId,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
-pub struct SaidScore {
+pub(crate) struct SaidScore {
     pub member_id: MemberId,
     pub points: i64,
     pub found: i64,

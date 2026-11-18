@@ -24,7 +24,7 @@ pub struct Keys {
 
 impl Keys {
     #[allow(clippy::expect_used)]
-    pub fn from_secret(secret: &[u8]) -> Self {
+    pub(crate) fn from_secret(secret: &[u8]) -> Self {
         let hk = Hkdf::<Sha256>::new(Some(b"quidenous auth v1"), secret);
         let (mut seal, mut mac) = ([0u8; 32], [0u8; 32]);
         hk.expand(b"totp secret aes-256-gcm", &mut seal)
@@ -62,7 +62,7 @@ impl Keys {
     }
 
     #[allow(clippy::expect_used)]
-    pub fn mac(&self, parts: &[&str]) -> String {
+    pub(crate) fn mac(&self, parts: &[&str]) -> String {
         let mut m = <Hmac<Sha256> as KeyInit>::new_from_slice(&self.mac)
             .expect("HMAC takes any key length");
         for (i, p) in parts.iter().enumerate() {
@@ -75,7 +75,7 @@ impl Keys {
     }
 
     #[allow(clippy::expect_used)]
-    pub fn seal(&self, plain: &[u8]) -> String {
+    pub(crate) fn seal(&self, plain: &[u8]) -> String {
         let cipher = Aes256Gcm::new(&self.seal.into());
         let mut nonce = [0u8; 12];
         rand::rng().fill_bytes(&mut nonce);
@@ -88,7 +88,7 @@ impl Keys {
         STANDARD.encode(out)
     }
 
-    pub fn open(&self, sealed: &str) -> Option<Vec<u8>> {
+    pub(crate) fn open(&self, sealed: &str) -> Option<Vec<u8>> {
         let bytes = STANDARD.decode(sealed).ok()?;
         if bytes.len() < 12 {
             return None;
@@ -192,7 +192,7 @@ impl Hasher {
             .map_err(|e| AppError::Internal(e.to_string()))
     }
 
-    pub async fn hash(&self, password: &str) -> AppResult<String> {
+    pub(crate) async fn hash(&self, password: &str) -> AppResult<String> {
         let password = password.to_owned();
         self.run(move || {
             argon2()
@@ -203,7 +203,7 @@ impl Hasher {
         .await?
     }
 
-    pub async fn verify(&self, password: &str, hash: Option<&str>) -> AppResult<bool> {
+    pub(crate) async fn verify(&self, password: &str, hash: Option<&str>) -> AppResult<bool> {
         let password = password.to_owned();
         let hash = hash.map(str::to_owned);
         self.run(move || {

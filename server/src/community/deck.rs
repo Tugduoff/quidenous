@@ -3,7 +3,7 @@ use sqlx::{Sqlite, SqlitePool, Transaction};
 
 use crate::platform::i18n::Lang;
 
-pub const DECKS: [(Lang, &str); 2] = [
+pub(crate) const DECKS: [(Lang, &str); 2] = [
     (
         Lang::Fr,
         include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/deck/fr.txt")),
@@ -48,13 +48,6 @@ pub async fn seed(db: &SqlitePool) -> sqlx::Result<u64> {
     Ok(added)
 }
 
-pub async fn import_lang(db: &SqlitePool, text: &str, lang: Lang) -> sqlx::Result<u64> {
-    let mut tx = crate::platform::db::write_tx(db).await?;
-    let added = insert_lines(&mut tx, text, lang).await?;
-    tx.commit().await?;
-    Ok(added)
-}
-
 async fn insert_lines(
     tx: &mut Transaction<'_, Sqlite>,
     text: &str,
@@ -81,12 +74,12 @@ async fn insert_lines(
     Ok(added)
 }
 
-pub fn parse_line(line: &str) -> (&str, &'static str) {
+pub(crate) fn parse_line(line: &str) -> (&str, &'static str) {
     let (text, kind, _) = parse_tagged(line);
     (text, kind)
 }
 
-pub fn parse_tagged(line: &str) -> (&str, &'static str, Vec<String>) {
+pub(crate) fn parse_tagged(line: &str) -> (&str, &'static str, Vec<String>) {
     let mut rest = line.trim();
     let mut kind = "pick";
     let mut tags = Vec::new();
@@ -118,7 +111,7 @@ fn is_anonymous_tag(tag: &str) -> bool {
     tag == "anonyme" || tag == "anonymous"
 }
 
-pub fn tagged_anonymous(line: &str) -> bool {
+pub(crate) fn tagged_anonymous(line: &str) -> bool {
     let mut rest = line.trim();
     while let Some(after) = rest.strip_prefix('[') {
         let Some(end) = after.find(']') else { break };
@@ -137,11 +130,11 @@ pub fn tagged_anonymous(line: &str) -> bool {
     false
 }
 
-pub const ITEMS_MIN: usize = 2;
-pub const ITEMS_MAX: usize = 4;
-pub const ITEM_MAX: usize = 40;
+pub(crate) const ITEMS_MIN: usize = 2;
+pub(crate) const ITEMS_MAX: usize = 4;
+pub(crate) const ITEM_MAX: usize = 40;
 
-pub fn choose_items(line: &str) -> Option<Vec<String>> {
+pub(crate) fn choose_items(line: &str) -> Option<Vec<String>> {
     if parse_tagged(line).1 != "choose" {
         return None;
     }
@@ -155,7 +148,7 @@ pub fn choose_items(line: &str) -> Option<Vec<String>> {
     clean_items(&items)
 }
 
-pub fn clean_items(items: &[String]) -> Option<Vec<String>> {
+pub(crate) fn clean_items(items: &[String]) -> Option<Vec<String>> {
     let items: Vec<String> = items
         .iter()
         .map(|i| crate::platform::text::line(i))
@@ -168,11 +161,11 @@ pub fn clean_items(items: &[String]) -> Option<Vec<String>> {
     ok.then_some(items)
 }
 
-pub fn items_json(line: &str) -> Option<String> {
+pub(crate) fn items_json(line: &str) -> Option<String> {
     choose_items(line).map(|i| serde_json::to_string(&i).unwrap_or_default())
 }
 
-pub async fn ensure_group(db: &SqlitePool, name: &str, code: &str) -> sqlx::Result<RoomId> {
+pub(crate) async fn ensure_group(db: &SqlitePool, name: &str, code: &str) -> sqlx::Result<RoomId> {
     let existing: Option<RoomId> = sqlx::query_scalar("SELECT id FROM groups ORDER BY id LIMIT 1")
         .fetch_optional(db)
         .await?;

@@ -25,7 +25,7 @@ use super::{
     not_over, open_next, owned_party, party_of, screen_by_code, view,
 };
 
-pub async fn may_take_seat(
+pub(crate) async fn may_take_seat(
     tx: &mut sqlx::SqliteConnection,
     id: RoomId,
     existing: Option<&MemberRow>,
@@ -49,7 +49,7 @@ pub async fn may_take_seat(
 }
 
 #[derive(Deserialize)]
-pub struct CreateBody {
+pub(crate) struct CreateBody {
     #[serde(default)]
     name: Option<String>,
     #[serde(default)]
@@ -140,7 +140,7 @@ pub(super) async fn create(
 }
 
 #[derive(Deserialize)]
-pub struct JoinBody {
+pub(crate) struct JoinBody {
     code: String,
     #[serde(default)]
     name: Option<String>,
@@ -336,7 +336,7 @@ pub(super) async fn start(
 }
 
 #[derive(Deserialize)]
-pub struct VoteBody {
+pub(crate) struct VoteBody {
     #[serde(default)]
     target_id: Option<MemberId>,
     #[serde(default)]
@@ -368,7 +368,7 @@ pub(super) async fn vote(
 }
 
 #[derive(Deserialize)]
-pub struct AnswerBody {
+pub(crate) struct AnswerBody {
     text: String,
 }
 
@@ -429,7 +429,7 @@ pub(super) async fn untap(
 }
 
 #[derive(Deserialize)]
-pub struct ReactBody {
+pub(crate) struct ReactBody {
     round_id: RoundId,
     emoji: String,
 }
@@ -475,7 +475,7 @@ pub(super) async fn react(
 }
 
 #[derive(Deserialize)]
-pub struct UpdateBody {
+pub(crate) struct UpdateBody {
     #[serde(default)]
     name: Option<String>,
     #[serde(default)]

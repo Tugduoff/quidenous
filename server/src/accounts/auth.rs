@@ -9,7 +9,7 @@ use crate::{
     rooms::model::MemberRow,
 };
 
-pub fn new_token() -> String {
+pub(crate) fn new_token() -> String {
     let mut bytes = [0u8; 32];
     rand::rng().fill_bytes(&mut bytes);
     hex::encode(bytes)
@@ -27,7 +27,7 @@ pub async fn member_in_room(
     member_in_room_by_hash(state, &hash_token(token), room).await
 }
 
-pub async fn member_in_room_by_hash(
+pub(crate) async fn member_in_room_by_hash(
     state: &AppState,
     hash: &str,
     room: Option<RoomId>,
@@ -92,7 +92,7 @@ fn bearer(parts: &Parts) -> Option<&str> {
         .and_then(|v| v.strip_prefix("Bearer "))
 }
 
-pub struct Me(pub MemberRow);
+pub(crate) struct Me(pub MemberRow);
 
 impl FromRequestParts<AppState> for Me {
     type Rejection = AppError;
@@ -109,7 +109,7 @@ impl FromRequestParts<AppState> for Me {
 }
 
 #[derive(Clone, Copy)]
-pub struct SignedIn(pub UserId);
+pub(crate) struct SignedIn(pub UserId);
 
 impl FromRequestParts<AppState> for SignedIn {
     type Rejection = AppError;
@@ -129,11 +129,11 @@ impl FromRequestParts<AppState> for SignedIn {
     }
 }
 
-pub fn is_admin(state: &AppState, user: UserId) -> bool {
+pub(crate) fn is_admin(state: &AppState, user: UserId) -> bool {
     state.config.admin_user_ids.contains(&user)
 }
 
-pub struct Admin(pub UserId);
+pub(crate) struct Admin(pub UserId);
 
 impl FromRequestParts<AppState> for Admin {
     type Rejection = AppError;
@@ -161,7 +161,7 @@ macro_rules! guest_sql {
 }
 pub(crate) use guest_sql;
 
-pub async fn is_guest<'e, E>(db: E, user: UserId) -> Result<bool, AppError>
+pub(crate) async fn is_guest<'e, E>(db: E, user: UserId) -> Result<bool, AppError>
 where
     E: sqlx::Executor<'e, Database = sqlx::Sqlite>,
 {
@@ -176,7 +176,7 @@ where
     .unwrap_or(false))
 }
 
-pub struct Account(pub UserId);
+pub(crate) struct Account(pub UserId);
 
 impl FromRequestParts<AppState> for Account {
     type Rejection = AppError;

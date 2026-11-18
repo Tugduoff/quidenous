@@ -10,14 +10,14 @@ use sha2::Sha256;
 
 use super::{JWT_LIFETIME_SECONDS, RECORD_SIZE};
 
-pub struct Vapid {
+pub(crate) struct Vapid {
     key: SigningKey,
     pub public_b64: String,
     subject: String,
 }
 
 impl Vapid {
-    pub fn new(private_b64: &str, subject: String) -> Result<Self, String> {
+    pub(crate) fn new(private_b64: &str, subject: String) -> Result<Self, String> {
         let bytes = B64
             .decode(private_b64.trim())
             .map_err(|e| format!("VAPID key: {e}"))?;
@@ -53,7 +53,7 @@ pub(super) fn now_secs() -> u64 {
         .map_or(0, |d| d.as_secs())
 }
 
-pub fn encrypt(payload: &[u8], p256dh_b64: &str, auth_b64: &str) -> Result<Vec<u8>, String> {
+pub(crate) fn encrypt(payload: &[u8], p256dh_b64: &str, auth_b64: &str) -> Result<Vec<u8>, String> {
     let ua_public_bytes = B64.decode(p256dh_b64).map_err(|e| e.to_string())?;
     let auth_secret = B64.decode(auth_b64).map_err(|e| e.to_string())?;
     let ua_public = PublicKey::from_sec1_bytes(&ua_public_bytes).map_err(|e| e.to_string())?;
@@ -97,7 +97,7 @@ pub fn encrypt(payload: &[u8], p256dh_b64: &str, auth_b64: &str) -> Result<Vec<u
     Ok(body)
 }
 
-pub fn generate_vapid() -> (String, String) {
+pub(crate) fn generate_vapid() -> (String, String) {
     let secret = SecretKey::generate_from_rng(&mut rand::rng());
     let public = secret.public_key().to_sec1_point(false);
     (B64.encode(secret.to_bytes()), B64.encode(public.as_bytes()))

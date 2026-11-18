@@ -92,7 +92,7 @@ pub struct OAuth {
 pub(crate) const APP_REDIRECT: &str = "quidenous://oauth";
 
 impl OAuth {
-    pub fn new(config: &Config) -> Self {
+    pub(crate) fn new(config: &Config) -> Self {
         let clients: [(&str, &Option<OAuthClient>); 2] =
             [("google", &config.google), ("discord", &config.discord)];
         let providers = if config.public_url.is_some() {
@@ -131,7 +131,7 @@ impl OAuth {
         }
     }
 
-    pub fn enabled(&self) -> Vec<&'static str> {
+    pub(crate) fn enabled(&self) -> Vec<&'static str> {
         self.providers.iter().map(|p| p.id).collect()
     }
 
@@ -149,7 +149,7 @@ impl OAuth {
         )
     }
 
-    pub fn redirect_allowed(&self, app_redirect: &str) -> bool {
+    pub(crate) fn redirect_allowed(&self, app_redirect: &str) -> bool {
         let Ok(url) = Url::parse(app_redirect) else {
             return false;
         };

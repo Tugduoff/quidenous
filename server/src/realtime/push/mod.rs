@@ -11,16 +11,16 @@ mod fcm;
 mod presence;
 mod webpush;
 pub use endpoints::*;
-pub use fcm::*;
-pub use presence::*;
-pub use webpush::*;
+pub(crate) use fcm::*;
+pub(crate) use presence::*;
+pub(crate) use webpush::*;
 
 const RECORD_SIZE: u32 = 4096;
 const TTL_SECONDS: &str = "86400";
 const JWT_LIFETIME_SECONDS: u64 = 12 * 3600;
 const HTTP_TIMEOUT: Duration = Duration::from_secs(10);
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
-pub const MAX_DEVICES: i64 = 10;
+pub(crate) const MAX_DEVICES: i64 = 10;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -36,7 +36,7 @@ pub enum Kind {
 }
 
 impl Kind {
-    pub const ALL: [Kind; 8] = [
+    pub(crate) const ALL: [Kind; 8] = [
         Kind::Question,
         Kind::Result,
         Kind::Chat,
@@ -47,7 +47,7 @@ impl Kind {
         Kind::Streak,
     ];
 
-    pub fn as_str(self) -> &'static str {
+    pub(crate) fn as_str(self) -> &'static str {
         match self {
             Kind::Question => "question",
             Kind::Result => "result",
@@ -66,7 +66,7 @@ impl Kind {
 }
 
 #[derive(Clone, Debug)]
-pub struct Notification {
+pub(crate) struct Notification {
     pub kinds: Vec<Kind>,
     pub title: Text,
     pub body: Text,
@@ -119,7 +119,7 @@ pub struct Recipient {
 }
 
 impl Recipient {
-    pub fn lang(&self) -> Lang {
+    pub(crate) fn lang(&self) -> Lang {
         Lang::from_db(self.locale.as_deref())
     }
 
@@ -138,7 +138,7 @@ impl Recipient {
     }
 }
 
-pub fn in_quiet_hours(start: i64, end: i64, tz_offset: i64, now: u64) -> bool {
+pub(crate) fn in_quiet_hours(start: i64, end: i64, tz_offset: i64, now: u64) -> bool {
     let local = (now as i64 / 60 + tz_offset).rem_euclid(24 * 60);
     match start.cmp(&end) {
         std::cmp::Ordering::Equal => false,
@@ -179,7 +179,7 @@ enum Delivery {
 }
 
 impl Push {
-    pub fn new(vapid: Option<Vapid>, fcm: Option<Fcm>) -> Self {
+    pub(crate) fn new(vapid: Option<Vapid>, fcm: Option<Fcm>) -> Self {
         Self {
             http: reqwest::Client::builder()
                 .timeout(HTTP_TIMEOUT)
@@ -210,15 +210,15 @@ impl Push {
         rec.clone().unwrap_or_default()
     }
 
-    pub fn presence(&self) -> &Presence {
+    pub(crate) fn presence(&self) -> &Presence {
         &self.presence
     }
 
-    pub fn vapid_public_key(&self) -> Option<&str> {
+    pub(crate) fn vapid_public_key(&self) -> Option<&str> {
         self.vapid.as_ref().map(|v| v.public_b64.as_str())
     }
 
-    pub fn notify_group(
+    pub(crate) fn notify_group(
         &self,
         db: SqlitePool,
         group_id: RoomId,
@@ -236,7 +236,7 @@ impl Push {
         );
     }
 
-    pub fn notify_member(
+    pub(crate) fn notify_member(
         &self,
         db: SqlitePool,
         member_id: MemberId,
@@ -253,7 +253,7 @@ impl Push {
         );
     }
 
-    pub fn notify_members(
+    pub(crate) fn notify_members(
         &self,
         db: SqlitePool,
         member_ids: Vec<MemberId>,
@@ -435,7 +435,12 @@ impl Push {
         }
     }
 
-    pub fn widget_ping(&self, db: SqlitePool, group_id: RoomId, tokens: Vec<(UserId, String)>) {
+    pub(crate) fn widget_ping(
+        &self,
+        db: SqlitePool,
+        group_id: RoomId,
+        tokens: Vec<(UserId, String)>,
+    ) {
         {
             let mut rec = self
                 .recorded

@@ -17,12 +17,12 @@ use crate::{
     platform::error::{AppError, AppResult},
 };
 
-pub const CLIENT_ERROR_MAX: usize = 16 * 1024;
+pub(crate) const CLIENT_ERROR_MAX: usize = 16 * 1024;
 const MESSAGE_MAX: usize = 500;
 const STACK_MAX: usize = 4000;
 const FIELD_MAX: usize = 100;
 
-pub fn router() -> Router<AppState> {
+pub(crate) fn router() -> Router<AppState> {
     Router::new()
         .route("/health", get(health))
         .route("/version", get(version))
@@ -32,7 +32,7 @@ pub fn router() -> Router<AppState> {
         )
 }
 
-pub const DISK_MIN: u64 = 100 * 1024 * 1024;
+pub(crate) const DISK_MIN: u64 = 100 * 1024 * 1024;
 
 async fn health(State(state): State<AppState>) -> Response {
     let db = tokio::time::timeout(
@@ -77,7 +77,11 @@ fn free_bytes(_: &Path) -> Option<u64> {
     None
 }
 
-pub async fn version_gate(State(state): State<AppState>, req: Request, next: Next) -> Response {
+pub(crate) async fn version_gate(
+    State(state): State<AppState>,
+    req: Request,
+    next: Next,
+) -> Response {
     let min = state
         .config
         .min_app_version

@@ -14,7 +14,7 @@ pub async fn write_tx(db: &SqlitePool) -> sqlx::Result<Transaction<'static, Sqli
     db.begin_with("BEGIN IMMEDIATE").await
 }
 
-pub async fn connect(url: &str) -> crate::anyhow_free::Result<SqlitePool> {
+pub(crate) async fn connect(url: &str) -> crate::anyhow_free::Result<SqlitePool> {
     let options = SqliteConnectOptions::from_str(url)?
         .create_if_missing(true)
         .foreign_keys(true)
@@ -31,7 +31,7 @@ pub async fn connect(url: &str) -> crate::anyhow_free::Result<SqlitePool> {
     Ok(db)
 }
 
-pub async fn migrate(db: &SqlitePool) -> crate::anyhow_free::Result<()> {
+pub(crate) async fn migrate(db: &SqlitePool) -> crate::anyhow_free::Result<()> {
     let repaired = repair_unrecorded(db).await?;
     if repaired > 0 {
         tracing::warn!(

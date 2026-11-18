@@ -11,7 +11,7 @@ use tokio::sync::broadcast;
 
 pub const SOCKETS_PER_USER: usize = 8;
 pub const SOCKETS_PER_IP: usize = 64;
-pub const SOCKETS_TOTAL: usize = 2000;
+pub(crate) const SOCKETS_TOTAL: usize = 2000;
 
 pub const PARTY_UPDATE_GAP: Duration = Duration::from_millis(500);
 pub const RESULT_REACT_GAP: Duration = Duration::from_millis(300);
@@ -84,7 +84,7 @@ pub enum Event {
 }
 
 impl Event {
-    pub fn questions_changed() -> Self {
+    pub(crate) fn questions_changed() -> Self {
         Self::QuestionAdded {
             question_id: QuestionId::from_raw(0),
         }
@@ -112,12 +112,12 @@ fn merge_taps(into: &mut Vec<Tap>, taps: Vec<Tap>) {
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
-pub struct OptIns {
+pub(crate) struct OptIns {
     pub reactions: bool,
 }
 
 impl OptIns {
-    pub fn parse(raw: Option<&str>) -> Self {
+    pub(crate) fn parse(raw: Option<&str>) -> Self {
         let mut o = Self::default();
         for name in raw.unwrap_or("").split(',') {
             if name.trim() == "reactions" {
@@ -127,7 +127,7 @@ impl OptIns {
         o
     }
 
-    pub fn wants(&self, event: &Event) -> bool {
+    pub(crate) fn wants(self, event: &Event) -> bool {
         match event {
             Event::ResultReacted { .. } => self.reactions,
             _ => true,
@@ -169,7 +169,7 @@ struct SocketCounts {
     total: usize,
 }
 
-pub struct SocketSlot {
+pub(crate) struct SocketSlot {
     counts: Arc<Mutex<SocketCounts>>,
     user: Option<UserId>,
     ip: Option<String>,
@@ -213,7 +213,7 @@ impl Live {
         }
     }
 
-    pub fn mark_active(&self, member_id: MemberId, every: std::time::Duration) -> bool {
+    pub(crate) fn mark_active(&self, member_id: MemberId, every: std::time::Duration) -> bool {
         let mut active = self
             .active
             .lock()
@@ -228,7 +228,11 @@ impl Live {
         true
     }
 
-    pub fn take_socket(&self, user: Option<UserId>, ip: Option<IpAddr>) -> Option<SocketSlot> {
+    pub(crate) fn take_socket(
+        &self,
+        user: Option<UserId>,
+        ip: Option<IpAddr>,
+    ) -> Option<SocketSlot> {
         let ip = ip.map(crate::accounts::limits::ip_key);
         let mut c = self
             .sockets

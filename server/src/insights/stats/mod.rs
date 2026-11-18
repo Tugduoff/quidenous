@@ -35,7 +35,7 @@ mod other_stories;
 mod people_stories;
 mod stories;
 use calc::Calc;
-pub use format::*;
+pub(crate) use format::*;
 use other_stories::other_drafts;
 use people_stories::people_drafts;
 use stories::{Draft, Writer, draft, drafts, pick_line, round_draft};
@@ -70,11 +70,11 @@ impl Period {
     }
 }
 
-pub fn clamp_tz(tz: i64) -> i32 {
+pub(crate) fn clamp_tz(tz: i64) -> i32 {
     tz.clamp(-i64::from(TZ_MAX), i64::from(TZ_MAX)) as i32
 }
 
-pub fn parse_tz(tz: Option<&str>) -> i32 {
+pub(crate) fn parse_tz(tz: Option<&str>) -> i32 {
     tz.and_then(|t| t.trim().parse::<i64>().ok())
         .map_or(0, clamp_tz)
 }
@@ -283,7 +283,7 @@ pub async fn for_group(
     for_group_in(db, group_id, period, tz_minutes, Lang::Fr).await
 }
 
-pub async fn for_group_in(
+pub(crate) async fn for_group_in(
     db: &SqlitePool,
     group_id: RoomId,
     period: Period,
@@ -298,7 +298,7 @@ pub async fn for_group_in(
     compute(db, group_id, period, tz_minutes, vibe.as_deref(), lang).await
 }
 
-pub async fn compute(
+pub(crate) async fn compute(
     db: &SqlitePool,
     group_id: RoomId,
     period: Period,

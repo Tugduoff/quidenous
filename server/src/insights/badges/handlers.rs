@@ -19,7 +19,7 @@ use crate::{
 use super::{CATALOGUE, RoomCache, Streaks, award, find, hint, metrics};
 
 #[derive(Debug, Clone, Serialize)]
-pub struct Badge {
+pub(crate) struct Badge {
     pub key: &'static str,
     pub icon: &'static str,
     pub mascot: &'static str,
@@ -32,7 +32,7 @@ pub struct Badge {
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct TitleChip {
+pub(crate) struct TitleChip {
     pub key: &'static str,
     pub name: &'static str,
     pub icon: &'static str,
@@ -40,7 +40,7 @@ pub struct TitleChip {
 }
 
 impl TitleChip {
-    pub fn new(key: &str, tier: i64, lang: Lang) -> Option<Self> {
+    pub(crate) fn new(key: &str, tier: i64, lang: Lang) -> Option<Self> {
         let def = find(key)?;
         (1..=3).contains(&tier).then(|| TitleChip {
             key: def.key,
@@ -51,7 +51,10 @@ impl TitleChip {
     }
 }
 
-pub async fn earned(db: &SqlitePool, user_id: UserId) -> AppResult<HashMap<String, (i64, String)>> {
+pub(crate) async fn earned(
+    db: &SqlitePool,
+    user_id: UserId,
+) -> AppResult<HashMap<String, (i64, String)>> {
     let rows: Vec<(String, i64, String)> = sqlx::query_as(
         "SELECT key, tier, earned_at FROM user_badges b WHERE user_id = ? \
          AND tier = (SELECT MAX(tier) FROM user_badges x WHERE x.user_id = b.user_id AND x.key = b.key)",
@@ -65,7 +68,7 @@ pub async fn earned(db: &SqlitePool, user_id: UserId) -> AppResult<HashMap<Strin
         .collect())
 }
 
-pub async fn list(
+pub(crate) async fn list(
     State(state): State<AppState>,
     SignedIn(user): SignedIn,
 ) -> AppResult<Json<Value>> {
@@ -112,12 +115,12 @@ pub async fn list(
 }
 
 #[derive(Deserialize)]
-pub struct TitleBody {
+pub(crate) struct TitleBody {
     #[serde(default)]
     key: Option<Value>,
 }
 
-pub async fn set_title(
+pub(crate) async fn set_title(
     State(state): State<AppState>,
     SignedIn(user): SignedIn,
     Json(body): Json<TitleBody>,
@@ -147,7 +150,7 @@ pub async fn set_title(
     Ok(Json(json!({ "title": key })))
 }
 
-pub async fn titles(State(state): State<AppState>, Me(me): Me) -> AppResult<Json<Value>> {
+pub(crate) async fn titles(State(state): State<AppState>, Me(me): Me) -> AppResult<Json<Value>> {
     let lang = crate::platform::i18n::of_member(&state.db, me.id).await?;
     let rows: Vec<(MemberId, String, i64)> = sqlx::query_as(
         "SELECT m.id, u.title, MAX(b.tier) FROM members m \
@@ -168,7 +171,7 @@ pub async fn titles(State(state): State<AppState>, Me(me): Me) -> AppResult<Json
     Ok(Json(json!({ "members": members })))
 }
 
-pub async fn member(
+pub(crate) async fn member(
     State(state): State<AppState>,
     Me(me): Me,
     Path(member_id): Path<MemberId>,

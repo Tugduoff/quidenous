@@ -178,7 +178,7 @@ pub async fn metrics(
     Ok(m)
 }
 
-pub async fn award(
+pub(crate) async fn award(
     state: &AppState,
     user_id: UserId,
     values: &Metrics,
@@ -293,7 +293,7 @@ pub async fn evaluate(
     Ok(out)
 }
 
-pub async fn after_close_now(
+pub(crate) async fn after_close_now(
     state: &AppState,
     group_id: RoomId,
 ) -> AppResult<Vec<(UserId, &'static str, i64)>> {
@@ -319,7 +319,7 @@ pub async fn after_close_now(
     evaluate(state, &users, Some(group_id)).await
 }
 
-pub fn after_close(state: &AppState, group_id: RoomId) {
+pub(crate) fn after_close(state: &AppState, group_id: RoomId) {
     let state = state.clone();
     tokio::spawn(async move {
         if let Err(e) = after_close_now(&state, group_id).await {
@@ -365,7 +365,7 @@ pub async fn sweep_at(state: &AppState, now: i64) -> AppResult<Swept> {
     Ok(swept)
 }
 
-pub fn spawn_sweeper(state: AppState) {
+pub(crate) fn spawn_sweeper(state: AppState) {
     tokio::spawn(async move {
         let mut tick = tokio::time::interval(SWEEP_EVERY);
         tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);

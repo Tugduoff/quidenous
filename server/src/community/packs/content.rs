@@ -12,7 +12,7 @@ use super::{
 };
 
 #[derive(Deserialize)]
-pub struct QuestionIn {
+pub(crate) struct QuestionIn {
     text: String,
     #[serde(default)]
     kind: Option<String>,
@@ -52,7 +52,7 @@ pub(super) async fn stored_questions<'e, E: sqlx::SqliteExecutor<'e>>(
 }
 
 #[derive(Deserialize)]
-pub struct PackBody {
+pub(crate) struct PackBody {
     pub(crate) name: Option<String>,
     pub(crate) description: Option<String>,
     pub(crate) text: Option<String>,
@@ -140,7 +140,7 @@ pub(super) fn from_list(list: Vec<QuestionIn>, known: &[PackQuestion]) -> Vec<Pa
         .collect()
 }
 
-pub fn clean_questions(mut questions: Vec<PackQuestion>) -> AppResult<Vec<PackQuestion>> {
+pub(crate) fn clean_questions(mut questions: Vec<PackQuestion>) -> AppResult<Vec<PackQuestion>> {
     for q in &mut questions {
         q.text = crate::platform::text::line(&q.text);
     }
@@ -210,7 +210,7 @@ pub(super) async fn live_packs<'e, E: sqlx::SqliteExecutor<'e>>(
     .await?)
 }
 
-pub async fn create_pack(
+pub(crate) async fn create_pack(
     db: &sqlx::SqlitePool,
     author: UserId,
     pack: &NewPack,

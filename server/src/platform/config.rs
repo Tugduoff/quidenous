@@ -54,8 +54,8 @@ pub struct WrappedWindow {
     pub until: (u32, u32),
 }
 
-pub const DEFAULT_WRAPPED_FROM: &str = "12-01";
-pub const DEFAULT_WRAPPED_UNTIL: &str = "01-31";
+pub(crate) const DEFAULT_WRAPPED_FROM: &str = "12-01";
+pub(crate) const DEFAULT_WRAPPED_UNTIL: &str = "01-31";
 
 impl Default for WrappedWindow {
     fn default() -> Self {
@@ -66,7 +66,7 @@ impl Default for WrappedWindow {
     }
 }
 
-pub fn parse_month_day(s: &str) -> Option<(u32, u32)> {
+pub(crate) fn parse_month_day(s: &str) -> Option<(u32, u32)> {
     let (m, d) = s.trim().split_once('-')?;
     let (m, d): (u32, u32) = (m.parse().ok()?, d.parse().ok()?);
     let days = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
@@ -77,7 +77,7 @@ pub fn parse_month_day(s: &str) -> Option<(u32, u32)> {
         .map(|_| (m, d))
 }
 
-pub fn parse_version(v: &str) -> Option<(u64, u64, u64)> {
+pub(crate) fn parse_version(v: &str) -> Option<(u64, u64, u64)> {
     let v = v.trim().trim_start_matches('v');
     let v = v.split(['-', '+']).next()?;
     let mut parts = v.split('.').map(|p| p.parse::<u64>().ok());
@@ -105,12 +105,12 @@ impl std::fmt::Debug for Klipy {
     }
 }
 
-pub const DEFAULT_REPORT_EMAIL: &str = "contact@coflop.fr";
-pub const DEFAULT_JOIN_CODE: &str = "BANDE-42";
+pub(crate) const DEFAULT_REPORT_EMAIL: &str = "contact@coflop.fr";
+pub(crate) const DEFAULT_JOIN_CODE: &str = "BANDE-42";
 pub const DEFAULT_VAPID_SUBJECT: &str = "mailto:admin@example.com";
 
 impl Config {
-    pub fn report_email(&self) -> &str {
+    pub(crate) fn report_email(&self) -> &str {
         self.report_email.as_deref().unwrap_or(DEFAULT_REPORT_EMAIL)
     }
 
@@ -199,7 +199,7 @@ pub struct OAuthEndpoints {
     pub jwks: String,
 }
 
-pub fn port() -> u16 {
+pub(crate) fn port() -> u16 {
     env::PORT
         .raw()
         .and_then(|p| p.parse().ok())
@@ -216,7 +216,7 @@ fn oauth_client(id: Var, secret: Var) -> Option<OAuthClient> {
 }
 
 impl Config {
-    pub fn from_env() -> Self {
+    pub(crate) fn from_env() -> Self {
         let data_dir = PathBuf::from(env::DATA_DIR.raw_or_default().unwrap_or_default());
         let mailgun = match (env::MAILGUN_API_KEY.read(), env::MAILGUN_DOMAIN.read()) {
             (Some(api_key), Some(domain)) => Some(Mailgun {

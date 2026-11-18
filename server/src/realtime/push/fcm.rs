@@ -11,7 +11,7 @@ pub(crate) struct ServiceAccount {
     token_uri: String,
 }
 
-pub struct Fcm {
+pub(crate) struct Fcm {
     pub(crate) account: ServiceAccount,
     token: Mutex<Option<(String, u64)>>,
 }
@@ -23,7 +23,7 @@ struct TokenResponse {
 }
 
 impl Fcm {
-    pub fn from_json(json: &str) -> Result<Self, String> {
+    pub(crate) fn from_json(json: &str) -> Result<Self, String> {
         let account: ServiceAccount =
             serde_json::from_str(json).map_err(|e| format!("FCM service account: {e}"))?;
         Ok(Self {

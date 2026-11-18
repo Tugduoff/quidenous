@@ -22,7 +22,7 @@ macro_rules! text_for {
 }
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
-pub struct InboxItem {
+pub(crate) struct InboxItem {
     pub id: i64,
     pub kind: String,
     pub round_id: Option<RoundId>,
@@ -33,7 +33,7 @@ pub struct InboxItem {
     pub room_id: RoomId,
 }
 
-pub async fn to_group(
+pub(crate) async fn to_group(
     db: &SqlitePool,
     group_id: RoomId,
     skip: Option<MemberId>,
@@ -60,7 +60,7 @@ pub async fn to_group(
     Ok(())
 }
 
-pub async fn to_members(
+pub(crate) async fn to_members(
     db: &SqlitePool,
     member_ids: &[MemberId],
     kind: &str,
@@ -88,7 +88,7 @@ pub async fn to_members(
     Ok(())
 }
 
-pub async fn to_member(
+pub(crate) async fn to_member(
     db: &SqlitePool,
     member_id: MemberId,
     kind: &str,
@@ -120,7 +120,7 @@ macro_rules! not_blocked {
 }
 pub(crate) use not_blocked;
 
-pub async fn list(db: &SqlitePool, me: &MemberRow) -> AppResult<(Vec<InboxItem>, i64)> {
+pub(crate) async fn list(db: &SqlitePool, me: &MemberRow) -> AppResult<(Vec<InboxItem>, i64)> {
     let items = sqlx::query_as::<_, InboxItem>(concat!(
         "SELECT id, kind, round_id, actor_id, text, created_at, read_at IS NOT NULL AS read, \
          ?3 AS room_id FROM inbox WHERE member_id = ?2 AND ",
@@ -143,8 +143,8 @@ pub async fn list(db: &SqlitePool, me: &MemberRow) -> AppResult<(Vec<InboxItem>,
     Ok((items, unread))
 }
 
-pub const KEEP_DAYS: i64 = 90;
-pub const KEEP_PER_MEMBER: i64 = 200;
+pub(crate) const KEEP_DAYS: i64 = 90;
+pub(crate) const KEEP_PER_MEMBER: i64 = 200;
 
 pub async fn prune(db: &SqlitePool) -> AppResult<u64> {
     let old = sqlx::query(

@@ -29,7 +29,7 @@ use crate::{AppState, platform::config::Config};
 
 pub(crate) mod account;
 pub(crate) mod tokens;
-pub use account::*;
+pub(crate) use account::*;
 pub use tokens::*;
 
 pub use crypto::{totp_code, totp_match};
@@ -47,7 +47,7 @@ pub struct Auth {
 }
 
 impl Auth {
-    pub fn new(config: &Config, mailer: Arc<dyn Mailer>) -> std::io::Result<Self> {
+    pub(crate) fn new(config: &Config, mailer: Arc<dyn Mailer>) -> std::io::Result<Self> {
         Ok(Self {
             keys: crypto::Keys::load(config.auth_secret.as_deref(), &config.data_dir)?,
             hasher: crypto::Hasher::default(),
@@ -60,7 +60,7 @@ impl Auth {
         })
     }
 
-    pub fn mailer_from(config: &Config) -> Arc<dyn Mailer> {
+    pub(crate) fn mailer_from(config: &Config) -> Arc<dyn Mailer> {
         match &config.mailgun {
             Some(m) => Arc::new(MailgunMailer::new(m.clone())),
             None => Arc::new(LogMailer),
@@ -68,7 +68,7 @@ impl Auth {
     }
 }
 
-pub fn router() -> Router<AppState> {
+pub(crate) fn router() -> Router<AppState> {
     Router::new()
         .nest("/auth", auth_router())
         .route("/me", get(profile::me).put(profile::update_me))
@@ -123,7 +123,7 @@ fn auth_router() -> Router<AppState> {
         .route("/oauth/{provider}", delete(oauth::unlink))
 }
 
-pub fn features(state: &AppState) -> Vec<&'static str> {
+pub(crate) fn features(state: &AppState) -> Vec<&'static str> {
     let mut f = vec!["auth", "reauth", "tickets", "account_recovery"];
     if state.auth.mailer.configured() {
         f.push("email");

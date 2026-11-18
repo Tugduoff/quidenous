@@ -9,7 +9,10 @@ pub const AWAY_AFTER: i64 = 3;
 
 pub const QUORUM_HOURS: i64 = 24;
 
-pub async fn away(tx: &mut Transaction<'_, Sqlite>, group_id: RoomId) -> AppResult<Vec<MemberId>> {
+pub(crate) async fn away(
+    tx: &mut Transaction<'_, Sqlite>,
+    group_id: RoomId,
+) -> AppResult<Vec<MemberId>> {
     Ok(sqlx::query_scalar(concat!(
         "SELECT m.id FROM members m WHERE m.group_id = ?1 AND m.removed_at IS NULL AND ",
         away_sql!("?2"),
@@ -21,7 +24,7 @@ pub async fn away(tx: &mut Transaction<'_, Sqlite>, group_id: RoomId) -> AppResu
     .await?)
 }
 
-pub async fn not_waited(
+pub(crate) async fn not_waited(
     tx: &mut Transaction<'_, Sqlite>,
     group_id: RoomId,
     round_id: RoundId,
@@ -125,7 +128,7 @@ pub(super) async fn close_room_round(
     Ok(events)
 }
 
-pub async fn drop_round(
+pub(crate) async fn drop_round(
     tx: &mut Transaction<'_, Sqlite>,
     group_id: RoomId,
     round_id: RoundId,
@@ -160,7 +163,7 @@ pub async fn drop_round(
     Ok(events)
 }
 
-pub async fn close_party_round(
+pub(crate) async fn close_party_round(
     tx: &mut Transaction<'_, Sqlite>,
     group_id: RoomId,
     round_id: RoundId,
@@ -188,7 +191,10 @@ pub async fn close_party_round(
     Ok(vec![Event::RoundClosed { round_id }, Event::RoomUpdated])
 }
 
-pub async fn active_count(tx: &mut Transaction<'_, Sqlite>, group_id: RoomId) -> AppResult<i64> {
+pub(crate) async fn active_count(
+    tx: &mut Transaction<'_, Sqlite>,
+    group_id: RoomId,
+) -> AppResult<i64> {
     Ok(
         sqlx::query_scalar(
             "SELECT COUNT(*) FROM members WHERE group_id = ? AND removed_at IS NULL",
@@ -199,7 +205,7 @@ pub async fn active_count(tx: &mut Transaction<'_, Sqlite>, group_id: RoomId) ->
     )
 }
 
-pub async fn skipped(
+pub(crate) async fn skipped(
     tx: &mut Transaction<'_, Sqlite>,
     group_id: RoomId,
     round_id: RoundId,

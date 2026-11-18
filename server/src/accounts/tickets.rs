@@ -16,13 +16,13 @@ use crate::{
     platform::quotas::{TICKET_IP, TICKET_USER},
 };
 
-pub const TICKET_TTL: Duration = Duration::from_secs(60);
+pub(crate) const TICKET_TTL: Duration = Duration::from_secs(60);
 const MAX_TICKETS: usize = 10_000;
 pub const MAX_PER_SESSION: usize = 20;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum Purpose {
+pub(crate) enum Purpose {
     Export,
     Live,
 }
@@ -80,7 +80,7 @@ impl Tickets {
         Ok(ticket)
     }
 
-    pub fn redeem(&self, ticket: &str, purpose: Purpose) -> Option<String> {
+    pub(crate) fn redeem(&self, ticket: &str, purpose: Purpose) -> Option<String> {
         let mut map = self
             .map
             .lock()
@@ -91,11 +91,11 @@ impl Tickets {
 }
 
 #[derive(Deserialize)]
-pub struct TicketBody {
+pub(crate) struct TicketBody {
     purpose: Purpose,
 }
 
-pub async fn create(
+pub(crate) async fn create(
     State(state): State<AppState>,
     ClientIp(ip): ClientIp,
     session: Session,

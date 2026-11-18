@@ -14,7 +14,7 @@ use axum::{Router, routing::get};
 
 use crate::AppState;
 
-pub fn router() -> Router<AppState> {
+pub(crate) fn router() -> Router<AppState> {
     Router::new()
         .route("/features", get(features::features))
         .route("/donate", get(features::donate))

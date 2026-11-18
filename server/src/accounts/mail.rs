@@ -59,7 +59,7 @@ pub struct MailgunMailer {
 }
 
 impl MailgunMailer {
-    pub fn new(config: Mailgun) -> Self {
+    pub(crate) fn new(config: Mailgun) -> Self {
         let http = reqwest::Client::builder()
             .timeout(Duration::from_secs(10))
             .build()
@@ -120,18 +120,18 @@ pub struct Watched {
 }
 
 impl Watched {
-    pub fn new(inner: Arc<dyn Mailer>) -> Self {
+    pub(crate) fn new(inner: Arc<dyn Mailer>) -> Self {
         Self {
             inner,
             failed_at: Mutex::new(None),
         }
     }
 
-    pub fn configured(&self) -> bool {
+    pub(crate) fn configured(&self) -> bool {
         self.inner.configured()
     }
 
-    pub fn healthy(&self) -> bool {
+    pub(crate) fn healthy(&self) -> bool {
         let failed = self
             .failed_at
             .lock()

@@ -29,7 +29,7 @@ pub struct MemberRow {
 }
 
 #[derive(Clone, Debug, Serialize)]
-pub struct Member {
+pub(crate) struct Member {
     pub id: MemberId,
     pub name: String,
     pub color: String,
@@ -40,7 +40,7 @@ pub struct Member {
 }
 
 impl MemberRow {
-    pub fn is_owner(&self) -> bool {
+    pub(crate) fn is_owner(&self) -> bool {
         self.role == Role::Owner
     }
 }

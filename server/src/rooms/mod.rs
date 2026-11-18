@@ -16,7 +16,7 @@ use axum::{
 
 use crate::AppState;
 
-pub fn router() -> Router<AppState> {
+pub(crate) fn router() -> Router<AppState> {
     Router::new()
         .route("/vibes", get(vibes::list))
         .route("/join", post(members::join))

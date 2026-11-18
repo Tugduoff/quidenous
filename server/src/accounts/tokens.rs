@@ -18,9 +18,9 @@ use crate::{
 
 use super::{codes, crypto, mfa};
 
-pub struct ClientIp(pub Option<IpAddr>);
+pub(crate) struct ClientIp(pub Option<IpAddr>);
 
-pub fn client_ip(
+pub(crate) fn client_ip(
     parts_headers: &HeaderMap,
     connect: Option<SocketAddr>,
     trust_proxy: bool,
@@ -58,7 +58,7 @@ impl FromRequestParts<AppState> for ClientIp {
     }
 }
 
-pub fn device_label(headers: &HeaderMap) -> Option<String> {
+pub(crate) fn device_label(headers: &HeaderMap) -> Option<String> {
     let header = |h: &str| {
         headers
             .get(h)
@@ -93,7 +93,7 @@ pub(super) fn percent_decode(s: &str) -> String {
     String::from_utf8_lossy(&out).into_owned()
 }
 
-pub struct Device(pub Option<String>);
+pub(crate) struct Device(pub Option<String>);
 
 impl<S: Send + Sync> FromRequestParts<S> for Device {
     type Rejection = std::convert::Infallible;
@@ -113,7 +113,7 @@ pub(crate) fn bearer(headers: &HeaderMap) -> Option<&str> {
         .and_then(|v| v.strip_prefix("Bearer "))
 }
 
-pub struct Session {
+pub(crate) struct Session {
     pub user_id: UserId,
     pub token_hash: String,
 }
@@ -135,7 +135,7 @@ impl FromRequestParts<AppState> for Session {
     }
 }
 
-pub struct MaybeSession(pub Option<Session>);
+pub(crate) struct MaybeSession(pub Option<Session>);
 
 impl FromRequestParts<AppState> for MaybeSession {
     type Rejection = AppError;
@@ -155,7 +155,7 @@ impl FromRequestParts<AppState> for MaybeSession {
 
 pub(super) const TOUCH_EVERY: Duration = Duration::from_mins(5);
 
-pub async fn touch(state: &AppState, token_hash: &str) {
+pub(crate) async fn touch(state: &AppState, token_hash: &str) {
     {
         let mut touched = state
             .auth
@@ -184,7 +184,7 @@ pub async fn touch(state: &AppState, token_hash: &str) {
     }
 }
 
-pub async fn label(state: &AppState, token: &str, headers: &HeaderMap) {
+pub(crate) async fn label(state: &AppState, token: &str, headers: &HeaderMap) {
     let Some(device) = device_label(headers) else {
         return;
     };
@@ -242,7 +242,7 @@ pub async fn issue_token(
 
 pub const MAX_SESSIONS: i64 = 20;
 
-pub const IDLE_DAYS: i64 = 180;
+pub(crate) const IDLE_DAYS: i64 = 180;
 
 pub async fn purge_idle_sessions(state: &AppState) -> AppResult<u64> {
     let done = sqlx::query(

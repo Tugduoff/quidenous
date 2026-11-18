@@ -12,14 +12,14 @@ use crate::{
     platform::i18n::{self, Lang},
 };
 
-pub const TIMERS: [i64; 5] = [15, 20, 30, 45, 60];
-pub const DEFAULT_TIMER: i64 = 30;
-pub const HOURS: [i64; 4] = [2, 4, 8, 12];
-pub const DEFAULT_HOURS: i64 = 4;
+pub(crate) const TIMERS: [i64; 5] = [15, 20, 30, 45, 60];
+pub(crate) const DEFAULT_TIMER: i64 = 30;
+pub(crate) const HOURS: [i64; 4] = [2, 4, 8, 12];
+pub(crate) const DEFAULT_HOURS: i64 = 4;
 pub const MAX_PLAYERS: i64 = 40;
-pub const EMOJIS: [&str; 8] = crate::chat::reactions::RESULT_EMOJIS;
+pub(crate) const EMOJIS: [&str; 8] = crate::chat::reactions::RESULT_EMOJIS;
 const CODE_LEN: usize = 8;
-pub const SCREEN_GRACE_MINUTES: i64 = 15;
+pub(crate) const SCREEN_GRACE_MINUTES: i64 = 15;
 const NAME_MAX: usize = 40;
 const SWEEP: std::time::Duration = std::time::Duration::from_secs(5);
 
@@ -33,10 +33,10 @@ mod flow;
 mod handlers;
 mod view;
 pub use flow::*;
-pub use handlers::*;
-pub use view::*;
+pub(crate) use handlers::*;
+pub(crate) use view::*;
 
-pub fn router() -> Router<AppState> {
+pub(crate) fn router() -> Router<AppState> {
     Router::new()
         .route("/parties", post(create))
         .route("/parties/join", post(join))
@@ -51,11 +51,11 @@ pub fn router() -> Router<AppState> {
         .route("/parties/{id}/keep", post(keep))
 }
 
-pub fn needed(players: i64) -> i64 {
+pub(crate) fn needed(players: i64) -> i64 {
     (3 * players + 3) / 4
 }
 
-pub const REVEAL_GRACE_SECS: i64 = 60;
+pub(crate) const REVEAL_GRACE_SECS: i64 = 60;
 
 async fn needed_now(
     state: &AppState,
@@ -83,7 +83,7 @@ async fn db_now(state: &AppState) -> AppResult<String> {
         .await?)
 }
 
-pub async fn by_code(state: &AppState, code: &str) -> AppResult<RoomId> {
+pub(crate) async fn by_code(state: &AppState, code: &str) -> AppResult<RoomId> {
     sqlx::query_scalar(
         "SELECT id FROM groups WHERE join_code = ? AND kind = 'party' AND deleted_at IS NULL",
     )
@@ -93,7 +93,11 @@ pub async fn by_code(state: &AppState, code: &str) -> AppResult<RoomId> {
     .ok_or(AppError::NotFound)
 }
 
-pub async fn screen_by_code(state: &AppState, code: &str, ip: Option<IpAddr>) -> AppResult<RoomId> {
+pub(crate) async fn screen_by_code(
+    state: &AppState,
+    code: &str,
+    ip: Option<IpAddr>,
+) -> AppResult<RoomId> {
     let attempt = crate::platform::quotas::code_attempt(state, None, ip)?;
     let id = by_code(state, code).await?;
     attempt.found();
@@ -104,7 +108,7 @@ pub async fn screen_by_code(state: &AppState, code: &str, ip: Option<IpAddr>) ->
     }
 }
 
-pub async fn screen_alive(state: &AppState, id: RoomId) -> AppResult<bool> {
+pub(crate) async fn screen_alive(state: &AppState, id: RoomId) -> AppResult<bool> {
     Ok(sqlx::query_scalar(concat!(
         "SELECT EXISTS (SELECT 1 FROM groups WHERE id = ? AND kind = 'party' AND deleted_at IS NULL \
          AND COALESCE(party_ended_at, party_ends_at, ",

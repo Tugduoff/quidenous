@@ -15,7 +15,7 @@ const SEED_USAGE: &str =
 const BACKUP_USAGE: &str = "usage: server --backup <file.db>";
 
 #[derive(Debug, PartialEq, Eq)]
-pub enum Command {
+pub(crate) enum Command {
     Serve,
     Health,
     GenVapid,
@@ -34,7 +34,7 @@ pub enum Command {
 }
 
 impl Command {
-    pub fn parse(args: &[String]) -> Self {
+    pub(crate) fn parse(args: &[String]) -> Self {
         let has = |flag: &str| args.iter().any(|a| a == flag);
         if has("--gen-vapid") {
             return Self::GenVapid;

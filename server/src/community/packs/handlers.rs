@@ -26,7 +26,7 @@ use super::{
     stored_questions, stored_tags,
 };
 
-pub async fn publish(
+pub(crate) async fn publish(
     State(state): State<AppState>,
     crate::accounts::auth::Account(user): crate::accounts::auth::Account,
     headers: HeaderMap,
@@ -111,7 +111,7 @@ pub async fn publish(
     ))
 }
 
-pub async fn edit(
+pub(crate) async fn edit(
     State(state): State<AppState>,
     crate::accounts::auth::Account(me): crate::accounts::auth::Account,
     headers: HeaderMap,
@@ -182,7 +182,7 @@ pub async fn edit(
     Ok(Json(item(&state, row, me).await?))
 }
 
-pub async fn mine(
+pub(crate) async fn mine(
     State(state): State<AppState>,
     SignedIn(me): SignedIn,
     headers: HeaderMap,
@@ -198,7 +198,7 @@ pub async fn mine(
     Ok(Json(json!(items(&state, rows, me).await?)))
 }
 
-pub async fn install(
+pub(crate) async fn install(
     State(state): State<AppState>,
     Me(me): Me,
     Path(id): Path<PackId>,
@@ -313,7 +313,7 @@ pub(super) async fn set_like(
     Ok(Json(json!({ "likes": likes, "liked": on })))
 }
 
-pub async fn like(
+pub(crate) async fn like(
     State(state): State<AppState>,
     crate::accounts::auth::Account(me): crate::accounts::auth::Account,
     Path(id): Path<PackId>,
@@ -322,7 +322,7 @@ pub async fn like(
     set_like(&state, me, id, true).await
 }
 
-pub async fn unlike(
+pub(crate) async fn unlike(
     State(state): State<AppState>,
     crate::accounts::auth::Account(me): crate::accounts::auth::Account,
     Path(id): Path<PackId>,
@@ -331,7 +331,7 @@ pub async fn unlike(
 }
 
 #[derive(Deserialize, Default)]
-pub struct ReportBody {
+pub(crate) struct ReportBody {
     reason: Option<String>,
     details: Option<String>,
 }
@@ -346,7 +346,7 @@ pub(crate) fn optional_body<T: serde::de::DeserializeOwned + Default>(
     serde_json::from_slice(body).map_err(|_| AppError::BadRequest(code))
 }
 
-pub async fn report(
+pub(crate) async fn report(
     State(state): State<AppState>,
     crate::accounts::auth::Account(me): crate::accounts::auth::Account,
     Path(id): Path<PackId>,
@@ -453,7 +453,7 @@ pub async fn report(
     Ok(Json(json!({ "ok": true })))
 }
 
-pub async fn delete(
+pub(crate) async fn delete(
     State(state): State<AppState>,
     SignedIn(me): SignedIn,
     Path(id): Path<PackId>,
@@ -470,7 +470,7 @@ pub async fn delete(
     Ok(Json(json!({ "ok": true })))
 }
 
-pub async fn delete_many(
+pub(crate) async fn delete_many(
     State(state): State<AppState>,
     SignedIn(me): SignedIn,
     Json(body): Json<crate::rounds::queue::IdsBody<PackId>>,
@@ -495,7 +495,7 @@ pub async fn delete_many(
     Ok(Json(json!({ "deleted": deleted, "skipped": skipped })))
 }
 
-pub async fn creator(
+pub(crate) async fn creator(
     State(state): State<AppState>,
     SignedIn(me): SignedIn,
     headers: HeaderMap,
@@ -547,7 +547,7 @@ pub(super) async fn community_state(state: &AppState, me: UserId) -> AppResult<V
     }))
 }
 
-pub async fn community_me(
+pub(crate) async fn community_me(
     State(state): State<AppState>,
     SignedIn(me): SignedIn,
 ) -> AppResult<Json<Value>> {
@@ -555,11 +555,11 @@ pub async fn community_me(
 }
 
 #[derive(Deserialize)]
-pub struct CommunityBody {
+pub(crate) struct CommunityBody {
     show_spicy: bool,
 }
 
-pub async fn set_community_me(
+pub(crate) async fn set_community_me(
     State(state): State<AppState>,
     crate::accounts::auth::Account(me): crate::accounts::auth::Account,
     Json(body): Json<CommunityBody>,

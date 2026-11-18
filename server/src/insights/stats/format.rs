@@ -176,7 +176,7 @@ pub(super) fn titles(s: &Stats) -> HashMap<MemberId, Vec<&'static str>> {
     t
 }
 
-pub fn meta(key: &str, lang: Lang) -> (&'static str, &'static str) {
+pub(crate) fn meta(key: &str, lang: Lang) -> (&'static str, &'static str) {
     let (fr, en, icon) = match key {
         "most_chosen" => ("La star", "The star", "star"),
         "most_crowned" => ("Collection de couronnes", "Crown collector", "crown"),

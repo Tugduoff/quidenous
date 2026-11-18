@@ -12,11 +12,11 @@ use crate::{
     rounds::game,
 };
 
-pub const DELAYS: [i64; 6] = [0, 900, 3600, 10800, 43200, 86400];
+pub(crate) const DELAYS: [i64; 6] = [0, 900, 3600, 10800, 43200, 86400];
 
 const TICK: std::time::Duration = std::time::Duration::from_secs(20);
 
-pub async fn pause(tx: &mut Transaction<'_, Sqlite>, group_id: RoomId) -> AppResult<bool> {
+pub(crate) async fn pause(tx: &mut Transaction<'_, Sqlite>, group_id: RoomId) -> AppResult<bool> {
     let done = sqlx::query(
         "UPDATE groups SET paused_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), \
          next_open_at = CASE WHEN next_delay > 0 \
@@ -52,7 +52,7 @@ async fn announce(
     }
 }
 
-pub async fn open_if_idle(
+pub(crate) async fn open_if_idle(
     state: &AppState,
     group_id: RoomId,
     actor: Option<MemberId>,
@@ -81,7 +81,7 @@ fn owner_wait() -> String {
     format!("-{} hours", crate::rooms::flow::OWNER_NEXT_HOURS)
 }
 
-pub async fn view(state: &AppState, group_id: RoomId) -> AppResult<Value> {
+pub(crate) async fn view(state: &AppState, group_id: RoomId) -> AppResult<Value> {
     let (paused, next_open_at): (bool, Option<String>) =
         sqlx::query_as("SELECT paused_at IS NOT NULL, next_open_at FROM groups WHERE id = ?")
             .bind(group_id)
@@ -100,7 +100,7 @@ pub async fn view(state: &AppState, group_id: RoomId) -> AppResult<Value> {
     Ok(json!({ "waiting": paused, "next_open_at": next_open_at, "round_id": round_id }))
 }
 
-pub async fn settings_changed(state: &AppState, group_id: RoomId) -> AppResult<()> {
+pub(crate) async fn settings_changed(state: &AppState, group_id: RoomId) -> AppResult<()> {
     let mut tx = crate::platform::db::write_tx(&state.db).await?;
     sqlx::query(
         "UPDATE groups SET next_open_at = CASE WHEN next_delay > 0 \
@@ -129,7 +129,7 @@ pub async fn settings_changed(state: &AppState, group_id: RoomId) -> AppResult<(
     Ok(())
 }
 
-pub async fn launch(
+pub(crate) async fn launch(
     State(state): State<AppState>,
     RoomOwner(me): RoomOwner,
 ) -> AppResult<Json<Value>> {
@@ -199,7 +199,7 @@ pub async fn open_due(state: &AppState) -> AppResult<usize> {
     open_due_at(state, &now).await
 }
 
-pub fn spawn_scheduler(state: AppState) {
+pub(crate) fn spawn_scheduler(state: AppState) {
     tokio::spawn(async move {
         let mut tick = tokio::time::interval(TICK);
         tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);

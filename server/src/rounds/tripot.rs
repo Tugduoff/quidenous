@@ -16,7 +16,7 @@ use crate::{
 };
 
 pub const START: i64 = 100;
-pub const DAILY: i64 = 20;
+pub(crate) const DAILY: i64 = 20;
 pub const CAP: i64 = 500;
 
 macro_rules! month {
@@ -26,7 +26,10 @@ macro_rules! month {
 }
 pub(crate) use month;
 
-pub async fn enabled<'e, E: sqlx::SqliteExecutor<'e>>(db: E, group_id: RoomId) -> AppResult<bool> {
+pub(crate) async fn enabled<'e, E: sqlx::SqliteExecutor<'e>>(
+    db: E,
+    group_id: RoomId,
+) -> AppResult<bool> {
     Ok(
         sqlx::query_scalar("SELECT kind = 'room' AND tripot FROM groups WHERE id = ?")
             .bind(group_id)
@@ -53,7 +56,7 @@ pub async fn balance<'e, E: sqlx::SqliteExecutor<'e>>(
     Ok(START + sum)
 }
 
-pub async fn on_vote(
+pub(crate) async fn on_vote(
     tx: &mut Transaction<'_, Sqlite>,
     group_id: RoomId,
     member_id: MemberId,
@@ -193,7 +196,7 @@ async fn pay(
     Ok(())
 }
 
-pub async fn refund(tx: &mut Transaction<'_, Sqlite>, round_id: RoundId) -> AppResult<()> {
+pub(crate) async fn refund(tx: &mut Transaction<'_, Sqlite>, round_id: RoundId) -> AppResult<()> {
     let bets: Vec<(i64, MemberId, i64, RoomId, String)> = sqlx::query_as(
         "SELECT b.id, b.member_id, b.amount, r.group_id, b.month FROM tripot_bets b \
          JOIN rounds r ON r.id = b.round_id WHERE b.round_id = ? AND b.payout IS NULL",
@@ -207,7 +210,10 @@ pub async fn refund(tx: &mut Transaction<'_, Sqlite>, round_id: RoundId) -> AppR
     Ok(())
 }
 
-pub async fn cancel_open(tx: &mut Transaction<'_, Sqlite>, group_id: RoomId) -> AppResult<bool> {
+pub(crate) async fn cancel_open(
+    tx: &mut Transaction<'_, Sqlite>,
+    group_id: RoomId,
+) -> AppResult<bool> {
     let open: Option<RoundId> =
         sqlx::query_scalar("SELECT id FROM rounds WHERE group_id = ? AND closed_at IS NULL")
             .bind(group_id)
@@ -224,7 +230,7 @@ pub async fn cancel_open(tx: &mut Transaction<'_, Sqlite>, group_id: RoomId) -> 
     Ok(done.rows_affected() > 0)
 }
 
-pub async fn set_enabled(
+pub(crate) async fn set_enabled(
     tx: &mut Transaction<'_, Sqlite>,
     group_id: RoomId,
     on: bool,
@@ -240,7 +246,10 @@ pub async fn set_enabled(
     Ok(())
 }
 
-pub async fn after_anonymous(tx: &mut Transaction<'_, Sqlite>, group_id: RoomId) -> AppResult<()> {
+pub(crate) async fn after_anonymous(
+    tx: &mut Transaction<'_, Sqlite>,
+    group_id: RoomId,
+) -> AppResult<()> {
     let anonymous: bool = sqlx::query_scalar(
         "SELECT COALESCE((SELECT anonymous FROM rounds WHERE group_id = ? AND closed_at IS NULL), 0)",
     )
@@ -254,21 +263,21 @@ pub async fn after_anonymous(tx: &mut Transaction<'_, Sqlite>, group_id: RoomId)
 }
 
 #[derive(Clone, Debug, Serialize)]
-pub struct MyBet {
+pub(crate) struct MyBet {
     pub target_id: MemberId,
     pub amount: i64,
     pub payout: Option<i64>,
 }
 
 #[derive(Clone, Debug, Serialize)]
-pub struct Winner {
+pub(crate) struct Winner {
     pub member_id: MemberId,
     pub stake: i64,
     pub won: i64,
 }
 
 #[derive(Clone, Debug, Serialize)]
-pub struct TripotView {
+pub(crate) struct TripotView {
     pub pot: i64,
     pub bettors: i64,
     pub my_bet: Option<MyBet>,
@@ -278,7 +287,7 @@ pub struct TripotView {
     pub refunded: bool,
 }
 
-pub fn takes_bets(kind: &str, anonymous: bool) -> bool {
+pub(crate) fn takes_bets(kind: &str, anonymous: bool) -> bool {
     matches!(kind, "pick" | "rank") && !anonymous
 }
 
@@ -286,7 +295,7 @@ async fn bettable<'e, E: sqlx::SqliteExecutor<'e>>(db: E, round: &RoundRow) -> A
     Ok(takes_bets(&round.kind, round.anonymous) && enabled(db, round.group_id).await?)
 }
 
-pub async fn view(
+pub(crate) async fn view(
     db: &SqlitePool,
     round: &RoundRow,
     me: MemberId,
@@ -347,12 +356,12 @@ pub async fn view(
 }
 
 #[derive(Deserialize)]
-pub struct BetBody {
+pub(crate) struct BetBody {
     target: MemberId,
     amount: i64,
 }
 
-pub async fn bet(
+pub(crate) async fn bet(
     State(state): State<AppState>,
     Me(me): Me,
     Path(round_id): Path<RoundId>,
@@ -436,7 +445,7 @@ pub async fn bet(
     Ok(Json(view(&state.db, &round, me.id).await?))
 }
 
-pub async fn board(State(state): State<AppState>, Me(me): Me) -> AppResult<Json<Value>> {
+pub(crate) async fn board(State(state): State<AppState>, Me(me): Me) -> AppResult<Json<Value>> {
     if !enabled(&state.db, me.group_id).await? {
         return Err(AppError::Forbidden("tripot_off"));
     }

@@ -42,7 +42,7 @@ pub(crate) async fn may_add_questions(state: &AppState, me: &MemberRow) -> AppRe
     Ok(())
 }
 
-pub struct RoomMember(pub MemberRow);
+pub(crate) struct RoomMember(pub MemberRow);
 
 impl FromRequestParts<AppState> for RoomMember {
     type Rejection = Response;
@@ -76,7 +76,7 @@ impl FromRequestParts<AppState> for RoomMember {
     }
 }
 
-pub struct RoomOwner(pub MemberRow);
+pub(crate) struct RoomOwner(pub MemberRow);
 
 impl FromRequestParts<AppState> for RoomOwner {
     type Rejection = Response;

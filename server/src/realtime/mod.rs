@@ -12,7 +12,7 @@ use axum::{
 
 use crate::AppState;
 
-pub fn router() -> Router<AppState> {
+pub(crate) fn router() -> Router<AppState> {
     Router::new()
         .merge(widget::router())
         .route("/live", get(socket::live))

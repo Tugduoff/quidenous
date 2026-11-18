@@ -11,7 +11,7 @@ use std::{
 pub(super) const PRESENCE_TTL: Duration = Duration::from_secs(45);
 
 #[derive(Clone, Default)]
-pub struct Presence {
+pub(crate) struct Presence {
     seats: Arc<std::sync::Mutex<HashMap<Seat, Connections>>>,
     next_connection: Arc<AtomicU64>,
 }
@@ -21,11 +21,11 @@ pub(super) type Seat = (UserId, RoomId);
 pub(super) type Connections = HashMap<u64, Instant>;
 
 impl Presence {
-    pub fn connection(&self) -> u64 {
+    pub(crate) fn connection(&self) -> u64 {
         self.next_connection.fetch_add(1, Ordering::Relaxed)
     }
 
-    pub fn here(&self, user_id: UserId, group_id: RoomId, connection: u64) {
+    pub(crate) fn here(&self, user_id: UserId, group_id: RoomId, connection: u64) {
         let mut map = self
             .seats
             .lock()
@@ -35,7 +35,7 @@ impl Presence {
             .insert(connection, Instant::now());
     }
 
-    pub fn away(&self, user_id: UserId, group_id: RoomId, connection: u64) {
+    pub(crate) fn away(&self, user_id: UserId, group_id: RoomId, connection: u64) {
         let mut map = self
             .seats
             .lock()
@@ -48,7 +48,7 @@ impl Presence {
         }
     }
 
-    pub fn is_here(&self, user_id: UserId, group_id: RoomId) -> bool {
+    pub(crate) fn is_here(&self, user_id: UserId, group_id: RoomId) -> bool {
         let map = self
             .seats
             .lock()

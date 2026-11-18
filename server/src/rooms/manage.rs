@@ -96,7 +96,7 @@ type RoomRow = (
     bool,
 );
 
-pub async fn list(
+pub(crate) async fn list(
     State(state): State<AppState>,
     SignedIn(user): SignedIn,
 ) -> AppResult<Json<Value>> {
@@ -151,7 +151,7 @@ pub async fn list(
 }
 
 #[derive(Deserialize)]
-pub struct CreateBody {
+pub(crate) struct CreateBody {
     name: String,
     #[serde(default)]
     vibe: Option<String>,
@@ -182,7 +182,7 @@ async fn owned_rooms<'e, E: sqlx::SqliteExecutor<'e>>(db: E, user: UserId) -> Ap
     .await?)
 }
 
-pub async fn create(
+pub(crate) async fn create(
     State(state): State<AppState>,
     crate::accounts::auth::Account(user): crate::accounts::auth::Account,
     Json(body): Json<CreateBody>,
@@ -247,11 +247,11 @@ pub async fn create(
 }
 
 #[derive(Deserialize)]
-pub struct JoinBody {
+pub(crate) struct JoinBody {
     code: String,
 }
 
-pub async fn join(
+pub(crate) async fn join(
     State(state): State<AppState>,
     SignedIn(user): SignedIn,
     crate::accounts::ClientIp(ip): crate::accounts::ClientIp,
@@ -334,13 +334,13 @@ pub async fn join(
 }
 
 #[derive(Deserialize)]
-pub struct PreviewQuery {
+pub(crate) struct PreviewQuery {
     code: String,
 }
 
 const PREVIEW_NAMES: usize = 3;
 
-pub async fn preview(
+pub(crate) async fn preview(
     State(state): State<AppState>,
     crate::accounts::ClientIp(ip): crate::accounts::ClientIp,
     Query(q): Query<PreviewQuery>,
@@ -377,7 +377,7 @@ pub async fn preview(
 }
 
 #[derive(Deserialize)]
-pub struct SettingsBody {
+pub(crate) struct SettingsBody {
     name: Option<String>,
     skip_vote: Option<bool>,
     kick_vote: Option<bool>,
@@ -390,7 +390,7 @@ pub struct SettingsBody {
     tripot: Option<bool>,
 }
 
-pub async fn update(
+pub(crate) async fn update(
     State(state): State<AppState>,
     RoomOwner(me): RoomOwner,
     Json(body): Json<SettingsBody>,
@@ -471,7 +471,7 @@ pub async fn update(
     Ok(Json(json!({ "ok": true })))
 }
 
-pub async fn rotate_code(
+pub(crate) async fn rotate_code(
     State(state): State<AppState>,
     RoomOwner(me): RoomOwner,
 ) -> AppResult<Json<Value>> {
@@ -491,7 +491,7 @@ pub async fn rotate_code(
     Err(AppError::Conflict("code_clash"))
 }
 
-pub async fn force_remove(
+pub(crate) async fn force_remove(
     State(state): State<AppState>,
     RoomOwner(me): RoomOwner,
     Path((_, member_id)): Path<(RoomId, MemberId)>,
@@ -515,11 +515,11 @@ pub async fn force_remove(
 }
 
 #[derive(Deserialize)]
-pub struct OwnerBody {
+pub(crate) struct OwnerBody {
     member_id: MemberId,
 }
 
-pub async fn transfer(
+pub(crate) async fn transfer(
     State(state): State<AppState>,
     RoomMember(me): RoomMember,
     Json(body): Json<OwnerBody>,
@@ -559,7 +559,7 @@ pub async fn transfer(
     Ok(Json(json!({ "ok": true })))
 }
 
-pub async fn leave(
+pub(crate) async fn leave(
     State(state): State<AppState>,
     RoomMember(me): RoomMember,
 ) -> AppResult<Json<Value>> {
@@ -593,7 +593,7 @@ pub(crate) async fn leave_seat(state: &AppState, me: &MemberRow) -> AppResult<bo
     Ok(false)
 }
 
-pub async fn delete(
+pub(crate) async fn delete(
     State(state): State<AppState>,
     RoomOwner(me): RoomOwner,
 ) -> AppResult<Json<Value>> {
@@ -622,7 +622,7 @@ async fn room_deleted(state: &AppState, room: RoomId) {
     state.live.send(room, Event::RoomDeleted);
 }
 
-pub fn member_with_role(m: &MemberRow) -> Value {
+pub(crate) fn member_with_role(m: &MemberRow) -> Value {
     let mut v = serde_json::to_value(Member::from(m)).unwrap_or_default();
     v["role"] = json!(m.role);
     v["user_id"] = json!(m.user_id);
@@ -630,14 +630,14 @@ pub fn member_with_role(m: &MemberRow) -> Value {
 }
 
 #[derive(Deserialize)]
-pub struct StartBody {
+pub(crate) struct StartBody {
     name: String,
     room: String,
     #[serde(default)]
     vibe: Option<String>,
 }
 
-pub async fn start(
+pub(crate) async fn start(
     State(state): State<AppState>,
     crate::accounts::ClientIp(ip): crate::accounts::ClientIp,
     crate::accounts::Device(device): crate::accounts::Device,
@@ -688,7 +688,7 @@ pub async fn start(
     ))
 }
 
-pub async fn uses_join_code(db: &sqlx::SqlitePool, code: &str) -> AppResult<bool> {
+pub(crate) async fn uses_join_code(db: &sqlx::SqlitePool, code: &str) -> AppResult<bool> {
     Ok(sqlx::query_scalar(
         "SELECT EXISTS (SELECT 1 FROM groups WHERE join_code = ? AND deleted_at IS NULL)",
     )

@@ -16,21 +16,21 @@ use crate::{
 
 pub const DAY: i64 = 86_400;
 
-pub const REMIND_MIN: i64 = 3;
+pub(crate) const REMIND_MIN: i64 = 3;
 
-pub const REMIND_WINDOW: std::ops::Range<i64> = 19 * 60..20 * 60;
+pub(crate) const REMIND_WINDOW: std::ops::Range<i64> = 19 * 60..20 * 60;
 
-pub const LATE: i64 = 20 * 60;
+pub(crate) const LATE: i64 = 20 * 60;
 
 const REMIND_EVERY: std::time::Duration = std::time::Duration::from_mins(5);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Day {
+pub(crate) enum Day {
     Voted,
     Missed,
 }
 
-pub type Days = BTreeMap<i64, Day>;
+pub(crate) type Days = BTreeMap<i64, Day>;
 
 type Away = Vec<(i64, bool)>;
 
@@ -76,7 +76,7 @@ macro_rules! counts {
     };
 }
 
-pub fn local_day(t: i64, tz_minutes: i64) -> i64 {
+pub(crate) fn local_day(t: i64, tz_minutes: i64) -> i64 {
     (t + tz_minutes * 60).div_euclid(DAY)
 }
 
@@ -90,7 +90,7 @@ pub fn now_secs() -> i64 {
         .map_or(0, |d| d.as_secs() as i64)
 }
 
-pub fn streak(days: &Days, today: i64) -> Streak {
+pub(crate) fn streak(days: &Days, today: i64) -> Streak {
     let mut current = 0;
     for (&d, &s) in days.range(..=today).rev() {
         match s {
@@ -127,7 +127,7 @@ impl Room {
         Self::load_with(db, group_id, false).await
     }
 
-    pub async fn load_history(db: &SqlitePool, group_id: RoomId) -> AppResult<Option<Room>> {
+    pub(crate) async fn load_history(db: &SqlitePool, group_id: RoomId) -> AppResult<Option<Room>> {
         Self::load_with(db, group_id, true).await
     }
 
@@ -188,7 +188,7 @@ impl Room {
         Ok(Some(Room::assemble(rounds, seats, votes, skips)))
     }
 
-    pub async fn load_seats(
+    pub(crate) async fn load_seats(
         db: &SqlitePool,
         seats: &[MemberId],
     ) -> AppResult<HashMap<RoomId, Room>> {
@@ -325,7 +325,7 @@ impl Room {
             .unwrap_or_else(|| self.room_tz())
     }
 
-    pub fn members(&self) -> impl Iterator<Item = MemberId> + '_ {
+    pub(crate) fn members(&self) -> impl Iterator<Item = MemberId> + '_ {
         self.seats.iter().filter(|s| s.left.is_none()).map(|s| s.id)
     }
 
@@ -333,7 +333,7 @@ impl Room {
         self.skipped.contains(&(round, member))
     }
 
-    pub fn days(&self, member: MemberId, tz: i64, now: i64) -> Days {
+    pub(crate) fn days(&self, member: MemberId, tz: i64, now: i64) -> Days {
         let mut out = Days::new();
         let Some(seat) = self.seats.iter().find(|s| s.id == member) else {
             return out;
@@ -414,7 +414,7 @@ impl Room {
         out
     }
 
-    pub fn room_days(&self, now: i64) -> Days {
+    pub(crate) fn room_days(&self, now: i64) -> Days {
         let tz = self.room_tz();
         let per: Vec<(&Seat, Days, Away)> = self
             .seats
@@ -458,7 +458,7 @@ impl Room {
     }
 }
 
-pub async fn get(State(state): State<AppState>, Me(me): Me) -> AppResult<Json<Value>> {
+pub(crate) async fn get(State(state): State<AppState>, Me(me): Me) -> AppResult<Json<Value>> {
     let now = now_secs();
     let Some(room) = Room::load(&state.db, me.group_id).await? else {
         return Ok(Json(json!({ "members": {}, "room": null })));
@@ -476,7 +476,11 @@ pub struct Records {
     pub room: Streak,
 }
 
-pub async fn records(db: &SqlitePool, group_id: RoomId, now: i64) -> AppResult<Option<Records>> {
+pub(crate) async fn records(
+    db: &SqlitePool,
+    group_id: RoomId,
+    now: i64,
+) -> AppResult<Option<Records>> {
     let Some(room) = Room::load(db, group_id).await? else {
         return Ok(None);
     };
@@ -587,7 +591,7 @@ pub async fn remind_at(state: &AppState, now: i64) -> AppResult<Vec<MemberId>> {
     Ok(reminded)
 }
 
-pub fn spawn_reminder(state: AppState) {
+pub(crate) fn spawn_reminder(state: AppState) {
     tokio::spawn(async move {
         let mut tick = tokio::time::interval(REMIND_EVERY);
         tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);

@@ -22,31 +22,31 @@ const fn rule(name: &'static str, capacity: u32, minutes: u64) -> Rule {
     }
 }
 
-pub const EMAIL_IP: Rule = rule("email_ip", 40, 10);
+pub(crate) const EMAIL_IP: Rule = rule("email_ip", 40, 10);
 pub const SIGNUP_IP: Rule = rule("signup_ip", 30, 60);
 pub const LOGIN_IP: Rule = rule("login_ip", 30, 10);
-pub const LOGIN_ACCOUNT_IP: Rule = rule("login_ip_account", 5, 15);
-pub const LOGIN_ACCOUNT: Rule = rule("login_account", 40, 60);
-pub const MFA_IP: Rule = rule("mfa_ip", 10, 10);
-pub const MFA_ACCOUNT: Rule = rule("mfa_account", 5, 15);
-pub const FORGOT_IP: Rule = rule("forgot_ip", 5, 60);
-pub const FORGOT_ACCOUNT: Rule = rule("forgot_account", 3, 60);
-pub const CODE_IP: Rule = rule("code_ip", 10, 10);
-pub const RESET_ACCOUNT: Rule = rule("reset_account", 10, 60);
-pub const VERIFY_SEND_ACCOUNT: Rule = rule("verify_send_account", 5, 60);
-pub const OAUTH_IP: Rule = rule("oauth_ip", 20, 10);
-pub const LEGACY_IP: Rule = rule("legacy_ip", 10, 60);
+pub(crate) const LOGIN_ACCOUNT_IP: Rule = rule("login_ip_account", 5, 15);
+pub(crate) const LOGIN_ACCOUNT: Rule = rule("login_account", 40, 60);
+pub(crate) const MFA_IP: Rule = rule("mfa_ip", 10, 10);
+pub(crate) const MFA_ACCOUNT: Rule = rule("mfa_account", 5, 15);
+pub(crate) const FORGOT_IP: Rule = rule("forgot_ip", 5, 60);
+pub(crate) const FORGOT_ACCOUNT: Rule = rule("forgot_account", 3, 60);
+pub(crate) const CODE_IP: Rule = rule("code_ip", 10, 10);
+pub(crate) const RESET_ACCOUNT: Rule = rule("reset_account", 10, 60);
+pub(crate) const VERIFY_SEND_ACCOUNT: Rule = rule("verify_send_account", 5, 60);
+pub(crate) const OAUTH_IP: Rule = rule("oauth_ip", 20, 10);
+pub(crate) const LEGACY_IP: Rule = rule("legacy_ip", 10, 60);
 pub const PARTY_GUEST_IP: Rule = rule("party_guest_ip", 120, 60);
-pub const ROOM_PREVIEW_IP: Rule = rule("room_preview_ip", 30, 10);
-pub const DELETE_SEND_IP: Rule = rule("delete_send_ip", 5, 60);
-pub const DELETE_SEND_ACCOUNT: Rule = rule("delete_send_account", 3, 60);
-pub const DELETE_CONFIRM_ACCOUNT: Rule = rule("delete_confirm_account", 10, 60);
-pub const REPORT_USER: Rule = rule("report_user", 20, 60);
-pub const REPORT_MAIL: Rule = rule("report_mail", 30, 60);
-pub const CLIENT_ERROR_IP: Rule = rule("client_error_ip", 20, 10);
-pub const CLIENT_ERROR_USER: Rule = rule("client_error_user", 10, 10);
+pub(crate) const ROOM_PREVIEW_IP: Rule = rule("room_preview_ip", 30, 10);
+pub(crate) const DELETE_SEND_IP: Rule = rule("delete_send_ip", 5, 60);
+pub(crate) const DELETE_SEND_ACCOUNT: Rule = rule("delete_send_account", 3, 60);
+pub(crate) const DELETE_CONFIRM_ACCOUNT: Rule = rule("delete_confirm_account", 10, 60);
+pub(crate) const REPORT_USER: Rule = rule("report_user", 20, 60);
+pub(crate) const REPORT_MAIL: Rule = rule("report_mail", 30, 60);
+pub(crate) const CLIENT_ERROR_IP: Rule = rule("client_error_ip", 20, 10);
+pub(crate) const CLIENT_ERROR_USER: Rule = rule("client_error_user", 10, 10);
 pub const CLIENT_ERROR_WEBHOOK_IP: Rule = rule("client_error_webhook_ip", 3, 60);
-pub const CLIENT_ERROR_WEBHOOK: Rule = rule("client_error_webhook", 30, 60);
+pub(crate) const CLIENT_ERROR_WEBHOOK: Rule = rule("client_error_webhook", 30, 60);
 
 struct Bucket {
     tokens: f64,
@@ -85,7 +85,7 @@ fn retry_after(b: &Bucket, rule: &Rule) -> u64 {
     ((1.0 - b.tokens) / rate).ceil().max(1.0) as u64
 }
 
-pub fn ip_key(ip: IpAddr) -> String {
+pub(crate) fn ip_key(ip: IpAddr) -> String {
     match ip {
         IpAddr::V4(v4) => v4.to_string(),
         IpAddr::V6(v6) => {
@@ -116,7 +116,7 @@ fn evict(map: &mut HashMap<(&'static str, String), Bucket>, cap: usize) {
 }
 
 impl Limiter {
-    pub fn with_cap(cap: usize) -> Self {
+    pub(crate) fn with_cap(cap: usize) -> Self {
         Self {
             buckets: Mutex::default(),
             cap,
@@ -168,14 +168,14 @@ impl Limiter {
         })
     }
 
-    pub fn hit_ip(&self, rule: &Rule, ip: Option<IpAddr>) -> Result<(), AppError> {
+    pub(crate) fn hit_ip(&self, rule: &Rule, ip: Option<IpAddr>) -> Result<(), AppError> {
         match ip {
             Some(ip) => self.hit(rule, &ip_key(ip)),
             None => Ok(()),
         }
     }
 
-    pub fn refund(&self, rule: &Rule, key: &str) {
+    pub(crate) fn refund(&self, rule: &Rule, key: &str) {
         self.with(rule, key, |b| {
             b.tokens = (b.tokens + 1.0).min(f64::from(rule.capacity));
         });

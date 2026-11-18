@@ -30,23 +30,23 @@ impl Var {
             .filter(|v| !v.is_empty())
     }
 
-    pub fn flag(&self) -> bool {
+    pub(crate) fn flag(&self) -> bool {
         matches!(self.read().as_deref(), Some("1" | "true" | "yes"))
     }
 
-    pub fn default_value(&self) -> Option<&'static str> {
+    pub(crate) fn default_value(&self) -> Option<&'static str> {
         match self.default {
             Fallback::Value(v) => Some(v),
             Fallback::None | Fallback::Note(_) => None,
         }
     }
 
-    pub fn raw_or_default(&self) -> Option<String> {
+    pub(crate) fn raw_or_default(&self) -> Option<String> {
         self.raw()
             .or_else(|| self.default_value().map(str::to_owned))
     }
 
-    pub fn list(&self) -> Vec<String> {
+    pub(crate) fn list(&self) -> Vec<String> {
         self.read()
             .map(|v| {
                 v.split(',')
@@ -74,7 +74,7 @@ const fn example(var: Var, value: &'static str) -> Var {
     }
 }
 
-pub const JOIN_CODE: Var = example(
+pub(crate) const JOIN_CODE: Var = example(
     var(
         "JOIN_CODE",
         Fallback::Value(DEFAULT_JOIN_CODE),
@@ -82,7 +82,7 @@ pub const JOIN_CODE: Var = example(
     ),
     "CHANGE-ME",
 );
-pub const GROUP_NAME: Var = example(
+pub(crate) const GROUP_NAME: Var = example(
     var(
         "GROUP_NAME",
         Fallback::Value("La bande"),
@@ -90,7 +90,7 @@ pub const GROUP_NAME: Var = example(
     ),
     "La bande",
 );
-pub const RUST_LOG: Var = example(
+pub(crate) const RUST_LOG: Var = example(
     var(
         "RUST_LOG",
         Fallback::Value("info"),
@@ -98,7 +98,7 @@ pub const RUST_LOG: Var = example(
     ),
     "info",
 );
-pub const VAPID_PRIVATE_KEY: Var = example(
+pub(crate) const VAPID_PRIVATE_KEY: Var = example(
     var(
         "VAPID_PRIVATE_KEY",
         Fallback::None,
@@ -106,7 +106,7 @@ pub const VAPID_PRIVATE_KEY: Var = example(
     ),
     "",
 );
-pub const VAPID_SUBJECT: Var = example(
+pub(crate) const VAPID_SUBJECT: Var = example(
     var(
         "VAPID_SUBJECT",
         Fallback::Value(DEFAULT_VAPID_SUBJECT),
@@ -114,7 +114,7 @@ pub const VAPID_SUBJECT: Var = example(
     ),
     "mailto:you@example.com",
 );
-pub const AUTH_SECRET: Var = example(
+pub(crate) const AUTH_SECRET: Var = example(
     var(
         "AUTH_SECRET",
         Fallback::Note("generated into DATA_DIR/auth.key"),
@@ -122,7 +122,7 @@ pub const AUTH_SECRET: Var = example(
     ),
     "",
 );
-pub const PUBLIC_URL: Var = example(
+pub(crate) const PUBLIC_URL: Var = example(
     var(
         "PUBLIC_URL",
         Fallback::None,
@@ -130,7 +130,7 @@ pub const PUBLIC_URL: Var = example(
     ),
     "https://quidenous.example.com",
 );
-pub const TRUST_PROXY: Var = example(
+pub(crate) const TRUST_PROXY: Var = example(
     var(
         "TRUST_PROXY",
         Fallback::Note("off"),
@@ -138,162 +138,162 @@ pub const TRUST_PROXY: Var = example(
     ),
     "1",
 );
-pub const PORT: Var = var(
+pub(crate) const PORT: Var = var(
     "PORT",
     Fallback::Value("8080"),
     "TCP port the server listens on",
 );
-pub const DATA_DIR: Var = var(
+pub(crate) const DATA_DIR: Var = var(
     "DATA_DIR",
     Fallback::Value("data"),
     "Directory for the database, photos, chat media, OTA updates and auth.key (the image sets /data)",
 );
-pub const DATABASE_URL: Var = var(
+pub(crate) const DATABASE_URL: Var = var(
     "DATABASE_URL",
     Fallback::Note("sqlite://DATA_DIR/app.db?mode=rwc"),
     "SQLite database URL",
 );
-pub const WEB_DIR: Var = var(
+pub(crate) const WEB_DIR: Var = var(
     "WEB_DIR",
     Fallback::None,
     "Exported web app served at / (the image sets /web)",
 );
-pub const FCM_SERVICE_ACCOUNT_FILE: Var = var(
+pub(crate) const FCM_SERVICE_ACCOUNT_FILE: Var = var(
     "FCM_SERVICE_ACCOUNT_FILE",
     Fallback::None,
     "Android notifications: path inside the container to the Firebase service account JSON, e.g. /data/firebase.json. Unreadable: logs an ERROR, Android push stays off",
 );
-pub const CORS_ORIGINS: Var = var(
+pub(crate) const CORS_ORIGINS: Var = var(
     "CORS_ORIGINS",
     Fallback::None,
     "Other web origins allowed to call the API, comma-separated (e.g. http://localhost:8081); PUBLIC_URL's is always allowed, the phone apps need none",
 );
-pub const MAILGUN_API_KEY: Var = var(
+pub(crate) const MAILGUN_API_KEY: Var = var(
     "MAILGUN_API_KEY",
     Fallback::None,
     "Mailgun API key; with MAILGUN_DOMAIN, e-mails (verification, reset codes, reports) are sent, otherwise only logged and \"forgot password\" is off",
 );
-pub const MAILGUN_DOMAIN: Var = var(
+pub(crate) const MAILGUN_DOMAIN: Var = var(
     "MAILGUN_DOMAIN",
     Fallback::None,
     "Mailgun sending domain, e.g. mg.example.com",
 );
-pub const MAILGUN_FROM: Var = var(
+pub(crate) const MAILGUN_FROM: Var = var(
     "MAILGUN_FROM",
     Fallback::Note("Qui de nous ? <no-reply@MAILGUN_DOMAIN>"),
     "Sender of the automatic e-mails",
 );
-pub const MAILGUN_REGION: Var = var(
+pub(crate) const MAILGUN_REGION: Var = var(
     "MAILGUN_REGION",
     Fallback::Note("us"),
     "eu for an EU Mailgun account",
 );
-pub const MAILGUN_REPLY_TO: Var = var(
+pub(crate) const MAILGUN_REPLY_TO: Var = var(
     "MAILGUN_REPLY_TO",
     Fallback::None,
     "Reply-To of the automatic e-mails, e.g. contact@your.domain",
 );
-pub const GOOGLE_CLIENT_ID: Var = var(
+pub(crate) const GOOGLE_CLIENT_ID: Var = var(
     "GOOGLE_CLIENT_ID",
     Fallback::None,
     "Google sign-in, with GOOGLE_CLIENT_SECRET (redirect URI PUBLIC_URL/api/auth/oauth/google/callback)",
 );
-pub const GOOGLE_CLIENT_SECRET: Var = var(
+pub(crate) const GOOGLE_CLIENT_SECRET: Var = var(
     "GOOGLE_CLIENT_SECRET",
     Fallback::None,
     "Google sign-in client secret",
 );
-pub const DISCORD_CLIENT_ID: Var = var(
+pub(crate) const DISCORD_CLIENT_ID: Var = var(
     "DISCORD_CLIENT_ID",
     Fallback::None,
     "Discord sign-in, with DISCORD_CLIENT_SECRET (redirect URI PUBLIC_URL/api/auth/oauth/discord/callback)",
 );
-pub const DISCORD_CLIENT_SECRET: Var = var(
+pub(crate) const DISCORD_CLIENT_SECRET: Var = var(
     "DISCORD_CLIENT_SECRET",
     Fallback::None,
     "Discord sign-in client secret",
 );
-pub const OAUTH_REDIRECTS: Var = var(
+pub(crate) const OAUTH_REDIRECTS: Var = var(
     "OAUTH_REDIRECTS",
     Fallback::None,
     "Extra allowed app redirects, comma-separated, compared on scheme, host, port and path prefix (exp:// alone: Expo Go on a local address, dev only)",
 );
-pub const AUTH_REQUIRED: Var = var(
+pub(crate) const AUTH_REQUIRED: Var = var(
     "AUTH_REQUIRED",
     Fallback::Note("off"),
     "1 = no anonymous join by first name (/api/join and /api/start answer 410): set it once every phone runs an app with sign-in. Warned about while off",
 );
-pub const ADMIN_USER_IDS: Var = var(
+pub(crate) const ADMIN_USER_IDS: Var = var(
     "ADMIN_USER_IDS",
     Fallback::None,
     "Account ids (users.id, comma-separated) that moderate community packs and approve suggestions. Unset: nobody can, warned about at start-up",
 );
-pub const REPORT_EMAIL: Var = var(
+pub(crate) const REPORT_EMAIL: Var = var(
     "REPORT_EMAIL",
     Fallback::Value(DEFAULT_REPORT_EMAIL),
     "Where in-app reports (messages, members, questions) are e-mailed through Mailgun, 30 an hour at most",
 );
-pub const UPDATES_PUBLISH_TOKEN: Var = var(
+pub(crate) const UPDATES_PUBLISH_TOKEN: Var = var(
     "UPDATES_PUBLISH_TOKEN",
     Fallback::None,
     "Over-the-air app updates: the token CI uses to publish JS bundles (docs/OTA.md). Unset: publishing is off",
 );
-pub const UPDATES_CERTIFICATE: Var = var(
+pub(crate) const UPDATES_CERTIFICATE: Var = var(
     "UPDATES_CERTIFICATE",
     Fallback::None,
     "Path inside the container to the OTA code signing certificate (a copy of app/certs/certificate.pem, e.g. /data/ota-certificate.pem): unsigned updates are refused",
 );
-pub const KLIPY_API_KEY: Var = var(
+pub(crate) const KLIPY_API_KEY: Var = var(
     "KLIPY_API_KEY",
     Fallback::None,
     "GIFs in the chat through Klipy (docs/CHAT_MEDIA.md); the server searches and proxies every GIF. Unset: no GIF button",
 );
-pub const KLIPY_CONTENT_FILTER: Var = var(
+pub(crate) const KLIPY_CONTENT_FILTER: Var = var(
     "KLIPY_CONTENT_FILTER",
     Fallback::Value("low"),
     "Klipy's content filter: off, low (about PG-13), medium or high",
 );
-pub const KLIPY_API_BASE: Var = var(
+pub(crate) const KLIPY_API_BASE: Var = var(
     "KLIPY_API_BASE",
     Fallback::Value("https://api.klipy.com"),
     "Klipy's API (tests point it at a mock)",
 );
-pub const KLIPY_MEDIA_HOSTS: Var = var(
+pub(crate) const KLIPY_MEDIA_HOSTS: Var = var(
     "KLIPY_MEDIA_HOSTS",
     Fallback::None,
     "Extra origins GIF files may come from (comma-separated scheme://host[:port]) besides static*.klipy.com. Local mocks only",
 );
-pub const CLIENT_ERRORS_WEBHOOK: Var = var(
+pub(crate) const CLIENT_ERRORS_WEBHOOK: Var = var(
     "CLIENT_ERRORS_WEBHOOK",
     Fallback::None,
     "Discord webhook URL that receives app crash reports (30 an hour at most). Unset: they are only logged",
 );
-pub const MIN_APP_VERSION: Var = var(
+pub(crate) const MIN_APP_VERSION: Var = var(
     "MIN_APP_VERSION",
     Fallback::None,
     "Oldest app version served (x.y.z, e.g. 0.33.0): older apps get 426 update_required and an update screen. Unset: all",
 );
-pub const DONATION_URL: Var = var(
+pub(crate) const DONATION_URL: Var = var(
     "DONATION_URL",
     Fallback::None,
     "https:// donation page linked from the web app and sideloaded APK only (docs/DONATE.md). Not https: ignored, warned about",
 );
-pub const WRAPPED_FROM: Var = var(
+pub(crate) const WRAPPED_FROM: Var = var(
     "WRAPPED_FROM",
     Fallback::Value(DEFAULT_WRAPPED_FROM),
     "First day (MM-DD) the year's Wrapped is shown; not a MM-DD day: both bounds fall back to their defaults",
 );
-pub const WRAPPED_UNTIL: Var = var(
+pub(crate) const WRAPPED_UNTIL: Var = var(
     "WRAPPED_UNTIL",
     Fallback::Value(DEFAULT_WRAPPED_UNTIL),
     "Last day (MM-DD) the Wrapped is shown",
 );
-pub const WRAPPED_PREVIEW: Var = var(
+pub(crate) const WRAPPED_PREVIEW: Var = var(
     "WRAPPED_PREVIEW",
     Fallback::Note("off"),
     "1 = the Wrapped is shown all year round (testing)",
 );
-pub const QUIDENOUS_VERSION: Var = var(
+pub(crate) const QUIDENOUS_VERSION: Var = var(
     "QUIDENOUS_VERSION",
     Fallback::Note("baked in at build time, else dev"),
     "Version reported by /api/version (the image sets it)",
@@ -304,7 +304,7 @@ pub const QUIDENOUS_GIT_SHA: Var = var(
     "Git commit reported by /api/version (the image sets it)",
 );
 
-pub const ALL: &[Var] = &[
+pub(crate) const ALL: &[Var] = &[
     JOIN_CODE,
     GROUP_NAME,
     RUST_LOG,
@@ -348,13 +348,13 @@ pub const ALL: &[Var] = &[
     QUIDENOUS_GIT_SHA,
 ];
 
-pub fn example_file() -> String {
+pub(crate) fn example_file() -> String {
     ALL.iter()
         .filter_map(|v| v.example.map(|value| format!("{}={value}\n", v.name)))
         .collect()
 }
 
-pub fn table() -> String {
+pub(crate) fn table() -> String {
     let width = ALL.iter().map(|v| v.name.len()).max().unwrap_or(0);
     let mut out = String::new();
     for v in ALL {

@@ -126,7 +126,7 @@ impl Parts {
     }
 }
 
-pub fn valid(spec: &str) -> bool {
+pub(crate) fn valid(spec: &str) -> bool {
     parts().parse(spec).is_some()
 }
 
@@ -227,7 +227,7 @@ fn shape(out: &mut String, s: &Shape, colors: &Colors) {
     let _ = write!(out, "<{tag}{attrs}/>");
 }
 
-pub fn svg(spec: &str, id: &str) -> Option<String> {
+pub(crate) fn svg(spec: &str, id: &str) -> Option<String> {
     let p = parts();
     let sel = p.parse(spec)?;
     let palette = |field: &str| -> &[String] {

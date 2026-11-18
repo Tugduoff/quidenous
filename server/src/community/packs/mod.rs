@@ -18,9 +18,9 @@ mod admin;
 mod content;
 mod handlers;
 mod seed;
-pub use admin::*;
-pub use content::*;
-pub use handlers::*;
+pub(crate) use admin::*;
+pub(crate) use content::*;
+pub(crate) use handlers::*;
 pub use seed::*;
 
 const NAME_MAX: usize = 40;
@@ -38,15 +38,15 @@ const DELETE_SQL: &str = "UPDATE packs SET removed_reason = CASE WHEN status = '
      status = 'deleted' WHERE id = ?2 AND author_id = ?3";
 const DELETE_MANY_MAX: usize = 100;
 const REASON_MAX: usize = 500;
-pub const MAX_TAGS: usize = 3;
+pub(crate) const MAX_TAGS: usize = 3;
 const REPORT_REASONS: [&str; 4] = ["offensive", "sexual", "spam", "other"];
 
-pub const CATEGORIES: [&str; 7] = [
+pub(crate) const CATEGORIES: [&str; 7] = [
     "potes", "pimente", "boulot", "famille", "soiree", "culture", "absurde",
 ];
-pub const SPICY_TAG: &str = "pimente";
+pub(crate) const SPICY_TAG: &str = "pimente";
 
-pub async fn require_verified(state: &AppState, user: UserId) -> AppResult<()> {
+pub(crate) async fn require_verified(state: &AppState, user: UserId) -> AppResult<()> {
     if crate::accounts::auth::is_admin(state, user) {
         return Ok(());
     }
@@ -64,7 +64,7 @@ pub async fn require_verified(state: &AppState, user: UserId) -> AppResult<()> {
     Ok(())
 }
 
-pub async fn current_room(
+pub(crate) async fn current_room(
     state: &AppState,
     user: UserId,
     headers: &HeaderMap,
@@ -165,7 +165,7 @@ async fn one(state: &AppState, id: PackId, me: UserId, room: Option<RoomId>) -> 
 }
 
 #[derive(Deserialize)]
-pub struct ListQuery {
+pub(crate) struct ListQuery {
     q: Option<String>,
     sort: Option<String>,
     tag: Option<String>,
@@ -183,7 +183,7 @@ async fn sees_spicy(state: &AppState, me: UserId, room: Option<RoomId>) -> AppRe
     .await?)
 }
 
-pub async fn list(
+pub(crate) async fn list(
     State(state): State<AppState>,
     SignedIn(me): SignedIn,
     headers: HeaderMap,
@@ -234,7 +234,7 @@ pub async fn list(
     Ok(Json(json!(items(&state, rows, me).await?)))
 }
 
-pub async fn get(
+pub(crate) async fn get(
     State(state): State<AppState>,
     SignedIn(me): SignedIn,
     headers: HeaderMap,

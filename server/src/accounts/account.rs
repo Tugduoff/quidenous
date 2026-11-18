@@ -6,7 +6,7 @@ use crate::{
 
 use super::{crypto, mail};
 
-pub async fn is_secured<'e, E>(db: E, user_id: UserId) -> AppResult<bool>
+pub(crate) async fn is_secured<'e, E>(db: E, user_id: UserId) -> AppResult<bool>
 where
     E: sqlx::Executor<'e, Database = sqlx::Sqlite>,
 {
@@ -21,7 +21,7 @@ where
     .unwrap_or(false))
 }
 
-pub async fn is_suspended<'e, E>(db: E, user_id: UserId) -> AppResult<bool>
+pub(crate) async fn is_suspended<'e, E>(db: E, user_id: UserId) -> AppResult<bool>
 where
     E: sqlx::Executor<'e, Database = sqlx::Sqlite>,
 {
@@ -66,7 +66,7 @@ pub(crate) async fn account_by_email(state: &AppState, email: &str) -> AppResult
     .await?)
 }
 
-pub const CLAIM_IDLE_DAYS: i64 = 30;
+pub(crate) const CLAIM_IDLE_DAYS: i64 = 30;
 
 pub(crate) async fn not_claimed(
     state: &AppState,
@@ -92,7 +92,7 @@ pub(crate) async fn not_claimed(
     }
 }
 
-pub const REAUTH_TTL: u64 = 10 * 60;
+pub(crate) const REAUTH_TTL: u64 = 10 * 60;
 
 pub(crate) async fn can_reauth(state: &AppState, acct: &Account) -> AppResult<bool> {
     if acct.password_hash.is_some() || acct.totp_secret.is_some() {
@@ -193,7 +193,7 @@ pub(crate) async fn notify_address(
     }
 }
 
-pub const UNVERIFIED_EMAIL_DAYS: i64 = 7;
+pub(crate) const UNVERIFIED_EMAIL_DAYS: i64 = 7;
 
 pub(crate) async fn stale_email(state: &AppState, email: &str) -> AppResult<bool> {
     Ok(sqlx::query_scalar::<_, i64>(

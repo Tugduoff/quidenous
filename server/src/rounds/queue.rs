@@ -222,12 +222,12 @@ pub(crate) async fn delete_question(
 }
 
 #[derive(Deserialize)]
-pub struct IdsBody<Id> {
+pub(crate) struct IdsBody<Id> {
     ids: Vec<Id>,
 }
 
 impl<Id: Copy + Eq + std::hash::Hash> IdsBody<Id> {
-    pub fn distinct(&self, max: usize) -> AppResult<Vec<Id>> {
+    pub(crate) fn distinct(&self, max: usize) -> AppResult<Vec<Id>> {
         if self.ids.len() > max {
             return Err(AppError::BadRequest("too_many"));
         }

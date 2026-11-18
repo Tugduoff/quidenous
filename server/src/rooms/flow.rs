@@ -6,15 +6,15 @@ use crate::{
     realtime::notify::notify_round, rounds::game,
 };
 
-pub const OWNER_GONE_DAYS: i64 = 7;
+pub(crate) const OWNER_GONE_DAYS: i64 = 7;
 
-pub const OWNER_NEXT_HOURS: i64 = 24;
+pub(crate) const OWNER_NEXT_HOURS: i64 = 24;
 
 const TOUCH_EVERY: Duration = Duration::from_mins(10);
 
-pub const EVERY_TICKS: u32 = 15;
+pub(crate) const EVERY_TICKS: u32 = 15;
 
-pub async fn touch(state: &AppState, member_id: MemberId) {
+pub(crate) async fn touch(state: &AppState, member_id: MemberId) {
     if !state.live.mark_active(member_id, TOUCH_EVERY) {
         return;
     }
@@ -29,7 +29,7 @@ pub async fn touch(state: &AppState, member_id: MemberId) {
     }
 }
 
-pub async fn tick(state: &AppState) {
+pub(crate) async fn tick(state: &AppState) {
     match close_late(state).await {
         Ok(0) => {}
         Ok(n) => tracing::info!(rooms = n, "late questions closed"),
@@ -152,9 +152,9 @@ async fn hand_room(
     Ok(true)
 }
 
-pub const DECK_LOW: i64 = 3;
+pub(crate) const DECK_LOW: i64 = 3;
 
-pub async fn deck_low(state: &AppState, group_id: RoomId) {
+pub(crate) async fn deck_low(state: &AppState, group_id: RoomId) {
     if let Err(e) = try_deck_low(state, group_id).await {
         tracing::warn!(%group_id, error = ?e, "low deck notice failed");
     }
@@ -184,7 +184,7 @@ async fn try_deck_low(state: &AppState, group_id: RoomId) -> AppResult<()> {
     Ok(())
 }
 
-pub async fn deck_empty(state: &AppState, group_id: RoomId) {
+pub(crate) async fn deck_empty(state: &AppState, group_id: RoomId) {
     if let Err(e) = try_deck_empty(state, group_id).await {
         tracing::warn!(%group_id, error = ?e, "empty deck notice failed");
     }

@@ -1,10 +1,10 @@
 use crate::platform::ids::UserId;
 use crate::{AppState, accounts::auth::guest_sql, platform::error::AppResult};
 
-pub const GUEST_TTL_DAYS: i64 = 30;
+pub(crate) const GUEST_TTL_DAYS: i64 = 30;
 const EVERY: std::time::Duration = std::time::Duration::from_secs(3600);
 
-pub async fn purge_at(state: &AppState, now: &str) -> AppResult<usize> {
+pub(crate) async fn purge_at(state: &AppState, now: &str) -> AppResult<usize> {
     let cutoff: String =
         sqlx::query_scalar("SELECT strftime('%Y-%m-%dT%H:%M:%fZ', ?, '-' || ? || ' days')")
             .bind(now)
@@ -40,7 +40,7 @@ pub async fn purge(state: &AppState) -> AppResult<usize> {
     purge_at(state, &now).await
 }
 
-pub fn spawn_purger(state: AppState) {
+pub(crate) fn spawn_purger(state: AppState) {
     tokio::spawn(async move {
         let mut tick = tokio::time::interval(EVERY);
         tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);

@@ -27,8 +27,8 @@ use crate::{
     platform::error::{AppError, AppResult},
 };
 
-pub const IMAGE_MAX: usize = 8 * 1024 * 1024;
-pub const UPLOAD_BODY_MAX: usize = IMAGE_MAX + 64 * 1024;
+pub(crate) const IMAGE_MAX: usize = 8 * 1024 * 1024;
+pub(crate) const UPLOAD_BODY_MAX: usize = IMAGE_MAX + 64 * 1024;
 const MAX_SIDE: u32 = 1600;
 const JPEG_QUALITY: u8 = 85;
 const DECODE_MAX_SIDE: u32 = 4096;
@@ -38,7 +38,7 @@ const URL_PERIOD: u64 = 6 * 3600;
 const MAC_LEN: usize = 32;
 const MIMES: [&str; 3] = ["image/jpeg", "image/png", "image/gif"];
 
-pub fn fallback(kind: &str, caption: Option<&str>) -> String {
+pub(crate) fn fallback(kind: &str, caption: Option<&str>) -> String {
     let label = if kind == "gif" { "GIF" } else { "📷 Photo" };
     match caption {
         Some(c) => format!("{label} · {c}"),
@@ -174,7 +174,7 @@ fn room_dir(data_dir: &FsPath, room: RoomId) -> PathBuf {
     data_dir.join("chat").join(room.to_string())
 }
 
-pub fn file_path(data_dir: &FsPath, room: RoomId, media: Option<&str>) -> Option<PathBuf> {
+pub(crate) fn file_path(data_dir: &FsPath, room: RoomId, media: Option<&str>) -> Option<PathBuf> {
     let media: Value = serde_json::from_str(media?).ok()?;
     let file = media["file"].as_str()?;
     let safe = !file.is_empty()
@@ -183,7 +183,7 @@ pub fn file_path(data_dir: &FsPath, room: RoomId, media: Option<&str>) -> Option
     safe.then(|| room_dir(data_dir, room).join(file))
 }
 
-pub async fn remove_files(paths: Vec<PathBuf>) {
+pub(crate) async fn remove_files(paths: Vec<PathBuf>) {
     for path in paths {
         if let Err(e) = tokio::fs::remove_file(&path).await
             && e.kind() != std::io::ErrorKind::NotFound
@@ -193,7 +193,7 @@ pub async fn remove_files(paths: Vec<PathBuf>) {
     }
 }
 
-pub async fn remove_room(state: &AppState, room: RoomId) {
+pub(crate) async fn remove_room(state: &AppState, room: RoomId) {
     let dir = room_dir(&state.config.data_dir, room);
     if let Err(e) = tokio::fs::remove_dir_all(&dir).await
         && e.kind() != std::io::ErrorKind::NotFound
@@ -307,7 +307,7 @@ fn now_unix() -> u64 {
     crate::accounts::crypto::now_unix()
 }
 
-pub fn expiry(now: u64) -> u64 {
+pub(crate) fn expiry(now: u64) -> u64 {
     now.div_ceil(URL_PERIOD) * URL_PERIOD + URL_PERIOD
 }
 
@@ -316,7 +316,7 @@ pub fn sign(state: &AppState, purpose: &str, payload: &str) -> String {
     format!("{}.{}", URL_SAFE_NO_PAD.encode(payload), &mac[..MAC_LEN])
 }
 
-pub fn verify(state: &AppState, purpose: &str, token: &str) -> Option<String> {
+pub(crate) fn verify(state: &AppState, purpose: &str, token: &str) -> Option<String> {
     let (payload, mac) = token.split_once('.')?;
     let payload = String::from_utf8(URL_SAFE_NO_PAD.decode(payload).ok()?).ok()?;
     let expected = state.auth.keys.mac(&[purpose, &payload]);
@@ -335,7 +335,7 @@ pub fn image_url(state: &AppState, message_id: MessageId, review: bool) -> Strin
     format!("/api/media/{}", sign(state, PURPOSE, &payload))
 }
 
-pub fn payload(
+pub(crate) fn payload(
     state: &AppState,
     message_id: MessageId,
     kind: &str,
@@ -354,7 +354,7 @@ pub fn payload(
     }
 }
 
-pub async fn serve(
+pub(crate) async fn serve(
     State(state): State<AppState>,
     Path(token): Path<String>,
 ) -> AppResult<Response> {

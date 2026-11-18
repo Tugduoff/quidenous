@@ -124,7 +124,7 @@ pub(super) async fn check_taps_at(
     open_next(state, id, Some(round_id)).await
 }
 
-pub async fn after_leave(state: &AppState, id: RoomId) -> AppResult<()> {
+pub(crate) async fn after_leave(state: &AppState, id: RoomId) -> AppResult<()> {
     if game::party(&state.db, id).await?.is_some() {
         check_taps(state, id).await?;
     }
@@ -245,12 +245,12 @@ pub(super) async fn close_due(
     Ok(closed)
 }
 
-pub async fn sweep(state: &AppState) -> AppResult<Swept> {
+pub(crate) async fn sweep(state: &AppState) -> AppResult<Swept> {
     let now = db_now(state).await?;
     sweep_at(state, &now).await
 }
 
-pub fn spawn_deadline(state: AppState, round_id: RoundId) {
+pub(crate) fn spawn_deadline(state: AppState, round_id: RoundId) {
     tokio::spawn(async move {
         let left: Option<f64> = sqlx::query_scalar(
             "SELECT (julianday(deadline_at) - julianday('now')) * 86400.0 FROM rounds \
@@ -270,7 +270,7 @@ pub fn spawn_deadline(state: AppState, round_id: RoundId) {
     });
 }
 
-pub fn spawn_sweeper(state: AppState) {
+pub(crate) fn spawn_sweeper(state: AppState) {
     tokio::spawn(async move {
         let mut tick = tokio::time::interval(SWEEP);
         tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);

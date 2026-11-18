@@ -10,7 +10,7 @@ use crate::{
 
 use super::{EMOJIS, load, needed_now};
 
-pub async fn view(state: &AppState, id: RoomId, me: Option<&MemberRow>) -> AppResult<Value> {
+pub(crate) async fn view(state: &AppState, id: RoomId, me: Option<&MemberRow>) -> AppResult<Value> {
     let p = load(state, id).await?;
     let players: Vec<MemberRow> = sqlx::query_as(
         "SELECT * FROM members WHERE group_id = ? AND removed_at IS NULL ORDER BY id",

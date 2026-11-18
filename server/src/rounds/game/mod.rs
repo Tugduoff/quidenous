@@ -58,7 +58,7 @@ pub(crate) async fn same_question(
         .map(|(id, _)| id))
 }
 
-pub async fn open_round(db: &SqlitePool, group_id: RoomId) -> AppResult<Option<RoundRow>> {
+pub(crate) async fn open_round(db: &SqlitePool, group_id: RoomId) -> AppResult<Option<RoundRow>> {
     Ok(sqlx::query_as::<_, RoundRow>(round_select!(
         "WHERE r.group_id = ? AND r.closed_at IS NULL"
     ))
@@ -67,7 +67,7 @@ pub async fn open_round(db: &SqlitePool, group_id: RoomId) -> AppResult<Option<R
     .await?)
 }
 
-pub async fn unseen_round(
+pub(crate) async fn unseen_round(
     db: &SqlitePool,
     me: &crate::rooms::model::MemberRow,
 ) -> AppResult<Option<RoundRow>> {
@@ -83,7 +83,7 @@ pub async fn unseen_round(
     .await?)
 }
 
-pub async fn unseen_ids(
+pub(crate) async fn unseen_ids(
     db: &SqlitePool,
     me: &crate::rooms::model::MemberRow,
 ) -> AppResult<Vec<RoundId>> {
@@ -99,7 +99,11 @@ pub async fn unseen_ids(
     .await?)
 }
 
-pub async fn round(db: &SqlitePool, group_id: RoomId, round_id: RoundId) -> AppResult<RoundRow> {
+pub(crate) async fn round(
+    db: &SqlitePool,
+    group_id: RoomId,
+    round_id: RoundId,
+) -> AppResult<RoundRow> {
     sqlx::query_as::<_, RoundRow>(round_select!("WHERE r.group_id = ? AND r.id = ?"))
         .bind(group_id)
         .bind(round_id)
@@ -128,12 +132,12 @@ async fn deck_candidates<'e, E: sqlx::SqliteExecutor<'e>>(
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct Party {
+pub(crate) struct Party {
     pub timer: i64,
     pub over: bool,
 }
 
-pub async fn party<'e, E: sqlx::SqliteExecutor<'e>>(
+pub(crate) async fn party<'e, E: sqlx::SqliteExecutor<'e>>(
     db: E,
     group_id: RoomId,
 ) -> AppResult<Option<Party>> {
@@ -161,7 +165,7 @@ async fn room_vibe<'e, E: sqlx::SqliteExecutor<'e>>(
         .flatten())
 }
 
-pub async fn deck_left(db: &SqlitePool, group_id: RoomId) -> AppResult<i64> {
+pub(crate) async fn deck_left(db: &SqlitePool, group_id: RoomId) -> AppResult<i64> {
     let draws = crate::rooms::vibes::draws(room_vibe(db, group_id).await?.as_deref());
     Ok(deck_candidates(db, group_id)
         .await?
@@ -291,7 +295,10 @@ pub async fn ensure_open_round(
     Ok(Some(id))
 }
 
-pub async fn ensure_owner(tx: &mut Transaction<'_, Sqlite>, group_id: RoomId) -> AppResult<bool> {
+pub(crate) async fn ensure_owner(
+    tx: &mut Transaction<'_, Sqlite>,
+    group_id: RoomId,
+) -> AppResult<bool> {
     let promoted = sqlx::query(
         "UPDATE members SET role = 'owner' WHERE id = \
          (SELECT id FROM members WHERE group_id = ?1 AND removed_at IS NULL ORDER BY id LIMIT 1) \
@@ -303,7 +310,7 @@ pub async fn ensure_owner(tx: &mut Transaction<'_, Sqlite>, group_id: RoomId) ->
     Ok(promoted.rows_affected() > 0)
 }
 
-pub async fn repair_owners(db: &SqlitePool) -> AppResult<u64> {
+pub(crate) async fn repair_owners(db: &SqlitePool) -> AppResult<u64> {
     let done = sqlx::query(
         "UPDATE members SET role = 'owner' WHERE id IN \
          (SELECT MIN(m.id) FROM members m JOIN groups g ON g.id = m.group_id AND g.deleted_at IS NULL \
@@ -314,7 +321,7 @@ pub async fn repair_owners(db: &SqlitePool) -> AppResult<u64> {
     Ok(done.rows_affected())
 }
 
-pub async fn repair_choose_items(db: &SqlitePool) -> AppResult<(u64, i64)> {
+pub(crate) async fn repair_choose_items(db: &SqlitePool) -> AppResult<(u64, i64)> {
     let done = sqlx::query(
         "UPDATE questions SET items = \
            (SELECT s.items FROM questions s WHERE s.kind = 'choose' AND s.items IS NOT NULL \
@@ -353,4 +360,4 @@ mod vote;
 pub(crate) use away_sql;
 pub use close::*;
 pub use tally::*;
-pub use vote::*;
+pub(crate) use vote::*;

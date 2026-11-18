@@ -45,7 +45,7 @@ use cards::{
 use personal::personal;
 use room::room;
 
-pub fn days_from_civil(y: i64, m: u32, d: u32) -> i64 {
+pub(crate) fn days_from_civil(y: i64, m: u32, d: u32) -> i64 {
     let (m, d) = (i64::from(m), i64::from(d));
     let y = if m <= 2 { y - 1 } else { y };
     let era = y.div_euclid(400);
@@ -67,7 +67,7 @@ pub fn civil(day: i64) -> (i64, u32, u32) {
     (yoe + era * 400 + i64::from(m <= 2), m, d)
 }
 
-pub fn window_year(w: WrappedWindow, (y, m, d): (i64, u32, u32)) -> Option<i64> {
+pub(crate) fn window_year(w: WrappedWindow, (y, m, d): (i64, u32, u32)) -> Option<i64> {
     let md = (m, d);
     if w.from <= w.until {
         (w.from <= md && md <= w.until).then_some(y)
@@ -80,7 +80,7 @@ pub fn window_year(w: WrappedWindow, (y, m, d): (i64, u32, u32)) -> Option<i64> 
     }
 }
 
-pub fn bounds(w: WrappedWindow, year: i64) -> (String, String) {
+pub(crate) fn bounds(w: WrappedWindow, year: i64) -> (String, String) {
     let until_year = if w.from <= w.until { year } else { year + 1 };
     (
         format!("{year:04}-{:02}-{:02}", w.from.0, w.from.1),
@@ -89,14 +89,14 @@ pub fn bounds(w: WrappedWindow, year: i64) -> (String, String) {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Access {
+pub(crate) struct Access {
     pub year: i64,
     pub available: bool,
     pub preview: bool,
     pub can_preview: bool,
 }
 
-pub fn access(
+pub(crate) fn access(
     w: WrappedWindow,
     today: (i64, u32, u32),
     year: Option<i64>,
@@ -122,7 +122,7 @@ pub fn access(
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct Person {
+pub(crate) struct Person {
     pub name: String,
     pub color: String,
     pub photo_url: Option<String>,
@@ -132,13 +132,13 @@ pub struct Person {
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct MascotRef {
+pub(crate) struct MascotRef {
     pub who: &'static str,
     pub mood: &'static str,
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct Card {
+pub(crate) struct Card {
     pub key: &'static str,
     pub icon: &'static str,
     pub mascot: Option<MascotRef>,
@@ -152,7 +152,7 @@ pub struct Card {
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct Wrapped {
+pub(crate) struct Wrapped {
     pub year: i64,
     pub scope: &'static str,
     pub available: bool,
@@ -269,14 +269,14 @@ fn parse_year(v: Option<&str>) -> AppResult<Option<i64>> {
 }
 
 #[derive(Deserialize)]
-pub struct WrappedQuery {
+pub(crate) struct WrappedQuery {
     scope: Option<String>,
     year: Option<String>,
     tz: Option<String>,
     preview: Option<String>,
 }
 
-pub async fn get(
+pub(crate) async fn get(
     State(state): State<AppState>,
     headers: HeaderMap,
     Query(q): Query<WrappedQuery>,
@@ -290,7 +290,7 @@ pub async fn get(
 }
 
 #[derive(Deserialize)]
-pub struct ShareBody {
+pub(crate) struct ShareBody {
     #[serde(default)]
     scope: Option<String>,
     #[serde(default)]
@@ -302,7 +302,7 @@ pub struct ShareBody {
     preview: Option<bool>,
 }
 
-pub async fn share(
+pub(crate) async fn share(
     State(state): State<AppState>,
     headers: HeaderMap,
     Json(body): Json<ShareBody>,

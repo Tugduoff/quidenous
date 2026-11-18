@@ -11,7 +11,7 @@ use crate::{
 
 use super::{active_count, majority, not_waited, union};
 
-pub async fn tallies(db: &SqlitePool, round_id: RoundId) -> AppResult<Vec<Tally>> {
+pub(crate) async fn tallies(db: &SqlitePool, round_id: RoundId) -> AppResult<Vec<Tally>> {
     let anonymous = crate::rooms::anonymous::is_anonymous(db, round_id).await?;
     let rows: Vec<(MemberId, MemberId)> = sqlx::query_as(
         "SELECT target_id, voter_id FROM votes WHERE round_id = ? ORDER BY created_at",
@@ -42,7 +42,7 @@ pub async fn tallies(db: &SqlitePool, round_id: RoundId) -> AppResult<Vec<Tally>
     Ok(tallies)
 }
 
-pub async fn view(db: &SqlitePool, round: RoundRow, me: MemberId) -> AppResult<RoundView> {
+pub(crate) async fn view(db: &SqlitePool, round: RoundRow, me: MemberId) -> AppResult<RoundView> {
     let voter_ids: Vec<MemberId> =
         sqlx::query_scalar("SELECT voter_id FROM votes WHERE round_id = ? ORDER BY created_at")
             .bind(round.id)
@@ -168,7 +168,7 @@ pub async fn view(db: &SqlitePool, round: RoundRow, me: MemberId) -> AppResult<R
     })
 }
 
-pub async fn choose_result(db: &SqlitePool, round_id: RoundId) -> AppResult<ChooseResult> {
+pub(crate) async fn choose_result(db: &SqlitePool, round_id: RoundId) -> AppResult<ChooseResult> {
     let rows: Vec<(MemberId, MemberId, i64)> = sqlx::query_as(
         "SELECT voter_id, member_id, item FROM choices WHERE round_id = ? ORDER BY member_id, voter_id",
     )
@@ -241,7 +241,7 @@ pub fn compute_choose(rows: &[(MemberId, MemberId, i64)]) -> ChooseResult {
     }
 }
 
-pub async fn borda(db: &SqlitePool, round_id: RoundId) -> AppResult<Vec<RankEntry>> {
+pub(crate) async fn borda(db: &SqlitePool, round_id: RoundId) -> AppResult<Vec<RankEntry>> {
     let rows: Vec<(MemberId, i64, f64, i64)> = sqlx::query_as(
         "SELECT r.member_id, \
                 SUM(n.size - r.position + 1), AVG(CAST(r.position AS REAL)), SUM(r.position = 1) \
@@ -265,7 +265,7 @@ pub async fn borda(db: &SqlitePool, round_id: RoundId) -> AppResult<Vec<RankEntr
         .collect())
 }
 
-pub async fn is_pinned(db: &SqlitePool, round_id: RoundId) -> AppResult<bool> {
+pub(crate) async fn is_pinned(db: &SqlitePool, round_id: RoundId) -> AppResult<bool> {
     let pinned: Option<i64> = sqlx::query_scalar("SELECT 1 FROM pins WHERE round_id = ?")
         .bind(round_id)
         .fetch_optional(db)

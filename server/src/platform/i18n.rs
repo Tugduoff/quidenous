@@ -17,9 +17,9 @@ pub enum Lang {
 }
 
 impl Lang {
-    pub const ALL: [Lang; 2] = [Lang::Fr, Lang::En];
+    pub(crate) const ALL: [Lang; 2] = [Lang::Fr, Lang::En];
 
-    pub fn as_str(self) -> &'static str {
+    pub(crate) fn as_str(self) -> &'static str {
         match self {
             Lang::Fr => "fr",
             Lang::En => "en",
@@ -30,11 +30,11 @@ impl Lang {
         Self::ALL.into_iter().find(|l| l.as_str() == s)
     }
 
-    pub fn from_db(s: Option<&str>) -> Self {
+    pub(crate) fn from_db(s: Option<&str>) -> Self {
         s.and_then(Self::parse).unwrap_or_default()
     }
 
-    pub fn pick<T>(self, fr: T, en: T) -> T {
+    pub(crate) fn pick<T>(self, fr: T, en: T) -> T {
         match self {
             Lang::Fr => fr,
             Lang::En => en,
@@ -43,12 +43,12 @@ impl Lang {
 }
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
-pub struct Locale {
+pub(crate) struct Locale {
     pub locale: Option<String>,
     pub pref: Option<String>,
 }
 
-pub async fn get_locale(
+pub(crate) async fn get_locale(
     State(state): State<AppState>,
     SignedIn(user): SignedIn,
 ) -> AppResult<Json<Locale>> {
@@ -60,7 +60,7 @@ pub async fn get_locale(
     Ok(Json(row))
 }
 
-pub async fn put_locale(
+pub(crate) async fn put_locale(
     State(state): State<AppState>,
     SignedIn(user): SignedIn,
     Json(body): Json<serde_json::Value>,
@@ -84,7 +84,10 @@ pub async fn put_locale(
     }))
 }
 
-pub async fn of_user<'e, E: SqliteExecutor<'e>>(db: E, user_id: UserId) -> sqlx::Result<Lang> {
+pub(crate) async fn of_user<'e, E: SqliteExecutor<'e>>(
+    db: E,
+    user_id: UserId,
+) -> sqlx::Result<Lang> {
     let locale: Option<Option<String>> =
         sqlx::query_scalar("SELECT locale FROM users WHERE id = ?")
             .bind(user_id)
@@ -93,7 +96,7 @@ pub async fn of_user<'e, E: SqliteExecutor<'e>>(db: E, user_id: UserId) -> sqlx:
     Ok(Lang::from_db(locale.flatten().as_deref()))
 }
 
-pub async fn of_member<'e, E: SqliteExecutor<'e>>(
+pub(crate) async fn of_member<'e, E: SqliteExecutor<'e>>(
     db: E,
     member_id: MemberId,
 ) -> sqlx::Result<Lang> {
@@ -107,20 +110,20 @@ pub async fn of_member<'e, E: SqliteExecutor<'e>>(
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Text {
+pub(crate) struct Text {
     pub fr: String,
     pub en: String,
 }
 
 impl Text {
-    pub fn new(fr: impl Into<String>, en: impl Into<String>) -> Self {
+    pub(crate) fn new(fr: impl Into<String>, en: impl Into<String>) -> Self {
         Self {
             fr: fr.into(),
             en: en.into(),
         }
     }
 
-    pub fn same(s: impl Into<String>) -> Self {
+    pub(crate) fn same(s: impl Into<String>) -> Self {
         let s = s.into();
         Self {
             fr: s.clone(),
@@ -128,14 +131,14 @@ impl Text {
         }
     }
 
-    pub fn by(f: impl Fn(Lang) -> String) -> Self {
+    pub(crate) fn by(f: impl Fn(Lang) -> String) -> Self {
         Self {
             fr: f(Lang::Fr),
             en: f(Lang::En),
         }
     }
 
-    pub fn get(&self, lang: Lang) -> &str {
+    pub(crate) fn get(&self, lang: Lang) -> &str {
         match lang {
             Lang::Fr => &self.fr,
             Lang::En => &self.en,
@@ -143,126 +146,126 @@ impl Text {
     }
 }
 
-pub fn result_and_question(lang: Lang) -> &'static str {
+pub(crate) fn result_and_question(lang: Lang) -> &'static str {
     lang.pick(
         "Résultat dispo · nouvelle question",
         "Results are in · new question",
     )
 }
 
-pub fn result_ready(lang: Lang) -> &'static str {
+pub(crate) fn result_ready(lang: Lang) -> &'static str {
     lang.pick("Résultat dispo", "Results are in")
 }
 
-pub fn everyone_voted(lang: Lang) -> &'static str {
+pub(crate) fn everyone_voted(lang: Lang) -> &'static str {
     lang.pick("Tout le monde a voté.", "Everyone has voted.")
 }
 
-pub fn update_to_answer(lang: Lang, question: &str) -> String {
+pub(crate) fn update_to_answer(lang: Lang, question: &str) -> String {
     match lang {
         Lang::Fr => format!("Mets l'app à jour pour répondre : {question}"),
         Lang::En => format!("Update the app to answer: {question}"),
     }
 }
 
-pub fn said_guessing(lang: Lang) -> &'static str {
+pub(crate) fn said_guessing(lang: Lang) -> &'static str {
     lang.pick(
         "Les réponses sont là : qui a dit quoi ?",
         "The answers are in: who said what?",
     )
 }
 
-pub fn said_guessing_entry(lang: Lang, question: &str) -> String {
+pub(crate) fn said_guessing_entry(lang: Lang, question: &str) -> String {
     match lang {
         Lang::Fr => format!("{} « {question} »", said_guessing(lang)),
         Lang::En => format!("{} “{question}”", said_guessing(lang)),
     }
 }
 
-pub fn new_question(lang: Lang) -> &'static str {
+pub(crate) fn new_question(lang: Lang) -> &'static str {
     lang.pick("Nouvelle question", "New question")
 }
 
-pub fn chat_title(lang: Lang, name: &str, question: &str) -> String {
+pub(crate) fn chat_title(lang: Lang, name: &str, question: &str) -> String {
     match lang {
         Lang::Fr => format!("{name} · « {question} »"),
         Lang::En => format!("{name} · “{question}”"),
     }
 }
 
-pub fn mention_title(lang: Lang, name: &str, question: &str) -> String {
+pub(crate) fn mention_title(lang: Lang, name: &str, question: &str) -> String {
     match lang {
         Lang::Fr => format!("{name} t'a mentionné · « {question} »"),
         Lang::En => format!("{name} mentioned you · “{question}”"),
     }
 }
 
-pub fn nudge(lang: Lang, name: &str) -> String {
+pub(crate) fn nudge(lang: Lang, name: &str) -> String {
     match lang {
         Lang::Fr => format!("{name} attend ton vote"),
         Lang::En => format!("{name} is waiting for your vote"),
     }
 }
 
-pub fn streak_ending(lang: Lang, days: i64) -> String {
+pub(crate) fn streak_ending(lang: Lang, days: i64) -> String {
     match lang {
         Lang::Fr => format!("Ta série de {days} jours va s'arrêter"),
         Lang::En => format!("Your {days}-day streak ends tonight"),
     }
 }
 
-pub fn streak_ending_body(lang: Lang, room: &str) -> String {
+pub(crate) fn streak_ending_body(lang: Lang, room: &str) -> String {
     match lang {
         Lang::Fr => format!("Vote dans « {room} » avant minuit pour la garder."),
         Lang::En => format!("Vote in “{room}” before midnight to keep it."),
     }
 }
 
-pub fn ask_questions(lang: Lang, name: &str) -> String {
+pub(crate) fn ask_questions(lang: Lang, name: &str) -> String {
     match lang {
         Lang::Fr => format!("{name} demande des questions"),
         Lang::En => format!("{name} is asking for questions"),
     }
 }
 
-pub fn out_of_questions(lang: Lang, room: &str) -> String {
+pub(crate) fn out_of_questions(lang: Lang, room: &str) -> String {
     match lang {
         Lang::Fr => format!("Plus de questions dans « {room} »."),
         Lang::En => format!("No questions left in “{room}”."),
     }
 }
 
-pub fn friend_request_title(lang: Lang) -> &'static str {
+pub(crate) fn friend_request_title(lang: Lang) -> &'static str {
     lang.pick("Demande d'ami", "Friend request")
 }
 
-pub fn friend_request(lang: Lang, name: &str) -> String {
+pub(crate) fn friend_request(lang: Lang, name: &str) -> String {
     match lang {
         Lang::Fr => format!("{name} veut t'ajouter en ami"),
         Lang::En => format!("{name} wants to be friends"),
     }
 }
 
-pub fn room_invite_title(lang: Lang) -> &'static str {
+pub(crate) fn room_invite_title(lang: Lang) -> &'static str {
     lang.pick("Invitation", "Room invite")
 }
 
-pub fn room_invite(lang: Lang, name: &str, room: &str) -> String {
+pub(crate) fn room_invite(lang: Lang, name: &str, room: &str) -> String {
     match lang {
         Lang::Fr => format!("{name} t'invite dans « {room} »"),
         Lang::En => format!("{name} invited you to “{room}”"),
     }
 }
 
-pub fn deleted_name(lang: Lang) -> &'static str {
+pub(crate) fn deleted_name(lang: Lang) -> &'static str {
     lang.pick(crate::accounts::delete::DELETED_NAME, "Deleted account")
 }
 
-pub fn is_deleted(name: &str, user_id: Option<UserId>) -> bool {
+pub(crate) fn is_deleted(name: &str, user_id: Option<UserId>) -> bool {
     user_id.is_none() && name == crate::accounts::delete::DELETED_NAME
 }
 
-pub fn member_name(lang: Lang, name: &str, user_id: Option<UserId>) -> String {
+pub(crate) fn member_name(lang: Lang, name: &str, user_id: Option<UserId>) -> String {
     if is_deleted(name, user_id) {
         deleted_name(lang).to_owned()
     } else {
@@ -270,42 +273,42 @@ pub fn member_name(lang: Lang, name: &str, user_id: Option<UserId>) -> String {
     }
 }
 
-pub fn party_default_name(lang: Lang, host: &str) -> String {
+pub(crate) fn party_default_name(lang: Lang, host: &str) -> String {
     match lang {
         Lang::Fr => format!("Soirée de {host}"),
         Lang::En => format!("{host}'s party"),
     }
 }
 
-pub fn csv_header(lang: Lang) -> &'static str {
+pub(crate) fn csv_header(lang: Lang) -> &'static str {
     lang.pick(
         "numéro,date,question,gagnant(s),score du gagnant,votes,détail",
         "number,date,question,winner(s),winner's score,votes,details",
     )
 }
 
-pub fn csv_votes(lang: Lang, name: &str, count: i64, voters: &str) -> String {
+pub(crate) fn csv_votes(lang: Lang, name: &str, count: i64, voters: &str) -> String {
     match lang {
         Lang::Fr => format!("{name} ({count}) : {voters}"),
         Lang::En => format!("{name} ({count}): {voters}"),
     }
 }
 
-pub fn csv_disposition(lang: Lang) -> &'static str {
+pub(crate) fn csv_disposition(lang: Lang) -> &'static str {
     lang.pick(
         "attachment; filename=\"qui-de-nous-historique.csv\"",
         "attachment; filename=\"qui-de-nous-history.csv\"",
     )
 }
 
-pub struct CodeMail {
+pub(crate) struct CodeMail {
     pub subject: String,
     pub heading: &'static str,
     pub intro: &'static str,
     pub outro: &'static str,
 }
 
-pub fn verify_email(lang: Lang, code: &str) -> CodeMail {
+pub(crate) fn verify_email(lang: Lang, code: &str) -> CodeMail {
     match lang {
         Lang::Fr => CodeMail {
             subject: format!("{code} · ton code Qui de nous ?"),
@@ -322,7 +325,7 @@ pub fn verify_email(lang: Lang, code: &str) -> CodeMail {
     }
 }
 
-pub fn reset_password(lang: Lang, code: &str) -> CodeMail {
+pub(crate) fn reset_password(lang: Lang, code: &str) -> CodeMail {
     match lang {
         Lang::Fr => CodeMail {
             subject: format!("{code} · nouveau mot de passe Qui de nous ?"),
@@ -339,7 +342,7 @@ pub fn reset_password(lang: Lang, code: &str) -> CodeMail {
     }
 }
 
-pub fn delete_account(lang: Lang, code: &str) -> CodeMail {
+pub(crate) fn delete_account(lang: Lang, code: &str) -> CodeMail {
     match lang {
         Lang::Fr => CodeMail {
             subject: format!("{code} · supprimer ton compte Qui de nous ?"),
@@ -356,7 +359,7 @@ pub fn delete_account(lang: Lang, code: &str) -> CodeMail {
     }
 }
 
-pub fn change_email(lang: Lang, code: &str) -> CodeMail {
+pub(crate) fn change_email(lang: Lang, code: &str) -> CodeMail {
     match lang {
         Lang::Fr => CodeMail {
             subject: format!("{code} · ta nouvelle adresse Qui de nous ?"),
@@ -373,7 +376,7 @@ pub fn change_email(lang: Lang, code: &str) -> CodeMail {
     }
 }
 
-pub fn mfa_reset(lang: Lang, code: &str) -> CodeMail {
+pub(crate) fn mfa_reset(lang: Lang, code: &str) -> CodeMail {
     match lang {
         Lang::Fr => CodeMail {
             subject: format!("{code} · retirer la double authentification"),
@@ -391,7 +394,7 @@ pub fn mfa_reset(lang: Lang, code: &str) -> CodeMail {
 }
 
 #[derive(Clone, Debug)]
-pub enum Notice {
+pub(crate) enum Notice {
     TotpOn,
     TotpOff,
     PasswordChanged,
@@ -403,13 +406,13 @@ pub enum Notice {
     MfaResetDone,
 }
 
-pub struct NoticeMail {
+pub(crate) struct NoticeMail {
     pub subject: String,
     pub body: String,
     pub outro: String,
 }
 
-pub fn notice(lang: Lang, n: &Notice) -> NoticeMail {
+pub(crate) fn notice(lang: Lang, n: &Notice) -> NoticeMail {
     let fr = lang == Lang::Fr;
     let (subject, body): (String, String) = match n {
         Notice::TotpOn => (
@@ -513,95 +516,95 @@ pub fn notice(lang: Lang, n: &Notice) -> NoticeMail {
     }
 }
 
-pub fn card_tag_rank(lang: Lang, number: i64) -> String {
+pub(crate) fn card_tag_rank(lang: Lang, number: i64) -> String {
     format!("{} · #{number}", lang.pick("CLASSEMENT", "RANKING"))
 }
 
-pub fn card_tag_question(lang: Lang, number: i64) -> String {
+pub(crate) fn card_tag_question(lang: Lang, number: i64) -> String {
     format!("{} · #{number}", lang.pick("QUESTION", "QUESTION"))
 }
 
-pub fn card_tag_result(lang: Lang, number: i64) -> String {
+pub(crate) fn card_tag_result(lang: Lang, number: i64) -> String {
     format!("{} · #{number}", lang.pick("RÉSULTAT", "RESULT"))
 }
 
-pub fn card_footer(lang: Lang) -> &'static str {
+pub(crate) fn card_footer(lang: Lang) -> &'static str {
     lang.pick(
         "Joue avec tes potes sur qui de nous ?",
         "Play with your friends on qui de nous ?",
     )
 }
 
-pub fn points(points: i64) -> String {
+pub(crate) fn points(points: i64) -> String {
     format!("{points} pts")
 }
 
-pub fn percent(lang: Lang, pc: i64) -> String {
+pub(crate) fn percent(lang: Lang, pc: i64) -> String {
     match lang {
         Lang::Fr => format!("{pc} %"),
         Lang::En => format!("{pc}%"),
     }
 }
 
-pub fn share_question_desc(lang: Lang, number: i64, room: &str) -> String {
+pub(crate) fn share_question_desc(lang: Lang, number: i64, room: &str) -> String {
     match lang {
         Lang::Fr => format!("Question #{number} dans « {room} ». Et toi, tu votes pour qui ?"),
         Lang::En => format!("Question #{number} in “{room}”. Who would you vote for?"),
     }
 }
 
-pub fn share_result_desc(lang: Lang, names: &str) -> String {
+pub(crate) fn share_result_desc(lang: Lang, names: &str) -> String {
     match lang {
         Lang::Fr => format!("Résultat : {names}"),
         Lang::En => format!("Result: {names}"),
     }
 }
 
-pub fn share_open(lang: Lang) -> &'static str {
+pub(crate) fn share_open(lang: Lang) -> &'static str {
     lang.pick("Ouvrir qui de nous ?", "Open qui de nous ?")
 }
 
-pub fn share_create(lang: Lang) -> &'static str {
+pub(crate) fn share_create(lang: Lang) -> &'static str {
     lang.pick(
         "Pas encore de salon ? Crée le tien, c'est gratuit",
         "No room yet? Create yours, it's free",
     )
 }
 
-pub fn share_expired(lang: Lang) -> &'static str {
+pub(crate) fn share_expired(lang: Lang) -> &'static str {
     lang.pick("Lien expiré", "Link expired")
 }
 
-pub fn share_play(lang: Lang) -> &'static str {
+pub(crate) fn share_play(lang: Lang) -> &'static str {
     lang.pick(
         "Jouer cette question avec tes potes",
         "Play this question with your friends",
     )
 }
 
-pub fn card_tag_pack(lang: Lang, count: i64) -> String {
+pub(crate) fn card_tag_pack(lang: Lang, count: i64) -> String {
     format!("PACK · {count} {}", lang.pick("QUESTIONS", "QUESTIONS"))
 }
 
-pub fn pack_by(lang: Lang, author: &str) -> String {
+pub(crate) fn pack_by(lang: Lang, author: &str) -> String {
     match lang {
         Lang::Fr => format!("par {author}"),
         Lang::En => format!("by {author}"),
     }
 }
 
-pub fn pack_desc(lang: Lang, count: i64, author: &str) -> String {
+pub(crate) fn pack_desc(lang: Lang, count: i64, author: &str) -> String {
     match lang {
         Lang::Fr => format!("{count} questions par {author}"),
         Lang::En => format!("{count} questions by {author}"),
     }
 }
 
-pub fn pack_install(lang: Lang) -> &'static str {
+pub(crate) fn pack_install(lang: Lang) -> &'static str {
     lang.pick("Installer dans un salon", "Install in a room")
 }
 
-pub fn pack_missing(lang: Lang) -> &'static str {
+pub(crate) fn pack_missing(lang: Lang) -> &'static str {
     lang.pick("Pack introuvable", "Pack not found")
 }
 

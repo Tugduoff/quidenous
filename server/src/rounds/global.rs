@@ -19,12 +19,12 @@ use crate::{
     rooms::model::{MemberRow, Role},
 };
 
-pub const MIN_MEMBERS: i64 = 3;
-pub const MIN_ROOMS: usize = 5;
-pub const MIN_ROOM_VOTES: usize = 2;
-pub const NO_REPEAT_DAYS: i64 = 90;
+pub(crate) const MIN_MEMBERS: i64 = 3;
+pub(crate) const MIN_ROOMS: usize = 5;
+pub(crate) const MIN_ROOM_VOTES: usize = 2;
+pub(crate) const NO_REPEAT_DAYS: i64 = 90;
 
-pub fn router() -> Router<AppState> {
+pub(crate) fn router() -> Router<AppState> {
     Router::new()
         .route("/global", get(get_today))
         .route("/global/vote", post(vote))
@@ -161,7 +161,7 @@ async fn counted_votes(
 }
 
 #[derive(Debug, Serialize, PartialEq)]
-pub struct Count {
+pub(crate) struct Count {
     pub target_id: MemberId,
     pub count: i64,
 }
@@ -189,7 +189,7 @@ fn winners(tally: &[Count]) -> Vec<MemberId> {
 }
 
 #[derive(Debug, Serialize)]
-pub struct Fact {
+pub(crate) struct Fact {
     pub id: &'static str,
     pub pct: i64,
 }
@@ -383,7 +383,7 @@ pub(crate) struct VoteBody {
     target: MemberId,
 }
 
-pub async fn vote_at(
+pub(crate) async fn vote_at(
     state: &AppState,
     me: &MemberRow,
     target: MemberId,

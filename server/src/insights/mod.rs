@@ -19,7 +19,7 @@ use axum::{
 
 use crate::AppState;
 
-pub fn pages() -> Router<AppState> {
+pub(crate) fn pages() -> Router<AppState> {
     Router::new()
         .route("/s/{token}", get(share::page))
         .route("/s/{token}/card.png", get(share::card_png))
@@ -27,7 +27,7 @@ pub fn pages() -> Router<AppState> {
         .route("/p/{id}/card.png", get(share::pack_card_png))
 }
 
-pub fn router() -> Router<AppState> {
+pub(crate) fn router() -> Router<AppState> {
     Router::new()
         .route("/rounds/{id}/share", post(share::create))
         .route("/stats", get(room_stats::stats))

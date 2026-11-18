@@ -15,7 +15,7 @@ use axum::{
 
 use crate::AppState;
 
-pub fn router() -> Router<AppState> {
+pub(crate) fn router() -> Router<AppState> {
     Router::new()
         .route("/round/current", get(current::current_round))
         .route("/round/current/vote", post(current::vote))
