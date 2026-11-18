@@ -2,12 +2,11 @@ import { BricolageGrotesque_800ExtraBold } from '@expo-google-fonts/bricolage-gr
 import { Inter_400Regular, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { useFonts } from 'expo-font';
-import { DarkTheme, DefaultTheme, router, Stack, ThemeProvider, useGlobalSearchParams, usePathname } from 'expo-router';
+import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import * as SystemUI from 'expo-system-ui';
-import { Fragment, type ReactNode, useEffect, useRef, useState } from 'react';
-import { Platform, StyleSheet, View } from 'react-native';
+import { Fragment, type ReactNode, useState } from 'react';
+import { StyleSheet, View } from 'react-native';
 import { useReducedMotion } from 'react-native-reanimated';
 import { AppLock } from '@/components/security/app-lock';
 import { CelebrationPreview } from '@/components/celebration';
@@ -21,8 +20,7 @@ import { useLang } from '@/lib/i18n';
 import { useLive } from '@/lib/hooks/use-live';
 import { useLock } from '@/lib/device/lock';
 import { queryClient } from '@/lib/api/query-client';
-import { registerNativePush } from '@/lib/device/native-push';
-import { useNotificationTaps } from '@/lib/hooks/use-notification-taps';
+import { useNotificationTaps, useRegisterNativePush } from '@/lib/hooks/use-native-push';
 import { useNotifTzSync } from '@/lib/hooks/use-notif-tz-sync';
 import { useRoomParam } from '@/lib/hooks/use-switch-room';
 import { useWidgetSync } from '@/lib/hooks/use-widget-sync';
@@ -30,8 +28,8 @@ import { SessionProvider, useSession } from '@/lib/session';
 import { useScheme, useTheme, useThemeLoaded } from '@/lib/theme';
 import { useOtaCheck, useUpdateCheck } from '@/lib/hooks/use-update-check';
 import { ConfirmHost } from '@/components/ui/confirm';
-import { presetJoinCode } from '@/lib/device/launch-params';
-import { pendingJoinCode, pendingPlayToken, setPendingCode } from '@/lib/auth-flow';
+import { useStageRoute } from '@/lib/hooks/use-stage-route';
+import { useHideSplash, useWindowBackground } from '@/lib/hooks/use-root-chrome';
 
 // A screen that crashes shows "Something went wrong / Retry" and reports the error (POST /api/client-errors).
 export { ErrorBoundary } from '@/components/ui/error-boundary';
@@ -63,29 +61,14 @@ function Root() {
   useNotificationTaps(inApp);
   // The home-screen widget (Android) follows the session, the room and what happened while the app was open.
   useWidgetSync(ready ? stage : null, room);
-  useEffect(() => {
-    if (stage === 'in') registerNativePush().catch(() => {});
-  }, [stage]);
+  useRegisterNativePush(stage === 'in');
   useNotifTzSync(stage === 'in');
   // The APK installed by hand looks for a newer release (never in the Play build).
   useUpdateCheck(ready && install !== 'block');
   // Over-the-air JS updates (both builds): checked again when the app comes back to the foreground.
   useOtaCheck(ready);
-  useEffect(() => {
-    if (ready && fonts && themeLoaded && lock.loaded) SplashScreen.hideAsync();
-  }, [ready, fonts, themeLoaded, lock.loaded]);
-  // Native: the window behind every screen (seen while one loads or slides in) takes the theme's background.
-  useEffect(() => {
-    if (Platform.OS !== 'web') SystemUI.setBackgroundColorAsync(t.bg).catch(() => {});
-  }, [t.bg]);
-  // On the web, iOS paints the area under the clock with the page background or the theme-color:
-  // both follow the theme chosen in the app, not only the one of the phone.
-  useEffect(() => {
-    if (Platform.OS !== 'web') return;
-    document.documentElement.style.backgroundColor = t.bg;
-    document.body.style.backgroundColor = t.bg;
-    for (const meta of document.querySelectorAll('meta[name="theme-color"]')) meta.setAttribute('content', t.bg);
-  }, [t.bg]);
+  useHideSplash(!!(ready && fonts && themeLoaded && lock.loaded));
+  useWindowBackground(t.bg);
   if (!ready || !fonts || !themeLoaded || !lock.loaded) return null;
   if (install === 'block') return <InstallScreen />;
   // Navigation's own background (cards, tab scenes) follows the theme too, instead of its default white.
@@ -187,71 +170,4 @@ export default function Layout() {
 function SameLanguage({ children }: { children: ReactNode }) {
   const { lang } = useLang();
   return <Fragment key={lang}>{children}</Fragment>;
-}
-
-type Stage = 'out' | 'verify' | 'intro' | 'room' | 'in';
-const STAGE_HOME: Record<Stage, string> = { out: '/join', verify: '/auth/verify', intro: '/intro', room: '/setup', in: '/' };
-/** What a signed-in account without a room can open besides /setup: the account itself (and deleting it). */
-const ROOMLESS = ['/setup', '/profile', '/friends', '/security', '/notifications', '/badges', '/wrapped'];
-const SIGNED_OUT = ['/join', '/auth/email', '/auth/password', '/auth/two-factor', '/auth/forgot', '/auth/reset', '/auth/mfa-reset'];
-
-/**
- * Keep the screen on the current stage: when signing up, in or out changes it, go to that stage's screen.
- * Without this the router falls back to the only unguarded route (/oauth), which bounced to `/` and back forever.
- */
-/** The invite code the page was opened with (read once at load) has been handled. */
-let presetUsed = false;
-
-function useStageRoute(stage: Stage, mounted: boolean) {
-  const pathname = usePathname();
-  const { code, error, share } = useGlobalSearchParams<{ code?: string; error?: string; share?: string }>();
-  // Seen signed out (or verifying): a shared question opened meanwhile is resumed once in.
-  const wasOut = useRef(false);
-  const invited = useRef(false);
-  useEffect(() => {
-    if (!mounted) return;
-    if (stage === 'out' || stage === 'verify') wasOut.current = true;
-    // Back from Google / Discord with an answer: that page finishes the sign-in itself.
-    if (pathname === '/oauth' && (code || error)) return;
-    if ((stage === 'in' || stage === 'room') && wasOut.current) {
-      wasOut.current = false;
-      if (pendingPlayToken() && pathname !== '/play') return void router.replace('/play');
-    }
-    // A party's join link and big screen work at every stage (a guest has no account yet).
-    const open = pathname.startsWith('/party/join/') || pathname.startsWith('/party/screen/');
-    // /play only with a shared question to show: the router also falls back to it when the guarded screens swap.
-    // (After the intro: it ends on /play, see wasOut above.)
-    const play = pathname === '/play' && stage !== 'verify' && stage !== 'intro' && !!(share || pendingPlayToken());
-    // An invite link opened while signed in: the router drops /join and lands on home; from there, on to the join form with the code filled in.
-    // Opened signed out (or before any room): signing in or /setup uses that code, not this.
-    if (stage !== 'in') presetUsed = true;
-    if (stage === 'in' && pathname === '/join' && (code || (!presetUsed && presetJoinCode()))) {
-      setPendingCode(code ?? presetJoinCode());
-      invited.current = true;
-      presetUsed = true;
-    }
-    // The links shared before 0.32.1 (`/?code=`) land straight on home: once, the same way.
-    if (stage === 'in' && pathname === '/' && !presetUsed && presetJoinCode()) {
-      presetUsed = true;
-      setPendingCode(presetJoinCode());
-      invited.current = true;
-    }
-    if (stage === 'in' && pathname === '/' && invited.current && pendingJoinCode()) {
-      invited.current = false;
-      return void router.push('/rooms');
-    }
-    const ok =
-      open || play
-        ? true
-        : stage === 'out'
-          ? SIGNED_OUT.includes(pathname)
-          : stage === 'verify'
-            ? pathname === '/auth/verify'
-            : stage === 'intro'
-              ? pathname === '/intro'
-              : stage === 'room'
-                ? ROOMLESS.includes(pathname)
-                : pathname !== '/oauth' && pathname !== '/setup' && pathname !== '/join' && pathname !== '/intro' && !pathname.startsWith('/auth');
-    if (!ok) router.replace(STAGE_HOME[stage] as never);
-  }, [stage, pathname, mounted, code, error, share]);
 }

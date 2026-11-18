@@ -2,7 +2,7 @@ import * as Notifications from 'expo-notifications';
 import { type Href, router } from 'expo-router';
 import { useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
-import { pathOf } from '@/lib/device/native-push';
+import { pathOf, registerNativePush } from '@/lib/device/native-push';
 import { useSwitchRoomHere } from '@/lib/hooks/use-switch-room';
 import { useLatest } from '@/lib/hooks/use-latest';
 import { useSession } from '@/lib/session';
@@ -33,4 +33,10 @@ export function useNotificationTaps(active: boolean) {
     const sub = Notifications.addNotificationResponseReceivedListener(open);
     return () => sub.remove();
   }, [active, latest]);
+}
+
+export function useRegisterNativePush(signedIn: boolean) {
+  useEffect(() => {
+    if (signedIn) registerNativePush().catch(() => {});
+  }, [signedIn]);
 }
