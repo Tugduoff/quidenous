@@ -31,7 +31,17 @@ const NO_HAPTICS = {
   message: 'Use impactHaptic / selectionHaptic from @/lib/device/haptics.',
 };
 
-const restrict = (patterns, paths = []) => ['error', { patterns, paths }];
+const EFFECT_HOOKS = ['useEffect', 'useLayoutEffect', 'useInsertionEffect'];
+const EFFECT_MESSAGE =
+  'Raw effects live only in src/lib/hooks. Derive the value in render, act in the event handler, or use (or add) a named hook from @/lib/hooks (useMountEffect, useTimeout, useOnChange, useWhen, useAnimateOnChange, useAppStateChange...).';
+const NO_EFFECTS = { name: 'react', importNames: EFFECT_HOOKS, message: EFFECT_MESSAGE };
+const NO_EFFECT_MEMBERS = {
+  selector: `MemberExpression[object.name='React'][property.name=/^(${EFFECT_HOOKS.join('|')})$/]`,
+  message: EFFECT_MESSAGE,
+};
+
+const restrict = (patterns, paths = []) => ['error', { patterns, paths: [...paths, NO_EFFECTS] }];
+const restrictInHooks = (patterns, paths = []) => ['error', { patterns, paths }];
 
 const NO_FETCH = {
   name: 'fetch',
@@ -72,6 +82,7 @@ module.exports = defineConfig([
         'react-hooks/exhaustive-deps',
         'no-restricted-globals',
         'no-restricted-properties',
+        'no-restricted-syntax',
       ],
       '@eslint-community/eslint-comments/no-unlimited-disable': 'error',
       '@typescript-eslint/no-explicit-any': 'error',
@@ -81,6 +92,7 @@ module.exports = defineConfig([
       '@typescript-eslint/no-restricted-imports': restrict([RELATIVE], [RAW_CLIENT, NO_HAPTICS]),
       'no-restricted-globals': ['error', NO_FETCH],
       'no-restricted-properties': ['error', ...NO_FETCH_PROPERTY],
+      'no-restricted-syntax': ['error', NO_EFFECT_MEMBERS],
     },
   },
   {
@@ -118,6 +130,13 @@ module.exports = defineConfig([
       '@typescript-eslint/no-restricted-imports': restrict([RELATIVE, NO_APP, NO_COMPONENTS], [RAW_CLIENT, NO_HAPTICS]),
       'no-restricted-globals': 'off',
       'no-restricted-properties': 'off',
+    },
+  },
+  {
+    files: ['src/lib/hooks/**/*.{ts,tsx}'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': restrictInHooks([RELATIVE, NO_APP, NO_COMPONENTS], [RAW_CLIENT, NO_HAPTICS]),
+      'no-restricted-syntax': 'off',
     },
   },
 ]);
