@@ -180,6 +180,22 @@ pub fn update_to_answer(lang: Lang, question: &str) -> String {
     }
 }
 
+/// Push title when a said question's guessing starts (docs/SAID.md).
+pub fn said_guessing(lang: Lang) -> &'static str {
+    lang.pick(
+        "Les réponses sont là : qui a dit quoi ?",
+        "The answers are in: who said what?",
+    )
+}
+
+/// The inbox entry for the same moment: the title, then the question.
+pub fn said_guessing_entry(lang: Lang, question: &str) -> String {
+    match lang {
+        Lang::Fr => format!("{} « {question} »", said_guessing(lang)),
+        Lang::En => format!("{} “{question}”", said_guessing(lang)),
+    }
+}
+
 pub fn new_question(lang: Lang) -> &'static str {
     lang.pick("Nouvelle question", "New question")
 }

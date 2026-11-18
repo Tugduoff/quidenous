@@ -273,7 +273,7 @@ pub async fn challenge(
     Ok(Json(json!({ "challenge_id": challenge })))
 }
 
-/// Top 3 of a round: votes for a pick question, points for a ranking. First names and drawn
+/// Top 3 of a round: votes for a pick question, points for a ranking or a said question. First names and drawn
 /// avatars only: the other room may be strangers, so no photos.
 async fn podium(db: &SqlitePool, round_id: i64) -> AppResult<Vec<Value>> {
     let kind: String = sqlx::query_scalar(
@@ -282,7 +282,17 @@ async fn podium(db: &SqlitePool, round_id: i64) -> AppResult<Vec<Value>> {
     .bind(round_id)
     .fetch_one(db)
     .await?;
-    let top: Vec<(i64, i64)> = if kind == "choose" {
+    let top: Vec<(i64, i64)> = if kind == "said" {
+        // The top scorers.
+        crate::said::result(db, round_id)
+            .await?
+            .into_iter()
+            .flat_map(|r| r.scores)
+            .filter(|s| s.points > 0)
+            .take(3)
+            .map(|s| (s.member_id, s.points))
+            .collect()
+    } else if kind == "choose" {
         // Who guessed the others' real choices best.
         game::choose_result(db, round_id)
             .await?

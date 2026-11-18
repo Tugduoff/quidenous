@@ -11,7 +11,7 @@ export const vote = {
     profile: 'Profil',
   },
   /** A question's kind, one name everywhere (ballot tag, Questions, packs, suggestions); `custom` is where it comes from (our own), not a kind. */
-  kind: { result: 'Résultat', rank: 'Classement', custom: 'De nous', pick: 'Qui de nous', choose: 'Choix' },
+  kind: { result: 'Résultat', rank: 'Classement', custom: 'De nous', pick: 'Qui de nous', choose: 'Choix', said: 'Qui a dit ça ?' },
   linkCopied: 'Lien copié',
   shareResult: 'Partager le résultat',
   shareQuestion: 'Partager la question',

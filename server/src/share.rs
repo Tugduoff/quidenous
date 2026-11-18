@@ -347,7 +347,18 @@ async fn load(state: &AppState, token: &str) -> AppResult<Card> {
     };
     let mut podium = Vec::new();
     if with_result && round.closed_at.is_some() {
-        if round.kind == "choose" {
+        if round.kind == "said" {
+            // The top scorers (points for finding authors and fooling guessers).
+            let result = crate::said::result(&state.db, round_id).await?;
+            for s in result
+                .into_iter()
+                .flat_map(|r| r.scores)
+                .filter(|s| s.points > 0)
+                .take(3)
+            {
+                podium.push((member(s.member_id).await, i18n::points(s.points)));
+            }
+        } else if round.kind == "choose" {
             let scores = game::choose_result(&state.db, round_id).await?.scores;
             for s in scores.into_iter().filter(|s| s.hits > 0).take(3) {
                 podium.push((member(s.member_id).await, format!("{}/{}", s.hits, s.total)));

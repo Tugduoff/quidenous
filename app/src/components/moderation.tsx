@@ -126,7 +126,9 @@ export function ModerationDialog({
       ? tr('moderation.reportMessage')
       : shown.kind === 'question' || shown.kind === 'suggestion'
         ? tr('moderation.reportQuestion')
-        : tr('moderation.reportPerson', { name: person?.name ?? '' });
+        : shown.kind === 'answer'
+          ? tr('moderation.reportAnswer')
+          : tr('moderation.reportPerson', { name: person?.name ?? '' });
 
   return (
     <Dialog visible={!!target} onClose={onClose} anchor={step === 'menu' ? shown?.anchor : undefined}>

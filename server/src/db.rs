@@ -106,12 +106,21 @@ async fn table_exists(db: &SqlitePool, name: &str) -> sqlx::Result<bool> {
 /// Each script listed here is atomic (its own `BEGIN … COMMIT`), so "fully run" is the only state
 /// besides "not run". New no-transaction migrations: make them atomic and idempotent
 /// (`IF NOT EXISTS` / `IF EXISTS`), and add a probe here.
-const NO_TX_PROBES: &[(i64, &str)] = &[(
-    27,
-    "SELECT EXISTS (SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'choices') \
-     AND EXISTS (SELECT 1 FROM pragma_table_info('questions') WHERE name = 'items') \
-     AND NOT EXISTS (SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'questions_new')",
-)];
+const NO_TX_PROBES: &[(i64, &str)] = &[
+    (
+        27,
+        "SELECT EXISTS (SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'choices') \
+         AND EXISTS (SELECT 1 FROM pragma_table_info('questions') WHERE name = 'items') \
+         AND NOT EXISTS (SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'questions_new')",
+    ),
+    (
+        51,
+        "SELECT EXISTS (SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'said_guesses') \
+         AND EXISTS (SELECT 1 FROM pragma_table_info('rounds') WHERE name = 'said_guess_at') \
+         AND NOT EXISTS (SELECT 1 FROM sqlite_master WHERE type = 'table' \
+                         AND name IN ('questions_new', 'reports_new'))",
+    ),
+];
 
 /// Records the no-transaction migrations whose script finished but whose record is missing.
 /// Returns how many were repaired.

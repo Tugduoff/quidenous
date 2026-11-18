@@ -7,7 +7,7 @@ A third kind of question next to *pick* (one person) and *rank* (everyone in ord
 - **Composer** (Questions tab): a third type next to *Classement*; 2 to 4 item fields.
 - **Files and the built-in deck**: `[choix] Qui prendrait quoi au resto ? | Pizza | Sushi | Burger` (`[choose]` also works). The text before the first `|` is the question, each other part an item. Vibe tags combine as usual (`[choix] [soiree] …`).
 - Limits: question 8 to 200 characters (as always); 2 to 4 items, each 1 to 40 characters, no two alike (case-insensitive). A file line that breaks them is skipped; the composer gets `400 bad_items`.
-- Not in parties (they draw *pick* questions only) or deck suggestions for now. Packs carry them since `pack_choose` (docs/PACK_FILES.md).
+- Not in parties (they draw *pick* and *said* questions only) or deck suggestions for now. Packs carry them since `pack_choose` (docs/PACK_FILES.md).
 
 ## Storage
 
@@ -32,4 +32,4 @@ A third kind of question next to *pick* (one person) and *rank* (everyone in ord
 
 ## Older apps
 
-New apps send `x-kinds: choose`. Without it, a choose question's text comes back as "Mets l'app à jour pour répondre : …" (English: "Update the app to answer: …"), and the single pick an older app sends is accepted as a vote without wires: nobody waits for them, it adds nothing to the result.
+New apps send `x-kinds: choose,said` (a comma list; a fourth kind, *said*, is in docs/SAID.md). Without it, a choose question's text comes back as "Mets l'app à jour pour répondre : …" (English: "Update the app to answer: …"), and the single pick an older app sends is accepted as a vote without wires: nobody waits for them, it adds nothing to the result.

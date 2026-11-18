@@ -10,7 +10,7 @@ export const vote: Messages['vote'] = {
     group: 'Group',
     profile: 'Profile',
   },
-  kind: { result: 'Result', rank: 'Ranking', custom: 'From us', pick: 'Which of us', choose: 'Who gets what' },
+  kind: { result: 'Result', rank: 'Ranking', custom: 'From us', pick: 'Which of us', choose: 'Who gets what', said: 'Who said that?' },
   linkCopied: 'Link copied',
   shareResult: 'Share the result',
   shareQuestion: 'Share the question',

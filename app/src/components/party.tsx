@@ -78,15 +78,29 @@ export function Countdown({ ms, total, big }: { ms: number | null; total: number
   );
 }
 
-/** Faces of who voted and "3/5 ont voté". */
-export function VotedLine({ round, byId, big }: { round: PartyRound; byId: Map<number, Member>; big?: boolean }) {
+/**
+ * Faces of who voted and "3/5 ont voté". A said question: `done` (who has written, or guessed) and the line that says so.
+ */
+export function VotedLine({
+  round,
+  byId,
+  big,
+  done = round.voted,
+  label = 'party.vote.voted',
+}: {
+  round: PartyRound;
+  byId: Map<number, Member>;
+  big?: boolean;
+  done?: number[];
+  label?: 'party.vote.voted' | 'said.party.written' | 'said.party.guessed';
+}) {
   const t = useTheme();
   const tr = useT();
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: big ? 16 : 8 }}>
-      {round.voted.length > 0 && <AvatarStack members={round.voted.map((id) => byId.get(id))} size={big ? 48 : 28} max={big ? 10 : 6} />}
+      {done.length > 0 && <AvatarStack members={done.map((id) => byId.get(id))} size={big ? 48 : 28} max={big ? 10 : 6} />}
       <Text style={{ fontFamily: big ? t.font.display : t.font.semibold, fontSize: big ? 36 : 15, color: t.mut }}>
-        {tr('party.vote.voted', { count: round.voted.filter((id) => round.eligible.includes(id)).length, total: round.eligible.length })}
+        {tr(label, { count: done.filter((id) => round.eligible.includes(id)).length, total: round.eligible.length })}
       </Text>
     </View>
   );

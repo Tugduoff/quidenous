@@ -4,6 +4,7 @@ export const moderation: Messages['moderation'] = {
   reasons: { offensive: 'Offensive', harassment: 'Harassment', sexual: 'Sexual content', spam: 'Spam', other: 'Other' },
   reportMessage: 'Report this message',
   reportQuestion: 'Report this question',
+  reportAnswer: 'Report this answer',
   reportPerson: 'Report {name}',
   report: 'Report',
   block: 'Block {name}',

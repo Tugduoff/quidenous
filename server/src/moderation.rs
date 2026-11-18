@@ -1,8 +1,8 @@
-//! Reporting content (messages, members, questions, suggestions) to whoever moderates, and
+//! Reporting content (messages, members, questions, suggestions, said answers) to whoever moderates, and
 //! blocking people. A block hides their messages, inbox entries and pushes from me and stops
 //! friend requests both ways; the shared game (membership, votes, results) is unchanged.
 //! Chat clean-up: authors delete their messages, owners any message of their room; three
-//! reporters hide a message until an admin decides. Admins see open reports in `/admin/review`
+//! reporters hide a message (or a said answer, docs/SAID.md) until an admin decides. Admins see open reports in `/admin/review`
 //! and close them (dismiss, delete the content, suspend or erase the account).
 
 use axum::{
@@ -23,8 +23,8 @@ use crate::{
 };
 
 const DETAILS_MAX: usize = 500;
-const KINDS: [&str; 4] = ["message", "member", "question", "suggestion"];
-/// Different people reporting the same message (or suggestion) hide it until an admin decides.
+const KINDS: [&str; 5] = ["message", "member", "question", "suggestion", "answer"];
+/// Different people reporting the same message (suggestion, said answer) hide it until an admin decides.
 pub const HIDE_AFTER: i64 = 3;
 /// Open report groups an admin sees at once (oldest first).
 const ADMIN_LIST_MAX: i64 = 100;
@@ -57,6 +57,18 @@ async fn target(state: &AppState, me: i64, kind: &str, id: i64) -> AppResult<Tar
                 .bind(id)
                 .fetch_optional(&state.db)
                 .await?
+        }
+        // A said answer, once shown (guessing or done; an admin's delete leaves nothing to report).
+        "answer" => {
+            sqlx::query_as(
+                "SELECT a.text, m.user_id, m.name, r.group_id FROM said_answers a \
+                 JOIN members m ON m.id = a.member_id JOIN rounds r ON r.id = a.round_id \
+                 WHERE a.id = ? AND a.text IS NOT NULL AND a.text <> '' \
+                 AND (r.said_guess_at IS NOT NULL OR r.closed_at IS NOT NULL)",
+            )
+            .bind(id)
+            .fetch_optional(&state.db)
+            .await?
         }
         // A suggestion to the shared deck: no room, open ones only.
         "suggestion" => {
@@ -139,7 +151,7 @@ pub async fn report(
     if inserted.rows_affected() == 0 {
         return Ok(Json(json!({ "ok": true })));
     }
-    if matches!(body.kind.as_str(), "message" | "suggestion") {
+    if matches!(body.kind.as_str(), "message" | "suggestion" | "answer") {
         hide_if_reported(&state, &body.kind, body.id, room).await?;
     }
     if state.auth.limits.hit(&limits::REPORT_MAIL, "all").is_err() {
@@ -158,6 +170,7 @@ pub async fn report(
         "message" => "message",
         "member" => "membre",
         "suggestion" => "suggestion",
+        "answer" => "réponse « Qui a dit ça ? »",
         _ => "question",
     };
     let reason = match body.reason.as_str() {
@@ -300,8 +313,9 @@ macro_rules! trusted {
 pub(crate) use trusted;
 
 /// [`HIDE_AFTER`] different trusted people reported it (open reports; for a message the owner
-/// restored, made since): a message disappears for everyone, a suggestion leaves the vote stack
-/// (`rejected`, no `decided_at`), until an admin decides.
+/// restored, made since): a message disappears for everyone, a said answer shows as hidden (it
+/// stays in the game), a suggestion leaves the vote stack (`rejected`, no `decided_at`), until an
+/// admin decides.
 async fn hide_if_reported(
     state: &AppState,
     kind: &str,
@@ -343,6 +357,17 @@ async fn hide_if_reported(
                 },
             );
             state.live.send(room, Event::InboxChanged);
+        }
+    } else if kind == "answer" {
+        let hidden: Option<i64> = sqlx::query_scalar(
+            "UPDATE said_answers SET hidden_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') \
+             WHERE id = ? AND hidden_at IS NULL RETURNING round_id",
+        )
+        .bind(id)
+        .fetch_optional(&state.db)
+        .await?;
+        if let (Some(round_id), Some(room)) = (hidden, room) {
+            state.live.send(room, Event::RoundUpdated { round_id });
         }
     } else {
         sqlx::query(
@@ -630,6 +655,14 @@ pub async fn open_reports(state: &AppState) -> AppResult<Vec<Value>> {
                 .await?,
                 false,
             ),
+            // Deleted by an admin: blanked.
+            "answer" => sqlx::query_as::<_, (bool, bool)>(
+                "SELECT text = '', hidden_at IS NOT NULL FROM said_answers WHERE id = ?",
+            )
+            .bind(id)
+            .fetch_optional(&state.db)
+            .await?
+            .unwrap_or((true, false)),
             "suggestion" => sqlx::query_as::<_, (bool, bool)>(
                 "SELECT status IN ('approved', 'rejected') AND decided_at IS NOT NULL, \
                  status = 'rejected' AND decided_at IS NULL FROM suggestions WHERE id = ?",
@@ -696,8 +729,9 @@ pub async fn open_reports(state: &AppState) -> AppResult<Vec<Value>> {
 pub struct ActBody {
     kind: String,
     id: i64,
-    /// `dismiss` (nothing wrong: a hidden message or suggestion comes back), `delete` (the
-    /// message, the question or the suggestion), `suspend` or `erase` (the reported account).
+    /// `dismiss` (nothing wrong: a hidden message, said answer or suggestion comes back), `delete`
+    /// (the message, the question, the said answer or the suggestion), `suspend` or `erase` (the
+    /// reported account).
     action: String,
 }
 
@@ -748,6 +782,17 @@ pub async fn act(
                         },
                     );
                 }
+            } else if kind == "answer" {
+                let back: Option<(i64, i64)> = sqlx::query_as(
+                    "UPDATE said_answers SET hidden_at = NULL WHERE id = ? AND hidden_at IS NOT NULL \
+                     AND text <> '' RETURNING round_id, (SELECT group_id FROM rounds r WHERE r.id = round_id)",
+                )
+                .bind(body.id)
+                .fetch_optional(&state.db)
+                .await?;
+                if let Some((round_id, room)) = back {
+                    state.live.send(room, Event::RoundUpdated { round_id });
+                }
             } else if kind == "suggestion" {
                 // Taken off the vote stack by reports: back where its votes put it.
                 let votes: Option<(i64, i64)> = sqlx::query_as(
@@ -777,6 +822,7 @@ pub async fn act(
             Ok(_) | Err(AppError::NotFound) => {}
             Err(e) => return Err(e),
         },
+        ("delete", "answer") => erase_answer(&state, body.id).await?,
         ("delete", "suggestion") => {
             sqlx::query(
                 "UPDATE suggestions SET status = 'rejected', decided_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') \
@@ -794,6 +840,24 @@ pub async fn act(
     resolve(&mut tx, &body.kind, body.id, &body.action).await?;
     tx.commit().await?;
     Ok(Json(json!({ "ok": true })))
+}
+
+/// An admin's delete on a said answer: its text is blanked for good and it shows as hidden (it was
+/// written: it stays in the game, its guesses and points too).
+async fn erase_answer(state: &AppState, id: i64) -> AppResult<()> {
+    let gone: Option<(i64, i64)> = sqlx::query_as(
+        "UPDATE said_answers SET text = '', \
+         hidden_at = COALESCE(hidden_at, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) \
+         WHERE id = ? AND text IS NOT NULL \
+         RETURNING round_id, (SELECT group_id FROM rounds r WHERE r.id = round_id)",
+    )
+    .bind(id)
+    .fetch_optional(&state.db)
+    .await?;
+    if let Some((round_id, room)) = gone {
+        state.live.send(room, Event::RoundUpdated { round_id });
+    }
+    Ok(())
 }
 
 /// Signs the account out everywhere and refuses its sign-ins (`403 suspended`) from now on. Its

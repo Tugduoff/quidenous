@@ -18,8 +18,8 @@ export default function RoundScreen() {
   const back = () => (router.canGoBack() ? router.back() : router.replace('/history'));
 
   useEffect(() => {
-    if ((round?.result || round?.choose) && isMilestone(round.number)) setParty(true);
-  }, [round?.result, round?.choose, round?.number]);
+    if ((round?.result || round?.choose || round?.said?.result) && isMilestone(round.number)) setParty(true);
+  }, [round?.result, round?.choose, round?.said?.result, round?.number]);
 
   return (
     <View style={{ flex: 1 }}>

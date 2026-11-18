@@ -33,6 +33,7 @@ import { streaks } from './en/streaks';
 import { anonymous } from './en/anonymous';
 import { tripot } from './en/tripot';
 import { reactions } from './en/reactions';
+import { said } from './en/said';
 
 export const en: Messages = {
   common,
@@ -68,4 +69,5 @@ export const en: Messages = {
   anonymous,
   tripot,
   reactions,
+  said,
 };

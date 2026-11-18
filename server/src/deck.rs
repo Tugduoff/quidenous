@@ -80,7 +80,8 @@ async fn insert_lines(
 }
 
 /// `[classement] Classe-nous…` is a ranking question, `[choix] Qui prendrait quoi ? | A | B` a
-/// "who would choose what" question (see [`choose_items`]); anything else picks one person.
+/// "who would choose what" question (see [`choose_items`]), `[quiadit] Le pire cadeau ?` a "who
+/// said that" question (docs/SAID.md); anything else picks one person.
 /// Vibe tags (`[famille]`) are dropped: only the built-in deck uses them.
 pub fn parse_line(line: &str) -> (&str, &'static str) {
     let (text, kind, _) = parse_tagged(line);
@@ -88,7 +89,8 @@ pub fn parse_line(line: &str) -> (&str, &'static str) {
 }
 
 /// A line's leading tags, in any order: `[classement]` / `[rank]` make it a ranking question,
-/// `[choix]` / `[choose]` a choose question (its text stops at the first `|`),
+/// `[choix]` / `[choose]` a choose question (its text stops at the first `|`), `[quiadit]` /
+/// `[said]` a said question,
 /// known vibe tags (`[famille]`) are returned, `[anonyme]` / `[anonymous]` is dropped (see
 /// [`tagged_anonymous`]). The first unknown `[…]` is part of the question.
 pub fn parse_tagged(line: &str) -> (&str, &'static str, Vec<String>) {
@@ -102,6 +104,8 @@ pub fn parse_tagged(line: &str) -> (&str, &'static str, Vec<String>) {
             kind = "rank";
         } else if tag == "choix" || tag == "choose" {
             kind = "choose";
+        } else if tag == "quiadit" || tag == "said" {
+            kind = "said";
         } else if crate::vibes::is_tag(&tag) {
             if !tags.contains(&tag) {
                 tags.push(tag);
@@ -131,7 +135,8 @@ pub fn tagged_anonymous(line: &str) -> bool {
         if is_anonymous_tag(&tag) {
             return true;
         }
-        let known = ["classement", "rank", "choix", "choose"].contains(&tag.as_str())
+        let known = ["classement", "rank", "choix", "choose", "quiadit", "said"]
+            .contains(&tag.as_str())
             || crate::vibes::is_tag(&tag);
         if !known {
             break;
@@ -197,7 +202,7 @@ pub async fn ensure_group(db: &SqlitePool, name: &str, code: &str) -> sqlx::Resu
 }
 
 /// `server --import <file> --room <id>`: adds a file's questions (one per line, `#` comments,
-/// `[classement]` / `[choix] … | A | B` like the in-app import) to a room's own queue, skipping
+/// `[classement]` / `[choix] … | A | B` / `[quiadit]` like the in-app import) to a room's own queue, skipping
 /// ones it already has. `None` when the room does not exist (or was deleted).
 pub async fn import_room(db: &SqlitePool, room: i64, text: &str) -> sqlx::Result<Option<u64>> {
     let mut tx = crate::db::write_tx(db).await?;
@@ -247,6 +252,30 @@ mod tests {
     use super::*;
 
     #[test]
+    fn the_deck_has_said_questions_for_every_vibe() {
+        for (lang, deck) in DECKS {
+            let said: Vec<Vec<String>> = deck_lines(deck)
+                .map(parse_tagged)
+                .filter(|(_, kind, _)| *kind == "said")
+                .map(|(_, _, tags)| tags)
+                .collect();
+            assert!(said.len() >= 24, "{lang:?}: {}", said.len());
+            for v in crate::vibes::VIBES.iter() {
+                let draws = crate::vibes::draws(Some(&v.id));
+                let n = said
+                    .iter()
+                    .filter(|tags| {
+                        let tags = (!tags.is_empty()).then(|| tags.join(","));
+                        let tags = tags.as_deref().unwrap_or(crate::vibes::DEFAULT_TAG);
+                        draws.iter().any(|d| crate::vibes::has_tag(Some(tags), d))
+                    })
+                    .count();
+                assert!(n >= 4, "{lang:?} {}: {n}", v.id);
+            }
+        }
+    }
+
+    #[test]
     fn lines_carry_kind_and_vibe_tags() {
         assert_eq!(
             parse_line("[Classement] Classe-nous."),
@@ -286,6 +315,14 @@ mod tests {
         assert_eq!(choose_items("[choix] Qui ? | A | B | C | D | E"), None);
         assert_eq!(choose_items("Qui ? | A | B"), None);
         assert_eq!(parse_line("Qui ? | A | B"), ("Qui ? | A | B", "pick"));
+        assert_eq!(
+            parse_tagged("[quiadit] [potes] Le pire cadeau ?"),
+            ("Le pire cadeau ?", "said", vec!["potes".to_owned()])
+        );
+        assert_eq!(parse_line("[Said] Worst gift?"), ("Worst gift?", "said"));
+        // Never anonymous: the tag is read past, the question isn't (see `anonymous::wanted`).
+        assert!(tagged_anonymous("[quiadit] [anonyme] Le pire cadeau ?"));
+        assert!(!crate::anonymous::wanted("said", true));
         // Every built-in line parses to a non-empty question.
         for (_, deck) in DECKS {
             for line in deck_lines(deck) {

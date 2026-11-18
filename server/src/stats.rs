@@ -474,8 +474,8 @@ pub async fn compute(
         ", ",
         unix!("r.closed_at"),
         ", r.anonymous",
-        // Choose questions stay out of the stats for now (their votes then drop out too).
-        " FROM rounds r JOIN questions q ON q.id = r.question_id WHERE q.kind <> 'choose' AND ",
+        // Choose and said questions stay out of the stats for now (their votes then drop out too).
+        " FROM rounds r JOIN questions q ON q.id = r.question_id WHERE q.kind NOT IN ('choose', 'said') AND ",
         in_period!(),
         " ORDER BY r.number"
     ))

@@ -333,3 +333,33 @@ Who would adopt a dog on a whim and figure it out later?
 [choose] [potes] [famille] [boulot] Who listens to what in the car? | Rap | Pop | Podcast | Silence
 [choose] [potes] Who ends the night how? | Late-night kebab | Straight to bed | Afterparty | In tears
 [choose] [potes] [famille] Who would win what at the Olympics? | Sprint | Swimming | Chess | Nothing at all
+# "Who said that?" (docs/SAID.md): everyone writes an answer, then guesses who wrote what.
+[said] [potes] [famille] The worst gift you ever got?
+[said] [potes] [famille] [boulot] Your go-to lazy dinner after a long day?
+[said] [potes] [famille] Your most controversial food opinion?
+[said] [potes] [famille] [boulot] Your favourite excuse for bailing on plans?
+[said] [potes] Your worst hangover, in one sentence?
+[said] [potes] [famille] The last thing you googled?
+[said] [potes] [famille] [boulot] Your most irrational fear?
+[said] [potes] [famille] What did you want to be when you were eight?
+[said] [potes] [famille] [boulot] Something you'd never lend, not even to us?
+[said] [potes] The most embarrassing nickname you've ever had?
+[said] [potes] [famille] Your most useless hidden talent?
+[said] [potes] [famille] [boulot] Your go-to karaoke song?
+[said] [potes] The weirdest thing you've ever eaten?
+[said] [famille] [potes] Something you did as a kid that your parents still don't know about?
+[said] [famille] A family dish you secretly can't stand?
+[said] [famille] [potes] The holiday memory that stuck with you most?
+[said] [famille] Something your family does that you thought was normal until you left home?
+[said] [boulot] The most pointless meeting you've ever sat through?
+[said] [boulot] [potes] Worst summer job you ever had?
+[said] [boulot] The office buzzword you can't stand anymore?
+[said] [boulot] [potes] First thing you'd do if you won the lottery tomorrow?
+[said] [boulot] Your trick for looking busy?
+[said] [pimente] The weirdest place you've ever kissed someone?
+[said] [pimente] Worst pickup line you've used or heard?
+[said] [pimente] The first thing you notice about someone?
+[said] [pimente] Your worst date, in three words?
+[said] [pimente] A 2 a.m. text you wish you could unsend?
+[said] [potes] [boulot] The app you waste the most time on?
+[said] [potes] [famille] [boulot] Your guilty-pleasure TV show?

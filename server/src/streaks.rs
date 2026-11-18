@@ -188,11 +188,15 @@ impl Room {
         ))
         .bind(group_id)
         .fetch_all(db);
+        // A said question's answer counts like a vote (docs/SAID.md): writing is playing.
         let votes_q = sqlx::query_as::<_, (i64, i64, i64)>(concat!(
             "SELECT v.voter_id, v.round_id, ",
             secs!("v.created_at"),
-            " FROM votes v JOIN rounds r ON r.id = v.round_id WHERE r.group_id = ? AND r.deadline_at IS NULL \
-             ORDER BY v.created_at"
+            " AS at FROM votes v JOIN rounds r ON r.id = v.round_id WHERE r.group_id = ?1 AND r.deadline_at IS NULL \
+             UNION ALL SELECT a.member_id, a.round_id, ",
+            secs!("a.created_at"),
+            " FROM said_answers a JOIN rounds r ON r.id = a.round_id WHERE r.group_id = ?1 AND r.deadline_at IS NULL \
+             AND a.text IS NOT NULL ORDER BY at"
         ))
         .bind(group_id)
         .fetch_all(db);
@@ -462,8 +466,9 @@ type Candidate = (
 /// The evening reminder at `now` (unix seconds): pushes "your N-day streak ends tonight" to every
 /// seat that qualifies and records it. Returns the members reminded.
 pub async fn remind_at(state: &AppState, now: i64) -> AppResult<Vec<i64>> {
-    // Seats with an open question they haven't answered, in rooms of two or more.
-    let rows: Vec<Candidate> = sqlx::query_as(
+    // Seats with an open question they haven't answered (a said question still writing: not
+    // written), in rooms of two or more.
+    let rows: Vec<Candidate> = sqlx::query_as(concat!(
         "SELECT m.id, m.group_id, r.id, p.tz_offset, \
            (SELECT op.tz_offset FROM members o JOIN notification_prefs op ON op.user_id = o.user_id \
             WHERE o.group_id = m.group_id AND o.role = 'owner' AND o.removed_at IS NULL LIMIT 1), \
@@ -471,10 +476,10 @@ pub async fn remind_at(state: &AppState, now: i64) -> AppResult<Vec<i64>> {
          FROM rounds r JOIN groups g ON g.id = r.group_id AND g.kind = 'room' AND g.deleted_at IS NULL \
          JOIN members m ON m.group_id = r.group_id AND m.removed_at IS NULL AND NOT m.muted AND m.user_id IS NOT NULL \
          LEFT JOIN notification_prefs p ON p.user_id = m.user_id \
-         WHERE r.closed_at IS NULL AND r.deadline_at IS NULL \
-         AND NOT EXISTS (SELECT 1 FROM votes v WHERE v.round_id = r.id AND v.voter_id = m.id) \
-         AND (SELECT COUNT(*) FROM members a WHERE a.group_id = r.group_id AND a.removed_at IS NULL) >= 2",
-    )
+         WHERE r.closed_at IS NULL AND r.deadline_at IS NULL AND NOT ",
+        crate::said::done!("r.id", "m.id"),
+        " AND (SELECT COUNT(*) FROM members a WHERE a.group_id = r.group_id AND a.removed_at IS NULL) >= 2"
+    ))
     .fetch_all(&state.db)
     .await?;
     let mut rooms: HashMap<i64, Option<Room>> = HashMap::new();

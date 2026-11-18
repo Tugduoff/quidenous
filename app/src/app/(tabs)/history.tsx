@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { Cable, Crown, Download, PartyPopper, Pin, Target } from 'lucide-react-native';
+import { Cable, Crown, Download, MessageSquareQuote, PartyPopper, Pin, Target } from 'lucide-react-native';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, SectionList, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
@@ -53,9 +53,11 @@ function HistoryCard({ item, byId, order }: { item: HistoryItem; byId: Map<numbe
   const tr = useT();
   const winners = item.winner_ids.map((id) => byId.get(id));
   const winner = winners[0];
-  // A choose question's "winners" are its best guessers (none when nobody guessed right).
+  // A choose question's "winners" are its best guessers (none when nobody guessed right); a said one's, its top scorers.
   const choose = item.kind === 'choose';
+  const said = item.kind === 'said';
   const Mark = choose ? Target : Crown;
+  const Empty = said ? MessageSquareQuote : Cable;
   // Each row as wide as its own faces: a tie elsewhere doesn't squeeze this title.
   const lead = winners.length > 1 ? avatarStackWidth(winners.length, TIED, MAX) : SOLO;
   return (
@@ -68,12 +70,12 @@ function HistoryCard({ item, byId, order }: { item: HistoryItem; byId: Map<numbe
         <View style={{ width: lead, alignItems: 'center' }}>
           {winners.length > 1 ? (
             <AvatarStack members={winners} size={TIED} ring={t.card} max={MAX} />
-          ) : winner || !choose ? (
+          ) : winner || !(choose || said) ? (
             <Avatar member={winner} size={SOLO} />
           ) : (
             <View
               style={{ width: SOLO, height: SOLO, borderRadius: SOLO / 2, alignItems: 'center', justifyContent: 'center', backgroundColor: t.card2 }}>
-              <Cable size={20} color={t.mut} />
+              <Empty size={20} color={t.mut} />
             </View>
           )}
         </View>
@@ -82,6 +84,7 @@ function HistoryCard({ item, byId, order }: { item: HistoryItem; byId: Map<numbe
             text={item.question}
             rank={item.kind === 'rank'}
             choose={choose}
+            said={said}
             style={{ fontFamily: t.font.semibold, fontSize: 15, lineHeight: 19, color: t.txt }}
           />
           <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 4 }}>
@@ -89,7 +92,7 @@ function HistoryCard({ item, byId, order }: { item: HistoryItem; byId: Map<numbe
             <Text
               numberOfLines={1}
               style={{ flex: item.anonymous ? undefined : 1, flexShrink: 1, fontFamily: t.font.regular, fontSize: 12, lineHeight: 16, color: t.mut }}>
-              {winners.length ? winners.map((m) => m?.name).join(', ') : choose ? tr('history.nobodyGuessed') : ''}
+              {winners.length ? winners.map((m) => m?.name).join(', ') : choose ? tr('history.nobodyGuessed') : said ? tr('said.result.nobody') : ''}
             </Text>
             {item.anonymous && (
               <View style={{ marginTop: 1.5, marginLeft: 2 }}>

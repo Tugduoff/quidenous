@@ -4,7 +4,8 @@ import { api, type Member } from './api';
 import { keys } from './queries';
 import { useSession } from './session';
 
-export type ReportKind = 'message' | 'member' | 'question' | 'suggestion';
+/** `answer`: an answer to a « Qui a dit ça ? » question (docs/SAID.md). */
+export type ReportKind = 'message' | 'member' | 'question' | 'suggestion' | 'answer';
 export type ReportReason = 'offensive' | 'harassment' | 'sexual' | 'spam' | 'other';
 
 /** In the order shown; the label is `moderation.reasons.<reason>`. */

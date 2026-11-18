@@ -28,6 +28,7 @@ import { ChallengeButton, Challenges } from '@/components/challenge';
 import { useSecretPicker } from '@/components/celebration';
 import { ChatInput, ChatMessages } from '@/components/chat';
 import { ChooseBallot, ChooseResult, myRealChoice } from '@/components/choose';
+import { SaidResultView, SaidRound } from '@/components/said';
 import { GlobalCard } from '@/components/global';
 import { BIG_GROUP, gridColumns, MemberGrid, MemberTile } from '@/components/member-grid';
 import { AnonymousBadge } from '@/components/anonymous';
@@ -243,6 +244,9 @@ export default function VoteScreen() {
       </Screen>
     );
   }
+  // A « Qui a dit ça ? » question has its own screens: write, guess, then wait (docs/SAID.md).
+  if (round.kind === 'said' && round.said)
+    return <SaidBallot key={round.id} round={round} members={members} byId={byId} onVoted={() => qc.invalidateQueries({ queryKey: keys.unseen })} />;
   if (round.my_vote != null) return <Waiting round={round} byId={byId} members={members} />;
   return <Ballot key={round.id} round={round} members={members} byId={byId} onVoted={() => qc.invalidateQueries({ queryKey: keys.unseen })} />;
 }
@@ -325,9 +329,11 @@ const kindLabel = (round: Round, result?: boolean) =>
       ? 'vote.kind.rank'
       : round.kind === 'choose'
         ? 'vote.kind.choose'
-        : round.custom
-          ? 'vote.kind.custom'
-          : 'vote.kind.pick';
+        : round.kind === 'said'
+          ? 'vote.kind.said'
+          : round.custom
+            ? 'vote.kind.custom'
+            : 'vote.kind.pick';
 
 /** First-run hint on the ballot: how a question ends. */
 function VoteTip() {
@@ -485,6 +491,27 @@ function Ballot({ round, members, byId, onVoted }: { round: Round; members: Memb
       />
     );
   return <PickBallot round={round} members={members} byId={byId} onVoted={onVoted} />;
+}
+
+function SaidBallot({ round, members, byId, onVoted }: { round: Round; members: Member[]; byId: Map<number, Member>; onVoted: () => void }) {
+  const { me } = useSession();
+  return (
+    <SaidRound
+      round={round}
+      said={round.said!}
+      me={me?.id}
+      byId={byId}
+      onVoted={onVoted}
+      top={
+        <>
+          <Header />
+          <Question round={round} />
+        </>
+      }
+      // While writing, "done" is having written; then, having guessed.
+      waitList={(done, title) => <WhoIsIn round={round} members={members} byId={byId} done={done} title={title} />}
+    />
+  );
 }
 
 function PickBallot({ round, members, byId, onVoted }: { round: Round; members: Member[]; byId: Map<number, Member>; onVoted: () => void }) {
@@ -678,13 +705,6 @@ function Waiting({ round, byId, members }: { round: Round; byId: Map<number, Mem
   const choice = round.kind === 'choose' ? myRealChoice(round, me?.id) : null;
   const target = round.my_vote != null ? byId.get(round.my_vote) : undefined;
   const hidden = useHideVote();
-  const pending = members.filter((m) => !round.voter_ids.includes(m.id));
-  // The face tapped in the grid; closes by itself once they've voted.
-  const [open, setOpen] = useState<number | null>(null);
-  const opened = pending.find((m) => m.id === open);
-  // With two people a majority is one person deciding alone: no skip vote then (nor when the owner turned it off).
-  const group = useGroup();
-  const canSkip = members.length >= 3 && group.data?.settings.skip_vote !== false;
   const done = round.voter_ids.length;
   const label = { fontFamily: t.font.bold, fontSize: 11, letterSpacing: 0.6, color: t.mut } as const;
   return (
@@ -718,17 +738,57 @@ function Waiting({ round, byId, members }: { round: Round; byId: Map<number, Mem
         </PressableScale>
       </Card>
       <BetRow round={round} members={members} byId={byId} />
+      <WhoIsIn
+        round={round}
+        members={members}
+        byId={byId}
+        done={round.voter_ids}
+        title={tr('vote.waiting.voted', { count: done, done, total: round.member_count })}
+      />
+    </Screen>
+  );
+}
+
+/**
+ * Who's in, who we're waiting for (`done`: who voted, or for a said question who wrote). A card (not Card) that animates
+ * its height as people leave the list; each pending person with the skip and the bell.
+ */
+function WhoIsIn({
+  round,
+  members,
+  byId,
+  done,
+  title,
+}: {
+  round: Round;
+  members: Member[];
+  byId: Map<number, Member>;
+  done: number[];
+  title: string;
+}) {
+  const t = useTheme();
+  const tr = useT();
+  const pending = members.filter((m) => !done.includes(m.id));
+  // The face tapped in the grid; closes by itself once they've voted.
+  const [open, setOpen] = useState<number | null>(null);
+  const opened = pending.find((m) => m.id === open);
+  // With two people a majority is one person deciding alone: no skip vote then (nor when the owner turned it off).
+  const group = useGroup();
+  const canSkip = members.length >= 3 && group.data?.settings.skip_vote !== false;
+  const label = { fontFamily: t.font.bold, fontSize: 11, letterSpacing: 0.6, color: t.mut } as const;
+  return (
+    <>
       {/* Who's in, who we're waiting for. A card (not Card) that animates its height as people leave the list. */}
       <Animated.View layout={motion.layout} style={[{ backgroundColor: t.card, borderRadius: t.radius.card, padding: 16, gap: 14 }, t.shadow]}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
           {/* Roupi dozes while the others take their time (not when there's a whole grid of faces to show). */}
-          {pending.length > 0 && pending.length <= BIG_WAIT && <Mascot who="roupi" mood="sleepy" size={56} style={{ marginVertical: -8, marginLeft: -6 }} />}
-          <Text style={{ flex: 1, fontFamily: t.font.bold, fontSize: 15, color: t.txt }}>
-            {tr('vote.waiting.voted', { count: done, done, total: round.member_count })}
-          </Text>
-          <AvatarStack members={round.voter_ids.map((id) => byId.get(id))} size={26} ring={t.card} max={6} />
+          {pending.length > 0 && pending.length <= BIG_WAIT && (
+            <Mascot who="roupi" mood="sleepy" size={56} style={{ marginVertical: -8, marginLeft: -6 }} />
+          )}
+          <Text style={{ flex: 1, fontFamily: t.font.bold, fontSize: 15, color: t.txt }}>{title}</Text>
+          <AvatarStack members={done.map((id) => byId.get(id))} size={26} ring={t.card} max={6} />
         </View>
-        <Progress value={done / Math.max(round.member_count, 1)} />
+        <Progress value={done.length / Math.max(round.member_count, 1)} />
         {pending.length > 0 && <Text style={label}>{tr('vote.waiting.pending')}</Text>}
         {/* Many still to vote: a grid of faces; tap one for the bell and the skip. */}
         {pending.length > BIG_WAIT ? (
@@ -762,7 +822,7 @@ function Waiting({ round, byId, members }: { round: Round; byId: Map<number, Mem
       <Dialog visible={!!opened} onClose={() => setOpen(null)}>
         {opened && <PendingRow member={opened} round={round} canSkip={canSkip} big />}
       </Dialog>
-    </Screen>
+    </>
   );
 }
 
@@ -868,6 +928,7 @@ export function Result({
   const tr = useT();
   const roundQuery = useRound(roundId);
   const { data: round } = roundQuery;
+  const { me } = useSession();
   const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
   // One scroll for the whole page (no box inside a box). Where the full result ends, and whether
   // it has scrolled out of sight: then its one-line summary stays pinned on top.
@@ -914,7 +975,7 @@ export function Result({
       nextButton
     ));
   // Not loaded (or failed): "Suivante" stays, so an unseen result never blocks the next question.
-  if (!round?.result && !round?.choose)
+  if (!round?.result && !round?.choose && !round?.said?.result)
     return (
       <Screen tabs={!onBack} footer={roundQuery.isLoading ? undefined : next}>
         {header}
@@ -938,6 +999,7 @@ export function Result({
               result={round.result ?? []}
               ranking={round.ranking}
               choose={round.choose}
+              said={round.kind === 'said' ? round.said?.result : undefined}
               byId={byId}
               onPress={() => {
                 follow.current = false;
@@ -960,7 +1022,9 @@ export function Result({
           resultEnd.current = layout.y + layout.height;
         }}>
         <Question round={round} result />
-        {round.kind === 'choose' && round.choose ? (
+        {round.kind === 'said' && round.said?.result ? (
+          <SaidResultView roundId={round.id} said={round.said} byId={byId} me={me?.id} />
+        ) : round.kind === 'choose' && round.choose ? (
           <ChooseResult round={round} data={round.choose} byId={byId} />
         ) : round.ranking ? (
           <RankResult ranking={round.ranking} byId={byId} mine={round.my_ranking} />
