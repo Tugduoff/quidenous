@@ -16,3 +16,6 @@ export function until(iso: string, now = Date.now()) {
   if (min < 60) return t('common.time.minutes', { count: min });
   return t('common.time.hoursMinutes', { h: Math.floor(min / 60), mm: String(min % 60).padStart(2, '0') });
 }
+
+/** Minutes after midnight as "08:00". */
+export const hhmm = (m: number) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
