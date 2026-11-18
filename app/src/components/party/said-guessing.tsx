@@ -1,8 +1,8 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { RotateCcw } from 'lucide-react-native';
 import { type ReactNode, useCallback, useMemo, useState } from 'react';
-import { Pressable, Text } from 'react-native';
+import { Text } from 'react-native';
 import Animated from 'react-native-reanimated';
+import { AgainButton } from '@/components/said/again-button';
 import { ModerationDialog, type ModTarget } from '@/components/moderation/moderation';
 import { Countdown, VotedLine } from '@/components/party/party';
 import { MatchBoard } from '@/components/said/match-board';
@@ -93,14 +93,7 @@ export function PartySaidGuessing({ party, round, said, top }: { party: Party; r
           <Tip id="said" text={tr('said.guess.tip')} />
           <MatchBoard answers={answers} state={state} byId={byId} dispatch={dispatch} onReport={canReport ? onReport : undefined} />
           {done > 0 && (
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => dispatch({ type: 'reset' })}
-              hitSlop={8}
-              style={{ alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44, paddingHorizontal: 12 }}>
-              <RotateCcw size={14} color={t.mut} />
-              <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.mut }}>{tr('said.guess.restart')}</Text>
-            </Pressable>
+            <AgainButton label={tr('said.guess.restart')} onPress={() => dispatch({ type: 'reset' })} />
           )}
         </>
       )}

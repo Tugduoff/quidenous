@@ -3,10 +3,9 @@
 // The pieces (AnswerField, MyAnswer, MatchBoard + SuspectTray, GuessRecap, SaidReveal, SaidAnswerList, SaidScoreboard,
 // SaidResultView) only take props: no room query in them, so a party screen can reuse them. `SaidRound` is the room's
 // open question (it talks to `/round/current/*`).
-import { RotateCcw } from 'lucide-react-native';
 import { type ReactNode, useState } from 'react';
-import { Pressable, Text } from 'react-native';
 import Animated, { useReducedMotion } from 'react-native-reanimated';
+import { AgainButton } from '@/components/said/again-button';
 import { GuessRecap } from '@/components/said/guess-recap';
 import { MyAnswer } from '@/components/said/my-answer';
 import { SaidAnswerList } from '@/components/said/said-answer-list';
@@ -20,7 +19,6 @@ import type { Round, SaidView } from '@/lib/api/rounds';
 import { markSaidSeen, useSaidSeen } from '@/lib/hooks/use-said-seen';
 import { useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
-import { useTheme } from '@/lib/theme';
 import { revealItems, toGuess } from '@/lib/utils/said';
 
 /**
@@ -81,7 +79,6 @@ function SaidGuessed({
  * author. Reduced motion: straight to the full result.
  */
 export function SaidResultView({ roundId, said, byId, me }: { roundId: number; said: SaidView; byId: Map<number, Member>; me: number | undefined }) {
-  const t = useTheme();
   const tr = useT();
   const reduced = useReducedMotion();
   const seen = useSaidSeen(roundId);
@@ -104,14 +101,7 @@ export function SaidResultView({ roundId, said, byId, me }: { roundId: number; s
       <SaidScoreboard scores={said.result.scores} byId={byId} me={me} />
       {items.length > 0 && <SaidAnswerList items={items} byId={byId} />}
       {!reduced && items.length > 0 && (
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => setReplay(true)}
-          hitSlop={8}
-          style={{ alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44, paddingHorizontal: 12 }}>
-          <RotateCcw size={14} color={t.mut} />
-          <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.mut }}>{tr('said.reveal.replay')}</Text>
-        </Pressable>
+        <AgainButton label={tr('said.reveal.replay')} onPress={() => setReplay(true)} />
       )}
     </Animated.View>
   );
