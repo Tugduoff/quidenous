@@ -40,6 +40,17 @@ const NO_EFFECT_MEMBERS = {
   message: EFFECT_MESSAGE,
 };
 
+const LOCKED_RULES = [
+  '@typescript-eslint/no-explicit-any',
+  '@typescript-eslint/no-non-null-assertion',
+  '@typescript-eslint/no-restricted-imports',
+  'react-hooks/exhaustive-deps',
+  'no-restricted-globals',
+  'no-restricted-properties',
+  'no-restricted-syntax',
+];
+const COMPILER_RULES = ['react-hooks/refs', 'react-hooks/immutability', 'react-hooks/set-state-in-effect', 'react-hooks/static-components', 'react-hooks/purity'];
+
 const restrict = (patterns, paths = []) => ['error', { patterns, paths: [...paths, NO_EFFECTS] }];
 const restrictInHooks = (patterns, paths = []) => ['error', { patterns, paths }];
 
@@ -63,27 +74,14 @@ module.exports = defineConfig([
   },
   {
     rules: {
-      'react-hooks/refs': 'warn',
-      'react-hooks/immutability': 'warn',
-      'react-hooks/set-state-in-effect': 'warn',
-      'react-hooks/static-components': 'warn',
-      'react-hooks/purity': 'warn',
+      ...Object.fromEntries(COMPILER_RULES.map((rule) => [rule, 'error'])),
     },
   },
   {
     files: SRC,
     plugins: { '@eslint-community/eslint-comments': comments },
     rules: {
-      '@eslint-community/eslint-comments/no-restricted-disable': [
-        'error',
-        '@typescript-eslint/no-explicit-any',
-        '@typescript-eslint/no-non-null-assertion',
-        '@typescript-eslint/no-restricted-imports',
-        'react-hooks/exhaustive-deps',
-        'no-restricted-globals',
-        'no-restricted-properties',
-        'no-restricted-syntax',
-      ],
+      '@eslint-community/eslint-comments/no-restricted-disable': ['error', ...LOCKED_RULES, ...COMPILER_RULES],
       '@eslint-community/eslint-comments/no-unlimited-disable': 'error',
       '@typescript-eslint/no-explicit-any': 'error',
       '@typescript-eslint/no-non-null-assertion': 'error',
@@ -138,5 +136,9 @@ module.exports = defineConfig([
       '@typescript-eslint/no-restricted-imports': restrictInHooks([RELATIVE, NO_APP, NO_COMPONENTS], [RAW_CLIENT, NO_HAPTICS]),
       'no-restricted-syntax': 'off',
     },
+  },
+  {
+    files: ['src/lib/hooks/**/*.{ts,tsx}', 'src/components/celebration/**/*.{ts,tsx}'],
+    rules: { '@eslint-community/eslint-comments/no-restricted-disable': ['error', ...LOCKED_RULES] },
   },
 ]);
