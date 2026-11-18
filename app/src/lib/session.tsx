@@ -1,7 +1,9 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { createContext, type PropsWithChildren, useContext, useEffect, useState } from 'react';
+import { createContext, type PropsWithChildren, useContext, useState } from 'react';
 import { forgetWidget } from '@/widget/task';
-import { API_URL, ApiError, apiRoom, setApiRoom, setApiToken, setApiUrl, setOnSignedOut } from '@/lib/api/client';
+import { API_URL, ApiError, apiRoom, setApiRoom, setApiToken, setApiUrl } from '@/lib/api/client';
+import { useMountEffect } from '@/lib/hooks/use-mount-effect';
+import { useOnSignedOut } from '@/lib/hooks/use-on-signed-out';
 import { auth, type SessionResult, joinLegacy, startLegacy, type LegacyEntry } from '@/lib/api/auth';
 import { adoptAccountLang, loadLang, syncLang } from '@/lib/i18n';
 import { introAtSignIn, introAtStart, introFinish, introForget } from '@/lib/api/intro';
@@ -103,7 +105,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
     } catch {}
   };
 
-  useEffect(() => {
+  useMountEffect(() => {
     (async () => {
       const server = await storage.get(SERVER_KEY);
       if (server) setApiUrl(server);
@@ -132,7 +134,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
       }
       setReady(true);
     })();
-  }, [qc]);
+  });
 
   const join = (code: string, name: string, server?: string) => enter(() => joinLegacy(code, name), server);
   const start = (name: string, room: string, server?: string) => enter(() => startLegacy(name, room), server);
@@ -247,10 +249,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
   };
 
   // Signed out from another device (or the token is gone): back to the welcome screen.
-  useEffect(() => {
-    setOnSignedOut(() => void leave());
-    return () => setOnSignedOut(null);
-  });
+  useOnSignedOut(() => void leave());
 
   return (
     <SessionContext.Provider

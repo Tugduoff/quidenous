@@ -1,7 +1,5 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect } from 'react';
+import { type QueryClient, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
-import { useFeatures } from '@/lib/api/features';
 
 /** What a push can be about (the inbox keeps everything; these only silence pushes). */
 export type NotifKind = 'question' | 'result' | 'chat' | 'mention' | 'nudge' | 'added' | 'ask' | 'streak';
@@ -49,15 +47,8 @@ export function useSaveNotifPrefs() {
  * On start: quiet hours (and, on a server with streaks, the days they count) follow the phone's clock (summer time, travel).
  * Silent, and only when it changed.
  */
-export function useNotifTzSync(active: boolean) {
-  const qc = useQueryClient();
-  const { notificationSettings, streaks } = useFeatures();
-  useEffect(() => {
-    if (!active || !notificationSettings) return;
-    (async () => {
-      const p = await qc.fetchQuery({ queryKey: notificationKeys.prefs, queryFn: getPrefs });
-      if ((p.quiet_start == null && !streaks) || p.tz_offset === tzOffset()) return;
-      qc.setQueryData(notificationKeys.prefs, await putPrefs(p));
-    })().catch(() => {});
-  }, [active, notificationSettings, streaks, qc]);
+export async function syncNotifTz(qc: QueryClient, streaks: boolean) {
+  const p = await qc.fetchQuery({ queryKey: notificationKeys.prefs, queryFn: getPrefs });
+  if ((p.quiet_start == null && !streaks) || p.tz_offset === tzOffset()) return;
+  qc.setQueryData(notificationKeys.prefs, await putPrefs(p));
 }

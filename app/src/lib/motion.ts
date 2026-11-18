@@ -1,4 +1,5 @@
-import { useEffect, useRef, useEffectEvent } from 'react';
+import { useState } from 'react';
+import { useOnChange } from '@/lib/hooks/use-on-change';
 import {
   Easing,
   FadeIn,
@@ -51,9 +52,9 @@ export const motion = {
 
 /** Ids present when the list first loaded: those appear as they are, only later ones animate in. */
 export function useArrivals<K>(ids: K[] | undefined) {
-  const first = useRef<Set<K> | null>(null);
-  if (ids && !first.current) first.current = new Set(ids);
-  return (id: K) => !!first.current && !first.current.has(id);
+  const [first, setFirst] = useState<Set<K> | null>(null);
+  if (ids && !first) setFirst(new Set(ids));
+  return (id: K) => !!first && !first.has(id);
 }
 
 /**
@@ -63,17 +64,9 @@ export function useArrivals<K>(ids: K[] | undefined) {
 export function usePop(trigger: unknown, to = 1.15, when = true) {
   const reduced = useReducedMotion();
   const s = useSharedValue(1);
-  const first = useRef(true);
-  const bump = useEffectEvent(() => {
+  useOnChange(trigger, () => {
     if (reduced || !when) return;
-    s.value = withSequence(withTiming(to, { duration: 90, easing: EASE }), withSpring(1, BOUNCE));
+    s.set(withSequence(withTiming(to, { duration: 90, easing: EASE }), withSpring(1, BOUNCE)));
   });
-  useEffect(() => {
-    if (first.current) {
-      first.current = false;
-      return;
-    }
-    bump();
-  }, [trigger]);
   return useAnimatedStyle(() => ({ transform: [{ scale: s.value }] }));
 }

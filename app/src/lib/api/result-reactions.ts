@@ -1,7 +1,7 @@
 // Live reactions on results (docs/REACTIONS.md): the counts (react-query), the taps sent in batches, and the live
 // events handed to whoever shows that result. The pure part (merging, the cap, applying taps) is in result-taps.ts.
 import { type QueryClient, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useCallback, useEffect } from 'react';
+import { useCallback } from 'react';
 import { api } from '@/lib/api/client';
 import { addMine, applyLive, emptyReactions, type LiveTap, type ReactedEvent, type ResultReactions, type Tap, TapBatcher, tapsLeft, visibleTaps } from '@/lib/utils/result-taps';
 import { useFeatures } from '@/lib/api/features';
@@ -32,6 +32,10 @@ const withQueued = (data: ResultReactions, roundId: number) => {
   return queued.length ? addMine(data, queued, seats.get(roundId) ?? null) : data;
 };
 
+export function setReactionSeat(roundId: number, me: number | null) {
+  seats.set(roundId, me);
+}
+
 function batcherFor(qc: QueryClient, roundId: number) {
   let b = batchers.get(roundId);
   if (b) return b;
@@ -54,12 +58,9 @@ function batcherFor(qc: QueryClient, roundId: number) {
  * A result's reactions, and `tap(emoji)`: one more, shown at once and sent with the taps of the next 250 ms. Returns
  * false when my cap is reached (nothing happens). `me`: my seat in the result's room.
  */
-export function useResultReactions(roundId: number, me: number | null, enabled = true) {
+export function useReactionCounts(roundId: number, me: number | null, enabled = true) {
   const qc = useQueryClient();
   const { resultReactions } = useFeatures();
-  useEffect(() => {
-    seats.set(roundId, me);
-  }, [roundId, me]);
   const query = useQuery({
     queryKey: reactionKeys.round(roundId),
     queryFn: async () => withQueued(await api<ResultReactions>(`/rounds/${roundId}/reactions`), roundId),
@@ -85,14 +86,14 @@ export function useResultReactions(roundId: number, me: number | null, enabled =
 
 // Live events, handed to the screens showing that result.
 
-type Listener = {
+export type ReactedListener = {
   /** My seat (my own taps are skipped: I played them as I tapped). */
   me: number | null;
   /** User ids I blocked (their taps are skipped). */
   blocked: ReadonlySet<number>;
   onTaps: (taps: LiveTap[]) => void;
 };
-const listeners = new Map<number, Set<Listener>>();
+const listeners = new Map<number, Set<ReactedListener>>();
 
 /**
  * A `result_reacted` event (lib/live.ts, the big screen): the counts in the cache, the bursts to the screens showing
@@ -113,17 +114,12 @@ export function receiveReacted(qc: QueryClient, event: ReactedEvent) {
   for (const l of subs) l.onTaps(taps);
 }
 
-/** Calls `onTaps` with the taps of other people (not blocked) on `roundId`, as they come. */
-export function useReactedListener(roundId: number | null, me: number | null, blocked: ReadonlySet<number>, onTaps: (taps: LiveTap[]) => void) {
-  useEffect(() => {
-    if (roundId == null) return;
-    const l: Listener = { me, blocked, onTaps };
-    let set = listeners.get(roundId);
-    if (!set) listeners.set(roundId, (set = new Set()));
-    set.add(l);
-    return () => {
-      set.delete(l);
-      if (!set.size) listeners.delete(roundId);
-    };
-  }, [roundId, me, blocked, onTaps]);
+export function listenReacted(roundId: number, l: ReactedListener): () => void {
+  let set = listeners.get(roundId);
+  if (!set) listeners.set(roundId, (set = new Set()));
+  set.add(l);
+  return () => {
+    set.delete(l);
+    if (!set.size) listeners.delete(roundId);
+  };
 }

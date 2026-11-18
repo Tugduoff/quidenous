@@ -2,8 +2,8 @@ import * as Application from 'expo-application';
 import Constants from 'expo-constants';
 import { Directory, File, Paths } from 'expo-file-system';
 import * as IntentLauncher from 'expo-intent-launcher';
-import { useEffect, useSyncExternalStore } from 'react';
-import { AppState, Platform } from 'react-native';
+import { useSyncExternalStore } from 'react';
+import { Platform } from 'react-native';
 import { storage } from '@/lib/device/storage';
 import { latestRelease, type Release } from '@/lib/api/releases';
 
@@ -162,7 +162,7 @@ export async function install() {
 }
 
 /** The APK of the version now installed is no longer needed. */
-function cleanUp() {
+export function cleanUp() {
   try {
     const dir = new Directory(Paths.cache, 'updates');
     if (!dir.exists) return;
@@ -176,15 +176,4 @@ export function openInstallSettings() {
   IntentLauncher.startActivityAsync(IntentLauncher.ActivityAction.MANAGE_UNKNOWN_APP_SOURCES, {
     data: `package:${Application.applicationId}`,
   }).catch(() => {});
-}
-
-/** Checks on start and each time the app comes back to the foreground (at most every 6 h). */
-export function useUpdateCheck(active: boolean) {
-  useEffect(() => {
-    if (!active || !UPDATES) return;
-    if (SIDELOAD) cleanUp();
-    checkForUpdate();
-    const sub = AppState.addEventListener('change', (s) => s === 'active' && checkForUpdate());
-    return () => sub.remove();
-  }, [active]);
 }

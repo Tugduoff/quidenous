@@ -1,5 +1,5 @@
-import { type QueryKey, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useSyncExternalStore } from 'react';
+import type { QueryClient, QueryKey } from '@tanstack/react-query';
+import { useSyncExternalStore } from 'react';
 import { AppState } from 'react-native';
 import { API_URL, urlAuth, roomQuery } from '@/lib/api/client';
 import { badgeKeys } from '@/lib/api/badges';
@@ -105,97 +105,93 @@ function touched(event: LiveEvent): QueryKey[] | 'all' {
   }
 }
 
-/** Keeps every screen fresh: each server event invalidates the queries it touches. */
-export function useLive(token: string | null, room: number | null) {
-  const qc = useQueryClient();
-  useEffect(() => {
-    if (!token) return;
-    // Queries to refetch at the end of the current burst ('all': everything).
-    let batch = new Map<string, QueryKey>();
-    let batchAll = false;
-    let flushTimer: ReturnType<typeof setTimeout> | null = null;
-    const flush = () => {
-      flushTimer = null;
-      if (batchAll) {
+/** Keeps every screen fresh: each server event invalidates the queries it touches. Returns the disconnect. */
+export function connectLive(qc: QueryClient, token: string): () => void {
+  // Queries to refetch at the end of the current burst ('all': everything).
+  let batch = new Map<string, QueryKey>();
+  let batchAll = false;
+  let flushTimer: ReturnType<typeof setTimeout> | null = null;
+  const flush = () => {
+    flushTimer = null;
+    if (batchAll) {
+      qc.invalidateQueries({ predicate: (q) => !startsWith(q.queryKey, historyKeys.list) });
+      refreshHistory(qc).catch(() => {});
+    } else
+      for (const queryKey of batch.values()) {
+        // The history list gets its newest page only (see refreshHistory).
+        if (queryKey === historyKeys.list) refreshHistory(qc).catch(() => {});
+        else qc.invalidateQueries({ queryKey });
+      }
+    batch = new Map();
+    batchAll = false;
+  };
+  const invalidate = (queryKeys: QueryKey[] | 'all') => {
+    if (queryKeys === 'all') batchAll = true;
+    else for (const k of queryKeys) batch.set(JSON.stringify(k), k);
+    if (!flushTimer && (batchAll || batch.size)) flushTimer = setTimeout(flush, BATCH_MS);
+  };
+  // Dropped (not on purpose) and still down after DOWN_MS: unreachable, until it opens again.
+  let down: ReturnType<typeof setTimeout> | null = null;
+  const dropped = (policy: boolean) => {
+    if (!policy && !down) down = setTimeout(() => setUnreachable(true), DOWN_MS);
+  };
+  const reached = () => {
+    if (down) clearTimeout(down);
+    down = null;
+    setUnreachable(false);
+  };
+  const presence = () => {
+    socket.send(AppState.currentState === 'active' ? 'here' : 'away');
+  };
+  const heartbeat = setInterval(presence, HERE_MS);
+  const appState = AppState.addEventListener('change', (state) => {
+    presence();
+    // Back in the app: reconnect now (not at the end of a backoff), and give it DOWN_MS before saying anything.
+    if (state === 'active') {
+      if (down || unreachable) {
+        reached();
+        dropped(false);
+      }
+      socket.wake();
+    }
+  });
+  const socket = openSocket<LiveEvent>(
+    async () => {
+      // A short-lived ticket instead of the token in the URL, when the server has them. Features not known yet
+      // (cold start): fetched first; unreachable: no socket this time (retried), never the token by default.
+      // With « Aujourd'hui », my other rooms' activity too.
+      const features = await qc.ensureQueryData(featuresQuery);
+      // `result_reacted` only for an app that knows it (an older one would refetch everything on each).
+      return liveUrl(token, features.includes('tickets'), features.includes('result_reactions'), features.includes('today'));
+    },
+    {
+      onOpen: () => {
+        reached();
+        presence();
+        // Everything but the history list's pages (one refetch each): only its newest page.
         qc.invalidateQueries({ predicate: (q) => !startsWith(q.queryKey, historyKeys.list) });
         refreshHistory(qc).catch(() => {});
-      } else
-        for (const queryKey of batch.values()) {
-          // The history list gets its newest page only (see refreshHistory).
-          if (queryKey === historyKeys.list) refreshHistory(qc).catch(() => {});
-          else qc.invalidateQueries({ queryKey });
-        }
-      batch = new Map();
-      batchAll = false;
-    };
-    const invalidate = (queryKeys: QueryKey[] | 'all') => {
-      if (queryKeys === 'all') batchAll = true;
-      else for (const k of queryKeys) batch.set(JSON.stringify(k), k);
-      if (!flushTimer && (batchAll || batch.size)) flushTimer = setTimeout(flush, BATCH_MS);
-    };
-    // Dropped (not on purpose) and still down after DOWN_MS: unreachable, until it opens again.
-    let down: ReturnType<typeof setTimeout> | null = null;
-    const dropped = (policy: boolean) => {
-      if (!policy && !down) down = setTimeout(() => setUnreachable(true), DOWN_MS);
-    };
-    const reached = () => {
-      if (down) clearTimeout(down);
-      down = null;
-      setUnreachable(false);
-    };
-    const presence = () => {
-      socket.send(AppState.currentState === 'active' ? 'here' : 'away');
-    };
-    const heartbeat = setInterval(presence, HERE_MS);
-    const appState = AppState.addEventListener('change', (state) => {
-      presence();
-      // Back in the app: reconnect now (not at the end of a backoff), and give it DOWN_MS before saying anything.
-      if (state === 'active') {
-        if (down || unreachable) {
-          reached();
-          dropped(false);
-        }
-        socket.wake();
-      }
-    });
-    const socket = openSocket<LiveEvent>(
-      async () => {
-        // A short-lived ticket instead of the token in the URL, when the server has them. Features not known yet
-        // (cold start): fetched first; unreachable: no socket this time (retried), never the token by default.
-        // With « Aujourd'hui », my other rooms' activity too.
-        const features = await qc.ensureQueryData(featuresQuery);
-        // `result_reacted` only for an app that knows it (an older one would refetch everything on each).
-        return liveUrl(token, features.includes('tickets'), features.includes('result_reactions'), features.includes('today'));
       },
-      {
-        onOpen: () => {
-          reached();
-          presence();
-          // Everything but the history list's pages (one refetch each): only its newest page.
-          qc.invalidateQueries({ predicate: (q) => !startsWith(q.queryKey, historyKeys.list) });
-          refreshHistory(qc).catch(() => {});
-        },
-        onClose: dropped,
-        onEvent: (event) => {
-          if (event.type === 'result_reacted') {
-            receiveReacted(qc, event as ReactedEvent);
-            return;
-          }
-          // A party's screen follows every event of its room (the socket only carries the current room's).
-          if (PARTY_EVENTS.has(event.type)) invalidate([partyKeys.all]);
-          invalidate(touched(event));
-        },
+      onClose: dropped,
+      onEvent: (event) => {
+        if (event.type === 'result_reacted') {
+          receiveReacted(qc, event as ReactedEvent);
+          return;
+        }
+        // A party's screen follows every event of its room (the socket only carries the current room's).
+        if (PARTY_EVENTS.has(event.type)) invalidate([partyKeys.all]);
+        invalidate(touched(event));
       },
-    );
-    return () => {
-      if (flushTimer) clearTimeout(flushTimer);
-      if (down) clearTimeout(down);
-      setUnreachable(false);
-      clearInterval(heartbeat);
-      appState.remove();
-      socket.close();
-    };
-  }, [token, room, qc]);
+    },
+  );
+  return () => {
+    if (flushTimer) clearTimeout(flushTimer);
+    if (down) clearTimeout(down);
+    setUnreachable(false);
+    clearInterval(heartbeat);
+    appState.remove();
+    socket.close();
+  };
 }
 
 /**

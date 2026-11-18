@@ -3,8 +3,7 @@
 // closed: the launcher's updates (added, every hour, resized), the silent FCM "refresh" push, and refreshes from the app.
 import * as Notifications from 'expo-notifications';
 import * as TaskManager from 'expo-task-manager';
-import { useEffect } from 'react';
-import { AppState, Platform } from 'react-native';
+import { Platform } from 'react-native';
 import { getWidgetInfo, registerWidgetTaskHandler, requestWidgetUpdate, type WidgetTaskHandlerProps } from 'react-native-android-widget';
 
 import { deviceLang } from '@/lib/i18n';
@@ -67,23 +66,6 @@ export async function forgetWidget() {
   if (Platform.OS !== 'android') return;
   await forgetWidgetToken();
   await refreshWidgets();
-}
-
-/**
- * From the root layout: the widget follows the app. Redrawn when the session or the room changes, and when the app goes
- * to the background (what I just did in it, a vote or a result seen, shows on the home screen at once).
- */
-export function useWidgetSync(stage: string | null, room: number | null) {
-  useEffect(() => {
-    if (stage) refreshWidgets();
-  }, [stage, room]);
-  useEffect(() => {
-    if (Platform.OS !== 'android') return;
-    const sub = AppState.addEventListener('change', (s) => {
-      if (s === 'background') refreshWidgets();
-    });
-    return () => sub.remove();
-  }, []);
 }
 
 /** The server's silent push (`widget: "1"`, server/src/push.rs `widget_ping_message`), in either shape Android hands it. */

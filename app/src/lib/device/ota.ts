@@ -1,6 +1,6 @@
 import * as Updates from 'expo-updates';
-import { useEffect, useState } from 'react';
-import { AppState, Platform } from 'react-native';
+import { useState } from 'react';
+import { Platform } from 'react-native';
 
 /**
  * Over-the-air updates (expo-updates, our own server; docs/OTA.md). The native side checks on each launch and
@@ -19,7 +19,7 @@ const EVERY = 30 * 60_000;
 // The launch check is the native one: the first foreground check waits 30 min from here.
 let checked = Date.now();
 
-async function check() {
+export async function checkOta() {
   if (Date.now() - checked < EVERY) return;
   checked = Date.now();
   try {
@@ -29,14 +29,6 @@ async function check() {
   }
 }
 
-/** Foreground checks. */
-export function useOtaCheck(active: boolean) {
-  useEffect(() => {
-    if (!active || !OTA) return;
-    const sub = AppState.addEventListener('change', (s) => s === 'active' && check());
-    return () => sub.remove();
-  }, [active]);
-}
 
 /** A new version has been downloaded and waits for a restart. */
 export function useOtaReady() {
