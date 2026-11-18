@@ -3,7 +3,7 @@
 // room's pieces (components/said.tsx); the party's own calls are in lib/party.ts.
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Check, Hourglass, RotateCcw } from 'lucide-react-native';
-import { memo, type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
+import { memo, type ReactNode, useCallback, useEffect, useMemo, useState, useEffectEvent } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { Mascot } from '@/components/mascot/mascot';
@@ -119,15 +119,15 @@ function Writing({ party, round, said, top, late }: { party: Party; round: Party
       <Countdown ms={ms} total={phaseSeconds(round, party.timer)} />
       {late ? (
         <LateCard />
-      ) : writing ? (
+      ) : writing || !mine ? (
         <AnswerField value={text} onChange={setText} onSubmit={submit} autoFocus={editing} error={error} />
       ) : (
         <>
           <Animated.View entering={motion.rise}>
             <MyAnswer
-              text={mine!.text}
+              text={mine.text}
               onEdit={() => {
-                setText(mine!.text);
+                setText(mine.text);
                 setEditing(true);
               }}
             />
@@ -432,17 +432,16 @@ const ScreenAnswer = memo(function ScreenAnswer({
 function useScreenStep(closedAt: string | null, clock: number, steps: number[]) {
   const key = steps.join(',');
   const [step, setStep] = useState(() => stepAt(closedAt, clock, steps).step);
+  const stepNow = useEffectEvent(() => stepAt(closedAt, clock, steps));
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
     const tick = () => {
-      const now = stepAt(closedAt, clock, steps);
+      const now = stepNow();
       setStep(now.step);
       if (now.left != null) timer = setTimeout(tick, now.left + 30);
     };
     tick();
     return () => clearTimeout(timer);
-    // `steps` is read through `key` (a fresh array on every render must not restart it).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [closedAt, clock, key]);
   return step;
 }

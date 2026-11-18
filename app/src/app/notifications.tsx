@@ -133,7 +133,8 @@ export default function NotificationsScreen() {
         .finally(() => setEnabling(false));
     };
 
-    const quiet = prefs.quiet_start != null && prefs.quiet_end != null;
+    const quietHours = prefs.quiet_start != null && prefs.quiet_end != null ? { start: prefs.quiet_start, end: prefs.quiet_end } : null;
+    const quiet = quietHours != null;
     const pickedValue = which === 'start' ? prefs.quiet_start : prefs.quiet_end;
     const otherValue = which === 'start' ? prefs.quiet_end : prefs.quiet_start;
 
@@ -196,11 +197,11 @@ export default function NotificationsScreen() {
                 />
               }
             />
-            {quiet && (
+            {quietHours && (
               <Animated.View entering={motion.enter} exiting={motion.exit} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                <TimeChip label={tr('notifications.start')} value={prefs.quiet_start!} onPress={() => setPicking('start')} />
+                <TimeChip label={tr('notifications.start')} value={quietHours.start} onPress={() => setPicking('start')} />
                 <ArrowRight size={16} color={t.mut} />
-                <TimeChip label={tr('notifications.end')} value={prefs.quiet_end!} onPress={() => setPicking('end')} />
+                <TimeChip label={tr('notifications.end')} value={quietHours.end} onPress={() => setPicking('end')} />
               </Animated.View>
             )}
           </Card>

@@ -30,10 +30,11 @@ function BackHeader({ onBack, round }: { onBack: () => void; round?: Round }) {
   const t = useTheme();
   const tr = useT();
   const qc = useQueryClient();
+  const roundId = round?.id;
   const pin = useMutation({
-    mutationFn: (pinned: boolean) => setRoundPinned(round!.id, pinned),
+    mutationFn: (pinned: boolean) => (roundId == null ? Promise.reject(new Error('no round')) : setRoundPinned(roundId, pinned)),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: roundKeys.detail(round!.id) });
+      if (roundId != null) qc.invalidateQueries({ queryKey: roundKeys.detail(roundId) });
       qc.invalidateQueries({ queryKey: historyKeys.pinned });
     },
   });

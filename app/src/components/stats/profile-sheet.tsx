@@ -217,13 +217,13 @@ export function ProfileSheet({
               <Question
                 q={p.best}
                 line={tr('stats.profile.bestLine', { count: p.best.value, total: p.best.total })}
-                onPress={() => openRound(p.best!.round_id)}
+                onPress={() => p.best && openRound(p.best.round_id)}
               />
             </Block>
           )}
           {p.worst && (
             <Block title={tr('stats.profile.worst')}>
-              <Question q={p.worst} line={tr('stats.profile.worstLine', { n: p.worst.value })} onPress={() => openRound(p.worst!.round_id)} />
+              <Question q={p.worst} line={tr('stats.profile.worstLine', { n: p.worst.value })} onPress={() => p.worst && openRound(p.worst.round_id)} />
             </Block>
           )}
         </ScrollView>

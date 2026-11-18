@@ -1,4 +1,4 @@
-import { type ComponentRef, type ReactNode, type RefObject, useEffect, useRef, useState } from 'react';
+import { type ComponentRef, type ReactNode, type RefObject, useEffect, useRef, useState, useEffectEvent } from 'react';
 import { Dimensions, type NativeScrollEvent, Platform, type ScrollView, type ViewStyle } from 'react-native';
 import { GestureDetector, GestureHandlerRootView, usePanGesture } from 'react-native-gesture-handler';
 import Animated, { ReduceMotion, type SharedValue, useAnimatedReaction, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
@@ -128,8 +128,7 @@ export function ReorderList<T extends { id: number }>({
     s.layout.value = { h, top: tops(latest.current, h) };
     setHeight(total(latest.current, h));
   };
-  useEffect(() => {
-    // The row in hand went away (deleted meanwhile): let go of it.
+  const onOrderChange = useEffectEvent(() => {
     if (dragging.current && !latest.current.includes(s.active.value)) {
       dragging.current = false;
       s.lifted.value = false;
@@ -139,7 +138,8 @@ export function ReorderList<T extends { id: number }>({
       onDragChange?.(false);
     }
     sync();
-  }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
+  });
+  useEffect(() => onOrderChange(), [key]);
   // Heights arrive one row at a time: applied together on the next frame, so the first layout doesn't cascade.
   const frame = useRef<number | null>(null);
   const measured = (id: number, h: number) => {

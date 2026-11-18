@@ -31,6 +31,8 @@ import { impactHaptic, selectionHaptic } from '@/lib/device/haptics';
 
 const sys = ReduceMotion.System;
 
+const nameOf = (byId: Map<number, Member>, id: number | null) => (id == null ? undefined : byId.get(id))?.name ?? '?';
+
 const tap = () => {
   selectionHaptic();
 };
@@ -561,7 +563,8 @@ export function GuessRecap({ answers, guesses, byId }: { answers: SaidAnswer[]; 
     <Card style={{ padding: 16, gap: 12 }}>
       <Label>{tr('said.recap.title')}</Label>
       {rows.map((a, i) => {
-        const m = byId.get(said.get(a.id)!);
+        const author = said.get(a.id);
+        const m = author == null ? undefined : byId.get(author);
         return (
           <View
             key={a.id}
@@ -1137,7 +1140,7 @@ function MyVerdict({ item, byId }: { item: RevealItem; byId: Map<number, Member>
     ? [Quote, t.accInk, tr('said.reveal.own')]
     : right
       ? [Check, t.accInk, tr('said.reveal.right')]
-      : [X, t.tagInk, tr('said.reveal.wrong', { name: byId.get(item.myGuess!)?.name ?? '?' })];
+      : [X, t.tagInk, tr('said.reveal.wrong', { name: nameOf(byId, item.myGuess) })];
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
       <Icon size={16} color={color} strokeWidth={3} />
@@ -1290,7 +1293,7 @@ export function SaidAnswerList({ items, byId }: { items: RevealItem[]; byId: Map
             <View
               key={it.id}
               accessible
-              accessibilityLabel={`${tr('said.reveal.author', { name: m?.name ?? '?', text: it.text ?? tr('said.guess.hidden') })}. ${tr('said.reveal.fooled', { count: it.fooled })}. ${tr('said.reveal.found', { count: it.found })}${verdict == null ? '' : `. ${verdict ? tr('said.reveal.right') : tr('said.reveal.wrong', { name: byId.get(it.myGuess!)?.name ?? '?' })}`}`}
+              accessibilityLabel={`${tr('said.reveal.author', { name: m?.name ?? '?', text: it.text ?? tr('said.guess.hidden') })}. ${tr('said.reveal.fooled', { count: it.fooled })}. ${tr('said.reveal.found', { count: it.found })}${verdict == null ? '' : `. ${verdict ? tr('said.reveal.right') : tr('said.reveal.wrong', { name: nameOf(byId, it.myGuess) })}`}`}
               style={{ padding: 12, gap: 10, borderRadius: 14, backgroundColor: t.card2 }}>
               <AnswerText answer={it} size={15} />
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>

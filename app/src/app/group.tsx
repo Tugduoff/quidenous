@@ -57,7 +57,7 @@ function Members() {
   const [target, setTarget] = useState<ModTarget | null>(null);
   const owner = group?.my_role === 'owner';
   const forceRemove = useMutation({
-    mutationFn: (id: number) => removeMember(group!.id, id),
+    mutationFn: (id: number) => (group ? removeMember(group.id, id) : Promise.reject(new Error('no room'))),
     onSettled: () => qc.invalidateQueries({ queryKey: groupKeys.all }),
   });
   const kick = useMutation({

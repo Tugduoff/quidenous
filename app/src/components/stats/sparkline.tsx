@@ -26,8 +26,8 @@ export function Sparkline({ activity }: { activity: Activity }) {
   const step = values.length > 1 ? (width - PAD * 2) / (values.length - 1) : 0;
   const pts = values.map((v, i) => [PAD + i * step, PAD + (HEIGHT - PAD * 2) * (1 - v / max)] as const);
   const line = pts.map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
-  const area = pts.length ? `${line} L${pts.at(-1)![0].toFixed(1)},${HEIGHT} L${pts[0][0].toFixed(1)},${HEIGHT} Z` : '';
   const last = pts.at(-1);
+  const area = last ? `${line} L${last[0].toFixed(1)},${HEIGHT} L${pts[0][0].toFixed(1)},${HEIGHT} Z` : '';
   const week = activity.bucket === 'week';
   return (
     <Card style={{ padding: 16, gap: 12 }}>

@@ -228,13 +228,13 @@ function Arms({ clock, cx, cy, R, color }: { clock: Clock; cx: number; cy: numbe
 
 const g42: SceneFactory = (m, t) => {
   const birth = 1700;
+  const colors = [t.acc, '#B48CFF', '#5AC8FA', '#FFFFFF', '#C2A3FF', '#7FB2FF'];
   return {
     duration: 6000,
     bg: '#05040F',
     dim: 0.97,
     impacts: [{ at: birth + 380, amp: 4 }],
     Render: function Galaxy({ clock, w, h, rand, cx, cy }: SceneProps) {
-      const colors = [t.acc, '#B48CFF', '#5AC8FA', '#FFFFFF', '#C2A3FF', '#7FB2FF'];
       const R = Math.min(w * 0.5, 210);
       const dots = useMemo(() => {
         const arms = 3;
@@ -250,7 +250,7 @@ const g42: SceneFactory = (m, t) => {
             color: core ? rand.pick(['#FFFFFF', '#F2E8FF', t.acc]) : rand.pick(colors),
           };
         });
-      }, [rand, R, colors]);
+      }, [rand, R]);
       const size = numberSize(m.n);
       return (
         <>

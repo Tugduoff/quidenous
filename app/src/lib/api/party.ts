@@ -1,6 +1,6 @@
 // Party mode (docs/PARTY.md): one question at a time for everyone in the room, a countdown, a big reveal.
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect } from 'react';
+import { useEffect, useEffectEvent } from 'react';
 import { api, API_URL, ApiError } from '@/lib/api/client';
 import { t, type TKey } from '@/lib/i18n';
 import { localizeMembers } from '@/lib/utils/names';
@@ -133,6 +133,7 @@ export function useSetParty(id: number) {
  */
 export function useScreenLive(code: string, onEvent: () => void) {
   const qc = useQueryClient();
+  const changed = useEffectEvent(() => onEvent());
   useEffect(() => {
     if (!code) return;
     const url = async () => {
@@ -141,15 +142,14 @@ export function useScreenLive(code: string, onEvent: () => void) {
       return `${API_URL.replace(/^http/, 'ws')}/api/live?screen=${encodeURIComponent(code)}${events}`;
     };
     const socket = openSocket<{ type: string }>(url, {
-      onOpen: onEvent,
+      onOpen: changed,
       onEvent: (event) => {
         if (event.type === 'result_reacted') receiveReacted(qc, event as ReactedEvent);
-        else if (PARTY_EVENTS.has(event.type)) onEvent();
+        else if (PARTY_EVENTS.has(event.type)) changed();
       },
     });
     return socket.close;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [code]);
+  }, [code, qc]);
 }
 
 const ERRORS: Record<string, TKey> = {

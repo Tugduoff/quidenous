@@ -38,7 +38,7 @@ export const useHistory = () =>
     queryKey: historyKeys.list,
     queryFn: ({ pageParam }) => getHistoryPage(pageParam),
     initialPageParam: null as number | null,
-    getNextPageParam: (last) => (last.length < HISTORY_PAGE ? undefined : last.at(-1)!.number),
+    getNextPageParam: (last) => (last.length < HISTORY_PAGE ? undefined : last.at(-1)?.number),
   });
 
 /**

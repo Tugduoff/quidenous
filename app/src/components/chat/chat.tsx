@@ -152,18 +152,18 @@ function Bubble({
         text,
         (m.mentions ?? []).map((id) => byId.get(id)).filter((x): x is Member => !!x),
         !!m.everyone,
-      ).map((p, i) =>
-        p.member ? (
+      ).map(({ member, ...p }, i) =>
+        member ? (
           <Text
             key={i}
             accessibilityRole="link"
             accessibilityHint={tr('chat.seeProfile')}
             onPress={() => {
               mentionTap.current = Date.now();
-              onProfile(p.member!.id);
+              onProfile(member.id);
             }}
             onLongPress={onLongPress}
-            style={mentionStyle(mine, p.member.color)}>
+            style={mentionStyle(mine, member.color)}>
             {p.text}
           </Text>
         ) : p.everyone ? (
@@ -423,7 +423,8 @@ export function ChatInput({ roundId, onFocus, onSent }: { roundId: number; onFoc
     const pos = Math.min(head.length, next.length);
     setText(next);
     setSel({ start: pos, end: pos });
-    if (row.member) setPicked((p) => (p.includes(row.member!.id) ? p : [...p, row.member!.id]));
+    const picked = row.member?.id;
+    if (picked != null) setPicked((p) => (p.includes(picked) ? p : [...p, picked]));
     // Keep typing right after the name: the field keeps the focus (a click on the web took it), the caret goes after the space.
     requestAnimationFrame(() => {
       const el = input.current as (ComponentRef<typeof TextInput> & { setSelectionRange?: (a: number, b: number) => void }) | null;

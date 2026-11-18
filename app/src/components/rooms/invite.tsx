@@ -43,7 +43,7 @@ export function InviteCard({ qrSize = 168, rotate = true }: { qrSize?: number; r
   const [shared, flashShared] = useFlash();
   const [copied, flashCopied] = useFlash();
   const renew = useMutation({
-    mutationFn: () => renewRoomCode(group!.id),
+    mutationFn: () => (group ? renewRoomCode(group.id) : Promise.reject(new Error('no room'))),
     onSettled: () => qc.invalidateQueries({ queryKey: groupKeys.all }),
   });
   if (!group) return null;

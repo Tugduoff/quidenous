@@ -1,4 +1,4 @@
-import { t, type TKey } from '@/lib/i18n';
+import { type Lang, tIn, type TKey } from '@/lib/i18n-core';
 
 export type Theme =
   | 'confetti'
@@ -85,15 +85,15 @@ export function tier(n: number): Tier {
 /** Every number that has a party of its own, for the hidden preview. */
 export const SPECIAL_NUMBERS = Object.keys(SPECIAL).map(Number);
 
-export function milestone(n: number): Milestone {
+export function milestone(n: number, lang: Lang): Milestone {
   const special = SPECIAL[n];
   // Read at call time: the punchline follows the app's language.
-  if (special) return { n, ...special, line: t(`celebration.lines.m${n}` as TKey) };
-  return { n, theme: 'confetti', line: FIFTY.includes(n) ? t(`celebration.fifty.f${n}` as TKey) : t('celebration.other') };
+  if (special) return { n, ...special, line: tIn(lang, `celebration.lines.m${n}` as TKey) };
+  return { n, theme: 'confetti', line: FIFTY.includes(n) ? tIn(lang, `celebration.fifty.f${n}` as TKey) : tIn(lang, 'celebration.other') };
 }
 
 /** A streak party (7, 30 or 100 days in a row): gold for the hundred. */
-export function streakMilestone(n: number): Milestone {
+export function streakMilestone(n: number, lang: Lang): Milestone {
   const line = n >= 100 ? 'streaks.party.s100' : n >= 30 ? 'streaks.party.s30' : 'streaks.party.s7';
-  return { n, theme: n >= 100 ? 'gold' : 'confetti', line: t(line), streak: true, unit: t('streaks.party.unit') };
+  return { n, theme: n >= 100 ? 'gold' : 'confetti', line: tIn(lang, line), streak: true, unit: tIn(lang, 'streaks.party.unit') };
 }

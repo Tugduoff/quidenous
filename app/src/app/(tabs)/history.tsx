@@ -43,8 +43,9 @@ function byDay(items: HistoryItem[]) {
   for (const item of items) {
     const d = new Date(item.closed_at);
     const key = dayKey(d);
-    if (days.at(-1)?.key !== key) days.push({ key, label: dayLabel(d), items: [] });
-    days.at(-1)!.items.push(item);
+    const last = days.at(-1);
+    if (last?.key === key) last.items.push(item);
+    else days.push({ key, label: dayLabel(d), items: [item] });
   }
   return days;
 }

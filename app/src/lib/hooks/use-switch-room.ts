@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { router, useGlobalSearchParams } from 'expo-router';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useEffectEvent } from 'react';
 import { setApiRoom } from '@/lib/api/client';
 import { clearRoomData } from '@/lib/api/query-client';
 import { useSession } from '@/lib/session';
@@ -74,6 +74,7 @@ export function useRoomParam(active: boolean) {
   const { room: param } = useGlobalSearchParams<{ room?: string }>();
   const { room } = useSession();
   const switchHere = useSwitchRoomHere();
+  const switchTo = useEffectEvent((id: number) => switchHere(id));
   const handled = useRef<string | null>(null);
   useEffect(() => {
     if (!param) handled.current = null;
@@ -83,9 +84,8 @@ export function useRoomParam(active: boolean) {
     const id = Number(param);
     if (!Number.isInteger(id) || id <= 0 || id === room) return;
     // A room I'm no longer in: its screens would fail, home instead.
-    switchHere(id)
+    switchTo(id)
       .catch(() => false)
       .then((ok) => ok || router.replace('/'));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, param, room]);
 }

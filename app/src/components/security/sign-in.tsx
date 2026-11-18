@@ -185,7 +185,7 @@ function EmailRow({
     <>
       <Row
         icon={verified ? <BadgeCheck size={20} color={t.accInk} /> : <Mail size={20} color={t.mut} />}
-        title={account.email!}
+        title={account.email ?? ''}
         sub={verified ? tr('security.signIn.verified') : tr('security.signIn.notVerified')}
         right={
           !entering && (
@@ -263,7 +263,7 @@ function ChangeEmail({ account, onClose }: { account: Account; onClose: (changed
 
   return (
     <>
-      <Row icon={<Mail size={20} color={t.accInk} />} title={tr('security.signIn.newEmail')} sub={sentTo ? tr('auth.codeSentTo', { email: sentTo }) : account.email!} />
+      <Row icon={<Mail size={20} color={t.accInk} />} title={tr('security.signIn.newEmail')} sub={sentTo ? tr('auth.codeSentTo', { email: sentTo }) : account.email ?? ''} />
       {sentTo ? (
         <>
           <CodeField inset value={code} onChange={setCode} onDone={confirm} />

@@ -1,5 +1,4 @@
 import { useQueryClient } from '@tanstack/react-query';
-import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import { Bell, Camera, Check, ChevronRight, Images, Languages, type LucideIcon, LogOut, Moon, Pencil, ShieldCheck, Smile, Sun, SunMoon, Users } from 'lucide-react-native';
@@ -276,7 +275,7 @@ export default function Profile() {
         <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16 }}>
           <Languages size={20} color={t.txt} />
           <Text style={{ flex: 1, fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>{tr('profile.language.title')}</Text>
-          <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.mut }}>{tr(LANGS.find((l) => l.pref === langPref)!.label)}</Text>
+          <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.mut }}>{tr((LANGS.find((l) => l.pref === langPref) ?? LANGS[0]).label)}</Text>
           <ChevronRight size={20} color={t.mut} />
         </Card>
       </Pressable>

@@ -6,7 +6,7 @@ import { Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-na
 import Animated from 'react-native-reanimated';
 import { AvatarArt } from '@/components/ui/avatar-art';
 import { Screen } from '@/components/ui/screen';
-import { type Avatar, type Field, formatAvatar, optionCount, PARTS, type PaletteField, parseAvatar, PRESETS, randomAvatar, startingAvatar } from '@/lib/utils/avatar';
+import { type Avatar, type Field, formatAvatar, optionCount, PARTS, type PaletteField, PRESETS, randomAvatar, startingAvatar, presetAvatar } from '@/lib/utils/avatar';
 import { type TKey, useT } from '@/lib/i18n';
 import { usePop } from '@/lib/motion';
 import { useSession } from '@/lib/session';
@@ -201,7 +201,7 @@ export default function AvatarBuilder() {
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
         {!field && !colors
           ? PRESETS.map((p, i) => {
-              const a = parseAvatar(p)!;
+              const a = presetAvatar(p);
               return (
                 <Choice key={p} avatar={a} on={p === spec} onPress={() => setAvatar(a)} width={cell} label={tr('avatar.preset', { n: i + 1 })} />
               );

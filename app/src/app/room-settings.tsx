@@ -8,7 +8,7 @@ import { QueryState } from '@/components/ui/query-state';
 import { Screen } from '@/components/ui/screen';
 import { showToast } from '@/lib/toast';
 import { VibeCards, vibeIcon, vibeName } from '@/components/rooms/vibes';
-import { type Lang, t as tr, useT } from '@/lib/i18n';
+import { t as tr, useT } from '@/lib/i18n';
 import { useRoomGone } from '@/lib/hooks/use-switch-room';
 import { useSession } from '@/lib/session';
 import { useTheme } from '@/lib/theme';

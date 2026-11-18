@@ -132,9 +132,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
       }
       setReady(true);
     })();
-    // Once, at start (the query client never changes).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [qc]);
 
   const join = (code: string, name: string, server?: string) => enter(() => joinLegacy(code, name), server);
   const start = (name: string, room: string, server?: string) => enter(() => startLegacy(name, room), server);

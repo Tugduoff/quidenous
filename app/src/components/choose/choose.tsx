@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowRight, Check, CircleCheck, Crown, List, Sparkles } from 'lucide-react-native';
-import { type ComponentRef, type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { type ComponentRef, type ReactNode, useEffect, useMemo, useRef, useState, useEffectEvent } from 'react';
 import { Platform, Pressable, Text, useWindowDimensions, View } from 'react-native';
 import { GestureDetector, GestureHandlerRootView, usePanGesture } from 'react-native-gesture-handler';
 import Animated, { FadeIn, ReduceMotion, type SharedValue, useAnimatedProps, useAnimatedScrollHandler, useAnimatedStyle, useSharedValue, withSpring, withTiming, ZoomIn } from 'react-native-reanimated';
@@ -47,6 +47,16 @@ const firstName = (name: string) => name.trim().split(/\s+/)[0] || name;
 function itemsWidth(items: string[]) {
   const letters = Math.max(0, ...items.map((l) => Math.max(...l.split(/\s+/).map((w) => w.length), Math.ceil(l.length / 2))));
   return letters * 9 + 28;
+}
+
+function measured<T>(list: readonly (T | undefined)[], count: number): T[] | null {
+  const out: T[] = [];
+  for (let k = 0; k < count; k++) {
+    const item = list[k];
+    if (!item) return null;
+    out.push(item);
+  }
+  return out;
 }
 
 const haptic = () => {
@@ -198,11 +208,12 @@ function WireBoard({
   const dragY = useSharedValue(0);
   const hovered = useSharedValue(-1);
   const board = useSharedValue<{ itemsX: number; rects: Rect[] }>({ itemsX: 0, rects: [] });
-  const full = items.every((_, k) => !!rects[k]) ? items.map((_, k) => ({ y: stackY + rects[k]!.y, h: rects[k]!.h })) : null;
-  useEffect(() => {
+  const full = measured(rects, items.length)?.map((r) => ({ y: stackY + r.y, h: r.h })) ?? null;
+  const fullKey = JSON.stringify(full);
+  const publishBoard = useEffectEvent(() => {
     board.value = { itemsX, rects: full ?? [] };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [itemsX, JSON.stringify(full)]);
+  });
+  useEffect(() => publishBoard(), [itemsX, fullKey]);
 
   // Tap mode: the person waiting for an item. Dragging: the person whose wire is in hand (their own wire hides).
   const [sel, setSel] = useState<number | null>(null);
@@ -733,7 +744,8 @@ function RevealStage({ p, items, byId }: { p: Person; items: string[]; byId: Map
   const [who, setWho] = useState<Box | null>(null);
   const [col, setCol] = useState<Box | null>(null);
   const [rows, setRows] = useState<(Box | undefined)[]>([]);
-  const ready = !!face && !!who && !!col && items.every((_, k) => !!rows[k]);
+  const measuredRows = measured(rows, items.length);
+  const ready = !!face && !!who && !!col && !!measuredRows;
   // The wire(s) fly out once everything is measured; the real choice lights up after they land.
   const fly = useSharedValue(0);
   useEffect(() => {
@@ -802,12 +814,12 @@ function RevealStage({ p, items, byId }: { p: Person; items: string[]; byId: Map
             );
           })}
         </View>
-        {ready && size.w > 0 && (
+        {ready && col && measuredRows && size.w > 0 && (
           <View pointerEvents="none" style={{ position: 'absolute', left: 0, top: 0, width: size.w, height: size.h }}>
             <Svg width={size.w} height={size.h}>
               {p.top.map((k) => {
-                const r = rows[k]!;
-                return <FlyingWire key={k} color={color} from={from} to={{ x: col!.x - 2, y: col!.y + r.y + r.h / 2 }} fly={fly} />;
+                const r = measuredRows[k];
+                return <FlyingWire key={k} color={color} from={from} to={{ x: col.x - 2, y: col.y + r.y + r.h / 2 }} fly={fly} />;
               })}
             </Svg>
           </View>

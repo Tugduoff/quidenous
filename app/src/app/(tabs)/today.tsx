@@ -3,7 +3,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { router, useIsFocused } from 'expo-router';
 import { ArrowRight, ChevronRight, Coins, Flame, MessageCircle } from 'lucide-react-native';
-import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useState } from 'react';
 import { Pressable, RefreshControl, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
 import { Mascot } from '@/components/mascot/mascot';
@@ -23,6 +23,7 @@ import { Card } from '@/components/ui/card';
 import { Display, Logo, QuestionText } from '@/components/ui/text';
 import { HOT_FROM } from '@/lib/utils/streaks';
 import { cardQuestion, missing, needsMe, streakAtRisk } from '@/lib/utils/today';
+import { useLatest } from '@/lib/hooks/use-latest';
 
 export default function TodayScreen() {
   const focused = useIsFocused();
@@ -65,9 +66,8 @@ function Header() {
   const t = useTheme();
   const tr = useT();
   const { me } = useSession();
-  const { lang } = useLang();
-  // The day changes under an open app: read at each render, cheap.
-  const date = useMemo(() => dateFormat({ weekday: 'long', day: 'numeric', month: 'long' }).format(new Date()), [lang]); // eslint-disable-line react-hooks/exhaustive-deps
+  useLang();
+  const date = dateFormat({ weekday: 'long', day: 'numeric', month: 'long' }).format(new Date());
   return (
     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
       <View style={{ gap: 4, flexShrink: 1 }}>
@@ -111,17 +111,14 @@ const Summary = memo(function Summary({ rooms }: { rooms: TodayRoom[] }) {
 /** Taps a card: that room's vote tab (switching rooms first, its screen fetched on the way). */
 function useOpenRoom() {
   const { room } = useSession();
-  const switchRoom = useSwitchRoom();
+  const switchRoom = useLatest(useSwitchRoom());
   const qc = useQueryClient();
   return useCallback(
     (id: number) => {
       if (id === room) return router.navigate('/');
-      // Failed (left that room meanwhile, offline): the cards refresh and tell.
-      switchRoom(id, 'room', { warm: true }).catch(() => qc.invalidateQueries({ queryKey: todayKeys.all }));
+      switchRoom.current(id, 'room', { warm: true }).catch(() => qc.invalidateQueries({ queryKey: todayKeys.all }));
     },
-    // A new function on every render is fine for the hooks above; only the room matters to the cards' memo.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [room],
+    [room, switchRoom, qc],
   );
 }
 

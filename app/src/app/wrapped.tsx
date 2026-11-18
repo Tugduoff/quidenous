@@ -1,7 +1,7 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Check, Share2, X } from 'lucide-react-native';
-import { type ReactNode, useEffect, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useRef, useState, useEffectEvent } from 'react';
 import { AccessibilityInfo, ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { GestureDetector, GestureHandlerRootView, usePanGesture } from 'react-native-gesture-handler';
 import Animated, { cancelAnimation, Easing, FadeIn, FadeInDown, ReduceMotion, type SharedValue, useAnimatedStyle, useReducedMotion, useSharedValue, withSpring, withTiming, ZoomIn } from 'react-native-reanimated';
@@ -270,6 +270,7 @@ function Stories({ w, chrome }: { w: Wrapped; chrome: (ink: string) => ReactNode
       if (finished) scheduleOnRN(advance);
     });
   };
+  const runFromStart = useEffectEvent(() => run(0));
   useEffect(() => {
     cancelAnimation(progress);
     if (!auto) {
@@ -277,10 +278,8 @@ function Stories({ w, chrome }: { w: Wrapped; chrome: (ink: string) => ReactNode
       return;
     }
     progress.value = 0;
-    if (index < count - 1) run(0);
+    if (index < count - 1) runFromStart();
     else progress.value = withTiming(1, { duration: CARD_MS, easing: Easing.linear, reduceMotion: ReduceMotion.Never });
-    // `run` is the same every render as far as this effect goes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index, auto, count, progress]);
   useEffect(() => {
     const card = w.cards[index];

@@ -215,7 +215,10 @@ function QuestionCard({ k, q, index }: { k: string; q: QuestionRef; index: numbe
 export function Awards({ s, byId, name, onOpen }: { s: Stats; byId: Map<number, Member>; name: Name; onOpen: (id: number) => void }) {
   useT();
   const groups = awardGroups(s, name);
-  const questions = (['most_split', 'most_unanimous', 'hottest'] as const).filter((k) => s[k]);
+  const questions = (['most_split', 'most_unanimous', 'hottest'] as const).flatMap((k) => {
+    const q = s[k];
+    return q ? [{ k, q }] : [];
+  });
   return (
     <>
       {groups.map((g) => {
@@ -227,8 +230,8 @@ export function Awards({ s, byId, name, onOpen }: { s: Stats; byId: Map<number, 
               {g.items.map((item, i) => (
                 <AwardCard key={item.key} item={item} byId={byId} onOpen={onOpen} index={i} />
               ))}
-              {qs.map((k, i) => (
-                <QuestionCard key={k} k={k} q={s[k]!} index={g.items.length + i} />
+              {qs.map(({ k, q }, i) => (
+                <QuestionCard key={k} k={k} q={q} index={g.items.length + i} />
               ))}
             </View>
           </Section>

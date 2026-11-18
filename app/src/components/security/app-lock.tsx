@@ -1,5 +1,5 @@
 import { Lock } from 'lucide-react-native';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useEffectEvent } from 'react';
 import { AppState, StyleSheet, View } from 'react-native';
 import { useT } from '@/lib/i18n';
 import { unlock, useLock } from '@/lib/device/lock';
@@ -43,9 +43,10 @@ export function AppLock({ active }: { active: boolean }) {
     return () => sub.remove();
   }, [on]);
 
+  const askNow = useEffectEvent(() => ask());
   useEffect(() => {
-    if (locked && AppState.currentState === 'active') ask();
-  }, [locked]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (locked && AppState.currentState === 'active') askNow();
+  }, [locked]);
 
   if (!locked || !on) return null;
   return (

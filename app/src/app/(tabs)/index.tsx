@@ -29,7 +29,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { ConfirmModal, Dialog } from '@/components/ui/dialog';
 import { type Member, useGroup, useMembers, groupKeys } from '@/lib/api/group';
-import { type Round, useCurrentRound, useUnseenRound, roundKeys, markRoundSeen, voteCurrent, nudgeMember, setSkip } from '@/lib/api/rounds';
+import { type Round, useCurrentRound, useUnseenRound, roundKeys, markRoundSeen, voteCurrent, nudgeMember, setSkip, type SaidView } from '@/lib/api/rounds';
 import { useRooms } from '@/lib/api/rooms';
 import { Result } from '@/components/result/result';
 import { Question } from '@/components/vote/question';
@@ -57,7 +57,8 @@ export default function VoteScreen() {
   // Recap first: a question I voted on finished while I was away (or with my vote).
   if (unseen.data) {
     const seenUpTo = (id: number) => markRoundSeen(id).finally(() => qc.invalidateQueries({ queryKey: roundKeys.unseen }));
-    const seen = () => seenUpTo(unseen.data!.id);
+    const unseenId = unseen.data.id;
+    const seen = () => seenUpTo(unseenId);
     const gate = held === unseen.data.id && group.data ? <NextGate group={group.data} onLaunched={seen} /> : undefined;
     // Back after days away: skip the pile of results straight to today's question (`seen_round` only moves forward).
     const { unseen_count: count = 1, unseen_last_id: last } = unseen.data;
@@ -90,7 +91,7 @@ export default function VoteScreen() {
   }
   // A « Qui a dit ça ? » question has its own screens: write, guess, then wait (docs/SAID.md).
   if (round.kind === 'said' && round.said)
-    return <SaidBallot key={round.id} round={round} members={members} byId={byId} onVoted={() => qc.invalidateQueries({ queryKey: roundKeys.unseen })} />;
+    return <SaidBallot key={round.id} round={round} said={round.said} members={members} byId={byId} onVoted={() => qc.invalidateQueries({ queryKey: roundKeys.unseen })} />;
   if (round.my_vote != null) return <Waiting round={round} byId={byId} members={members} />;
   return <Ballot key={round.id} round={round} members={members} byId={byId} onVoted={() => qc.invalidateQueries({ queryKey: roundKeys.unseen })} />;
 }
@@ -253,12 +254,12 @@ function Ballot({ round, members, byId, onVoted }: { round: Round; members: Memb
   return <PickBallot round={round} members={members} byId={byId} onVoted={onVoted} />;
 }
 
-function SaidBallot({ round, members, byId, onVoted }: { round: Round; members: Member[]; byId: Map<number, Member>; onVoted: () => void }) {
+function SaidBallot({ round, said, members, byId, onVoted }: { round: Round; said: SaidView; members: Member[]; byId: Map<number, Member>; onVoted: () => void }) {
   const { me } = useSession();
   return (
     <SaidRound
       round={round}
-      said={round.said!}
+      said={said}
       me={me?.id}
       byId={byId}
       onVoted={onVoted}

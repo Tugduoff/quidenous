@@ -1,7 +1,7 @@
 import { useIsMutating } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { ArrowUp, CircleCheck, CircleX, Flag, Hourglass, SkipForward, ThumbsDown, ThumbsUp, Trophy } from 'lucide-react-native';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useEffectEvent } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import { GestureDetector, GestureHandlerRootView, usePanGesture } from 'react-native-gesture-handler';
 import Animated, { interpolate, useAnimatedStyle, useReducedMotion, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
@@ -138,10 +138,12 @@ function VoteStack() {
   const top = queue[0];
 
   // All voted: ask for more once the votes are in (the server leaves out what I voted on).
+  const refill = useEffectEvent(() => {
+    refetch().then(() => setGone(new Set()));
+  });
   useEffect(() => {
     if (!data?.length || queue.length || voting || isFetching) return;
-    refetch().then(() => setGone(new Set()));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    refill();
   }, [data?.length, queue.length, voting, isFetching]);
 
   const decide = (id: number, value: SuggestionVote) => {
@@ -257,9 +259,9 @@ function SwipeCard({ s, top, fly, onDecide }: { s: Suggestion; top: boolean; fly
     if (v === 0) ty.value = withTiming(-STACK * 1.6, cfg, done);
     else tx.value = withTiming(v * 520, cfg, done);
   };
+  const flyAway = useEffectEvent((v: SuggestionVote) => away(v));
   useEffect(() => {
-    if (fly != null) away(fly);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (fly != null) flyAway(fly);
   }, [fly]);
 
   const pan = usePanGesture({

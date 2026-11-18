@@ -28,9 +28,9 @@ export function resultMessage(round: Round, byId: Map<number, Member>) {
   if (round.choose && round.items) {
     const items = round.items;
     const lines = round.choose.people
-      .filter((p) => p.real != null)
+      .filter((p): p is typeof p & { real: number } => p.real != null)
       .slice(0, 5)
-      .map((p) => `${byId.get(p.member_id)?.name ?? '?'} · ${items[p.real!] ?? '?'}`);
+      .map((p) => `${byId.get(p.member_id)?.name ?? '?'} · ${items[p.real] ?? '?'}`);
     return t('share.result', { number: round.number, question: round.question, lines: lines.join('\n'), url: appUrl() });
   }
   // A said question: its top scorers.

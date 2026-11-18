@@ -86,6 +86,7 @@ export function InstallScreen({ onClose }: { onClose?: () => void }) {
   const [installed, setInstalled] = useState(false);
   const code = presetJoinCode();
   const friend = presetFriendCode();
+  const shownCode = code || friend;
 
   useEffect(() => {
     const ready = () => setPrompt(deferred);
@@ -161,12 +162,12 @@ export function InstallScreen({ onClose }: { onClose?: () => void }) {
           </Card>
         ))}
 
-      {kind !== 'desktop' && (code || friend) && (
+      {kind !== 'desktop' && shownCode && (
         <Card style={{ padding: 18, gap: 6 }}>
           <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut }}>
             {code ? tr('install.inviteCode') : tr('install.friendCode')}
           </Text>
-          <CodeText code={(code ?? friend)!} size={32} />
+          <CodeText code={shownCode} size={32} />
         </Card>
       )}
     </Screen>

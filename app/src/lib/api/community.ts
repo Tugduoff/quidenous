@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, ApiError, API_URL, appUrl } from '@/lib/api/client';
+import { api, ApiError, appUrl } from '@/lib/api/client';
 import { getLang, t, type TKey } from '@/lib/i18n';
 import { authError } from '@/lib/api/errors';
 import { useFeatures } from '@/lib/api/features';
@@ -112,7 +112,7 @@ export function useVoteSuggestion() {
 export const usePlay = (token: string | null) =>
   useQuery({
     queryKey: communityKeys.play(token ?? ''),
-    queryFn: () => api<PlayInfo>(`/play/${encodeURIComponent(token!)}`),
+    queryFn: () => (token ? api<PlayInfo>(`/play/${encodeURIComponent(token)}`) : Promise.reject(new Error('no share token'))),
     enabled: !!token,
     retry: (n, e) => !(e instanceof ApiError && e.status < 500) && n < 2,
     staleTime: Infinity,

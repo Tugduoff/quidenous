@@ -56,16 +56,17 @@ export default function PlayScreen() {
     } else await switchRoom(id);
   };
   // An existing room: the question goes in first, then the app moves there.
+  const playHere = (id: number) => (token ? playInto(token, id) : Promise.reject(new Error('no shared question')));
   const play = useMutation({
     meta: { quiet: true },
-    mutationFn: (id: number) => playInto(token!, id),
+    mutationFn: playHere,
     onMutate: () => setError(null),
     onSuccess: (_, id) => enter(id),
     onError: (e) => setError(communityError(e)),
   });
   // A new room: it's mine, so the question always goes in; even if it didn't, the room is made, go there.
   const created = async (id: number) => {
-    await playInto(token!, id).catch(() => {});
+    await playHere(id).catch(() => {});
     await enter(id);
   };
 

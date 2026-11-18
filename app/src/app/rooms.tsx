@@ -71,7 +71,7 @@ export default function RoomsScreen() {
                 <Text numberOfLines={1} style={{ fontFamily: t.font.regular, fontSize: 13, color: t.mut }}>
                   {party ? `${tr(r.over ? 'party.over' : 'party.live')} · ` : ''}
                   {tr('common.members', { count: r.members })}
-                  {waiting ? ` · ${tr('room.list.toVote', { number: r.open_number! })}` : ''}
+                  {waiting && r.open_number != null ? ` · ${tr('room.list.toVote', { number: r.open_number })}` : ''}
                 </Text>
               </View>
               {r.unread > 0 && (

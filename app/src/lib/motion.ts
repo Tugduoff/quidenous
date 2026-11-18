@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useEffectEvent } from 'react';
 import {
   Easing,
   FadeIn,
@@ -64,15 +64,16 @@ export function usePop(trigger: unknown, to = 1.15, when = true) {
   const reduced = useReducedMotion();
   const s = useSharedValue(1);
   const first = useRef(true);
+  const bump = useEffectEvent(() => {
+    if (reduced || !when) return;
+    s.value = withSequence(withTiming(to, { duration: 90, easing: EASE }), withSpring(1, BOUNCE));
+  });
   useEffect(() => {
     if (first.current) {
       first.current = false;
       return;
     }
-    if (reduced || !when) return;
-    s.value = withSequence(withTiming(to, { duration: 90, easing: EASE }), withSpring(1, BOUNCE));
-    // Only the trigger fires it; `when` is read at that moment.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    bump();
   }, [trigger]);
   return useAnimatedStyle(() => ({ transform: [{ scale: s.value }] }));
 }

@@ -66,10 +66,16 @@ export function randomAvatar(): Avatar {
 }
 
 /** Where the builder starts: my avatar, else the first preset on my colour. */
+export function presetAvatar(spec: string): Avatar {
+  const avatar = parseAvatar(spec);
+  if (!avatar) throw new Error(`Invalid avatar preset: ${spec}`);
+  return avatar;
+}
+
 export function startingAvatar(spec: string | null | undefined, color?: string): Avatar {
   const mine = parseAvatar(spec);
   if (mine) return mine;
-  const a = parseAvatar(PRESETS[0])!;
+  const a = presetAvatar(PRESETS[0]);
   const bg = PARTS.bg.findIndex(([c]) => c.toLowerCase() === color?.toLowerCase());
   if (bg >= 0) a.bg = bg;
   return a;

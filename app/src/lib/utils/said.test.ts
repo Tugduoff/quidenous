@@ -193,7 +193,9 @@ describe('the reveal', () => {
   });
 
   test('guesses grouped by the person named, most named first, the author marked', () => {
-    assert.deepEqual(guessGroups(said.result!.answers[0]), [
+    const { result } = said;
+    assert.ok(result);
+    assert.deepEqual(guessGroups(result.answers[0]), [
       { member_id: 2, voters: [1, 3], right: true },
       { member_id: 3, voters: [4], right: false },
     ]);
@@ -201,12 +203,16 @@ describe('the reveal', () => {
   });
 
   test('places: same points share a place', () => {
-    assert.deepEqual(places(said.result!.scores), [1, 1, 4, 3]);
+    const { result } = said;
+    assert.ok(result);
+    assert.deepEqual(places(result.scores), [1, 1, 4, 3]);
     assert.deepEqual(places([{ points: 3 }, { points: 2 }, { points: 2 }, { points: 0 }]), [1, 2, 2, 4]);
   });
 
   test('winners: the top scorers, nobody when nobody scored', () => {
-    assert.deepEqual(topScorers(said.result!.scores), [4, 1]);
+    const { result } = said;
+    assert.ok(result);
+    assert.deepEqual(topScorers(result.scores), [4, 1]);
     assert.deepEqual(topScorers([{ member_id: 1, points: 0, found: 0, fooled: 0 }]), []);
     assert.deepEqual(topScorers([]), []);
   });

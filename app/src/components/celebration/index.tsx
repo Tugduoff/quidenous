@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, useEffectEvent } from 'react';
 import { Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Animated, { FadeIn, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 import { Mascot } from '@/components/mascot/mascot';
@@ -24,8 +24,7 @@ export function Celebration({ count, onDone, frozen, streak }: { count: number; 
   const { lang } = useLang();
   const { width: w, height: h } = useWindowDimensions();
   // The punchline is read in the app's language.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const m = useMemo(() => (streak ? streakMilestone(count) : describe(count)), [count, lang, streak]);
+  const m = useMemo(() => (streak ? streakMilestone(count, lang) : describe(count, lang)), [count, lang, streak]);
   const scene = useMemo(() => sceneFor(m, t), [m, t]);
   const rand = useMemo(() => makeRand(count * 7919 + 17), [count]);
   const clock = useClock(scene.duration, reduced ? scene.duration : frozen);
@@ -41,7 +40,7 @@ export function Celebration({ count, onDone, frozen, streak }: { count: number; 
     setTimeout(onDone, 230);
   };
 
-  useEffect(() => {
+  const startTimers = useEffectEvent(() => {
     if (frozen != null) return;
     const timers = [setTimeout(close, reduced ? 4500 : scene.duration)];
     // A buzz on each impact (Android/iOS only).
@@ -55,9 +54,8 @@ export function Celebration({ count, onDone, frozen, streak }: { count: number; 
           ),
         );
     return () => timers.forEach(clearTimeout);
-    // Once per party.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  });
+  useEffect(() => startTimers(), []);
 
   const { Render } = scene;
   const cx = w / 2;

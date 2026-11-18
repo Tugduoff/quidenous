@@ -10,6 +10,8 @@ import type { Theme } from '@/lib/theme';
 import { BigNumber, burst, type Clock, Flash, Glow, paper, type Particle, Particles, Pop, Rays, Shockwave, Slam, sparks } from '@/components/celebration/engine';
 import { Headline, numberSize, party, type SceneFactory, type SceneProps } from '@/components/celebration/scene';
 
+const PINKS = ['#FF4FA3', '#FF6DB5', '#E8338A', '#FF8FC7', '#FF3B5C'];
+
 // ——— Local helpers ———
 
 const isDark = (t: Theme) => parseInt(t.bg.slice(1, 3), 16) < 128;
@@ -539,7 +541,6 @@ const hearts: SceneFactory = (m, t) => {
       { at: beat + 2000, amp: 2 },
     ],
     Render: function Hearts({ clock, w, h, rand, cx, cy }: SceneProps) {
-      const pinks = ['#FF4FA3', '#FF6DB5', '#E8338A', '#FF8FC7', '#FF3B5C'];
       const list = useMemo<Particle[]>(() => {
         const rising = Array.from({ length: 30 }, () => {
           const s = rand.range(16, 42);
@@ -562,7 +563,7 @@ const hearts: SceneFactory = (m, t) => {
             h: s * 0.9,
             color: '#fff',
             shape: 'node',
-            node: <Heart size={s} color={rand.pick(pinks)} />,
+            node: <Heart size={s} color={rand.pick(PINKS)} />,
           } as Particle;
         });
         const flutter = burst(rand, {
@@ -577,7 +578,7 @@ const hearts: SceneFactory = (m, t) => {
           fadeOut: 500,
           look: (r) => {
             const s = r.range(12, 22);
-            return { shape: 'node', w: s, h: s * 0.9, rot: r.range(-25, 25), node: <Heart size={s} color={r.pick(pinks)} /> };
+            return { shape: 'node', w: s, h: s * 0.9, rot: r.range(-25, 25), node: <Heart size={s} color={r.pick(PINKS)} /> };
           },
         });
         return [...rising, ...flutter];
@@ -895,6 +896,13 @@ const rocket: SceneFactory = (m, t) => {
   const lift = 1450;
   const fly = 1150;
   const slam = 2550;
+  const startY = (h: number) => h + 150;
+  const riseY = (h: number, ms: number) => {
+    const y0 = startY(h);
+    const acc = (2 * (y0 + 260)) / Math.pow(fly / 1000, 2);
+    const s = Math.max(0, ms - lift) / 1000;
+    return y0 - 0.5 * acc * s * s;
+  };
   return {
     duration: 4200,
     bg: '#0B1026',
@@ -907,20 +915,13 @@ const rocket: SceneFactory = (m, t) => {
       { at: slam, amp: 7 },
     ],
     Render: function Lift({ clock, w, h, rand, cx, cy }: SceneProps) {
-      const y0 = h + 150;
-      const y1 = -260;
-      const acc = (2 * (y0 - y1)) / Math.pow(fly / 1000, 2);
-      const ry = (ms: number) => {
-        const s = Math.max(0, ms - lift) / 1000;
-        return y0 - 0.5 * acc * s * s;
-      };
       const stars = useMemo(
         () => Array.from({ length: 70 }, () => ({ x: rand.range(0, w), y: rand.range(0, h), r: rand.range(0.6, 2), o: rand.range(0.3, 0.9) })),
         [rand, w, h],
       );
       const list = useMemo<Particle[]>(() => {
         // The rocket's tail on screen at time `ms`.
-        const tail = (ms: number) => ry(ms) + 50;
+        const tail = (ms: number) => riseY(h, ms) + 50;
         const smoke = Array.from({ length: 16 }, (_, i) => {
           const at = lift + 120 + i * 50;
           return {
@@ -987,13 +988,10 @@ const rocket: SceneFactory = (m, t) => {
           look: paper(party(t)),
         });
         return [...smoke, ...cloud, ...fire, ...party_];
-        // ry depends only on these.
-        // eslint-disable-next-line react-hooks/exhaustive-deps
       }, [rand, cx, cy, h]);
       const path = useMemo(() => {
         const ts = Array.from({ length: 9 }, (_, i) => lift + (fly * i) / 8);
-        return { t: [0, ...ts], y: [y0 - 65, ...ts.map((ms) => ry(ms) - 65)] };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+        return { t: [0, ...ts], y: [startY(h) - 65, ...ts.map((ms) => riseY(h, ms) - 65)] };
       }, [h]);
       const size = numberSize(m.n);
       return (

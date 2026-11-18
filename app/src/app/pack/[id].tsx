@@ -202,7 +202,7 @@ export default function PackScreen() {
               </View>
             )}
             {pack.spicy && <MiniTag label={tr('packs.spicy')} tone="hot" />}
-            {otherLang && <MiniTag label={pack.language!.toUpperCase()} />}
+            {otherLang && pack.language && <MiniTag label={pack.language.toUpperCase()} />}
             {tags.map((tag) => {
               const Icon = TAG_ICONS[tag];
               return (
