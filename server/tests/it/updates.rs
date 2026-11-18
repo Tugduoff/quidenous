@@ -900,7 +900,10 @@ async fn asset_content_type_comes_from_the_extension_not_the_publisher() {
     }
 }
 
-const TEST_KEY: &str = include_str!("../fixtures/ota-test-key.pem");
+const TEST_KEY: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/tests/fixtures/ota-test-key.pem"
+));
 const TEST_CERT: &str = concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/tests/fixtures/ota-test-cert.pem"
@@ -1000,7 +1003,10 @@ async fn with_a_certificate_only_updates_it_verifies_are_accepted() {
 #[test]
 fn the_app_certificate_can_verify_signatures() {
     // The certificate the apps embed is what UPDATES_CERTIFICATE points at in production.
-    let pem = include_bytes!("../../../app/certs/certificate.pem");
+    let pem = include_bytes!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../app/certs/certificate.pem"
+    ));
     assert!(jsonwebtoken::DecodingKey::from_rsa_pem(pem).is_ok());
 }
 
