@@ -34,6 +34,7 @@ mod routes;
 mod said;
 mod stats;
 mod streaks;
+mod themes;
 mod today;
 mod tripot;
 mod updates;

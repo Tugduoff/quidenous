@@ -94,6 +94,7 @@ type RoomRow = (
     String,
     Option<String>,
     bool,
+    Option<String>,
 );
 
 pub(crate) async fn list(
@@ -110,7 +111,8 @@ pub(crate) async fn list(
                  NOT EXISTS (SELECT 1 FROM members a JOIN blocks b ON b.blocked_id = a.user_id \
                              WHERE a.id = inbox.actor_id AND b.user_id = ?1)), \
                 m.muted, g.language, g.kind, g.party_ends_at, \
-                (g.party_ends_at IS NOT NULL AND g.party_ends_at <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) \
+                (g.party_ends_at IS NOT NULL AND g.party_ends_at <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now')), \
+                g.theme \
          FROM members m JOIN groups g ON g.id = m.group_id AND g.deleted_at IS NULL \
          JOIN users u ON u.id = m.user_id \
          WHERE m.user_id = ?1 AND m.removed_at IS NULL \
@@ -135,10 +137,11 @@ pub(crate) async fn list(
                 kind,
                 ends_at,
                 over,
+                theme,
             )| {
                 let mut room = json!({ "id": id, "name": name, "role": role, "members": members,
                     "open_number": open, "voted": voted, "unread": unread, "muted": muted,
-                    "language": language, "kind": kind });
+                    "language": language, "kind": kind, "theme": theme });
                 if kind == "party" {
                     room["ends_at"] = json!(ends_at);
                     room["over"] = json!(over);
@@ -388,6 +391,7 @@ pub(crate) struct SettingsBody {
     language: Option<String>,
     anonymous_votes: Option<String>,
     tripot: Option<bool>,
+    theme: Option<String>,
 }
 
 pub(crate) async fn update(
@@ -421,8 +425,13 @@ pub(crate) async fn update(
         .as_deref()
         .map(crate::rooms::anonymous::clean_mode)
         .transpose()?;
+    let theme = body
+        .theme
+        .as_deref()
+        .map(crate::rooms::themes::clean_theme)
+        .transpose()?;
     let pacing = body.owner_next.is_some() || body.next_delay.is_some();
-    if (pacing || anonymous.is_some() || body.tripot.is_some())
+    if (pacing || anonymous.is_some() || body.tripot.is_some() || theme.is_some())
         && crate::rounds::game::party(&state.db, room).await?.is_some()
     {
         return Err(AppError::BadRequest("bad_setting"));
@@ -457,6 +466,9 @@ pub(crate) async fn update(
     }
     if let Some(on) = body.tripot {
         crate::rounds::tripot::set_enabled(&mut tx, room, on).await?;
+    }
+    if let Some(theme) = theme {
+        crate::rooms::themes::set(&mut tx, room, theme).await?;
     }
     tx.commit().await?;
     state.live.send(room, Event::RoomUpdated);

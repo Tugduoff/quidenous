@@ -218,12 +218,13 @@ pub(crate) async fn group(State(state): State<AppState>, Me(me): Me) -> AppResul
         String,
         Option<String>,
         bool,
+        Option<String>,
     );
-    let (name, code, skip_vote, kick_vote, questions_by, vibe, owner_next, next_delay, language, kind, ends_at, over): Settings =
+    let (name, code, skip_vote, kick_vote, questions_by, vibe, owner_next, next_delay, language, kind, ends_at, over, theme): Settings =
         sqlx::query_as(
             "SELECT name, join_code, skip_vote, kick_vote, questions_by, vibe, owner_next, next_delay, language, \
              kind, party_ends_at, \
-             (party_ends_at IS NOT NULL AND party_ends_at <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) \
+             (party_ends_at IS NOT NULL AND party_ends_at <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now')), theme \
              FROM groups WHERE id = ?",
         )
     .bind(me.group_id)
@@ -283,6 +284,7 @@ pub(crate) async fn group(State(state): State<AppState>, Me(me): Me) -> AppResul
     if kind == "room" {
         out["settings"]["tripot"] =
             json!(crate::rounds::tripot::enabled(&state.db, me.group_id).await?);
+        out["settings"]["theme"] = json!(theme);
     }
     if kind == "party" {
         out["ends_at"] = json!(ends_at);
