@@ -12,6 +12,7 @@ import { useSharedValue } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import { impactHaptic } from '@/lib/device/haptics';
 import { useLatest } from '@/lib/hooks/use-latest';
+import { useSideScrollTouch } from '@/lib/hooks/use-side-scroll-touch';
 
 const SWIPE_STARTS_AFTER_X = 18;
 const SCROLL_WINS_AFTER_Y = 14;
@@ -26,6 +27,7 @@ export function TabSwipe({ onSwipe, children }: { onSwipe: (dir: 1 | -1) => void
     latest.current(dir);
   };
   const start = useSharedValue({ x: 0, y: 0, at: 0, on: false });
+  const touchInSideScroller = useSideScrollTouch();
   const pan = usePanGesture({
     touchAction: 'pan-y',
     userSelect: 'auto',
@@ -34,7 +36,7 @@ export function TabSwipe({ onSwipe, children }: { onSwipe: (dir: 1 | -1) => void
     onTouchesDown: (e) => {
       'worklet';
       const p = e.allTouches[0];
-      if (e.numberOfTouches > 1 || e.pointerType === PointerType.MOUSE || !p) {
+      if (e.numberOfTouches > 1 || e.pointerType === PointerType.MOUSE || !p || touchInSideScroller.value) {
         GestureStateManager.fail(e.handlerTag);
         return;
       }
