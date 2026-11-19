@@ -1,5 +1,5 @@
 use crate::common;
-use quidenous_server::platform::ids::RoomId;
+use quidenous_server::platform::{db::write_tx, ids::RoomId};
 
 use crate::common::{call, join, room_id, setup};
 use axum::{
@@ -233,7 +233,7 @@ async fn a_round_keeps_what_was_decided_when_it_opened() {
         .execute(&room.state.db)
         .await
         .unwrap();
-    let mut tx = room.state.db.begin().await.unwrap();
+    let mut tx = write_tx(&room.state.db).await.unwrap();
     let opened =
         quidenous_server::rounds::game::ensure_open_round(&mut tx, RoomId::from_raw(room.id))
             .await
