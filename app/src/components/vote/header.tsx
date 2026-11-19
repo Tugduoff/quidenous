@@ -17,6 +17,7 @@ import { RoomStreak } from '@/components/streaks/streaks';
 import { Avatar } from '@/components/ui/avatar';
 import { useMountEffect } from '@/lib/hooks/use-mount-effect';
 import { RoomBackdrop } from '@/components/themes/room-backdrop';
+import { HeaderSnow } from '@/components/season/header-snow';
 import { SCENE_STAGE } from '@/lib/utils/room-art';
 
 function PushBell() {
@@ -136,6 +137,7 @@ function HeaderBar() {
   return (
     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: stage }}>
       <RoomBackdrop />
+      <HeaderSnow />
       <View style={{ gap: 4, flexShrink: 1 }}>
         <Logo />
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>

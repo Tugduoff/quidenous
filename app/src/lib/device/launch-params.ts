@@ -1,5 +1,7 @@
 import { Platform } from 'react-native';
 
+import { parseOverride } from '@/lib/utils/season';
+
 const INVITE_CODE =
   Platform.OS === 'web' && typeof location !== 'undefined'
     ? new URLSearchParams(location.search).get('code')
@@ -25,3 +27,7 @@ export const presetFriendCode = () => FRIEND_CODE;
 export function presetJoinCode(): string | null {
   return INVITE_CODE;
 }
+
+const SEASON_OVERRIDE = Platform.OS === 'web' && typeof location !== 'undefined' ? parseOverride(location.search) : null;
+
+export const presetSeason = () => SEASON_OVERRIDE;

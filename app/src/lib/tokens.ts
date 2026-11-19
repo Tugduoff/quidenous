@@ -190,3 +190,15 @@ export const SCENE = {
   mirrorCord: { dark: '#CDBBF5', light: '#8F78C8' },
   micHead: { dark: '#EDE6FA', light: '#F4EEFC' },
 } as const;
+
+export const SEASON = {
+  snow: {
+    dark: { speck: '#FFFFFF', flake: '#FFFFFF', crystal: '#FFFFFF' },
+    light: { speck: '#A9C6F0', flake: '#8DB5EC', crystal: '#6FA3E6' },
+  },
+  drift: {
+    dark: { hill: '#9FB2D1', crest: '#DCE6F5', bank: '#E4ECF8', edge: '#FFFFFF' },
+    light: { hill: '#C6D6EC', crest: '#E6EEF9', bank: '#DCE7F6', edge: '#FFFFFF' },
+  },
+  pompom: '#FFFFFF',
+} as const;

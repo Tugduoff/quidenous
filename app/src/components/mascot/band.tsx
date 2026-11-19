@@ -22,6 +22,7 @@ const HELLO: Cast = [
 ];
 const W = 850;
 const H = 270;
+export const BAND_ASPECT = H / W;
 
 export const MascotBand = memo(function MascotBand({
   width,
@@ -40,7 +41,7 @@ export const MascotBand = memo(function MascotBand({
   return (
     <View
       onLayout={width ? undefined : (e) => setMeasured(Math.round(e.nativeEvent.layout.width))}
-      style={[width ? { width } : { alignSelf: 'stretch', alignItems: 'center' }, { height: (width ?? Math.min(measured || max, max)) * (H / W) }, style]}
+      style={[width ? { width } : { alignSelf: 'stretch', alignItems: 'center' }, { height: (width ?? Math.min(measured || max, max)) * BAND_ASPECT }, style]}
       pointerEvents="none"
       aria-hidden
       importantForAccessibility="no-hide-descendants"

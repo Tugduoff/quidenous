@@ -1,5 +1,6 @@
 import { TermsGate } from '@/components/auth/terms';
 import { CelebrationPreview } from '@/components/celebration';
+import { SeasonSplash } from '@/components/season/splash';
 import { AppLock } from '@/components/security/app-lock';
 import { ConfirmHost } from '@/components/ui/confirm';
 import { ToastHost } from '@/components/ui/toast';
@@ -11,6 +12,7 @@ export function AppHosts({ stage, signedIn }: { stage: Stage; signedIn: boolean 
   return (
     <>
       <CelebrationPreview />
+      {stage === 'in' && <SeasonSplash />}
       <AppLock active={signedIn} />
       {(stage === 'in' || stage === 'room' || stage === 'intro') && <TermsGate />}
       <ConfirmHost />

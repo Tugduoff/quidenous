@@ -297,6 +297,129 @@ const PARTS = {
   },
 };
 
+const WOOL = { zeste: '#FF5E6C', bulle: '#FFB547', pave: '#5AC8FA', paillette: '#5EF2B0', roupi: '#FF6DB5' };
+const SNOW_SHADE = '#CBD6E6';
+
+const place = (d, tx, ty, deg = 0, k = 1) => movePath(k === 1 ? d : d.replace(/(-?[\d.]+)[ ,]+(-?[\d.]+)/g, (_, x, y) => `${+x * k} ${+y * k}`), tx, ty, deg);
+function ballShade(cx, cy, r, o = {}) {
+  const pt = (deg, k = 1) => `${cx + r * k * Math.cos((deg * Math.PI) / 180)} ${cy + r * k * Math.sin((deg * Math.PI) / 180)}`;
+  return P(`M${pt(-42)}A${r} ${r} 0 0 1 ${pt(138)}A${r * 1.45} ${r * 1.45} 0 0 0 ${pt(-42)}Z`, o);
+}
+
+function beanie([cx, cy], { w, ch = 19, dh = 25, tilt = 0, sq = 0.62, pom = 12, px = 0, ribs = [-0.72, -0.43, -0.14, 0.14, 0.43, 0.72], sw = 6, small = false }) {
+  const T = (d) => place(d, cx, cy, tilt);
+  const dw = w - 5.5;
+  const top = -ch - dh;
+  const base = -ch + 6;
+  const dome = `M${-dw} ${base}C${-dw} ${-ch - dh * 0.68} ${-dw * sq} ${top} 0 ${top}C${dw * sq} ${top} ${dw} ${-ch - dh * 0.68} ${dw} ${base}Z`;
+  const [sw2, cut] = [dw - 3, small ? 6 : 9.5];
+  const shade = `M${sw2 * 0.12} ${top + 3.2}C${sw2 * (sq + 0.05)} ${top + 3.6} ${sw2} ${-ch - dh * 0.68} ${sw2} ${base}L${sw2 - cut} ${base}C${sw2 - cut} ${-ch - dh * 0.56} ${sw2 * (sq - 0.1)} ${top + 3 + cut * 0.62} ${sw2 * 0.12} ${top + 3.2}Z`;
+  const gloss = `M${-dw + 10.5} ${-ch - dh * 0.26}Q${-dw + 11.5} ${-ch - dh * 0.7} ${-dw * 0.4} ${top + 8}`;
+  const cuff = `M${-w} ${-ch + 2}Q0 ${-ch - 5} ${w} ${-ch + 2}Q${w + 3.5} ${-ch / 2 + 1.5} ${w} 1Q0 8 ${-w} 1Q${-w - 3.5} ${-ch / 2 + 1.5} ${-w} ${-ch + 2}Z`;
+  const bow = (x) => 14 * ((x + w) / (2 * w)) * (1 - (x + w) / (2 * w));
+  const rib = ribs.map((k) => `M${k * w} ${-ch + 2 - bow(k * w) + 5.4}Q${k * w * 1.07} ${-ch / 2 + 1.5} ${k * w} ${1 + bow(k * w) - 5}`).join('');
+  const [pcx, pcy] = movePoint(px, top - pom * 0.42, cx, cy, tilt);
+  return [
+    P(T(dome), { fill: 'wool', stroke: 'ink', sw: sw + 0.5 }),
+    hd(P(T(shade), { fill: 'wool2' })),
+    ...(small ? [] : [hd(P(T(gloss), { stroke: 'white', sw: 5, op: 0.75 }))]),
+    P(T(cuff), { fill: 'wool', stroke: 'ink', sw: sw - 0.5 }),
+    hd(P(T(rib), { stroke: 'wool2', sw: small ? 3.4 : 4.4 })),
+    ...(pom ? [C(pcx, pcy, pom, { fill: 'white', stroke: 'ink', sw: sw - 0.5 }), hd(ballShade(pcx, pcy, pom - (sw - 0.5) / 2 + 0.3, { fill: SNOW_SHADE }))] : []),
+  ];
+}
+
+function outline(d) {
+  const pts = [];
+  let [x, y] = [0, 0];
+  for (const [, cmd, args] of d.matchAll(/([MLHCZ])([^MLHCZ]*)/g)) {
+    const n = (args.match(/-?[\d.]+/g) ?? []).map(Number);
+    if (cmd === 'M' || cmd === 'L') pts.push(([x, y] = [n[0], n[1]]));
+    else if (cmd === 'H') pts.push(([x, y] = [n[0], y]));
+    else if (cmd === 'C') {
+      for (let i = 1; i <= 24; i++) {
+        const t = i / 24;
+        const k = [(1 - t) ** 3, 3 * (1 - t) ** 2 * t, 3 * (1 - t) * t * t, t ** 3];
+        pts.push([k[0] * x + k[1] * n[0] + k[2] * n[2] + k[3] * n[4], k[0] * y + k[1] * n[1] + k[2] * n[3] + k[3] * n[5]]);
+      }
+      [x, y] = [n[4], n[5]];
+    }
+  }
+  return pts;
+}
+function edgeX(pts, y, side) {
+  const xs = [];
+  for (let i = 0; i < pts.length; i++) {
+    const [a, b] = [pts[i], pts[(i + 1) % pts.length]];
+    if (a[1] === b[1] || (y - a[1]) * (y - b[1]) > 0) continue;
+    xs.push(a[0] + ((y - a[1]) / (b[1] - a[1])) * (b[0] - a[0]));
+  }
+  if (!xs.length) throw new Error(`no silhouette at y = ${y}`);
+  return side < 0 ? Math.min(...xs) : Math.max(...xs);
+}
+
+const MIN_TAIL_FOR_BAR = 27;
+function scarf(d, { y, te = 14, dip, low, u = 0.76, side = 1, tail: [len, swing] = [24, -8], tw = 1, twice = true }) {
+  const body = outline(d);
+  const along = (s, y0, y1) => {
+    let out = '';
+    for (let i = 1; i <= 4; i++) out += `L${edgeX(body, y0 + ((y1 - y0) * i) / 4, s)} ${y0 + ((y1 - y0) * i) / 4}`;
+    return out;
+  };
+  const q = (x0, x1, yEnd, yMid) => {
+    const [cx, cy] = [(x0 + x1) / 2, 2 * yMid - yEnd];
+    return { c: [cx, cy], at: (v) => [(1 - v) ** 2 * x0 + 2 * (1 - v) * v * cx + v * v * x1, (1 - v) ** 2 * yEnd + 2 * (1 - v) * v * cy + v * v * yEnd] };
+  };
+  const [tl, tr, bl, br] = [edgeX(body, y, -1), edgeX(body, y, 1), edgeX(body, y + te, -1), edgeX(body, y + te, 1)];
+  const top = q(tl, tr, y, dip);
+  const bot = q(bl, br, y + te, low);
+  const band = `M${tl} ${y}Q${top.c[0]} ${top.c[1]} ${tr} ${y}${along(1, y, y + te)}Q${bot.c[0]} ${bot.c[1]} ${bl} ${y + te}${along(-1, y + te, y)}Z`;
+  const fold = `M${(tl + bl) / 2 + 3} ${y + te / 2 + 0.5}Q${(top.c[0] + bot.c[0]) / 2} ${(top.c[1] + bot.c[1]) / 2} ${(tr + br) / 2 - 3} ${y + te / 2 + 0.5}`;
+  const [kx, ky] = [0, 1].map((i) => top.at(u)[i] * 0.62 + bot.at(u)[i] * 0.38);
+  const X = (p) => place(p, kx, ky, swing * side);
+  const tail = `M${-6 * tw} -2Q${-7.5 * tw} ${len * 0.5} ${-10.5 * tw} ${len}L${10.5 * tw} ${len - 1.5}Q${8 * tw} ${len * 0.5} ${6 * tw} -2Z`;
+  const bar = `M${-6.2 * tw} ${len * 0.7}L${6 * tw} ${len * 0.7 - 1}`;
+  return [
+    P(band, { fill: 'wool', stroke: 'ink', sw: 5.5 }),
+    ...(twice ? [hd(P(fold, { stroke: 'ink', sw: 3.4 }))] : []),
+    P(X(tail), { fill: 'wool', stroke: 'ink', sw: 5.5 }),
+    ...(len >= MIN_TAIL_FOR_BAR ? [hd(P(X(bar), { stroke: 'white', sw: 4.6 }))] : []),
+    E(kx, ky, 8.8 * tw, 8 * tw, { fill: 'wool', stroke: 'ink', sw: 5.5 }),
+    hd(ballShade(kx, ky, 5.8 * tw, { fill: 'wool2' })),
+  ];
+}
+
+const ZESTE_STEM = 'M0 4C-2 -8 1 -19 10 -23C19 -27 28 -21 26 -12C24 -5 17 -4 13 -8';
+const SNOW_ON_NIGHTCAP = 'M78 61C79 50 90 41 104 38C117 35 129 37 135 44C129 45 126 51 119 50C113 49 109 56 101 54C95 53 91 61 84 63C80 64 78 63 78 61Z';
+
+const WINTER = {
+  zeste: {
+    hat: beanie([100, 85], { w: 45.5, ch: 19, dh: 25, tilt: -4, pom: 0 }),
+    top: tube(place(ZESTE_STEM, 96, 46.5, -4, 0.8), 12.5, 'acc2', 4.2),
+    scarf: scarf(BODIES.zeste.d, { y: 134, te: 15, dip: 143.5, low: 160.5, tail: [30, -7] }),
+  },
+  bulle: {
+    hat: beanie([100, 89], { w: 57.5, ch: 20, dh: 23, tilt: 4, pom: 12.5, px: 4, sq: 0.66 }),
+    top: [],
+    scarf: scarf(BODIES.bulle.d, { y: 141, te: 14, dip: 154.5, low: 171.5, u: 0.22, side: -1, tail: [23, -12] }),
+  },
+  pave: {
+    hat: beanie([100, 84], { w: 61, ch: 19, dh: 22, pom: 12, sq: 0.74 }),
+    top: [],
+    scarf: scarf(BODIES.pave.d, { y: 142, te: 14, dip: 152.5, low: 170, u: 0.78, tail: [24, -10] }),
+  },
+  paillette: {
+    hat: beanie([117, 63], { w: 24, ch: 12, dh: 14, tilt: 24, pom: 9, ribs: [-0.55, 0, 0.55], sw: 5.5, small: true }),
+    top: [],
+    scarf: scarf(BODIES.paillette.d, { y: 148, te: 13, dip: 163, low: 176.5, u: 0.87, tail: [20, -18], tw: 0.92, twice: false }),
+  },
+  roupi: {
+    hat: null,
+    top: [P(SNOW_ON_NIGHTCAP, { fill: 'white', stroke: 'ink', sw: 5.5 })],
+    scarf: scarf(BODIES.roupi.d, { y: 147, te: 13, dip: 164, low: 176.5, u: 0.9, tail: [21, -80], tw: 0.92, twice: false }),
+  },
+};
+
 const MOODS = {
   happy: { eyes: 'open', mouth: 'smile', arms: ['rest', 'wave'], legs: ['stand', 'stand'] },
   accuse: { eyes: 'squint', brows: 'sus', mouth: 'smirk', arms: ['rest', 'point'], legs: ['wide', 'wide'], tilt: 4, dx: -10 },
@@ -344,6 +467,8 @@ const bodies = Object.fromEntries(
       front: shapes(b.front),
       faceUnder: shapes(b.faceUnder),
       faceExtras: shapes(b.faceExtras),
+      wool: WOOL[who],
+      winter: { hat: WINTER[who].hat && shapes(WINTER[who].hat), top: shapes(WINTER[who].top), scarf: shapes(WINTER[who].scarf) },
     },
   ]),
 );

@@ -1,4 +1,3 @@
-import { useIsFocused } from 'expo-router';
 import { memo, useId } from 'react';
 import { type StyleProp, View, type ViewStyle } from 'react-native';
 import Animated, {
@@ -12,18 +11,12 @@ import Animated, {
 } from 'react-native-reanimated';
 import Svg, { Circle, ClipPath, Defs, Ellipse, G, Path, Rect } from 'react-native-svg';
 
+import { useSeason } from '@/components/season/season-scope';
 import { compose, type Composed, type Group, GROUND, type Mood, type Pose, type Prop, type Shape, type Who } from '@/lib/utils/mascot';
 import { useScheme } from '@/lib/theme';
+import { useFocusedSafe } from '@/lib/hooks/use-focused-safe';
 import { mascotClock, useMascotClock } from '@/lib/hooks/use-mascot-clock';
 import { useOnChange } from '@/lib/hooks/use-on-change';
-
-function useFocusedSafe() {
-  try {
-    return useIsFocused();
-  } catch {
-    return true;
-  }
-}
 
 type Kind = 'idle' | 'happy' | 'accuse' | 'sleepy' | 'celebrate' | 'sad' | 'think' | 'caught';
 const TAU = Math.PI * 2;
@@ -73,7 +66,8 @@ export type MascotProps = {
 
 export const Mascot = memo(function Mascot({ who, mood = 'happy', size = 96, animate, prop, tint, motion, style }: MascotProps) {
   const lod = size < 48 ? 'lo' : 'hi';
-  const c = compose(who, mood, { lod, prop, tint });
+  const outfit = useSeason() === 'winter' ? 'winter' : undefined;
+  const c = compose(who, mood, { lod, prop, tint, outfit });
   const kind: Kind = motion ?? (typeof mood === 'string' ? mood : 'idle');
   const dark = useScheme() === 'dark';
   const reduced = useReducedMotion();
@@ -261,6 +255,9 @@ const Body = memo(function Body({ c, clip, size, eyesOpen, eyesShut }: { c: Comp
         {c.over.map((g, i) => (
           <Shapes key={i} g={g} />
         ))}
+        {c.scarf ? <Shapes g={c.scarf} /> : null}
+        {c.hat ? <Shapes g={c.hat} /> : null}
+        {c.hatTop ? <Shapes g={c.hatTop} /> : null}
         <Shapes g={c.under} />
         {c.blink ? (
           <>

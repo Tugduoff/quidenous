@@ -56,3 +56,40 @@ export function useTipVisible(id: string): boolean {
     () => !!tips && !tips.has(id),
   );
 }
+
+const SEASONAL_KEY = 'qdn.seasonal';
+let seasonal = true;
+const seasonalListeners = new Set<() => void>();
+
+storage
+  .get(SEASONAL_KEY)
+  .then((saved) => {
+    if (saved !== 'off') return;
+    seasonal = false;
+    seasonalListeners.forEach((l) => l());
+  })
+  .catch(() => {});
+
+export function setSeasonalPref(on: boolean) {
+  seasonal = on;
+  storage.set(SEASONAL_KEY, on ? 'on' : 'off').catch(() => {});
+  seasonalListeners.forEach((l) => l());
+}
+
+export function useSeasonalPref(): boolean {
+  return useSyncExternalStore(
+    (l) => {
+      seasonalListeners.add(l);
+      return () => seasonalListeners.delete(l);
+    },
+    () => seasonal,
+  );
+}
+
+const SEASON_SPLASH_KEY = 'qdn.seasonSplash';
+
+export async function claimSeasonSplash(seasonTag: string): Promise<boolean> {
+  if ((await storage.get(SEASON_SPLASH_KEY)) === seasonTag) return false;
+  storage.set(SEASON_SPLASH_KEY, seasonTag).catch(() => {});
+  return true;
+}
