@@ -118,7 +118,9 @@ const BurstSlot = memo(function BurstSlot({ slot, size }: { slot: Slot; size: nu
 });
 
 const GAP = 6;
-const EMOJI_Y = 22;
+const BADGE_ROOM = 8;
+const BUTTON_HEIGHT = 48;
+const EMOJI_Y = BADGE_ROOM + BUTTON_HEIGHT / 2;
 const LIVE_BURSTS = 16;
 const COUNT_FADE = FadeIn.duration(220).reduceMotion(ReduceMotion.Never);
 
@@ -167,7 +169,7 @@ function Bar({ roundId, byId, me }: { roundId: number; byId: Map<number, Member>
   return (
     <View accessibilityRole="toolbar" accessibilityLabel={tr('reactions.bar')}>
       <View
-        style={{ flexDirection: 'row', gap: GAP }}
+        style={{ flexDirection: 'row', gap: GAP, paddingTop: BADGE_ROOM }}
         onLayout={({ nativeEvent }) => {
           width.current = nativeEvent.layout.width;
         }}>
@@ -220,7 +222,7 @@ const ReactionButton = memo(function ReactionButton({
         {
           flex: 1,
           minWidth: 0,
-          height: 62,
+          height: BUTTON_HEIGHT,
           borderRadius: 18,
           alignItems: 'center',
           justifyContent: 'center',
@@ -234,16 +236,36 @@ const ReactionButton = memo(function ReactionButton({
       <Text allowFontScaling={false} style={{ fontSize: narrow ? 22 : 26, lineHeight: 32 }}>
         {emoji}
       </Text>
-      <Animated.Text
-        key={reduced ? count : 'count'}
-        entering={reduced ? COUNT_FADE : undefined}
-        numberOfLines={1}
-        style={[
-          { height: 16, fontFamily: t.font.display, fontSize: 13, lineHeight: 16, fontVariant: ['tabular-nums'], color: mine > 0 ? t.accInk : t.mut },
-          pop,
-        ]}>
-        {count > 0 ? shortCount(count) : ''}
-      </Animated.Text>
+      {count > 0 && (
+        <Animated.Text
+          key={reduced ? count : 'count'}
+          entering={reduced ? COUNT_FADE : undefined}
+          numberOfLines={1}
+          style={[
+            {
+              position: 'absolute',
+              top: -BADGE_ROOM,
+              right: -4,
+              minWidth: 20,
+              height: 18,
+              paddingHorizontal: 5,
+              borderRadius: 9,
+              overflow: 'hidden',
+              textAlign: 'center',
+              fontFamily: t.font.display,
+              fontSize: 11,
+              lineHeight: 18,
+              fontVariant: ['tabular-nums'],
+              color: mine > 0 ? t.accInk : t.txt,
+              backgroundColor: mine > 0 ? t.accSoft : t.card2,
+              borderWidth: 1,
+              borderColor: t.line,
+            },
+            pop,
+          ]}>
+          {shortCount(count)}
+        </Animated.Text>
+      )}
     </PressableScale>
   );
 });
