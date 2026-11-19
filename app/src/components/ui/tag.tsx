@@ -4,13 +4,13 @@ import { StyleSheet, Text, View } from 'react-native';
 export function Tag({ label, tone = 'tag' }: { label: string; tone?: 'tag' | 'acc' }) {
   const t = useTheme();
   return (
-    <View style={[styles.tag, { backgroundColor: tone === 'acc' ? t.acc : t.tagFill }]}>
+    <View style={[styles.tag, { backgroundColor: tone === 'acc' ? t.acc : t.tagBg }]}>
       <Text
         style={{
           fontFamily: t.font.bold,
           fontSize: 12,
           letterSpacing: 0.3,
-          color: tone === 'acc' ? t.accTxt : t.onStrong,
+          color: tone === 'acc' ? t.accTxt : t.tagTxt,
           textTransform: 'uppercase',
         }}>
         {label}

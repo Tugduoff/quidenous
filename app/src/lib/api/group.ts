@@ -32,6 +32,7 @@ export type Group = {
     next_delay?: number;
     anonymous_votes?: AnonymousMode;
     tripot?: boolean;
+    theme?: string | null;
   };
   pace?: { waiting: boolean; next_open_at: string | null; round_id?: number | null };
   members: (Member & { role: Role; user_id: number })[];
@@ -48,6 +49,10 @@ export const getGroup = (room?: number) => api<Group>('/group', { room });
 
 export const useGroup = () =>
   useQuery({ queryKey: groupKeys.all, queryFn: () => getGroup(), select: (g) => localizeGroup(g) });
+
+const selectTheme = (g: Group) => g.settings.theme ?? null;
+
+export const useRoomThemeSetting = (enabled: boolean) => useQuery({ queryKey: groupKeys.all, queryFn: () => getGroup(), select: selectTheme, enabled });
 
 export const useVibes = (enabled: boolean) =>
   useQuery({ queryKey: groupKeys.vibes, queryFn: () => api<Vibe[]>('/vibes'), staleTime: Infinity, enabled });

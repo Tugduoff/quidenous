@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Hourglass, MessageCircleQuestion, RefreshCw, Settings2, Ticket, TriangleAlert, Trash2, Vote } from 'lucide-react-native';
+import { Hourglass, MessageCircleQuestion, Palette, RefreshCw, Settings2, Ticket, TriangleAlert, Trash2, Vote } from 'lucide-react-native';
 import { useState } from 'react';
 import { ActivityIndicator } from 'react-native';
 import { AnonymousSetting } from '@/components/vote/anonymous';
@@ -21,6 +21,8 @@ import { type Group, groupKeys, type RoomPatch, updateRoom, renewRoomCode, trans
 import { roomKeys } from '@/lib/api/rooms';
 import { authError } from '@/lib/api/errors';
 import { useFeatures } from '@/lib/api/features';
+import { RoomThemePicker } from '@/components/themes/room-theme-picker';
+import { cleanTheme } from '@/lib/utils/room-theme';
 
 export function RoomSettingsForm({ group }: { group: Group }) {
   const t = useTheme();
@@ -100,6 +102,12 @@ export function RoomSettingsForm({ group }: { group: Group }) {
         />
         <VibeRow value={s.vibe ?? null} onChange={(v) => save.mutate({ vibe: v ?? '' })} />
       </SettingsSection>
+
+      {features.roomThemes && group.kind !== 'party' && s.theme !== undefined && (
+        <SettingsSection title={tr('themes.title')} Icon={Palette}>
+          <RoomThemePicker value={cleanTheme(s.theme)} onChange={(id) => save.mutate({ theme: id ?? '' })} />
+        </SettingsSection>
+      )}
 
       {pacing && (
         <SettingsSection title={tr('room.settings.pace')} Icon={Hourglass}>

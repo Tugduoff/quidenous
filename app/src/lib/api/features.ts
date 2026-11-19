@@ -53,5 +53,6 @@ export function useFeatures() {
     said: on.has('said'),
     badges: on.has('badges'),
     wrapped: on.has('wrapped'),
+    roomThemes: on.has('room_themes'),
   };
 }

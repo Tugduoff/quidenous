@@ -24,6 +24,7 @@ export type RoomSummary = {
   muted?: boolean;
   language?: 'fr' | 'en';
   kind?: 'room' | 'party';
+  theme?: string | null;
   ends_at?: string | null;
   over?: boolean;
 };

@@ -1,8 +1,9 @@
-import { useSyncExternalStore } from 'react';
+import { createContext, useContext, useSyncExternalStore } from 'react';
 import { useColorScheme } from 'react-native';
 
 import { storage } from '@/lib/device/storage';
-import { ACCENTS, themes, type Accent } from '@/lib/tokens';
+import { ACCENTS, ROOM_THEMES, themes, type Accent } from '@/lib/tokens';
+import { isCurated, type CuratedId, type RoomThemeId } from '@/lib/utils/room-theme';
 
 export { ACCENTS, type Accent } from '@/lib/tokens';
 
@@ -82,18 +83,38 @@ export function useAccent(): Accent {
   );
 }
 
+export const RoomLookContext = createContext<RoomThemeId | null>(null);
+
+type Scheme = 'light' | 'dark';
+
 const cache = new Map<string, Theme>();
 
-export function useTheme(): Theme {
-  const scheme = useScheme();
-  const a = useAccent();
-  const key = `${scheme}-${a}`;
+function build(scheme: Scheme, look: RoomThemeId): Theme {
+  const key = `${scheme}-${look}`;
   let theme = cache.get(key);
   if (!theme) {
-    const c = ACCENTS[a];
-    const dark = scheme === 'dark';
-    theme = { ...themes[scheme], acc: c.acc, accInk: dark ? c.inkDark : c.inkLight, accSoft: dark ? c.softDark : c.softLight };
+    if (isCurated(look)) theme = { ...themes[scheme], ...ROOM_THEMES[look][scheme] };
+    else {
+      const c = ACCENTS[look];
+      const dark = scheme === 'dark';
+      theme = { ...themes[scheme], acc: c.acc, accInk: dark ? c.inkDark : c.inkLight, accSoft: dark ? c.softDark : c.softLight };
+    }
     cache.set(key, theme);
   }
   return theme;
+}
+
+export function useTheme(): Theme {
+  const scheme = useScheme();
+  const mine = useAccent();
+  return build(scheme, useContext(RoomLookContext) ?? mine);
+}
+
+export function useOwnTheme(): Theme {
+  return build(useScheme(), useAccent());
+}
+
+export function useRoomScene(): CuratedId | null {
+  const look = useContext(RoomLookContext);
+  return look && isCurated(look) ? look : null;
 }

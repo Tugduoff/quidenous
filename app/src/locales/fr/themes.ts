@@ -1,0 +1,25 @@
+export const themes = {
+  title: 'Thème',
+  hint: 'Tout le monde le voit dans ce salon. Ailleurs, chacun garde sa couleur.',
+  curated: 'Ambiances',
+  colours: 'Juste une couleur',
+  none: 'Aucun thème',
+  noneHint: 'Chacun sa couleur',
+  pickA11y: 'Thème {name}',
+  names: {
+    apero: 'Apéro',
+    feu: 'Feu de camp',
+    karaoke: 'Karaoké',
+    pyjama: 'Soirée pyjama',
+    arcade: 'Arcade',
+    piscine: 'Piscine',
+  },
+  taglines: {
+    apero: 'Spritz et guirlandes',
+    feu: 'Chamallows grillés',
+    karaoke: 'Qui prend le micro ?',
+    pyjama: 'Chut, ça dort',
+    arcade: 'Insert coin',
+    piscine: 'Le dernier à l’eau…',
+  },
+};
