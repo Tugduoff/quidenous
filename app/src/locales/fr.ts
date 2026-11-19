@@ -37,6 +37,8 @@ import { wrapped } from '@/locales/fr/wrapped';
 import { today } from '@/locales/fr/today';
 import { intro } from '@/locales/fr/intro';
 import { widget } from '@/locales/fr/widget';
+import { themes } from '@/locales/fr/themes';
+import { season } from '@/locales/fr/season';
 
 export const fr = {
   common,
@@ -78,6 +80,8 @@ export const fr = {
   today,
   intro,
   widget,
+  themes,
+  season,
 };
 
 export type Messages = typeof fr;

@@ -5,8 +5,9 @@ import { describe, test } from 'node:test';
 
 import { CAST, compose, darken, type Group, MASCOT, MOODS, type Pose, resolvePose } from '@/lib/utils/mascot';
 
-const TOKENS = new Set(['ink', 'body', 'shade', 'cheek', 'white', 'acc2']);
-const groups = (c: ReturnType<typeof compose>): Group[] => [...c.back, ...c.over, c.under, c.eyes, ...(c.blink ? [c.blink] : []), c.face, ...c.front, ...(c.prop ? [c.prop] : [])];
+const TOKENS = new Set(['ink', 'body', 'shade', 'cheek', 'white', 'acc2', 'wool', 'wool2']);
+const groups = (c: ReturnType<typeof compose>): Group[] =>
+  [...c.back, ...c.over, c.under, c.eyes, c.blink, c.face, ...c.front, c.prop, c.scarf, c.hat, c.hatTop].filter((g): g is Group => !!g);
 
 describe('mascot parts', () => {
   test('the generated JSON (app and server copies) is up to date with scripts/mascot-parts.mjs', () => {
@@ -14,8 +15,8 @@ describe('mascot parts', () => {
     assert.equal(r.status, 0, r.stderr || r.stdout);
   });
 
-  test('stays small', () => {
-    assert.ok(JSON.stringify(MASCOT).length < 20_000);
+  test('stays small, the winter outfit included', () => {
+    assert.ok(JSON.stringify(MASCOT).length < 26_000);
   });
 });
 
@@ -94,5 +95,62 @@ describe('compose', () => {
     assert.notEqual(compose('zeste', 'happy'), compose('zeste', 'happy', { lod: 'lo' }));
     const pose: Pose = { eyes: 'open', mouth: 'smile', arms: ['rest', 'rest'], legs: ['stand', 'stand'] };
     assert.equal(compose('bulle', pose), compose('bulle', pose));
+  });
+});
+
+describe('seasonal outfit', () => {
+  test('winter adds a beanie and a scarf to every character (Roupi keeps his nightcap), resolved and bounded', () => {
+    for (const who of CAST)
+      for (const mood of MOODS) {
+        const plain = compose(who, mood);
+        const hi = compose(who, mood, { outfit: 'winter' });
+        const lo = compose(who, mood, { lod: 'lo', outfit: 'winter' });
+        assert.equal(plain.scarf, null);
+        assert.equal(plain.hat, null);
+        assert.equal(plain.hatTop, null);
+        const bandTailAndKnot = 3;
+        assert.ok(hi.scarf && hi.scarf.shapes.length >= bandTailAndKnot, `${who}/${mood}: no scarf`);
+        const domeCuffAndKnit = 5;
+        if (who === 'roupi') assert.equal(hi.hat, null);
+        else assert.ok(hi.hat && hi.hat.shapes.length >= domeCuffAndKnit, `${who}/${mood}: no beanie`);
+        for (const g of groups(hi))
+          for (const s of g.shapes) {
+            assert.ok(!s.fill || !TOKENS.has(s.fill), `${who}/${mood}: unresolved fill ${s.fill}`);
+            assert.ok(!s.stroke || !TOKENS.has(s.stroke), `${who}/${mood}: unresolved stroke ${s.stroke}`);
+          }
+        const outfitBudget = 14;
+        assert.ok(hi.nodes > plain.nodes && hi.nodes <= plain.nodes + outfitBudget, `${who}/${mood}: ${hi.nodes} elements with the outfit, ${plain.nodes} without`);
+        assert.equal(lo.scarf, null, 'small: no scarf');
+        for (const g of [lo.hat, lo.hatTop]) for (const s of g?.shapes ?? []) assert.ok(!s.hd, 'a knit detail survived');
+        assert.ok(lo.nodes <= 41, `${who}/${mood}: lo ${lo.nodes} elements with the outfit`);
+      }
+  });
+
+  test('the outfit stays inside the drawing box, even at the top of a hop', () => {
+    const ys = (d: string) => (d.match(/-?\d*\.?\d+/g) ?? []).map(Number).filter((_, i) => i % 2 === 1);
+    for (const who of CAST) {
+      const c = compose(who, 'celebrate', { outfit: 'winter' });
+      for (const g of [c.hat, c.hatTop, c.scarf])
+        for (const s of g?.shapes ?? []) {
+          const half = (s.sw ?? 0) / 2;
+          if (s.el === 'circle') assert.ok((s.cy ?? 0) - (s.r ?? 0) - half + c.lift >= 0, `${who}: a pom-pom leaves the box`);
+          const d = s.el === 'path' ? (s.d ?? '') : '';
+          const arcsCarryRadiiNotPoints = d.includes('A');
+          if (!arcsCarryRadiiNotPoints) for (const y of ys(d)) assert.ok(y - half + c.lift >= 0 && y + half + c.lift <= 200, `${who}: ${y} leaves the box`);
+        }
+    }
+  });
+
+  test("the beanie hides tufts and stems (Zeste's pokes through it); the outfit is cached apart and follows the body", () => {
+    assert.ok(compose('zeste', 'happy').back.length > compose('zeste', 'happy', { outfit: 'winter' }).back.length);
+    assert.ok(compose('zeste', 'happy', { outfit: 'winter' }).hatTop, 'the stem sticks out of the beanie');
+    assert.ok(compose('roupi', 'happy', { outfit: 'winter' }).hatTop, 'snow on the nightcap');
+    assert.equal(compose('bulle', 'happy', { outfit: 'winter' }).hatTop, null);
+    assert.notEqual(compose('zeste', 'happy'), compose('zeste', 'happy', { outfit: 'winter' }));
+    assert.equal(compose('zeste', 'happy', { outfit: 'winter' }), compose('zeste', 'happy', { outfit: 'winter' }));
+    const pose: Pose = { eyes: 'open', mouth: 'smile', arms: ['rest', 'rest'], legs: ['stand', 'stand'] };
+    assert.notEqual(compose('bulle', pose), compose('bulle', pose, { outfit: 'winter' }));
+    const wool = new Set(CAST.map((who) => compose(who, 'happy', { outfit: 'winter' }).scarf?.shapes[0].fill));
+    assert.equal(wool.size, CAST.length, 'each friend knits in its own colour');
   });
 });

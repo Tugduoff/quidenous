@@ -1,5 +1,6 @@
 use crate::platform::env::{self, Var};
 use crate::platform::ids::UserId;
+use crate::platform::seasons::Seasons;
 use std::path::PathBuf;
 
 #[derive(Clone, Debug, Default)]
@@ -35,6 +36,7 @@ pub struct Config {
     pub wrapped: WrappedWindow,
     pub wrapped_rejected: bool,
     pub wrapped_preview: bool,
+    pub seasons: Seasons,
 }
 
 pub fn donation_url(raw: &str) -> Option<String> {
@@ -171,6 +173,14 @@ impl Config {
                 env::WRAPPED_UNTIL.name
             ));
         }
+        out.extend(self.seasons.skipped.iter().map(|skipped| {
+            format!(
+                "{} entry {} {}: skipped",
+                env::SEASONS.name,
+                skipped.entry,
+                skipped.why
+            )
+        }));
         out
     }
 }
@@ -292,6 +302,7 @@ impl Config {
             wrapped: wrapped.unwrap_or_default(),
             wrapped_rejected: wrapped.is_none(),
             wrapped_preview: env::WRAPPED_PREVIEW.flag(),
+            seasons: Seasons::parse(&env::SEASONS.raw_or_default().unwrap_or_default()),
             klipy: env::KLIPY_API_KEY.read().map(|api_key| Klipy {
                 api_key,
                 content_filter: env::KLIPY_CONTENT_FILTER

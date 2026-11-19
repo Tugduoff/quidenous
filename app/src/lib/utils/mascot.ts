@@ -11,6 +11,7 @@ type Arm = 'rest' | 'wave' | 'up' | 'point' | 'aim' | 'droop' | 'finger' | 'hand
 type Leg = 'stand' | 'wide' | 'shy' | 'tap' | 'tiptoe' | 'hop' | 'dangle' | 'sit' | 'none';
 export type Prop = 'none' | 'zzz' | 'ask' | 'sparkles' | 'tear' | 'tears' | 'sweat';
 export type Lod = 'hi' | 'lo';
+export type Outfit = 'winter';
 
 export type Pose = {
   eyes: Eyes;
@@ -43,6 +44,8 @@ type Body = {
   front: Shape[];
   faceUnder: Shape[];
   faceExtras: Shape[];
+  wool: string;
+  winter: { hat: Shape[] | null; top: Shape[]; scarf: Shape[] };
 };
 type Parts = {
   ink: string;
@@ -88,6 +91,9 @@ export type Composed = {
   blink: Group | null;
   face: Group;
   front: Group[];
+  scarf: Group | null;
+  hat: Group | null;
+  hatTop: Group | null;
   prop: (Group & { kind: Prop; at: 'prop' | 'face' | 'abs'; pivot: [number, number] }) | null;
   shadow: { cx: number; rx: number; ry: number; air: boolean };
   lift: number;
@@ -116,10 +122,10 @@ export function darken(hex: string, k = 0.18) {
 const cache = new Map<string, Composed>();
 const poseCache = new WeakMap<Pose, Map<string, Composed>>();
 
-export function compose(who: Who, mood: Mood | Pose = 'happy', opts: { lod?: Lod; prop?: Prop; tint?: string } = {}): Composed {
+export function compose(who: Who, mood: Mood | Pose = 'happy', opts: { lod?: Lod; prop?: Prop; tint?: string; outfit?: Outfit } = {}): Composed {
   const lod = opts.lod ?? 'hi';
-  const key = typeof mood === 'string' ? `${who}|${mood}|${lod}|${opts.prop ?? ''}|${opts.tint ?? ''}` : null;
-  const sub = `${lod}|${opts.prop ?? ''}|${opts.tint ?? ''}`;
+  const sub = `${lod}|${opts.prop ?? ''}|${opts.tint ?? ''}|${opts.outfit ?? ''}`;
+  const key = typeof mood === 'string' ? `${who}|${mood}|${sub}` : null;
   const hit = key ? cache.get(key) : typeof mood === 'object' ? poseCache.get(mood)?.get(sub) : undefined;
   if (hit) return hit;
 
@@ -128,7 +134,7 @@ export function compose(who: Who, mood: Mood | Pose = 'happy', opts: { lod?: Lod
   const m = resolvePose(who, mood);
   const color = opts.tint ?? b.color;
   const shade = opts.tint ? darken(opts.tint) : b.shade;
-  const pal: Record<string, string> = { ink: INK, body: color, shade, cheek: b.cheek, white: '#FFFFFF', acc2: b.acc2 };
+  const pal: Record<string, string> = { ink: INK, body: color, shade, cheek: b.cheek, white: '#FFFFFF', acc2: b.acc2, wool: b.wool, wool2: darken(b.wool) };
   const draw = (shapes: Shape[]) => paint(shapes, pal, lod);
 
   const limbs = (group: 'arms' | 'legs', names: [Arm, Arm] | [Leg, Leg]) =>
@@ -172,9 +178,13 @@ export function compose(who: Who, mood: Mood | Pose = 'happy', opts: { lod?: Lod
     `translate(${m.dx} ${m.lift}) ` +
     (m.tilt || sx !== 1 || sy !== 1 ? `translate(100 ${GROUND}) rotate(${m.tilt}) scale(${sx} ${sy}) translate(-100 -${GROUND})` : '');
   const air = m.lift < 0;
+  const winter = opts.outfit === 'winter' ? b.winter : null;
+  const hat = winter?.hat ? { shapes: draw(winter.hat) } : null;
+  const hatTop = winter?.top.length ? { shapes: draw(winter.top) } : null;
+  const scarfFitsAtThisSize = lod === 'hi';
   const c: Composed = {
     body: body.trim(),
-    back: [{ shapes: draw(b.back) }, ...layer('back')].filter((g) => g.shapes.length),
+    back: [{ shapes: hat ? [] : draw(b.back) }, ...layer('back')].filter((g) => g.shapes.length),
     fill: { d: b.d, color, shade, gloss: lod === 'lo' ? null : b.gloss, outline: INK, sw: MASCOT.bodySw },
     over: [...(lod === 'lo' ? [] : all.map((l) => l.joint).filter((g) => g.shapes.length)), { shapes: draw(b.front) }].filter((g) => g.shapes.length),
     under,
@@ -182,6 +192,9 @@ export function compose(who: Who, mood: Mood | Pose = 'happy', opts: { lod?: Lod
     blink,
     face,
     front: layer('front'),
+    scarf: winter && scarfFitsAtThisSize ? { shapes: draw(winter.scarf) } : null,
+    hat,
+    hatTop,
     prop,
     shadow: { cx: 100 + m.dx, rx: b.shadow * sx * (air ? 0.7 : 1), ry: air ? 5.5 : 7, air },
     lift: m.lift,
@@ -201,5 +214,5 @@ export function compose(who: Who, mood: Mood | Pose = 'happy', opts: { lod?: Lod
 function countNodes(c: Composed, lod: Lod) {
   const n = (gs: (Group | null)[]) => gs.reduce((s, g) => s + (g ? g.shapes.length : 0), 0);
   const fill = lod === 'lo' ? 2 : 4 + (c.fill.gloss ? 1 : 0);
-  return n(c.back) + fill + n(c.over) + n([c.under, c.eyes, c.blink, c.face]) + n(c.front) + n([c.prop]);
+  return n(c.back) + fill + n(c.over) + n([c.scarf, c.under, c.eyes, c.blink, c.face, c.hat, c.hatTop]) + n(c.front) + n([c.prop]);
 }

@@ -7,6 +7,7 @@ pub(crate) mod members;
 pub mod model;
 pub(crate) mod notifications;
 pub mod pacing;
+pub mod themes;
 pub(crate) mod vibes;
 
 use axum::{

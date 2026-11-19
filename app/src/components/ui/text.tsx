@@ -1,8 +1,10 @@
 import { type ReactNode, useState } from 'react';
 import { useTheme } from '@/lib/theme';
-import { Text, View, type TextStyle, type ViewStyle, Pressable } from 'react-native';
+import { Text, View, type TextStyle, type ViewStyle, Pressable, PixelRatio } from 'react-native';
 import { Trophy, Cable, MessageSquareQuote } from 'lucide-react-native';
 import { tidy } from '@/lib/utils/text';
+import { LogoHat } from '@/components/season/logo-hat';
+import { useSeason } from '@/components/season/season-scope';
 
 export function Display({ children, size = 34 }: { children: ReactNode; size?: number }) {
   const t = useTheme();
@@ -31,10 +33,20 @@ export function CodeText({ code, size = 34, center }: { code: string; size?: num
 
 export function Logo({ size = 22 }: { size?: number }) {
   const t = useTheme();
-  return (
+  const winter = useSeason() === 'winter';
+  const wordmark = (
     <Text style={{ fontFamily: t.font.display, fontSize: size, letterSpacing: -0.5, color: t.txt }}>
       qui de nous<Text style={{ color: t.accInk }}>?</Text>
     </Text>
+  );
+  if (!winter) return wordmark;
+  return (
+    <View style={{ flexDirection: 'row' }}>
+      <View>
+        {wordmark}
+        <LogoHat size={size * PixelRatio.getFontScale()} mark={t.accInk} />
+      </View>
+    </View>
   );
 }
 

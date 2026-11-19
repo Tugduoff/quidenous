@@ -1,14 +1,21 @@
 import { Stack } from 'expo-router';
 import { SameLanguage } from '@/components/root/same-language';
+import { RoomThemeScope } from '@/components/themes/room-theme-scope';
 import type { Stage } from '@/lib/hooks/use-stage-route';
 import { useTheme } from '@/lib/theme';
+
+const ROOM_SCREENS = new Set(['(tabs)', 'round/[id]', 'group', 'room-settings']);
 
 export function AppStack({ stage, reduced }: { stage: Stage; reduced: boolean }) {
   const t = useTheme();
   return (
     <Stack
       screenOptions={{ headerShown: false, contentStyle: { backgroundColor: t.bg }, animation: reduced ? 'none' : 'ios_from_right' }}
-      screenLayout={({ children }) => <SameLanguage>{children}</SameLanguage>}>
+      screenLayout={({ children, route }) => (
+        <SameLanguage>
+          <RoomThemeScope room={ROOM_SCREENS.has(route.name)}>{children}</RoomThemeScope>
+        </SameLanguage>
+      )}>
       <Stack.Protected guard={stage === 'in'}>
         <Stack.Screen name="(tabs)" options={{ animation: reduced ? 'none' : 'fade' }} />
         <Stack.Screen name="round/[id]" />

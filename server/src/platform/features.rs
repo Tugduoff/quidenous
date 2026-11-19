@@ -57,6 +57,8 @@ pub(crate) async fn features(State(state): State<AppState>) -> Json<Value> {
         "today",
         "intro",
         "widget",
+        "room_themes",
+        "seasons",
     ];
     if state.config.klipy.is_some() {
         f.push("chat_gifs");

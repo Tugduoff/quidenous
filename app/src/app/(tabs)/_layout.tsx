@@ -1,14 +1,15 @@
-import { Tabs } from 'expo-router';
+import { Tabs, useSegments } from 'expo-router';
 import { ChartNoAxesColumn, History, MessageCircleQuestion, Sun, Vote } from 'lucide-react-native';
 import { type ComponentType } from 'react';
 import { Platform, View, type ViewStyle } from 'react-native';
 import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSpring } from 'react-native-reanimated';
 import { Celebration } from '@/components/celebration';
 import { TabSwipe } from '@/components/ui/tab-swipe';
+import { OutsideRoom } from '@/components/themes/room-theme-scope';
 import { type TKey, useT } from '@/lib/i18n';
 import { useTodayTab } from '@/lib/hooks/use-today-tab';
 import { BOUNCE, SPRING, usePop } from '@/lib/motion';
-import { useTheme } from '@/lib/theme';
+import { useOwnTheme, useTheme } from '@/lib/theme';
 import { useStreakMilestone } from '@/lib/hooks/use-streak-milestone';
 import { useMilestone } from '@/lib/hooks/use-milestone';
 import { useAnimateOnChange } from '@/lib/hooks/use-animate-on-change';
@@ -47,7 +48,9 @@ function TabIcon({ Icon, focused }: { Icon: Icon; focused: boolean }) {
 }
 
 export default function TabsLayout() {
-  const t = useTheme();
+  const room = useTheme();
+  const mine = useOwnTheme();
+  const t = useSegments().at(-1) === TODAY.name ? mine : room;
   const tr = useT();
   const { milestone, dismiss } = useMilestone();
   const streak = useStreakMilestone();
@@ -62,14 +65,16 @@ export default function TabsLayout() {
     <View style={{ flex: 1 }}>
       <Tabs
         layout={({ state, navigation, children }) => (
-          <TabSwipe
-            onSwipe={(dir) => {
-              const to = tabs[tabs.findIndex((s) => s.name === state.routes[state.index]?.name) + dir];
-              if (!to || !state.routeNames.includes(to.name)) return;
-              navigation.navigate(to.name, state.routes.find((r) => r.name === to.name)?.params);
-            }}>
-            {children}
-          </TabSwipe>
+          <OutsideRoom when={state.routes[state.index]?.name === TODAY.name}>
+            <TabSwipe
+              onSwipe={(dir) => {
+                const to = tabs[tabs.findIndex((s) => s.name === state.routes[state.index]?.name) + dir];
+                if (!to || !state.routeNames.includes(to.name)) return;
+                navigation.navigate(to.name, state.routes.find((r) => r.name === to.name)?.params);
+              }}>
+              {children}
+            </TabSwipe>
+          </OutsideRoom>
         )}
         screenOptions={{
           headerShown: false,

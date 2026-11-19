@@ -5,6 +5,7 @@ import { ApiError } from '@/lib/api/client';
 import { authError } from '@/lib/api/errors';
 import { featureKeys } from '@/lib/api/features';
 import { todayKeys } from '@/lib/api/today';
+import { seasonKeys } from '@/lib/api/season';
 
 declare module '@tanstack/react-query' {
   interface Register {
@@ -26,7 +27,7 @@ export const queryClient = new QueryClient({
   }),
 });
 
-const KEPT_ACROSS_ROOMS = new Set<unknown>([featureKeys.all[0], todayKeys.all[0]]);
+const KEPT_ACROSS_ROOMS = new Set<unknown>([featureKeys.all[0], todayKeys.all[0], seasonKeys.all[0]]);
 
 export function clearRoomData(qc: QueryClient) {
   qc.getMutationCache().clear();

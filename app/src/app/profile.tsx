@@ -19,6 +19,7 @@ import { ProfileHeader } from '@/components/profile/profile-header';
 import { PhotoSourceDialog } from '@/components/profile/photo-source-dialog';
 import { NameCard } from '@/components/profile/name-card';
 import { AccentPicker, ThemePicker } from '@/components/profile/appearance';
+import { SeasonalRow } from '@/components/profile/seasonal-row';
 import { LanguageRow } from '@/components/profile/language-row';
 import { ProfileNavRow } from '@/components/profile/profile-nav-row';
 import { DonateLink } from '@/components/profile/donate-link';
@@ -54,6 +55,7 @@ export default function Profile() {
 
       <ThemePicker />
       <AccentPicker />
+      {features.seasons && <SeasonalRow />}
 
       {error && <Text style={{ fontFamily: t.font.semibold, color: t.tagInk }}>{error}</Text>}
 

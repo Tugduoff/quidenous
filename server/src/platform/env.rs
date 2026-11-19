@@ -2,6 +2,7 @@ use crate::platform::config::{
     DEFAULT_JOIN_CODE, DEFAULT_REPORT_EMAIL, DEFAULT_VAPID_SUBJECT, DEFAULT_WRAPPED_FROM,
     DEFAULT_WRAPPED_UNTIL,
 };
+use crate::platform::seasons::DEFAULT_SEASONS;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Fallback {
@@ -293,6 +294,11 @@ pub(crate) const WRAPPED_PREVIEW: Var = var(
     Fallback::Note("off"),
     "1 = the Wrapped is shown all year round (testing)",
 );
+pub(crate) const SEASONS: Var = var(
+    "SEASONS",
+    Fallback::Value(DEFAULT_SEASONS),
+    "Seasonal skins of the app: comma-separated id:MM-DD..MM-DD windows (UTC, both ends included, may wrap the year end), e.g. winter:12-01..01-06,summer:07-01..08-31. off or empty: none. Bad entries are warned about at start-up and skipped. To switch a skin off without an app release: SEASONS=off, then restart",
+);
 pub(crate) const QUIDENOUS_VERSION: Var = var(
     "QUIDENOUS_VERSION",
     Fallback::Note("baked in at build time, else dev"),
@@ -344,6 +350,7 @@ pub(crate) const ALL: &[Var] = &[
     WRAPPED_FROM,
     WRAPPED_UNTIL,
     WRAPPED_PREVIEW,
+    SEASONS,
     QUIDENOUS_VERSION,
     QUIDENOUS_GIT_SHA,
 ];
@@ -408,5 +415,9 @@ mod tests {
                     .is_some()
             );
         }
+        let seasons =
+            crate::platform::seasons::Seasons::parse(SEASONS.default_value().unwrap_or_default());
+        assert!(!seasons.skins.is_empty());
+        assert!(seasons.skipped.is_empty());
     }
 }

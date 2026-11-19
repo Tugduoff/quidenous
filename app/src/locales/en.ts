@@ -38,6 +38,8 @@ import { wrapped } from '@/locales/en/wrapped';
 import { today } from '@/locales/en/today';
 import { intro } from '@/locales/en/intro';
 import { widget } from '@/locales/en/widget';
+import { themes } from '@/locales/en/themes';
+import { season } from '@/locales/en/season';
 
 export const en: Messages = {
   common,
@@ -79,4 +81,6 @@ export const en: Messages = {
   today,
   intro,
   widget,
+  themes,
+  season,
 };

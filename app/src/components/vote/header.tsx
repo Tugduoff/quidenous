@@ -1,4 +1,4 @@
-import { useTheme } from '@/lib/theme';
+import { useRoomScene, useTheme } from '@/lib/theme';
 import { useT } from '@/lib/i18n';
 import { useState } from 'react';
 import { type PushState, pushState, refreshPush, enablePush } from '@/lib/device/web-push';
@@ -16,6 +16,9 @@ import { Logo } from '@/components/ui/text';
 import { RoomStreak } from '@/components/streaks/streaks';
 import { Avatar } from '@/components/ui/avatar';
 import { useMountEffect } from '@/lib/hooks/use-mount-effect';
+import { RoomBackdrop } from '@/components/themes/room-backdrop';
+import { HeaderSnow } from '@/components/season/header-snow';
+import { SCENE_STAGE } from '@/lib/utils/room-art';
 
 function PushBell() {
   const t = useTheme();
@@ -130,8 +133,11 @@ export function Header() {
 function HeaderBar() {
   const tr = useT();
   const { me } = useSession();
+  const stage = useRoomScene() ? SCENE_STAGE : 0;
   return (
-    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: stage }}>
+      <RoomBackdrop />
+      <HeaderSnow />
       <View style={{ gap: 4, flexShrink: 1 }}>
         <Logo />
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
