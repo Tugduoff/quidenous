@@ -1,6 +1,3 @@
-// Builds the avatar parts (the art of the avatar builder) into the one JSON shared by the app and the server:
-// app/src/lib/avatar-parts.json (TS renderer) and server/assets/avatar.json (Rust renderer, share cards).
-// Run from app/: `node scripts/avatar-parts.mjs`. Shapes live in a 100×100 box clipped to a circle.
 import { writeFileSync } from 'node:fs';
 
 const INK = '#1B1B22';
@@ -16,11 +13,9 @@ const ellipse = (cx, cy, rx, ry, fill, extra = {}) => ({ el: 'ellipse', cx, cy, 
 const rect = (x, y, w, h, rx, fill, extra = {}) => ({ el: 'rect', x, y, w, h, ...(rx ? { rx } : {}), ...(fill ? { fill } : {}), ...extra });
 const back = (s) => ({ ...s, layer: 'back' });
 
-// Both eyes from one drawing of the left one (centred on its x), the right one mirrored or shifted.
 const EL = 41;
 const ER = 59;
 const EY = 49;
-/** Mirror a path around x = 50. */
 const mirror = (d) => {
   let i = 0;
   return d.replace(/-?\d+(\.\d+)?/g, (n) => (i++ % 2 === 0 ? String(+(100 - +n).toFixed(2)) : n));
@@ -163,7 +158,6 @@ const glasses = [
     line('M47.6 48.4 Q50 46.4 52.4 48.4', PINK, 2.6),
   ],
 ];
-// The pink frames: lenses barely tinted, eyes stay visible.
 glasses[4][0] = circle(EL, EY, 7, undefined, { stroke: PINK, sw: 2.8 });
 glasses[4][1] = circle(ER, EY, 7, undefined, { stroke: PINK, sw: 2.8 });
 
@@ -262,7 +256,6 @@ const extra = [
 ];
 
 const fields = ['face', 'skin', 'hair', 'hairColor', 'eyes', 'brows', 'mouth', 'glasses', 'beard', 'extra', 'bg'];
-//            face skin hair hc eyes brows mouth gl beard extra bg
 const presets = [
   [0, 1, 1, 1, 0, 1, 0, 0, 0, 0, 0],
   [3, 0, 5, 3, 2, 1, 0, 0, 0, 5, 2],
@@ -295,6 +288,6 @@ for (const p of presets) {
 }
 const json = JSON.stringify(data) + '\n';
 const root = new URL('../..', import.meta.url).pathname;
-writeFileSync(`${root}app/src/lib/avatar-parts.json`, json);
+writeFileSync(`${root}app/src/lib/utils/avatar-parts.json`, json);
 writeFileSync(`${root}server/assets/avatar.json`, json);
 console.log(`avatar parts: ${json.length} bytes, ${fields.map((f) => `${f} ${data[f].length}`).join(', ')}`);

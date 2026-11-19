@@ -1,0 +1,138 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+machine_settings="${QDN_CHECK_ENV:-$HOME/.config/quidenous/check.env}"
+if [ -f "$machine_settings" ]; then
+  set -a
+  # shellcheck source=/dev/null
+  . "$machine_settings"
+  set +a
+fi
+
+smoke_out="${SMOKE_OUT:-/tmp/qdn-smoke}"
+web_build="${QDN_WEB_BUILD:-${TMPDIR:-/tmp}/qdn-web-build}"
+
+usage() {
+  cat <<'USAGE'
+./check            everything below except smoke: run it before calling a change done
+./check repo       comment ban on deploy and CI files, toolchain pins, markdown allow list
+./check server     comment ban, file size budgets, append-only migrations, cargo fmt, clippy (warnings are errors), tests
+./check app        comment ban, tsc, eslint, knip, generated files, i18n, unit tests, native runtime, web export, Android bundle
+./check smoke      real server + exported web app driven by Playwright; screenshots in /tmp/qdn-smoke
+
+Machine settings (CARGO_TARGET_DIR, PLAYWRIGHT_DIR, LD_LIBRARY_PATH, PATH) are read from
+~/.config/quidenous/check.env when that file exists.
+USAGE
+}
+
+step() {
+  printf '\n== %s\n' "$*"
+}
+
+check_repo() {
+  step "repo: no comments"
+  node "$repo/scripts/comments.mjs" check deploy Dockerfile .github .gitignore .dockerignore
+  step "repo: toolchain pins agree"
+  node "$repo/scripts/pins.mjs"
+  step "repo: markdown stays on the short list"
+  node "$repo/scripts/markdown.mjs"
+}
+
+check_server() {
+  cd "$repo/server"
+  step "server: no comments"
+  node "$repo/scripts/comments.mjs" server/src server/tests server/build.rs server/Cargo.toml server/clippy.toml
+  step "server: file size budgets"
+  node "$repo/scripts/budgets.mjs"
+  step "server: migrations are append-only"
+  node "$repo/scripts/migrations.mjs"
+  step "server: fmt"
+  cargo fmt --check
+  step "server: clippy"
+  cargo clippy --all-targets --locked -- -D warnings
+  step "server: tests"
+  local test_scratch
+  test_scratch="$(mktemp -d)"
+  TMPDIR="$test_scratch" cargo test --locked || {
+    rm -rf "$test_scratch"
+    return 1
+  }
+  rm -rf "$test_scratch"
+}
+
+export_web() {
+  cd "$repo/app"
+  rm -rf "$web_build"
+  CI=1 npx expo export --platform web --output-dir "$web_build"
+}
+
+check_app() {
+  cd "$repo/app"
+  step "app: no comments"
+  node "$repo/scripts/comments.mjs" app scripts server/assets
+  step "app: types"
+  npx tsc --noEmit
+  step "app: lint"
+  npx eslint . --max-warnings 0
+  step "app: dead code"
+  npx knip
+  step "app: generated files and translations"
+  node scripts/mascot-parts.mjs --check
+  npx tsx scripts/widget-art.mjs --check
+  node scripts/check-i18n-module-t.mjs
+  step "app: unit tests"
+  find src -name '*.test.ts' -print0 | xargs -0 npx tsx --test
+  step "app: native runtime"
+  node "$repo/scripts/native-runtime.mjs"
+  step "app: web export"
+  export_web
+  step "app: Android bundle"
+  bundle_android
+}
+
+bundle_android() {
+  cd "$repo/app"
+  local bundle
+  bundle="$(mktemp -d)"
+  local bytecode=()
+  case "$(uname -sm)" in
+    "Linux x86_64" | Darwin*) ;;
+    *) bytecode=(--no-bytecode) ;;
+  esac
+  CI=1 npx expo export --platform android ${bytecode[@]+"${bytecode[@]}"} --output-dir "$bundle" || {
+    rm -rf "$bundle"
+    return 1
+  }
+  rm -rf "$bundle"
+}
+
+smoke() {
+  step "smoke: build"
+  (cd "$repo/server" && cargo build --locked)
+  [ -f "$web_build/index.html" ] || export_web
+  local target="${CARGO_TARGET_DIR:-$repo/server/target}"
+  step "smoke: run"
+  rm -rf "$smoke_out"
+  mkdir -p "$smoke_out"
+  SMOKE_SERVER_BIN="$target/debug/quidenous-server" SMOKE_WEB_DIR="$web_build" SMOKE_OUT="$smoke_out" \
+    node "$repo/scripts/smoke.mjs"
+}
+
+case "${1:-all}" in
+  all)
+    check_repo
+    check_server
+    check_app
+    printf '\nAll checks passed.\n'
+    ;;
+  repo) check_repo ;;
+  server) check_server ;;
+  app) check_app ;;
+  smoke) smoke ;;
+  -h | --help | help) usage ;;
+  *)
+    usage
+    exit 2
+    ;;
+esac

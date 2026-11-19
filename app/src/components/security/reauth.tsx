@@ -1,19 +1,18 @@
 import { useState, useSyncExternalStore } from 'react';
 import { View } from 'react-native';
-
-import { ErrorText, Field, PasswordField, Pill, SoftButton, TextLink } from '@/components/auth-ui';
-import { BrandIcon } from '@/components/brand-icons';
-import { Dialog, DialogActions, DialogTitle } from '@/components/ui';
-import { ApiError } from '@/lib/api';
-import { auth, authError, isReauth, PROVIDER_NAMES, useFeatures, type Account, type Provider } from '@/lib/auth';
+import { BrandIcon } from '@/components/auth/brand-icons';
+import { ApiError } from '@/lib/api/client';
+import { auth, isReauth, PROVIDER_NAMES, type Account, type Provider } from '@/lib/api/auth';
 import { useT } from '@/lib/i18n';
 import { oauth } from '@/lib/sign-in';
+import { Dialog, DialogActions, DialogTitle } from '@/components/ui/dialog';
+import { Field, PasswordField } from '@/components/ui/field';
+import { SoftButton } from '@/components/ui/soft-button';
+import { ErrorText, TextLink } from '@/components/ui/text';
+import { Pill } from '@/components/ui/pill';
+import { authError } from '@/lib/api/errors';
+import { useFeatures } from '@/lib/api/features';
 
-/**
- * Sensitive changes (2FA on, linking / unlinking, a first password, deleting the account) answer `403 reauth_required`
- * until this session proves it is me: the password, a 2FA / recovery code, or Google / Discord again (docs/AUTH.md).
- * Asked from anywhere; the one ReauthHost on the security screen shows it.
- */
 type Ask = { account: Account; resolve: (ok: boolean) => void };
 let asking: Ask | null = null;
 const listeners = new Set<() => void>();
@@ -22,14 +21,13 @@ const setAsking = (next: Ask | null) => {
   listeners.forEach((l) => l());
 };
 
-export function askReauth(account: Account): Promise<boolean> {
+function askReauth(account: Account): Promise<boolean> {
   asking?.resolve(false);
   return new Promise((resolve) => setAsking({ account, resolve }));
 }
 
 export const needsReauth = (e: unknown) => e instanceof ApiError && e.code === 'reauth_required';
 
-/** Runs `f`; when the server first wants proof that it is me, asks for it and runs `f` again. `null`: cancelled. */
 export async function withReauth<T>(account: Account, f: () => Promise<T>): Promise<T | null> {
   try {
     return await f();
@@ -150,10 +148,6 @@ function ReauthForm({ account, onDone }: { account: Account; onDone: (ok: boolea
   );
 }
 
-/**
- * "Continuer avec Google / Discord" for each linked provider: a fresh round that only proves it is me. The phone gets
- * the answer here; the web leaves for the provider and comes back to the security screen (the action is tapped again).
- */
 export function ReauthProviders({ account, onDone }: { account: Account; onDone: () => void }) {
   const tr = useT();
   const { providers: enabled } = useFeatures();

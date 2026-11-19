@@ -1,31 +1,22 @@
 name: server
 on:
-  # Pushes to main and tags only: a branch with a PR is already checked by pull_request (no double run).
   push:
     branches: [main]
     tags: ["v*"]
-    paths: ["server/**", "app/**", "Dockerfile", ".github/workflows/server.yml"]
-  # Every PR, whatever it touches: `check` is a required check on main, so it must report on a docs-only PR too (no
-  # admin merge). The `changes` job below decides whether there is anything to build.
+    paths: ["server/**", "app/**", "deploy/**", "scripts/**", "check", "Dockerfile", ".github/**"]
   pull_request:
-  # Weekly `audit` on main (new RustSec advisories show up without a push); `check` doesn't run on the schedule.
   schedule:
     - cron: "17 6 * * 1"
 permissions:
   contents: read
 concurrency:
-  # The weekly audit has its own group: it must not cancel (or be cancelled by) a push to main.
   group: server-${{ github.event_name == 'schedule' && 'schedule' || github.event.pull_request.number || github.ref }}
-  # A newer push supersedes a running check; tag runs always finish (deploys wait for them, deploy/wait-green.sh).
   cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
 jobs:
-  # PRs only: does this PR touch anything the server checks depend on? (The same paths as the push filter above.)
-  # Pushes and tags skip it, and an empty answer means "build": only an explicit 'false' lets `check` stand down.
   changes:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     permissions:
-      # The PR's changed files come from the API (no checkout).
       pull-requests: read
     outputs:
       server: ${{ steps.filter.outputs.server }}
@@ -37,33 +28,21 @@ jobs:
             server:
               - "server/**"
               - "app/**"
+              - "deploy/**"
+              - "scripts/**"
+              - "check"
               - "Dockerfile"
-              - ".github/workflows/server.yml"
+              - ".github/**"
   check:
     needs: changes
-    # Not on the weekly schedule (audit only). That skipped run's `check` doesn't count for deploy/wait-green.sh.
-    # `!cancelled()`: still runs when `changes` was skipped (push, tag) or failed. Not a job-level skip on "nothing
-    # changed" (GitHub reports a skipped job as a success for a required check, but also one skipped because a job
-    # it needs failed): the job always runs, and only its steps stand down, on an explicit 'false' from `changes`.
-    # A failed `changes` leaves the output empty, so the full check runs: nothing gets merged unchecked.
     if: ${{ !cancelled() && github.event_name != 'schedule' }}
-    # Tug's Mac only for pushes and PRs from this repo: the repo is public, and a PR from a fork must never run
-    # code (build scripts, tests) on a self-hosted machine. Forks always build on GitHub's Ubuntu. A PR with
-    # nothing to check doesn't wake the Mac either.
     runs-on: ${{ needs.changes.outputs.server != 'false' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON(vars.QDN_RUNNER || '"ubuntu-latest"') || 'ubuntu-latest' }}
-    defaults:
-      run:
-        working-directory: server
     steps:
-      - name: Nothing to check
+      - name: Nothing to check (this required job reports success, it is never skipped)
         if: needs.changes.outputs.server == 'false'
-        # No checkout on this path, so not in server/.
-        working-directory: ${{ runner.temp }}
-        run: 'echo "::notice::No change under server/, app/, Dockerfile or this workflow: nothing to check."'
+        run: 'echo "::notice::No change that the server checks depend on: nothing to check."'
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: needs.changes.outputs.server != 'false'
-      # Pinned (same as the Dockerfile's rust image): a new stable with new clippy lints can't turn this red by itself.
-      # Bump both together.
       - uses: dtolnay/rust-toolchain@df2a88e9fe4098bad09cb42c3dec7187f15861fc # master 2026-11-15
         if: needs.changes.outputs.server != 'false'
         with:
@@ -73,18 +52,13 @@ jobs:
         if: needs.changes.outputs.server != 'false'
         with:
           workspaces: server
-      - run: cargo fmt --check
+      - run: ./check repo
         if: needs.changes.outputs.server != 'false'
-      - run: cargo clippy --all-targets --locked -- -D warnings
+      - run: ./check server
         if: needs.changes.outputs.server != 'false'
-      - run: cargo test --locked
-        if: needs.changes.outputs.server != 'false'
-      # Docker only on GitHub's Ubuntu (the Mac runner has no Docker).
-      - run: docker build -t quidenous ..
+      - name: Docker image builds (GitHub runners only, the Mac runner has no Docker)
+        run: docker build -t quidenous .
         if: needs.changes.outputs.server != 'false' && runner.os == 'Linux'
-  # Known vulnerabilities in the dependencies (RustSec), on every run and weekly. Not a required check: a new advisory
-  # shows up here without blocking unrelated PRs. Ignored advisories, with the reason: server/.cargo/audit.toml.
-  # Not on a PR that touches none of the paths above (like `check`, but it is not required: a plain job-level skip).
   audit:
     needs: changes
     if: ${{ !cancelled() && needs.changes.outputs.server != 'false' }}

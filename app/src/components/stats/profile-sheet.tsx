@@ -1,16 +1,19 @@
 import { router } from 'expo-router';
 import { ChevronRight, X } from 'lucide-react-native';
-import { type ReactNode, useRef } from 'react';
+import { type ReactNode } from 'react';
 import { Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native';
-
-import { MedalDisc, MemberTitle, tierName } from '@/components/title-chip';
-import { Avatar, Dialog, PressableScale, QuestionText } from '@/components/ui';
-import type { Member, MemberStats, QuestionRef } from '@/lib/api';
-import { useMemberBadges } from '@/lib/badges';
+import { MedalDisc, MemberTitle, tierName } from '@/components/badges/title-chip';
+import { useMemberBadges } from '@/lib/api/badges';
 import { useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
-
-import { AWARD_ICONS, awardTitle, Caps, duration, iconFor, int, pct, place } from './common';
+import { AWARD_ICONS, awardTitle, Caps, duration, iconFor, int, pct, place } from '@/components/stats/common';
+import { PressableScale } from '@/components/ui/pressable-scale';
+import { Avatar } from '@/components/ui/avatar';
+import { QuestionText } from '@/components/ui/text';
+import { Dialog } from '@/components/ui/dialog';
+import type { Member } from '@/lib/api/group';
+import type { MemberStats, QuestionRef } from '@/lib/api/stats';
+import { useLastNonNull } from '@/lib/hooks/use-last-non-null';
 
 function Mini({ value, label }: { value: string; label: string }) {
   const t = useTheme();
@@ -79,7 +82,6 @@ function Question({ q, line, onPress }: { q: QuestionRef; line: string; onPress:
   );
 }
 
-/** Someone's earned badges (the highest tier of each), as small medals. Nothing on a server without badges. */
 function TheirBadges({ id, open }: { id: number; open: boolean }) {
   const tr = useT();
   const { data } = useMemberBadges(id, open);
@@ -99,7 +101,6 @@ function TheirBadges({ id, open }: { id: number; open: boolean }) {
   );
 }
 
-/** One person's period: their titles, numbers, fans, crushes, best and worst moments. Tapping someone else switches to them. */
 export function ProfileSheet({
   profile,
   byId,
@@ -114,10 +115,7 @@ export function ProfileSheet({
   const t = useTheme();
   const tr = useT();
   const { height } = useWindowDimensions();
-  // Keeps the last person on screen while the dialog fades out.
-  const last = useRef(profile);
-  if (profile) last.current = profile;
-  const p = last.current;
+  const p = useLastNonNull(profile);
   const m = p ? byId.get(p.member_id) : undefined;
   const openRound = (id: number) => {
     onClose();
@@ -215,13 +213,13 @@ export function ProfileSheet({
               <Question
                 q={p.best}
                 line={tr('stats.profile.bestLine', { count: p.best.value, total: p.best.total })}
-                onPress={() => openRound(p.best!.round_id)}
+                onPress={() => p.best && openRound(p.best.round_id)}
               />
             </Block>
           )}
           {p.worst && (
             <Block title={tr('stats.profile.worst')}>
-              <Question q={p.worst} line={tr('stats.profile.worstLine', { n: p.worst.value })} onPress={() => openRound(p.worst!.round_id)} />
+              <Question q={p.worst} line={tr('stats.profile.worstLine', { n: p.worst.value })} onPress={() => p.worst && openRound(p.worst.round_id)} />
             </Block>
           )}
         </ScrollView>

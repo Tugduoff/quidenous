@@ -1,5 +1,3 @@
-//! Keys, password hashing, keyed code hashes, sealed TOTP secrets, TOTP itself.
-
 use std::{
     path::Path,
     sync::{Arc, OnceLock},
@@ -17,16 +15,16 @@ use rand::{Rng, RngExt};
 use sha2::Sha256;
 use tokio::sync::Semaphore;
 
-use crate::error::{AppError, AppResult};
+use crate::platform::error::{AppError, AppResult};
 
-/// Keys derived from `AUTH_SECRET` (or `DATA_DIR/auth.key`).
 pub struct Keys {
     seal: [u8; 32],
     mac: [u8; 32],
 }
 
 impl Keys {
-    pub fn from_secret(secret: &[u8]) -> Self {
+    #[allow(clippy::expect_used)]
+    pub(crate) fn from_secret(secret: &[u8]) -> Self {
         let hk = Hkdf::<Sha256>::new(Some(b"quidenous auth v1"), secret);
         let (mut seal, mut mac) = ([0u8; 32], [0u8; 32]);
         hk.expand(b"totp secret aes-256-gcm", &mut seal)
@@ -36,11 +34,13 @@ impl Keys {
         Self { seal, mac }
     }
 
-    /// `AUTH_SECRET` when set, else the generated `auth.key` in the data dir (created once, 0600).
     pub fn load(secret: Option<&str>, data_dir: &Path) -> std::io::Result<Self> {
         if let Some(secret) = secret {
             if secret.len() < 32 {
-                tracing::warn!("AUTH_SECRET is short: use 32+ random bytes (openssl rand -hex 32)");
+                tracing::warn!(
+                    "{} is short: use 32+ random bytes (openssl rand -hex 32)",
+                    crate::platform::env::AUTH_SECRET.name
+                );
             }
             return Ok(Self::from_secret(secret.as_bytes()));
         }
@@ -53,15 +53,16 @@ impl Keys {
                 write_private(&path, &secret)?;
                 tracing::warn!(
                     path = %path.display(),
-                    "AUTH_SECRET not set: generated a key file. Set AUTH_SECRET and keep it out of backups"
+                    "{0} not set: generated a key file. Set {0} and keep it out of backups",
+                    crate::platform::env::AUTH_SECRET.name
                 );
                 Ok(Self::from_secret(secret.as_bytes()))
             }
         }
     }
 
-    /// Keyed hash of a short secret (codes, challenges, recovery codes), hex.
-    pub fn mac(&self, parts: &[&str]) -> String {
+    #[allow(clippy::expect_used)]
+    pub(crate) fn mac(&self, parts: &[&str]) -> String {
         let mut m = <Hmac<Sha256> as KeyInit>::new_from_slice(&self.mac)
             .expect("HMAC takes any key length");
         for (i, p) in parts.iter().enumerate() {
@@ -73,9 +74,9 @@ impl Keys {
         hex::encode(m.finalize().into_bytes())
     }
 
-    /// AES-256-GCM, random nonce, `base64(nonce || ciphertext)`.
-    pub fn seal(&self, plain: &[u8]) -> String {
-        let cipher = Aes256Gcm::new_from_slice(&self.seal).expect("32-byte key");
+    #[allow(clippy::expect_used)]
+    pub(crate) fn seal(&self, plain: &[u8]) -> String {
+        let cipher = Aes256Gcm::new(&self.seal.into());
         let mut nonce = [0u8; 12];
         rand::rng().fill_bytes(&mut nonce);
         let mut out = nonce.to_vec();
@@ -87,15 +88,14 @@ impl Keys {
         STANDARD.encode(out)
     }
 
-    pub fn open(&self, sealed: &str) -> Option<Vec<u8>> {
+    pub(crate) fn open(&self, sealed: &str) -> Option<Vec<u8>> {
         let bytes = STANDARD.decode(sealed).ok()?;
         if bytes.len() < 12 {
             return None;
         }
         let (nonce, ct) = bytes.split_at(12);
         let nonce: [u8; 12] = nonce.try_into().ok()?;
-        Aes256Gcm::new_from_slice(&self.seal)
-            .ok()?
+        Aes256Gcm::new(&self.seal.into())
             .decrypt(&Nonce::from(nonce), ct)
             .ok()
     }
@@ -117,27 +117,25 @@ fn write_private(path: &Path, content: &str) -> std::io::Result<()> {
     std::fs::write(path, content)
 }
 
-pub fn random_hex(bytes: usize) -> String {
+pub(crate) fn random_hex(bytes: usize) -> String {
     let mut b = vec![0u8; bytes];
     rand::rng().fill_bytes(&mut b);
     hex::encode(b)
 }
 
-pub fn random_b64url(bytes: usize) -> String {
+pub(crate) fn random_b64url(bytes: usize) -> String {
     let mut b = vec![0u8; bytes];
     rand::rng().fill_bytes(&mut b);
     base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(b)
 }
 
-/// Six digits, uniform.
-pub fn six_digits() -> String {
+pub(crate) fn six_digits() -> String {
     format!("{:06}", rand::rng().random_range(0..1_000_000u32))
 }
 
 const RECOVERY_ALPHABET: &[u8] = b"abcdefghjkmnpqrstuvwxyz23456789";
 
-/// `xxxxx-xxxxx`, no look-alikes.
-pub fn recovery_code() -> String {
+pub(crate) fn recovery_code() -> String {
     let mut rng = rand::rng();
     let mut s = String::with_capacity(11);
     for i in 0..10 {
@@ -149,15 +147,14 @@ pub fn recovery_code() -> String {
     s
 }
 
-/// What a recovery code is hashed as: lowercase, no dash or spaces.
-pub fn normalize_recovery(code: &str) -> String {
+pub(crate) fn normalize_recovery(code: &str) -> String {
     code.chars()
-        .filter(|c| c.is_ascii_alphanumeric())
+        .filter(char::is_ascii_alphanumeric)
         .map(|c| c.to_ascii_lowercase())
         .collect()
 }
 
-pub fn constant_eq(a: &str, b: &str) -> bool {
+pub(crate) fn constant_eq(a: &str, b: &str) -> bool {
     a.len() == b.len()
         && a.bytes()
             .zip(b.bytes())
@@ -165,8 +162,7 @@ pub fn constant_eq(a: &str, b: &str) -> bool {
             == 0
 }
 
-// ---------- passwords ----------
-
+#[allow(clippy::expect_used)]
 fn argon2() -> Argon2<'static> {
     Argon2::new(
         Algorithm::Argon2id,
@@ -175,7 +171,6 @@ fn argon2() -> Argon2<'static> {
     )
 }
 
-/// At most two hashes at once (each takes 19 MiB and ~50 ms of a core).
 #[derive(Clone)]
 pub struct Hasher(Arc<Semaphore>);
 
@@ -197,7 +192,7 @@ impl Hasher {
             .map_err(|e| AppError::Internal(e.to_string()))
     }
 
-    pub async fn hash(&self, password: &str) -> AppResult<String> {
+    pub(crate) async fn hash(&self, password: &str) -> AppResult<String> {
         let password = password.to_owned();
         self.run(move || {
             argon2()
@@ -208,8 +203,7 @@ impl Hasher {
         .await?
     }
 
-    /// `None` hash (unknown email, no password): still pays for one hash, then says no.
-    pub async fn verify(&self, password: &str, hash: Option<&str>) -> AppResult<bool> {
+    pub(crate) async fn verify(&self, password: &str, hash: Option<&str>) -> AppResult<bool> {
         let password = password.to_owned();
         let hash = hash.map(str::to_owned);
         self.run(move || {
@@ -217,13 +211,11 @@ impl Hasher {
                 Some(h) => (h.as_str(), true),
                 None => (dummy_hash(), false),
             };
-            let ok = PasswordHash::new(phc)
-                .map(|parsed| {
-                    argon2()
-                        .verify_password(password.as_bytes(), &parsed)
-                        .is_ok()
-                })
-                .unwrap_or(false);
+            let ok = PasswordHash::new(phc).is_ok_and(|parsed| {
+                argon2()
+                    .verify_password(password.as_bytes(), &parsed)
+                    .is_ok()
+            });
             ok && real
         })
         .await
@@ -240,11 +232,9 @@ fn dummy_hash() -> &'static str {
     })
 }
 
-// ---------- TOTP (RFC 6238: SHA-1, 6 digits, 30 s) ----------
+pub(crate) const TOTP_PERIOD: u64 = 30;
 
-pub const TOTP_PERIOD: u64 = 30;
-
-pub fn new_totp_secret() -> String {
+pub(crate) fn new_totp_secret() -> String {
     let mut b = [0u8; 20];
     rand::rng().fill_bytes(&mut b);
     data_encoding::BASE32_NOPAD.encode(&b)
@@ -259,8 +249,7 @@ fn decode_secret(secret_b32: &str) -> Option<Vec<u8>> {
     data_encoding::BASE32_NOPAD.decode(clean.as_bytes()).ok()
 }
 
-/// The code for one 30 s step.
-pub fn totp_at_step(secret_b32: &str, step: u64) -> Option<String> {
+pub(crate) fn totp_at_step(secret_b32: &str, step: u64) -> Option<String> {
     let key = decode_secret(secret_b32)?;
     let mut m = <Hmac<sha1::Sha1> as KeyInit>::new_from_slice(&key).ok()?;
     m.update(&step.to_be_bytes());
@@ -273,12 +262,10 @@ pub fn totp_at_step(secret_b32: &str, step: u64) -> Option<String> {
     Some(format!("{:06}", bin % 1_000_000))
 }
 
-/// The code at a unix time (what an authenticator app shows).
 pub fn totp_code(secret_b32: &str, unix_time: u64) -> Option<String> {
     totp_at_step(secret_b32, unix_time / TOTP_PERIOD)
 }
 
-/// The step a code matches within ±1 step of now, if any.
 pub fn totp_match(secret_b32: &str, code: &str, unix_time: u64) -> Option<u64> {
     let code = code.trim();
     if code.len() != 6 || !code.bytes().all(|b| b.is_ascii_digit()) {
@@ -290,15 +277,13 @@ pub fn totp_match(secret_b32: &str, code: &str, unix_time: u64) -> Option<u64> {
         .find(|s| totp_at_step(secret_b32, *s).is_some_and(|c| constant_eq(&c, code)))
 }
 
-pub fn now_unix() -> u64 {
+pub(crate) fn now_unix() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0)
+        .map_or(0, |d| d.as_secs())
 }
 
-/// Percent-encoding for URL parts (unreserved characters pass).
-pub fn pct(s: &str) -> String {
+pub(crate) fn pct(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     for b in s.bytes() {
         if b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.' | b'~') {
@@ -310,9 +295,9 @@ pub fn pct(s: &str) -> String {
     out
 }
 
-pub const ISSUER: &str = "Qui de nous ?";
+pub(crate) const ISSUER: &str = "Qui de nous ?";
 
-pub fn otpauth_url(secret_b32: &str, account: &str) -> String {
+pub(crate) fn otpauth_url(secret_b32: &str, account: &str) -> String {
     format!(
         "otpauth://totp/{}:{}?secret={secret_b32}&issuer={}&algorithm=SHA1&digits=6&period=30",
         pct(ISSUER),
@@ -327,12 +312,11 @@ mod tests {
 
     #[test]
     fn rfc6238_sha1_vectors() {
-        // RFC 6238 appendix B, the 20-byte ASCII secret "12345678901234567890", 8 digits truncated to 6.
         let secret = data_encoding::BASE32_NOPAD.encode(b"12345678901234567890");
         assert_eq!(totp_code(&secret, 59).unwrap(), "287082");
-        assert_eq!(totp_code(&secret, 1111111109).unwrap(), "081804");
-        assert_eq!(totp_code(&secret, 1234567890).unwrap(), "005924");
-        assert_eq!(totp_code(&secret, 2000000000).unwrap(), "279037");
+        assert_eq!(totp_code(&secret, 1_111_111_109).unwrap(), "081804");
+        assert_eq!(totp_code(&secret, 1_234_567_890).unwrap(), "005924");
+        assert_eq!(totp_code(&secret, 2_000_000_000).unwrap(), "279037");
     }
 
     #[test]

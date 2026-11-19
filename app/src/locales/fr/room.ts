@@ -20,11 +20,9 @@ export const room = {
     title: 'Rejoindre avec un code',
     notRoomQr: "Ce QR code n'est pas celui d'un salon",
   },
-  /** The language of a room's built-in questions (at creation, and in its settings). */
   language: {
     label: 'Langue des questions',
   },
-  /** The server's vibes (server/deck/vibes.json), by id. */
   vibes: {
     potes: { name: 'Entre potes', description: 'Les classiques, pour rire entre amis.' },
     pimente: { name: 'Pimenté 16+', description: 'Plus osé, pour les soirées.' },
@@ -44,7 +42,6 @@ export const room = {
     addFriends: 'Inviter des amis',
     myFriends: 'Mes amis',
     noFriends: "Pas encore d'amis",
-    /** Under "Inviter des amis": my friends not in the room yet. */
     outside: { one: '{count} ami pas encore là', other: '{count} amis pas encore là' },
     search: 'Rechercher',
     noMatch: 'Personne avec ce nom',
@@ -53,7 +50,6 @@ export const room = {
     addToRoom: 'Inviter {name} dans le salon',
     cancelA11y: "Annuler l'invitation de {name}",
   },
-  /** Invitations into someone else's room (rooms screen). */
   invites: {
     title: 'Invitations',
     from: '{name} t\'invite',
@@ -116,7 +112,6 @@ export const room = {
     whoAddsA11y: 'Qui peut ajouter des questions',
     everyone: 'Tous',
     you: 'Toi',
-    /** Short: the row sits in the Questions section, next to the Français / English pills. */
     language: 'Langue',
     invites: 'Invitations',
     newCode: "Nouveau code d'invitation",

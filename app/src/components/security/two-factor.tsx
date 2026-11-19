@@ -3,25 +3,29 @@ import { Clock, Copy, LifeBuoy, Share, ShieldCheck, ShieldOff } from 'lucide-rea
 import { useState } from 'react';
 import { Linking, Platform, Text, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
-
-import { CODE_LENGTH, CodeField, copyText, ErrorText, Field, Pill, Row, Section } from '@/components/auth-ui';
 import { withReauth } from '@/components/security/reauth';
-import { PressableScale, Toggle } from '@/components/ui';
-import { accountKey, auth, authError, type Account } from '@/lib/auth';
+import { authKeys, auth, type Account } from '@/lib/api/auth';
 import { dateFormat, useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
+import { PressableScale } from '@/components/ui/pressable-scale';
+import { Toggle } from '@/components/ui/toggle';
+import { CODE_LENGTH, CodeField, Field } from '@/components/ui/field';
+import { ErrorText } from '@/components/ui/text';
+import { Pill } from '@/components/ui/pill';
+import { Row, Section } from '@/components/ui/section';
+import { copyText } from '@/lib/device/clipboard';
+import { authError } from '@/lib/api/errors';
 
 const MONO = Platform.select({ ios: 'Menlo', android: 'monospace', default: 'ui-monospace, Menlo, monospace' });
 const native = Platform.OS !== 'web';
 
 type Mode = null | 'setup' | 'regen' | 'disable' | 'codes';
 
-/** TOTP: set up (QR + secret, a code to turn it on, then 10 recovery codes shown once), turn off, new recovery codes. */
 export function TwoFactorSection({ account }: { account: Account }) {
   const t = useTheme();
   const tr = useT();
   const qc = useQueryClient();
-  const refresh = () => qc.invalidateQueries({ queryKey: accountKey });
+  const refresh = () => qc.invalidateQueries({ queryKey: authKeys.account });
   const [mode, setMode] = useState<Mode>(null);
   const [setup, setSetup] = useState<{ secret: string; otpauth_url: string } | null>(null);
   const [codes, setCodes] = useState<string[]>([]);
@@ -54,7 +58,6 @@ export function TwoFactorSection({ account }: { account: Account }) {
     refresh();
   };
 
-  // Turning 2FA on needs proof that it is me first (asked when the server says so).
   const start = () =>
     run(async () => {
       const next = await withReauth(account, auth.setup2fa);
@@ -90,8 +93,8 @@ export function TwoFactorSection({ account }: { account: Account }) {
         {mode === 'setup' && setup ? (
           <>
             <Text style={{ fontFamily: t.font.regular, fontSize: 14, lineHeight: 20, color: t.mut }}>{tr('security.twoFactor.scan')}</Text>
-            <View style={{ alignSelf: 'center', padding: 12, borderRadius: 16, backgroundColor: '#fff' }}>
-              <QRCode value={setup.otpauth_url} size={native ? 150 : 176} color="#121216" backgroundColor="#fff" />
+            <View style={{ alignSelf: 'center', padding: 12, borderRadius: 16, backgroundColor: t.qr.paper }}>
+              <QRCode value={setup.otpauth_url} size={native ? 150 : 176} color={t.qr.ink} backgroundColor={t.qr.paper} />
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
               <Text selectable style={{ flex: 1, fontFamily: MONO, fontSize: 14, letterSpacing: 1, color: t.txt }}>
@@ -139,7 +142,6 @@ export function TwoFactorSection({ account }: { account: Account }) {
   return (
     <Section title={tr('security.twoFactor.title')}>
       {resetAt != null && (
-        // Asked by e-mail at sign-in (2FA lost): if that wasn't me, this is where it stops.
         <Row
           icon={<Clock size={20} color={t.tagInk} />}
           title={tr('security.twoFactor.resetPending')}
@@ -204,7 +206,6 @@ export function TwoFactorSection({ account }: { account: Account }) {
   );
 }
 
-/** The 10 one-time codes, shown once. */
 function RecoveryCodes({ codes, onDone }: { codes: string[]; onDone: () => void }) {
   const t = useTheme();
   const tr = useT();

@@ -1,6 +1,4 @@
 name: ota-rollback
-# Emergency brake for over-the-air updates (docs/OTA.md): phones go back to the JS bundle inside their APK.
-# (Publishing is part of the android workflow; to go back to an older JS instead, revert on main.)
 on:
   workflow_dispatch:
     inputs:

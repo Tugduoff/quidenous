@@ -1,17 +1,20 @@
 import { Trash2 } from 'lucide-react-native';
 import { useState } from 'react';
 import { Pressable, Text } from 'react-native';
-
-import { ErrorText, Field, PasswordField, Pill, Row, Section, TextLink } from '@/components/auth-ui';
 import { needsReauth, ReauthProviders } from '@/components/security/reauth';
-import { Avatar, ConfirmModal } from '@/components/ui';
-import { auth, authError, type Account } from '@/lib/auth';
+import { auth, type Account } from '@/lib/api/auth';
 import { useT } from '@/lib/i18n';
-import { blockedAsMember, useBlockActions, useBlocks } from '@/lib/moderation';
+import { blockedAsMember, useBlockActions, useBlocks } from '@/lib/api/moderation';
 import { useSession } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
+import { Avatar } from '@/components/ui/avatar';
+import { ConfirmModal } from '@/components/ui/dialog';
+import { Field, PasswordField } from '@/components/ui/field';
+import { ErrorText, TextLink } from '@/components/ui/text';
+import { Pill } from '@/components/ui/pill';
+import { Row, Section } from '@/components/ui/section';
+import { authError } from '@/lib/api/errors';
 
-/** People I blocked, each with "Débloquer"; nothing when there is nobody. */
 export function BlockedSection() {
   const tr = useT();
   const { list } = useBlocks();
@@ -44,10 +47,6 @@ export function BlockedSection() {
   );
 }
 
-/**
- * "Supprimer mon compte": confirmed with the password, or a 2FA / recovery code, when the account has one. An account
- * signed in with Google / Discord only signs in with it again when the server asks (`reauth_required`).
- */
 export function DeleteAccount({ account }: { account: Account }) {
   const t = useTheme();
   const tr = useT();
@@ -79,7 +78,6 @@ export function DeleteAccount({ account }: { account: Account }) {
       setBusy(false);
       return;
     }
-    // Every token is gone already: forget it here only (no logout call), back to the welcome screen.
     await leave();
   };
 
@@ -89,8 +87,8 @@ export function DeleteAccount({ account }: { account: Account }) {
         accessibilityRole="button"
         onPress={() => setOpen(true)}
         style={{ alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12 }}>
-        <Trash2 size={18} color="#FF3B5C" />
-        <Text style={{ fontFamily: t.font.semibold, fontSize: 15, color: '#FF3B5C' }}>{tr('security.deleteAccount.button')}</Text>
+        <Trash2 size={18} color={t.danger} />
+        <Text style={{ fontFamily: t.font.semibold, fontSize: 15, color: t.danger }}>{tr('security.deleteAccount.button')}</Text>
       </Pressable>
       <ConfirmModal
         visible={open}

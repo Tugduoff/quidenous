@@ -1,59 +1,35 @@
 pub mod accounts;
-pub mod anonymous;
-pub mod auth;
-pub mod avatar;
-pub mod badges;
-pub mod config;
-pub mod db;
-pub mod deck;
-pub mod error;
-pub mod flow;
-pub mod friends;
-pub mod game;
-pub mod gifs;
-pub mod global;
-pub mod guests;
-pub mod i18n;
-pub mod inbox;
-pub mod intro;
-pub mod live;
-pub mod media;
-pub mod models;
-pub mod moderation;
-pub mod notifications;
-pub mod ops;
-pub mod pacing;
-pub mod packfile;
-pub mod packs;
+pub(crate) mod api;
+pub mod chat;
+pub mod cli;
+pub mod community;
+pub mod insights;
 pub mod party;
-pub mod play;
-pub mod push;
-pub mod quotas;
-pub mod reactions;
+pub mod platform;
+pub mod realtime;
 pub mod rooms;
-pub mod routes;
-pub mod said;
-pub mod share;
-pub mod stats;
-pub mod streaks;
-pub mod suggestions;
-pub mod text;
-pub mod today;
-pub mod tripot;
-pub mod updates;
-pub mod vibes;
-pub mod vitrine;
-pub mod web;
-pub mod widget;
-pub mod wrapped;
+pub mod rounds;
+pub(crate) mod site;
+
+pub(crate) use platform::config;
 
 use std::sync::Arc;
+
+use crate::{
+    chat::media,
+    community::deck,
+    insights::share,
+    platform::{db, error, ops, web},
+    realtime::push,
+    rounds::game,
+    site::updates,
+};
 
 use axum::Router;
 use sqlx::SqlitePool;
 use tower_http::{services::ServeDir, trace::TraceLayer};
 
-use crate::{config::Config, live::Live, push::Push};
+use crate::{platform::config::Config, realtime::live::Live, realtime::push::Push};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -62,23 +38,24 @@ pub struct AppState {
     pub config: Arc<Config>,
     pub push: Push,
     pub auth: Arc<accounts::Auth>,
+    pub decodes: media::Decodes,
+    pub cards: share::Cards,
+    pub updates: updates::Publisher,
 }
 
-/// Opens the database and migrates it (see [`db::connect`]).
-pub async fn connect(url: &str) -> anyhow_free::Result<SqlitePool> {
+pub async fn connect(url: &str) -> StartupResult<SqlitePool> {
     db::connect(url).await
 }
 
-pub async fn state(config: Config) -> anyhow_free::Result<AppState> {
+pub async fn state(config: Config) -> StartupResult<AppState> {
     let mailer = accounts::Auth::mailer_from(&config);
     state_with_mailer(config, mailer).await
 }
 
-/// Same as [`state`], with a chosen mailer (tests record the emails).
 pub async fn state_with_mailer(
     config: Config,
     mailer: Arc<dyn accounts::Mailer>,
-) -> anyhow_free::Result<AppState> {
+) -> StartupResult<AppState> {
     let db = connect(&config.database_url).await?;
     deck::seed(&db).await?;
     deck::ensure_group(&db, &config.group_name, &config.join_code).await?;
@@ -99,23 +76,19 @@ pub async fn state_with_mailer(
     for warning in config.warnings() {
         tracing::warn!("{warning}");
     }
-    let public_code: bool = sqlx::query_scalar(
-        "SELECT EXISTS (SELECT 1 FROM groups WHERE join_code = ? AND deleted_at IS NULL)",
-    )
-    .bind(config::DEFAULT_JOIN_CODE)
-    .fetch_one(&db)
-    .await?;
-    if public_code {
+    if rooms::manage::uses_join_code(&db, config::DEFAULT_JOIN_CODE).await? {
         tracing::warn!(
             "a room still uses the public join code BANDE-42: its owner should get a new code in the app"
         );
     }
-    // A push setting that doesn't work turns that kind of push off, loudly, instead of keeping
-    // the whole app down (a crash loop that a rollback to the previous image can't fix either).
     let vapid = config.vapid_private_key.as_ref().and_then(|key| {
         push::Vapid::new(key, config.vapid_subject.clone())
             .inspect_err(|e| {
-                tracing::error!(error = %e, "VAPID_PRIVATE_KEY is not a valid key: web push is OFF");
+                tracing::error!(
+                    error = %e,
+                    "{} is not a valid key: web push is OFF",
+                    platform::env::VAPID_PRIVATE_KEY.name
+                );
             })
             .ok()
     });
@@ -127,7 +100,8 @@ pub async fn state_with_mailer(
                 tracing::error!(
                     file = %path.display(),
                     error = %e,
-                    "FCM_SERVICE_ACCOUNT_FILE can't be used: Android push is OFF"
+                    "{} can't be used: Android push is OFF",
+                    platform::env::FCM_SERVICE_ACCOUNT_FILE.name
                 );
             })
             .ok()
@@ -151,90 +125,18 @@ pub async fn state_with_mailer(
         config: Arc::new(config),
         push: Push::new(vapid, fcm),
         auth: Arc::new(auth),
+        decodes: media::Decodes::default(),
+        cards: share::Cards::default(),
+        updates: updates::Publisher::default(),
     })
 }
 
 pub fn app(state: AppState) -> Router {
     let photos = ServeDir::new(state.config.data_dir.join("photos"));
     let mut app = Router::new()
-        .nest("/api", routes::router())
-        .route("/s/{token}", axum::routing::get(share::page))
-        .route("/s/{token}/card.png", axum::routing::get(share::card_png))
-        .route("/p/{id}", axum::routing::get(share::pack_page))
-        .route("/p/{id}/card.png", axum::routing::get(share::pack_card_png))
-        .route(
-            "/robots.txt",
-            axum::routing::get(|| async {
-                (
-                    [(
-                        axum::http::header::CONTENT_TYPE,
-                        "text/plain; charset=utf-8",
-                    )],
-                    web::ROBOTS,
-                )
-            }),
-        )
-        // Public legal pages (linked from the Google sign-in consent screen and the app).
-        .route(
-            "/privacy",
-            axum::routing::get(|| async {
-                axum::response::Html(include_str!("../assets/legal/privacy.html"))
-            }),
-        )
-        // How to delete an account, with a small form (e-mail, code, confirm).
-        .route(
-            "/delete-account",
-            axum::routing::get(|| async {
-                axum::response::Html(include_str!("../assets/legal/delete-account.html"))
-            }),
-        )
-        .route(
-            "/terms",
-            axum::routing::get(|| async {
-                axum::response::Html(include_str!("../assets/legal/terms.html"))
-            }),
-        )
-        // The Android beta (Play closed test): join the Google Group, opt in, install. French; /en/beta in English.
-        .route(
-            "/beta",
-            axum::routing::get(|| async {
-                axum::response::Html(include_str!("../assets/legal/beta.html"))
-            }),
-        )
-        .route(
-            "/en/beta",
-            axum::routing::get(|| async {
-                axum::response::Html(include_str!("../assets/legal/beta.en.html"))
-            }),
-        )
-        // The same three pages in English.
-        .route(
-            "/en/privacy",
-            axum::routing::get(|| async {
-                axum::response::Html(include_str!("../assets/legal/privacy.en.html"))
-            }),
-        )
-        .route(
-            "/en/delete-account",
-            axum::routing::get(|| async {
-                axum::response::Html(include_str!("../assets/legal/delete-account.en.html"))
-            }),
-        )
-        .route(
-            "/en/terms",
-            axum::routing::get(|| async {
-                axum::response::Html(include_str!("../assets/legal/terms.en.html"))
-            }),
-        )
-        // The pack file guide for AI agents (docs/PACK_FILES.md), linked from the app and the docs.
-        .route(
-            "/pack-template.md",
-            axum::routing::get(|| async { packfile::template_response(i18n::Lang::Fr) }),
-        )
-        .route(
-            "/en/pack-template.md",
-            axum::routing::get(|| async { packfile::template_response(i18n::Lang::En) }),
-        )
+        .nest("/api", api::router())
+        .merge(insights::pages())
+        .merge(site::pages())
         .nest_service("/photos", photos);
     let web_app = state.config.web_dir.as_ref().map(|web| {
         let csp = web::app_csp(web, state.config.public_url.as_deref());
@@ -242,8 +144,7 @@ pub fn app(state: AppState) -> Router {
             .unwrap_or(axum::http::HeaderValue::from_static(web::BASE_CSP));
         (web.clone(), csp)
     });
-    // The showcase at `/` and `/en`; people who play still land in the app (see vitrine.rs).
-    app = app.merge(vitrine::router(web_app.clone()));
+    app = app.merge(site::vitrine::router(web_app.clone()));
     if let Some((web, csp)) = web_app {
         app = app.fallback_service(web::app_files(&web, csp));
     }
@@ -261,7 +162,4 @@ pub fn app(state: AppState) -> Router {
     .with_state(state)
 }
 
-/// Tiny boxed-error result so main and tests can use `?` on any error.
-pub mod anyhow_free {
-    pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
-}
+pub type StartupResult<T> = Result<T, Box<dyn std::error::Error + Send + Sync>>;

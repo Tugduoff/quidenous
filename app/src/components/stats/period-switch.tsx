@@ -1,10 +1,9 @@
 import { Pressable, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
-
-import type { StatsPeriod } from '@/lib/api';
 import { type TKey, useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
 import { useTheme } from '@/lib/theme';
+import type { StatsPeriod } from '@/lib/api/stats';
 
 const PERIODS: { value: StatsPeriod; label: TKey }[] = [
   { value: '7d', label: 'stats.period.week' },
@@ -12,7 +11,6 @@ const PERIODS: { value: StatsPeriod; label: TKey }[] = [
   { value: 'all', label: 'stats.period.all' },
 ];
 
-/** Compact segmented control: the chosen period sits on an accent pill. */
 export function PeriodSwitch({ value, onChange }: { value: StatsPeriod; onChange: (p: StatsPeriod) => void }) {
   const t = useTheme();
   const tr = useT();

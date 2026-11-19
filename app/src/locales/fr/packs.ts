@@ -1,4 +1,3 @@
-/** Community packs: the store, one pack, publishing and editing, my packs, a creator's page. */
 export const packs = {
   title: 'Packs',
   search: 'Chercher un pack',
@@ -31,7 +30,6 @@ export const packs = {
     action: "J'ai 16 ans ou plus",
   },
   featured: 'Sélection Coflop',
-  /** Under a pack's name. */
   byline: { one: '{count} question · {author}', other: '{count} questions · {author}' },
   likes: { one: '{count} j’aime', other: '{count} j’aime' },
   installs: { one: '{count} installation', other: '{count} installations' },
@@ -42,7 +40,6 @@ export const packs = {
   },
   removedReason: 'Retiré : {reason}',
 
-  /** One pack's page. */
   by: 'par {author}',
   like: 'J’aime',
   install: 'Installer',
@@ -69,7 +66,6 @@ export const packs = {
   },
   reported: 'Merci, c’est signalé',
 
-  /** Publish / edit. */
   newTitle: 'Nouveau pack',
   editTitle: 'Modifier le pack',
   name: 'Nom du pack',
@@ -80,14 +76,11 @@ export const packs = {
   addQuestion: 'Ajouter une question',
   fromFile: 'Fichier .txt',
   emptyFile: 'Aucune question dans ce fichier',
-  /** Optional `# key: value` lines at the top of a pack file. */
   fileHeader: 'En-tête : # titre, # description, # catégorie, # langue, # 16+',
-  /** The pack file format for an AI agent (a .md file). */
   template: 'Modèle pour IA',
   clearAll: 'Tout effacer',
   clearAsk: { one: 'Effacer la question ?', other: 'Effacer les {count} questions ?' },
   removeQuestion: 'Retirer',
-  /** Several questions selected in the list (components/selection.tsx). */
   removeQuestions: { one: 'Retirer {count} question ?', other: 'Retirer {count} questions ?' },
   publish: 'Publier',
   save: 'Enregistrer',
@@ -100,9 +93,7 @@ export const packs = {
     pack_removed: 'Ce pack a été retiré',
   },
 
-  /** My packs. */
   mineNone: 'Aucun pack publié',
-  /** My packs, several selected (components/selection.tsx). */
   mineSelected: {
     delete: { one: 'Supprimer {count} pack ?', other: 'Supprimer {count} packs ?' },
     deleteBody: 'Ils disparaissent de la communauté. Les questions déjà ajoutées aux salons restent.',
@@ -111,6 +102,5 @@ export const packs = {
     added: { one: '{count} pack ajouté à {room}', other: '{count} packs ajoutés à {room}' },
   },
 
-  /** A creator's page. */
   creatorPacks: 'Ses packs',
 };

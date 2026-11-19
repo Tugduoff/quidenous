@@ -1,55 +1,19 @@
-import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Platform, View } from 'react-native';
-
-import { AuthScreen } from '@/components/auth-ui';
-import { showToast } from '@/components/toast';
-import { Button } from '@/components/ui';
-import { authError, isChallenge, isLinked, isReauth } from '@/lib/auth';
+import { useLocalSearchParams } from 'expo-router';
+import { ActivityIndicator, View } from 'react-native';
+import { AuthScreen } from '@/components/auth/auth-screen';
 import { useT } from '@/lib/i18n';
-import { redeem, takeWebOAuthKey, useFinishSignIn } from '@/lib/sign-in';
 import { useTheme } from '@/lib/theme';
+import { Button } from '@/components/ui/button';
+import { goHome, useOAuthReturn } from '@/lib/hooks/use-oauth-return';
 
-const home = () => router.replace('/');
-
-/**
- * Back from Google / Discord. Web: `/oauth?code=…` (or `?error=…`) with the key kept before leaving → the session.
- * Phone: the auth session already has the URL; this route only catches the deep link so it doesn't 404.
- */
 export default function OAuthReturn() {
   const t = useTheme();
   const tr = useT();
   const { code, error } = useLocalSearchParams<{ code?: string; error?: string }>();
-  const finish = useFinishSignIn();
-  const [failed, setFailed] = useState<string | null>(null);
-  const started = useRef(false);
-
-  useEffect(() => {
-    if (started.current) return;
-    started.current = true;
-    if (Platform.OS !== 'web') return void (router.canGoBack() ? router.back() : home());
-    const key = takeWebOAuthKey();
-    if (!key) return home();
-    (async () => {
-      try {
-        const r = await redeem(code, error, key);
-        if (!r) return home();
-        if (isLinked(r)) return router.replace('/security');
-        // Proved it is me before a sensitive change: back to it, to be tapped again.
-        if (isReauth(r)) {
-          showToast(tr('security.reauth.done'));
-          return router.replace('/security');
-        }
-        await finish(r, true);
-        if (!isChallenge(r)) home();
-      } catch (e) {
-        setFailed(authError(e));
-      }
-    })();
-  }, [code, error, finish, tr]);
+  const failed = useOAuthReturn(code, error);
 
   if (failed)
-    return <AuthScreen back={false} title={tr('auth.oauthFailed')} sub={failed} footer={<Button onPress={home}>{tr('common.back')}</Button>} />;
+    return <AuthScreen back={false} title={tr('auth.oauthFailed')} sub={failed} footer={<Button onPress={goHome}>{tr('common.back')}</Button>} />;
   return (
     <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: t.bg }}>
       <ActivityIndicator color={t.mut} />

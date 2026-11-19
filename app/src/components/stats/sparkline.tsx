@@ -1,13 +1,11 @@
 import { useState } from 'react';
 import { Text, View } from 'react-native';
 import Svg, { Circle, Defs, LinearGradient, Path, Stop } from 'react-native-svg';
-
-import { Card } from '@/components/ui';
-import type { Activity } from '@/lib/api';
 import { dateFormat, useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
-
-import { dec, int } from './common';
+import { dec, int } from '@/components/stats/common';
+import { Card } from '@/components/ui/card';
+import type { Activity } from '@/lib/api/stats';
 
 const HEIGHT = 72;
 const PAD = 4;
@@ -17,7 +15,6 @@ const parseDay = (s: string) => {
   return new Date(y, (m || 1) - 1, d || 1);
 };
 
-/** Questions per day (or week): the total, the average, and the curve under it. */
 export function Sparkline({ activity }: { activity: Activity }) {
   const t = useTheme();
   const tr = useT();
@@ -28,8 +25,8 @@ export function Sparkline({ activity }: { activity: Activity }) {
   const step = values.length > 1 ? (width - PAD * 2) / (values.length - 1) : 0;
   const pts = values.map((v, i) => [PAD + i * step, PAD + (HEIGHT - PAD * 2) * (1 - v / max)] as const);
   const line = pts.map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
-  const area = pts.length ? `${line} L${pts.at(-1)![0].toFixed(1)},${HEIGHT} L${pts[0][0].toFixed(1)},${HEIGHT} Z` : '';
   const last = pts.at(-1);
+  const area = last ? `${line} L${last[0].toFixed(1)},${HEIGHT} L${pts[0][0].toFixed(1)},${HEIGHT} Z` : '';
   const week = activity.bucket === 'week';
   return (
     <Card style={{ padding: 16, gap: 12 }}>

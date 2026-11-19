@@ -1,0 +1,290 @@
+import { ChevronDown, ChevronUp, Crown } from 'lucide-react-native';
+import { type ReactNode, useState } from 'react';
+import { type StyleProp, Text, View, type ViewStyle } from 'react-native';
+import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withSequence, withSpring, withTiming } from 'react-native-reanimated';
+import { useT } from '@/lib/i18n';
+import { BOUNCE, EASE } from '@/lib/motion';
+import { ordinal } from '@/lib/utils/text';
+import { useTheme } from '@/lib/theme';
+import { Mascot } from '@/components/mascot/mascot';
+import { MemberTitle } from '@/components/badges/title-chip';
+import { PressableScale } from '@/components/ui/pressable-scale';
+import { Avatar, AvatarStack } from '@/components/ui/avatar';
+import type { Member } from '@/lib/api/group';
+import type { ChooseResult, RankEntry, SaidResult, Tally } from '@/lib/api/rounds';
+import { useAnimateOnChange } from '@/lib/hooks/use-animate-on-change';
+
+const TOP = 5;
+const folded = <T,>(rows: T[], all: boolean) => (all || rows.length <= TOP + 1 ? rows : rows.slice(0, TOP));
+
+export function ResultBars({ result, byId, anonymous }: { result: Tally[]; byId: Map<number, Member>; anonymous?: boolean }) {
+  const t = useTheme();
+  const tr = useT();
+  const [all, setAll] = useState(false);
+  const total = result.reduce((n, r) => n + r.count, 0) || 1;
+  const top = result[0]?.count ?? 0;
+  const shown = folded(result, all);
+  return (
+    <View style={{ gap: 12 }}>
+      {shown.map((r, i) => {
+        const m = byId.get(r.target_id);
+        const color = m?.color ?? t.mut;
+        const win = r.count === top;
+        const pct = Math.round((r.count / total) * 100);
+        return (
+          <Land
+            key={r.target_id}
+            on={win}
+            style={[
+              { height: 64, borderRadius: 18, overflow: 'hidden', backgroundColor: t.card, justifyContent: 'center' },
+              t.shadow,
+              win && { borderWidth: 2, borderColor: color },
+            ]}>
+            <Fill index={i} width={pct} color={color} opacity={win ? 0.55 : 0.28} />
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12 }}>
+              <Avatar member={m} />
+              <View style={{ flex: 1, gap: 2 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={{ flexShrink: 1, fontFamily: t.font.bold, fontSize: 16, color: t.txt }} numberOfLines={1}>
+                    {m?.name}
+                  </Text>
+                  {win && (
+                    <Landed rows={Math.min(result.length, TOP)}>
+                      <Crown size={18} color={color} />
+                    </Landed>
+                  )}
+                </View>
+                {win && <MemberTitle id={r.target_id} />}
+              </View>
+              {anonymous ? (
+                <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.txt }}>{tr('anonymous.votes', { count: r.count })}</Text>
+              ) : (
+                <AvatarStack members={r.voter_ids.map((id) => byId.get(id))} size={24} max={4} />
+              )}
+              <Text style={{ fontFamily: t.font.display, fontSize: 22, color: t.txt }}>{pct}%</Text>
+            </View>
+          </Land>
+        );
+      })}
+      {shown.length < result.length && <More count={result.length} onPress={() => setAll(true)} />}
+      {all && result.length > TOP + 1 && <More less onPress={() => setAll(false)} />}
+    </View>
+  );
+}
+
+function More({ count, less, onPress }: { count?: number; less?: boolean; onPress: () => void }) {
+  const t = useTheme();
+  const tr = useT();
+  const Icon = less ? ChevronUp : ChevronDown;
+  return (
+    <PressableScale
+      accessibilityRole="button"
+      onPress={onPress}
+      hitSlop={6}
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 4,
+        alignSelf: 'center',
+        minHeight: 44,
+        paddingHorizontal: 16,
+      }}>
+      <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.mut }}>
+        {less ? tr('results.less') : tr('results.seeAll', { count: count ?? 0 })}
+      </Text>
+      <Icon size={16} color={t.mut} />
+    </PressableScale>
+  );
+}
+
+export function RankResult({ ranking, byId, mine }: { ranking: RankEntry[]; byId: Map<number, Member>; mine: number[] | null }) {
+  const t = useTheme();
+  const tr = useT();
+  const [all, setAll] = useState(false);
+  const best = ranking[0]?.points || 1;
+  const podium = t.podium;
+  const shown = folded(ranking, all);
+  return (
+    <View style={{ gap: 10 }}>
+      {shown.map((r, i) => {
+        const m = byId.get(r.member_id);
+        const color = m?.color ?? t.mut;
+        const myPlace = mine ? mine.indexOf(r.member_id) + 1 : 0;
+        const place = 1 + ranking.filter((x) => x.points > r.points).length;
+        const top = place === 1;
+        const slim = i >= TOP;
+        return (
+          <Land
+            key={r.member_id}
+            on={top}
+            style={[
+              { height: slim ? 52 : 60, borderRadius: slim ? 14 : 18, overflow: 'hidden', backgroundColor: t.card, justifyContent: 'center' },
+              t.shadow,
+              top && { borderWidth: 2, borderColor: color },
+            ]}>
+            <Fill index={i} width={Math.round((r.points / best) * 100)} color={color} opacity={top ? 0.5 : 0.25} />
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12 }}>
+              <View
+                style={{
+                  width: 30,
+                  height: 30,
+                  borderRadius: 15,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: podium[place - 1] ?? 'transparent',
+                }}>
+                <Text style={{ fontFamily: t.font.display, fontSize: place <= 3 ? 15 : 18, color: place <= 3 ? t.ink : t.txt }}>{place}</Text>
+              </View>
+              <Avatar member={m} size={slim ? 28 : 36} />
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontFamily: t.font.bold, fontSize: slim ? 15 : 16, color: t.txt }} numberOfLines={1}>
+                  {m?.name}
+                </Text>
+                {myPlace > 0 && myPlace !== place ? (
+                  <Text style={{ fontFamily: t.font.regular, fontSize: 12, color: t.mut }}>{tr('results.you', { place: ordinal(myPlace) })}</Text>
+                ) : (
+                  top && !slim && <MemberTitle id={r.member_id} />
+                )}
+              </View>
+              <Text style={{ fontFamily: t.font.display, fontSize: 20, color: t.txt }}>
+                {r.points}
+                <Text style={{ fontFamily: t.font.semibold, fontSize: 12, color: t.mut }}> {tr('results.pts')}</Text>
+              </Text>
+            </View>
+          </Land>
+        );
+      })}
+      {shown.length < ranking.length && <More count={ranking.length} onPress={() => setAll(true)} />}
+      {all && ranking.length > TOP + 1 && <More less onPress={() => setAll(false)} />}
+    </View>
+  );
+}
+
+export function ResultSummary({
+  result,
+  ranking,
+  choose,
+  said,
+  byId,
+  onPress,
+}: {
+  result: Tally[];
+  ranking: RankEntry[] | null;
+  choose?: ChooseResult | null;
+  said?: SaidResult | null;
+  byId: Map<number, Member>;
+  onPress: () => void;
+}) {
+  const t = useTheme();
+  const tr = useT();
+  const total = result.reduce((n, r) => n + r.count, 0) || 1;
+  const guesser = choose?.scores[0];
+  const scorer = said?.scores[0];
+  const nobody = said ? !scorer?.points : !!choose && !guesser?.hits;
+  const winnerId = said
+    ? nobody
+      ? undefined
+      : scorer?.member_id
+    : choose
+      ? nobody
+        ? undefined
+        : guesser?.member_id
+      : ranking
+        ? ranking[0]?.member_id
+        : result[0]?.target_id;
+  const m = winnerId != null ? byId.get(winnerId) : undefined;
+  const score = said
+    ? tr('results.points', { count: scorer?.points ?? 0 })
+    : choose
+      ? `${guesser?.hits ?? 0}/${guesser?.total ?? 0}`
+      : ranking
+        ? tr('results.points', { count: ranking[0]?.points ?? 0 })
+        : `${Math.round(((result[0]?.count ?? 0) / total) * 100)}%`;
+  const tied = said
+    ? nobody
+      ? 0
+      : said.scores.filter((s) => s.points === scorer?.points).length - 1
+    : choose
+      ? nobody
+        ? 0
+        : choose.scores.filter((s) => s.hits === guesser?.hits && s.total === guesser?.total).length - 1
+      : ranking
+        ? ranking.filter((r) => r.points === ranking[0]?.points).length - 1
+        : result.filter((r) => r.count === result[0]?.count).length - 1;
+  const name = nobody ? tr(said ? 'said.result.nobody' : 'history.nobodyGuessed') : (m?.name ?? '?');
+  return (
+    <PressableScale
+      accessibilityRole="button"
+      accessibilityLabel={tr('results.summary', { name, score })}
+      onPress={onPress}
+      style={[
+        {
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 10,
+          paddingVertical: 8,
+          paddingLeft: 8,
+          paddingRight: 14,
+          borderRadius: 24,
+          backgroundColor: t.card,
+        },
+        t.shadow,
+      ]}>
+      {!nobody && <Avatar member={m} size={32} />}
+      {!nobody && <Crown size={16} color={m?.color ?? t.mut} />}
+      <Text
+        numberOfLines={1}
+        style={{ flexShrink: 1, fontFamily: t.font.bold, fontSize: 16, color: nobody ? t.mut : t.txt, paddingLeft: nobody ? 6 : 0 }}>
+        {name}
+      </Text>
+      {tied > 0 && <Text style={{ fontFamily: t.font.semibold, fontSize: 13, color: t.mut }}>+{tied}</Text>}
+      <Text style={{ marginLeft: 'auto', fontFamily: t.font.display, fontSize: 18, color: t.txt }}>{score}</Text>
+      {choose || said ? (
+        <Mascot who={nobody ? 'pave' : 'paillette'} mood={nobody ? 'think' : 'celebrate'} prop="none" size={40} style={{ marginVertical: -6 }} />
+      ) : (
+        <Mascot who="zeste" mood="accuse" size={40} style={{ marginVertical: -6, transform: [{ scaleX: -1 }] }} />
+      )}
+      <ChevronUp size={18} color={t.mut} />
+    </PressableScale>
+  );
+}
+
+const FIRST_BAR_DELAY_MS = 120;
+const NEXT_BAR_STAGGER_MS = 70;
+const STAGGERED_BARS_MAX = 6;
+const fillDelay = (i: number) => FIRST_BAR_DELAY_MS + Math.min(i, STAGGERED_BARS_MAX) * NEXT_BAR_STAGGER_MS;
+const FILL_MS = 450;
+
+export function Land({ on, style, children }: { on: boolean; style: StyleProp<ViewStyle>; children: ReactNode }) {
+  const reduced = useReducedMotion();
+  const s = useSharedValue(1);
+  useAnimateOnChange(s, [on, reduced], () =>
+    !on || reduced ? undefined : withDelay(fillDelay(0) + FILL_MS - 60, withSequence(withTiming(1.03, { duration: 110, easing: EASE }), withSpring(1, BOUNCE))),
+  );
+  const bump = useAnimatedStyle(() => ({ transform: [{ scale: s.value }] }));
+  return <Animated.View style={[style, bump]}>{children}</Animated.View>;
+}
+
+export function Landed({ rows, children }: { rows: number; children: ReactNode }) {
+  const reduced = useReducedMotion();
+  const s = useSharedValue(reduced ? 1 : 0);
+  useAnimateOnChange(s, rows, () => withDelay(fillDelay(rows - 1) + FILL_MS, withSpring(1, BOUNCE)));
+  const pop = useAnimatedStyle(() => ({ opacity: Math.min(s.value, 1), transform: [{ scale: s.value }] }));
+  return <Animated.View style={pop}>{children}</Animated.View>;
+}
+
+export function Fill({ index, width, color, opacity }: { index: number; width: number; color: string; opacity: number }) {
+  const reduced = useReducedMotion();
+  const grow = useSharedValue(reduced ? 1 : 0);
+  useAnimateOnChange(grow, index, () => withDelay(fillDelay(index), withTiming(1, { duration: FILL_MS, easing: EASE })));
+  const style = useAnimatedStyle(() => ({ transform: [{ scaleX: grow.value }] }));
+  return (
+    <Animated.View
+      style={[
+        { position: 'absolute', left: 0, top: 0, bottom: 0, width: `${width}%`, backgroundColor: color, opacity, transformOrigin: 'left' },
+        style,
+      ]}
+    />
+  );
+}

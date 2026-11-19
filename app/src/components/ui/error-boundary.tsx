@@ -1,0 +1,25 @@
+import type { ErrorBoundaryProps } from 'expo-router';
+import { Text, View } from 'react-native';
+import { Mascot } from '@/components/mascot/mascot';
+import type { Pose } from '@/lib/utils/mascot';
+import { useReportError } from '@/lib/hooks/use-report-error';
+import { useT } from '@/lib/i18n';
+import { useTheme } from '@/lib/theme';
+import { Button } from '@/components/ui/button';
+
+const KNOCKED: Pose = { eyes: 'wide', brows: 'worried', mouth: 'gasp', arms: ['droop', 'droop'], legs: ['sit', 'sit'], prop: 'sweat', tilt: -7 };
+
+export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
+  const t = useTheme();
+  const tr = useT();
+  useReportError(error);
+  return (
+    <View style={{ flex: 1, backgroundColor: t.bg, alignItems: 'center', justifyContent: 'center', padding: 32, gap: 24 }}>
+      <Mascot who="paillette" mood={KNOCKED} motion="caught" size={140} style={{ marginBottom: -12 }} />
+      <Text style={{ fontFamily: t.font.bold, fontSize: 20, color: t.txt, textAlign: 'center' }}>{tr('common.crashed')}</Text>
+      <Button onPress={retry} style={{ alignSelf: 'stretch' }}>
+        {tr('common.retry')}
+      </Button>
+    </View>
+  );
+}

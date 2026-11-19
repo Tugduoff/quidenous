@@ -1,14 +1,6 @@
-// Off-device previews of the home-screen widget (docs/WIDGET.md): the real drawing (src/widget/widget.tsx) for sample
-// states, both themes, small and medium, laid out as HTML. Android draws it with react-native-android-widget instead
-// (LinearLayout + bitmaps), so this is close, not pixel-exact: check on a phone before trusting a detail.
-//
-//   bun scripts/widget-preview.mjs [out.html]      (from app/; default widget-preview.html)
-//
-// Then screenshot the page (any browser, 2-3x). `#small-dark-vote`-style ids frame each widget for a cropped shot.
 import { writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-// The drawing imports the widget library, react-native and the secure store (theme.ts): stand-ins that only name things.
 const prim = (name) => Object.assign(() => null, { __name__: name });
 Bun.plugin({
   name: 'widget-preview-stubs',
@@ -50,21 +42,28 @@ function boxCss(st = {}) {
   const put = (k, v) => v != null && v !== '' && css.push(`${k}:${v}`);
   put('width', px(st.width));
   put('height', px(st.height));
-  if (st.flex) put('flex', `${st.flex} 1 0`), put('min-width', '0'), put('min-height', '0');
+  if (st.flex) {
+    put('flex', `${st.flex} 1 0`);
+    put('min-width', '0');
+    put('min-height', '0');
+  }
   for (const side of ['', 'Horizontal', 'Vertical', 'Top', 'Bottom', 'Left', 'Right'])
     for (const kind of ['padding', 'margin']) {
       const v = st[`${kind}${side}`];
       if (v == null) continue;
-      if (side === 'Horizontal') put(`${kind}-left`, `${v}px`), put(`${kind}-right`, `${v}px`);
-      else if (side === 'Vertical') put(`${kind}-top`, `${v}px`), put(`${kind}-bottom`, `${v}px`);
-      else put(side ? `${kind}-${side.toLowerCase()}` : kind, `${v}px`);
+      if (side === 'Horizontal') {
+        put(`${kind}-left`, `${v}px`);
+        put(`${kind}-right`, `${v}px`);
+      } else if (side === 'Vertical') {
+        put(`${kind}-top`, `${v}px`);
+        put(`${kind}-bottom`, `${v}px`);
+      } else put(side ? `${kind}-${side.toLowerCase()}` : kind, `${v}px`);
     }
   put('background', st.backgroundColor);
   if (st.borderRadius != null) put('border-radius', `${st.borderRadius}px`);
   return css;
 }
 
-/** The element tree → HTML, components called down to the widget primitives (like the library's buildWidgetTree). */
 function html(el) {
   if (el == null || el === false) return '';
   if (Array.isArray(el)) return el.map(html).join('');

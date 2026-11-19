@@ -1,12 +1,15 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-
-import { AuthScreen, ErrorText, Field } from '@/components/auth-ui';
-import { Button } from '@/components/ui';
-import { auth, authError, flow, looksLikeEmail } from '@/lib/auth';
+import { AuthScreen } from '@/components/auth/auth-screen';
+import { auth } from '@/lib/api/auth';
 import { useT } from '@/lib/i18n';
+import { Button } from '@/components/ui/button';
+import { Field } from '@/components/ui/field';
+import { ErrorText } from '@/components/ui/text';
+import { flow } from '@/lib/auth-flow';
+import { looksLikeEmail } from '@/lib/utils/credentials';
+import { authError } from '@/lib/api/errors';
 
-/** Step 1: the email. The next step signs in or signs up, whichever fits. */
 export default function EmailStep() {
   const tr = useT();
   const [email, setEmail] = useState(flow.email);

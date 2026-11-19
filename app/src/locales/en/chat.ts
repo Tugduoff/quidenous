@@ -1,4 +1,4 @@
-import type { Messages } from '../fr';
+import type { Messages } from '@/locales/fr';
 
 export const chat: Messages['chat'] = {
   count: { one: '{count} message', other: '{count} messages' },

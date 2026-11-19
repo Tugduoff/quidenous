@@ -1,6 +1,4 @@
-/** The Vote tab: ballots, waiting for votes, the paced room's gate, the empty room. */
 export const vote = {
-  /** Tab bar (accessibility labels). */
   tabs: { vote: 'Vote', history: 'Historique', stats: 'Stats', questions: 'Questions' },
   header: {
     enablePush: 'Activer les notifications',
@@ -10,14 +8,12 @@ export const vote = {
     group: 'Groupe',
     profile: 'Profil',
   },
-  /** A question's kind, one name everywhere (ballot tag, Questions, packs, suggestions); `custom` is where it comes from (our own), not a kind. */
   kind: { result: 'Résultat', rank: 'Classement', custom: 'De nous', pick: 'Qui de nous', choose: 'Choix', said: 'Qui a dit ça ?' },
   linkCopied: 'Lien copié',
   shareResult: 'Partager le résultat',
   shareQuestion: 'Partager la question',
   tip: 'Résultat dès que tous ont voté.',
   tipClose: "Fermer l'astuce",
-  /** "1er", "2e": a place in a ranking. */
   ordinal: { st: '{n}er', nd: '{n}e', rd: '{n}e', th: '{n}e' },
   rank: {
     submit: 'Valider mon classement',
@@ -26,7 +22,6 @@ export const vote = {
     ranked: '{name}, {place}e. Retirer',
     add: 'Classer {name}',
   },
-  /** Choose question: wire everyone to an item (mine: my real choice, the others: my guesses). */
   choose: {
     tip: "Relie chacun à son choix.",
     me: 'Toi',
@@ -64,7 +59,6 @@ export const vote = {
   pin: 'Épingler',
   unpin: 'Désépingler',
   next: 'Suivante',
-  /** Back after days away, several results waiting: mark them all seen, on to today's question. */
   skipAll: { label: 'Tout passer', a11y: { one: 'Passer {count} résultat', other: 'Passer les {count} résultats' } },
   gate: {
     nextIn: 'Prochaine question dans {time}',

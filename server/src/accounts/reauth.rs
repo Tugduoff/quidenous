@@ -1,8 +1,3 @@
-//! Re-authentication before sensitive changes: a stolen session alone must not be able to turn 2FA
-//! on, link or unlink a provider, set a first password or delete the account. The session proves
-//! who it is with the password, a 2FA (or recovery) code, or a fresh Google / Discord round
-//! (`oauth/{p}/start` with `reauth: true`), and may then make those changes for `REAUTH_TTL`.
-
 use std::net::IpAddr;
 
 use axum::{Json, extract::State};
@@ -14,24 +9,18 @@ use super::{
 };
 use crate::{
     AppState,
-    error::{AppError, AppResult},
+    platform::error::{AppError, AppResult},
 };
 
-/// The sign-in failure budgets for one password check: per (e-mail, IP), strict, so one attacker
-/// can't lock the owner out, and per e-mail, looser, against guesses spread over many IPs. Both are
-/// taken before the hash (parallel guesses each pay) and given back on success.
 pub(super) struct PasswordBudget {
     email_ip: String,
     email: String,
 }
 
 impl PasswordBudget {
-    pub fn take(state: &AppState, email: &str, ip: Option<IpAddr>) -> AppResult<Self> {
+    pub(super) fn take(state: &AppState, email: &str, ip: Option<IpAddr>) -> AppResult<Self> {
         let limits = &state.auth.limits;
-        let email_ip = format!(
-            "{email}|{}",
-            ip.map(limits::ip_key).unwrap_or_else(|| "-".into())
-        );
+        let email_ip = format!("{email}|{}", ip.map_or_else(|| "-".into(), limits::ip_key));
         limits.hit(&limits::LOGIN_ACCOUNT_IP, &email_ip)?;
         if let Err(e) = limits.hit(&limits::LOGIN_ACCOUNT, email) {
             limits.refund(&limits::LOGIN_ACCOUNT_IP, &email_ip);
@@ -43,7 +32,7 @@ impl PasswordBudget {
         })
     }
 
-    pub fn refund(self, state: &AppState) {
+    pub(super) fn refund(self, state: &AppState) {
         let limits = &state.auth.limits;
         limits.refund(&limits::LOGIN_ACCOUNT_IP, &self.email_ip);
         limits.refund(&limits::LOGIN_ACCOUNT, &self.email);
@@ -54,13 +43,10 @@ fn given(v: Option<&str>) -> Option<&str> {
     v.map(str::trim).filter(|v| !v.is_empty())
 }
 
-/// Passwords are checked exactly as typed (spaces included), like sign-in.
 fn given_password(v: Option<&str>) -> Option<&str> {
     v.filter(|v| !v.is_empty())
 }
 
-/// A password or a 2FA / recovery code given with the request. `Ok(true)`: proven; `Ok(false)`:
-/// nothing given that this account can use; `bad_credentials` / `bad_code` / `429` when wrong.
 pub(super) async fn prove(
     state: &AppState,
     acct: &Account,
@@ -93,14 +79,12 @@ pub(super) async fn prove(
 }
 
 #[derive(Deserialize, Default)]
-pub struct ReauthBody {
+pub(crate) struct ReauthBody {
     password: Option<String>,
     code: Option<String>,
 }
 
-/// `{password}` or `{code}` (TOTP or recovery) → this session may make sensitive changes for
-/// `REAUTH_TTL`. Accounts without a password or 2FA use an OAuth round with `reauth: true`.
-pub async fn reauth(
+pub(crate) async fn reauth(
     State(state): State<AppState>,
     ClientIp(ip): ClientIp,
     session: Session,

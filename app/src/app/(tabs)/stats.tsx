@@ -1,12 +1,11 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { Text, View } from 'react-native';
-
-import { Mascot } from '@/components/mascot';
-import { QueryState } from '@/components/query-state';
-import { Screen } from '@/components/screen';
-import { StreakRecords } from '@/components/streaks';
-import { TripotBoard } from '@/components/tripot';
+import { Mascot } from '@/components/mascot/mascot';
+import { QueryState } from '@/components/ui/query-state';
+import { Screen } from '@/components/ui/screen';
+import { StreakRecords } from '@/components/streaks/streaks';
+import { TripotBoard } from '@/components/tripot/tripot';
 import { Awards } from '@/components/stats/awards';
 import { Section } from '@/components/stats/common';
 import { Heatmap } from '@/components/stats/heatmap';
@@ -17,12 +16,12 @@ import { ProfileSheet } from '@/components/stats/profile-sheet';
 import { Sparkline } from '@/components/stats/sparkline';
 import { StoryCarousel } from '@/components/stats/story-carousel';
 import { VoteMatrix } from '@/components/stats/vote-matrix';
-import { Display } from '@/components/ui';
-import { WrappedBanner } from '@/components/wrapped-entry';
-import type { StatsPeriod, Story } from '@/lib/api';
+import { WrappedBanner } from '@/components/wrapped/entry';
 import { type TKey, useT } from '@/lib/i18n';
-import { useMembers, useStats } from '@/lib/queries';
 import { useTheme } from '@/lib/theme';
+import { Display } from '@/components/ui/text';
+import { type StatsPeriod, type Story, useStats } from '@/lib/api/stats';
+import { useMembers } from '@/lib/api/group';
 
 const EMPTY: Record<StatsPeriod, TKey> = {
   '7d': 'stats.empty.week',
@@ -59,7 +58,6 @@ export default function StatsScreen() {
       <Screen>
         {header}
         <WrappedBanner />
-        {/* The calm before the storm: Roupi enjoys it. */}
         <Mascot who="roupi" mood="happy" size={128} style={{ marginTop: 32, alignSelf: 'center' }} />
         <Text style={{ marginTop: 4, textAlign: 'center', fontFamily: t.font.semibold, fontSize: 16, lineHeight: 22, color: t.mut }}>
           {tr(EMPTY[period])}
@@ -70,7 +68,6 @@ export default function StatsScreen() {
 
   const name = (id: number) => byId.get(id)?.name ?? '?';
   const profiles = new Map(s.profiles.map((p) => [p.member_id, p]));
-  // Only people with a profile open one (an older server has none).
   const open = (id: number) => profiles.has(id) && setProfileId(id);
   const openStory = (story: Story) => {
     if (story.round_id != null) router.push(`/round/${story.round_id}`);
@@ -78,7 +75,6 @@ export default function StatsScreen() {
   };
 
   const podium = podiumOf(s.profiles);
-  // The matrix lists current members (profiles), or whoever shows up in the votes on a server without profiles.
   const ids = s.profiles.length
     ? s.profiles.map((p) => p.member_id)
     : [...new Set(s.edges.flatMap((e) => [e.voter_id, e.target_id]))].filter((id) => byId.has(id) && !byId.get(id)?.left).sort((a, b) => a - b);

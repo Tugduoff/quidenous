@@ -1,0 +1,215 @@
+import { useMutation } from '@tanstack/react-query';
+import { ChevronLeft, LogIn, Plus } from 'lucide-react-native';
+import { useState } from 'react';
+import { Pressable, Text, TextInput, View } from 'react-native';
+import Animated from 'react-native-reanimated';
+import { InvitePreview } from '@/components/rooms/invite-preview';
+import { ScanButton } from '@/components/ui/qr-scanner';
+import { VibeCards } from '@/components/rooms/vibes';
+import { ApiError } from '@/lib/api/client';
+import { getLang, type Lang, type TKey, useT } from '@/lib/i18n';
+import { motion } from '@/lib/motion';
+import { useTheme } from '@/lib/theme';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Display } from '@/components/ui/text';
+import { Segmented } from '@/components/ui/segmented';
+import { useVibes } from '@/lib/api/group';
+import { createRoom, joinRoom } from '@/lib/api/rooms';
+import { authError } from '@/lib/api/errors';
+import { useFeatures } from '@/lib/api/features';
+
+const ERRORS: Record<string, TKey> = {
+  bad_code: 'room.errors.badCode',
+  removed: 'room.errors.removed',
+  bad_room_name: 'room.errors.badName',
+  bad_vibe: 'room.errors.badVibe',
+  bad_language: 'room.errors.badLanguage',
+};
+
+export function RoomForms({
+  initialCode,
+  onEntered,
+  joinFirst,
+  onVibeStep,
+  createOnly,
+}: {
+  initialCode?: string;
+  onEntered: (id: number) => void;
+  joinFirst?: boolean;
+  onVibeStep?: (on: boolean) => void;
+  createOnly?: string;
+}) {
+  const t = useTheme();
+  const tr = useT();
+  const [name, setName] = useState('');
+  const [code, setCode] = useState(initialCode ?? '');
+  const [error, setError] = useState<string | null>(null);
+  const fail = (e: unknown) => setError(e instanceof ApiError && ERRORS[e.code] ? tr(ERRORS[e.code]) : authError(e));
+  const features = useFeatures();
+  const { data: vibes } = useVibes(features.vibes);
+  const [picking, setPicking] = useState(false);
+  const [vibe, setVibe] = useState<string | null>(null);
+  const [language, setLanguage] = useState<Lang>(getLang);
+  const showVibes = (on: boolean) => {
+    setPicking(on);
+    setError(null);
+    onVibeStep?.(on);
+  };
+
+  const create = useMutation({
+    meta: { quiet: true },
+    mutationFn: (withVibe: string | null) =>
+      createRoom({ name: name.trim(), ...(withVibe ? { vibe: withVibe } : {}), ...(features.languages ? { language } : {}) }),
+    onSuccess: (r) => onEntered(r.id),
+    onError: fail,
+  });
+  const next = () => {
+    if (!name.trim() || create.isPending) return;
+    if (vibes?.length) showVibes(true);
+    else create.mutate(null);
+  };
+  const join = useMutation({
+    meta: { quiet: true },
+    mutationFn: (value: string) => joinRoom(value.trim()),
+    onSuccess: (r) => onEntered(r.id),
+    onError: fail,
+  });
+  const label = { fontFamily: t.font.semibold, fontSize: 13, color: t.mut, marginLeft: 4 };
+  const round = (on: boolean) => ({
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    backgroundColor: on ? t.acc : t.card2,
+  });
+
+  const createForm = (
+    <>
+      <Text style={[label, { marginTop: 8 }]}>{createOnly ?? tr('room.create.title')}</Text>
+      <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 8, padding: 6, paddingLeft: 16 }}>
+        <TextInput
+          accessibilityLabel={tr('room.create.name')}
+          placeholder={tr('room.create.placeholder')}
+          placeholderTextColor={t.mut}
+          value={name}
+          onChangeText={setName}
+          maxLength={40}
+          returnKeyType="go"
+          onSubmitEditing={next}
+          style={{ flex: 1, minWidth: 0, height: 44, fontFamily: t.font.regular, fontSize: 16, color: t.txt }}
+        />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={tr('room.create.a11y')}
+          disabled={!name.trim() || create.isPending}
+          onPress={next}
+          style={round(!!name.trim())}>
+          <Plus size={20} color={name.trim() ? t.accTxt : t.mut} />
+        </Pressable>
+      </Card>
+    </>
+  );
+  const joinForm = (
+    <>
+      <Text style={[label, joinFirst ? undefined : { marginTop: 8 }]}>{tr('room.join.title')}</Text>
+      {!!initialCode && <InvitePreview code={initialCode} />}
+      <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 8, padding: 6, paddingLeft: 16 }}>
+        <TextInput
+          accessibilityLabel={tr('room.invite.code')}
+          placeholder="ABC234"
+          placeholderTextColor={t.mut}
+          value={code}
+          onChangeText={(v) => setCode(v.toUpperCase())}
+          autoCapitalize="characters"
+          autoCorrect={false}
+          maxLength={20}
+          returnKeyType="go"
+          onSubmitEditing={() => code.trim() && !join.isPending && join.mutate(code)}
+          style={{ flex: 1, minWidth: 0, height: 44, fontFamily: t.font.bold, fontSize: 16, letterSpacing: 2, color: t.txt }}
+        />
+        <ScanButton
+          onScan={(s) => {
+            if (!s.code) return setError(tr('room.join.notRoomQr'));
+            setCode(s.code);
+            join.mutate(s.code);
+          }}
+        />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={tr('common.join')}
+          disabled={!code.trim() || join.isPending}
+          onPress={() => join.mutate(code)}
+          style={round(!!code.trim())}>
+          <LogIn size={20} color={code.trim() ? t.accTxt : t.mut} />
+        </Pressable>
+      </Card>
+    </>
+  );
+
+  const errorLine = error && <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.tagInk, marginLeft: 4 }}>{error}</Text>;
+
+  if (picking && vibes)
+    return (
+      <Animated.View entering={motion.enter} style={{ gap: 16 }}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={tr('room.create.backToName')}
+          onPress={() => showVibes(false)}
+          hitSlop={8}
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start' }}>
+          <ChevronLeft size={18} color={t.mut} />
+          <Text numberOfLines={1} style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.mut, maxWidth: 240 }}>
+            {name.trim()}
+          </Text>
+        </Pressable>
+        <Display size={28}>{tr('room.create.vibeTitle')}</Display>
+        <VibeCards vibes={vibes} value={vibe} onChange={setVibe} />
+        {features.languages && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+            <Text numberOfLines={1} style={[label, { flexShrink: 1 }]}>
+              {tr('room.language.label')}
+            </Text>
+            <Segmented
+              label={tr('room.language.label')}
+              value={language}
+              onChange={setLanguage}
+              options={[
+                { id: 'fr', name: tr('profile.language.fr') },
+                { id: 'en', name: tr('profile.language.en') },
+              ]}
+            />
+          </View>
+        )}
+        {errorLine}
+        <View style={{ gap: 6 }}>
+          <Button disabled={!vibe} loading={create.isPending && create.variables != null} onPress={() => vibe && create.mutate(vibe)}>
+            {tr('room.create.create')}
+          </Button>
+          <Pressable
+            accessibilityRole="button"
+            disabled={create.isPending}
+            onPress={() => create.mutate(null)}
+            style={{ height: 44, alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={{ fontFamily: t.font.semibold, fontSize: 15, color: t.mut }}>{tr('room.create.skip')}</Text>
+          </Pressable>
+        </View>
+      </Animated.View>
+    );
+
+  if (createOnly)
+    return (
+      <>
+        {createForm}
+        {errorLine}
+      </>
+    );
+  return (
+    <>
+      {joinFirst ? joinForm : createForm}
+      {joinFirst ? createForm : joinForm}
+      {errorLine}
+    </>
+  );
+}

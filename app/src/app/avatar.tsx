@@ -1,123 +1,26 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { Dices } from 'lucide-react-native';
-import { type ReactNode, useState } from 'react';
-import { Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native';
+import { useState } from 'react';
+import { Text, useWindowDimensions, View } from 'react-native';
 import Animated from 'react-native-reanimated';
-
-import { BackButton } from '@/components/auth-ui';
-import { AvatarArt } from '@/components/avatar-art';
-import { Screen } from '@/components/screen';
-import { Button, PressableScale } from '@/components/ui';
-import { api, type Member } from '@/lib/api';
-import {
-  type Avatar,
-  type Field,
-  formatAvatar,
-  optionCount,
-  PARTS,
-  type PaletteField,
-  parseAvatar,
-  PRESETS,
-  randomAvatar,
-  startingAvatar,
-} from '@/lib/avatar';
-import { type TKey, useT } from '@/lib/i18n';
+import { AvatarArt } from '@/components/ui/avatar-art';
+import { Screen } from '@/components/ui/screen';
+import { type Avatar, type Field, formatAvatar, randomAvatar, startingAvatar } from '@/lib/utils/avatar';
+import { useT } from '@/lib/i18n';
 import { usePop } from '@/lib/motion';
-import { keys } from '@/lib/queries';
 import { useSession } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
+import { PressableScale } from '@/components/ui/pressable-scale';
+import { Button } from '@/components/ui/button';
+import { BackButton } from '@/components/ui/back-button';
+import { groupKeys } from '@/lib/api/group';
+import { setMyAvatar } from '@/lib/api/me';
+import { AvatarCircle } from '@/components/avatar/avatar-choice';
+import { AvatarSwatches } from '@/components/avatar/avatar-swatches';
+import { AvatarTabs, TABS } from '@/components/avatar/avatar-tabs';
+import { AvatarOptions } from '@/components/avatar/avatar-options';
 
-type Tab = { label: TKey; field?: Field; colors?: PaletteField; zoom?: boolean };
-const TABS: Tab[] = [
-  { label: 'avatar.tabs.presets' },
-  { label: 'avatar.tabs.face', field: 'face', colors: 'skin' },
-  { label: 'avatar.tabs.hair', field: 'hair', colors: 'hairColor' },
-  { label: 'avatar.tabs.eyes', field: 'eyes', zoom: true },
-  { label: 'avatar.tabs.brows', field: 'brows', zoom: true },
-  { label: 'avatar.tabs.mouth', field: 'mouth', zoom: true },
-  { label: 'avatar.tabs.glasses', field: 'glasses', zoom: true },
-  { label: 'avatar.tabs.beard', field: 'beard', colors: 'hairColor', zoom: true },
-  { label: 'avatar.tabs.extra', field: 'extra' },
-  { label: 'avatar.tabs.background', colors: 'bg' },
-];
-/** Close-up on the face, for the small features. */
-const ZOOM = '20 24 60 60';
-
-function Round({ size, children }: { size: number; children: ReactNode }) {
-  return <View style={{ width: size, height: size, borderRadius: size / 2, overflow: 'hidden' }}>{children}</View>;
-}
-
-/** One choice: the avatar as it would be with it. */
-function Choice({
-  avatar,
-  on,
-  onPress,
-  width,
-  zoom,
-  label,
-}: {
-  avatar: Avatar;
-  on: boolean;
-  onPress: () => void;
-  width: number;
-  zoom?: boolean;
-  label: string;
-}) {
-  const t = useTheme();
-  const inner = Math.round(width - 16);
-  return (
-    <PressableScale
-      accessibilityRole="radio"
-      accessibilityLabel={label}
-      accessibilityState={{ selected: on }}
-      onPress={onPress}
-      style={[
-        { width, height: width, borderRadius: 22, alignItems: 'center', justifyContent: 'center', borderWidth: 2 },
-        { backgroundColor: on ? t.accSoft : t.card, borderColor: on ? t.accInk : 'transparent' },
-        t.shadow,
-      ]}>
-      <Round size={inner}>
-        <AvatarArt avatar={avatar} size={inner} viewBox={zoom ? ZOOM : undefined} />
-      </Round>
-    </PressableScale>
-  );
-}
-
-function Swatches({ field, value, onPick }: { field: PaletteField; value: number; onPick: (i: number) => void }) {
-  const t = useTheme();
-  const tr = useT();
-  const big = field === 'bg';
-  const outer = big ? 52 : 44;
-  return (
-    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: big ? 10 : 6 }}>
-      {PARTS[field].map(([c], i) => {
-        const on = i === value;
-        return (
-          <Pressable
-            key={c}
-            accessibilityRole="radio"
-            accessibilityLabel={tr('avatar.color', { n: i + 1 })}
-            accessibilityState={{ selected: on }}
-            onPress={() => onPick(i)}
-            style={{
-              width: outer,
-              height: outer,
-              borderRadius: outer / 2,
-              alignItems: 'center',
-              justifyContent: 'center',
-              borderWidth: 2,
-              borderColor: on ? t.txt : 'transparent',
-            }}>
-            <View style={{ width: outer - 12, height: outer - 12, borderRadius: outer, backgroundColor: c }} />
-          </Pressable>
-        );
-      })}
-    </View>
-  );
-}
-
-/** The avatar builder: presets, every part, a dice; saving replaces the photo. */
 export default function AvatarBuilder() {
   const t = useTheme();
   const tr = useT();
@@ -135,14 +38,14 @@ export default function AvatarBuilder() {
   const cols = Math.max(4, Math.floor(content / 100));
   const cell = Math.floor((content - (cols - 1) * 10) / cols);
   const set = (f: Field, i: number) => setAvatar((a) => ({ ...a, [f]: i }));
-  const { field, colors, zoom } = TABS[tab];
+  const { colors } = TABS[tab];
 
   const save = async () => {
     setBusy(true);
     setError(false);
     try {
-      setMe(await api<Member>('/me/avatar', { method: 'PUT', json: { avatar: spec } }));
-      qc.invalidateQueries({ queryKey: keys.group });
+      setMe(await setMyAvatar(spec));
+      qc.invalidateQueries({ queryKey: groupKeys.all });
       router.back();
     } catch {
       setError(true);
@@ -182,54 +85,16 @@ export default function AvatarBuilder() {
       </View>
 
       <Animated.View style={[{ alignSelf: 'center' }, pop]}>
-        <Round size={168}>
+        <AvatarCircle size={168}>
           <AvatarArt avatar={avatar} size={168} />
-        </Round>
+        </AvatarCircle>
       </Animated.View>
 
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={{ marginHorizontal: -20, flexGrow: 0 }}
-        contentContainerStyle={{ paddingHorizontal: 20, gap: 8 }}>
-        {TABS.map((tb, i) => {
-          const on = i === tab;
-          return (
-            <Pressable
-              key={tb.label}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: on }}
-              onPress={() => setTab(i)}
-              style={{ height: 38, paddingHorizontal: 16, borderRadius: 19, justifyContent: 'center', backgroundColor: on ? t.acc : t.card }}>
-              <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: on ? t.accTxt : t.txt }}>{tr(tb.label)}</Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
+      <AvatarTabs tab={tab} onTab={setTab} />
 
-      {colors && <Swatches field={colors} value={avatar[colors]} onPick={(i) => set(colors, i)} />}
+      {colors && <AvatarSwatches field={colors} value={avatar[colors]} onPick={(i) => set(colors, i)} />}
 
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
-        {!field && !colors
-          ? PRESETS.map((p, i) => {
-              const a = parseAvatar(p)!;
-              return (
-                <Choice key={p} avatar={a} on={p === spec} onPress={() => setAvatar(a)} width={cell} label={tr('avatar.preset', { n: i + 1 })} />
-              );
-            })
-          : field &&
-            Array.from({ length: optionCount(field) }, (_, i) => (
-              <Choice
-                key={i}
-                avatar={{ ...avatar, [field]: i }}
-                on={avatar[field] === i}
-                onPress={() => set(field, i)}
-                width={cell}
-                zoom={zoom}
-                label={`${tr(TABS[tab].label)} ${i + 1}`}
-              />
-            ))}
-      </View>
+      <AvatarOptions avatar={avatar} spec={spec} tab={tab} cell={cell} onAvatar={setAvatar} onPart={set} />
     </Screen>
   );
 }

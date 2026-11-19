@@ -1,11 +1,8 @@
-/** Party mode (docs/PARTY.md): a room for one evening, one question at a time for everyone. */
 export const party = {
   name: 'Soirée',
-  /** Rooms screen: the button that creates one. */
   entry: 'Lancer une soirée',
   live: 'Soirée en cours',
   over: 'Soirée terminée',
-  /** Under the party's name: when it ends ("Jusqu'à 02:00"). */
   until: "Jusqu'à {time}",
   create: {
     title: 'Nouvelle soirée',
@@ -44,7 +41,6 @@ export const party = {
     nobody: 'Personne n’a voté',
     next: 'Suivante',
     nextA11y: 'Suivante, {count} sur {needed}',
-    /** Under "Suivante" (not for the owner, whose tap is enough): how many taps open the next question. */
     needed: { one: 'Il faut {count} joueur pour passer', other: 'Il faut {count} joueurs pour passer' },
     react: 'Réagir avec {emoji}',
   },
@@ -80,9 +76,7 @@ export const party = {
     colorA11y: 'Couleur {n}',
     go: 'Rejoindre',
     account: "J'ai un compte",
-    /** Signed in: which account joins. */
     as: 'En tant que {name}',
-    /** A bad or ended link: try another code, or just open the app. */
     other: 'Un autre code',
     open: "Ouvrir l'app",
   },

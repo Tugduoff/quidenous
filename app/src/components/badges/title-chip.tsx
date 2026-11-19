@@ -1,0 +1,174 @@
+import { router } from 'expo-router';
+import { ChevronRight, Lock, Medal } from 'lucide-react-native';
+import { memo, useId } from 'react';
+import { Pressable, Text, View } from 'react-native';
+import Svg, { Circle, Defs, RadialGradient, Stop } from 'react-native-svg';
+import { type TitleChip as Chip, type Tier, useBadges, useMemberTitle, useMyTitle } from '@/lib/api/badges';
+import { type t as translate, useT } from '@/lib/i18n';
+import { useScheme, useTheme } from '@/lib/theme';
+import { NamedIcon } from '@/components/stats/common';
+import { Card } from '@/components/ui/card';
+import { useFeatures } from '@/lib/api/features';
+import { COLORS, MEDALS } from '@/lib/tokens';
+
+const TIERS = MEDALS;
+const DISC_INK = COLORS.ink;
+
+export const tierName = (tier: 1 | 2 | 3, tr: typeof translate) => tr(`badges.tiers.${TIERS[tier].key}`);
+
+export function useTierInk(tier: 1 | 2 | 3) {
+  return useScheme() === 'dark' ? TIERS[tier].inkDark : TIERS[tier].inkLight;
+}
+
+export const MedalDisc = memo(function MedalDisc({ icon, tier, size = 56 }: { icon: string; tier: Tier; size?: number }) {
+  const t = useTheme();
+  const id = useId().replace(/:/g, '');
+  const glyph = Math.round(size * 0.44);
+  if (!tier) {
+    return (
+      <View
+        importantForAccessibility="no-hide-descendants"
+        accessibilityElementsHidden
+        style={{
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: t.card2,
+          borderWidth: Math.max(1.5, size / 28),
+          borderColor: t.line,
+          borderStyle: 'dashed',
+        }}>
+        <NamedIcon name={icon} size={glyph} color={t.mut} strokeWidth={2} opacity={0.55} />
+        {size >= 40 && (
+          <View
+            style={{
+              position: 'absolute',
+              right: -2,
+              bottom: -2,
+              width: size * 0.36,
+              height: size * 0.36,
+              borderRadius: size * 0.18,
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: t.card,
+              borderWidth: 1,
+              borderColor: t.line,
+            }}>
+            <Lock size={size * 0.18} color={t.mut} strokeWidth={2.5} />
+          </View>
+        )}
+      </View>
+    );
+  }
+  const m = TIERS[tier];
+  const r = size / 2;
+  const rim = Math.max(1.5, size / 18);
+  return (
+    <View importantForAccessibility="no-hide-descendants" accessibilityElementsHidden style={{ width: size, height: size }}>
+      <Svg width={size} height={size} style={{ position: 'absolute' }}>
+        <Defs>
+          <RadialGradient id={`m${id}`} cx="35%" cy="30%" r="75%">
+            <Stop offset="0" stopColor={m.light} />
+            <Stop offset="0.6" stopColor={m.fill} />
+            <Stop offset="1" stopColor={m.fill} />
+          </RadialGradient>
+        </Defs>
+        <Circle cx={r} cy={r} r={r - rim / 2} fill={`url(#m${id})`} stroke={m.rim} strokeWidth={rim} />
+        {size >= 32 && <Circle cx={r} cy={r} r={r - rim * 2.6} fill="none" stroke={COLORS.gloss} strokeOpacity={0.45} strokeWidth={Math.max(1, rim / 2)} />}
+      </Svg>
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+        <NamedIcon name={icon} size={glyph} color={DISC_INK} strokeWidth={2.25} />
+      </View>
+    </View>
+  );
+});
+
+export function TierPips({ tier, size = 10 }: { tier: Tier; size?: number }) {
+  const t = useTheme();
+  const tr = useT();
+  return (
+    <View accessible accessibilityLabel={tr('badges.a11y.tiers', { tier })} style={{ flexDirection: 'row', gap: size * 0.5 }}>
+      {([1, 2, 3] as const).map((n) => (
+        <View
+          key={n}
+          style={{
+            width: size,
+            height: size,
+            borderRadius: size / 2,
+            backgroundColor: n <= tier ? TIERS[n].fill : t.card2,
+            borderWidth: 1,
+            borderColor: n <= tier ? TIERS[n].rim : t.line,
+          }}
+        />
+      ))}
+    </View>
+  );
+}
+
+export const TitleChip = memo(function TitleChip({ chip, size = 'sm' }: { chip: Chip; size?: 'sm' | 'md' }) {
+  const t = useTheme();
+  const tr = useT();
+  const md = size === 'md';
+  return (
+    <View
+      accessible
+      accessibilityLabel={tr('badges.a11y.chip', { name: chip.name, tier: tierName(chip.tier, tr) })}
+      style={{
+        alignSelf: 'flex-start',
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: md ? 6 : 4,
+        height: md ? 28 : 20,
+        paddingLeft: 2,
+        paddingRight: md ? 10 : 7,
+        maxWidth: '100%',
+        borderRadius: 999,
+        backgroundColor: t.card2,
+      }}>
+      <MedalDisc icon={chip.icon} tier={chip.tier} size={md ? 24 : 16} />
+      <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: t.font.semibold, fontSize: md ? 13 : 11.5, color: t.txt }}>
+        {chip.name}
+      </Text>
+    </View>
+  );
+});
+
+export const MemberTitle = memo(function MemberTitle({ id, size }: { id: number; size?: 'sm' | 'md' }) {
+  const chip = useMemberTitle(id);
+  return chip ? <TitleChip chip={chip} size={size} /> : null;
+});
+
+export function MyTitle() {
+  const tr = useT();
+  const chip = useMyTitle();
+  if (!chip) return null;
+  return (
+    <Pressable accessibilityRole="button" accessibilityLabel={tr('badges.a11y.chip', { name: chip.name, tier: tierName(chip.tier, tr) })} onPress={() => router.push('/badges')} hitSlop={6}>
+      <TitleChip chip={chip} size="md" />
+    </Pressable>
+  );
+}
+
+export function BadgesRow() {
+  const t = useTheme();
+  const tr = useT();
+  const { badges } = useFeatures();
+  const { data } = useBadges();
+  if (!badges) return null;
+  return (
+    <Pressable accessibilityRole="button" accessibilityLabel={`${tr('badges.title')}${data ? `, ${tr('badges.count', { earned: data.earned, total: data.total })}` : ''}`} onPress={() => router.push('/badges')}>
+      <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16 }}>
+        <Medal size={20} color={t.txt} />
+        <Text style={{ flex: 1, fontFamily: t.font.semibold, fontSize: 15, color: t.txt }}>{tr('badges.title')}</Text>
+        {data && (
+          <Text style={{ fontFamily: t.font.semibold, fontSize: 14, color: t.mut, fontVariant: ['tabular-nums'] }}>
+            {data.earned}/{data.total}
+          </Text>
+        )}
+        <ChevronRight size={20} color={t.mut} />
+      </Card>
+    </Pressable>
+  );
+}

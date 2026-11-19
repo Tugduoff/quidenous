@@ -8,20 +8,15 @@ on:
         default: false
   push:
     branches: [main]
-    # Path filters don't apply to tags: every v* tag builds, and only tag builds publish OTA updates, because
-    # production deploys the latest v* tag (not main). JS on main may call server routes prod doesn't have yet.
     tags: ["v*"]
     paths: ["app/**", ".github/workflows/android.yml"]
 permissions:
   contents: read
 concurrency:
   group: android-${{ github.ref }}
-  # A newer push to main supersedes a running build; a tag build always finishes (it publishes the OTA update).
   cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
 jobs:
   apk:
-    # Tug's Mac (self-hosted, label tug-mac) when it's online, else GitHub's Ubuntu: the Pi flips the
-    # QDN_RUNNER repo variable (pivot-bot/mac-runner-watch). Unset = ubuntu-latest.
     runs-on: ${{ fromJSON(vars.QDN_RUNNER || '"ubuntu-latest"') }}
     defaults:
       run:
@@ -32,11 +27,9 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
-      # GitHub's Ubuntu image ships the Android SDK; the Mac runner gets it here.
       - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
         if: runner.os == 'macOS'
         with:
-          # The default also asks for the long-gone 'tools' package; Gradle fetches platforms/build-tools itself.
           packages: platform-tools
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -45,13 +38,10 @@ jobs:
           cache-dependency-path: app/package-lock.json
       - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
       - run: npm ci --no-audit --no-fund
-      # Type errors (and a French string missing in English, docs/I18N.md) stop the build before anything ships.
       - run: npx tsc --noEmit
       - run: printf '%s' "$GOOGLE_SERVICES_JSON" > google-services.json
         env:
           GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
-      # The APK (installed by hand) updates itself from GitHub Releases: EXPO_PUBLIC_DISTRIBUTION=sideload turns that on
-      # and app.config.ts adds REQUEST_INSTALL_PACKAGES. The Play bundle below is built without either (Play policy).
       - run: npx expo prebuild --platform android --no-install
         env:
           CI: 1
@@ -68,8 +58,6 @@ jobs:
         with:
           name: quidenous-apk
           path: app/android/app/build/outputs/apk/release/app-release.apk
-      # Google Play: an app bundle signed with the upload key (the APK above keeps its old key,
-      # so the APKs people installed by hand still update in place).
       - name: Play upload signing
         if: env.UPLOAD_B64 != ''
         env:
@@ -78,7 +66,6 @@ jobs:
           printf '%s' "$UPLOAD_B64" | base64 -d > "$RUNNER_TEMP/upload.p12"
           cat >> app/build.gradle <<'GRADLE'
 
-          // Added by CI for the Play bundle only (-PplayUpload).
           if (project.hasProperty('playUpload')) {
               android {
                   signingConfigs {
@@ -102,23 +89,18 @@ jobs:
           UPLOAD_STORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_PASSWORD }}
         run: |
           [ -f "$UPLOAD_STORE_FILE" ] || { echo "no upload key, skipping"; exit 0; }
-          # No self-update on Google Play: drop the install permission and rebuild the JS without the sideload flag
-          # (fresh Metro cache, JS bundle task forced to run again).
           sed -i.bak '/android.permission.REQUEST_INSTALL_PACKAGES/d' app/src/main/AndroidManifest.xml && rm app/src/main/AndroidManifest.xml.bak
           rm -rf "${TMPDIR:-/tmp}"/metro-* "${TMPDIR:-/tmp}"/haste-map-*
-          # expo-updates' resources (runtime fingerprint, embedded manifest) depend on the app config too: redo them.
           ./gradlew createReleaseUpdatesResources --rerun createBundleReleaseJsAndAssets --rerun bundleRelease -PplayUpload -PreactNativeArchitectures=arm64-v8a,armeabi-v7a,x86_64 --no-daemon
           if unzip -p app/build/outputs/bundle/release/app-release.aab base/manifest/AndroidManifest.xml | LC_ALL=C tr -d '\0' | LC_ALL=C grep -c REQUEST_INSTALL_PACKAGES >/dev/null; then
             echo "::error::REQUEST_INSTALL_PACKAGES must not be in the Play bundle"; exit 1
           fi
-          # Permissions the app never uses (blockedPermissions in app.json): they would show on the Play listing.
           for p in RECORD_AUDIO SYSTEM_ALERT_WINDOW READ_EXTERNAL_STORAGE WRITE_EXTERNAL_STORAGE; do
             if unzip -p app/build/outputs/bundle/release/app-release.aab base/manifest/AndroidManifest.xml | tr -d '\0' | grep -c "android.permission.$p" >/dev/null; then
               echo "::error::$p must not be in the Play bundle"; exit 1
             fi
           done
         working-directory: app/android
-      # The Play upload key is not needed past this point (setup-gradle's post-job step runs later).
       - name: Remove the upload key
         if: always()
         run: rm -f "$RUNNER_TEMP/upload.p12"
@@ -127,9 +109,6 @@ jobs:
         with:
           name: quidenous-aab
           path: app/android/app/build/outputs/bundle/release/app-release.aab
-      # Over-the-air updates (docs/OTA.md): the JS of this commit goes to the phones that already run a build with the
-      # same native runtime (fingerprint read from the build itself). Dated like the build's embedded bundle, so a phone
-      # that installs this very APK doesn't download it again. A changed fingerprint just starts a new runtime.
       - name: OTA runtimes
         run: |
           apk=app/build/outputs/apk/release/app-release.apk
@@ -140,17 +119,14 @@ jobs:
           if [ -f $aab ]; then
             echo "OTA_AAB_RUNTIME=$(unzip -p $aab base/assets/fingerprint)" >> "$GITHUB_ENV"
             echo "OTA_AAB_TIME=$(unzip -p $aab base/assets/app.manifest | commit_time)" >> "$GITHUB_ENV"
-            # The two builds differ natively (install permission): the same runtime would send the APK's JS to Play.
             [ "$(unzip -p $apk assets/fingerprint)" != "$(unzip -p $aab base/assets/fingerprint)" ] || { echo "::error::APK and AAB share a runtime"; exit 1; }
           fi
           cat "$GITHUB_ENV" | grep OTA_
         working-directory: app/android
-      # The JS of each build, exported here and published by the small `ota` job below: the signing key never meets
-      # this job's npm packages and Gradle plugins.
       - name: OTA bundles
         if: (startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch') && env.OTA_APK_RUNTIME != ''
         run: |
-          export_ota() { # <dir> <runtime> <created-at>
+          export_ota() {
             npx expo export --platform android --clear --output-dir "ota/$1"
             npx expo config --json --type public > "ota/$1/expo-config.json"
             printf '%s\n%s\n' "$2" "$3" > "ota/$1/runtime"
@@ -163,16 +139,10 @@ jobs:
           name: ota-bundles
           path: app/ota/
           retention-days: 7
-      # Self-hosted runners keep their workspace between jobs: don't leave secrets behind on Tug's Mac.
       - name: Clean up secrets (self-hosted)
         if: always() && runner.environment == 'self-hosted'
         run: rm -f app/google-services.json app/android/app/google-services.json "$RUNNER_TEMP"/upload.p12
         working-directory: ${{ github.workspace }}
-  # Release gate: a tag's OTA update waits for the server tests (`check`, server.yml) and the app check (`app`, app.yml:
-  # tsc, version == tag, versionCode goes up) on this very commit. They run in other workflows, so this polls them with
-  # deploy/wait-green.sh (latest run of each, 90 min at most: `check` may queue behind `apk` on the Mac). Red, or not
-  # done in time: this job turns red and `ota` publishes nothing. A manual run only prints their state, unless started
-  # with gate=true (then it waits and fails like a tag build).
   gate:
     if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
@@ -201,14 +171,10 @@ jobs:
             1) echo "::error title=Release gate::check or app failed on $GITHUB_SHA: no OTA update. Re-run the failed job then this run's failed jobs, or push a new tag"; exit 1 ;;
             *) echo "::error title=Release gate::check and app not green on $GITHUB_SHA after 90 min: re-run this run's failed jobs once they are"; exit 1 ;;
           esac
-  # Publishes the OTA updates of a tag build (a manual run only checks they pack: --out, nothing published), in this
-  # order: tag -> `check` + `app` green (gate) and `apk` built -> production runs the tag -> OTA published. A failure
-  # here turns the run red without touching the APK above.
   ota:
     needs: [apk, gate]
     if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
-    # Up to 90 min waiting for production, then the upload.
     timeout-minutes: 100
     environment: ota
     defaults:
@@ -225,10 +191,6 @@ jobs:
         with:
           name: ota-bundles
           path: app/ota
-      # New JS must never meet the old server (routes or fields it doesn't have yet): wait until production runs this tag
-      # (GET /api/version reports its commit or its version), every 30 s for up to 90 min. Production already on a newer
-      # version: this tag is superseded, that newer tag's build publishes, nothing to do here. A manual run with gate=true
-      # asks once and only prints what a tag build would do.
       - name: Production runs this tag
         id: prod
         if: startsWith(github.ref, 'refs/tags/v') || inputs.gate

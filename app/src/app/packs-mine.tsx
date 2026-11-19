@@ -3,30 +3,24 @@ import { router } from 'expo-router';
 import { Download, Plus, Trash2 } from 'lucide-react-native';
 import { Text } from 'react-native';
 import Animated from 'react-native-reanimated';
-
-import { IconButton, PackCard, PageHeader } from '@/components/pack-card';
-import { QueryState } from '@/components/query-state';
-import { Screen } from '@/components/screen';
-import { type BatchAction, confirmBatch, eachOf, SelectableRow, SelectButton, SelectionBar, SelectionHeader, useSelection } from '@/components/selection';
-import { showToast } from '@/components/toast';
-import { Button, Display } from '@/components/ui';
-import { api } from '@/lib/api';
-import { useFeatures } from '@/lib/auth';
+import { IconButton, PackCard, PageHeader } from '@/components/packs/pack-card';
+import { QueryState } from '@/components/ui/query-state';
+import { Screen } from '@/components/ui/screen';
+import { type BatchAction, confirmBatch, eachOf, SelectableRow, SelectButton, SelectionBar, SelectionHeader, useSelection } from '@/components/ui/selection';
+import { showToast } from '@/lib/toast';
 import { useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
-import { packKeys, type PackItem, useMyPacks } from '@/lib/packs';
-import { keys, useGroup } from '@/lib/queries';
+import { packKeys, type PackItem, useMyPacks, deletePacks, installPack } from '@/lib/api/packs';
 import { useTheme } from '@/lib/theme';
+import { Button } from '@/components/ui/button';
+import { Display } from '@/components/ui/text';
+import { useGroup } from '@/lib/api/group';
+import { roundKeys } from '@/lib/api/rounds';
+import { questionKeys } from '@/lib/api/questions';
+import { useFeatures } from '@/lib/api/features';
 
-type Deleted = { deleted: number[]; skipped: { id: number; error: string }[] };
-
-/** Whether a pack of mine can go into a room: public, or still in review (as on its page). */
 const installable = (p: PackItem) => p.status === 'public' || p.status === 'review';
 
-/**
- * The packs I published, with their moderation status (in review, removed and why).
- * Several at once (hold one, or the header's button): delete them, or add them to the current room.
- */
 export default function MyPacksScreen() {
   const t = useTheme();
   const tr = useT();
@@ -38,12 +32,11 @@ export default function MyPacksScreen() {
   const sel = useSelection(packs?.map((p) => p.id));
   const picked = packs?.filter((p) => sel.has(p.id)) ?? [];
   const toAdd = picked.filter(installable);
-  // A room where only the owner adds questions: not for me to add packs to.
   const mayAdd = !!group && (group.settings.questions_by !== 'owner' || group.my_role === 'owner');
 
   const remove = useMutation({
     meta: { quiet: true },
-    mutationFn: (ids: number[]) => api<Deleted>('/packs/delete', { method: 'POST', json: { ids } }),
+    mutationFn: (ids: number[]) => deletePacks(ids),
     onSuccess: (r, ids) => {
       showToast(
         r.skipped.length
@@ -61,10 +54,9 @@ export default function MyPacksScreen() {
       remove.mutate(ids);
   };
 
-  // No batch endpoint: one install per pack, like its page does (each skips questions already in the room).
   const add = useMutation({
     meta: { quiet: true },
-    mutationFn: (ids: number[]) => eachOf(ids, (id) => api(`/packs/${id}/install`, { method: 'POST' }), 1),
+    mutationFn: (ids: number[]) => eachOf(ids, (id) => installPack(id), 1),
     onSuccess: (done, ids) => {
       showToast(
         done.length < ids.length
@@ -75,8 +67,8 @@ export default function MyPacksScreen() {
     },
     onSettled: () => {
       qc.invalidateQueries({ queryKey: packKeys.all });
-      qc.invalidateQueries({ queryKey: keys.queue });
-      qc.invalidateQueries({ queryKey: keys.current });
+      qc.invalidateQueries({ queryKey: questionKeys.queue });
+      qc.invalidateQueries({ queryKey: roundKeys.current });
     },
   });
 

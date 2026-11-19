@@ -1,6 +1,4 @@
-/** « Qui a dit ça ? » (docs/SAID.md): write an answer, guess who wrote what, the reveal. */
 export const said = {
-  /** The kind's short name where space is tight (the composer's switch). */
   short: 'Qui a dit',
   composer: { placeholder: "Ex. : Le pire cadeau qu'on t'ait fait ?" },
   write: {
@@ -42,7 +40,6 @@ export const said = {
     allSet: 'Tout est placé. Sûr de toi ?',
     guessed: { one: '{done} sur {total} a deviné', other: '{done} sur {total} ont deviné' },
   },
-  /** Zeste, on the guessing screen: a line for the start, along the way, all placed. */
   zeste: {
     s1: "Je dis rien… mais j'ai ma petite idée.",
     s2: "Quelqu'un ici ment très bien.",
@@ -90,19 +87,15 @@ export const said = {
     nobody: "Personne n'a marqué",
     tooFew: 'Pas assez de réponses pour jouer, on passe à la suite.',
   },
-  /** At a party (docs/SAID.md, Party): the phones and the big screen. */
   party: {
     written: { one: '{count}/{total} a écrit', other: '{count}/{total} ont écrit' },
     guessed: { one: '{count}/{total} a deviné', other: '{count}/{total} ont deviné' },
     notGuessing: 'Pas encore : les réponses arrivent.',
     sent: 'Pronostics envoyés',
     next: "Les devinettes commencent quand tout le monde a écrit, ou à la fin du chrono. Tu peux la modifier d'ici là.",
-    /** Big screen, while writing. */
     write: 'Répondez sur vos téléphones. Personne ne verra qui a écrit quoi.',
-    /** Big screen, while guessing. */
     guess: 'Qui a écrit quoi ? Devinez sur vos téléphones.',
     answer: 'Réponse {n}',
-    /** Big screen, a few names under an answer and the rest. */
     more: { one: 'et {count} autre', other: 'et {count} autres' },
     code: 'Code',
   },

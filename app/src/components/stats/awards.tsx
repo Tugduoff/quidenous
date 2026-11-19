@@ -2,26 +2,24 @@ import { router } from 'expo-router';
 import { ChevronRight } from 'lucide-react-native';
 import { Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
-
-import { Avatar, AvatarStack, PressableScale, QuestionText } from '@/components/ui';
-import type { Award, Duo, Member, Pair, QuestionRef, RankAward, Stats } from '@/lib/api';
 import { t, type TKey, useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
 import { useTheme } from '@/lib/theme';
+import { AWARD_ICONS, awardTitle, Caps, duration, int, NamedIcon, pct, place, Section } from '@/components/stats/common';
+import { PressableScale } from '@/components/ui/pressable-scale';
+import { Avatar, AvatarStack } from '@/components/ui/avatar';
+import { QuestionText } from '@/components/ui/text';
+import type { Member } from '@/lib/api/group';
+import type { Award, Duo, Pair, QuestionRef, RankAward, Stats } from '@/lib/api/stats';
+import { firstName } from '@/lib/utils/names';
 
-import { AWARD_ICONS, awardTitle, Caps, duration, iconFor, int, pct, place, Section } from './common';
-
-/** One award ready to show: who, the figure, and a quip. */
 type Item = { key: string; ids: number[]; who: string; big: string; unit: string; quip: string };
 type Name = (id: number) => string;
 type UnitKey = 'votes' | 'wins' | 'nightVotes' | 'messages' | 'nudges' | 'questions';
 
 const n = (v: number, unit: UnitKey) => ({ big: int(v), unit: t(`stats.unit.${unit}`, { count: v }) });
 const quip = (key: string) => t(`stats.quip.${key}` as TKey);
-/** "Léa Martin" → "Léa": two names fit on the award's one line. */
-const first = (name: string) => name.trim().split(/\s+/)[0] || name;
 
-/** Single-person awards: the figure and its unit, from its value (and total, for ratios). */
 const SOLO: Record<string, (a: Award) => { big: string; unit: string }> = {
   most_chosen: (a) => n(a.value, 'votes'),
   most_crowned: (a) => n(a.value, 'wins'),
@@ -48,11 +46,7 @@ const rank = (a: RankAward) => ({ big: place(a.avg), unit: t('stats.unit.onAvera
 
 type GroupKey = 'titles' | 'votes' | 'chat' | 'questions';
 
-/**
- * The award cards, in titled groups; an award nobody holds this period is left out, and so is an empty group.
- * Call at render: the texts are in the current language.
- */
-export function awardGroups(s: Stats, name: Name) {
+function awardGroups(s: Stats, name: Name) {
   const solo = (key: string): Item | null => {
     const a = s[key as keyof Stats] as Award | null;
     return a ? { key, ids: [a.member_id], who: name(a.member_id), ...SOLO[key](a), quip: quip(key) } : null;
@@ -62,7 +56,7 @@ export function awardGroups(s: Stats, name: Name) {
       ? {
           key,
           ids: [d.voter_id, d.target_id],
-          who: t('stats.forWhom', { a: first(name(d.voter_id)), b: first(name(d.target_id)) }),
+          who: t('stats.forWhom', { a: firstName(name(d.voter_id)), b: firstName(name(d.target_id)) }),
           big: unit(d)[0],
           unit: unit(d)[1],
           quip: quip(key),
@@ -73,7 +67,7 @@ export function awardGroups(s: Stats, name: Name) {
       ? {
           key: 'twins',
           ids: [p.a_id, p.b_id],
-          who: t('stats.pair', { a: first(name(p.a_id)), b: first(name(p.b_id)) }),
+          who: t('stats.pair', { a: firstName(name(p.a_id)), b: firstName(name(p.b_id)) }),
           big: `${p.value}/${p.total}`,
           unit: t('stats.unit.sameVotes'),
           quip: quip('twins'),
@@ -134,7 +128,6 @@ function AwardCard({ item, byId, onOpen, index }: { item: Item; byId: Map<number
   const t = useTheme();
   useT();
   const title = awardTitle(item.key);
-  const Icon = iconFor(AWARD_ICONS[item.key]);
   const people = item.ids.map((id) => byId.get(id));
   const tint = people.length === 1 ? (people[0]?.color ?? t.accInk) : t.accInk;
   return (
@@ -151,7 +144,7 @@ function AwardCard({ item, byId, onOpen, index }: { item: Item; byId: Map<number
         {people.length === 1 ? <Avatar member={people[0]} size={44} /> : <AvatarStack members={people} size={34} ring={t.card} max={3} />}
         <View style={{ flex: 1, gap: 3 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <Icon size={13} color={tint} strokeWidth={2.5} />
+            <NamedIcon name={AWARD_ICONS[item.key]} size={13} color={tint} strokeWidth={2.5} />
             <Caps size={11} lines={2}>
               {title}
             </Caps>
@@ -182,11 +175,9 @@ const QUESTION_LINE: Record<string, (q: QuestionRef) => string> = {
   hottest: (q) => t('stats.quip.hottest', { count: q.value }),
 };
 
-/** A question award: its title, the question, one line; opens the question. */
 function QuestionCard({ k, q, index }: { k: string; q: QuestionRef; index: number }) {
   const t = useTheme();
   useT();
-  const Icon = iconFor(AWARD_ICONS[k]);
   return (
     <Animated.View entering={motion.stagger(index)}>
       <PressableScale
@@ -195,7 +186,7 @@ function QuestionCard({ k, q, index }: { k: string; q: QuestionRef; index: numbe
         onPress={() => router.push(`/round/${q.round_id}`)}
         style={[{ padding: 16, gap: 8, borderRadius: t.radius.card, backgroundColor: t.card }, t.shadow]}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <Icon size={13} color={t.accInk} strokeWidth={2.5} />
+          <NamedIcon name={AWARD_ICONS[k]} size={13} color={t.accInk} strokeWidth={2.5} />
           <View style={{ flex: 1 }}>
             <Caps size={11} lines={2}>
               {awardTitle(k)}
@@ -214,7 +205,10 @@ function QuestionCard({ k, q, index }: { k: string; q: QuestionRef; index: numbe
 export function Awards({ s, byId, name, onOpen }: { s: Stats; byId: Map<number, Member>; name: Name; onOpen: (id: number) => void }) {
   useT();
   const groups = awardGroups(s, name);
-  const questions = (['most_split', 'most_unanimous', 'hottest'] as const).filter((k) => s[k]);
+  const questions = (['most_split', 'most_unanimous', 'hottest'] as const).flatMap((k) => {
+    const q = s[k];
+    return q ? [{ k, q }] : [];
+  });
   return (
     <>
       {groups.map((g) => {
@@ -226,8 +220,8 @@ export function Awards({ s, byId, name, onOpen }: { s: Stats; byId: Map<number, 
               {g.items.map((item, i) => (
                 <AwardCard key={item.key} item={item} byId={byId} onOpen={onOpen} index={i} />
               ))}
-              {qs.map((k, i) => (
-                <QuestionCard key={k} k={k} q={s[k]!} index={g.items.length + i} />
+              {qs.map(({ k, q }, i) => (
+                <QuestionCard key={k} k={k} q={q} index={g.items.length + i} />
               ))}
             </View>
           </Section>

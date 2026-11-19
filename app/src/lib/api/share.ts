@@ -1,0 +1,37 @@
+import { api, appUrl } from '@/lib/api/client';
+import { queryClient } from '@/lib/api/query-client';
+import { useQuery } from '@tanstack/react-query';
+
+export type MyLink = {
+  token: string;
+  path: string;
+  kind: 'question' | 'stat';
+  title: string;
+  room: string;
+  with_result: boolean;
+  created_at: string;
+  expires_at: string | null;
+};
+
+export const shareKeys = {
+  mine: ['shares'] as const,
+};
+
+const myLinks = () => api<MyLink[]>('/shares');
+
+export const useMyLinks = (enabled: boolean) => useQuery({ queryKey: shareKeys.mine, queryFn: myLinks, enabled });
+
+export const shareRound = (roundId: number, result: boolean) =>
+  api<{ token?: string; path: string }>(`/rounds/${roundId}/share`, { method: 'POST', json: { result } });
+
+export const revokeLink = (token: string) => api(`/shares/${token}`, { method: 'DELETE' });
+
+export async function publicLink(roundId: number, result: boolean): Promise<string | null> {
+  try {
+    const r = await shareRound(roundId, result);
+    queryClient.invalidateQueries({ queryKey: shareKeys.mine });
+    return `${appUrl()}${r.path}`;
+  } catch {
+    return null;
+  }
+}

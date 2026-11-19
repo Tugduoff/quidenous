@@ -275,7 +275,7 @@ Qui en sait trop sur tout le monde ici ?
 [choix] [potes] [famille] [boulot] Qui écoute quoi en voiture ? | Rap | Variété française | Podcast | Silence
 [choix] [potes] Qui finit la soirée comment ? | Kebab | Dodo direct | Afterparty | Il pleure
 [choix] [potes] [famille] Qui gagnerait à quoi aux JO ? | Sprint | Natation | Échecs | Rien du tout
-# « Qui a dit ça ? » (docs/SAID.md) : chacun écrit sa réponse, puis on devine qui a écrit quoi.
+# « Qui a dit ça ? » : chacun écrit sa réponse, puis on devine qui a écrit quoi.
 [quiadit] [potes] [famille] Le pire cadeau qu'on t'ait fait ?
 [quiadit] [potes] [famille] [boulot] Ton plat de flemme quand tu rentres tard ?
 [quiadit] [potes] [famille] La chanson que tu connais par cœur sans jamais l'avoir assumée ?

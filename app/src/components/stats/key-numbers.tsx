@@ -1,12 +1,10 @@
 import { BellRing, Handshake, Hourglass, type LucideIcon, MessageCircle, MessageCircleQuestion, Scale, Timer, Vote } from 'lucide-react-native';
 import { StyleSheet, Text, View } from 'react-native';
-
-import { Card } from '@/components/ui';
-import type { Stats } from '@/lib/api';
 import { useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
-
-import { duration, int } from './common';
+import { duration, int } from '@/components/stats/common';
+import { Card } from '@/components/ui/card';
+import type { Stats } from '@/lib/api/stats';
 
 function Tile({ Icon, value, label }: { Icon: LucideIcon; value: string; label: string }) {
   const t = useTheme();
@@ -25,7 +23,6 @@ function Tile({ Icon, value, label }: { Icon: LucideIcon; value: string; label: 
 
 type Fact = { Icon: LucideIcon; value: string; label: string };
 
-/** The smaller facts as one list: icon, label, value aligned on the right. */
 function Facts({ facts }: { facts: Fact[] }) {
   const t = useTheme();
   return (
@@ -54,7 +51,6 @@ function Facts({ facts }: { facts: Fact[] }) {
   );
 }
 
-/** The period in four big numbers, and a few smaller facts as a list (only those that happened). */
 export function KeyNumbers({ s }: { s: Stats }) {
   const tr = useT();
   const facts = [

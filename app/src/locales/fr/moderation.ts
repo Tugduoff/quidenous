@@ -1,4 +1,3 @@
-/** Report and block (long-press on a message, a member, a question). */
 export const moderation = {
   reasons: { offensive: 'Offensant', harassment: 'Harcèlement', sexual: 'Contenu sexuel', spam: 'Spam', other: 'Autre' },
   reportMessage: 'Signaler ce message',
@@ -16,6 +15,5 @@ export const moderation = {
   delete: 'Supprimer',
   deleteTitle: 'Supprimer ce message ?',
   deleteConfirm: 'Supprimer',
-  /** The room owner brings back a message hidden by reports. */
   restore: 'Rétablir',
 };

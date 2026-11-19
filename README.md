@@ -1,47 +1,40 @@
 # qui de nous ?
 
-Private voting game for our group: a question appears, everyone votes for someone in the group,
-the next question unlocks as soon as everyone has voted. Results live in the history.
+A daily question for a group of friends: everyone votes for someone in the group, and the result shows once all have voted.
+Around it: rooms, chat, a party mode for the TV, community question packs, stats, streaks and a home-screen widget.
 
 | Folder | What |
 | --- | --- |
-| `server/` | Rust API (Axum + SQLite + WebSocket) |
-| `app/` | Expo React Native app (Android, iPhone, web) |
-| `deploy/` | Docker Compose for the homelab |
-| `mockups/` | Screen mockups (light and dark) |
-| `PLAN.md` | Product and technical plan |
+| `server/` | Rust API (Axum, SQLite, WebSocket). Also serves the web build and the public pages |
+| `app/` | Expo app (Android and web) |
+| `deploy/` | Docker Compose and ops scripts for the homelab |
+| `store/` | Google Play listing |
+| `check`, `scripts/` | the checks, the same ones CI runs |
 
-## Server
+## Run it
 
 ```bash
-cd server
-JOIN_CODE=BANDE-42 cargo run        # http://localhost:8080/api/health
-cargo test
+cd server && cargo run                # http://localhost:8080/api/health
+cd app && npm ci && EXPO_PUBLIC_API_URL=http://localhost:8080 npx expo start --web
 ```
 
-Config (env): `PORT` (8080), `DATA_DIR` (`data`), `DATABASE_URL`, `GROUP_NAME` and `JOIN_CODE` (the first room, created on an empty database only), `WEB_DIR` (serves the web build). Production settings: [deploy/README.md](deploy/README.md#config-deployenv).
+`cargo run -- env` lists every setting the server reads from the environment, with its default.
 
-### API (`/api`, `Authorization: Bearer <token>`)
+## Check it
 
-| Method | Path | |
-| --- | --- | --- |
-| POST | `/join` `{code, name}` | → `{token, member, room_id}` (with a bearer: the same token back) |
-| GET / PUT | `/me` `{name}` | profile |
-| PUT | `/me/photo` (multipart `photo`) | resized to 256 px |
-| GET | `/group` | members |
-| GET | `/round/current` | open question, who voted, my vote |
-| POST | `/round/current/vote` `{target_id}` | closes the round when everyone voted |
-| GET | `/rounds/{id}` | full result once closed |
-| POST | `/rounds/{id}/rating` `{value: 1 \| -1}` | thumbs up / down |
-| GET | `/history?before=` | closed rounds, newest first |
-| POST | `/questions` `{text}` · GET `/questions/queue` | our own questions, asked before the deck |
-| WS | `/live?ticket=` (60 s ticket from `POST /auth/ticket`; older apps `?token=`) | `vote_cast`, `round_closed`, `round_opened`, `member_joined`, … |
-| GET | `/version` | `{version, sha}` of the running build (`dev` outside the Docker image) |
-| POST | `/client-errors` `{message, stack?, componentStack?, platform?, version?, route?}` | app crash report (16 KB max, rate-limited per IP and account): logged at WARN, sent to `CLIENT_ERRORS_WEBHOOK` → `204` |
+```bash
+./check          # format, lint, tests, dead code, web export
+./check smoke    # the real server and web app driven by a browser, screenshots in /tmp/qdn-smoke
+```
 
-## Deploy (homelab)
+## Deploy
 
-See [deploy/README.md](deploy/README.md): one Docker image (API + web app), HTTPS reverse proxy with WebSockets.
+One Docker image (API and web app) behind an HTTPS reverse proxy: see [deploy/README.md](deploy/README.md).
+Production deploys on a `v*` tag only.
+
+## Contributing
+
+[AGENTS.md](AGENTS.md) is the reference, for people and coding agents alike.
 
 ## Licence
 

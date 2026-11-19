@@ -1,0 +1,91 @@
+import raw from '@/lib/utils/avatar-parts.json';
+
+export type Shape = {
+  el: 'path' | 'circle' | 'ellipse' | 'rect';
+  d?: string;
+  cx?: number;
+  cy?: number;
+  r?: number;
+  rx?: number;
+  ry?: number;
+  x?: number;
+  y?: number;
+  w?: number;
+  h?: number;
+  fill?: string;
+  stroke?: string;
+  sw?: number;
+  op?: number;
+  layer?: 'back';
+};
+
+const FIELDS = ['face', 'skin', 'hair', 'hairColor', 'eyes', 'brows', 'mouth', 'glasses', 'beard', 'extra', 'bg'] as const;
+export type Field = (typeof FIELDS)[number];
+export type PaletteField = 'skin' | 'hairColor' | 'bg';
+type PartField = Exclude<Field, PaletteField>;
+export type Avatar = Record<Field, number>;
+
+type Parts = { fields: string[]; base: Shape[]; presets: string[] } & Record<PaletteField, [string, string][]> & Record<PartField, Shape[][]>;
+export const PARTS = raw as unknown as Parts;
+
+export const optionCount = (f: Field) => PARTS[f].length;
+export const PRESETS = PARTS.presets;
+
+export function parseAvatar(spec: string | null | undefined): Avatar | null {
+  if (!spec) return null;
+  const parts = spec.split('.');
+  if (parts.length !== FIELDS.length) return null;
+  const out = {} as Avatar;
+  for (let i = 0; i < FIELDS.length; i++) {
+    if (!/^(0|[1-9]\d?)$/.test(parts[i])) return null;
+    const n = Number(parts[i]);
+    if (n >= optionCount(FIELDS[i])) return null;
+    out[FIELDS[i]] = n;
+  }
+  return out;
+}
+
+export const formatAvatar = (a: Avatar) => FIELDS.map((f) => a[f]).join('.');
+
+const pick = (n: number) => Math.floor(Math.random() * n);
+const mostlyNone = (f: Field, p: number) => (Math.random() < p ? 0 : 1 + pick(optionCount(f) - 1));
+
+export function randomAvatar(): Avatar {
+  const a = Object.fromEntries(FIELDS.map((f) => [f, pick(optionCount(f))])) as Avatar;
+  a.glasses = mostlyNone('glasses', 0.6);
+  a.beard = mostlyNone('beard', 0.7);
+  a.extra = mostlyNone('extra', 0.45);
+  a.brows = mostlyNone('brows', 0.15);
+  return a;
+}
+
+export function presetAvatar(spec: string): Avatar {
+  const avatar = parseAvatar(spec);
+  if (!avatar) throw new Error(`Invalid avatar preset: ${spec}`);
+  return avatar;
+}
+
+export function startingAvatar(spec: string | null | undefined, color?: string): Avatar {
+  const mine = parseAvatar(spec);
+  if (mine) return mine;
+  const a = presetAvatar(PRESETS[0]);
+  const bg = PARTS.bg.findIndex(([c]) => c.toLowerCase() === color?.toLowerCase());
+  if (bg >= 0) a.bg = bg;
+  return a;
+}
+
+export function avatarShapes(a: Avatar): Shape[] {
+  const [skin, skinShade] = PARTS.skin[a.skin];
+  const [hair, hairShade] = PARTS.hairColor[a.hairColor];
+  const [bg, shirt] = PARTS.bg[a.bg];
+  const tokens: Record<string, string> = { skin, skinShade, hair, hairShade, bg, shirt };
+  const color = (c?: string) => (c ? (tokens[c] ?? c) : 'none');
+  const resolve = (s: Shape): Shape => ({ ...s, fill: color(s.fill), stroke: s.stroke && color(s.stroke) });
+  const opt = (f: PartField) => PARTS[f][a[f]];
+  const out: Shape[] = [{ el: 'rect', x: 0, y: 0, w: 100, h: 100, fill: bg }];
+  for (const f of ['hair', 'extra'] as const) out.push(...opt(f).filter((s) => s.layer === 'back'));
+  out.push(...PARTS.base);
+  for (const f of ['face', 'beard', 'mouth', 'eyes', 'brows', 'glasses'] as const) out.push(...opt(f));
+  for (const f of ['hair', 'extra'] as const) out.push(...opt(f).filter((s) => s.layer !== 'back'));
+  return out.map(resolve);
+}

@@ -4,20 +4,21 @@ import { ActivityIndicator, Pressable, type ScrollViewInstance, Text, View } fro
 import { ScrollView } from 'react-native-gesture-handler';
 import Animated from 'react-native-reanimated';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
-
-import { Avatar, PressableScale } from '@/components/ui';
-import { type Member, photoUrl, type StatsPeriod, type Story } from '@/lib/api';
-import { parseAvatar } from '@/lib/avatar';
+import { photoUrl } from '@/lib/api/client';
+import { parseAvatar } from '@/lib/utils/avatar';
 import { useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
-import { shareStory } from '@/lib/share';
+import { shareStory } from '@/lib/device/share';
 import { useTheme } from '@/lib/theme';
-
-import { AWARD_ICONS, awardTitle, Caps, iconFor } from './common';
+import { AWARD_ICONS, awardTitle, Caps, NamedIcon } from '@/components/stats/common';
+import { PressableScale } from '@/components/ui/pressable-scale';
+import { Avatar } from '@/components/ui/avatar';
+import type { Member } from '@/lib/api/group';
+import type { StatsPeriod, Story } from '@/lib/api/stats';
+import { COLORS } from '@/lib/tokens';
 
 const HEIGHT = 300;
-/** Text on a member's colour (they are all light and bright), same as the initials on avatars. */
-const INK = '#121216';
+const INK = COLORS.ink;
 
 const bigSize = (s: string) => (s.length <= 3 ? 76 : s.length <= 6 ? 60 : s.length <= 10 ? 46 : 36);
 
@@ -34,14 +35,11 @@ function StoryCard({
 }) {
   const t = useTheme();
   const tr = useT();
-  // Known awards get their title in the app's language; anything newer keeps the server's.
   const title = AWARD_ICONS[story.key] ? awardTitle(story.key) : story.title;
   const people = story.member_ids.map((id) => byId.get(id)).filter((m): m is Member => !!m);
   const [a, b] = [people[0]?.color ?? t.acc, people[1]?.color ?? people[0]?.color ?? t.acc];
   const ink = people.length ? INK : t.accTxt;
-  const Icon = iconFor(story.icon);
   const [state, setState] = useState<'idle' | 'busy' | 'copied'>('idle');
-  // Measured: on Android a percentage-sized Svg resolves against the padded box and leaves a band uncovered.
   const [box, setBox] = useState({ w: 0, h: 0 });
   const share = async () => {
     setState('busy');
@@ -57,7 +55,6 @@ function StoryCard({
       onPress={() => onOpen(story)}
       onLayout={(e) => setBox({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}
       style={{ height: HEIGHT, borderRadius: 28, overflow: 'hidden', padding: 22, backgroundColor: a }}>
-      {/* Two people: their colours blend across the card. */}
       {a !== b && box.w > 0 && (
         <Svg style={{ position: 'absolute', top: 0, left: 0 }} width={box.w} height={box.h}>
           <Defs>
@@ -70,7 +67,7 @@ function StoryCard({
         </Svg>
       )}
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-        <Icon size={16} color={ink} strokeWidth={2.5} />
+        <NamedIcon name={story.icon} size={16} color={ink} strokeWidth={2.5} />
         <View style={{ flex: 1 }}>
           <Caps color={ink}>{title}</Caps>
         </View>
@@ -80,7 +77,7 @@ function StoryCard({
           onPress={share}
           disabled={state === 'busy'}
           hitSlop={10}
-          style={{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: '#1212161F' }}>
+          style={{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: t.inkFaint }}>
           {state === 'busy' ? (
             <ActivityIndicator size="small" color={ink} />
           ) : state === 'copied' ? (
@@ -95,7 +92,6 @@ function StoryCard({
         <View style={{ flexDirection: 'row', marginBottom: 6 }}>
           {people.slice(0, 2).map((m, i) => (
             <View key={m.id} style={{ marginLeft: i ? -14 : 0, borderRadius: 40, borderWidth: 3, borderColor: i ? b : a }}>
-              {/* On their own colour a plain avatar would vanish: initials go ink-on-colour reversed. */}
               {photoUrl(m) || parseAvatar(m.avatar) ? (
                 <Avatar member={m} size={56} />
               ) : (
@@ -121,7 +117,6 @@ function StoryCard({
   );
 }
 
-/** The period's highlights, one card per page, swiped sideways. Bleeds to the screen edges (the screen pads by 20). */
 export function StoryCarousel({
   stories,
   period,
@@ -142,7 +137,6 @@ export function StoryCarousel({
   return (
     <Animated.View entering={motion.question} style={{ marginHorizontal: -20, gap: 12 }} onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
       {width > 0 && (
-        // Gesture handler's: it wins over swiping between tabs (components/tab-swipe.tsx) as soon as it scrolls.
         <ScrollView
           ref={ref}
           horizontal

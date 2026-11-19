@@ -1,16 +1,4 @@
 #!/usr/bin/env node
-// Over-the-air updates (expo-updates protocol v1) on our own server. See docs/OTA.md.
-//
-//   node scripts/ota-publish.mjs --runtime <rv> [--dist dist] [--platform android] [--created-at <ISO>] [--expo-config <file>] [--out update.tar.gz]
-//       publishes `npx expo export` output (dist/) for the builds whose runtime is <rv>; --expo-config: the output of
-//       `npx expo config --json --type public` saved with the export (then this script needs no node_modules)
-//   node scripts/ota-publish.mjs --rollback-embedded [--runtime <rv>]
-//       phones go back to the bundle inside their APK (every runtime the server serves, unless --runtime)
-//   --url https://qdn.coflop.fr (default)
-//
-// The manifest is built and signed here (CI): the private key never reaches the server, which stores and serves the
-// signed bytes as they are. Env: UPDATES_PUBLISH_TOKEN (required unless --out), UPDATES_PRIVATE_KEY (PEM; required
-// unless --out: phones hold the code signing certificate and refuse anything unsigned).
 import { execFileSync } from 'node:child_process';
 import { createHash, randomUUID, sign } from 'node:crypto';
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -25,7 +13,6 @@ const { values: args } = parseArgs({
     platform: { type: 'string', default: 'android' },
     url: { type: 'string', default: 'https://qdn.coflop.fr' },
     out: { type: 'string' },
-    // The build's embedded bundle time: a phone running that very build doesn't download the same JS again.
     'created-at': { type: 'string' },
     'expo-config': { type: 'string' },
     'rollback-embedded': { type: 'boolean', default: false },
@@ -59,14 +46,12 @@ function token() {
   return t;
 }
 
-/** `expo-signature` header value for these exact bytes (RSA PKCS#1 v1.5, SHA-256), or undefined without a key. */
 function signature(body) {
   const key = process.env.UPDATES_PRIVATE_KEY;
   if (!key) return undefined;
   return `sig="${sign('sha256', body, key).toString('base64')}", keyid="main"`;
 }
 
-/** The manifest of `dist/` for this runtime, its asset files copied into `work/assets/`. */
 function manifest(work, runtime) {
   const files = JSON.parse(readFileSync(join(args.dist, 'metadata.json'), 'utf8')).fileMetadata?.[args.platform];
   if (!files) throw new Error(`no ${args.platform} export in ${args.dist}`);
@@ -79,7 +64,6 @@ function manifest(work, runtime) {
     writeFileSync(join(work, 'assets', name), bytes);
     return { hash: sha256(bytes), key, contentType, fileExtension: `.${ext}`, url: `${base}/api/updates/assets/${runtime}/${id}/${name}` };
   };
-  // Constants.expoConfig inside the update (version, extra…): the public app config, resolved with the same env as the build.
   const expoClient = JSON.parse(
     args['expo-config']
       ? readFileSync(args['expo-config'], 'utf8')
@@ -96,7 +80,6 @@ function manifest(work, runtime) {
   };
 }
 
-/** Packs update.json + body.json (+ assets/) and uploads it, or writes it to --out. */
 async function publish(kind, runtime, platform, build) {
   const work = mkdtempSync(join(tmpdir(), 'ota-'));
   const archive = `${work}.tar.gz`;
@@ -135,7 +118,6 @@ if (!args['rollback-embedded']) {
 } else if (args.runtime) {
   await publish('directive', args.runtime, args.platform, rollBack);
 } else {
-  // Every runtime + platform whose phones currently get an update.
   const res = await fetch(`${base}/api/updates`, { headers: { authorization: `Bearer ${token()}` } });
   if (!res.ok) throw new Error(`list failed: ${res.status} ${await res.text()}`);
   const live = (await res.json()).filter((u) => u.current && u.kind === 'update');

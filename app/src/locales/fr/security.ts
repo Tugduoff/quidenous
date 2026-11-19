@@ -1,4 +1,3 @@
-/** Profile > Sécurité (app/security.tsx, components/security/*), the "Sécurise ton compte" card, device names. */
 export const security = {
   title: 'Sécurité',
   revokeOthers: 'Déconnecter les autres appareils',
@@ -27,13 +26,11 @@ export const security = {
     title: 'Appareils',
     unknown: 'Appareil inconnu',
     current: 'Cet appareil',
-    /** "Actif il y a 3 min". */
     active: 'Actif {when}',
     signOut: 'Déconnecter',
     signOutA11y: 'Déconnecter {device}',
     confirmOne: 'Déconnecter cet appareil ?',
     confirmOthers: 'Déconnecter les autres appareils ?',
-    /** Generic words in this device's name ("Web · Navigateur", "Android 14 · téléphone"). */
     browser: 'Navigateur',
     phone: 'téléphone',
   },
@@ -42,7 +39,6 @@ export const security = {
     face: 'Avec le visage',
     fingerprint: "Avec l'empreinte",
     code: 'Avec le code',
-    /** `{method}`: one of the three above, in lower case. */
     a11y: 'Déverrouiller {method}',
     unavailable: "Active d'abord un code ou Face ID sur ton téléphone",
   },
@@ -67,7 +63,6 @@ export const security = {
     confirm: 'Confirmer',
     useCode: 'Utiliser un code',
     usePassword: 'Utiliser le mot de passe',
-    /** Toast on the web, back from Google / Discord: the action can be tapped again. */
     done: "C'est bien toi : tu peux continuer.",
   },
   twoFactor: {
@@ -77,7 +72,6 @@ export const security = {
     copyKey: 'Copier la clé',
     shareKey: 'Partager la clé',
     openApp: "Ouvrir l'app d'authentification",
-    /** Above the QR code while setting it up. */
     scan: "Scanne le QR avec ton appli d'authentification, puis entre le code",
     enable: 'Activer',
     disable: 'Désactiver',

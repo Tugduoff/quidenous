@@ -2,17 +2,15 @@ import { router } from 'expo-router';
 import { CircleUserRound, LogOut } from 'lucide-react-native';
 import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
-
-import { RoomInvites } from '@/components/invite';
-import { RoomForms } from '@/components/room-forms';
-import { Screen } from '@/components/screen';
-import { Display, Logo } from '@/components/ui';
-import { pendingJoinCode } from '@/lib/auth';
+import { RoomInvites } from '@/components/rooms/invite';
+import { RoomForms } from '@/components/rooms/room-forms';
+import { Screen } from '@/components/ui/screen';
 import { useT } from '@/lib/i18n';
 import { useSession } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
+import { Display, Logo } from '@/components/ui/text';
+import { pendingJoinCode } from '@/lib/auth-flow';
 
-/** Signed in, no room yet: join one with a code (an invite link fills it in) or create one. */
 export default function Setup() {
   const t = useTheme();
   const tr = useT();
@@ -24,7 +22,6 @@ export default function Setup() {
       <View style={{ marginTop: 32, gap: 10, marginBottom: 8 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <Logo />
-          {/* The account (profile, friends, security, deleting it) is reachable before any room too. */}
           <Pressable accessibilityRole="button" accessibilityLabel={tr('auth.setup.account')} onPress={() => router.push('/profile')} hitSlop={10}>
             <CircleUserRound size={26} color={t.txt} />
           </Pressable>

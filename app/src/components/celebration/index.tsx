@@ -1,35 +1,30 @@
-import * as Haptics from 'expo-haptics';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { useMemo, useRef, useState } from 'react';
+import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Animated, { FadeIn, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
-
-import { Mascot } from '@/components/mascot';
-import { Dialog, DialogTitle } from '@/components/ui';
+import { Mascot } from '@/components/mascot/mascot';
 import { useLang, useT } from '@/lib/i18n';
-import { milestone as describe, PREVIEW_AT, playPreview, SPECIAL_NUMBERS, STREAK_PREVIEW, streakMilestone, tier, usePreview } from '@/lib/milestones';
-import { tidy } from '@/lib/text';
+import { milestone as describe, SPECIAL_NUMBERS, streakMilestone, tier } from '@/lib/utils/milestones';
+import { tidy } from '@/lib/utils/text';
 import { useTheme } from '@/lib/theme';
+import { makeRand } from '@/lib/utils/rand';
+import { BigNumber } from '@/components/celebration/numbers';
+import { useCelebrationClock, useCelebrationTimers } from '@/lib/hooks/use-celebration';
+import { useShake } from '@/lib/hooks/use-shake';
+import { numberSize } from '@/components/celebration/scene';
+import { sceneFor } from '@/components/celebration/scenes';
+import { Dialog, DialogTitle } from '@/components/ui/dialog';
+import { PREVIEW_AT, playPreview, STREAK_PREVIEW, usePreview } from '@/lib/hooks/use-milestone';
 
-import { BigNumber, makeRand, useClock, useShake } from './engine';
-import { numberSize } from './scene';
-import { sceneFor } from './scenes';
-
-/**
- * Full-screen party for a milestone, drawn over the app (`streak`: my days in a row instead of the room's questions).
- * Tap anywhere to skip; it also closes by itself. Under reduced motion: a still card instead.
- */
 export function Celebration({ count, onDone, frozen, streak }: { count: number; onDone: () => void; frozen?: number | null; streak?: boolean }) {
   const reduced = useReducedMotion();
   const t = useTheme();
   const tr = useT();
   const { lang } = useLang();
   const { width: w, height: h } = useWindowDimensions();
-  // The punchline is read in the app's language.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const m = useMemo(() => (streak ? streakMilestone(count) : describe(count)), [count, lang, streak]);
+  const m = useMemo(() => (streak ? streakMilestone(count, lang) : describe(count, lang)), [count, lang, streak]);
   const scene = useMemo(() => sceneFor(m, t), [m, t]);
   const rand = useMemo(() => makeRand(count * 7919 + 17), [count]);
-  const clock = useClock(scene.duration, reduced ? scene.duration : frozen);
+  const clock = useCelebrationClock(scene.duration, reduced ? scene.duration : frozen);
   const shake = useShake(clock, scene.impacts);
   const out = useSharedValue(1);
   const closing = useRef(false);
@@ -38,29 +33,11 @@ export function Celebration({ count, onDone, frozen, streak }: { count: number; 
   const close = () => {
     if (closing.current) return;
     closing.current = true;
-    out.value = withTiming(0, { duration: 220 });
+    out.set(withTiming(0, { duration: 220 }));
     setTimeout(onDone, 230);
   };
 
-  useEffect(() => {
-    if (frozen != null) return;
-    const timers = [setTimeout(close, reduced ? 4500 : scene.duration)];
-    // A buzz on each impact (Android/iOS only).
-    if (!reduced && Platform.OS !== 'web')
-      for (const i of scene.impacts)
-        timers.push(
-          setTimeout(
-            () =>
-              Haptics.impactAsync(
-                i.amp >= 8 ? Haptics.ImpactFeedbackStyle.Heavy : i.amp >= 4 ? Haptics.ImpactFeedbackStyle.Medium : Haptics.ImpactFeedbackStyle.Light,
-              ).catch(() => {}),
-            i.at,
-          ),
-        );
-    return () => timers.forEach(clearTimeout);
-    // Once per party.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  useCelebrationTimers({ frozen, reduced, duration: scene.duration, impacts: scene.impacts, onEnd: close });
 
   const { Render } = scene;
   const cx = w / 2;
@@ -90,7 +67,6 @@ export function Celebration({ count, onDone, frozen, streak }: { count: number; 
   );
 }
 
-/** Plays the hidden preview (`?fete=777`, or the room name long-pressed five times), signed in or not. */
 export function CelebrationPreview() {
   const n = usePreview();
   const [streak, setStreak] = useState(STREAK_PREVIEW);
@@ -99,11 +75,9 @@ export function CelebrationPreview() {
   return <Celebration key={n} count={n} frozen={PREVIEW_AT} onDone={() => playPreview(null)} />;
 }
 
-/** Every milestone to preview: each 50 up to 2000 and the special numbers. */
 const ALL = [...new Set([...SPECIAL_NUMBERS, ...Array.from({ length: 40 }, (_, i) => (i + 1) * 50)])].sort((a, b) => a - b);
 
-/** Hidden picker (the room name long-pressed five times): plays any party without touching what this device has seen. */
-export function MilestonePicker({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+function MilestonePicker({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const t = useTheme();
   const tr = useT();
   return (
@@ -137,7 +111,6 @@ export function MilestonePicker({ visible, onClose }: { visible: boolean; onClos
   );
 }
 
-/** Five long presses within 20 s open the picker. */
 export function useSecretPicker() {
   const [open, setOpen] = useState(false);
   const presses = useRef<number[]>([]);

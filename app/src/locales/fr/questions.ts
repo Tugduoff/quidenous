@@ -1,4 +1,3 @@
-/** Questions tab: write one, import a file, the upcoming queue. */
 export const questions = {
   title: 'Questions',
   ownerOnly: 'Seul le propriétaire en ajoute.',
@@ -17,7 +16,6 @@ export const questions = {
   importing: 'Import…',
   import: 'Importer',
   importFile: 'Importer un fichier de questions',
-  /** The review of a picked file. */
   toImport: '{chosen} / {total} à importer',
   checkAll: 'Tout cocher',
   uncheckAll: 'Tout décocher',
@@ -25,7 +23,6 @@ export const questions = {
   none: 'Aucune',
   randomOrder: 'Ordre aléatoire',
   importCount: 'Importer {count}',
-  /** What's wrong with a line of the file. */
   problem: { short: 'trop courte', long: 'trop longue', duplicate: 'en double', items: 'choix invalides' },
   emptyFile: 'Fichier vide',
   imported: '+{added}',
@@ -41,19 +38,16 @@ export const questions = {
   upcoming: 'À venir',
   shuffleUpcoming: 'Mélanger les questions à venir',
   clearQueue: 'Vider la file',
-  // No-break space: the « ? » never ends up alone on the dialog's last line.
   clearTitle: { one: 'Supprimer la question à venir\u00a0?', other: 'Supprimer les {count} questions à venir\u00a0?' },
   cleared: { one: '{count} question supprimée', other: '{count} questions supprimées' },
   clearFailed: 'Suppression ratée',
   deleteQuestion: 'Supprimer la question',
   deleteTitle: 'Supprimer cette question ?',
   deleteBody: '« {text} »\nElle ne sera jamais posée.',
-  /** Several ticked questions: the selection's bar, then the status line. */
   moveFirst: 'En premier',
   moveLast: 'En dernier',
   movedFirst: { one: '{count} question remontée', other: '{count} questions remontées' },
   movedLast: { one: '{count} question mise à la fin', other: '{count} questions mises à la fin' },
   deleteSelectedTitle: { one: 'Supprimer cette question\u00a0?', other: 'Supprimer {count} questions\u00a0?' },
-  /** Ticked, but someone else's: the batch delete leaves them. */
   deleteSelectedOthers: { one: "{count} autre n'est pas à toi, elle reste.", other: '{count} autres ne sont pas à toi, elles restent.' },
 };

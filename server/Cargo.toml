@@ -36,13 +36,46 @@ tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 
 [dev-dependencies]
 http-body-util = "0.1.5"
-# WebSocket client for the /api/live test (already built for axum's server side).
 tokio-tungstenite = { version = "0.30.0", default-features = false, features = ["handshake"] }
 tower = "0.5.3"
 
-# Password hashing is far too slow unoptimized (tests sign up and in a lot).
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+debug = false
+
 [profile.dev.package.argon2]
 opt-level = 3
 
 [profile.dev.package.blake2]
 opt-level = 3
+
+[lints.rust]
+unsafe_code = "deny"
+unreachable_pub = "deny"
+
+[lints.clippy]
+pedantic = { level = "deny", priority = -1 }
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+must_use_candidate = "allow"
+cast_possible_wrap = "allow"
+cast_possible_truncation = "allow"
+cast_precision_loss = "allow"
+cast_sign_loss = "allow"
+too_many_lines = "allow"
+many_single_char_names = "allow"
+similar_names = "allow"
+struct_excessive_bools = "allow"
+format_push_string = "allow"
+format_collect = "allow"
+assert_is_empty = "allow"
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+todo = "deny"
+unimplemented = "deny"
+dbg_macro = "deny"
+print_stdout = "deny"
+print_stderr = "deny"

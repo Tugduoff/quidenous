@@ -45,15 +45,15 @@ Category: Casual game rather than Social. The description says "jeu entre amis",
 
 Wording, checked against v0.39.0:
 
-- Pace: the description says "une question à la fois ... une par jour ou dix d'affilée". The server opens the next question as soon as everyone has voted, and the owner can pace it (only the owner launches the next one, or a delay of up to 24 h: docs/ROOMS.md, Pacing). The terms now say "une question à la fois" (not "une question par jour" any more): consistent, nothing to change.
-- Votes: secret while the question is open. Then the result shows who voted for whom, **except on anonymous questions** (docs/ANONYMOUS.md): the owner sets "Votes anonymes : Jamais / Au choix / Toujours", and an anonymous result only shows totals, to everyone, the owner included. The privacy page's "votes selon les règles du salon" now matches that exactly. The description has its own "VOTES ANONYMES" section.
+- Pace: the description says "une question à la fois ... une par jour ou dix d'affilée". The server opens the next question as soon as everyone has voted, and the owner can pace it (only the owner launches the next one, or a delay of up to 24 h: Pacing). The terms now say "une question à la fois" (not "une question par jour" any more): consistent, nothing to change.
+- Votes: secret while the question is open. Then the result shows who voted for whom, **except on anonymous questions**: the owner sets "Votes anonymes : Jamais / Au choix / Toujours", and an anonymous result only shows totals, to everyone, the owner included. The privacy page's "votes selon les règles du salon" now matches that exactly. The description has its own "VOTES ANONYMES" section.
 - 16+: the terms ("Âge": "réservée aux personnes de 16 ans et plus", confirmed when accepting) and the privacy page ("Âge") both say 16+, in French and English, and the "16+" packs and Pimenté vibe ask for an extra confirmation. The description ends with "Réservé aux 16 ans et plus."
-- Tripot: the description says the chips are fictional, can't be bought or cashed, involve no real money, and that the owner can turn it off. All true (docs/TRIPOT.md); the app says so on the bet sheet ("Jetons sans valeur, juste pour le jeu.") and on the stats board.
+- Tripot: the description says the chips are fictional, can't be bought or cashed, involve no real money, and that the owner can turn it off. All true; the app says so on the bet sheet ("Jetons sans valeur, juste pour le jeu.") and on the stats board.
 - "Question du monde" is the in-app name (`globalQuestion.label`), not "question mondiale". Its cross-room numbers need 5 rooms that answered that day; with few users the screen says "Pas encore assez de salons". The description doesn't promise numbers.
 - "Plus de 250 questions": the built-in decks have 266 (FR) and 324 (EN) questions; four room vibes (Entre potes, Pimenté 16+, Boulot, Famille, `server/deck/vibes.json`).
 - Google and Discord sign-in only show when their OAuth clients are configured on production (`oauth_google` / `oauth_discord` in `/api/features`). The description promises both: check that production lists both, or drop the one that's off.
 - GIFs only exist with `KLIPY_API_KEY` set on production (`chat_gifs`): same check.
-- Privacy policy: since 2026-11-17 it covers chat photos, GIF search through Klipy, the time-zone offset, the Tripot, the global question, anonymous votes and streaks, in line with docs/PLAY_DATA_SAFETY.md.
+- Privacy policy: since 2026-11-17 it covers chat photos, GIF search through Klipy, the time-zone offset, the Tripot, the global question, anonymous votes and streaks, in line with DATA_SAFETY.md.
 
 ## Content rating (IARC questionnaire)
 
@@ -64,7 +64,7 @@ Filed in the Play Console on 2026-11-17 for v0.39.0 (closed test). These are the
 | Category | **Game** | Listed as a Casual game (above). |
 | Violence, blood, fear / horror | **No** | Text only. Some built-in questions mention prison, zombies or torture as jokes; no depiction. |
 | Suggestive / sexual themes or references | **Yes**: "Suggestive references and innuendo" + "References to sexual activity without descriptive detail" | Default deck: "Qui pourrait coucher avec quelqu'un pour une promotion ?" (FR); Pimenté 16+ (opt-in): "proposition indécente", "strip-poker", "coup d'un soir". No nudity built in; user photos and GIFs are covered by the interaction answers and the terms. |
-| Gambling themes, simulated gambling or real gambling | **Yes**: "Gambling themes" + "Other games that use and reward in-game currency through gameplay". Casino games, bingo, lotteries / racetrack: unticked. Real-money gambling: **No** | Le Tripot: players stake free chips on who wins a question and winners share the pot (docs/TRIPOT.md); the name, the "Tapis" button and the coin shower are gambling themes. Nothing can be bought or cashed out, no prizes; voting on friends is not a casino game. |
+| Gambling themes, simulated gambling or real gambling | **Yes**: "Gambling themes" + "Other games that use and reward in-game currency through gameplay". Casino games, bingo, lotteries / racetrack: unticked. Real-money gambling: **No** | Le Tripot: players stake free chips on who wins a question and winners share the pot; the name, the "Tapis" button and the coin shower are gambling themes. Nothing can be bought or cashed out, no prizes; voting on friends is not a casino game. |
 | Language | **Yes**: "Minor profanities", **Rarely**. Moderate swearing, sexual expletives, discriminatory language: unticked | "connerie" in one built-in question out of hundreds. |
 | Controlled substances | **Yes**: "Reference to alcohol", "Alcohol rarely shown". No drugs, no tobacco | "Qui commande quoi au bar ? Bière / Vin / Cocktail / Soft", "drunk voice note" (EN), the beer icon of a vibe. |
 | Crude humour (bodily functions) | **No** | Nothing about burps, farts or vomit; "Who spends the longest in the bathroom?" doesn't count. |
@@ -119,12 +119,12 @@ Built-in questions worth softening in `server/deck/` (they drive the rating and 
 Still 16+ at v0.39.0, checked:
 
 - Terms and privacy pages (`server/assets/legal/{terms,privacy}{,.en}.html`, version 1 of 16 November 2026): "L'app est réservée aux personnes de 16 ans et plus", confirmed when accepting the terms.
-- In-app age gate: a self-declared checkbox, "J'ai 16 ans ou plus et j'accepte les conditions et la politique de confidentialité" / "I'm 16 or older and I accept the terms and the privacy policy", required on e-mail sign-up, the first-name join / new room screen and the party guest join; Google / Discord sign-ups and older accounts get the same box once in a sheet (`TermsGate`, docs/AUTH.md, "Terms and age"). No birth date anywhere, so nothing can be hidden per age: the Tripot is on for every room unless its owner turns it off.
+- In-app age gate: a self-declared checkbox, "J'ai 16 ans ou plus et j'accepte les conditions et la politique de confidentialité" / "I'm 16 or older and I accept the terms and the privacy policy", required on e-mail sign-up, the first-name join / new room screen and the party guest join; Google / Discord sign-ups and older accounts get the same box once in a sheet (`TermsGate` "Terms and age"). No birth date anywhere, so nothing can be hidden per age: the Tripot is on for every room unless its owner turns it off.
 - Second confirmation for 16+ content: the packs store's "16+" chip and the Pimenté 16+ vibe ask first ("Contenu 16+ : Des questions osées, réservées aux 16 ans et plus." > "J'ai 16 ans ou plus"); 16+ packs never show on public `/p/…` pages.
 
 ## Data safety
 
-The answers live in [docs/PLAY_DATA_SAFETY.md](../../docs/PLAY_DATA_SAFETY.md), re-checked at v0.39.0. Two answers to change in the Console once the 2026-11-17 legal pages are deployed:
+The answers live in [DATA_SAFETY.md](DATA_SAFETY.md), re-checked at v0.39.0. Two answers to change in the Console once the 2026-11-17 legal pages are deployed:
 
 - **"Can users request that some of their data is deleted without deleting their account?"**: filed as **No** (the page only explained full deletion). Switch it to **Yes**: https://qdn.coflop.fr/delete-account now has a "Supprimer seulement certaines données" section listing what users delete themselves in the app (chat messages and photos, reactions, unasked questions, packs, share links, profile photo, friends, pins, devices, linked accounts, 2FA, blocks, an owned room) and contact@coflop.fr for the rest.
 - **In-app search history**: tick **Shared** (Klipy). Klipy's own privacy policy lets it use search terms for ads and service improvement, so it isn't a pure service provider (details in the data safety doc).
@@ -154,7 +154,7 @@ Nobody created anything on production. To do yourself, after v0.39.0 is deployed
 5. **Chat** under two or three results, from the demo accounts: a few messages, one harmless photo (a pizza, a view), one GIF, a few reactions, a mention of Review. Pin one result in History.
 6. **Questions tab**: Léa and Hugo each add a custom question that stays in the queue (something for "Report this question" and drag-to-reorder). Install one public pack: Questions > Packs > a pack > "Installer" / "Add".
 7. **Final state, the day you submit**: a new built-in "Which of us" question is open (not anonymous); Léa, Hugo and Inès have voted on it and Léa and Hugo have bet on it; Review hasn't voted on it, hasn't bet, and hasn't answered today's global question. The reviewer's vote then reveals a result right away. Sign out of `review@` everywhere you used it.
-8. **Before every later submission**, check the room again: a reviewer's vote opens the next question with nobody's votes in, and a question open 24 h closes by itself once half the room voted (late quorum, docs/ROOMS.md), so redo step 7. Make sure the reviewer is still the owner and nothing was deleted.
+8. **Before every later submission**, check the room again: a reviewer's vote opens the next question with nobody's votes in, and a question open 24 h closes by itself once half the room voted (late quorum), so redo step 7. Make sure the reviewer is still the owner and nothing was deleted.
 
 In the Console (App content > App access > Add instructions): name `Reviewer`, username `review@coflop.fr`, password the one you chose, and in "Any other instructions" the text below. The Console's limit for that field isn't documented (we couldn't confirm it); the short version is 480 characters (`wc -m`) and fits a 500 limit. If the field takes more, paste the long version instead.
 
@@ -221,7 +221,7 @@ Done in the repo (checked at v0.39.0, dropped from the list): real launcher icon
 - [x] Content rating questionnaire answered (2026-11-17, answers and ratings above)
 - [ ] Target audience 16-17 and 18+; Advertising ID declared
 - [ ] Countries: decide whether to include Australia and Indonesia (both 18+ because of the Tripot); Brazil came out 12
-- [ ] Data safety form filled from docs/PLAY_DATA_SAFETY.md
+- [ ] Data safety form filled from DATA_SAFETY.md
 - [ ] Reviewer account and demo room created on production (see App access), state checked the day you submit
 - [ ] Upload the AAB to the closed testing track, release notes (FR), roll out
 - [ ] Listing assets uploaded: icon, feature graphic, the new phone screenshots, short and full descriptions

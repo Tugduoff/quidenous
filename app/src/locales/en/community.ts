@@ -1,4 +1,4 @@
-import type { Messages } from '../fr';
+import type { Messages } from '@/locales/fr';
 
 export const community: Messages['community'] = {
   title: 'Suggest',

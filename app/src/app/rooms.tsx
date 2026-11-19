@@ -2,22 +2,21 @@ import { router } from 'expo-router';
 import { BellOff, Check, ChevronRight, Crown, PartyPopper } from 'lucide-react-native';
 import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
-
-import { BackButton } from '@/components/auth-ui';
-import { RoomInvites } from '@/components/invite';
-import { RoomForms } from '@/components/room-forms';
-import { QueryState } from '@/components/query-state';
-import { Screen } from '@/components/screen';
-import { Card, Display, TAG_BG } from '@/components/ui';
-import { type RoomSummary } from '@/lib/api';
-import { pendingJoinCode, setPendingCode, useFeatures } from '@/lib/auth';
+import { RoomInvites } from '@/components/rooms/invite';
+import { RoomForms } from '@/components/rooms/room-forms';
+import { QueryState } from '@/components/ui/query-state';
+import { Screen } from '@/components/ui/screen';
 import { useT } from '@/lib/i18n';
-import { useRooms } from '@/lib/queries';
-import { useSwitchRoom } from '@/lib/rooms';
+import { useSwitchRoom } from '@/lib/hooks/use-switch-room';
 import { useSession } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
+import { Card } from '@/components/ui/card';
+import { Display } from '@/components/ui/text';
+import { BackButton } from '@/components/ui/back-button';
+import { type RoomSummary, useRooms } from '@/lib/api/rooms';
+import { pendingJoinCode, setPendingCode } from '@/lib/auth-flow';
+import { useFeatures } from '@/lib/api/features';
 
-/** All my rooms, to switch between them, plus create one or join one with a code. */
 export default function RoomsScreen() {
   const t = useTheme();
   const tr = useT();
@@ -33,7 +32,6 @@ export default function RoomsScreen() {
     else switchRoom(r.id);
   };
   const current = room ?? rooms?.[0]?.id;
-  // Picking a new room's vibe: only that on screen.
   const [creating, setCreating] = useState(false);
 
   return (
@@ -70,7 +68,7 @@ export default function RoomsScreen() {
                 <Text numberOfLines={1} style={{ fontFamily: t.font.regular, fontSize: 13, color: t.mut }}>
                   {party ? `${tr(r.over ? 'party.over' : 'party.live')} · ` : ''}
                   {tr('common.members', { count: r.members })}
-                  {waiting ? ` · ${tr('room.list.toVote', { number: r.open_number! })}` : ''}
+                  {waiting && r.open_number != null ? ` · ${tr('room.list.toVote', { number: r.open_number })}` : ''}
                 </Text>
               </View>
               {r.unread > 0 && (
@@ -80,11 +78,11 @@ export default function RoomsScreen() {
                     height: 22,
                     paddingHorizontal: 6,
                     borderRadius: 11,
-                    backgroundColor: TAG_BG,
+                    backgroundColor: t.tagFill,
                     alignItems: 'center',
                     justifyContent: 'center',
                   }}>
-                  <Text style={{ fontFamily: t.font.bold, fontSize: 11, color: '#fff' }}>{r.unread > 9 ? '9+' : r.unread}</Text>
+                  <Text style={{ fontFamily: t.font.bold, fontSize: 11, color: t.onStrong }}>{r.unread > 9 ? '9+' : r.unread}</Text>
                 </View>
               )}
               {on ? <Check size={20} color={t.accInk} /> : <ChevronRight size={20} color={t.mut} />}

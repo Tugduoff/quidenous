@@ -44,14 +44,14 @@ import {
   Users,
   VolumeX,
   Zap,
+  type LucideProps,
 } from 'lucide-react-native';
-import type { ReactNode } from 'react';
+import { createElement, type ReactNode } from 'react';
 import { Text, View } from 'react-native';
 
 import { formatNumber, t, type TKey } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 
-/** "45 s", "12 min", "3 h 20", "2 j 4 h" (in the current language). */
 export function duration(seconds: number) {
   const s = Math.max(0, Math.round(seconds));
   if (s < 60) return t('stats.duration.seconds', { count: s });
@@ -66,18 +66,14 @@ export function duration(seconds: number) {
   return h % 24 ? t('stats.duration.daysHours', { d, h: h % 24 }) : t('stats.duration.days', { d });
 }
 
-/** One decimal at most, in the current language: 2.3 → "2,3" / "2.3". */
 export const dec = (n: number) => formatNumber(Math.round(n * 10) / 10);
 
-/** Thousands separated the local way ("1 234" / "1,234"). */
 export const int = (n: number) => formatNumber(Math.round(n));
 
 export const pct = (value: number, total: number | undefined) => t('stats.percent', { n: total ? Math.round((value / total) * 100) : 0 });
 
-/** An average place: "2,3e" / "#2.3". */
 export const place = (n: number) => t('stats.place', { n: dec(n) });
 
-/** The server names icons in lucide's kebab-case; one this version doesn't know gets sparkles. */
 const ICONS: Record<string, LucideIcon> = {
   star: Star,
   crown: Crown,
@@ -106,7 +102,6 @@ const ICONS: Record<string, LucideIcon> = {
   turtle: Turtle,
   split: Split,
   handshake: Handshake,
-  // Badges and Wrapped cards.
   landmark: Landmark,
   fingerprint: Fingerprint,
   target: Target,
@@ -127,7 +122,8 @@ const ICONS: Record<string, LucideIcon> = {
 
 export const iconFor = (name: string | undefined): LucideIcon => (name && ICONS[name]) || Sparkles;
 
-/** Every award key with its icon (docs/STATS.md); titles are `stats.award.<key>`. */
+export const NamedIcon = ({ name, ...props }: LucideProps & { name: string | undefined }) => createElement(iconFor(name), props);
+
 export const AWARD_ICONS: Record<string, string> = {
   most_chosen: 'star',
   most_crowned: 'crown',
@@ -159,10 +155,8 @@ export const AWARD_ICONS: Record<string, string> = {
   hottest: 'flame',
 };
 
-/** An award's title in the current language. */
 export const awardTitle = (key: string) => t(`stats.award.${key}` as TKey);
 
-/** A small-caps label: section headers, card titles. */
 export function Caps({ children, color, size = 12, lines = 1 }: { children: ReactNode; color?: string; size?: number; lines?: number }) {
   const t = useTheme();
   return (
@@ -174,7 +168,6 @@ export function Caps({ children, color, size = 12, lines = 1 }: { children: Reac
   );
 }
 
-/** A titled block of the stats page. */
 export function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <View style={{ gap: 12 }}>

@@ -1,16 +1,11 @@
-/** The global question of the day (docs/GLOBAL_QUESTION.md): the same deck question in every room, anonymous aggregates. */
 export const globalQuestion = {
-  /** Small label over the question (home card, screen). */
   label: 'Question du monde',
-  /** Home card, once I answered. */
   voted: 'Tu as répondu',
-  /** Under the question, before voting. */
   forRoom: 'Le même jour, la même question dans tous les salons. Un seul vote, définitif.',
   answered: { one: '{count} a répondu dans le salon', other: '{count} ont répondu dans le salon' },
   myRoom: 'Dans ton salon',
   roomVoters: '{voters}/{members} ont répondu',
   everywhere: 'Tous les salons',
-  /** Fewer than `min_rooms` rooms answered: no aggregates yet. */
   notEnough: 'Pas encore assez de salons',
   roomsSoFar: { one: '{count} salon sur {min} a répondu', other: '{count} salons sur {min} ont répondu' },
   rooms: { one: '{count} salon', other: '{count} salons' },

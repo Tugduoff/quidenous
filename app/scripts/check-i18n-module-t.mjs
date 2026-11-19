@@ -1,18 +1,10 @@
 #!/usr/bin/env node
-// Fails when a translation is computed at module load in app/src (docs/I18N.md): a constant made with `t(...)`
-// when a file is imported stays in the first language after a switch.
-// Flags calls to `t`, `dateFormat`, `formatNumber`, `intlLocale` and `getLang` imported from lib/i18n (whatever their
-// local name) that run at load: at the top level, in a static class field or block, in a function called right away
-// (IIFE) or passed to an array method or Object.fromEntries there. A call inside any other function is fine.
-//
-// Usage: node scripts/check-i18n-module-t.mjs [dir ...]   (default: src, from app/)
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 
 import ts from 'typescript';
 
 const WATCHED = new Set(['t', 'dateFormat', 'formatNumber', 'intlLocale', 'getLang']);
-// Callbacks these run on the spot (at load when called at the top level).
 const EAGER = new Set([
   'map',
   'flatMap',
@@ -42,11 +34,9 @@ function files(dir) {
   return out;
 }
 
-/** Local names bound to the watched exports of lib/i18n (`import { t as tr }` → `tr`), and namespace imports. */
 function bindings(sf, self) {
   const names = new Map();
   const spaces = new Set();
-  // lib/i18n itself: its own top-level functions.
   if (self) for (const w of WATCHED) names.set(w, w);
   for (const st of sf.statements) {
     if (!ts.isImportDeclaration(st) || !ts.isStringLiteral(st.moduleSpecifier) || !isI18n(st.moduleSpecifier.text)) continue;
@@ -71,7 +61,6 @@ const isFunction = (n) =>
   ts.isGetAccessorDeclaration(n) ||
   ts.isSetAccessorDeclaration(n);
 
-/** A function that runs as soon as the code around it does: `(() => …)()`, `list.map((x) => …)`. */
 function runsAtOnce(fn) {
   let p = fn.parent;
   while (p && ts.isParenthesizedExpression(p)) p = p.parent;
@@ -82,14 +71,12 @@ function runsAtOnce(fn) {
   return ts.isPropertyAccessExpression(callee) && EAGER.has(callee.name.text);
 }
 
-/** Whether `node` runs when the module is loaded. */
 function atLoad(node) {
   for (let n = node.parent; n; n = n.parent) {
     if (isFunction(n)) {
       if (!runsAtOnce(n)) return false;
       continue;
     }
-    // Instance fields run per instance; static ones and static blocks at load.
     if (ts.isPropertyDeclaration(n) && !n.modifiers?.some((m) => m.kind === ts.SyntaxKind.StaticKeyword)) return false;
   }
   return true;

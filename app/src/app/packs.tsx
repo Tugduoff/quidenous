@@ -4,21 +4,21 @@ import { Flame, Library, Plus, Search, ShieldCheck, X } from 'lucide-react-nativ
 import { useState } from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import Animated from 'react-native-reanimated';
-
-import { Chip, IconButton, PackCard, PageHeader } from '@/components/pack-card';
-import { QueryState } from '@/components/query-state';
-import { Screen } from '@/components/screen';
-import { askConfirm, Card, Display } from '@/components/ui';
-import { api } from '@/lib/api';
+import { Chip, IconButton, PackCard, PageHeader } from '@/components/packs/pack-card';
+import { QueryState } from '@/components/ui/query-state';
+import { Screen } from '@/components/ui/screen';
 import { useT } from '@/lib/i18n';
 import { motion } from '@/lib/motion';
-import { type CommunityMe, PACK_TAGS, type PackSort, type PackTag, packKeys, TAG_ICONS, useCommunityMe, usePackList } from '@/lib/packs';
-import { useGroup } from '@/lib/queries';
+import { type CommunityMe, PACK_TAGS, type PackSort, type PackTag, packKeys, useCommunityMe, usePackList, setShowSpicy } from '@/lib/api/packs';
 import { useTheme } from '@/lib/theme';
+import { Card } from '@/components/ui/card';
+import { Display } from '@/components/ui/text';
+import { askConfirm } from '@/lib/confirm';
+import { useGroup } from '@/lib/api/group';
+import { TAG_ICONS } from '@/components/packs/tag-icons';
 
 const SORTS: PackSort[] = ['trending', 'new', 'liked', 'featured'];
 
-/** Community packs: sort, filter by category, search; my packs, publish, moderation (admins). */
 export default function PacksScreen() {
   const t = useTheme();
   const tr = useT();
@@ -33,17 +33,15 @@ export default function PacksScreen() {
   const roomSpicy = group?.settings.vibe === 'pimente';
   const spicyOn = roomSpicy || !!me?.show_spicy;
   const spicy = useMutation({
-    mutationFn: (show_spicy: boolean) => api<CommunityMe>('/community/me', { method: 'PUT', json: { show_spicy } }),
+    mutationFn: (show_spicy: boolean) => setShowSpicy(show_spicy),
     onMutate: (show_spicy) => {
       qc.setQueryData<CommunityMe>(packKeys.me, (m) => m && { ...m, show_spicy });
       if (!show_spicy && tag === 'pimente') setTag(null);
     },
     onSuccess: (m) => qc.setQueryData(packKeys.me, m),
     onError: () => qc.invalidateQueries({ queryKey: packKeys.me }),
-    onSettled: () => qc.invalidateQueries({ queryKey: ['packs', 'list'] }),
+    onSettled: () => qc.invalidateQueries({ queryKey: packKeys.lists }),
   });
-  // The Pimenté category only lists something once 16+ packs are shown.
-  // Turning 16+ on asks for the age once more (Play: mature content behind an age confirmation).
   const toggleSpicy = async (on: boolean) => {
     if (on && !(await askConfirm(tr('packs.spicyAge.title'), tr('packs.spicyAge.message'), tr('packs.spicyAge.action'), 'acc'))) return;
     spicy.mutate(on);
@@ -102,7 +100,6 @@ export default function PacksScreen() {
   );
 }
 
-/** Trending / new / most liked / featured, as equal pills in one track. */
 function SortTabs({ value, onChange }: { value: PackSort; onChange: (s: PackSort) => void }) {
   const t = useTheme();
   const tr = useT();

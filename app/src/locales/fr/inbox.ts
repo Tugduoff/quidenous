@@ -1,9 +1,7 @@
 export const inbox = {
   title: 'Activité',
   empty: 'Rien de neuf.',
-  /** `{name}` is who mentioned me. */
   mentioned: "{name} t'a mentionné",
-  /** The line above each item, by kind (the text below it comes from the server). */
   kinds: {
     message: 'Nouveau message',
     mention: 'Mention',

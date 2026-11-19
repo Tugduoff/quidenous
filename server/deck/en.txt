@@ -333,7 +333,7 @@ Who would adopt a dog on a whim and figure it out later?
 [choose] [potes] [famille] [boulot] Who listens to what in the car? | Rap | Pop | Podcast | Silence
 [choose] [potes] Who ends the night how? | Late-night kebab | Straight to bed | Afterparty | In tears
 [choose] [potes] [famille] Who would win what at the Olympics? | Sprint | Swimming | Chess | Nothing at all
-# "Who said that?" (docs/SAID.md): everyone writes an answer, then guesses who wrote what.
+# "Who said that?": everyone writes an answer, then guesses who wrote what.
 [said] [potes] [famille] The worst gift you ever got?
 [said] [potes] [famille] [boulot] Your go-to lazy dinner after a long day?
 [said] [potes] [famille] Your most controversial food opinion?

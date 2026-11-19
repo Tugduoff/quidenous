@@ -1,5 +1,3 @@
-//! Where am I signed in: list, revoke one, revoke the others, sign out.
-
 use axum::{
     Json,
     extract::{Path, State},
@@ -9,15 +7,17 @@ use serde_json::{Value, json};
 use super::{Session, not_claimed, revoke_sessions};
 use crate::{
     AppState,
-    error::{AppError, AppResult},
+    platform::error::{AppError, AppResult},
 };
 
-/// A session's public id: the first 16 hex characters of its token hash.
 fn public_id(hash: &str) -> &str {
     &hash[..hash.len().min(16)]
 }
 
-pub async fn list(State(state): State<AppState>, session: Session) -> AppResult<Json<Value>> {
+pub(crate) async fn list(
+    State(state): State<AppState>,
+    session: Session,
+) -> AppResult<Json<Value>> {
     let rows: Vec<(String, Option<String>, String, Option<String>)> = sqlx::query_as(
         "SELECT token_hash, device, created_at, last_used_at FROM user_tokens WHERE user_id = ? \
          ORDER BY COALESCE(last_used_at, created_at) DESC",
@@ -40,7 +40,7 @@ pub async fn list(State(state): State<AppState>, session: Session) -> AppResult<
     Ok(Json(json!(list)))
 }
 
-pub async fn revoke(
+pub(crate) async fn revoke(
     State(state): State<AppState>,
     session: Session,
     Path(id): Path<String>,
@@ -49,7 +49,6 @@ pub async fn revoke(
         return Err(AppError::NotFound);
     }
     let id = id.to_lowercase();
-    // Signing this device out is always fine; another one, not from a claimed session.
     if public_id(&session.token_hash) != id {
         not_claimed(&state, session.user_id, &session.token_hash).await?;
     }
@@ -65,7 +64,7 @@ pub async fn revoke(
     Ok(Json(json!({ "ok": true })))
 }
 
-pub async fn revoke_others(
+pub(crate) async fn revoke_others(
     State(state): State<AppState>,
     session: Session,
 ) -> AppResult<Json<Value>> {
@@ -74,7 +73,10 @@ pub async fn revoke_others(
     Ok(Json(json!({ "revoked": revoked })))
 }
 
-pub async fn logout(State(state): State<AppState>, session: Session) -> AppResult<Json<Value>> {
+pub(crate) async fn logout(
+    State(state): State<AppState>,
+    session: Session,
+) -> AppResult<Json<Value>> {
     sqlx::query("DELETE FROM user_tokens WHERE token_hash = ?")
         .bind(&session.token_hash)
         .execute(&state.db)

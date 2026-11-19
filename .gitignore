@@ -8,15 +8,6 @@ dist/
 *.db-*
 .env
 .DS_Store
-mockups/*
-!mockups/mock3.html
-!mockups/v3/
-!mockups/icons/
-!mockups/fonts/
-mockups/fonts/*
-!mockups/fonts/Inter_wght_*.ttf
-!mockups/fonts/Bricolage_Grotesque_wght_800.ttf
-# deploy/deploy.sh and deploy/backup.sh state and settings on the server
 deploy/.deployed
 deploy/.ci-red
 deploy/.deploy.lock

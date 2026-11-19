@@ -2,33 +2,25 @@ import { useQueryClient } from '@tanstack/react-query';
 import { BadgeCheck, KeyRound, Mail } from 'lucide-react-native';
 import { useRef, useState } from 'react';
 import { View } from 'react-native';
-
-import {
-  CODE_LENGTH,
-  CodeField,
-  ErrorText,
-  Field,
-  type InputRef,
-  PasswordField,
-  Pill,
-  Row,
-  Section,
-  TextLink,
-  useCooldown,
-} from '@/components/auth-ui';
 import { withReauth } from '@/components/security/reauth';
-import { Toggle } from '@/components/ui';
-import { ApiError } from '@/lib/api';
-import { accountKey, auth, authError, looksLikeEmail, PASSWORD_MIN, useFeatures, type Account } from '@/lib/auth';
+import { ApiError } from '@/lib/api/client';
+import { authKeys, auth, type Account } from '@/lib/api/auth';
 import { useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
+import { Toggle } from '@/components/ui/toggle';
+import { CODE_LENGTH, CodeField, Field, type InputRef, PasswordField } from '@/components/ui/field';
+import { ErrorText, TextLink } from '@/components/ui/text';
+import { Pill } from '@/components/ui/pill';
+import { Row, Section } from '@/components/ui/section';
+import { useCooldown } from '@/lib/hooks/use-cooldown';
+import { looksLikeEmail, PASSWORD_MIN } from '@/lib/utils/credentials';
+import { authError } from '@/lib/api/errors';
+import { useFeatures } from '@/lib/api/features';
 
-/** Email (+ its code) and password; a legacy account adds both here. */
 export function SignInSection({ account }: { account: Account }) {
   const tr = useT();
   const qc = useQueryClient();
-  const refresh = () => qc.invalidateQueries({ queryKey: accountKey });
-  // The code field opens by itself when the server just emailed one (or tried to: then it says so).
+  const refresh = () => qc.invalidateQueries({ queryKey: authKeys.account });
   const [entering, setEntering] = useState(false);
   const [mailFailed, setMailFailed] = useState(false);
   return (
@@ -66,7 +58,6 @@ function Credentials({ account, onDone }: { account: Account; onDone: (codeSent:
     setBusy(true);
     setError(null);
     try {
-      // An account signed in with a provider that gave no e-mail proves it is me first.
       const r = await withReauth(account, () => auth.credentials(email.trim().toLowerCase(), password));
       if (r === null) return;
       onDone(!!r?.email_sent, !!r?.email_failed);
@@ -171,7 +162,6 @@ function EmailRow({
   };
 
   const verified = account.email_verified;
-  // A typo or a new address: a code to the new one first (older servers can't).
   const canChange = features.email && features.accountRecovery;
   if (changing)
     return (
@@ -191,7 +181,7 @@ function EmailRow({
     <>
       <Row
         icon={verified ? <BadgeCheck size={20} color={t.accInk} /> : <Mail size={20} color={t.mut} />}
-        title={account.email!}
+        title={account.email ?? ''}
         sub={verified ? tr('security.signIn.verified') : tr('security.signIn.notVerified')}
         right={
           !entering && (
@@ -224,7 +214,6 @@ function EmailRow({
   );
 }
 
-/** New address → a code sent to it → confirmed: it replaces the old one (which gets a notice). */
 function ChangeEmail({ account, onClose }: { account: Account; onClose: (changed: boolean) => void }) {
   const t = useTheme();
   const tr = useT();
@@ -253,7 +242,6 @@ function ChangeEmail({ account, onClose }: { account: Account; onClose: (changed
   const send = () =>
     ok &&
     run(async () => {
-      // The address that resets the password: proof that it is me first.
       const r = await withReauth(account, () => auth.changeEmail(value));
       if (!r) return;
       setSentTo(value);
@@ -269,7 +257,7 @@ function ChangeEmail({ account, onClose }: { account: Account; onClose: (changed
 
   return (
     <>
-      <Row icon={<Mail size={20} color={t.accInk} />} title={tr('security.signIn.newEmail')} sub={sentTo ? tr('auth.codeSentTo', { email: sentTo }) : account.email!} />
+      <Row icon={<Mail size={20} color={t.accInk} />} title={tr('security.signIn.newEmail')} sub={sentTo ? tr('auth.codeSentTo', { email: sentTo }) : account.email ?? ''} />
       {sentTo ? (
         <>
           <CodeField inset value={code} onChange={setCode} onDone={confirm} />
@@ -337,7 +325,6 @@ function PasswordRow({ account, refresh }: { account: Account; refresh: () => vo
     setBusy(true);
     setError(null);
     try {
-      // A first password (no current one to type) needs proof that it is me first.
       const r = await withReauth(account, () => auth.password({ ...(has && { current }), password, revoke_others: revoke }));
       if (!r) return;
       close();

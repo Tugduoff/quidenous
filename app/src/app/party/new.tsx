@@ -1,21 +1,22 @@
 import { useMutation } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { PartyPopper } from 'lucide-react-native';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Text, TextInput, View } from 'react-native';
-
-import { BackButton, ErrorText } from '@/components/auth-ui';
-import { Screen } from '@/components/screen';
-import { Button, Card, Display, Segmented } from '@/components/ui';
-import { VibeCards } from '@/components/vibes';
-import { useFeatures } from '@/lib/auth';
+import { Screen } from '@/components/ui/screen';
+import { VibeCards } from '@/components/rooms/vibes';
 import { getLang, useT } from '@/lib/i18n';
-import { HOURS, partyApi, partyError, TIMERS } from '@/lib/party';
-import { useVibes } from '@/lib/queries';
-import { useSwitchRoom } from '@/lib/rooms';
+import { HOURS, partyApi, partyError, TIMERS } from '@/lib/api/party';
+import { useSwitchRoom } from '@/lib/hooks/use-switch-room';
 import { useTheme } from '@/lib/theme';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Display, ErrorText } from '@/components/ui/text';
+import { Segmented } from '@/components/ui/segmented';
+import { BackButton } from '@/components/ui/back-button';
+import { useVibes } from '@/lib/api/group';
+import { useFeatures } from '@/lib/api/features';
 
-/** `/party/new`: name (optional), vibe, how long the party lasts and the time per question. Then its lobby. */
 export default function NewParty() {
   const t = useTheme();
   const tr = useT();
@@ -23,14 +24,11 @@ export default function NewParty() {
   const { data: vibes } = useVibes(features.vibes);
   const switchRoom = useSwitchRoom();
   const [name, setName] = useState('');
-  const [vibe, setVibe] = useState<string | null>(null);
+  const [picked, setVibe] = useState<string | null>(null);
   const [hours, setHours] = useState('4');
   const [timer, setTimer] = useState('30');
   const [error, setError] = useState<string | null>(null);
-  // The usual tone until another one is picked.
-  useEffect(() => {
-    if (vibes?.length && vibe == null) setVibe(vibes.find((v) => v.id === 'potes')?.id ?? vibes[0].id);
-  }, [vibes, vibe]);
+  const vibe = picked ?? (vibes?.length ? (vibes.find((v) => v.id === 'potes')?.id ?? vibes[0].id) : null);
 
   const create = useMutation({
     meta: { quiet: true },

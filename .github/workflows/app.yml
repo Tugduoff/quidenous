@@ -1,6 +1,4 @@
 name: app
-# Type-checks the app (also catches a French string missing in English, docs/I18N.md) and looks for text translated at module load. A required check on main:
-# it reports on every PR, and only does the work when the PR touches the app (`changes`).
 on:
   pull_request:
   push:
@@ -12,13 +10,10 @@ concurrency:
   group: app-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
 jobs:
-  # PRs only: does this PR touch the app? Pushes and tags skip it (always a full check), and an empty answer means
-  # "check": only an explicit 'false' lets `app` stand down.
   changes:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     permissions:
-      # The PR's changed files come from the API (no checkout).
       pull-requests: read
     outputs:
       app: ${{ steps.filter.outputs.app }}
@@ -29,28 +24,25 @@ jobs:
           filters: |
             app:
               - "app/**"
+              - "scripts/**"
+              - "check"
               - ".github/workflows/app.yml"
-              # the mascot parts check also covers the server copy
-              - "server/assets/mascot.json"
+              - "server/assets/**"
   app:
     needs: changes
-    # Always runs (`!cancelled()`: also when `changes` was skipped or failed), and a PR that doesn't touch the app
-    # only skips the steps: the required check reports a success on any PR, never a skip (see server.yml's `check`).
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: app
     steps:
-      - name: Nothing to check
+      - name: Nothing to check (this required job reports success, it is never skipped)
         if: needs.changes.outputs.app == 'false'
-        # No checkout on this path, so not in app/.
         working-directory: ${{ runner.temp }}
-        run: 'echo "::notice::No change under app/ or this workflow: nothing to check."'
+        run: 'echo "::notice::No change that the app checks depend on: nothing to check."'
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: needs.changes.outputs.app != 'false'
         with:
-          # Tag builds compare app.json with the previous tag.
           fetch-depth: ${{ startsWith(github.ref, 'refs/tags/') && '0' || '1' }}
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         if: needs.changes.outputs.app != 'false'
@@ -60,17 +52,8 @@ jobs:
           cache-dependency-path: app/package-lock.json
       - run: npm ci --no-audit --no-fund --ignore-scripts
         if: needs.changes.outputs.app != 'false'
-      - run: npx tsc --noEmit
+      - run: ../check app
         if: needs.changes.outputs.app != 'false'
-      # The mascots' parts JSON (app and server copies) is generated: it must match scripts/mascot-parts.mjs.
-      - name: Mascot parts up to date
-        if: needs.changes.outputs.app != 'false'
-        run: node scripts/mascot-parts.mjs --check
-      # A t() (or date/number format) computed when a module loads stays in the first language (docs/I18N.md).
-      - name: No translation at module load
-        if: needs.changes.outputs.app != 'false'
-        run: node scripts/check-i18n-module-t.mjs
-      # On a tag this job gates the OTA update: android.yml's `gate` waits for it (and server.yml's `check`) to be green.
       - name: Version matches the tag, versionCode goes up
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
