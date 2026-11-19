@@ -1,5 +1,5 @@
 use crate::common::{call_last_room as call, join, setup};
-use quidenous_server::platform::ids::RoomId;
+use quidenous_server::platform::{db::write_tx, ids::RoomId};
 
 use std::collections::{HashMap, HashSet};
 
@@ -638,7 +638,7 @@ async fn bench_stats_on_a_big_room() {
         .fetch_one(&st.db)
         .await
         .unwrap();
-    let mut tx = st.db.begin().await.unwrap();
+    let mut tx = write_tx(&st.db).await.unwrap();
     let start = now_unix() - 200 * 86_400;
     let mut seed: u64 = 42;
     let mut rnd = |n: usize| {

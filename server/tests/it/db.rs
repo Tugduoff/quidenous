@@ -472,3 +472,48 @@ async fn the_inbox_is_pruned_by_age_and_per_seat() {
         0
     );
 }
+
+const LOCK_HELD_FOR: std::time::Duration = std::time::Duration::from_millis(300);
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_round_opens_while_another_writer_holds_the_lock() {
+    let (app, state) = setup().await;
+    let (ana, _) = join(&app, "Ana").await;
+    join(&app, "Bob").await;
+    let room = room_id(&app, &ana).await;
+    sqlx::query(
+        "UPDATE rounds SET closed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE group_id = ?",
+    )
+    .bind(room)
+    .execute(&state.db)
+    .await
+    .unwrap();
+
+    let mut holder = write_tx(&state.db).await.unwrap();
+    sqlx::query("UPDATE groups SET name = name WHERE id = ?")
+        .bind(room)
+        .execute(&mut *holder)
+        .await
+        .unwrap();
+    let db = state.db.clone();
+    let opener = tokio::spawn(async move {
+        let mut tx = write_tx(&db).await.unwrap();
+        let opened =
+            quidenous_server::rounds::game::ensure_open_round(&mut tx, RoomId::from_raw(room))
+                .await
+                .unwrap();
+        tx.commit().await.unwrap();
+        opened
+    });
+    tokio::time::sleep(LOCK_HELD_FOR).await;
+    holder.commit().await.unwrap();
+
+    let opened = opener.await.unwrap().expect("a round opened");
+    let (still_open,): (i64,) =
+        sqlx::query_as("SELECT id FROM rounds WHERE group_id = ? AND closed_at IS NULL")
+            .bind(room)
+            .fetch_one(&state.db)
+            .await
+            .unwrap();
+    assert_eq!(still_open, opened.raw());
+}

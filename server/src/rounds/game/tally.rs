@@ -54,7 +54,7 @@ pub(crate) async fn view(db: &SqlitePool, round: RoundRow, me: MemberId) -> AppR
             .bind(me)
             .fetch_optional(db)
             .await?;
-    let mut tx = db.begin().await?;
+    let mut tx = crate::platform::db::read_tx(db).await?;
     let active = active_count(&mut tx, round.group_id).await?;
     let (skips, skipped_ids, away_ids) = if round.closed_at.is_none() {
         let rows: Vec<(MemberId, i64, bool)> = sqlx::query_as(

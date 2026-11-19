@@ -1,6 +1,9 @@
 use crate::common::{call, join, room_id, setup};
 use axum::{Router, http::StatusCode};
-use quidenous_server::platform::ids::{MemberId, RoundId};
+use quidenous_server::platform::{
+    db::write_tx,
+    ids::{MemberId, RoundId},
+};
 use quidenous_server::{AppState, rounds::tripot};
 use serde_json::{Value, json};
 
@@ -395,7 +398,7 @@ async fn winners_share_the_pot() {
     );
 
     let rows = room.ledger_rows().await;
-    let mut tx = room.state.db.begin().await.unwrap();
+    let mut tx = write_tx(&room.state.db).await.unwrap();
     tripot::settle(&mut tx, RoundId::from_raw(r)).await.unwrap();
     tx.commit().await.unwrap();
     assert_eq!(room.ledger_rows().await, rows);
