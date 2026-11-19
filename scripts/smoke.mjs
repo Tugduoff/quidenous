@@ -230,6 +230,16 @@ async function run() {
       const landed = new URL(page.url()).pathname;
       if (landed !== route) problem(`the app left this screen for ${landed}`);
     }
+
+    step = 'room theme';
+    await page.goto(`${server.url}/room-settings`);
+    const saved = page.waitForResponse((res) => res.request().method() === 'PATCH' && /\/api\/rooms\/\d+$/.test(res.url()));
+    await onScreen(page.getByRole('radio', { name: /^Thème Piscine,/ })).click();
+    if (!(await saved).ok()) problem('the room theme was not saved');
+    await shot('06-room-theme');
+    await page.goto(server.url);
+    await see('67%');
+    await shot('07-themed-vote');
   } finally {
     await browser.close();
     await server.stop();
