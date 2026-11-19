@@ -10,8 +10,14 @@ pub static MIGRATOR: Migrator = sqlx::migrate!("./migrations");
 
 const BACKUPS_KEPT: usize = 3;
 
+#[expect(clippy::disallowed_methods)]
 pub async fn write_tx(db: &SqlitePool) -> sqlx::Result<Transaction<'static, Sqlite>> {
     db.begin_with("BEGIN IMMEDIATE").await
+}
+
+#[expect(clippy::disallowed_methods)]
+pub async fn read_tx(db: &SqlitePool) -> sqlx::Result<Transaction<'static, Sqlite>> {
+    db.begin_with("BEGIN DEFERRED").await
 }
 
 pub(crate) async fn connect(url: &str) -> crate::StartupResult<SqlitePool> {

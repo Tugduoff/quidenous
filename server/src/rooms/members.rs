@@ -308,7 +308,7 @@ async fn room_allows(state: &AppState, group_id: RoomId, setting: &str) -> AppRe
 }
 
 async fn enough_for_votes(state: &AppState, group_id: RoomId) -> AppResult<()> {
-    let mut tx = state.db.begin().await?;
+    let mut tx = crate::platform::db::read_tx(&state.db).await?;
     let active = game::active_count(&mut tx, group_id).await?;
     tx.commit().await?;
     if game::votes_possible(active) {
